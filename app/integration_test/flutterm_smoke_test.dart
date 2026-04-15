@@ -165,7 +165,7 @@ void main() {
     expect(find.text('Paste'), findsOneWidget);
   });
 
-  testWidgets('closing the last tab returns to the empty state prompt', (
+  testWidgets('closing the last tab can recover from the empty state via New Tab', (
     WidgetTester tester,
   ) async {
     await _pumpSmokeApp(
@@ -192,5 +192,15 @@ void main() {
     expect(find.text('Paste'), findsNothing);
     expect(find.text('New Tab'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Local Shell'), findsOneWidget);
+
+    await tester.tap(find.text('New Tab'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(InputChip), findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'Local Shell'), findsOneWidget);
+    expect(_isTabSelected(tester, 'Local Shell'), isTrue);
+    expect(find.text('Create a shell to get started'), findsNothing);
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Paste'), findsOneWidget);
   });
 }
