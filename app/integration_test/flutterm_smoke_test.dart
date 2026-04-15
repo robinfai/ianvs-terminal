@@ -65,6 +65,57 @@ void main() {
     expect(find.text('Local Shell'), findsWidgets);
   });
 
+  testWidgets('closing an inactive tab keeps the active tab focused', (
+    WidgetTester tester,
+  ) async {
+    final primaryProfile = defaultTerminalProfile().copyWith(name: 'Shell A');
+    final secondaryProfile = defaultTerminalProfile().copyWith(
+      id: 'shell-b',
+      name: 'Shell B',
+    );
+    final tertiaryProfile = defaultTerminalProfile().copyWith(
+      id: 'shell-c',
+      name: 'Shell C',
+    );
+
+    await _pumpSmokeApp(
+      tester,
+      profiles: TerminalProfilesDocument(
+        defaultProfileId: primaryProfile.id,
+        profiles: [primaryProfile, secondaryProfile, tertiaryProfile],
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(ListTile, 'Shell B'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Shell C'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(InputChip), findsNWidgets(3));
+    expect(_isTabSelected(tester, 'Shell C'), isTrue);
+
+    await tester.tap(find.widgetWithText(InputChip, 'Shell B'));
+    await tester.pumpAndSettle();
+
+    expect(_isTabSelected(tester, 'Shell A'), isFalse);
+    expect(_isTabSelected(tester, 'Shell B'), isTrue);
+    expect(_isTabSelected(tester, 'Shell C'), isFalse);
+
+    tester
+        .widget<InputChip>(find.widgetWithText(InputChip, 'Shell A'))
+        .onDeleted!();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(InputChip), findsNWidgets(2));
+    expect(find.widgetWithText(InputChip, 'Shell A'), findsNothing);
+    expect(find.widgetWithText(InputChip, 'Shell B'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'Shell C'), findsOneWidget);
+    expect(_isTabSelected(tester, 'Shell B'), isTrue);
+    expect(_isTabSelected(tester, 'Shell C'), isFalse);
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Paste'), findsOneWidget);
+  });
+
   testWidgets('closing the active tab focuses the remaining tab', (
     WidgetTester tester,
   ) async {
