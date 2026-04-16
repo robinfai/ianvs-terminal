@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -237,6 +238,38 @@ void main() {
 
       expect(copiedText, 'alpha\nbeta\ng');
       expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'shell screen forwards scroll wheel deltas to the active session',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: repository,
+      );
+
+      final viewport = find.byType(TerminalViewport);
+      expect(viewport, findsOneWidget);
+      expect(fakeBindings.scrollCalls, isEmpty);
+
+      final center = tester.getCenter(viewport);
+      await tester.sendEventToBinding(
+        PointerScrollEvent(position: center, scrollDelta: const Offset(0, -40)),
+      );
+      await tester.pump();
+
+      expect(fakeBindings.scrollCalls, isNotEmpty);
+      expect(fakeBindings.scrollCalls.single[1], isNot(0));
     },
   );
 }

@@ -12,6 +12,7 @@ class FakeCoreBindings implements CoreBindings {
   final Map<int, List<Map<String, Object?>>> _events = {};
   final List<Uint8List> writes = [];
   final List<List<int>> resizeCalls = [];
+  final List<List<int>> scrollCalls = [];
   bool pingCalled = false;
 
   void setFrame(int sessionId, Map<String, Object?> frame) {
@@ -94,7 +95,10 @@ class FakeCoreBindings implements CoreBindings {
   }
 
   @override
-  int sessionScroll(int sessionId, int deltaLines) => 0;
+  int sessionScroll(int sessionId, int deltaLines) {
+    scrollCalls.add([sessionId, deltaLines]);
+    return 0;
+  }
 
   @override
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) {
