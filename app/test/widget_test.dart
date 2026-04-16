@@ -685,6 +685,94 @@ void main() {
   );
 
   testWidgets(
+    'shell screen repaints visible rows after layout resize frame updates',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      await tester.binding.setSurfaceSize(const Size(900, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: repository,
+      );
+
+      final container = tester
+          .widget<UncontrolledProviderScope>(
+            find.byType(UncontrolledProviderScope).first,
+          )
+          .container;
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      fakeBindings.setFrame(int.parse(sessionId), {
+        'rows': const [
+          {'index': 0, 'text': 'before resize 1', 'style_runs': []},
+          {'index': 1, 'text': 'before resize 2', 'style_runs': []},
+        ],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .single;
+      expect(
+        renderObject.debugLastPaintedRowTexts,
+        equals(['before resize 1', 'before resize 2']),
+      );
+
+      final initialResizeCallCount = fakeBindings.resizeCalls.length;
+
+      await tester.binding.setSurfaceSize(const Size(1100, 760));
+      await tester.pump();
+
+      fakeBindings.setFrame(int.parse(sessionId), {
+        'rows': const [
+          {'index': 0, 'text': 'after resize 1', 'style_runs': []},
+          {'index': 1, 'text': 'after resize 2', 'style_runs': []},
+          {'index': 2, 'text': 'after resize 3', 'style_runs': []},
+        ],
+        'cursor': const {'row': 1, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 30,
+        'viewport_cols': 100,
+        'dirty_ranges': const [
+          {'start': 0, 'end': 3},
+        ],
+        'scrollback_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakeBindings.resizeCalls.length,
+        greaterThan(initialResizeCallCount),
+      );
+      expect(
+        renderObject.debugLastPaintedRowTexts,
+        equals(['after resize 1', 'after resize 2', 'after resize 3']),
+      );
+    },
+  );
+
+  testWidgets(
     'shell screen returns to the empty state after the last session exits',
     (tester) async {
       final fakeDelegate = FakeCoreBindings();
