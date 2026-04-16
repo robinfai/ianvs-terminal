@@ -77,6 +77,24 @@ flutter run -d macos
 - launcher 打开时不会把按键或点击泄漏到 terminal input
 - launcher 关闭后 active terminal viewport 恢复可交互状态
 
+### 改 shell shortcut scope / action scoping（Phase 2B）
+
+必须执行：
+
+- `flutter analyze`
+- `flutter test test/shell/shell_screen_phase2b_test.dart`
+- `flutter test test/widget_test.dart`
+- `flutter test integration_test/flutterm_smoke_test.dart`
+- `flutter run -d macos`
+
+重点确认：
+
+- launcher 中 app actions / session actions 的 scope 显式可见
+- app-scoped shortcut 只覆盖 launcher 入口与 top action access，不扩展成更广的 command palette
+- shortcut 调用路径 deterministic，且不会把触发按键泄漏到 terminal input
+- 关闭 launcher 或执行 app-scoped action 后，active terminal viewport 恢复可交互状态
+- session-scoped copy / paste contract 与既有 terminal keyboard contract 不回归
+
 ## 自动化 Smoke
 
 当前最小自动化 GUI 冒烟命令：

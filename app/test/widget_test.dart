@@ -314,6 +314,7 @@ void main() {
 
       await tester.tap(find.text('Actions'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Paste clipboard'));
       await tester.tap(find.text('Paste clipboard'));
       await tester.pumpAndSettle();
 
@@ -369,11 +370,94 @@ void main() {
 
       await tester.tap(find.text('Actions'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Copy selection'));
       await tester.tap(find.text('Copy selection'));
       await tester.pumpAndSettle();
 
       expect(find.text('Top actions'), findsNothing);
       expect(copiedText, 'flutterm ready');
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'shell screen shortcut opens launcher without leaking input to the terminal',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(
+            defaultProfileId: 'default',
+            profiles: [defaultTerminalProfile()],
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyP, platform: 'macos');
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyP, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(find.text('Top actions'), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'shell screen app-scoped new-tab shortcut opens another tab without opening the launcher',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(
+            defaultProfileId: 'default',
+            profiles: [defaultTerminalProfile()],
+          ),
+        ),
+      );
+
+      expect(find.byType(InputChip), findsOneWidget);
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyT, platform: 'macos');
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyT, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(find.text('Top actions'), findsNothing);
+      expect(find.byType(InputChip), findsNWidgets(2));
       expect(fakeBindings.writes, isEmpty);
     },
   );

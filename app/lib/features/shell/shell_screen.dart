@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../profiles/profile_editor.dart';
@@ -23,7 +24,52 @@ class ShellScreen extends ConsumerStatefulWidget {
 
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, SelectionController> _selectionControllers = {};
+  final Map<String, FocusNode> _terminalFocusNodes = {};
   bool _isLauncherOpen = false;
+
+  bool get _usesMetaShortcuts {
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.macOS || TargetPlatform.iOS => true,
+      _ => false,
+    };
+  }
+
+  String _launcherShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘⇧P' : 'Ctrl+Shift+P';
+  }
+
+  String _newTabShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘T' : 'Ctrl+T';
+  }
+
+  String _sessionCopyShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘C' : 'Ctrl+C';
+  }
+
+  String _sessionPasteShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘V' : 'Ctrl+V';
+  }
+
+  void _restoreLauncherFocus({
+    required String? activeSessionIdBeforeOpen,
+    required String? activeSessionIdAfterClose,
+  }) {
+    if (activeSessionIdBeforeOpen == null ||
+        activeSessionIdAfterClose != activeSessionIdBeforeOpen) {
+      return;
+    }
+    final focusNode = _terminalFocusNodes[activeSessionIdBeforeOpen];
+    if (focusNode == null || !focusNode.canRequestFocus) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !focusNode.canRequestFocus) {
+        return;
+      }
+      focusNode.requestFocus();
+    });
+  }
 
   TerminalProfile? _defaultProfileFor(
     List<TerminalProfile> profiles,
@@ -79,8 +125,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _isLauncherOpen = true;
     });
 
-    final hasActiveSession =
-        ref.read(sessionControllerProvider).activeSessionId != null;
+    final stateBeforeOpen = ref.read(sessionControllerProvider);
+    final activeSessionIdBeforeOpen = stateBeforeOpen.activeSessionId;
+    final hasActiveSession = activeSessionIdBeforeOpen != null;
     final action = await showDialog<_ShellLauncherAction>(
       context: context,
       barrierDismissible: true,
@@ -92,11 +139,21 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           required String subtitle,
           required _ShellLauncherAction value,
           required bool enabled,
+          required String shortcutLabel,
         }) {
           return ListTile(
             leading: Icon(icon),
             title: Text(title),
             subtitle: Text(subtitle),
+            trailing: Text(
+              shortcutLabel,
+              style: Theme.of(dialogContext).textTheme.labelMedium?.copyWith(
+                color: enabled
+                    ? const Color(0xFF4B5563)
+                    : const Color(0xFF9CA3AF),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             enabled: enabled,
             onTap: enabled
                 ? () => Navigator.of(dialogContext).pop(value)
@@ -106,51 +163,94 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
         return Dialog(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Top actions',
-                          style: Theme.of(dialogContext).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800),
+            constraints: const BoxConstraints(maxWidth: 360, maxHeight: 420),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Top actions',
+                            style: Theme.of(dialogContext).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close actions',
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'App actions',
+                        style: Theme.of(dialogContext).textTheme.labelLarge
+                            ?.copyWith(
+                              color: const Color(0xFF6B7280),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    actionTile(
+                      icon: Icons.add_box_outlined,
+                      title: 'New tab',
+                      subtitle: 'App action • Open your default shell profile.',
+                      value: _ShellLauncherAction.newTab,
+                      enabled: true,
+                      shortcutLabel: _newTabShortcutLabel(),
+                    ),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Session actions',
+                        style: Theme.of(dialogContext).textTheme.labelLarge
+                            ?.copyWith(
+                              color: const Color(0xFF6B7280),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                    if (!hasActiveSession)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Requires an active shell session.',
+                            style: Theme.of(dialogContext).textTheme.bodySmall
+                                ?.copyWith(color: const Color(0xFF6B7280)),
+                          ),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Close actions',
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  actionTile(
-                    icon: Icons.add_box_outlined,
-                    title: 'New tab',
-                    subtitle: 'Open your default shell profile.',
-                    value: _ShellLauncherAction.newTab,
-                    enabled: true,
-                  ),
-                  actionTile(
-                    icon: Icons.copy_rounded,
-                    title: 'Copy selection',
-                    subtitle: 'Copy the current terminal selection.',
-                    value: _ShellLauncherAction.copy,
-                    enabled: hasActiveSession,
-                  ),
-                  actionTile(
-                    icon: Icons.content_paste_rounded,
-                    title: 'Paste clipboard',
-                    subtitle: 'Send clipboard text to the active shell.',
-                    value: _ShellLauncherAction.paste,
-                    enabled: hasActiveSession,
-                  ),
-                ],
+                    actionTile(
+                      icon: Icons.copy_rounded,
+                      title: 'Copy selection',
+                      subtitle:
+                          'Session action • Copy the current terminal selection.',
+                      value: _ShellLauncherAction.copy,
+                      enabled: hasActiveSession,
+                      shortcutLabel: _sessionCopyShortcutLabel(),
+                    ),
+                    actionTile(
+                      icon: Icons.content_paste_rounded,
+                      title: 'Paste clipboard',
+                      subtitle:
+                          'Session action • Send clipboard text to the active shell.',
+                      value: _ShellLauncherAction.paste,
+                      enabled: hasActiveSession,
+                      shortcutLabel: _sessionPasteShortcutLabel(),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -184,14 +284,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           currentSessionId,
           selectionController,
         );
+        _restoreLauncherFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
         return;
       case _ShellLauncherAction.paste:
         if (currentSessionId == null) {
           return;
         }
         await _pasteToSession(currentSessionId);
+        _restoreLauncherFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
         return;
       case null:
+        _restoreLauncherFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
         return;
     }
   }
@@ -211,197 +323,111 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             activeSessionId,
             SelectionController.new,
           );
+    final activeFocusNode = activeSessionId == null
+        ? null
+        : _terminalFocusNodes.putIfAbsent(
+            activeSessionId,
+            () => FocusNode(debugLabel: 'shell-terminal-$activeSessionId'),
+          );
 
-    return Scaffold(
-      body: Row(
-        children: [
-          _Sidebar(
-            profiles: sessionState.profiles,
-            defaultProfileId: sessionState.defaultProfileId,
-            onCreateSession: sessionController.createSession,
-            onEditProfile: (profile) async {
-              final result = await showDialog<TerminalProfile>(
-                context: context,
-                builder: (context) =>
-                    ProfileEditorDialog(initialValue: profile),
-              );
-              if (result != null) {
-                await sessionController.saveProfile(result);
-              }
-            },
-            onSetDefault: sessionController.setDefaultProfile,
-          ),
-          Expanded(
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFFE7E1D4), Color(0xFFF7F4EA)],
+    return Focus(
+      canRequestFocus: false,
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent) {
+          return KeyEventResult.ignored;
+        }
+        final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
+        final isControlPressed = HardwareKeyboard.instance.isControlPressed;
+        final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+
+        if ((isMetaPressed || isControlPressed) &&
+            isShiftPressed &&
+            event.logicalKey == LogicalKeyboardKey.keyP) {
+          _openTopActionsLauncher(
+            context,
+            sessionController,
+            sessionState.profiles,
+            sessionState.defaultProfileId,
+          );
+          return KeyEventResult.handled;
+        }
+
+        if ((isMetaPressed || isControlPressed) &&
+            event.logicalKey == LogicalKeyboardKey.keyT) {
+          if (_isLauncherOpen || defaultProfile == null) {
+            return KeyEventResult.handled;
+          }
+          sessionController.createSession(defaultProfile);
+          return KeyEventResult.handled;
+        }
+
+        return KeyEventResult.ignored;
+      },
+      child: Scaffold(
+        body: Row(
+          children: [
+            _Sidebar(
+              profiles: sessionState.profiles,
+              defaultProfileId: sessionState.defaultProfileId,
+              onCreateSession: sessionController.createSession,
+              onEditProfile: (profile) async {
+                final result = await showDialog<TerminalProfile>(
+                  context: context,
+                  builder: (context) =>
+                      ProfileEditorDialog(initialValue: profile),
+                );
+                if (result != null) {
+                  await sessionController.saveProfile(result);
+                }
+              },
+              onSetDefault: sessionController.setDefaultProfile,
+            ),
+            Expanded(
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFE7E1D4), Color(0xFFF7F4EA)],
+                  ),
                 ),
-              ),
-              child: Column(
-                children: [
-                  if (activeSessionId != null)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      child: _ShellPanel(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const _ShellSectionLabel('Workspace'),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'Shell workspace',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge
-                                          ?.copyWith(
-                                            color: const Color(0xFF111827),
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _sessionSummary(sessionState.tabs.length),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: const Color(0xFF4B5563),
-                                          ),
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      'Active session',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            color: const Color(0xFF6B7280),
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              FilledButton.tonalIcon(
-                                onPressed: defaultProfile == null
-                                    ? null
-                                    : () => _openTopActionsLauncher(
-                                        context,
-                                        sessionController,
-                                        sessionState.profiles,
-                                        sessionState.defaultProfileId,
-                                      ),
-                                icon: const Icon(Icons.apps_rounded),
-                                label: const Text('Actions'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (sessionState.tabs.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: _ShellPanel(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Row(
-                                children: [
-                                  const _ShellSectionLabel('Session tabs'),
-                                  const Spacer(),
-                                  Text(
-                                    '${sessionState.tabs.length} open',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: const Color(0xFF6B7280),
-                                        ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                height: 40,
-                                child: ListView(
-                                  scrollDirection: Axis.horizontal,
-                                  children: [
-                                    for (final tab in sessionState.tabs)
-                                      Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: 8,
-                                        ),
-                                        child: InputChip(
-                                          selected:
-                                              tab.sessionId == activeSessionId,
-                                          showCheckmark: false,
-                                          backgroundColor: const Color(
-                                            0xFFF3F4F6,
-                                          ),
-                                          selectedColor: const Color(
-                                            0xFFE5E7EB,
-                                          ),
-                                          label: Text(tab.title),
-                                          labelStyle: TextStyle(
-                                            color:
-                                                tab.sessionId == activeSessionId
-                                                ? const Color(0xFF111827)
-                                                : const Color(0xFF4B5563),
-                                            fontWeight:
-                                                tab.sessionId == activeSessionId
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                          ),
-                                          onPressed: () => sessionController
-                                              .activateSession(tab.sessionId),
-                                          onDeleted: () => sessionController
-                                              .closeSession(tab.sessionId),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: activeSessionId == null
-                          ? Center(
-                              child: _ShellPanel(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    if (activeSessionId != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        child: _ShellPanel(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
                                   child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const _ShellSectionLabel(
-                                        'Ready when you are',
-                                      ),
-                                      const SizedBox(height: 12),
-                                      const Text(
-                                        'Create a shell to get started',
-                                      ),
-                                      const SizedBox(height: 8),
+                                      const _ShellSectionLabel('Workspace'),
+                                      const SizedBox(height: 10),
                                       Text(
-                                        'Reopen your default profile in one step.',
+                                        'Shell workspace',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              color: const Color(0xFF111827),
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _sessionSummary(
+                                          sessionState.tabs.length,
+                                        ),
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodyMedium
@@ -409,114 +435,257 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                               color: const Color(0xFF4B5563),
                                             ),
                                       ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        'Active session',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelLarge
+                                            ?.copyWith(
+                                              color: const Color(0xFF6B7280),
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
                                     ],
                                   ),
                                 ),
-                              ),
-                            )
-                          : LayoutBuilder(
-                              builder: (context, constraints) {
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (mounted) {
-                                    sessionController.resizeActiveSession(
-                                      Size(
-                                        constraints.maxWidth,
-                                        constraints.maxHeight,
-                                      ),
-                                      MediaQuery.devicePixelRatioOf(context),
-                                    );
-                                  }
-                                });
-
-                                final selectionController =
-                                    activeSelectionController!;
-                                final inputController = TerminalInputController(
-                                  sessionId: activeSessionId,
-                                  coreClient: ref.read(
-                                    terminalCoreClientProvider,
-                                  ),
-                                  readSelection: () =>
-                                      selectionController.textForFrame(
-                                        sessionController
-                                            .viewportFor(activeSessionId)
-                                            .frame,
-                                      ),
-                                  copySelection: (text) =>
-                                      ClipboardBridge.copy(text),
-                                  readClipboard: ClipboardBridge.paste,
-                                );
-
-                                return Column(
-                                  children: [
-                                    Expanded(
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(20),
-                                        child: DecoratedBox(
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFF111827),
-                                          ),
-                                          child: TerminalViewport(
-                                            controller: sessionController
-                                                .viewportFor(activeSessionId),
-                                            selectionController:
-                                                selectionController,
-                                            inputController: inputController,
-                                            onScrollLines: (delta) {
-                                              ref
-                                                  .read(
-                                                    terminalCoreClientProvider,
-                                                  )
-                                                  .scrollViewport(
-                                                    activeSessionId,
-                                                    delta,
-                                                  );
-                                            },
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        FilledButton.tonal(
-                                          onPressed: () => _copySelection(
+                                const SizedBox(width: 16),
+                                Tooltip(
+                                  message:
+                                      'Open top actions (${_launcherShortcutLabel()})',
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: defaultProfile == null
+                                        ? null
+                                        : () => _openTopActionsLauncher(
+                                            context,
                                             sessionController,
-                                            activeSessionId,
-                                            selectionController,
+                                            sessionState.profiles,
+                                            sessionState.defaultProfileId,
                                           ),
-                                          child: const Text('Copy'),
+                                    icon: const Icon(Icons.apps_rounded),
+                                    label: const Text('Actions'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (sessionState.tabs.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: _ShellPanel(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    const _ShellSectionLabel('Session tabs'),
+                                    const Spacer(),
+                                    Text(
+                                      '${sessionState.tabs.length} open',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: const Color(0xFF6B7280),
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  height: 40,
+                                  child: ListView(
+                                    scrollDirection: Axis.horizontal,
+                                    children: [
+                                      for (final tab in sessionState.tabs)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 8,
+                                          ),
+                                          child: InputChip(
+                                            selected:
+                                                tab.sessionId ==
+                                                activeSessionId,
+                                            showCheckmark: false,
+                                            backgroundColor: const Color(
+                                              0xFFF3F4F6,
+                                            ),
+                                            selectedColor: const Color(
+                                              0xFFE5E7EB,
+                                            ),
+                                            label: Text(tab.title),
+                                            labelStyle: TextStyle(
+                                              color:
+                                                  tab.sessionId ==
+                                                      activeSessionId
+                                                  ? const Color(0xFF111827)
+                                                  : const Color(0xFF4B5563),
+                                              fontWeight:
+                                                  tab.sessionId ==
+                                                      activeSessionId
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w500,
+                                            ),
+                                            onPressed: () => sessionController
+                                                .activateSession(tab.sessionId),
+                                            onDeleted: () => sessionController
+                                                .closeSession(tab.sessionId),
+                                          ),
                                         ),
-                                        const SizedBox(width: 8),
-                                        FilledButton.tonal(
-                                          onPressed: () =>
-                                              _pasteToSession(activeSessionId),
-                                          child: const Text('Paste'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: activeSessionId == null
+                            ? Center(
+                                child: _ShellPanel(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const _ShellSectionLabel(
+                                          'Ready when you are',
+                                        ),
+                                        const SizedBox(height: 12),
+                                        const Text(
+                                          'Create a shell to get started',
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Reopen your default profile in one step.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: const Color(0xFF4B5563),
+                                              ),
                                         ),
                                       ],
                                     ),
-                                  ],
-                                );
-                              },
-                            ),
+                                  ),
+                                ),
+                              )
+                            : LayoutBuilder(
+                                builder: (context, constraints) {
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (mounted) {
+                                      sessionController.resizeActiveSession(
+                                        Size(
+                                          constraints.maxWidth,
+                                          constraints.maxHeight,
+                                        ),
+                                        MediaQuery.devicePixelRatioOf(context),
+                                      );
+                                    }
+                                  });
+
+                                  final selectionController =
+                                      activeSelectionController!;
+                                  final inputController =
+                                      TerminalInputController(
+                                        sessionId: activeSessionId,
+                                        coreClient: ref.read(
+                                          terminalCoreClientProvider,
+                                        ),
+                                        readSelection: () =>
+                                            selectionController.textForFrame(
+                                              sessionController
+                                                  .viewportFor(activeSessionId)
+                                                  .frame,
+                                            ),
+                                        copySelection: (text) =>
+                                            ClipboardBridge.copy(text),
+                                        readClipboard: ClipboardBridge.paste,
+                                      );
+
+                                  return Column(
+                                    children: [
+                                      Expanded(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          child: DecoratedBox(
+                                            decoration: const BoxDecoration(
+                                              color: Color(0xFF111827),
+                                            ),
+                                            child: TerminalViewport(
+                                              focusNode: activeFocusNode,
+                                              controller: sessionController
+                                                  .viewportFor(activeSessionId),
+                                              selectionController:
+                                                  selectionController,
+                                              inputController: inputController,
+                                              onScrollLines: (delta) {
+                                                ref
+                                                    .read(
+                                                      terminalCoreClientProvider,
+                                                    )
+                                                    .scrollViewport(
+                                                      activeSessionId,
+                                                      delta,
+                                                    );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          FilledButton.tonal(
+                                            onPressed: () => _copySelection(
+                                              sessionController,
+                                              activeSessionId,
+                                              selectionController,
+                                            ),
+                                            child: const Text('Copy'),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          FilledButton.tonal(
+                                            onPressed: () => _pasteToSession(
+                                              activeSessionId,
+                                            ),
+                                            child: const Text('Paste'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+        floatingActionButton: sessionState.profiles.isEmpty
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: defaultProfile == null
+                    ? null
+                    : () => sessionController.createSession(defaultProfile),
+                label: const Text('New Tab'),
+                icon: const Icon(Icons.add),
+              ),
       ),
-      floatingActionButton: sessionState.profiles.isEmpty
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: defaultProfile == null
-                  ? null
-                  : () => sessionController.createSession(defaultProfile),
-              label: const Text('New Tab'),
-              icon: const Icon(Icons.add),
-            ),
     );
   }
 }

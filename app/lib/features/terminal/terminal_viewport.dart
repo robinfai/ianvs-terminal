@@ -23,23 +23,29 @@ class TerminalViewport extends StatefulWidget {
     required this.selectionController,
     required this.inputController,
     required this.onScrollLines,
+    this.focusNode,
   });
 
   final TerminalViewportController controller;
   final SelectionController selectionController;
   final TerminalInputController inputController;
   final ValueChanged<int> onScrollLines;
+  final FocusNode? focusNode;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
 }
 
 class _TerminalViewportState extends State<TerminalViewport> {
-  final FocusNode _focusNode = FocusNode(debugLabel: 'terminal-viewport');
+  FocusNode? _ownedFocusNode;
+
+  FocusNode get _focusNode =>
+      widget.focusNode ??
+      (_ownedFocusNode ??= FocusNode(debugLabel: 'terminal-viewport'));
 
   @override
   void dispose() {
-    _focusNode.dispose();
+    _ownedFocusNode?.dispose();
     super.dispose();
   }
 

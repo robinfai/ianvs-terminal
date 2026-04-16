@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -108,6 +109,40 @@ void main() {
       expect(find.text('Local Shell'), findsWidgets);
     },
   );
+
+  testWidgets('command-shift-p opens the top actions launcher', (
+    WidgetTester tester,
+  ) async {
+    await _pumpSmokeApp(
+      tester,
+      profiles: TerminalProfilesDocument(
+        defaultProfileId: 'default',
+        profiles: [defaultTerminalProfile()],
+      ),
+    );
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyP, platform: 'macos');
+    await tester.pumpAndSettle();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyP, platform: 'macos');
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+    await tester.pump();
+
+    expect(find.text('Top actions'), findsOneWidget);
+    expect(find.text('App actions'), findsOneWidget);
+    expect(find.text('Session actions'), findsOneWidget);
+  });
 
   testWidgets('closing an inactive tab keeps the active tab focused', (
     WidgetTester tester,

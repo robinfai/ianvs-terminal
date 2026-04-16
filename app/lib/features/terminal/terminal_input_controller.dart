@@ -27,6 +27,7 @@ class TerminalInputController {
 
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;
+    final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
 
     if (isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyC) {
       unawaited(_copySelection());
@@ -44,6 +45,17 @@ class TerminalInputController {
         (isMetaPressed || isControlPressed)) {
       unawaited(_pasteClipboard());
       return KeyEventResult.handled;
+    }
+
+    if ((isMetaPressed || isControlPressed) &&
+        isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyP) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.keyT &&
+        (isMetaPressed || isControlPressed)) {
+      return KeyEventResult.ignored;
     }
 
     final bytes = switch (event.logicalKey) {
