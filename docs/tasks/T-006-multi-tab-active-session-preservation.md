@@ -50,4 +50,4 @@ flutter test
 
 ## Risks / Follow-ups
 
-- 当前仍不包含 `exit` 事件自动关闭 tab 的策略，后续可考虑新增独立任务。
+- `exit` 事件自动关闭 tab 的策略已拆到 `docs/tasks/T-018-terminal-exit-tab-handling.md` 单独推进，避免与本任务的手动关闭焦点规则耦合。
