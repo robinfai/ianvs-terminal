@@ -699,6 +699,90 @@ void main() {
   );
 
   testWidgets(
+    'shell screen Copy button copies block selections from Alt-drag',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+      String? copiedText;
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': copiedText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            copiedText = (methodCall.arguments as Map)['text'] as String?;
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: repository,
+      );
+
+      final container = tester
+          .widget<UncontrolledProviderScope>(
+            find.byType(UncontrolledProviderScope).first,
+          )
+          .container;
+      final sessionState = container.read(sessionControllerProvider);
+      final sessionId = sessionState.activeSessionId!;
+
+      fakeBindings.setFrame(int.parse(sessionId), {
+        'rows': const [
+          {'index': 0, 'text': 'abc', 'style_runs': []},
+          {'index': 1, 'text': 'vwxyz', 'style_runs': []},
+          {'index': 2, 'text': 'mn', 'style_runs': []},
+        ],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const [
+          {'start': 0, 'end': 3},
+        ],
+        'scrollback_offset': 0,
+      });
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+
+      final viewportTopLeft = tester.getTopLeft(find.byType(TerminalViewport));
+      final selectionStart = viewportTopLeft + const Offset(18, 9);
+      final selectionEnd = viewportTopLeft + const Offset(50, 45);
+      final gesture = await tester.startGesture(selectionStart);
+      await tester.pump();
+      await gesture.moveTo(selectionEnd);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.tap(find.text('Copy'));
+      await tester.pumpAndSettle();
+
+      expect(copiedText, 'bc\nwx\nn');
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
     'shell screen forwards scroll wheel deltas to the active session',
     (tester) async {
       final fakeBindings = FakeCoreBindings();

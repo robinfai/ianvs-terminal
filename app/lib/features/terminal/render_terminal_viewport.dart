@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import 'selection_controller.dart';
 import 'terminal_painter_models.dart';
@@ -91,18 +92,21 @@ class RenderTerminalViewport extends RenderBox {
       if (selection != null &&
           row.index >= selection.startRow &&
           row.index <= selection.endRow) {
-        final selectedStart = row.index == selection.startRow
+        final selectedStart = _selectionController.isBlockSelection
             ? selection.startCol
-            : 0;
-        final selectedEnd = row.index == selection.endRow
+            : (row.index == selection.startRow ? selection.startCol : 0);
+        final selectedEnd = _selectionController.isBlockSelection
             ? selection.endCol
-            : row.text.length;
+            : (row.index == selection.endRow
+                  ? selection.endCol
+                  : row.text.length);
+        final clampedStart = selectedStart.clamp(0, row.text.length);
+        final clampedEnd = selectedEnd.clamp(clampedStart, row.text.length);
         canvas.drawRect(
           Rect.fromLTWH(
-            selectedStart * _cellSize.width,
+            clampedStart * _cellSize.width,
             y,
-            (selectedEnd - selectedStart).clamp(0, row.text.length) *
-                _cellSize.width,
+            (clampedEnd - clampedStart) * _cellSize.width,
             _cellSize.height,
           ),
           Paint()..color = const Color(0x663B82F6),
@@ -132,7 +136,10 @@ class RenderTerminalViewport extends RenderBox {
   @override
   void handleEvent(PointerEvent event, BoxHitTestEntry entry) {
     if (event is PointerDownEvent) {
-      _selectionController.begin(_cellForOffset(event.localPosition));
+      _selectionController.begin(
+        _cellForOffset(event.localPosition),
+        block: HardwareKeyboard.instance.isAltPressed,
+      );
     } else if (event is PointerMoveEvent && event.buttons != 0) {
       _selectionController.update(_cellForOffset(event.localPosition));
     } else if (event is PointerScrollEvent) {

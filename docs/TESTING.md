@@ -102,11 +102,11 @@ flutter test integration_test/flutterm_smoke_test.dart
 - Flutter 侧 FFI -> PTY 在不同 prompt 配置下保持交互
 - Flutter 侧真实 shell `exit` 事件传播
 - shell `exit` 后活动 tab 焦点迁移
-- 多行选区文本提取语义（换行、反向拖选、裁剪、非对称列范围）
+- 多行选区文本提取语义（换行、反向拖选、裁剪、非对称列范围、block 选择）
 
 当前未覆盖：
 
-- 真正的矩形 / block selection 语义
+- 暂无新的自动化缺口；若后续扩展 block selection 的快捷键/空格 padding 语义，再补专项回归
 
 ## 手工 Smoke Checklist
 

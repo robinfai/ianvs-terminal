@@ -71,6 +71,22 @@ void main() {
     expect(text, 'bc\nxy');
   });
 
+  test('textForFrame returns clipped columns for block selections', () {
+    final controller = SelectionController();
+    controller.begin(const TerminalCellPosition(0, 1), block: true);
+    controller.update(const TerminalCellPosition(2, 4));
+
+    final text = controller.textForFrame(
+      frameWithRows(const [
+        TerminalRow(index: 0, text: 'abc'),
+        TerminalRow(index: 1, text: 'vwxyz'),
+        TerminalRow(index: 2, text: 'mn'),
+      ]),
+    );
+
+    expect(text, 'bc\nwxy\nn');
+  });
+
   test('textForFrame keeps asymmetric multi-line column ranges linearized', () {
     final controller = SelectionController();
     controller.begin(const TerminalCellPosition(0, 3));
