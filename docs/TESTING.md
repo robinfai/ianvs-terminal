@@ -98,13 +98,13 @@ flutter test integration_test/flutterm_smoke_test.dart
 - Flutter 侧 FFI -> PTY -> 输出最小往返
 - Flutter 侧 FFI -> PTY 多命令往返
 - Flutter 侧 FFI -> PTY 长输出后继续交互
+- Flutter 侧 FFI -> PTY 在不同 prompt 配置下保持交互
 - Flutter 侧真实 shell `exit` 事件传播
 - shell `exit` 后活动 tab 焦点迁移
 - 多行选区文本提取语义（换行、反向拖选、裁剪）
 
 当前未覆盖：
 
-- 更复杂的 PTY 交互场景（提示符差异）
 - 更复杂的 selection 语义（矩形选区等）
 - 更复杂的 clipboard / selection 组合语义
 

@@ -183,6 +183,59 @@ void main() {
     },
   );
 
+  test(
+    'terminal core client stays interactive across different shell prompts',
+    () {
+      final client = TerminalCoreClient(
+        FluttermCoreBindings(
+          ffi.DynamicLibrary.open(_resolveTestLibraryPath()),
+        ),
+      );
+
+      const cases = [
+        ('prompt-one', 'ffi-one>', 'first prompt marker'),
+        ('prompt-two', 'ffi-two#', 'second prompt marker'),
+      ];
+
+      for (final (id, prompt, marker) in cases) {
+        final sessionId = client.createSession(
+          defaultTerminalProfile().copyWith(
+            id: id,
+            name: id,
+            shell: '/bin/sh',
+            args: const ['-i'],
+            env: {'PS1': '$prompt '},
+          ),
+        );
+        addTearDown(() => client.closeSession(sessionId));
+
+        expect(
+          _waitForFrameContaining(
+            client,
+            sessionId,
+            prompt,
+          ).rows.any((row) => row.text.contains(prompt)),
+          isTrue,
+          reason: 'expected PTY frame to contain prompt $prompt',
+        );
+
+        client.sendInput(
+          sessionId,
+          Uint8List.fromList("printf '$marker\\n'\n".codeUnits),
+        );
+        expect(
+          _waitForFrameContaining(
+            client,
+            sessionId,
+            marker,
+          ).rows.any((row) => row.text.contains(marker)),
+          isTrue,
+          reason: 'expected PTY output to contain marker $marker',
+        );
+      }
+    },
+  );
+
   test('terminal core client surfaces shell exit events', () {
     final client = TerminalCoreClient(
       FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
