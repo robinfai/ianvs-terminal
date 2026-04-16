@@ -28,52 +28,65 @@ void main() {
     expect(client.takeFrameDiff(sessionId), isNull);
   });
 
-  test('terminal core client can roundtrip input through a real PTY session', () {
-    final client = TerminalCoreClient(
-      FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
-    );
+  test(
+    'terminal core client can roundtrip input through a real PTY session',
+    () {
+      final client = TerminalCoreClient(
+        FluttermCoreBindings(
+          ffi.DynamicLibrary.open(_resolveTestLibraryPath()),
+        ),
+      );
 
-    final sessionId = client.createSession(
-      defaultTerminalProfile().copyWith(
-        id: 'interactive',
-        name: 'Interactive',
-        shell: '/bin/sh',
-        args: const [],
-      ),
-    );
-    addTearDown(() => client.closeSession(sessionId));
+      final sessionId = client.createSession(
+        defaultTerminalProfile().copyWith(
+          id: 'interactive',
+          name: 'Interactive',
+          shell: '/bin/sh',
+          args: const [],
+        ),
+      );
+      addTearDown(() => client.closeSession(sessionId));
 
-    sleep(const Duration(milliseconds: 250));
-    client.takeFrameDiff(sessionId);
+      sleep(const Duration(milliseconds: 250));
+      client.takeFrameDiff(sessionId);
 
-    client.sendInput(
-      sessionId,
-      Uint8List.fromList('printf \'dart ffi roundtrip\\n\'\n'.codeUnits),
-    );
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList('printf \'dart ffi roundtrip\\n\'\n'.codeUnits),
+      );
 
-    TerminalFrameDiff? frame;
-    for (var attempt = 0; attempt < 20; attempt += 1) {
-      sleep(const Duration(milliseconds: 100));
-      final nextFrame = client.takeFrameDiff(sessionId);
-      if (nextFrame != null &&
-          nextFrame.rows.any((row) => row.text.contains('dart ffi roundtrip'))) {
-        frame = nextFrame;
-        break;
+      TerminalFrameDiff? frame;
+      for (var attempt = 0; attempt < 20; attempt += 1) {
+        sleep(const Duration(milliseconds: 100));
+        final nextFrame = client.takeFrameDiff(sessionId);
+        if (nextFrame != null &&
+            nextFrame.rows.any(
+              (row) => row.text.contains('dart ffi roundtrip'),
+            )) {
+          frame = nextFrame;
+          break;
+        }
       }
-    }
 
-    expect(frame, isNotNull, reason: 'expected PTY output to contain roundtrip marker');
-    expect(
-      frame!.rows.any((row) => row.text.contains('dart ffi roundtrip')),
-      isTrue,
-    );
-  });
+      expect(
+        frame,
+        isNotNull,
+        reason: 'expected PTY output to contain roundtrip marker',
+      );
+      expect(
+        frame!.rows.any((row) => row.text.contains('dart ffi roundtrip')),
+        isTrue,
+      );
+    },
+  );
 
   test(
     'terminal core client can roundtrip multiple commands through one PTY session',
     () {
       final client = TerminalCoreClient(
-        FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
+        FluttermCoreBindings(
+          ffi.DynamicLibrary.open(_resolveTestLibraryPath()),
+        ),
       );
 
       final sessionId = client.createSession(
@@ -94,9 +107,11 @@ void main() {
         Uint8List.fromList('printf \'first marker\\n\'\n'.codeUnits),
       );
       expect(
-        _waitForFrameContaining(client, sessionId, 'first marker')
-            .rows
-            .any((row) => row.text.contains('first marker')),
+        _waitForFrameContaining(
+          client,
+          sessionId,
+          'first marker',
+        ).rows.any((row) => row.text.contains('first marker')),
         isTrue,
       );
 
@@ -105,9 +120,64 @@ void main() {
         Uint8List.fromList('printf \'second marker\\n\'\n'.codeUnits),
       );
       expect(
-        _waitForFrameContaining(client, sessionId, 'second marker')
-            .rows
-            .any((row) => row.text.contains('second marker')),
+        _waitForFrameContaining(
+          client,
+          sessionId,
+          'second marker',
+        ).rows.any((row) => row.text.contains('second marker')),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'terminal core client stays interactive after a longer PTY output burst',
+    () {
+      final client = TerminalCoreClient(
+        FluttermCoreBindings(
+          ffi.DynamicLibrary.open(_resolveTestLibraryPath()),
+        ),
+      );
+
+      final sessionId = client.createSession(
+        defaultTerminalProfile().copyWith(
+          id: 'interactive-long',
+          name: 'Interactive Long',
+          shell: '/bin/sh',
+          args: const [],
+        ),
+      );
+      addTearDown(() => client.closeSession(sessionId));
+
+      sleep(const Duration(milliseconds: 250));
+      client.takeFrameDiff(sessionId);
+
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList(
+          "i=1; while [ \"\$i\" -le 24 ]; do printf 'burst %02d\\n' \"\$i\"; i=\$((i+1)); done\n"
+              .codeUnits,
+        ),
+      );
+      expect(
+        _waitForFrameContaining(
+          client,
+          sessionId,
+          'burst 24',
+        ).rows.any((row) => row.text.contains('burst 24')),
+        isTrue,
+      );
+
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList('printf \'after burst marker\\n\'\n'.codeUnits),
+      );
+      expect(
+        _waitForFrameContaining(
+          client,
+          sessionId,
+          'after burst marker',
+        ).rows.any((row) => row.text.contains('after burst marker')),
         isTrue,
       );
     },
