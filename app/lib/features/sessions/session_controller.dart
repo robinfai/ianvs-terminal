@@ -78,18 +78,8 @@ class SessionController extends Notifier<SessionState> {
             .pollEvents(tab.sessionId);
         for (final event in events) {
           if (event.kind == 'exit') {
-            state = state.copyWith(
-              tabs: [
-                for (final entry in state.tabs)
-                  if (entry.sessionId == tab.sessionId)
-                    entry.copyWith(
-                      isExited: true,
-                      exitCode: (event.payload?['code'] as num?)?.toInt(),
-                    )
-                  else
-                    entry,
-              ],
-            );
+            closeSession(tab.sessionId);
+            break;
           }
         }
       }
