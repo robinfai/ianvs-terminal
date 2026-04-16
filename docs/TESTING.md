@@ -89,6 +89,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 - `Copy` 按钮空选区 no-op
 - `Copy` 按钮保留多行选区换行
 - `Copy` 按钮保留反向多行选区换行
+- `Copy` 按钮对越界多行选区安全裁剪
 - 滚轮事件 -> core scroll 调用
 - scroll 后 frame diff 驱动的可见内容 repaint
 - 布局尺寸变化 -> core resize 调用
