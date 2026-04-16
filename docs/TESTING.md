@@ -74,12 +74,20 @@ flutter test integration_test/flutterm_smoke_test.dart
 - 应用启动
 - 主 terminal UI 渲染
 - 新建 tab
+- 关闭非激活 tab 焦点保持
+- 关闭激活 tab 焦点迁移
+- 关闭最后一个 tab 后进入 empty-state
+- 从 empty-state 通过 `New Tab` 恢复
+- 恢复后再次关闭并重新回到 empty-state
+- `Paste` 按钮写入 active session
+- `Copy` 按钮写入系统剪贴板
+- Rust core 交互式 PTY 输入 -> 输出最小往返
 
 当前未覆盖：
 
-- 真实 PTY 命令执行
-- 复制 / 粘贴系统交互
+- Flutter 侧真实 PTY 命令往返
 - 滚动 / resize / 选区细节
+- 更复杂的 clipboard / selection 组合语义
 
 ## 手工 Smoke Checklist
 
