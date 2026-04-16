@@ -272,4 +272,38 @@ void main() {
       expect(fakeBindings.scrollCalls.single[1], isNot(0));
     },
   );
+
+  testWidgets(
+    'shell screen forwards layout resize changes to the active session',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      await tester.binding.setSurfaceSize(const Size(900, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: repository,
+      );
+
+      expect(fakeBindings.resizeCalls, isNotEmpty);
+      final initialCall = List<int>.from(fakeBindings.resizeCalls.last);
+
+      await tester.binding.setSurfaceSize(const Size(1100, 760));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.resizeCalls.length, greaterThan(1));
+      final resizedCall = fakeBindings.resizeCalls.last;
+      expect(resizedCall[0], equals(initialCall[0]));
+      expect(resizedCall, isNot(equals(initialCall)));
+    },
+  );
 }
