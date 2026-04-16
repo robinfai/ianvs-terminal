@@ -204,4 +204,46 @@ void main() {
       expect(find.text('Paste'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'a recovered tab can be closed back to the empty state again',
+    (WidgetTester tester) async {
+      await _pumpSmokeApp(
+        tester,
+        profiles: TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      tester
+          .widget<InputChip>(find.widgetWithText(InputChip, 'Local Shell'))
+          .onDeleted!();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InputChip), findsNothing);
+      expect(find.text('Create a shell to get started'), findsOneWidget);
+      expect(find.text('New Tab'), findsOneWidget);
+
+      await tester.tap(find.text('New Tab'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InputChip), findsOneWidget);
+      expect(find.widgetWithText(InputChip, 'Local Shell'), findsOneWidget);
+      expect(_isTabSelected(tester, 'Local Shell'), isTrue);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Paste'), findsOneWidget);
+
+      tester
+          .widget<InputChip>(find.widgetWithText(InputChip, 'Local Shell'))
+          .onDeleted!();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InputChip), findsNothing);
+      expect(find.text('Create a shell to get started'), findsOneWidget);
+      expect(find.text('Copy'), findsNothing);
+      expect(find.text('Paste'), findsNothing);
+      expect(find.text('New Tab'), findsOneWidget);
+    },
+  );
 }
