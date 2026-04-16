@@ -617,4 +617,57 @@ void main() {
       expect(find.text('Paste'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'shell screen focuses the remaining tab when the active session exits',
+    (tester) async {
+      final fakeDelegate = FakeCoreBindings();
+      final bindings = _EventfulCoreBindings(fakeDelegate);
+      final primaryProfile = defaultTerminalProfile().copyWith(name: 'Shell A');
+      final secondaryProfile = defaultTerminalProfile().copyWith(
+        id: 'shell-b',
+        name: 'Shell B',
+      );
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: primaryProfile.id,
+          profiles: [primaryProfile, secondaryProfile],
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            terminalCoreClientProvider.overrideWithValue(
+              TerminalCoreClient(bindings),
+            ),
+            profileRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: const MaterialApp(home: ShellScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(ListTile, 'Shell B'));
+      await tester.pumpAndSettle();
+
+      final container = tester.widget<UncontrolledProviderScope>(
+        find.byType(UncontrolledProviderScope).first,
+      ).container;
+      final activeSessionId = container.read(sessionControllerProvider).activeSessionId!;
+
+      expect(find.byType(InputChip), findsNWidgets(2));
+      expect(isTabSelected(tester, 'Shell B'), isTrue);
+
+      bindings.enqueueExit(activeSessionId, code: 0);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(InputChip, 'Shell B'), findsNothing);
+      expect(find.widgetWithText(InputChip, 'Shell A'), findsOneWidget);
+      expect(isTabSelected(tester, 'Shell A'), isTrue);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Paste'), findsOneWidget);
+    },
+  );
 }
