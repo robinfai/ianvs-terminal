@@ -70,4 +70,20 @@ void main() {
 
     expect(text, 'bc\nxy');
   });
+
+  test('textForFrame keeps asymmetric multi-line column ranges linearized', () {
+    final controller = SelectionController();
+    controller.begin(const TerminalCellPosition(0, 3));
+    controller.update(const TerminalCellPosition(2, 2));
+
+    final text = controller.textForFrame(
+      frameWithRows(const [
+        TerminalRow(index: 0, text: 'abcde'),
+        TerminalRow(index: 1, text: 'vwxyz'),
+        TerminalRow(index: 2, text: 'mnopq'),
+      ]),
+    );
+
+    expect(text, 'de\nvwxyz\nmn');
+  });
 }
