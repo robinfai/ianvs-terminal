@@ -177,6 +177,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                           onPressed: () async {
                                             final text =
                                                 await ClipboardBridge.paste();
+                                            if (text.isEmpty) {
+                                              return;
+                                            }
                                             ref
                                                 .read(
                                                   terminalCoreClientProvider,

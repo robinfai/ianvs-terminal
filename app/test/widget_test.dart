@@ -183,6 +183,49 @@ void main() {
   );
 
   testWidgets(
+    'shell screen Paste button ignores empty clipboard text',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': ''};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: repository,
+      );
+
+      await tester.tap(find.text('Paste'));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
     'shell screen Copy button writes the selected text to the clipboard',
     (tester) async {
       final fakeBindings = FakeCoreBindings();
