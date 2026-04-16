@@ -58,6 +58,54 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               ),
               child: Column(
                 children: [
+                  if (activeSessionId != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 14,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Shell workspace',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: const Color(0xFF111827),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _sessionSummary(sessionState.tabs.length),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: const Color(0xFF4B5563)),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Active session',
+                                style: Theme.of(context).textTheme.labelLarge
+                                    ?.copyWith(
+                                      color: const Color(0xFF6B7280),
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   SizedBox(
                     height: 52,
                     child: ListView(
@@ -86,8 +134,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: activeSessionId == null
-                          ? const Center(
-                              child: Text('Create a shell to get started'),
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('Create a shell to get started'),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Reopen your default profile in one step.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: const Color(0xFF4B5563),
+                                        ),
+                                  ),
+                                ],
+                              ),
                             )
                           : LayoutBuilder(
                               builder: (context, constraints) {
@@ -160,15 +223,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       children: [
                                         FilledButton.tonal(
                                           onPressed: () async {
-                                            final text =
-                                                selectionController
-                                                    .textForFrame(
-                                                      sessionController
-                                                          .viewportFor(
-                                                            activeSessionId,
-                                                          )
-                                                          .frame,
-                                                    );
+                                            final text = selectionController
+                                                .textForFrame(
+                                                  sessionController
+                                                      .viewportFor(
+                                                        activeSessionId,
+                                                      )
+                                                      .frame,
+                                                );
                                             if (text.isEmpty) {
                                               return;
                                             }
@@ -325,4 +387,11 @@ class _Sidebar extends StatelessWidget {
       ),
     );
   }
+}
+
+String _sessionSummary(int count) {
+  if (count == 1) {
+    return '1 active session';
+  }
+  return '$count active sessions';
 }
