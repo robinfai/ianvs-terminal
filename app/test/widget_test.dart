@@ -763,9 +763,15 @@ void main() {
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
 
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .single;
       final viewportTopLeft = tester.getTopLeft(find.byType(TerminalViewport));
-      final selectionStart = viewportTopLeft + const Offset(18, 9);
-      final selectionEnd = viewportTopLeft + const Offset(50, 45);
+      final cellSize = renderObject.debugCellSize;
+      final selectionStart =
+          viewportTopLeft + Offset(cellSize.width * 1.5, cellSize.height * 0.5);
+      final selectionEnd =
+          viewportTopLeft + Offset(cellSize.width * 4.5, cellSize.height * 2.5);
       final gesture = await tester.startGesture(selectionStart);
       await tester.pump();
       await gesture.moveTo(selectionEnd);
@@ -777,7 +783,7 @@ void main() {
       await tester.tap(find.text('Copy'));
       await tester.pumpAndSettle();
 
-      expect(copiedText, 'bc\nwx\nn');
+      expect(copiedText, 'bc\nwxy\nn');
       expect(fakeBindings.writes, isEmpty);
     },
   );

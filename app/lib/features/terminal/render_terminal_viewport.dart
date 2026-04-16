@@ -154,6 +154,7 @@ class RenderTerminalViewport extends RenderBox {
 
   TerminalCellPosition debugCellForOffset(Offset offset) =>
       _cellForOffset(offset);
+  Size get debugCellSize => _cellSize;
   int get debugParagraphBuilds => _paragraphBuilds;
   List<String> get debugLastPaintedRowTexts =>
       List<String>.unmodifiable(_debugLastPaintedRowTexts);
