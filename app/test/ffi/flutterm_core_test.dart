@@ -68,6 +68,42 @@ void main() {
       isTrue,
     );
   });
+
+  test('terminal core client surfaces shell exit events', () {
+    final client = TerminalCoreClient(
+      FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
+    );
+
+    final sessionId = client.createSession(
+      defaultTerminalProfile().copyWith(
+        id: 'exit-check',
+        name: 'Exit Check',
+        shell: '/bin/sh',
+        args: const ['-lc', 'exit 7'],
+      ),
+    );
+    addTearDown(() => client.closeSession(sessionId));
+
+    List<TerminalEvent> events = const [];
+    for (var attempt = 0; attempt < 20; attempt += 1) {
+      sleep(const Duration(milliseconds: 100));
+      events = client.pollEvents(sessionId);
+      if (events.any((event) => event.kind == 'exit')) {
+        break;
+      }
+    }
+
+    TerminalEvent? exitEvent;
+    for (final event in events) {
+      if (event.kind == 'exit') {
+        exitEvent = event;
+        break;
+      }
+    }
+
+    expect(exitEvent, isNotNull, reason: 'expected shell exit event');
+    expect(exitEvent!.payload?['code'], 7);
+  });
 }
 
 String _resolveTestLibraryPath() {
