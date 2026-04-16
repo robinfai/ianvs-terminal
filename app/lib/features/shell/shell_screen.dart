@@ -160,15 +160,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       children: [
                                         FilledButton.tonal(
                                           onPressed: () async {
-                                            await ClipboardBridge.copy(
-                                              selectionController.textForFrame(
-                                                sessionController
-                                                    .viewportFor(
-                                                      activeSessionId,
-                                                    )
-                                                    .frame,
-                                              ),
-                                            );
+                                            final text =
+                                                selectionController
+                                                    .textForFrame(
+                                                      sessionController
+                                                          .viewportFor(
+                                                            activeSessionId,
+                                                          )
+                                                          .frame,
+                                                    );
+                                            if (text.isEmpty) {
+                                              return;
+                                            }
+                                            await ClipboardBridge.copy(text);
                                           },
                                           child: const Text('Copy'),
                                         ),
