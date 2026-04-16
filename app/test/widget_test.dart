@@ -566,6 +566,55 @@ void main() {
   );
 
   testWidgets(
+    'shell screen can recover from empty state after the last session exits',
+    (tester) async {
+      final fakeDelegate = FakeCoreBindings();
+      final bindings = _EventfulCoreBindings(fakeDelegate);
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            terminalCoreClientProvider.overrideWithValue(
+              TerminalCoreClient(bindings),
+            ),
+            profileRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: const MaterialApp(home: ShellScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = tester.widget<UncontrolledProviderScope>(
+        find.byType(UncontrolledProviderScope).first,
+      ).container;
+      final sessionId = container.read(sessionControllerProvider).activeSessionId!;
+
+      bindings.enqueueExit(sessionId, code: 0);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InputChip), findsNothing);
+      expect(find.text('Create a shell to get started'), findsOneWidget);
+      expect(find.text('New Tab'), findsOneWidget);
+
+      await tester.tap(find.text('New Tab'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InputChip), findsOneWidget);
+      expect(find.widgetWithText(InputChip, 'Local Shell'), findsOneWidget);
+      expect(find.text('Create a shell to get started'), findsNothing);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Paste'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'shell screen keeps the active tab focused when another session exits',
     (tester) async {
       final fakeDelegate = FakeCoreBindings();

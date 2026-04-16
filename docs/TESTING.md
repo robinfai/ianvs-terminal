@@ -78,7 +78,9 @@ flutter test integration_test/flutterm_smoke_test.dart
 - 关闭激活 tab 焦点迁移
 - shell `exit` 后最后一个 tab 回到空状态
 - 关闭最后一个 tab 后进入 empty-state
+- shell `exit` 后最后一个 tab 回到 empty-state
 - 从 empty-state 通过 `New Tab` 恢复
+- shell `exit` 后回到 empty-state 再通过 `New Tab` 恢复
 - 恢复后再次关闭并重新回到 empty-state
 - `Paste` 按钮写入 active session
 - `Paste` 按钮空剪贴板 no-op
