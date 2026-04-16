@@ -61,14 +61,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   if (activeSessionId != null)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.82),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.6),
-                          ),
-                        ),
+                      child: _ShellPanel(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -78,6 +71,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              const _ShellSectionLabel('Workspace'),
+                              const SizedBox(height: 10),
                               Text(
                                 'Shell workspace',
                                 style: Theme.of(context).textTheme.titleLarge
@@ -106,50 +101,105 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ),
                       ),
                     ),
-                  SizedBox(
-                    height: 52,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      children: [
-                        for (final tab in sessionState.tabs)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: InputChip(
-                              selected: tab.sessionId == activeSessionId,
-                              label: Text(tab.title),
-                              onPressed: () => sessionController
-                                  .activateSession(tab.sessionId),
-                              onDeleted: () =>
-                                  sessionController.closeSession(tab.sessionId),
-                            ),
+                  if (sessionState.tabs.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: _ShellPanel(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  const _ShellSectionLabel('Session tabs'),
+                                  const Spacer(),
+                                  Text(
+                                    '${sessionState.tabs.length} open',
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: const Color(0xFF6B7280),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                height: 40,
+                                child: ListView(
+                                  scrollDirection: Axis.horizontal,
+                                  children: [
+                                    for (final tab in sessionState.tabs)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: 8,
+                                        ),
+                                        child: InputChip(
+                                          selected:
+                                              tab.sessionId == activeSessionId,
+                                          showCheckmark: false,
+                                          backgroundColor: const Color(
+                                            0xFFF3F4F6,
+                                          ),
+                                          selectedColor: const Color(
+                                            0xFFE5E7EB,
+                                          ),
+                                          label: Text(tab.title),
+                                          labelStyle: TextStyle(
+                                            color:
+                                                tab.sessionId == activeSessionId
+                                                ? const Color(0xFF111827)
+                                                : const Color(0xFF4B5563),
+                                            fontWeight:
+                                                tab.sessionId == activeSessionId
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                          ),
+                                          onPressed: () => sessionController
+                                              .activateSession(tab.sessionId),
+                                          onDeleted: () => sessionController
+                                              .closeSession(tab.sessionId),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                      ],
+                        ),
+                      ),
                     ),
-                  ),
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: activeSessionId == null
                           ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text('Create a shell to get started'),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Reopen your default profile in one step.',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: const Color(0xFF4B5563),
-                                        ),
+                              child: _ShellPanel(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const _ShellSectionLabel(
+                                        'Ready when you are',
+                                      ),
+                                      const SizedBox(height: 12),
+                                      const Text(
+                                        'Create a shell to get started',
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Reopen your default profile in one step.',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: const Color(0xFF4B5563),
+                                            ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             )
                           : LayoutBuilder(
@@ -384,6 +434,42 @@ class _Sidebar extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ShellPanel extends StatelessWidget {
+  const _ShellPanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _ShellSectionLabel extends StatelessWidget {
+  const _ShellSectionLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: const Color(0xFF6B7280),
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.2,
       ),
     );
   }

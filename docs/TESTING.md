@@ -104,6 +104,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 - Flutter 侧真实 shell `exit` 事件传播
 - shell `exit` 后活动 tab 焦点迁移
 - 多行选区文本提取语义（换行、反向拖选、裁剪、非对称列范围、block 选择）
+- shell workspace chrome / session tabs panel / richer empty-state shell surfaces
 
 当前未覆盖：
 
