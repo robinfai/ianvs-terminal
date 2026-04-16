@@ -82,6 +82,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 - 从 empty-state 通过 `New Tab` 恢复
 - shell `exit` 后回到 empty-state 再通过 `New Tab` 恢复
 - 恢复后再次关闭并重新回到 empty-state
+- active-state / empty-state 切换时 `TerminalViewport` 与 `Copy` / `Paste` 一起正确隐藏或恢复，同时保留 `New Tab` 恢复入口
 - `Paste` 按钮写入 active session
 - `Paste` 按钮空剪贴板 no-op
 - `Paste` 按钮保留多行文本换行

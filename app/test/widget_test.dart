@@ -1063,6 +1063,7 @@ void main() {
 
       expect(find.byType(InputChip), findsNothing);
       expect(find.text('Create a shell to get started'), findsOneWidget);
+      expect(find.byType(TerminalViewport), findsNothing);
       expect(find.text('Copy'), findsNothing);
       expect(find.text('Paste'), findsNothing);
       expect(find.text('New Tab'), findsOneWidget);
@@ -1103,12 +1104,15 @@ void main() {
           .read(sessionControllerProvider)
           .activeSessionId!;
 
+      expect(find.byType(TerminalViewport), findsOneWidget);
+
       bindings.enqueueExit(sessionId, code: 0);
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
       expect(find.byType(InputChip), findsNothing);
       expect(find.text('Create a shell to get started'), findsOneWidget);
+      expect(find.byType(TerminalViewport), findsNothing);
       expect(find.text('New Tab'), findsOneWidget);
 
       await tester.tap(find.text('New Tab'));
@@ -1117,6 +1121,7 @@ void main() {
       expect(find.byType(InputChip), findsOneWidget);
       expect(find.widgetWithText(InputChip, 'Local Shell'), findsOneWidget);
       expect(find.text('Create a shell to get started'), findsNothing);
+      expect(find.byType(TerminalViewport), findsOneWidget);
       expect(find.text('Copy'), findsOneWidget);
       expect(find.text('Paste'), findsOneWidget);
     },
