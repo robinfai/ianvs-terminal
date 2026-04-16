@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal/render_terminal_viewport.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
@@ -188,93 +189,91 @@ void main() {
     },
   );
 
-  testWidgets(
-    'shell screen Paste button preserves multiline clipboard text',
-    (tester) async {
-      const clipboardText = 'line one\nline two\nline three';
-      final fakeBindings = FakeCoreBindings();
-      final repository = MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
-      );
+  testWidgets('shell screen Paste button preserves multiline clipboard text', (
+    tester,
+  ) async {
+    const clipboardText = 'line one\nline two\nline three';
+    final fakeBindings = FakeCoreBindings();
+    final repository = MemoryProfileRepository(
+      TerminalProfilesDocument(
+        defaultProfileId: 'default',
+        profiles: [defaultTerminalProfile()],
+      ),
+    );
 
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        (methodCall) async {
-          if (methodCall.method == 'Clipboard.getData') {
-            return <String, dynamic>{'text': clipboardText};
-          }
-          if (methodCall.method == 'Clipboard.setData') {
-            return null;
-          }
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
           return null;
-        },
-      );
-      addTearDown(
-        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
-          null,
-        ),
-      );
-
-      await pumpShellScreen(
-        tester,
-        fakeBindings: fakeBindings,
-        repository: repository,
-      );
-
-      await tester.tap(find.text('Paste'));
-      await tester.pumpAndSettle();
-
-      expect(fakeBindings.writes, isNotEmpty);
-      expect(fakeBindings.writes.last, utf8.encode(clipboardText));
-    },
-  );
-
-  testWidgets(
-    'shell screen Paste button ignores empty clipboard text',
-    (tester) async {
-      final fakeBindings = FakeCoreBindings();
-      final repository = MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
-      );
-
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
-        (methodCall) async {
-          if (methodCall.method == 'Clipboard.getData') {
-            return <String, dynamic>{'text': ''};
-          }
-          if (methodCall.method == 'Clipboard.setData') {
-            return null;
-          }
+        null,
+      ),
+    );
+
+    await pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      repository: repository,
+    );
+
+    await tester.tap(find.text('Paste'));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes, isNotEmpty);
+    expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+  });
+
+  testWidgets('shell screen Paste button ignores empty clipboard text', (
+    tester,
+  ) async {
+    final fakeBindings = FakeCoreBindings();
+    final repository = MemoryProfileRepository(
+      TerminalProfilesDocument(
+        defaultProfileId: 'default',
+        profiles: [defaultTerminalProfile()],
+      ),
+    );
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': ''};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
           return null;
-        },
-      );
-      addTearDown(
-        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
-          null,
-        ),
-      );
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
 
-      await pumpShellScreen(
-        tester,
-        fakeBindings: fakeBindings,
-        repository: repository,
-      );
+    await pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      repository: repository,
+    );
 
-      await tester.tap(find.text('Paste'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Paste'));
+    await tester.pumpAndSettle();
 
-      expect(fakeBindings.writes, isEmpty);
-    },
-  );
+    expect(fakeBindings.writes, isEmpty);
+  });
 
   testWidgets(
     'shell screen Copy button writes the selected text to the clipboard',
@@ -332,130 +331,130 @@ void main() {
     },
   );
 
-  testWidgets(
-    'shell screen Copy button ignores an empty selection',
-    (tester) async {
-      final fakeBindings = FakeCoreBindings();
-      final repository = MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
-      );
-      String? copiedText;
+  testWidgets('shell screen Copy button ignores an empty selection', (
+    tester,
+  ) async {
+    final fakeBindings = FakeCoreBindings();
+    final repository = MemoryProfileRepository(
+      TerminalProfilesDocument(
+        defaultProfileId: 'default',
+        profiles: [defaultTerminalProfile()],
+      ),
+    );
+    String? copiedText;
 
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        (methodCall) async {
-          if (methodCall.method == 'Clipboard.getData') {
-            return <String, dynamic>{'text': copiedText};
-          }
-          if (methodCall.method == 'Clipboard.setData') {
-            copiedText = (methodCall.arguments as Map)['text'] as String?;
-            return null;
-          }
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': copiedText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          copiedText = (methodCall.arguments as Map)['text'] as String?;
           return null;
-        },
-      );
-      addTearDown(
-        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
-          null,
-        ),
-      );
-
-      await pumpShellScreen(
-        tester,
-        fakeBindings: fakeBindings,
-        repository: repository,
-      );
-
-      await tester.tap(find.text('Copy'));
-      await tester.pumpAndSettle();
-
-      expect(copiedText, isNull);
-      expect(fakeBindings.writes, isEmpty);
-    },
-  );
-
-  testWidgets(
-    'shell screen Copy button preserves multiline selection text',
-    (tester) async {
-      final fakeBindings = FakeCoreBindings();
-      final repository = MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
-      );
-      String? copiedText;
-
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
-        (methodCall) async {
-          if (methodCall.method == 'Clipboard.getData') {
-            return <String, dynamic>{'text': copiedText};
-          }
-          if (methodCall.method == 'Clipboard.setData') {
-            copiedText = (methodCall.arguments as Map)['text'] as String?;
-            return null;
-          }
+        null,
+      ),
+    );
+
+    await pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      repository: repository,
+    );
+
+    await tester.tap(find.text('Copy'));
+    await tester.pumpAndSettle();
+
+    expect(copiedText, isNull);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('shell screen Copy button preserves multiline selection text', (
+    tester,
+  ) async {
+    final fakeBindings = FakeCoreBindings();
+    final repository = MemoryProfileRepository(
+      TerminalProfilesDocument(
+        defaultProfileId: 'default',
+        profiles: [defaultTerminalProfile()],
+      ),
+    );
+    String? copiedText;
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': copiedText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          copiedText = (methodCall.arguments as Map)['text'] as String?;
           return null;
-        },
-      );
-      addTearDown(
-        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-          SystemChannels.platform,
-          null,
-        ),
-      );
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
 
-      await pumpShellScreen(
-        tester,
-        fakeBindings: fakeBindings,
-        repository: repository,
-      );
+    await pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      repository: repository,
+    );
 
-      final container = tester.widget<UncontrolledProviderScope>(
-        find.byType(UncontrolledProviderScope).first,
-      ).container;
-      final sessionState = container.read(sessionControllerProvider);
-      final sessionId = sessionState.activeSessionId!;
+    final container = tester
+        .widget<UncontrolledProviderScope>(
+          find.byType(UncontrolledProviderScope).first,
+        )
+        .container;
+    final sessionState = container.read(sessionControllerProvider);
+    final sessionId = sessionState.activeSessionId!;
 
-      fakeBindings.setFrame(int.parse(sessionId), {
-        'rows': const [
-          {'index': 0, 'text': 'alpha', 'style_runs': []},
-          {'index': 1, 'text': 'beta', 'style_runs': []},
-          {'index': 2, 'text': 'gamma', 'style_runs': []},
-        ],
-        'cursor': const {'row': 0, 'col': 0, 'visible': true},
-        'selection': null,
-        'viewport_rows': 24,
-        'viewport_cols': 80,
-        'dirty_ranges': const [
-          {'start': 0, 'end': 3},
-        ],
-        'scrollback_offset': 0,
-      });
-      await tester.pumpAndSettle();
+    fakeBindings.setFrame(int.parse(sessionId), {
+      'rows': const [
+        {'index': 0, 'text': 'alpha', 'style_runs': []},
+        {'index': 1, 'text': 'beta', 'style_runs': []},
+        {'index': 2, 'text': 'gamma', 'style_runs': []},
+      ],
+      'cursor': const {'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': const [
+        {'start': 0, 'end': 3},
+      ],
+      'scrollback_offset': 0,
+    });
+    await tester.pumpAndSettle();
 
-      final viewportTopLeft = tester.getTopLeft(find.byType(TerminalViewport));
-      final selectionStart = viewportTopLeft + const Offset(10, 9);
-      final selectionEnd = viewportTopLeft + const Offset(18, 45);
-      final gesture = await tester.startGesture(selectionStart);
-      await tester.pump();
-      await gesture.moveTo(selectionEnd);
-      await tester.pump();
-      await gesture.up();
-      await tester.pumpAndSettle();
+    final viewportTopLeft = tester.getTopLeft(find.byType(TerminalViewport));
+    final selectionStart = viewportTopLeft + const Offset(10, 9);
+    final selectionEnd = viewportTopLeft + const Offset(18, 45);
+    final gesture = await tester.startGesture(selectionStart);
+    await tester.pump();
+    await gesture.moveTo(selectionEnd);
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Copy'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Copy'));
+    await tester.pumpAndSettle();
 
-      expect(copiedText, 'alpha\nbeta\ng');
-      expect(fakeBindings.writes, isEmpty);
-    },
-  );
+    expect(copiedText, 'alpha\nbeta\ng');
+    expect(fakeBindings.writes, isEmpty);
+  });
 
   testWidgets(
     'shell screen Copy button preserves reverse multiline selection text',
@@ -495,9 +494,11 @@ void main() {
         repository: repository,
       );
 
-      final container = tester.widget<UncontrolledProviderScope>(
-        find.byType(UncontrolledProviderScope).first,
-      ).container;
+      final container = tester
+          .widget<UncontrolledProviderScope>(
+            find.byType(UncontrolledProviderScope).first,
+          )
+          .container;
       final sessionState = container.read(sessionControllerProvider);
       final sessionId = sessionState.activeSessionId!;
 
@@ -569,6 +570,87 @@ void main() {
   );
 
   testWidgets(
+    'shell screen repaints visible rows after scrollback frame updates',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: repository,
+      );
+
+      final container = tester
+          .widget<UncontrolledProviderScope>(
+            find.byType(UncontrolledProviderScope).first,
+          )
+          .container;
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      fakeBindings.setFrame(int.parse(sessionId), {
+        'rows': const [
+          {'index': 0, 'text': 'visible line 1', 'style_runs': []},
+          {'index': 1, 'text': 'visible line 2', 'style_runs': []},
+        ],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .single;
+      expect(
+        renderObject.debugLastPaintedRowTexts,
+        equals(['visible line 1', 'visible line 2']),
+      );
+
+      final center = tester.getCenter(find.byType(TerminalViewport));
+      await tester.sendEventToBinding(
+        PointerScrollEvent(position: center, scrollDelta: const Offset(0, -40)),
+      );
+
+      fakeBindings.setFrame(int.parse(sessionId), {
+        'rows': const [
+          {'index': 0, 'text': 'scrolled line 9', 'style_runs': []},
+          {'index': 1, 'text': 'scrolled line 10', 'style_runs': []},
+        ],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': const [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 8,
+      });
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+
+      expect(fakeBindings.scrollCalls, isNotEmpty);
+      expect(
+        renderObject.debugLastPaintedRowTexts,
+        equals(['scrolled line 9', 'scrolled line 10']),
+      );
+    },
+  );
+
+  testWidgets(
     'shell screen forwards layout resize changes to the active session',
     (tester) async {
       final fakeBindings = FakeCoreBindings();
@@ -627,10 +709,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final container = tester.widget<UncontrolledProviderScope>(
-        find.byType(UncontrolledProviderScope).first,
-      ).container;
-      final sessionId = container.read(sessionControllerProvider).activeSessionId!;
+      final container = tester
+          .widget<UncontrolledProviderScope>(
+            find.byType(UncontrolledProviderScope).first,
+          )
+          .container;
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
 
       bindings.enqueueExit(sessionId, code: 0);
       await tester.pump(const Duration(milliseconds: 100));
@@ -669,10 +755,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final container = tester.widget<UncontrolledProviderScope>(
-        find.byType(UncontrolledProviderScope).first,
-      ).container;
-      final sessionId = container.read(sessionControllerProvider).activeSessionId!;
+      final container = tester
+          .widget<UncontrolledProviderScope>(
+            find.byType(UncontrolledProviderScope).first,
+          )
+          .container;
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
 
       bindings.enqueueExit(sessionId, code: 0);
       await tester.pump(const Duration(milliseconds: 100));
@@ -723,10 +813,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final container = tester.widget<UncontrolledProviderScope>(
-        find.byType(UncontrolledProviderScope).first,
-      ).container;
-      final firstSessionId = container.read(sessionControllerProvider).activeSessionId!;
+      final container = tester
+          .widget<UncontrolledProviderScope>(
+            find.byType(UncontrolledProviderScope).first,
+          )
+          .container;
+      final firstSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
 
       await tester.tap(find.widgetWithText(ListTile, 'Shell B'));
       await tester.pumpAndSettle();
@@ -779,10 +873,14 @@ void main() {
       await tester.tap(find.widgetWithText(ListTile, 'Shell B'));
       await tester.pumpAndSettle();
 
-      final container = tester.widget<UncontrolledProviderScope>(
-        find.byType(UncontrolledProviderScope).first,
-      ).container;
-      final activeSessionId = container.read(sessionControllerProvider).activeSessionId!;
+      final container = tester
+          .widget<UncontrolledProviderScope>(
+            find.byType(UncontrolledProviderScope).first,
+          )
+          .container;
+      final activeSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
 
       expect(find.byType(InputChip), findsNWidgets(2));
       expect(isTabSelected(tester, 'Shell B'), isTrue);

@@ -29,6 +29,7 @@ class RenderTerminalViewport extends RenderBox {
   final Map<int, _CachedParagraph> _paragraphCache = {};
   int _paragraphBuilds = 0;
   Size _cellSize = const Size(9, 18);
+  List<String> _debugLastPaintedRowTexts = const [];
 
   set controller(TerminalViewportController value) {
     if (identical(value, _controller)) {
@@ -81,8 +82,10 @@ class RenderTerminalViewport extends RenderBox {
     final frame = _controller.frame;
     _cellSize = _measureCellSize();
     final selection = _selectionController.selection;
+    final paintedRowTexts = <String>[];
 
     for (final row in frame.rows) {
+      paintedRowTexts.add(row.text);
       final paragraph = _paragraphForRow(row);
       final y = row.index * _cellSize.height;
       if (selection != null &&
@@ -107,6 +110,7 @@ class RenderTerminalViewport extends RenderBox {
       }
       canvas.drawParagraph(paragraph, Offset(0, y));
     }
+    _debugLastPaintedRowTexts = paintedRowTexts;
 
     if (frame.cursor.visible) {
       canvas.drawRect(
@@ -144,6 +148,8 @@ class RenderTerminalViewport extends RenderBox {
   TerminalCellPosition debugCellForOffset(Offset offset) =>
       _cellForOffset(offset);
   int get debugParagraphBuilds => _paragraphBuilds;
+  List<String> get debugLastPaintedRowTexts =>
+      List<String>.unmodifiable(_debugLastPaintedRowTexts);
 
   ui.Paragraph _paragraphForRow(TerminalRow row) {
     final signature = Object.hash(
