@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:ffi' as ffi;
 
+import 'package:ffi/ffi.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +16,80 @@ import 'package:app/ffi/flutterm_core.dart';
 
 import 'support/fake_core_bindings.dart';
 import 'support/memory_profile_repository.dart';
+
+class _EventfulCoreBindings implements CoreBindings {
+  _EventfulCoreBindings(this._delegate);
+
+  final FakeCoreBindings _delegate;
+  final Map<int, List<Map<String, Object?>>> _queuedEvents = {};
+
+  void enqueueExit(String sessionId, {int? code}) {
+    _queuedEvents.putIfAbsent(int.parse(sessionId), () => []).add({
+      'kind': 'exit',
+      'session_id': int.parse(sessionId),
+      'payload': code == null ? null : {'code': code},
+    });
+  }
+
+  @override
+  int ping() => _delegate.ping();
+
+  @override
+  int sessionCreate(ffi.Pointer<Utf8> profileJson) =>
+      _delegate.sessionCreate(profileJson);
+
+  @override
+  int sessionClose(int sessionId) => _delegate.sessionClose(sessionId);
+
+  @override
+  ffi.Pointer<Utf8> sessionPollEventsJson(int sessionId) {
+    final delegatePointer = _delegate.sessionPollEventsJson(sessionId);
+    if (delegatePointer == ffi.nullptr) {
+      final queued = _queuedEvents.remove(sessionId);
+      if (queued == null) {
+        return ffi.nullptr;
+      }
+      return jsonEncode(queued).toNativeUtf8();
+    }
+
+    try {
+      final events =
+          (jsonDecode(delegatePointer.toDartString()) as List<dynamic>)
+              .cast<Map<String, Object?>>();
+      final queued = _queuedEvents.remove(sessionId);
+      if (queued != null) {
+        events.addAll(queued);
+      }
+      return jsonEncode(events).toNativeUtf8();
+    } finally {
+      _delegate.stringFree(delegatePointer);
+    }
+  }
+
+  @override
+  int sessionResize(
+    int sessionId,
+    int cols,
+    int rows,
+    int pixelWidth,
+    int pixelHeight,
+  ) => _delegate.sessionResize(sessionId, cols, rows, pixelWidth, pixelHeight);
+
+  @override
+  int sessionScroll(int sessionId, int deltaLines) =>
+      _delegate.sessionScroll(sessionId, deltaLines);
+
+  @override
+  ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) =>
+      _delegate.sessionTakeFrameDiffJson(sessionId);
+
+  @override
+  int sessionWrite(int sessionId, ffi.Pointer<ffi.Uint8> bytes, int length) =>
+      _delegate.sessionWrite(sessionId, bytes, length);
+
+  @override
+  void stringFree(ffi.Pointer<Utf8> value) => malloc.free(value);
+}
 
 void main() {
   Future<void> pumpShellScreen(
@@ -304,6 +380,48 @@ void main() {
       final resizedCall = fakeBindings.resizeCalls.last;
       expect(resizedCall[0], equals(initialCall[0]));
       expect(resizedCall, isNot(equals(initialCall)));
+    },
+  );
+
+  testWidgets(
+    'shell screen returns to the empty state after the last session exits',
+    (tester) async {
+      final fakeDelegate = FakeCoreBindings();
+      final bindings = _EventfulCoreBindings(fakeDelegate);
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            terminalCoreClientProvider.overrideWithValue(
+              TerminalCoreClient(bindings),
+            ),
+            profileRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: const MaterialApp(home: ShellScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = tester.widget<UncontrolledProviderScope>(
+        find.byType(UncontrolledProviderScope).first,
+      ).container;
+      final sessionId = container.read(sessionControllerProvider).activeSessionId!;
+
+      bindings.enqueueExit(sessionId, code: 0);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InputChip), findsNothing);
+      expect(find.text('Create a shell to get started'), findsOneWidget);
+      expect(find.text('Copy'), findsNothing);
+      expect(find.text('Paste'), findsNothing);
+      expect(find.text('New Tab'), findsOneWidget);
     },
   );
 }
