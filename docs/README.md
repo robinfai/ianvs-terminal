@@ -12,7 +12,10 @@
 4. [ACCEPTANCE.md](/Users/robinfai/personal/flutterm/docs/ACCEPTANCE.md)
 5. [TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)
 6. [ARCHITECTURE.md](/Users/robinfai/personal/flutterm/docs/ARCHITECTURE.md)
-7. [KNOWN_ISSUES.md](/Users/robinfai/personal/flutterm/docs/KNOWN_ISSUES.md)
+7. [HYPER_LIKE_TARGET.md](/Users/robinfai/personal/flutterm/docs/HYPER_LIKE_TARGET.md)
+8. [HYPER_LIKE_GAP_MATRIX.md](/Users/robinfai/personal/flutterm/docs/HYPER_LIKE_GAP_MATRIX.md)
+9. [DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md](/Users/robinfai/personal/flutterm/docs/DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md)
+10. [KNOWN_ISSUES.md](/Users/robinfai/personal/flutterm/docs/KNOWN_ISSUES.md)
 
 ## 文档职责
 
