@@ -60,6 +60,23 @@ flutter run -d macos
 - `flutter test integration_test/flutterm_smoke_test.dart`
 - `flutter run -d macos`
 
+### 改 shell top actions / launcher surface
+
+必须执行：
+
+- `flutter analyze`
+- `flutter test test/shell/shell_screen_phase2a_test.dart`
+- `flutter test test/widget_test.dart`
+- `flutter test integration_test/flutterm_smoke_test.dart`
+- `flutter run -d macos`
+
+重点确认：
+
+- launcher 入口在 active shell surface 上显式可见
+- launcher 打开 / 关闭路径 deterministic
+- launcher 打开时不会把按键或点击泄漏到 terminal input
+- launcher 关闭后 active terminal viewport 恢复可交互状态
+
 ## 自动化 Smoke
 
 当前最小自动化 GUI 冒烟命令：
@@ -105,6 +122,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 - shell `exit` 后活动 tab 焦点迁移
 - 多行选区文本提取语义（换行、反向拖选、裁剪、非对称列范围、block 选择）
 - shell workspace chrome / session tabs panel / richer empty-state shell surfaces
+- top actions launcher surface open / close / new-tab path
 
 当前未覆盖：
 

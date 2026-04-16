@@ -276,6 +276,109 @@ void main() {
   });
 
   testWidgets(
+    'shell screen launcher Paste action sends clipboard text to the active session',
+    (tester) async {
+      const clipboardText = 'launcher paste';
+      final fakeBindings = FakeCoreBindings();
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: repository,
+      );
+
+      await tester.tap(find.text('Actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Paste clipboard'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Top actions'), findsNothing);
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+    },
+  );
+
+  testWidgets(
+    'shell screen launcher Copy action writes the selected text to the clipboard',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+      String? copiedText;
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': copiedText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            copiedText = (methodCall.arguments as Map)['text'] as String?;
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        repository: repository,
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      final viewportTopLeft = tester.getTopLeft(find.byType(TerminalViewport));
+      final selectionStart = viewportTopLeft + const Offset(1, 9);
+      await tester.dragFrom(selectionStart, const Offset(300, 0));
+      await tester.pump();
+
+      await tester.tap(find.text('Actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Copy selection'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Top actions'), findsNothing);
+      expect(copiedText, 'flutterm ready');
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
     'shell screen Copy button writes the selected text to the clipboard',
     (tester) async {
       final fakeBindings = FakeCoreBindings();

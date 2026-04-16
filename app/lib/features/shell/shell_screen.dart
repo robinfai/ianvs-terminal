@@ -12,6 +12,8 @@ import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
 
+enum _ShellLauncherAction { newTab, copy, paste }
+
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
@@ -21,12 +23,194 @@ class ShellScreen extends ConsumerStatefulWidget {
 
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, SelectionController> _selectionControllers = {};
+  bool _isLauncherOpen = false;
+
+  TerminalProfile? _defaultProfileFor(
+    List<TerminalProfile> profiles,
+    String? defaultProfileId,
+  ) {
+    if (profiles.isEmpty) {
+      return null;
+    }
+    for (final profile in profiles) {
+      if (profile.id == defaultProfileId) {
+        return profile;
+      }
+    }
+    return profiles.first;
+  }
+
+  Future<void> _copySelection(
+    SessionController sessionController,
+    String sessionId,
+    SelectionController selectionController,
+  ) async {
+    final text = selectionController.textForFrame(
+      sessionController.viewportFor(sessionId).frame,
+    );
+    if (text.isEmpty) {
+      return;
+    }
+    await ClipboardBridge.copy(text);
+  }
+
+  Future<void> _pasteToSession(String sessionId) async {
+    final text = await ClipboardBridge.paste();
+    if (text.isEmpty) {
+      return;
+    }
+    ref
+        .read(terminalCoreClientProvider)
+        .sendInput(sessionId, Uint8List.fromList(utf8.encode(text)));
+  }
+
+  Future<void> _openTopActionsLauncher(
+    BuildContext context,
+    SessionController sessionController,
+    List<TerminalProfile> profiles,
+    String? defaultProfileId,
+  ) async {
+    final defaultProfile = _defaultProfileFor(profiles, defaultProfileId);
+    if (_isLauncherOpen || defaultProfile == null) {
+      return;
+    }
+
+    setState(() {
+      _isLauncherOpen = true;
+    });
+
+    final hasActiveSession =
+        ref.read(sessionControllerProvider).activeSessionId != null;
+    final action = await showDialog<_ShellLauncherAction>(
+      context: context,
+      barrierDismissible: true,
+      requestFocus: true,
+      builder: (dialogContext) {
+        Widget actionTile({
+          required IconData icon,
+          required String title,
+          required String subtitle,
+          required _ShellLauncherAction value,
+          required bool enabled,
+        }) {
+          return ListTile(
+            leading: Icon(icon),
+            title: Text(title),
+            subtitle: Text(subtitle),
+            enabled: enabled,
+            onTap: enabled
+                ? () => Navigator.of(dialogContext).pop(value)
+                : null,
+          );
+        }
+
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Top actions',
+                          style: Theme.of(dialogContext).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close actions',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  actionTile(
+                    icon: Icons.add_box_outlined,
+                    title: 'New tab',
+                    subtitle: 'Open your default shell profile.',
+                    value: _ShellLauncherAction.newTab,
+                    enabled: true,
+                  ),
+                  actionTile(
+                    icon: Icons.copy_rounded,
+                    title: 'Copy selection',
+                    subtitle: 'Copy the current terminal selection.',
+                    value: _ShellLauncherAction.copy,
+                    enabled: hasActiveSession,
+                  ),
+                  actionTile(
+                    icon: Icons.content_paste_rounded,
+                    title: 'Paste clipboard',
+                    subtitle: 'Send clipboard text to the active shell.',
+                    value: _ShellLauncherAction.paste,
+                    enabled: hasActiveSession,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isLauncherOpen = false;
+    });
+
+    final currentState = ref.read(sessionControllerProvider);
+    final currentSessionId = currentState.activeSessionId;
+    switch (action) {
+      case _ShellLauncherAction.newTab:
+        sessionController.createSession(defaultProfile);
+        return;
+      case _ShellLauncherAction.copy:
+        if (currentSessionId == null) {
+          return;
+        }
+        final selectionController = _selectionControllers[currentSessionId];
+        if (selectionController == null) {
+          return;
+        }
+        await _copySelection(
+          sessionController,
+          currentSessionId,
+          selectionController,
+        );
+        return;
+      case _ShellLauncherAction.paste:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _pasteToSession(currentSessionId);
+        return;
+      case null:
+        return;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
     final activeSessionId = sessionState.activeSessionId;
+    final defaultProfile = _defaultProfileFor(
+      sessionState.profiles,
+      sessionState.defaultProfileId,
+    );
+    final activeSelectionController = activeSessionId == null
+        ? null
+        : _selectionControllers.putIfAbsent(
+            activeSessionId,
+            SelectionController.new,
+          );
 
     return Scaffold(
       body: Row(
@@ -67,34 +251,62 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             horizontal: 16,
                             vertical: 14,
                           ),
-                          child: Column(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const _ShellSectionLabel('Workspace'),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Shell workspace',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: const Color(0xFF111827),
-                                      fontWeight: FontWeight.w800,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const _ShellSectionLabel('Workspace'),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Shell workspace',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: const Color(0xFF111827),
+                                            fontWeight: FontWeight.w800,
+                                          ),
                                     ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _sessionSummary(sessionState.tabs.length),
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(color: const Color(0xFF4B5563)),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Active session',
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      color: const Color(0xFF6B7280),
-                                      fontWeight: FontWeight.w700,
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _sessionSummary(sessionState.tabs.length),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            color: const Color(0xFF4B5563),
+                                          ),
                                     ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Active session',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                            color: const Color(0xFF6B7280),
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              FilledButton.tonalIcon(
+                                onPressed: defaultProfile == null
+                                    ? null
+                                    : () => _openTopActionsLauncher(
+                                        context,
+                                        sessionController,
+                                        sessionState.profiles,
+                                        sessionState.defaultProfileId,
+                                      ),
+                                icon: const Icon(Icons.apps_rounded),
+                                label: const Text('Actions'),
                               ),
                             ],
                           ),
@@ -219,10 +431,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 });
 
                                 final selectionController =
-                                    _selectionControllers.putIfAbsent(
-                                      activeSessionId,
-                                      SelectionController.new,
-                                    );
+                                    activeSelectionController!;
                                 final inputController = TerminalInputController(
                                   sessionId: activeSessionId,
                                   coreClient: ref.read(
@@ -272,41 +481,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     Row(
                                       children: [
                                         FilledButton.tonal(
-                                          onPressed: () async {
-                                            final text = selectionController
-                                                .textForFrame(
-                                                  sessionController
-                                                      .viewportFor(
-                                                        activeSessionId,
-                                                      )
-                                                      .frame,
-                                                );
-                                            if (text.isEmpty) {
-                                              return;
-                                            }
-                                            await ClipboardBridge.copy(text);
-                                          },
+                                          onPressed: () => _copySelection(
+                                            sessionController,
+                                            activeSessionId,
+                                            selectionController,
+                                          ),
                                           child: const Text('Copy'),
                                         ),
                                         const SizedBox(width: 8),
                                         FilledButton.tonal(
-                                          onPressed: () async {
-                                            final text =
-                                                await ClipboardBridge.paste();
-                                            if (text.isEmpty) {
-                                              return;
-                                            }
-                                            ref
-                                                .read(
-                                                  terminalCoreClientProvider,
-                                                )
-                                                .sendInput(
-                                                  activeSessionId,
-                                                  Uint8List.fromList(
-                                                    utf8.encode(text),
-                                                  ),
-                                                );
-                                          },
+                                          onPressed: () =>
+                                              _pasteToSession(activeSessionId),
                                           child: const Text('Paste'),
                                         ),
                                       ],
@@ -326,12 +511,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       floatingActionButton: sessionState.profiles.isEmpty
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => sessionController.createSession(
-                sessionState.profiles.firstWhere(
-                  (profile) => profile.id == sessionState.defaultProfileId,
-                  orElse: () => sessionState.profiles.first,
-                ),
-              ),
+              onPressed: defaultProfile == null
+                  ? null
+                  : () => sessionController.createSession(defaultProfile),
               label: const Text('New Tab'),
               icon: const Icon(Icons.add),
             ),

@@ -67,6 +67,48 @@ void main() {
     expect(find.text('Local Shell'), findsWidgets);
   });
 
+  testWidgets(
+    'top actions launcher opens predictably and can create another tab',
+    (WidgetTester tester) async {
+      await _pumpSmokeApp(
+        tester,
+        profiles: TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      expect(find.text('Actions'), findsOneWidget);
+      expect(find.byType(InputChip), findsOneWidget);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+
+      await tester.tap(find.text('Actions'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Top actions'), findsOneWidget);
+      expect(find.text('New tab'), findsOneWidget);
+      expect(find.text('Copy selection'), findsOneWidget);
+      expect(find.text('Paste clipboard'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Close actions'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Top actions'), findsNothing);
+      expect(find.byType(InputChip), findsOneWidget);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+
+      await tester.tap(find.text('Actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tab'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Top actions'), findsNothing);
+      expect(find.byType(InputChip), findsNWidgets(2));
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(find.text('Local Shell'), findsWidgets);
+    },
+  );
+
   testWidgets('closing an inactive tab keeps the active tab focused', (
     WidgetTester tester,
   ) async {
