@@ -14,6 +14,10 @@ class FakeCoreBindings implements CoreBindings {
   final List<List<int>> resizeCalls = [];
   bool pingCalled = false;
 
+  void setFrame(int sessionId, Map<String, Object?> frame) {
+    _frames[sessionId] = frame;
+  }
+
   @override
   int ping() {
     pingCalled = true;
