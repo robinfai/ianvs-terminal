@@ -92,6 +92,12 @@ class _EventfulCoreBindings implements CoreBindings {
 }
 
 void main() {
+  bool isTabSelected(WidgetTester tester, String label) {
+    return tester
+        .widget<InputChip>(find.widgetWithText(InputChip, label))
+        .selected;
+  }
+
   Future<void> pumpShellScreen(
     WidgetTester tester, {
     required FakeCoreBindings fakeBindings,
@@ -556,6 +562,59 @@ void main() {
       expect(find.text('Copy'), findsNothing);
       expect(find.text('Paste'), findsNothing);
       expect(find.text('New Tab'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'shell screen keeps the active tab focused when another session exits',
+    (tester) async {
+      final fakeDelegate = FakeCoreBindings();
+      final bindings = _EventfulCoreBindings(fakeDelegate);
+      final primaryProfile = defaultTerminalProfile().copyWith(name: 'Shell A');
+      final secondaryProfile = defaultTerminalProfile().copyWith(
+        id: 'shell-b',
+        name: 'Shell B',
+      );
+      final repository = MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: primaryProfile.id,
+          profiles: [primaryProfile, secondaryProfile],
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            terminalCoreClientProvider.overrideWithValue(
+              TerminalCoreClient(bindings),
+            ),
+            profileRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: const MaterialApp(home: ShellScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = tester.widget<UncontrolledProviderScope>(
+        find.byType(UncontrolledProviderScope).first,
+      ).container;
+      final firstSessionId = container.read(sessionControllerProvider).activeSessionId!;
+
+      await tester.tap(find.widgetWithText(ListTile, 'Shell B'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(InputChip), findsNWidgets(2));
+      expect(isTabSelected(tester, 'Shell B'), isTrue);
+
+      bindings.enqueueExit(firstSessionId, code: 0);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(InputChip, 'Shell A'), findsNothing);
+      expect(find.widgetWithText(InputChip, 'Shell B'), findsOneWidget);
+      expect(isTabSelected(tester, 'Shell B'), isTrue);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Paste'), findsOneWidget);
     },
   );
 }
