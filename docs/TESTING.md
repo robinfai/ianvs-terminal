@@ -88,16 +88,20 @@ flutter test integration_test/flutterm_smoke_test.dart
 - `Copy` 按钮写入系统剪贴板
 - `Copy` 按钮空选区 no-op
 - `Copy` 按钮保留多行选区换行
+- `Copy` 按钮保留反向多行选区换行
 - 滚轮事件 -> core scroll 调用
 - 布局尺寸变化 -> core resize 调用
 - Rust core 交互式 PTY 输入 -> 输出最小往返
 - Flutter 侧 FFI -> PTY -> 输出最小往返
+- Flutter 侧 FFI -> PTY 多命令往返
+- Flutter 侧真实 shell `exit` 事件传播
+- shell `exit` 后活动 tab 焦点迁移
 - 多行选区文本提取语义（换行、反向拖选、裁剪）
 
 当前未覆盖：
 
 - 滚动 / resize 后的可见内容变化
-- 更复杂的 PTY 交互场景（多命令、长会话、提示符差异）
+- 更复杂的 PTY 交互场景（长会话、提示符差异）
 - 更复杂的 selection 语义（矩形选区等）
 - 更复杂的 clipboard / selection 组合语义
 
