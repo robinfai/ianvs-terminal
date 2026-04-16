@@ -90,6 +90,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 - `Copy` 按钮保留多行选区换行
 - `Copy` 按钮保留反向多行选区换行
 - `Copy` 按钮对越界多行选区安全裁剪
+- `Copy` 按钮保留非对称多行列范围
 - 滚轮事件 -> core scroll 调用
 - scroll 后 frame diff 驱动的可见内容 repaint
 - 布局尺寸变化 -> core resize 调用
@@ -106,7 +107,6 @@ flutter test integration_test/flutterm_smoke_test.dart
 当前未覆盖：
 
 - 真正的矩形 / block selection 语义
-- 更复杂的 clipboard / selection 组合语义
 
 ## 手工 Smoke Checklist
 
