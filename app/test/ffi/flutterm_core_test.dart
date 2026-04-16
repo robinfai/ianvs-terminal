@@ -69,6 +69,50 @@ void main() {
     );
   });
 
+  test(
+    'terminal core client can roundtrip multiple commands through one PTY session',
+    () {
+      final client = TerminalCoreClient(
+        FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
+      );
+
+      final sessionId = client.createSession(
+        defaultTerminalProfile().copyWith(
+          id: 'interactive-multi',
+          name: 'Interactive Multi',
+          shell: '/bin/sh',
+          args: const [],
+        ),
+      );
+      addTearDown(() => client.closeSession(sessionId));
+
+      sleep(const Duration(milliseconds: 250));
+      client.takeFrameDiff(sessionId);
+
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList('printf \'first marker\\n\'\n'.codeUnits),
+      );
+      expect(
+        _waitForFrameContaining(client, sessionId, 'first marker')
+            .rows
+            .any((row) => row.text.contains('first marker')),
+        isTrue,
+      );
+
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList('printf \'second marker\\n\'\n'.codeUnits),
+      );
+      expect(
+        _waitForFrameContaining(client, sessionId, 'second marker')
+            .rows
+            .any((row) => row.text.contains('second marker')),
+        isTrue,
+      );
+    },
+  );
+
   test('terminal core client surfaces shell exit events', () {
     final client = TerminalCoreClient(
       FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
@@ -122,4 +166,20 @@ String _resolveTestLibraryPath() {
   throw StateError(
     'Unable to locate libflutterm_core.dylib for Flutter-side PTY test.',
   );
+}
+
+TerminalFrameDiff _waitForFrameContaining(
+  TerminalCoreClient client,
+  String sessionId,
+  String needle,
+) {
+  for (var attempt = 0; attempt < 20; attempt += 1) {
+    sleep(const Duration(milliseconds: 100));
+    final frame = client.takeFrameDiff(sessionId);
+    if (frame != null && frame.rows.any((row) => row.text.contains(needle))) {
+      return frame;
+    }
+  }
+
+  throw StateError('Timed out waiting for frame containing "$needle"');
 }
