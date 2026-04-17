@@ -9,6 +9,9 @@ import 'terminal_painter_models.dart';
 import 'terminal_viewport.dart';
 
 const String terminalPrimaryFontFamily = 'JetBrainsMono Nerd Font Mono';
+const Color terminalDefaultForeground = Color(0xFFF8FAFC);
+const Color terminalDefaultBackground = Color(0xFF000000);
+const Color terminalCursorColor = Color(0xFFBBF7D0);
 const List<String> terminalFontFamilyFallback = <String>[
   'Menlo',
   'JetBrainsMono Nerd Font',
@@ -17,15 +20,31 @@ const List<String> terminalFontFamilyFallback = <String>[
   'Apple Symbols',
 ];
 
+class TerminalResolvedStyle {
+  const TerminalResolvedStyle({
+    required this.start,
+    required this.end,
+    required this.foreground,
+    required this.background,
+  });
+
+  final int start;
+  final int end;
+  final Color foreground;
+  final Color? background;
+}
+
 class RenderTerminalViewport extends RenderBox {
   RenderTerminalViewport({
     required TerminalViewportController controller,
     required SelectionController selectionController,
     required ValueChanged<int> onScrollLines,
+    required bool cursorVisible,
     required double devicePixelRatio,
   }) : _controller = controller,
        _selectionController = selectionController,
        _onScrollLines = onScrollLines,
+       _cursorVisible = cursorVisible,
        _devicePixelRatio = devicePixelRatio {
     _controller.addListener(markNeedsPaint);
     _selectionController.addListener(markNeedsPaint);
@@ -36,7 +55,9 @@ class RenderTerminalViewport extends RenderBox {
   ValueChanged<int> _onScrollLines;
   double _devicePixelRatio;
   double _pendingScrollLines = 0.0;
+  bool _cursorVisible = true;
   final Map<int, _CachedParagraph> _paragraphCache = {};
+  final Map<int, List<TerminalResolvedStyle>> _debugResolvedStyles = {};
   int _paragraphBuilds = 0;
   Size _cellSize = const Size(9, 18);
   List<String> _debugLastPaintedRowTexts = const [];
@@ -67,6 +88,11 @@ class RenderTerminalViewport extends RenderBox {
 
   set devicePixelRatio(double value) {
     _devicePixelRatio = value;
+  }
+
+  set cursorVisible(bool value) {
+    _cursorVisible = value;
+    markNeedsPaint();
   }
 
   @override
@@ -125,7 +151,7 @@ class RenderTerminalViewport extends RenderBox {
     }
     _debugLastPaintedRowTexts = paintedRowTexts;
 
-    if (frame.cursor.visible) {
+    if (frame.cursor.visible && _cursorVisible) {
       canvas.drawRect(
         Rect.fromLTWH(
           frame.cursor.col * _cellSize.width,
@@ -134,7 +160,7 @@ class RenderTerminalViewport extends RenderBox {
           _cellSize.height,
         ),
         Paint()
-          ..color = const Color(0xFFBBF7D0)
+          ..color = terminalCursorColor
           ..style = PaintingStyle.stroke
           ..strokeWidth = _devicePixelRatio.clamp(1, 2),
       );
@@ -167,6 +193,15 @@ class RenderTerminalViewport extends RenderBox {
   int get debugParagraphBuilds => _paragraphBuilds;
   List<String> get debugLastPaintedRowTexts =>
       List<String>.unmodifiable(_debugLastPaintedRowTexts);
+  bool get debugCursorVisible {
+    final frame = _controller.frame;
+    return frame.cursor.visible && _cursorVisible;
+  }
+
+  List<TerminalResolvedStyle> debugResolvedStylesForRow(int row) =>
+      List<TerminalResolvedStyle>.unmodifiable(
+        _debugResolvedStyles[row] ?? const <TerminalResolvedStyle>[],
+      );
 
   ui.Paragraph _paragraphForRow(TerminalRow row) {
     final signature = Object.hash(
@@ -196,10 +231,11 @@ class RenderTerminalViewport extends RenderBox {
         height: 1.2,
       ),
     );
+    final resolvedStyles = <TerminalResolvedStyle>[];
     if (row.styleRuns.isEmpty) {
       builder.pushStyle(
         ui.TextStyle(
-          color: const Color(0xFFF8FAFC),
+          color: terminalDefaultForeground,
           fontFamily: terminalPrimaryFontFamily,
           fontFamilyFallback: terminalFontFamilyFallback,
         ),
@@ -212,7 +248,7 @@ class RenderTerminalViewport extends RenderBox {
         if (cursor < run.start && cursor < row.text.length) {
           builder.pushStyle(
             ui.TextStyle(
-              color: const Color(0xFFF8FAFC),
+              color: terminalDefaultForeground,
               fontFamily: terminalPrimaryFontFamily,
               fontFamilyFallback: terminalFontFamilyFallback,
             ),
@@ -223,12 +259,29 @@ class RenderTerminalViewport extends RenderBox {
           builder.pop();
         }
         final end = run.end.clamp(run.start, row.text.length);
-        final backgroundPaint = run.background == null
+        var foreground = run.foreground ?? terminalDefaultForeground;
+        var background = run.background ?? terminalDefaultBackground;
+
+        if (run.inverse) {
+          final swapped = background;
+          background = foreground;
+          foreground = swapped;
+        }
+
+        final backgroundPaint = (run.background == null && !run.inverse)
             ? null
-            : (Paint()..color = run.background!);
+            : (Paint()..color = background);
+        resolvedStyles.add(
+          TerminalResolvedStyle(
+            start: run.start,
+            end: end,
+            foreground: foreground,
+            background: backgroundPaint?.color,
+          ),
+        );
         builder.pushStyle(
           ui.TextStyle(
-            color: run.foreground ?? const Color(0xFFF8FAFC),
+            color: foreground,
             background: backgroundPaint,
             fontFamily: terminalPrimaryFontFamily,
             fontFamilyFallback: terminalFontFamilyFallback,
@@ -248,7 +301,7 @@ class RenderTerminalViewport extends RenderBox {
       if (cursor < row.text.length) {
         builder.pushStyle(
           ui.TextStyle(
-            color: const Color(0xFFF8FAFC),
+            color: terminalDefaultForeground,
             fontFamily: terminalPrimaryFontFamily,
             fontFamilyFallback: terminalFontFamilyFallback,
           ),
@@ -263,6 +316,7 @@ class RenderTerminalViewport extends RenderBox {
       signature: signature,
       paragraph: paragraph,
     );
+    _debugResolvedStyles[row.index] = resolvedStyles;
     _paragraphBuilds += 1;
     return paragraph;
   }

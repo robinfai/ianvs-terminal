@@ -26,6 +26,20 @@ fn interactive_profile() -> TerminalProfile {
     }
 }
 
+fn prompt_like_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "prompt-like".to_string(),
+        name: "Prompt-Like".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            r"printf '\x1b[38;5;196m\x1b[48;5;46mabc   \x1b[0m\n'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+    }
+}
+
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     for _ in 0..20 {
         if let Some(frame) = session::take_frame_diff(session_id)
@@ -88,5 +102,30 @@ fn interactive_session_accepts_input_and_emits_output() {
     assert!(frame.contains("roundtrip"));
 
     session::write_session(session_id, b"exit\n").unwrap();
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_preserves_trailing_spaces_in_row_text() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&prompt_like_profile()).unwrap())
+            .unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let rows = parsed["rows"].as_array().expect("expected rows");
+    let text = rows[0]["text"].as_str().expect("expected row text");
+
+    assert!(text.starts_with("abc   "));
+    assert!(text.ends_with(' '));
+    assert!(text.len() > 6);
+    let style_runs = rows[0]["style_runs"].as_array().expect("expected style runs");
+    let first_run = &style_runs[0];
+    assert_eq!(first_run["background"].as_str(), Some("#00ff00"));
+    assert_eq!(first_run["foreground"].as_str(), Some("#ff0000"));
+
     session::close_session(session_id).unwrap();
 }

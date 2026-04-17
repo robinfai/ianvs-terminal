@@ -235,11 +235,10 @@ impl TerminalSession {
                 style_runs.push(finalized);
             }
 
-            let trimmed = text.trim_end_matches(' ').to_string();
-            current_row_text.push(trimmed.clone());
+            current_row_text.push(text.clone());
             rows.push(TerminalRow {
                 index: row,
-                text: trimmed,
+                text,
                 style_runs,
             });
         }
@@ -315,17 +314,51 @@ fn color_to_hex(color: Color) -> Option<String> {
     match color {
         Color::Default => None,
         Color::Idx(index) => Some(match index {
-            0 => "#0f172a".to_string(),
-            1 => "#ef4444".to_string(),
-            2 => "#22c55e".to_string(),
-            3 => "#f59e0b".to_string(),
-            4 => "#3b82f6".to_string(),
-            5 => "#a855f7".to_string(),
-            6 => "#06b6d4".to_string(),
-            7 => "#e5e7eb".to_string(),
-            _ => "#f8fafc".to_string(),
+            0 => "#000000".to_string(),
+            1 => "#cd0000".to_string(),
+            2 => "#00cd00".to_string(),
+            3 => "#cdcd00".to_string(),
+            4 => "#0000ee".to_string(),
+            5 => "#cd00cd".to_string(),
+            6 => "#00cdcd".to_string(),
+            7 => "#e5e5e5".to_string(),
+            8 => "#7f7f7f".to_string(),
+            9 => "#ff0000".to_string(),
+            10 => "#00ff00".to_string(),
+            11 => "#ffff00".to_string(),
+            12 => "#5c5cff".to_string(),
+            13 => "#ff00ff".to_string(),
+            14 => "#00ffff".to_string(),
+            15 => "#ffffff".to_string(),
+            16..=231 => {
+                let palette = [0, 95, 135, 175, 215, 255];
+                let idx = (index - 16) as usize;
+                let red = palette[idx / 36];
+                let green = palette[(idx % 36) / 6];
+                let blue = palette[idx % 6];
+                format!("#{red:02x}{green:02x}{blue:02x}")
+            }
+            232..=255 => {
+                let level = 8 + ((index - 232) * 10);
+                format!("#{0:02x}{0:02x}{0:02x}", level)
+            }
         }),
         Color::Rgb(red, green, blue) => Some(format!("#{red:02x}{green:02x}{blue:02x}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn color_to_hex_handles_extended_colors() {
+        assert_eq!(color_to_hex(Color::Idx(0)), Some("#000000".to_string()));
+        assert_eq!(color_to_hex(Color::Idx(11)), Some("#ffff00".to_string()));
+        assert_eq!(color_to_hex(Color::Idx(12)), Some("#5c5cff".to_string()));
+        assert_eq!(color_to_hex(Color::Idx(196)), Some("#ff0000".to_string()));
+        assert_eq!(color_to_hex(Color::Idx(46)), Some("#00ff00".to_string()));
+        assert_eq!(color_to_hex(Color::Idx(233)), Some("#121212".to_string()));
     }
 }
 

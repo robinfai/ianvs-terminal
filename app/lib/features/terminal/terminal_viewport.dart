@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'render_terminal_viewport.dart';
@@ -37,6 +39,8 @@ class TerminalViewport extends StatefulWidget {
 }
 
 class _TerminalViewportState extends State<TerminalViewport> {
+  Timer? _cursorBlinkTimer;
+  bool _cursorVisible = true;
   FocusNode? _ownedFocusNode;
 
   FocusNode get _focusNode =>
@@ -44,7 +48,21 @@ class _TerminalViewportState extends State<TerminalViewport> {
       (_ownedFocusNode ??= FocusNode(debugLabel: 'terminal-viewport'));
 
   @override
+  void initState() {
+    super.initState();
+    _cursorBlinkTimer = Timer.periodic(const Duration(milliseconds: 650), (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _cursorVisible = !_cursorVisible;
+      });
+    });
+  }
+
+  @override
   void dispose() {
+    _cursorBlinkTimer?.cancel();
     _ownedFocusNode?.dispose();
     super.dispose();
   }
@@ -62,6 +80,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
           controller: widget.controller,
           selectionController: widget.selectionController,
           onScrollLines: widget.onScrollLines,
+          cursorVisible: _cursorVisible,
         ),
       ),
     );
@@ -73,11 +92,13 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.controller,
     required this.selectionController,
     required this.onScrollLines,
+    required this.cursorVisible,
   });
 
   final TerminalViewportController controller;
   final SelectionController selectionController;
   final ValueChanged<int> onScrollLines;
+  final bool cursorVisible;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -85,6 +106,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       controller: controller,
       selectionController: selectionController,
       onScrollLines: onScrollLines,
+      cursorVisible: cursorVisible,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
     );
   }
@@ -98,6 +120,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..controller = controller
       ..selectionController = selectionController
       ..onScrollLines = onScrollLines
+      ..cursorVisible = cursorVisible
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
   }
 }
