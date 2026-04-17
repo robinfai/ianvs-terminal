@@ -141,4 +141,11 @@ void main() {
       expect(scrollLines.single, isNegative);
     },
   );
+
+  test('terminal text style keeps a nerd-font fallback ahead of generic system fonts', () {
+    expect(terminalPrimaryFontFamily, 'JetBrainsMono Nerd Font Mono');
+    expect(terminalFontFamilyFallback, isNotEmpty);
+    expect(terminalFontFamilyFallback.first, 'Menlo');
+    expect(terminalFontFamilyFallback, contains('Apple Symbols'));
+  });
 }

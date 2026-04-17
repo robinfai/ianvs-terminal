@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/reference_demo.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
@@ -15,6 +16,7 @@ Future<void> pumpShellScreen(
   WidgetTester tester, {
   required FakeCoreBindings fakeBindings,
   required MemoryProfileRepository repository,
+  bool referenceDemoMode = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -26,6 +28,7 @@ Future<void> pumpShellScreen(
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
+        referenceDemoModeProvider.overrideWithValue(referenceDemoMode),
       ],
       child: const MaterialApp(home: ShellScreen()),
     ),
@@ -34,7 +37,9 @@ Future<void> pumpShellScreen(
 }
 
 void main() {
-  testWidgets('shell screen shows aligned session-tabs chrome', (tester) async {
+  testWidgets('shell screen exposes a selected tab in the hyper-style strip', (
+    tester,
+  ) async {
     await pumpShellScreen(
       tester,
       fakeBindings: FakeCoreBindings(),
@@ -46,11 +51,22 @@ void main() {
       ),
     );
 
-    expect(find.text('Session tabs'), findsOneWidget);
-    expect(find.text('1 open'), findsOneWidget);
+    expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('shell-tab-1')),
+      matchesSemantics(
+        label: 'shell-tab-1',
+        hasSelectedState: true,
+        isButton: true,
+        isSelected: true,
+      ),
+    );
   });
 
-  testWidgets('shell screen shows a named empty-state panel', (tester) async {
+  testWidgets('shell screen keeps tab hierarchy clear after opening a second tab', (
+    tester,
+  ) async {
     await pumpShellScreen(
       tester,
       fakeBindings: FakeCoreBindings(),
@@ -62,15 +78,85 @@ void main() {
       ),
     );
 
-    final chipFinder = find.widgetWithText(InputChip, 'Local Shell');
-    final chip = tester.widget<InputChip>(chipFinder);
-    chip.onDeleted!.call();
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ready when you are'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
     expect(
-      find.text('Reopen your default profile in one step.'),
-      findsOneWidget,
+      tester.getSemantics(find.bySemanticsLabel('shell-tab-2')),
+      matchesSemantics(
+        label: 'shell-tab-2',
+        hasSelectedState: true,
+        isButton: true,
+        isSelected: true,
+      ),
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('shell-tab-1')),
+      matchesSemantics(
+        label: 'shell-tab-1',
+        hasSelectedState: true,
+        isButton: true,
+      ),
+    );
+  });
+
+  testWidgets('shell screen uses the same dark empty-state language everywhere', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakeCoreBindings(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Close Local Shell'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+    expect(find.text('No active sessions'), findsOneWidget);
+    expect(find.text('Open a new tab to start a shell session.'), findsOneWidget);
+  });
+
+  testWidgets('reference demo mode keeps the middle Shell tab selected', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakeCoreBindings(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      ),
+      referenceDemoMode: true,
+    );
+
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-2')),
+      matchesSemantics(
+        label: 'shell-tab-demo-2',
+        hasSelectedState: true,
+        isButton: true,
+        isSelected: true,
+      ),
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-1')),
+      matchesSemantics(
+        label: 'shell-tab-demo-1',
+        hasSelectedState: true,
+        isButton: true,
+      ),
     );
   });
 }

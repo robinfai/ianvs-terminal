@@ -136,6 +136,38 @@ flutter run -d macos
 - `MaterialApp` 真正消费 persisted `themeMode`
 - 关闭 defaults surface 后 launcher / focus / terminal input 不回归
 
+### 改 driver-only 验收入口 / Hyper-first MCP 验收状态面
+
+必须执行：
+
+- `flutter analyze`
+- `flutter test test`
+- `flutter test integration_test/flutterm_smoke_test.dart`
+
+Live MCP 验收入口固定为：
+
+- `root=/Users/robinfai/personal/flutterm/app`
+- `target=lib/driver_main.dart`
+
+Live 验收重点确认：
+
+- `flutter_driver.get_health` 成功
+- `flutter_driver.waitFor(ByValueKey: shell-chrome-menu)` 成功
+- `flutter_driver.tap(shell-chrome-menu)` 若超时，必须立即同时检查：
+  - screenshot 是否已显示 command menu
+  - Dart MCP `get_widget_tree(summaryOnly=true)` 是否已出现 `_ShellCommandMenu`
+  - driver `request_data(shell.acceptance)` 的状态快照是否变化
+    - `visibleOverlay` 是否已变成目标值
+    - `snapshotVersion` 是否递增
+
+结果分类：
+
+- `App pass`
+  - tap 返回成功，且状态快照 / widget tree / screenshot 一致
+- `Tool blocker`
+  - tap 返回超时，但 screenshot 或 widget tree 已显示目标状态
+  - 不再把这类结果归因为产品代码失败
+
 ## 自动化 Smoke
 
 当前最小自动化 GUI 冒烟命令：

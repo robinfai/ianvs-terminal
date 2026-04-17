@@ -9,6 +9,8 @@ import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
+import '../shell/shell_acceptance.dart';
+import '../shell/reference_demo.dart';
 import '../terminal/terminal_viewport.dart';
 import 'session_state.dart';
 
@@ -26,6 +28,14 @@ final appPreferencesRepositoryProvider = Provider<AppPreferencesRepository>((
   return AppPreferencesRepository();
 });
 
+final sessionPollingEnabledProvider = Provider<bool>((ref) => true);
+final driverWarmUpRefreshEnabledProvider = Provider<bool>((ref) => false);
+final sessionEnvironmentOverridesProvider = Provider<Map<String, String>>((
+  ref,
+) {
+  return const <String, String>{};
+});
+
 final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 
@@ -37,6 +47,7 @@ class SessionController extends Notifier<SessionState> {
   String? _legacyDefaultProfileId;
   bool _preferencesLoadedFromDisk = false;
   Timer? _pollTimer;
+  final Map<String, List<Timer>> _warmUpTimers = {};
 
   @protected
   String? get bootstrapDefaultProfileIdOverride => null;
@@ -46,6 +57,11 @@ class SessionController extends Notifier<SessionState> {
     Future.microtask(_bootstrap);
     ref.onDispose(() {
       _pollTimer?.cancel();
+      for (final timers in _warmUpTimers.values) {
+        for (final timer in timers) {
+          timer.cancel();
+        }
+      }
       for (final controller in _viewportControllers.values) {
         controller.dispose();
       }
@@ -61,6 +77,28 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<void> _bootstrap() async {
+    if (ref.read(referenceDemoModeProvider)) {
+      for (final tab in referenceDemoTabs) {
+        _viewportControllers.putIfAbsent(
+          tab.sessionId,
+          TerminalViewportController.new,
+        ).updateFrame(referenceDemoFrame);
+      }
+      state = state.copyWith(
+        profiles: [defaultTerminalProfile()],
+        tabs: referenceDemoTabs,
+        activeSessionId: referenceDemoActiveSessionId,
+        defaultProfileId: defaultTerminalProfile().id,
+        themeMode: TerminalThemeMode.dark,
+        isReady: true,
+      );
+      shellAcceptanceProbe.mergeTerminalContent(
+        terminalHasVisibleContent: true,
+        terminalPreview: referenceDemoFrame.rows.first.text,
+      );
+      return;
+    }
+
     final profiles = await ref.read(profileRepositoryProvider).load();
     final runtimeProfiles = profiles.profiles.isEmpty
         ? [defaultTerminalProfile()]
@@ -97,7 +135,9 @@ class SessionController extends Notifier<SessionState> {
       themeMode: _appPreferences.appearance.themeMode,
       isReady: true,
     );
-    _startPolling();
+    if (ref.read(sessionPollingEnabledProvider)) {
+      _startPolling();
+    }
     if (resolution.effectiveDefaultProfileId != null) {
       createSession(
         runtimeProfiles.firstWhere(
@@ -132,9 +172,21 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void createSession(TerminalProfile profile) {
+    if (ref.read(referenceDemoModeProvider)) {
+      return;
+    }
+    final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
+    final launchProfile = environmentOverrides.isEmpty
+        ? profile
+        : profile.copyWith(
+            env: {
+              ...profile.env,
+              ...environmentOverrides,
+            },
+          );
     final sessionId = ref
         .read(terminalCoreClientProvider)
-        .createSession(profile);
+        .createSession(launchProfile);
     _viewportControllers.putIfAbsent(sessionId, TerminalViewportController.new);
     state = state.copyWith(
       tabs: [
@@ -147,14 +199,51 @@ class SessionController extends Notifier<SessionState> {
       ],
       activeSessionId: sessionId,
     );
+    if (!ref.read(sessionPollingEnabledProvider)) {
+      _refreshSession(sessionId);
+      _scheduleWarmUpRefreshes(sessionId);
+    }
   }
 
   void activateSession(String sessionId) {
     state = state.copyWith(activeSessionId: sessionId);
+    if (ref.read(referenceDemoModeProvider)) {
+      shellAcceptanceProbe.mergeTerminalContent(
+        terminalHasVisibleContent: true,
+        terminalPreview: referenceDemoFrame.rows.first.text,
+      );
+    }
   }
 
   void closeSession(String sessionId) {
+    if (ref.read(referenceDemoModeProvider)) {
+      final nextTabs = state.tabs
+          .where((tab) => tab.sessionId != sessionId)
+          .toList();
+      final nextActiveSessionId = nextTabs.isEmpty
+          ? null
+          : nextTabs.last.sessionId;
+      state = state.copyWith(
+        tabs: nextTabs,
+        activeSessionId: nextActiveSessionId,
+      );
+      if (nextTabs.isEmpty) {
+        shellAcceptanceProbe.mergeTerminalContent(
+          terminalHasVisibleContent: false,
+          terminalPreview: null,
+        );
+      } else {
+        shellAcceptanceProbe.mergeTerminalContent(
+          terminalHasVisibleContent: true,
+          terminalPreview: referenceDemoFrame.rows.first.text,
+        );
+      }
+      return;
+    }
     ref.read(terminalCoreClientProvider).closeSession(sessionId);
+    for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
+      timer.cancel();
+    }
     _viewportControllers.remove(sessionId)?.dispose();
     _lastResizeMetrics.remove(sessionId);
 
@@ -169,9 +258,18 @@ class SessionController extends Notifier<SessionState> {
       tabs: nextTabs,
       activeSessionId: nextActiveSessionId,
     );
+    if (nextTabs.isEmpty) {
+      shellAcceptanceProbe.mergeTerminalContent(
+        terminalHasVisibleContent: false,
+        terminalPreview: null,
+      );
+    }
   }
 
   void resizeActiveSession(Size viewportSize, double devicePixelRatio) {
+    if (ref.read(referenceDemoModeProvider)) {
+      return;
+    }
     final sessionId = state.activeSessionId;
     if (sessionId == null) {
       return;
@@ -205,6 +303,80 @@ class SessionController extends Notifier<SessionState> {
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
     );
+    if (!ref.read(sessionPollingEnabledProvider)) {
+      _refreshSession(sessionId);
+    }
+  }
+
+  void _refreshSession(String sessionId) {
+    final frame = ref.read(terminalCoreClientProvider).takeFrameDiff(sessionId);
+    if (frame != null) {
+      viewportFor(sessionId).updateFrame(frame);
+      String? preview;
+      for (final row in frame.rows) {
+        final text = row.text.trim();
+        if (text.isNotEmpty) {
+          preview = text;
+          break;
+        }
+      }
+      shellAcceptanceProbe.mergeTerminalContent(
+        terminalHasVisibleContent: preview != null,
+        terminalPreview: preview,
+      );
+    } else {
+      shellAcceptanceProbe.mergeTerminalContent(
+        terminalHasVisibleContent: false,
+        terminalPreview: null,
+      );
+    }
+    final events = ref.read(terminalCoreClientProvider).pollEvents(sessionId);
+    for (final event in events) {
+      if (event.kind == 'exit') {
+        closeSession(sessionId);
+        break;
+      }
+    }
+  }
+
+  void _scheduleWarmUpRefreshes(String sessionId) {
+    if (!ref.read(driverWarmUpRefreshEnabledProvider)) {
+      return;
+    }
+
+    for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
+      timer.cancel();
+    }
+
+    final delays = <Duration>[
+      const Duration(milliseconds: 60),
+      const Duration(milliseconds: 140),
+      const Duration(milliseconds: 260),
+    ];
+    final timers = <Timer>[];
+    for (final delay in delays) {
+      timers.add(
+        Timer(delay, () {
+          if (!ref.mounted) {
+            return;
+          }
+          if (!state.tabs.any((tab) => tab.sessionId == sessionId)) {
+            return;
+          }
+          final controller = _viewportControllers[sessionId];
+          final hasVisibleContent = controller != null &&
+              controller.frame.rows.any((row) => row.text.trim().isNotEmpty);
+          if (hasVisibleContent) {
+            for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
+              timer.cancel();
+            }
+            return;
+          }
+          _refreshSession(sessionId);
+        }),
+      );
+    }
+    _warmUpTimers[sessionId] = timers;
   }
 
   Future<void> saveProfile(TerminalProfile profile) async {

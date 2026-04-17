@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/shell_acceptance.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ffi/flutterm_core.dart';
@@ -41,7 +42,7 @@ bool isTabSelected(WidgetTester tester, String label) {
 }
 
 void main() {
-  testWidgets('shell screen opens and closes the top actions launcher', (
+  testWidgets('shell screen opens and closes the hyper command menu', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -55,28 +56,42 @@ void main() {
       ),
     );
 
-    expect(find.text('Actions'), findsOneWidget);
+    expect(find.byKey(const Key('shell-chrome-menu')), findsOneWidget);
     expect(find.text('Top actions'), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
 
-    await tester.tap(find.text('Actions'));
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
 
     expect(find.text('Top actions'), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
     expect(find.text('New tab'), findsOneWidget);
     expect(find.text('Copy selection'), findsOneWidget);
     expect(find.text('Paste clipboard'), findsOneWidget);
+    expect(find.text('Defaults & appearance'), findsOneWidget);
+    expect(find.text('Profiles…'), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-defaults')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-profiles')), findsOneWidget);
+    expect(shellAcceptanceProbe.current.commandMenuOpen, isTrue);
+    expect(shellAcceptanceProbe.current.visibleOverlay, 'commandMenu');
+    expect(shellAcceptanceProbe.current.terminalHasVisibleContent, isTrue);
+    expect(shellAcceptanceProbe.current.terminalPreview, isNotNull);
+    expect(shellAcceptanceProbe.current.activeTabCount, 1);
+    expect(shellAcceptanceProbe.current.activeSessionId, '1');
+    final openVersion = shellAcceptanceProbe.current.snapshotVersion;
 
     await tester.tap(find.byTooltip('Close actions'));
     await tester.pumpAndSettle();
 
     expect(find.text('Top actions'), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
-    expect(find.widgetWithText(InputChip, 'Local Shell'), findsOneWidget);
-    expect(isTabSelected(tester, 'Local Shell'), isTrue);
+    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
+    expect(shellAcceptanceProbe.current.visibleOverlay, 'none');
+    expect(shellAcceptanceProbe.current.snapshotVersion, greaterThan(openVersion));
   });
 
-  testWidgets('shell screen launcher can create another tab', (tester) async {
+  testWidgets('shell screen command menu can create another tab', (tester) async {
     await pumpShellScreen(
       tester,
       fakeBindings: FakeCoreBindings(),
@@ -88,17 +103,17 @@ void main() {
       ),
     );
 
-    expect(find.byType(InputChip), findsOneWidget);
-    expect(find.text('1 open'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
 
-    await tester.tap(find.text('Actions'));
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
 
     expect(find.text('Top actions'), findsNothing);
-    expect(find.byType(InputChip), findsNWidgets(2));
-    expect(find.text('2 open'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
   });
 }

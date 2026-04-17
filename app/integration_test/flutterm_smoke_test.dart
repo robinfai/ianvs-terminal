@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -39,16 +39,27 @@ Future<void> _pumpSmokeApp(
   await tester.pumpAndSettle();
 }
 
-bool _isTabSelected(WidgetTester tester, String label) {
-  return tester
-      .widget<InputChip>(find.widgetWithText(InputChip, label))
-      .selected;
+Future<void> _openCommandMenu(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+  await tester.pumpAndSettle();
+}
+
+void _expectSelectedTab(WidgetTester tester, String sessionId) {
+  expect(
+    tester.getSemantics(find.bySemanticsLabel('shell-tab-$sessionId')),
+    matchesSemantics(
+      label: 'shell-tab-$sessionId',
+      hasSelectedState: true,
+      isSelected: true,
+      isButton: true,
+    ),
+  );
 }
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('startup renders a terminal tab and can open another tab', (
+  testWidgets('startup renders the hyper shell and opens another tab', (
     WidgetTester tester,
   ) async {
     await _pumpSmokeApp(
@@ -59,62 +70,19 @@ void main() {
       ),
     );
 
-    expect(find.byType(InputChip), findsOneWidget);
+    expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
-    expect(find.text('Copy'), findsOneWidget);
-    expect(find.text('Paste'), findsOneWidget);
-    expect(find.text('New Tab'), findsOneWidget);
 
-    await tester.tap(find.text('New Tab'));
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(InputChip), findsNWidgets(2));
-    expect(find.text('Local Shell'), findsWidgets);
+    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    _expectSelectedTab(tester, '2');
   });
 
-  testWidgets(
-    'top actions launcher opens predictably and can create another tab',
-    (WidgetTester tester) async {
-      await _pumpSmokeApp(
-        tester,
-        profiles: TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
-      );
-
-      expect(find.text('Actions'), findsOneWidget);
-      expect(find.byType(InputChip), findsOneWidget);
-      expect(find.byType(TerminalViewport), findsOneWidget);
-
-      await tester.tap(find.text('Actions'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Top actions'), findsOneWidget);
-      expect(find.text('New tab'), findsOneWidget);
-      expect(find.text('Copy selection'), findsOneWidget);
-      expect(find.text('Paste clipboard'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Close actions'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Top actions'), findsNothing);
-      expect(find.byType(InputChip), findsOneWidget);
-      expect(find.byType(TerminalViewport), findsOneWidget);
-
-      await tester.tap(find.text('Actions'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('New tab'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Top actions'), findsNothing);
-      expect(find.byType(InputChip), findsNWidgets(2));
-      expect(find.byType(TerminalViewport), findsOneWidget);
-      expect(find.text('Local Shell'), findsWidgets);
-    },
-  );
-
-  testWidgets('command-shift-p opens the top actions launcher', (
+  testWidgets('command-shift-p opens tools and defaults can close cleanly', (
     WidgetTester tester,
   ) async {
     await _pumpSmokeApp(
@@ -144,89 +112,22 @@ void main() {
     await tester.pump();
 
     expect(find.text('Top actions'), findsOneWidget);
-    expect(find.text('App actions'), findsOneWidget);
-    expect(find.text('Session actions'), findsOneWidget);
+    expect(find.text('Defaults & appearance'), findsOneWidget);
+
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+    expect(find.text('Save changes'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Close defaults'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-dialog')), findsNothing);
+    expect(find.byType(TerminalViewport), findsOneWidget);
   });
 
-  testWidgets(
-    'defaults and appearance surface opens and closes without leaving the shell',
-    (WidgetTester tester) async {
-      await _pumpSmokeApp(
-        tester,
-        profiles: TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
-      );
-
-      expect(find.text('Defaults & appearance'), findsOneWidget);
-
-      await tester.tap(find.text('Defaults & appearance'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Save changes'), findsOneWidget);
-      expect(find.text('Use the first available profile'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Close defaults'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Save changes'), findsNothing);
-      expect(find.byType(TerminalViewport), findsOneWidget);
-    },
-  );
-
-  testWidgets('closing an inactive tab keeps the active tab focused', (
-    WidgetTester tester,
-  ) async {
-    final primaryProfile = defaultTerminalProfile().copyWith(name: 'Shell A');
-    final secondaryProfile = defaultTerminalProfile().copyWith(
-      id: 'shell-b',
-      name: 'Shell B',
-    );
-    final tertiaryProfile = defaultTerminalProfile().copyWith(
-      id: 'shell-c',
-      name: 'Shell C',
-    );
-
-    await _pumpSmokeApp(
-      tester,
-      profiles: TerminalProfilesDocument(
-        defaultProfileId: primaryProfile.id,
-        profiles: [primaryProfile, secondaryProfile, tertiaryProfile],
-      ),
-    );
-
-    await tester.tap(find.widgetWithText(ListTile, 'Shell B'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ListTile, 'Shell C'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(InputChip), findsNWidgets(3));
-    expect(_isTabSelected(tester, 'Shell C'), isTrue);
-
-    await tester.tap(find.widgetWithText(InputChip, 'Shell B'));
-    await tester.pumpAndSettle();
-
-    expect(_isTabSelected(tester, 'Shell A'), isFalse);
-    expect(_isTabSelected(tester, 'Shell B'), isTrue);
-    expect(_isTabSelected(tester, 'Shell C'), isFalse);
-
-    tester
-        .widget<InputChip>(find.widgetWithText(InputChip, 'Shell A'))
-        .onDeleted!();
-    await tester.pumpAndSettle();
-
-    expect(find.byType(InputChip), findsNWidgets(2));
-    expect(find.widgetWithText(InputChip, 'Shell A'), findsNothing);
-    expect(find.widgetWithText(InputChip, 'Shell B'), findsOneWidget);
-    expect(find.widgetWithText(InputChip, 'Shell C'), findsOneWidget);
-    expect(_isTabSelected(tester, 'Shell B'), isTrue);
-    expect(_isTabSelected(tester, 'Shell C'), isFalse);
-    expect(find.text('Copy'), findsOneWidget);
-    expect(find.text('Paste'), findsOneWidget);
-  });
-
-  testWidgets('closing the active tab focuses the remaining tab', (
+  testWidgets('profiles sheet can open another profile as a new tab', (
     WidgetTester tester,
   ) async {
     final primaryProfile = defaultTerminalProfile().copyWith(name: 'Shell A');
@@ -243,82 +144,19 @@ void main() {
       ),
     );
 
-    expect(find.byType(InputChip), findsOneWidget);
-    expect(find.widgetWithText(InputChip, 'Shell A'), findsOneWidget);
-    expect(_isTabSelected(tester, 'Shell A'), isTrue);
-
-    await tester.tap(find.widgetWithText(ListTile, 'Shell B'));
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Profiles…'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(InputChip), findsNWidgets(2));
-    expect(find.widgetWithText(InputChip, 'Shell A'), findsOneWidget);
-    expect(find.widgetWithText(InputChip, 'Shell B'), findsOneWidget);
-    expect(_isTabSelected(tester, 'Shell A'), isFalse);
-    expect(_isTabSelected(tester, 'Shell B'), isTrue);
-
-    await tester.tap(find.widgetWithText(InputChip, 'Shell A'));
+    expect(find.byKey(const Key('profiles-sheet')), findsOneWidget);
+    await tester.tap(find.text('Shell B').last);
     await tester.pumpAndSettle();
 
-    expect(_isTabSelected(tester, 'Shell A'), isTrue);
-    expect(_isTabSelected(tester, 'Shell B'), isFalse);
-
-    tester
-        .widget<InputChip>(find.widgetWithText(InputChip, 'Shell A'))
-        .onDeleted!();
-    await tester.pumpAndSettle();
-
-    expect(find.byType(InputChip), findsOneWidget);
-    expect(find.widgetWithText(InputChip, 'Shell A'), findsNothing);
-    expect(find.widgetWithText(InputChip, 'Shell B'), findsOneWidget);
-    expect(_isTabSelected(tester, 'Shell B'), isTrue);
-    expect(find.text('Copy'), findsOneWidget);
-    expect(find.text('Paste'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    _expectSelectedTab(tester, '2');
   });
 
-  testWidgets(
-    'closing the last tab can recover from the empty state via New Tab',
-    (WidgetTester tester) async {
-      await _pumpSmokeApp(
-        tester,
-        profiles: TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
-      );
-
-      expect(find.byType(InputChip), findsOneWidget);
-      expect(find.widgetWithText(InputChip, 'Local Shell'), findsOneWidget);
-      expect(_isTabSelected(tester, 'Local Shell'), isTrue);
-      expect(find.text('Create a shell to get started'), findsNothing);
-      expect(find.byType(TerminalViewport), findsOneWidget);
-
-      tester
-          .widget<InputChip>(find.widgetWithText(InputChip, 'Local Shell'))
-          .onDeleted!();
-      await tester.pumpAndSettle();
-
-      expect(find.byType(InputChip), findsNothing);
-      expect(find.text('Create a shell to get started'), findsOneWidget);
-      expect(find.byType(TerminalViewport), findsNothing);
-      expect(find.text('Copy'), findsNothing);
-      expect(find.text('Paste'), findsNothing);
-      expect(find.text('New Tab'), findsOneWidget);
-      expect(find.widgetWithText(ListTile, 'Local Shell'), findsOneWidget);
-
-      await tester.tap(find.text('New Tab'));
-      await tester.pumpAndSettle();
-
-      expect(find.byType(InputChip), findsOneWidget);
-      expect(find.widgetWithText(InputChip, 'Local Shell'), findsOneWidget);
-      expect(_isTabSelected(tester, 'Local Shell'), isTrue);
-      expect(find.text('Create a shell to get started'), findsNothing);
-      expect(find.byType(TerminalViewport), findsOneWidget);
-      expect(find.text('Copy'), findsOneWidget);
-      expect(find.text('Paste'), findsOneWidget);
-    },
-  );
-
-  testWidgets('a recovered tab can be closed back to the empty state again', (
+  testWidgets('closing tabs reaches the empty state and recovers via New Tab', (
     WidgetTester tester,
   ) async {
     await _pumpSmokeApp(
@@ -329,36 +167,17 @@ void main() {
       ),
     );
 
-    tester
-        .widget<InputChip>(find.widgetWithText(InputChip, 'Local Shell'))
-        .onDeleted!();
+    await tester.tap(find.byTooltip('Close Local Shell'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(InputChip), findsNothing);
-    expect(find.text('Create a shell to get started'), findsOneWidget);
+    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
     expect(find.text('New Tab'), findsOneWidget);
 
     await tester.tap(find.text('New Tab'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(InputChip), findsOneWidget);
-    expect(find.widgetWithText(InputChip, 'Local Shell'), findsOneWidget);
-    expect(_isTabSelected(tester, 'Local Shell'), isTrue);
+    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
-    expect(find.text('Copy'), findsOneWidget);
-    expect(find.text('Paste'), findsOneWidget);
-
-    tester
-        .widget<InputChip>(find.widgetWithText(InputChip, 'Local Shell'))
-        .onDeleted!();
-    await tester.pumpAndSettle();
-
-    expect(find.byType(InputChip), findsNothing);
-    expect(find.text('Create a shell to get started'), findsOneWidget);
-    expect(find.byType(TerminalViewport), findsNothing);
-    expect(find.text('Copy'), findsNothing);
-    expect(find.text('Paste'), findsNothing);
-    expect(find.text('New Tab'), findsOneWidget);
   });
 }

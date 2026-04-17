@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/reference_demo.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
 import '../support/fake_core_bindings.dart';
@@ -15,6 +17,7 @@ Future<void> pumpShellScreen(
   WidgetTester tester, {
   required FakeCoreBindings fakeBindings,
   required MemoryProfileRepository repository,
+  bool referenceDemoMode = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -26,6 +29,7 @@ Future<void> pumpShellScreen(
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
+        referenceDemoModeProvider.overrideWithValue(referenceDemoMode),
       ],
       child: const MaterialApp(home: ShellScreen()),
     ),
@@ -34,7 +38,7 @@ Future<void> pumpShellScreen(
 }
 
 void main() {
-  testWidgets('shell screen shows workspace chrome for the active session', (
+  testWidgets('shell screen renders a hyper-first chrome around the terminal', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -48,13 +52,20 @@ void main() {
       ),
     );
 
-    expect(find.text('Shell workspace'), findsOneWidget);
-    expect(find.text('1 active session'), findsOneWidget);
-    expect(find.text('Active session'), findsOneWidget);
+    expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
+    expect(find.byKey(const Key('shell-terminal-surface')), findsOneWidget);
+    expect(find.byType(TerminalViewport), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsNothing);
+    expect(find.byType(InputChip), findsNothing);
+    expect(find.text('Shell workspace'), findsNothing);
+    expect(find.text('Session tabs'), findsNothing);
+    expect(find.text('Copy'), findsNothing);
+    expect(find.text('Paste'), findsNothing);
   });
 
   testWidgets(
-    'shell screen shows a richer empty state after closing the last tab',
+    'shell screen collapses into a dark empty state after closing the last tab',
     (tester) async {
       await pumpShellScreen(
         tester,
@@ -67,19 +78,39 @@ void main() {
         ),
       );
 
-      final chipFinder = find.widgetWithText(InputChip, 'Local Shell');
-      expect(chipFinder, findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
 
-      final chip = tester.widget<InputChip>(chipFinder);
-      chip.onDeleted!.call();
+      await tester.tap(find.byTooltip('Close Local Shell'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Create a shell to get started'), findsOneWidget);
-      expect(
-        find.text('Reopen your default profile in one step.'),
-        findsOneWidget,
-      );
+      expect(find.byType(TerminalViewport), findsNothing);
+      expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+      expect(find.text('No active sessions'), findsOneWidget);
+      expect(find.text('Fallback default • Local Shell'), findsOneWidget);
       expect(find.text('New Tab'), findsOneWidget);
     },
   );
+
+  testWidgets('reference demo mode boots with three Shell tabs and no menu button', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakeCoreBindings(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      ),
+      referenceDemoMode: true,
+    );
+
+    expect(find.byKey(const Key('shell-chrome-menu')), findsNothing);
+    expect(find.text('Shell'), findsNWidgets(3));
+    expect(find.bySemanticsLabel('shell-tab-demo-1'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-demo-2'), findsOneWidget);
+    expect(find.bySemanticsLabel('shell-tab-demo-3'), findsOneWidget);
+    expect(find.byType(TerminalViewport), findsOneWidget);
+  });
 }

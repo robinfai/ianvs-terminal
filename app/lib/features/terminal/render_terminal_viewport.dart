@@ -8,6 +8,15 @@ import 'selection_controller.dart';
 import 'terminal_painter_models.dart';
 import 'terminal_viewport.dart';
 
+const String terminalPrimaryFontFamily = 'JetBrainsMono Nerd Font Mono';
+const List<String> terminalFontFamilyFallback = <String>[
+  'Menlo',
+  'JetBrainsMono Nerd Font',
+  'SF Mono',
+  'Monaco',
+  'Apple Symbols',
+];
+
 class RenderTerminalViewport extends RenderBox {
   RenderTerminalViewport({
     required TerminalViewportController controller,
@@ -77,7 +86,7 @@ class RenderTerminalViewport extends RenderBox {
     canvas.translate(offset.dx, offset.dy);
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFF111827),
+      Paint()..color = const Color(0xFF000000),
     );
 
     final frame = _controller.frame;
@@ -181,17 +190,33 @@ class RenderTerminalViewport extends RenderBox {
     }
 
     final builder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(fontFamily: 'Menlo', fontSize: 14, height: 1.2),
+      ui.ParagraphStyle(
+        fontFamily: terminalPrimaryFontFamily,
+        fontSize: 14,
+        height: 1.2,
+      ),
     );
     if (row.styleRuns.isEmpty) {
-      builder.pushStyle(ui.TextStyle(color: const Color(0xFFF8FAFC)));
+      builder.pushStyle(
+        ui.TextStyle(
+          color: const Color(0xFFF8FAFC),
+          fontFamily: terminalPrimaryFontFamily,
+          fontFamilyFallback: terminalFontFamilyFallback,
+        ),
+      );
       builder.addText(row.text);
       builder.pop();
     } else {
       var cursor = 0;
       for (final run in row.styleRuns) {
         if (cursor < run.start && cursor < row.text.length) {
-          builder.pushStyle(ui.TextStyle(color: const Color(0xFFF8FAFC)));
+          builder.pushStyle(
+            ui.TextStyle(
+              color: const Color(0xFFF8FAFC),
+              fontFamily: terminalPrimaryFontFamily,
+              fontFamilyFallback: terminalFontFamilyFallback,
+            ),
+          );
           builder.addText(
             row.text.substring(cursor, run.start.clamp(0, row.text.length)),
           );
@@ -205,6 +230,8 @@ class RenderTerminalViewport extends RenderBox {
           ui.TextStyle(
             color: run.foreground ?? const Color(0xFFF8FAFC),
             background: backgroundPaint,
+            fontFamily: terminalPrimaryFontFamily,
+            fontFamilyFallback: terminalFontFamilyFallback,
             fontWeight: run.bold ? FontWeight.w700 : FontWeight.w400,
             fontStyle: run.italic ? FontStyle.italic : FontStyle.normal,
             decoration: run.underline
@@ -219,7 +246,13 @@ class RenderTerminalViewport extends RenderBox {
         cursor = end;
       }
       if (cursor < row.text.length) {
-        builder.pushStyle(ui.TextStyle(color: const Color(0xFFF8FAFC)));
+        builder.pushStyle(
+          ui.TextStyle(
+            color: const Color(0xFFF8FAFC),
+            fontFamily: terminalPrimaryFontFamily,
+            fontFamilyFallback: terminalFontFamilyFallback,
+          ),
+        );
         builder.addText(row.text.substring(cursor));
         builder.pop();
       }
@@ -236,7 +269,11 @@ class RenderTerminalViewport extends RenderBox {
 
   Size _measureCellSize() {
     final builder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(fontFamily: 'Menlo', fontSize: 14, height: 1.2),
+      ui.ParagraphStyle(
+        fontFamily: terminalPrimaryFontFamily,
+        fontSize: 14,
+        height: 1.2,
+      ),
     )..addText('W');
     final paragraph = builder.build()
       ..layout(const ui.ParagraphConstraints(width: double.infinity));

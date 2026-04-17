@@ -10,7 +10,7 @@ class FluttermApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    const seed = Color(0xFF4C956C);
+    const accent = Color(0xFFF6C344);
     final themeMode = switch (ref.watch(
       sessionControllerProvider.select((state) => state.themeMode),
     )) {
@@ -24,19 +24,18 @@ class FluttermApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: seed,
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFF7F4EA),
+        colorScheme: ColorScheme.fromSeed(seedColor: accent),
+        scaffoldBackgroundColor: const Color(0xFFF4F4F4),
+        dialogTheme: const DialogThemeData(backgroundColor: Colors.white),
         useMaterial3: true,
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: seed,
+          seedColor: accent,
           brightness: Brightness.dark,
         ),
-        scaffoldBackgroundColor: const Color(0xFF111827),
+        scaffoldBackgroundColor: const Color(0xFF000000),
+        dialogTheme: const DialogThemeData(backgroundColor: Color(0xFF111111)),
         useMaterial3: true,
       ),
       home: const ShellScreen(),

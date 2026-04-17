@@ -36,7 +36,7 @@ Future<void> pumpShellScreen(
 }
 
 void main() {
-  testWidgets('command-shift-p opens launcher with explicit action scopes', (
+  testWidgets('command-shift-p opens the hyper command menu with secondary tools', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -74,16 +74,18 @@ void main() {
     expect(find.text('Top actions'), findsOneWidget);
     expect(find.text('App actions'), findsOneWidget);
     expect(find.text('Session actions'), findsOneWidget);
+    expect(find.text('Defaults & appearance'), findsOneWidget);
+    expect(find.text('Profiles…'), findsOneWidget);
     expect(
-      find.textContaining('Open your default shell profile.'),
+      find.textContaining('Open the default shell profile.'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Copy the current terminal selection.'),
+      find.textContaining('Copy the current selection.'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Send clipboard text to the active shell.'),
+      find.textContaining('Paste clipboard into the shell.'),
       findsOneWidget,
     );
   });
@@ -107,7 +109,7 @@ void main() {
     await tester.tap(find.byType(TerminalViewport));
     await tester.pump();
 
-    await tester.tap(find.text('Actions'));
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
     expect(find.text('Top actions'), findsOneWidget);
 
@@ -115,6 +117,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Top actions'), findsNothing);
+    expect(find.byKey(const Key('shell-terminal-surface')), findsOneWidget);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
     await tester.pump();

@@ -10,9 +10,11 @@ class FakeCoreBindings implements CoreBindings {
   int _nextSessionId = 0;
   final Map<int, Map<String, Object?>> _frames = {};
   final Map<int, List<Map<String, Object?>>> _events = {};
+  final Map<int, int> _frameDiffReads = {};
   final List<Uint8List> writes = [];
   final List<List<int>> resizeCalls = [];
   final List<List<int>> scrollCalls = [];
+  Map<String, Object?>? lastCreatedProfileJson;
   bool pingCalled = false;
 
   void setFrame(int sessionId, Map<String, Object?> frame) {
@@ -27,6 +29,8 @@ class FakeCoreBindings implements CoreBindings {
 
   @override
   int sessionCreate(ffi.Pointer<Utf8> profileJson) {
+    lastCreatedProfileJson =
+        jsonDecode(profileJson.toDartString()) as Map<String, Object?>;
     final sessionId = ++_nextSessionId;
     _frames[sessionId] = {
       'rows': [
@@ -106,6 +110,7 @@ class FakeCoreBindings implements CoreBindings {
     if (frame == null) {
       return ffi.nullptr;
     }
+    _frameDiffReads.update(sessionId, (value) => value + 1, ifAbsent: () => 1);
     return jsonEncode(frame).toNativeUtf8();
   }
 

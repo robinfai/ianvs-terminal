@@ -138,6 +138,96 @@ class _EventfulCoreBindings implements CoreBindings {
   void stringFree(ffi.Pointer<Utf8> value) => malloc.free(value);
 }
 
+class _CountingCoreBindings extends FakeCoreBindings {
+  int takeFrameDiffCalls = 0;
+  int pollEventsCalls = 0;
+
+  @override
+  ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) {
+    takeFrameDiffCalls += 1;
+    return super.sessionTakeFrameDiffJson(sessionId);
+  }
+
+  @override
+  ffi.Pointer<Utf8> sessionPollEventsJson(int sessionId) {
+    pollEventsCalls += 1;
+    return super.sessionPollEventsJson(sessionId);
+  }
+}
+
+class _DelayedFrameCoreBindings extends _CountingCoreBindings {
+  _DelayedFrameCoreBindings({this.revealOnRead = 3});
+
+  final int revealOnRead;
+
+  @override
+  int sessionCreate(ffi.Pointer<Utf8> profileJson) {
+    final sessionId = super.sessionCreate(profileJson);
+    setFrame(sessionId, {
+      'rows': [
+        {
+          'index': 0,
+          'text': '',
+          'style_runs': const [],
+        },
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+    });
+    return sessionId;
+  }
+
+  @override
+  ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) {
+    final pointer = super.sessionTakeFrameDiffJson(sessionId);
+    final reads = takeFrameDiffCalls;
+    if (reads < revealOnRead) {
+      setFrame(sessionId, {
+        'rows': [
+          {
+            'index': 0,
+            'text': '',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+      });
+    } else {
+      setFrame(sessionId, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'driver ready',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+      });
+    }
+    return pointer;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -330,6 +420,154 @@ void main() {
       expect(preferencesRepository.savedDocuments, isEmpty);
     },
   );
+
+  test('driver-friendly mode avoids the periodic session polling loop', () async {
+    final coreBindings = _CountingCoreBindings();
+    final coreClient = TerminalCoreClient(coreBindings);
+    final container = ProviderContainer(
+      overrides: [
+        terminalCoreClientProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            const TerminalProfilesDocument(
+              defaultProfileId: 'default',
+              profiles: [defaultProfile],
+            ),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+
+    expect(container.read(sessionControllerProvider).tabs, hasLength(1));
+    expect(
+      coreBindings.takeFrameDiffCalls,
+      lessThanOrEqualTo(1),
+      reason: 'driver mode should not keep scheduling frame-sync-hostile polling',
+    );
+    expect(
+      coreBindings.pollEventsCalls,
+      lessThanOrEqualTo(1),
+      reason: 'driver mode should not keep polling terminal events in the background',
+    );
+  });
+
+  test('driver-friendly mode performs a limited warm-up refresh until content appears', () async {
+    final coreBindings = _DelayedFrameCoreBindings(revealOnRead: 3);
+    final coreClient = TerminalCoreClient(coreBindings);
+    final container = ProviderContainer(
+      overrides: [
+        terminalCoreClientProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            const TerminalProfilesDocument(
+              defaultProfileId: 'default',
+              profiles: [defaultProfile],
+            ),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+        driverWarmUpRefreshEnabledProvider.overrideWithValue(true),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.tabs, hasLength(1));
+    expect(coreBindings.takeFrameDiffCalls, greaterThan(1));
+    expect(coreBindings.takeFrameDiffCalls, lessThanOrEqualTo(4));
+    expect(coreBindings.pollEventsCalls, lessThanOrEqualTo(4));
+    expect(
+      container
+          .read(sessionControllerProvider.notifier)
+          .viewportFor(state.activeSessionId!)
+          .frame
+          .rows
+          .first
+          .text,
+      isNotEmpty,
+    );
+  });
+
+  test('driver-friendly mode still avoids background polling when content is already ready', () async {
+    final coreBindings = _CountingCoreBindings();
+    final coreClient = TerminalCoreClient(coreBindings);
+    final container = ProviderContainer(
+      overrides: [
+        terminalCoreClientProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            const TerminalProfilesDocument(
+              defaultProfileId: 'default',
+              profiles: [defaultProfile],
+            ),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+        driverWarmUpRefreshEnabledProvider.overrideWithValue(true),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+
+    expect(coreBindings.takeFrameDiffCalls, lessThanOrEqualTo(2));
+    expect(coreBindings.pollEventsCalls, lessThanOrEqualTo(2));
+  });
+
+  test('driver-friendly mode applies terminal environment overrides to new sessions', () async {
+    final coreBindings = FakeCoreBindings();
+    final coreClient = TerminalCoreClient(coreBindings);
+    final container = ProviderContainer(
+      overrides: [
+        terminalCoreClientProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            const TerminalProfilesDocument(
+              defaultProfileId: 'default',
+              profiles: [defaultProfile],
+            ),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionEnvironmentOverridesProvider.overrideWithValue(
+          const <String, String>{
+            'TERM': 'xterm-256color',
+            'COLORTERM': 'truecolor',
+          },
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+
+    expect(coreBindings.lastCreatedProfileJson, isNotNull);
+    expect(coreBindings.lastCreatedProfileJson!['env'], {
+      'TERM': 'xterm-256color',
+      'COLORTERM': 'truecolor',
+    });
+  });
 
   test('bootstrap prefers app defaults over legacy profile defaults', () async {
     final coreClient = TerminalCoreClient(FakeCoreBindings());
