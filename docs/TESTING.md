@@ -95,6 +95,24 @@ flutter run -d macos
 - 关闭 launcher 或执行 app-scoped action 后，active terminal viewport 恢复可交互状态
 - session-scoped copy / paste contract 与既有 terminal keyboard contract 不回归
 
+### 改 profile/defaults persistence（Phase 3）
+
+必须执行：
+
+- `flutter analyze`
+- `flutter test test/preferences/app_preferences_repository_test.dart`
+- `flutter test test/sessions/session_controller_test.dart`
+- `flutter test`
+- `flutter test integration_test/flutterm_smoke_test.dart`
+
+重点确认：
+
+- preferences / legacy default / first-profile fallback precedence deterministic
+- preferences 缺失时不会阻塞启动，也不会在无必要时提前写文件
+- corrupt preferences 会被 quarantine，并 repair-write 回最小默认文档
+- 删除 default profile 后 bootstrap 会落回首个可用 profile，而不是 fatal 或继续指向悬空 id
+- terminal lifecycle、copy / paste、scroll、resize、exit baseline 不回归
+
 ## 自动化 Smoke
 
 当前最小自动化 GUI 冒烟命令：
@@ -141,6 +159,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 - 多行选区文本提取语义（换行、反向拖选、裁剪、非对称列范围、block 选择）
 - shell workspace chrome / session tabs panel / richer empty-state shell surfaces
 - top actions launcher surface open / close / new-tab path
+- Phase 3 defaults / persistence bootstrap 不改变 shell startup / active-session 主链路
 
 当前未覆盖：
 

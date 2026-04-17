@@ -8,6 +8,7 @@ import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
 import '../support/fake_core_bindings.dart';
+import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
 
 Future<void> pumpShellScreen(
@@ -22,6 +23,9 @@ Future<void> pumpShellScreen(
           TerminalCoreClient(fakeBindings),
         ),
         profileRepositoryProvider.overrideWithValue(repository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          MemoryAppPreferencesRepository(null),
+        ),
       ],
       child: const MaterialApp(home: ShellScreen()),
     ),
@@ -50,9 +54,8 @@ void main() {
   });
 
   testWidgets(
-    'shell screen shows a richer empty state after closing the last tab', (
-      tester,
-    ) async {
+    'shell screen shows a richer empty state after closing the last tab',
+    (tester) async {
       await pumpShellScreen(
         tester,
         fakeBindings: FakeCoreBindings(),
@@ -72,7 +75,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Create a shell to get started'), findsOneWidget);
-      expect(find.text('Reopen your default profile in one step.'), findsOneWidget);
+      expect(
+        find.text('Reopen your default profile in one step.'),
+        findsOneWidget,
+      );
       expect(find.text('New Tab'), findsOneWidget);
     },
   );

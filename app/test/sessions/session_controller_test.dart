@@ -8,6 +8,8 @@ import 'package:flutter/widgets.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
+import 'package:app/features/preferences/app_preferences_models.dart';
+import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/ffi/flutterm_core.dart';
@@ -18,12 +20,14 @@ class _TestProfileRepository extends ProfileRepository {
   _TestProfileRepository(this._document);
 
   TerminalProfilesDocument _document;
+  final List<TerminalProfilesDocument> savedDocuments = [];
 
   @override
   Future<TerminalProfilesDocument> load() async => _document;
 
   @override
   Future<void> save(TerminalProfilesDocument document) async {
+    savedDocuments.add(document);
     _document = document;
   }
 }
@@ -32,6 +36,31 @@ class _TestSessionController extends SessionController {
   @override
   SessionState build() {
     return SessionState.initial();
+  }
+}
+
+class _BootstrapOverrideSessionController extends SessionController {
+  _BootstrapOverrideSessionController(this.profileId);
+
+  final String profileId;
+
+  @override
+  String? get bootstrapDefaultProfileIdOverride => profileId;
+}
+
+class _TestAppPreferencesRepository extends AppPreferencesRepository {
+  _TestAppPreferencesRepository(this._document);
+
+  TerminalAppPreferencesDocument? _document;
+  final List<TerminalAppPreferencesDocument> savedDocuments = [];
+
+  @override
+  Future<TerminalAppPreferencesDocument?> load() async => _document;
+
+  @override
+  Future<void> save(TerminalAppPreferencesDocument document) async {
+    savedDocuments.add(document);
+    _document = document;
   }
 }
 
@@ -110,6 +139,19 @@ class _EventfulCoreBindings implements CoreBindings {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  const defaultProfile = TerminalProfile(
+    id: 'default',
+    name: 'Local Shell',
+    shell: '/bin/zsh',
+  );
+  const sshProfile = TerminalProfile(
+    id: 'ssh',
+    name: 'SSH',
+    shell: '/usr/bin/ssh',
+  );
+
   test('session lifecycle updates tabs and active session', () {
     final coreClient = TerminalCoreClient(FakeCoreBindings());
     final container = ProviderContainer(
@@ -120,6 +162,9 @@ void main() {
           _TestProfileRepository(
             const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
           ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
         ),
       ],
     );
@@ -163,6 +208,9 @@ void main() {
           _TestProfileRepository(
             const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
           ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
         ),
       ],
     );
@@ -210,6 +258,9 @@ void main() {
             const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
           ),
         ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -242,6 +293,230 @@ void main() {
   });
 
   test(
+    'bootstrap prefers explicit override over persisted and legacy defaults',
+    () async {
+      final coreClient = TerminalCoreClient(FakeCoreBindings());
+      final profileRepository = _TestProfileRepository(
+        const TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultProfile, sshProfile],
+        ),
+      );
+      final preferencesRepository = _TestAppPreferencesRepository(
+        const TerminalAppPreferencesDocument(
+          defaults: TerminalAppDefaults(defaultProfileId: 'default'),
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            preferencesRepository,
+          ),
+          sessionControllerProvider.overrideWith(
+            () => _BootstrapOverrideSessionController('ssh'),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.defaultProfileId, 'ssh');
+      expect(state.tabs.single.profileId, 'ssh');
+      expect(preferencesRepository.savedDocuments, isEmpty);
+    },
+  );
+
+  test('bootstrap prefers app defaults over legacy profile defaults', () async {
+    final coreClient = TerminalCoreClient(FakeCoreBindings());
+    final profileRepository = _TestProfileRepository(
+      const TerminalProfilesDocument(
+        defaultProfileId: 'default',
+        profiles: [defaultProfile, sshProfile],
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        terminalCoreClientProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(profileRepository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(
+            const TerminalAppPreferencesDocument(
+              defaults: TerminalAppDefaults(defaultProfileId: 'ssh'),
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.defaultProfileId, 'ssh');
+    expect(state.tabs.single.profileId, 'ssh');
+  });
+
+  test(
+    'bootstrap falls back to legacy default when preferences are absent',
+    () async {
+      final coreClient = TerminalCoreClient(FakeCoreBindings());
+      final profileRepository = _TestProfileRepository(
+        const TerminalProfilesDocument(
+          defaultProfileId: 'ssh',
+          profiles: [defaultProfile, sshProfile],
+        ),
+      );
+      final preferencesRepository = _TestAppPreferencesRepository(null);
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            preferencesRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.defaultProfileId, 'ssh');
+      expect(state.tabs.single.profileId, 'ssh');
+      expect(preferencesRepository.savedDocuments, isEmpty);
+    },
+  );
+
+  test(
+    'bootstrap clears invalid persisted defaults and falls back to first profile',
+    () async {
+      final coreClient = TerminalCoreClient(FakeCoreBindings());
+      final preferencesRepository = _TestAppPreferencesRepository(
+        const TerminalAppPreferencesDocument(
+          defaults: TerminalAppDefaults(defaultProfileId: 'missing'),
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              const TerminalProfilesDocument(
+                defaultProfileId: 'ssh',
+                profiles: [defaultProfile, sshProfile],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            preferencesRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.defaultProfileId, 'default');
+      expect(state.tabs.single.profileId, 'default');
+      expect(preferencesRepository.savedDocuments, hasLength(1));
+      expect(
+        preferencesRepository.savedDocuments.single.defaults.defaultProfileId,
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'setDefaultProfile writes only app preferences during the compatibility window',
+    () async {
+      final coreClient = TerminalCoreClient(FakeCoreBindings());
+      final profileRepository = _TestProfileRepository(
+        const TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultProfile, sshProfile],
+        ),
+      );
+      final preferencesRepository = _TestAppPreferencesRepository(null);
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            preferencesRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setDefaultProfile('ssh');
+
+      expect(preferencesRepository.savedDocuments, hasLength(1));
+      expect(
+        preferencesRepository.savedDocuments.single.defaults.defaultProfileId,
+        'ssh',
+      );
+      expect(profileRepository.savedDocuments, isEmpty);
+    },
+  );
+
+  test(
+    'deleteProfile clears a legacy-seeded default through preferences repair-write',
+    () async {
+      final coreClient = TerminalCoreClient(FakeCoreBindings());
+      final profileRepository = _TestProfileRepository(
+        const TerminalProfilesDocument(
+          defaultProfileId: 'ssh',
+          profiles: [defaultProfile, sshProfile],
+        ),
+      );
+      final preferencesRepository = _TestAppPreferencesRepository(null);
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            preferencesRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await container
+          .read(sessionControllerProvider.notifier)
+          .deleteProfile('ssh');
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.defaultProfileId, 'default');
+      expect(
+        preferencesRepository.savedDocuments.last.defaults.defaultProfileId,
+        isNull,
+      );
+      expect(
+        profileRepository.savedDocuments.single.profiles.map(
+          (profile) => profile.id,
+        ),
+        ['default'],
+      );
+      expect(profileRepository.savedDocuments.single.defaultProfileId, 'ssh');
+    },
+  );
+
+  test(
     'shell exit closes an inactive tab without changing the active tab',
     () async {
       final bindings = _EventfulCoreBindings(FakeCoreBindings());
@@ -257,12 +532,26 @@ void main() {
               ),
             ),
           ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
         ],
       );
       addTearDown(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      for (var attempt = 0; attempt < 5; attempt += 1) {
+        final bootSessionId = container
+            .read(sessionControllerProvider)
+            .activeSessionId;
+        if (bootSessionId == null) {
+          break;
+        }
+        controller.closeSession(bootSessionId);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
 
       controller.createSession(
         defaultTerminalProfile().copyWith(id: 'shell-1'),
@@ -299,12 +588,22 @@ void main() {
               ),
             ),
           ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
         ],
       );
       addTearDown(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final bootSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId;
+      if (bootSessionId != null) {
+        controller.closeSession(bootSessionId);
+      }
 
       controller.createSession(
         defaultTerminalProfile().copyWith(id: 'shell-1'),
@@ -340,12 +639,26 @@ void main() {
               ),
             ),
           ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
         ],
       );
       addTearDown(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      for (var attempt = 0; attempt < 5; attempt += 1) {
+        final bootSessionId = container
+            .read(sessionControllerProvider)
+            .activeSessionId;
+        if (bootSessionId == null) {
+          break;
+        }
+        controller.closeSession(bootSessionId);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
 
       controller.createSession(
         defaultTerminalProfile().copyWith(id: 'shell-1'),

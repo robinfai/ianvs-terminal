@@ -9,6 +9,7 @@ import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
 import '../support/fake_core_bindings.dart';
+import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
 
 Future<void> pumpShellScreen(
@@ -23,6 +24,9 @@ Future<void> pumpShellScreen(
           TerminalCoreClient(fakeBindings),
         ),
         profileRepositoryProvider.overrideWithValue(repository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          MemoryAppPreferencesRepository(null),
+        ),
       ],
       child: const MaterialApp(home: ShellScreen()),
     ),

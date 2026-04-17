@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ffi/flutterm_core.dart';
+import '../preferences/app_preferences_models.dart';
+import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
 import '../terminal/terminal_viewport.dart';
@@ -18,13 +20,26 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   return ProfileRepository();
 });
 
+final appPreferencesRepositoryProvider = Provider<AppPreferencesRepository>((
+  ref,
+) {
+  return AppPreferencesRepository();
+});
+
 final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 
 class SessionController extends Notifier<SessionState> {
   final Map<String, TerminalViewportController> _viewportControllers = {};
   final Map<String, _SessionResizeMetric> _lastResizeMetrics = {};
+  TerminalAppPreferencesDocument _appPreferences =
+      const TerminalAppPreferencesDocument();
+  String? _legacyDefaultProfileId;
+  bool _preferencesLoadedFromDisk = false;
   Timer? _pollTimer;
+
+  @protected
+  String? get bootstrapDefaultProfileIdOverride => null;
 
   @override
   SessionState build() {
@@ -47,17 +62,45 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> _bootstrap() async {
     final profiles = await ref.read(profileRepositoryProvider).load();
+    final runtimeProfiles = profiles.profiles.isEmpty
+        ? [defaultTerminalProfile()]
+        : profiles.profiles;
+    final preferencesRepository = ref.read(appPreferencesRepositoryProvider);
+    _legacyDefaultProfileId = _normalizeProfileId(profiles.defaultProfileId);
+    final persistedPreferences = await preferencesRepository.load();
+    _preferencesLoadedFromDisk = persistedPreferences != null;
+    final seededPreferences =
+        persistedPreferences ??
+        TerminalAppPreferencesDocument(
+          defaults: TerminalAppDefaults(
+            defaultProfileId: _legacyDefaultProfileId,
+          ),
+        );
+    final resolution = _resolveBootstrapPreferences(
+      profiles: runtimeProfiles,
+      preferences: seededPreferences,
+      explicitDefaultProfileId: bootstrapDefaultProfileIdOverride,
+      allowLegacyFallback: persistedPreferences == null,
+    );
+    _appPreferences = resolution.preferences;
+    if (resolution.shouldRepairWritePreferences) {
+      await preferencesRepository.save(_appPreferences);
+      _preferencesLoadedFromDisk = true;
+    }
+    if (!ref.mounted) {
+      return;
+    }
     state = state.copyWith(
-      profiles: profiles.profiles,
-      defaultProfileId: profiles.defaultProfileId,
+      profiles: runtimeProfiles,
+      defaultProfileId: resolution.effectiveDefaultProfileId,
       isReady: true,
     );
     _startPolling();
-    if (profiles.profiles.isNotEmpty) {
+    if (resolution.effectiveDefaultProfileId != null) {
       createSession(
-        profiles.profiles.firstWhere(
-          (profile) => profile.id == profiles.defaultProfileId,
-          orElse: () => profiles.profiles.first,
+        runtimeProfiles.firstWhere(
+          (profile) => profile.id == resolution.effectiveDefaultProfileId,
+          orElse: () => runtimeProfiles.first,
         ),
       );
     }
@@ -168,52 +211,134 @@ class SessionController extends Notifier<SessionState> {
         if (existing.id == profile.id) profile else existing,
       if (!state.profiles.any((existing) => existing.id == profile.id)) profile,
     ];
-    final defaultProfileId = state.defaultProfileId ?? profile.id;
     await ref
         .read(profileRepositoryProvider)
         .save(
           TerminalProfilesDocument(
-            defaultProfileId: defaultProfileId,
+            defaultProfileId: _legacyDefaultProfileId ?? '',
             profiles: nextProfiles,
           ),
         );
     state = state.copyWith(
       profiles: nextProfiles,
-      defaultProfileId: defaultProfileId,
+      defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
     );
   }
 
   Future<void> setDefaultProfile(String profileId) async {
-    await ref
-        .read(profileRepositoryProvider)
-        .save(
-          TerminalProfilesDocument(
-            defaultProfileId: profileId,
-            profiles: state.profiles,
-          ),
-        );
-    state = state.copyWith(defaultProfileId: profileId);
+    _appPreferences = _appPreferences.copyWith(
+      defaults: _appPreferences.defaults.copyWith(defaultProfileId: profileId),
+    );
+    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+    _preferencesLoadedFromDisk = true;
+    state = state.copyWith(
+      defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
+    );
   }
 
   Future<void> deleteProfile(String profileId) async {
     final nextProfiles = state.profiles
         .where((profile) => profile.id != profileId)
         .toList();
-    final defaultProfileId = nextProfiles.isEmpty
-        ? null
-        : nextProfiles.first.id;
     await ref
         .read(profileRepositoryProvider)
         .save(
           TerminalProfilesDocument(
-            defaultProfileId: defaultProfileId ?? '',
+            defaultProfileId: _legacyDefaultProfileId ?? '',
             profiles: nextProfiles,
           ),
         );
+    final deletedConfiguredDefault =
+        _normalizeProfileId(_appPreferences.defaults.defaultProfileId) ==
+            profileId ||
+        (!_preferencesLoadedFromDisk && _legacyDefaultProfileId == profileId);
+    if (deletedConfiguredDefault) {
+      _appPreferences = _appPreferences.copyWith(
+        defaults: _appPreferences.defaults.copyWith(defaultProfileId: null),
+      );
+      await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+      _preferencesLoadedFromDisk = true;
+    }
     state = state.copyWith(
       profiles: nextProfiles,
-      defaultProfileId: defaultProfileId,
+      defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
     );
+  }
+
+  String? _effectiveDefaultProfileIdFor(List<TerminalProfile> profiles) {
+    final configuredDefaultId = _normalizeProfileId(
+      _appPreferences.defaults.defaultProfileId,
+    );
+    if (_hasProfileId(profiles, configuredDefaultId)) {
+      return configuredDefaultId;
+    }
+    if (profiles.isEmpty) {
+      return null;
+    }
+    return profiles.first.id;
+  }
+
+  _BootstrapPreferencesResolution _resolveBootstrapPreferences({
+    required List<TerminalProfile> profiles,
+    required TerminalAppPreferencesDocument preferences,
+    required String? explicitDefaultProfileId,
+    required bool allowLegacyFallback,
+  }) {
+    final explicitDefaultId = _normalizeProfileId(explicitDefaultProfileId);
+    if (_hasProfileId(profiles, explicitDefaultId)) {
+      return _BootstrapPreferencesResolution(
+        effectiveDefaultProfileId: explicitDefaultId,
+        preferences: preferences,
+      );
+    }
+
+    final preferencesDefaultId = _normalizeProfileId(
+      preferences.defaults.defaultProfileId,
+    );
+    if (_hasProfileId(profiles, preferencesDefaultId)) {
+      return _BootstrapPreferencesResolution(
+        effectiveDefaultProfileId: preferencesDefaultId,
+        preferences: preferences,
+      );
+    }
+
+    if (preferencesDefaultId != null) {
+      final repairedPreferences = preferences.copyWith(
+        defaults: preferences.defaults.copyWith(defaultProfileId: null),
+      );
+      return _BootstrapPreferencesResolution(
+        effectiveDefaultProfileId: profiles.isEmpty ? null : profiles.first.id,
+        preferences: repairedPreferences,
+        shouldRepairWritePreferences: true,
+      );
+    }
+
+    if (allowLegacyFallback &&
+        _hasProfileId(profiles, _legacyDefaultProfileId)) {
+      return _BootstrapPreferencesResolution(
+        effectiveDefaultProfileId: _legacyDefaultProfileId,
+        preferences: preferences,
+      );
+    }
+
+    return _BootstrapPreferencesResolution(
+      effectiveDefaultProfileId: profiles.isEmpty ? null : profiles.first.id,
+      preferences: preferences,
+    );
+  }
+
+  String? _normalizeProfileId(String? profileId) {
+    if (profileId == null || profileId.isEmpty) {
+      return null;
+    }
+    return profileId;
+  }
+
+  bool _hasProfileId(List<TerminalProfile> profiles, String? profileId) {
+    if (profileId == null) {
+      return false;
+    }
+    return profiles.any((profile) => profile.id == profileId);
   }
 }
 
@@ -229,4 +354,16 @@ class _SessionResizeMetric {
   final int rows;
   final int pixelWidth;
   final int pixelHeight;
+}
+
+class _BootstrapPreferencesResolution {
+  const _BootstrapPreferencesResolution({
+    required this.effectiveDefaultProfileId,
+    required this.preferences,
+    this.shouldRepairWritePreferences = false,
+  });
+
+  final String? effectiveDefaultProfileId;
+  final TerminalAppPreferencesDocument preferences;
+  final bool shouldRepairWritePreferences;
 }
