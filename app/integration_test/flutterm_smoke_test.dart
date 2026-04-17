@@ -11,6 +11,7 @@ import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
 import '../test/support/fake_core_bindings.dart';
+import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_profile_repository.dart';
 
 Future<void> _pumpSmokeApp(
@@ -27,6 +28,9 @@ Future<void> _pumpSmokeApp(
           TerminalCoreClient(fakeBindings),
         ),
         profileRepositoryProvider.overrideWithValue(repository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          MemoryAppPreferencesRepository(null),
+        ),
       ],
       child: const FluttermApp(),
     ),
@@ -143,6 +147,33 @@ void main() {
     expect(find.text('App actions'), findsOneWidget);
     expect(find.text('Session actions'), findsOneWidget);
   });
+
+  testWidgets(
+    'defaults and appearance surface opens and closes without leaving the shell',
+    (WidgetTester tester) async {
+      await _pumpSmokeApp(
+        tester,
+        profiles: TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      );
+
+      expect(find.text('Defaults & appearance'), findsOneWidget);
+
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save changes'), findsOneWidget);
+      expect(find.text('Use the first available profile'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Close defaults'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Save changes'), findsNothing);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+    },
+  );
 
   testWidgets('closing an inactive tab keeps the active tab focused', (
     WidgetTester tester,

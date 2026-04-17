@@ -1,0 +1,260 @@
+import 'package:flutter/material.dart';
+
+import '../preferences/app_preferences_models.dart';
+import '../profiles/profile_models.dart';
+
+class DefaultsAndAppearanceSelection {
+  const DefaultsAndAppearanceSelection({
+    required this.configuredDefaultProfileId,
+    required this.themeMode,
+  });
+
+  final String? configuredDefaultProfileId;
+  final TerminalThemeMode themeMode;
+}
+
+class DefaultsAndAppearanceDialog extends StatefulWidget {
+  const DefaultsAndAppearanceDialog({
+    super.key,
+    required this.profiles,
+    required this.configuredDefaultProfileId,
+    required this.effectiveDefaultProfileId,
+    required this.themeMode,
+  });
+
+  final List<TerminalProfile> profiles;
+  final String? configuredDefaultProfileId;
+  final String? effectiveDefaultProfileId;
+  final TerminalThemeMode themeMode;
+
+  @override
+  State<DefaultsAndAppearanceDialog> createState() =>
+      _DefaultsAndAppearanceDialogState();
+}
+
+class _DefaultsAndAppearanceDialogState
+    extends State<DefaultsAndAppearanceDialog> {
+  late String? _selectedProfileId;
+  late TerminalThemeMode _selectedThemeMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedProfileId = widget.configuredDefaultProfileId;
+    _selectedThemeMode = widget.themeMode;
+  }
+
+  TerminalProfile? _effectiveProfileFor({
+    required String? configuredProfileId,
+    required String? effectiveProfileId,
+  }) {
+    for (final profile in widget.profiles) {
+      if (profile.id == configuredProfileId) {
+        return profile;
+      }
+    }
+    for (final profile in widget.profiles) {
+      if (profile.id == effectiveProfileId) {
+        return profile;
+      }
+    }
+    if (widget.profiles.isEmpty) {
+      return null;
+    }
+    return widget.profiles.first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveProfile = _effectiveProfileFor(
+      configuredProfileId: _selectedProfileId,
+      effectiveProfileId: widget.effectiveDefaultProfileId,
+    );
+    final isUsingFallback = _selectedProfileId == null;
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 640),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Defaults & appearance',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close defaults',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Pick the default profile for new tabs and choose how the shell follows the app theme.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF4B5563),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Default profile',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                RadioGroup<String?>(
+                  groupValue: _selectedProfileId,
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedProfileId = value;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      RadioListTile<String?>(
+                        value: null,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Use the first available profile'),
+                        subtitle: Text(
+                          effectiveProfile == null
+                              ? 'Fallback mode stays ready even when no saved default exists.'
+                              : 'Fallback • new tabs use ${effectiveProfile.name} until you configure a default.',
+                        ),
+                      ),
+                      for (final profile in widget.profiles)
+                        RadioListTile<String?>(
+                          value: profile.id,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(profile.name),
+                          subtitle: Text(profile.shell),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    isUsingFallback
+                        ? 'Fallback default • ${effectiveProfile?.name ?? 'No profile available'}'
+                        : 'Configured default • ${effectiveProfile?.name ?? 'Unknown profile'}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF374151),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Appearance',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                RadioGroup<TerminalThemeMode>(
+                  groupValue: _selectedThemeMode,
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _selectedThemeMode = value;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      for (final themeMode in TerminalThemeMode.values)
+                        RadioListTile<TerminalThemeMode>(
+                          value: themeMode,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(themeModeLabel(themeMode)),
+                          subtitle: Text(_themeModeDescription(themeMode)),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  runAlignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _selectedProfileId == null
+                          ? null
+                          : () {
+                              setState(() {
+                                _selectedProfileId = null;
+                              });
+                            },
+                      child: const Text('Reset default'),
+                    ),
+                    TextButton(
+                      onPressed: _selectedThemeMode == TerminalThemeMode.system
+                          ? null
+                          : () {
+                              setState(() {
+                                _selectedThemeMode = TerminalThemeMode.system;
+                              });
+                            },
+                      child: const Text('Reset theme'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(
+                          DefaultsAndAppearanceSelection(
+                            configuredDefaultProfileId: _selectedProfileId,
+                            themeMode: _selectedThemeMode,
+                          ),
+                        );
+                      },
+                      child: const Text('Save changes'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String themeModeLabel(TerminalThemeMode mode) {
+  return switch (mode) {
+    TerminalThemeMode.system => 'System',
+    TerminalThemeMode.light => 'Light',
+    TerminalThemeMode.dark => 'Dark',
+  };
+}
+
+String _themeModeDescription(TerminalThemeMode mode) {
+  return switch (mode) {
+    TerminalThemeMode.system => 'Follow the current device appearance.',
+    TerminalThemeMode.light => 'Keep the shell app in light mode.',
+    TerminalThemeMode.dark => 'Keep the shell app in dark mode.',
+  };
+}

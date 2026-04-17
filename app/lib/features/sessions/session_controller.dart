@@ -93,6 +93,8 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(
       profiles: runtimeProfiles,
       defaultProfileId: resolution.effectiveDefaultProfileId,
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+      themeMode: _appPreferences.appearance.themeMode,
       isReady: true,
     );
     _startPolling();
@@ -222,6 +224,7 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(
       profiles: nextProfiles,
       defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
     );
   }
 
@@ -233,7 +236,33 @@ class SessionController extends Notifier<SessionState> {
     _preferencesLoadedFromDisk = true;
     state = state.copyWith(
       defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
     );
+  }
+
+  Future<void> resetDefaultProfile() async {
+    _appPreferences = _appPreferences.copyWith(
+      defaults: _appPreferences.defaults.copyWith(defaultProfileId: null),
+    );
+    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+    _preferencesLoadedFromDisk = true;
+    state = state.copyWith(
+      defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+    );
+  }
+
+  Future<void> setThemeMode(TerminalThemeMode themeMode) async {
+    _appPreferences = _appPreferences.copyWith(
+      appearance: _appPreferences.appearance.copyWith(themeMode: themeMode),
+    );
+    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+    _preferencesLoadedFromDisk = true;
+    state = state.copyWith(themeMode: _appPreferences.appearance.themeMode);
+  }
+
+  Future<void> resetThemeMode() async {
+    await setThemeMode(TerminalThemeMode.system);
   }
 
   Future<void> deleteProfile(String profileId) async {
@@ -262,6 +291,7 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(
       profiles: nextProfiles,
       defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
     );
   }
 
@@ -276,6 +306,13 @@ class SessionController extends Notifier<SessionState> {
       return null;
     }
     return profiles.first.id;
+  }
+
+  String? _configuredDefaultProfileIdForUi() {
+    if (!_preferencesLoadedFromDisk) {
+      return null;
+    }
+    return _normalizeProfileId(_appPreferences.defaults.defaultProfileId);
   }
 
   _BootstrapPreferencesResolution _resolveBootstrapPreferences({

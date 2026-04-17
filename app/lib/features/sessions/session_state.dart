@@ -1,3 +1,4 @@
+import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
 
 class TerminalTab {
@@ -32,6 +33,8 @@ class SessionState {
     required this.activeSessionId,
     required this.profiles,
     required this.defaultProfileId,
+    required this.configuredDefaultProfileId,
+    required this.themeMode,
     required this.isReady,
     this.lastError,
   });
@@ -40,6 +43,8 @@ class SessionState {
   final String? activeSessionId;
   final List<TerminalProfile> profiles;
   final String? defaultProfileId;
+  final String? configuredDefaultProfileId;
+  final TerminalThemeMode themeMode;
   final bool isReady;
   final String? lastError;
 
@@ -49,6 +54,8 @@ class SessionState {
       activeSessionId: null,
       profiles: [],
       defaultProfileId: null,
+      configuredDefaultProfileId: null,
+      themeMode: TerminalThemeMode.system,
       isReady: false,
     );
   }
@@ -58,6 +65,8 @@ class SessionState {
     Object? activeSessionId = _sessionStateNoChange,
     List<TerminalProfile>? profiles,
     Object? defaultProfileId = _sessionStateNoChange,
+    Object? configuredDefaultProfileId = _sessionStateNoChange,
+    TerminalThemeMode? themeMode,
     bool? isReady,
     Object? lastError = _sessionStateNoChange,
   }) {
@@ -70,6 +79,11 @@ class SessionState {
       defaultProfileId: identical(defaultProfileId, _sessionStateNoChange)
           ? this.defaultProfileId
           : defaultProfileId as String?,
+      configuredDefaultProfileId:
+          identical(configuredDefaultProfileId, _sessionStateNoChange)
+          ? this.configuredDefaultProfileId
+          : configuredDefaultProfileId as String?,
+      themeMode: themeMode ?? this.themeMode,
       isReady: isReady ?? this.isReady,
       lastError: identical(lastError, _sessionStateNoChange)
           ? this.lastError

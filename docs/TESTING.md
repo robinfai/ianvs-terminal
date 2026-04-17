@@ -113,6 +113,29 @@ flutter run -d macos
 - 删除 default profile 后 bootstrap 会落回首个可用 profile，而不是 fatal 或继续指向悬空 id
 - terminal lifecycle、copy / paste、scroll、resize、exit baseline 不回归
 
+### 改 defaults / appearance UI（Phase 3 remaining work）
+
+必须执行：
+
+- `flutter analyze`
+- `flutter test test/shell/shell_screen_phase2a_test.dart`
+- `flutter test test/shell/shell_screen_phase2b_test.dart`
+- `flutter test test/shell/shell_screen_phase3_test.dart`
+- `flutter test test/sessions/session_controller_phase3_test.dart`
+- `flutter test test/preferences/app_preferences_repository_test.dart`
+- `flutter test test/preferences/app_preferences_repository_phase3_test.dart`
+- `flutter test test/app/app_theme_mode_test.dart`
+- `flutter test integration_test/flutterm_smoke_test.dart`
+
+重点确认：
+
+- `Defaults & appearance` modal/sheet 是唯一 defaults/theme mutation surface
+- sidebar 不再 inline `Set as default`
+- configured default 与 effective fallback default 在 UI 上有明确区分
+- repaired/missing defaults 不会被展示成 user-selected
+- `MaterialApp` 真正消费 persisted `themeMode`
+- 关闭 defaults surface 后 launcher / focus / terminal input 不回归
+
 ## 自动化 Smoke
 
 当前最小自动化 GUI 冒烟命令：
@@ -160,6 +183,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 - shell workspace chrome / session tabs panel / richer empty-state shell surfaces
 - top actions launcher surface open / close / new-tab path
 - Phase 3 defaults / persistence bootstrap 不改变 shell startup / active-session 主链路
+- Defaults & appearance surface open / close 不离开 shell 主链路
 
 当前未覆盖：
 

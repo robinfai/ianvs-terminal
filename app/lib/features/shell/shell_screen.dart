@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'defaults_appearance_dialog.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../sessions/session_controller.dart';
+import '../sessions/session_state.dart';
 import '../terminal/clipboard_bridge.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
@@ -26,6 +28,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
   bool _isLauncherOpen = false;
+  bool _isDefaultsOpen = false;
 
   bool get _usesMetaShortcuts {
     return switch (defaultTargetPlatform) {
@@ -50,7 +53,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌘V' : 'Ctrl+V';
   }
 
-  void _restoreLauncherFocus({
+  void _restoreSessionFocus({
     required String? activeSessionIdBeforeOpen,
     required String? activeSessionIdAfterClose,
   }) {
@@ -71,19 +74,105 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     });
   }
 
-  TerminalProfile? _defaultProfileFor(
+  TerminalProfile? _profileForId(
     List<TerminalProfile> profiles,
-    String? defaultProfileId,
+    String? profileId,
   ) {
     if (profiles.isEmpty) {
       return null;
     }
     for (final profile in profiles) {
-      if (profile.id == defaultProfileId) {
+      if (profile.id == profileId) {
         return profile;
       }
     }
-    return profiles.first;
+    return null;
+  }
+
+  TerminalProfile? _effectiveDefaultProfileFor(
+    List<TerminalProfile> profiles,
+    String? effectiveDefaultProfileId,
+  ) {
+    return _profileForId(profiles, effectiveDefaultProfileId) ??
+        (profiles.isEmpty ? null : profiles.first);
+  }
+
+  String _defaultSummary(
+    List<TerminalProfile> profiles,
+    String? configuredDefaultProfileId,
+    String? effectiveDefaultProfileId,
+  ) {
+    final effectiveProfile = _effectiveDefaultProfileFor(
+      profiles,
+      effectiveDefaultProfileId,
+    );
+    if (configuredDefaultProfileId == null) {
+      return 'Fallback default • ${effectiveProfile?.name ?? 'No profile available'}';
+    }
+    final configuredProfile = _profileForId(
+      profiles,
+      configuredDefaultProfileId,
+    );
+    return 'Configured default • ${configuredProfile?.name ?? effectiveProfile?.name ?? 'No profile available'}';
+  }
+
+  Future<void> _openDefaultsAndAppearance(
+    BuildContext context,
+    SessionController sessionController,
+    SessionState sessionState,
+  ) async {
+    if (_isDefaultsOpen) {
+      return;
+    }
+
+    setState(() {
+      _isDefaultsOpen = true;
+    });
+
+    final activeSessionIdBeforeOpen = sessionState.activeSessionId;
+    final selection = await showDialog<DefaultsAndAppearanceSelection>(
+      context: context,
+      barrierDismissible: true,
+      requestFocus: true,
+      builder: (dialogContext) => DefaultsAndAppearanceDialog(
+        profiles: sessionState.profiles,
+        configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
+        effectiveDefaultProfileId: sessionState.defaultProfileId,
+        themeMode: sessionState.themeMode,
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isDefaultsOpen = false;
+    });
+
+    final stateBeforeSave = ref.read(sessionControllerProvider);
+    if (selection != null) {
+      if (selection.configuredDefaultProfileId !=
+          stateBeforeSave.configuredDefaultProfileId) {
+        if (selection.configuredDefaultProfileId == null) {
+          await sessionController.resetDefaultProfile();
+        } else {
+          await sessionController.setDefaultProfile(
+            selection.configuredDefaultProfileId!,
+          );
+        }
+      }
+      if (selection.themeMode != stateBeforeSave.themeMode) {
+        await sessionController.setThemeMode(selection.themeMode);
+      }
+    }
+
+    _restoreSessionFocus(
+      activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+      activeSessionIdAfterClose: ref
+          .read(sessionControllerProvider)
+          .activeSessionId,
+    );
   }
 
   Future<void> _copySelection(
@@ -116,7 +205,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     List<TerminalProfile> profiles,
     String? defaultProfileId,
   ) async {
-    final defaultProfile = _defaultProfileFor(profiles, defaultProfileId);
+    final defaultProfile = _effectiveDefaultProfileFor(
+      profiles,
+      defaultProfileId,
+    );
     if (_isLauncherOpen || defaultProfile == null) {
       return;
     }
@@ -284,7 +376,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           currentSessionId,
           selectionController,
         );
-        _restoreLauncherFocus(
+        _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
         );
@@ -294,13 +386,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return;
         }
         await _pasteToSession(currentSessionId);
-        _restoreLauncherFocus(
+        _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
       case null:
-        _restoreLauncherFocus(
+        _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
         );
@@ -313,10 +405,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final sessionState = ref.watch(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
     final activeSessionId = sessionState.activeSessionId;
-    final defaultProfile = _defaultProfileFor(
+    final defaultProfile = _effectiveDefaultProfileFor(
       sessionState.profiles,
       sessionState.defaultProfileId,
     );
+    final defaultSummary = _defaultSummary(
+      sessionState.profiles,
+      sessionState.configuredDefaultProfileId,
+      sessionState.defaultProfileId,
+    );
+    final themeSummary = 'Theme • ${themeModeLabel(sessionState.themeMode)}';
     final activeSelectionController = activeSessionId == null
         ? null
         : _selectionControllers.putIfAbsent(
@@ -339,10 +437,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
         final isControlPressed = HardwareKeyboard.instance.isControlPressed;
         final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
-
-        if ((isMetaPressed || isControlPressed) &&
+        final isLauncherShortcut =
+            (isMetaPressed || isControlPressed) &&
             isShiftPressed &&
-            event.logicalKey == LogicalKeyboardKey.keyP) {
+            event.logicalKey == LogicalKeyboardKey.keyP;
+        final isNewTabShortcut =
+            (isMetaPressed || isControlPressed) &&
+            event.logicalKey == LogicalKeyboardKey.keyT;
+
+        if (_isDefaultsOpen && (isLauncherShortcut || isNewTabShortcut)) {
+          return KeyEventResult.handled;
+        }
+
+        if (isLauncherShortcut) {
           _openTopActionsLauncher(
             context,
             sessionController,
@@ -352,8 +459,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return KeyEventResult.handled;
         }
 
-        if ((isMetaPressed || isControlPressed) &&
-            event.logicalKey == LogicalKeyboardKey.keyT) {
+        if (isNewTabShortcut) {
           if (_isLauncherOpen || defaultProfile == null) {
             return KeyEventResult.handled;
           }
@@ -369,6 +475,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             _Sidebar(
               profiles: sessionState.profiles,
               defaultProfileId: sessionState.defaultProfileId,
+              configuredDefaultProfileId:
+                  sessionState.configuredDefaultProfileId,
               onCreateSession: sessionController.createSession,
               onEditProfile: (profile) async {
                 final result = await showDialog<TerminalProfile>(
@@ -380,7 +488,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   await sessionController.saveProfile(result);
                 }
               },
-              onSetDefault: sessionController.setDefaultProfile,
+              onShowDefaults: () => _openDefaultsAndAppearance(
+                context,
+                sessionController,
+                sessionState,
+              ),
             ),
             Expanded(
               child: DecoratedBox(
@@ -444,6 +556,27 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                             ?.copyWith(
                                               color: const Color(0xFF6B7280),
                                               fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        defaultSummary,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: const Color(0xFF4B5563),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        themeSummary,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: const Color(0xFF4B5563),
                                             ),
                                       ),
                                     ],
@@ -565,6 +698,27 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                         const SizedBox(height: 8),
                                         Text(
                                           'Reopen your default profile in one step.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: const Color(0xFF4B5563),
+                                              ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          defaultSummary,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: const Color(0xFF374151),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          themeSummary,
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodyMedium
@@ -694,16 +848,18 @@ class _Sidebar extends StatelessWidget {
   const _Sidebar({
     required this.profiles,
     required this.defaultProfileId,
+    required this.configuredDefaultProfileId,
     required this.onCreateSession,
     required this.onEditProfile,
-    required this.onSetDefault,
+    required this.onShowDefaults,
   });
 
   final List<TerminalProfile> profiles;
   final String? defaultProfileId;
+  final String? configuredDefaultProfileId;
   final ValueChanged<TerminalProfile> onCreateSession;
   final ValueChanged<TerminalProfile> onEditProfile;
-  final ValueChanged<String> onSetDefault;
+  final VoidCallback onShowDefaults;
 
   @override
   Widget build(BuildContext context) {
@@ -732,6 +888,19 @@ class _Sidebar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: onShowDefaults,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFF9FAFB),
+                      side: const BorderSide(color: Color(0xFF4B5563)),
+                    ),
+                    icon: const Icon(Icons.tune_rounded),
+                    label: const Text('Defaults & appearance'),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Expanded(
                   child: ListView.builder(
                     itemCount: profiles.length,
@@ -745,27 +914,20 @@ class _Sidebar extends StatelessWidget {
                             style: const TextStyle(color: Colors.white),
                           ),
                           subtitle: Text(
-                            profile.shell,
+                            profile.id == defaultProfileId
+                                ? configuredDefaultProfileId == profile.id
+                                      ? '${profile.shell} • Configured default'
+                                      : '${profile.shell} • Fallback default'
+                                : profile.shell,
                             style: const TextStyle(color: Color(0xFFD1D5DB)),
                           ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) {
-                              if (value == 'edit') {
-                                onEditProfile(profile);
-                              } else if (value == 'default') {
-                                onSetDefault(profile.id);
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Text('Edit'),
-                              ),
-                              const PopupMenuItem(
-                                value: 'default',
-                                child: Text('Set as default'),
-                              ),
-                            ],
+                          trailing: IconButton(
+                            tooltip: 'Edit profile',
+                            onPressed: () => onEditProfile(profile),
+                            icon: const Icon(
+                              Icons.edit_outlined,
+                              color: Color(0xFFD1D5DB),
+                            ),
                           ),
                           leading: Icon(
                             profile.id == defaultProfileId
