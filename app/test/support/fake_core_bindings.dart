@@ -14,6 +14,7 @@ class FakeCoreBindings implements CoreBindings {
   final List<Uint8List> writes = [];
   final List<List<int>> resizeCalls = [];
   final List<List<int>> scrollCalls = [];
+  final List<List<int>> scrollToCalls = [];
   Map<String, Object?>? lastCreatedProfileJson;
   bool pingCalled = false;
 
@@ -59,6 +60,7 @@ class FakeCoreBindings implements CoreBindings {
         {'start': 0, 'end': 1},
       ],
       'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
     };
     _events[sessionId] = [
       {'kind': 'started', 'session_id': sessionId, 'payload': null},
@@ -101,6 +103,28 @@ class FakeCoreBindings implements CoreBindings {
   @override
   int sessionScroll(int sessionId, int deltaLines) {
     scrollCalls.add([sessionId, deltaLines]);
+    final frame = _frames[sessionId];
+    if (frame == null) {
+      return 0;
+    }
+    final maxOffset = frame['scrollback_max_offset'] as int? ?? 0;
+    final currentOffset = frame['scrollback_offset'] as int? ?? 0;
+    frame['scrollback_offset'] = (currentOffset + deltaLines).clamp(
+      0,
+      maxOffset,
+    );
+    return 0;
+  }
+
+  @override
+  int sessionScrollTo(int sessionId, int offset) {
+    scrollToCalls.add([sessionId, offset]);
+    final frame = _frames[sessionId];
+    if (frame == null) {
+      return 0;
+    }
+    final maxOffset = frame['scrollback_max_offset'] as int? ?? 0;
+    frame['scrollback_offset'] = offset.clamp(0, maxOffset);
     return 0;
   }
 

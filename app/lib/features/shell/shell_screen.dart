@@ -66,7 +66,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   void _publishAcceptanceSnapshot([SessionState? state]) {
-    final SessionState snapshotState = state ?? ref.read(sessionControllerProvider);
+    final SessionState snapshotState =
+        state ?? ref.read(sessionControllerProvider);
     final activeSessionId = snapshotState.activeSessionId;
     final terminalRows = activeSessionId == null
         ? const []
@@ -296,8 +297,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      sheetAnimationStyle:
-          animationsEnabled ? null : AnimationStyle.noAnimation,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
       builder: (sheetContext) {
         return _ProfilesSheet(
           profiles: sessionState.profiles,
@@ -518,9 +520,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             activeSessionId,
             () => FocusNode(debugLabel: 'shell-terminal-$activeSessionId'),
           );
-    final palette = _ShellPalette.fromBrightness(
-      Theme.of(context).brightness,
-    );
+    final palette = _ShellPalette.fromBrightness(Theme.of(context).brightness);
 
     return Focus(
       canRequestFocus: false,
@@ -597,7 +597,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             onNewTab: defaultProfile == null
                                 ? null
                                 : () {
-                                    sessionController.createSession(defaultProfile);
+                                    sessionController.createSession(
+                                      defaultProfile,
+                                    );
                                     _focusSession(
                                       ref
                                           .read(sessionControllerProvider)
@@ -617,7 +619,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               if (scheduledSize != viewportSize) {
                                 _scheduledViewportSizes[activeSessionId] =
                                     viewportSize;
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
                                   if (mounted) {
                                     sessionController.resizeActiveSession(
                                       viewportSize,
@@ -634,8 +638,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 coreClient: ref.read(
                                   terminalCoreClientProvider,
                                 ),
-                                readSelection: () => selectionController
-                                    .textForFrame(
+                                readSelection: () =>
+                                    selectionController.textForFrame(
                                       sessionController
                                           .viewportFor(activeSessionId)
                                           .frame,
@@ -667,6 +671,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                           .scrollViewport(
                                             activeSessionId,
                                             delta,
+                                          );
+                                    },
+                                    onScrollToOffset: (offset) {
+                                      ref
+                                          .read(terminalCoreClientProvider)
+                                          .scrollViewportTo(
+                                            activeSessionId,
+                                            offset,
                                           );
                                     },
                                   ),
@@ -740,7 +752,10 @@ class _ShellChromeBar extends StatelessWidget {
                 onPressed: onShowCommandMenu,
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
-                constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+                constraints: const BoxConstraints.tightFor(
+                  width: 36,
+                  height: 36,
+                ),
                 iconSize: 18,
                 icon: Icon(Icons.tune_rounded, color: palette.subtleText),
               ),
@@ -1075,95 +1090,96 @@ class _ShellCommandMenu extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 2, 4, 2),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Top actions',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: palette.primaryText,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Close actions',
-                        onPressed: () => Navigator.of(context).pop(),
-                        visualDensity: VisualDensity.compact,
-                        splashRadius: 16,
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.mutedText,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                sectionLabel('App actions'),
-                _ShellCommandTile(
-                  key: const Key('shell-new-tab'),
-                  icon: Icons.add_box_outlined,
-                  title: 'New tab',
-                  subtitle: 'App action • Open the default shell profile.',
-                  shortcutLabel: newTabShortcutLabel,
-                  enabled: hasDefaultProfile,
-                  onTap: () =>
-                      Navigator.of(context).pop(_ShellCommandAction.newTab),
-                ),
-                _ShellCommandTile(
-                  key: const Key('shell-command-defaults'),
-                  icon: Icons.tune_rounded,
-                  title: 'Defaults & appearance',
-                  subtitle: 'App action • Pick the default profile and theme.',
-                  enabled: true,
-                  onTap: () =>
-                      Navigator.of(context).pop(_ShellCommandAction.defaults),
-                ),
-                _ShellCommandTile(
-                  key: const Key('shell-command-profiles'),
-                  icon: Icons.folder_open_rounded,
-                  title: 'Profiles…',
-                  subtitle: 'App action • Open or edit shell profiles.',
-                  enabled: true,
-                  onTap: () =>
-                      Navigator.of(context).pop(_ShellCommandAction.profiles),
-                ),
-                sectionLabel('Session actions'),
-                if (!hasActiveSession)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Requires an active shell session.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: palette.subtleText,
+                    padding: const EdgeInsets.fromLTRB(8, 2, 4, 2),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Top actions',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: palette.primaryText,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close actions',
+                          onPressed: () => Navigator.of(context).pop(),
+                          visualDensity: VisualDensity.compact,
+                          splashRadius: 16,
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: palette.mutedText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  sectionLabel('App actions'),
+                  _ShellCommandTile(
+                    key: const Key('shell-new-tab'),
+                    icon: Icons.add_box_outlined,
+                    title: 'New tab',
+                    subtitle: 'App action • Open the default shell profile.',
+                    shortcutLabel: newTabShortcutLabel,
+                    enabled: hasDefaultProfile,
+                    onTap: () =>
+                        Navigator.of(context).pop(_ShellCommandAction.newTab),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-command-defaults'),
+                    icon: Icons.tune_rounded,
+                    title: 'Defaults & appearance',
+                    subtitle:
+                        'App action • Pick the default profile and theme.',
+                    enabled: true,
+                    onTap: () =>
+                        Navigator.of(context).pop(_ShellCommandAction.defaults),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-command-profiles'),
+                    icon: Icons.folder_open_rounded,
+                    title: 'Profiles…',
+                    subtitle: 'App action • Open or edit shell profiles.',
+                    enabled: true,
+                    onTap: () =>
+                        Navigator.of(context).pop(_ShellCommandAction.profiles),
+                  ),
+                  sectionLabel('Session actions'),
+                  if (!hasActiveSession)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Requires an active shell session.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: palette.subtleText),
                         ),
                       ),
                     ),
+                  _ShellCommandTile(
+                    icon: Icons.copy_rounded,
+                    title: 'Copy selection',
+                    subtitle: 'Session action • Copy the current selection.',
+                    shortcutLabel: sessionCopyShortcutLabel,
+                    enabled: hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(_ShellCommandAction.copy),
                   ),
-                _ShellCommandTile(
-                  icon: Icons.copy_rounded,
-                  title: 'Copy selection',
-                  subtitle: 'Session action • Copy the current selection.',
-                  shortcutLabel: sessionCopyShortcutLabel,
-                  enabled: hasActiveSession,
-                  onTap: () =>
-                      Navigator.of(context).pop(_ShellCommandAction.copy),
-                ),
-                _ShellCommandTile(
-                  icon: Icons.content_paste_rounded,
-                  title: 'Paste clipboard',
-                  subtitle: 'Session action • Paste clipboard into the shell.',
-                  shortcutLabel: sessionPasteShortcutLabel,
-                  enabled: hasActiveSession,
-                  onTap: () =>
-                      Navigator.of(context).pop(_ShellCommandAction.paste),
-                ),
-                Padding(
+                  _ShellCommandTile(
+                    icon: Icons.content_paste_rounded,
+                    title: 'Paste clipboard',
+                    subtitle:
+                        'Session action • Paste clipboard into the shell.',
+                    shortcutLabel: sessionPasteShortcutLabel,
+                    enabled: hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(_ShellCommandAction.paste),
+                  ),
+                  Padding(
                     padding: const EdgeInsets.fromLTRB(14, 6, 14, 2),
                     child: Row(
                       children: [
@@ -1177,9 +1193,7 @@ class _ShellCommandMenu extends StatelessWidget {
                           child: Text(
                             'Open command menu with $launcherShortcutLabel',
                             style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(
-                                  color: palette.subtleText,
-                                ),
+                                ?.copyWith(color: palette.subtleText),
                           ),
                         ),
                       ],
@@ -1221,7 +1235,10 @@ class _ShellCommandTile extends StatelessWidget {
       visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      leading: Icon(icon, color: enabled ? palette.primaryText : palette.subtleText),
+      leading: Icon(
+        icon,
+        color: enabled ? palette.primaryText : palette.subtleText,
+      ),
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -1231,9 +1248,9 @@ class _ShellCommandTile extends StatelessWidget {
       ),
       subtitle: Text(
         subtitle,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: palette.subtleText,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.subtleText),
       ),
       trailing: shortcutLabel == null
           ? null
@@ -1296,9 +1313,9 @@ class _ProfilesSheet extends StatelessWidget {
                 ),
                 Text(
                   'Open a tab with any saved profile or edit its shell settings.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: palette.subtleText,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: palette.subtleText),
                 ),
                 const SizedBox(height: 12),
                 Flexible(
@@ -1330,9 +1347,9 @@ class _ProfilesSheet extends StatelessWidget {
                         ),
                         trailing: IconButton(
                           tooltip: 'Edit ${profile.name}',
-                          onPressed: () => Navigator.of(context).pop(
-                            _EditProfileResult(profile),
-                          ),
+                          onPressed: () => Navigator.of(
+                            context,
+                          ).pop(_EditProfileResult(profile)),
                           icon: Icon(
                             Icons.edit_outlined,
                             color: palette.mutedText,

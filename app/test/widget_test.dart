@@ -80,6 +80,10 @@ class _EventfulCoreBindings implements CoreBindings {
       _delegate.sessionScroll(sessionId, deltaLines);
 
   @override
+  int sessionScrollTo(int sessionId, int offset) =>
+      _delegate.sessionScrollTo(sessionId, offset);
+
+  @override
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) =>
       _delegate.sessionTakeFrameDiffJson(sessionId);
 
@@ -99,7 +103,9 @@ Future<void> _pumpShellScreen(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        terminalCoreClientProvider.overrideWithValue(TerminalCoreClient(bindings)),
+        terminalCoreClientProvider.overrideWithValue(
+          TerminalCoreClient(bindings),
+        ),
         profileRepositoryProvider.overrideWithValue(repository),
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
@@ -349,7 +355,9 @@ void main() {
     expect(find.byType(TerminalViewport), findsOneWidget);
   });
 
-  testWidgets('terminal exit returns the shell to the empty state', (tester) async {
+  testWidgets('terminal exit returns the shell to the empty state', (
+    tester,
+  ) async {
     final fakeBindings = FakeCoreBindings();
     final eventfulBindings = _EventfulCoreBindings(fakeBindings);
 
@@ -372,5 +380,50 @@ void main() {
 
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
+  });
+
+  testWidgets('shell terminal scrollbar drag sends absolute scroll requests', (
+    tester,
+  ) async {
+    final fakeBindings = FakeCoreBindings();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(
+          defaultProfileId: 'default',
+          profiles: [defaultTerminalProfile()],
+        ),
+      ),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'flutterm ready', 'style_runs': const []},
+      ],
+      'cursor': {'row': 0, 'col': 4, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 120,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(terminalScrollbarThumbKey), findsOneWidget);
+
+    await tester.drag(
+      find.byKey(terminalScrollbarThumbKey),
+      const Offset(0, -60),
+    );
+    await tester.pump();
+
+    expect(fakeBindings.scrollToCalls, isNotEmpty);
+    expect(fakeBindings.scrollToCalls.last.first, 1);
+    expect(fakeBindings.scrollToCalls.last.last, greaterThan(0));
   });
 }

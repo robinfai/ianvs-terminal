@@ -31,6 +31,7 @@ void main() {
             viewportCols: 80,
             dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
             scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
           ),
         );
 
@@ -54,6 +55,7 @@ void main() {
                 selectionController: selectionController,
                 inputController: inputController,
                 onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
               ),
             ),
           ),
@@ -62,7 +64,7 @@ void main() {
 
       final renderObject = tester.allRenderObjects
           .whereType<RenderTerminalViewport>()
-          .single;
+          .last;
 
       expect(renderObject.debugCellForOffset(const Offset(20, 10)).row, 0);
       final buildsAfterFirstPaint = renderObject.debugParagraphBuilds;
@@ -78,6 +80,7 @@ void main() {
           viewportCols: 80,
           dirtyRanges: [TerminalDirtyRange(start: 1, end: 2)],
           scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
         ),
       );
       await tester.pump();
@@ -90,7 +93,7 @@ void main() {
   );
 
   testWidgets(
-    'terminal viewport accumulates scroll wheel delta into multi-line steps',
+    'terminal viewport maps upward wheel motion into positive scrollback deltas',
     (tester) async {
       final controller = TerminalViewportController()
         ..updateFrame(
@@ -101,6 +104,7 @@ void main() {
             viewportCols: 80,
             dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
             scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
           ),
         );
 
@@ -125,6 +129,7 @@ void main() {
                 selectionController: selectionController,
                 inputController: inputController,
                 onScrollLines: scrollLines.add,
+                onScrollToOffset: (_) {},
               ),
             ),
           ),
@@ -138,7 +143,65 @@ void main() {
       await tester.pump();
       expect(scrollLines, isNotEmpty);
       expect(scrollLines.single.abs(), greaterThan(1));
-      expect(scrollLines.single, isNegative);
+      expect(scrollLines.single, isPositive);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport translates trackpad pan updates into positive scrollback deltas',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: scrollLines.add,
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(TerminalViewport));
+      final trackpad = TestPointer(1, PointerDeviceKind.trackpad);
+      await tester.sendEventToBinding(trackpad.panZoomStart(center));
+      await tester.sendEventToBinding(
+        trackpad.panZoomUpdate(center, pan: const Offset(0, -36)),
+      );
+      await tester.pump();
+      await tester.sendEventToBinding(trackpad.panZoomEnd());
+
+      expect(scrollLines, isNotEmpty);
+      expect(scrollLines.single, isPositive);
     },
   );
 
@@ -162,6 +225,7 @@ void main() {
           viewportCols: 80,
           dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
           scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
         ),
       );
 
@@ -185,6 +249,7 @@ void main() {
               selectionController: selectionController,
               inputController: inputController,
               onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
             ),
           ),
         ),
@@ -193,7 +258,7 @@ void main() {
 
     final renderObject = tester.allRenderObjects
         .whereType<RenderTerminalViewport>()
-        .single;
+        .last;
 
     expect(renderObject.debugCursorVisible, isTrue);
 
@@ -232,6 +297,7 @@ void main() {
             viewportCols: 80,
             dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
             scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
           ),
         );
 
@@ -255,6 +321,7 @@ void main() {
                 selectionController: selectionController,
                 inputController: inputController,
                 onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
               ),
             ),
           ),
@@ -263,7 +330,7 @@ void main() {
 
       final renderObject = tester.allRenderObjects
           .whereType<RenderTerminalViewport>()
-          .single;
+          .last;
 
       expect(renderObject.debugLastPaintedRowTexts.single, 'abc   ');
 
@@ -278,6 +345,83 @@ void main() {
         resolvedStyle.background?.toARGB32(),
         const Color(0xFF22C55E).toARGB32(),
       );
+    },
+  );
+
+  testWidgets(
+    'terminal viewport only shows a scrollbar for overflow and dragging it uses absolute offsets',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      final scrollToOffsets = <int>[];
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: scrollLines.add,
+                onScrollToOffset: scrollToOffsets.add,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byKey(terminalScrollbarTrackKey), findsNothing);
+      expect(find.byKey(terminalScrollbarThumbKey), findsNothing);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'hello')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 120,
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(terminalScrollbarTrackKey), findsOneWidget);
+      expect(find.byKey(terminalScrollbarThumbKey), findsOneWidget);
+
+      await tester.drag(
+        find.byKey(terminalScrollbarThumbKey),
+        const Offset(0, -60),
+      );
+      await tester.pump();
+
+      expect(scrollToOffsets, isNotEmpty);
+      expect(scrollToOffsets.last, greaterThan(0));
+      expect(scrollLines, isEmpty);
+      expect(selectionController.selection, isNull);
     },
   );
 }

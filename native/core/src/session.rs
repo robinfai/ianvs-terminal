@@ -7,11 +7,11 @@ use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::sync::{
-    Arc, LazyLock,
     atomic::{AtomicBool, Ordering},
+    Arc, LazyLock,
 };
 use std::thread;
-use vt100::{Color, Parser};
+use vt100::{Color, Parser, Screen};
 
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
@@ -78,7 +78,6 @@ pub struct TerminalSession {
     events: Mutex<VecDeque<TerminalEvent>>,
     dirty: AtomicBool,
     last_rows: Mutex<Vec<String>>,
-    scrollback_offset: Mutex<usize>,
     exited: AtomicBool,
 }
 
@@ -100,7 +99,6 @@ impl TerminalSession {
             }])),
             dirty: AtomicBool::new(true),
             last_rows: Mutex::new(Vec::new()),
-            scrollback_offset: Mutex::new(0),
             exited: AtomicBool::new(false),
         });
 
@@ -169,7 +167,12 @@ impl TerminalSession {
         let current = screen.scrollback() as i32;
         let next = current.saturating_add(delta_lines).max(0) as usize;
         screen.set_scrollback(next);
-        *self.scrollback_offset.lock() = screen.scrollback();
+        self.dirty.store(true, Ordering::SeqCst);
+    }
+
+    pub fn scroll_to(&self, offset: usize) {
+        let mut parser = self.parser.lock();
+        parser.screen_mut().set_scrollback(offset);
         self.dirty.store(true, Ordering::SeqCst);
     }
 
@@ -178,9 +181,11 @@ impl TerminalSession {
             return Ok(None);
         }
 
-        let parser = self.parser.lock();
-        let screen = parser.screen();
+        let mut parser = self.parser.lock();
+        let screen = parser.screen_mut();
         let (viewport_rows, viewport_cols) = screen.size();
+        let scrollback_offset = screen.scrollback();
+        let scrollback_max_offset = screen_max_scrollback(screen);
         let cursor = screen.cursor_position();
         let mut rows = Vec::with_capacity(viewport_rows as usize);
         let mut dirty_ranges = Vec::new();
@@ -264,7 +269,8 @@ impl TerminalSession {
             viewport_rows,
             viewport_cols,
             dirty_ranges,
-            scrollback_offset: *self.scrollback_offset.lock(),
+            scrollback_offset,
+            scrollback_max_offset,
         }))
     }
 
@@ -347,6 +353,14 @@ fn color_to_hex(color: Color) -> Option<String> {
     }
 }
 
+fn screen_max_scrollback(screen: &mut Screen) -> usize {
+    let current = screen.scrollback();
+    screen.set_scrollback(usize::MAX);
+    let max_offset = screen.scrollback();
+    screen.set_scrollback(current);
+    max_offset
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -394,6 +408,11 @@ pub fn write_session(session_id: u64, bytes: &[u8]) -> Result<(), SessionError> 
 
 pub fn scroll_session(session_id: u64, delta_lines: i32) -> Result<(), SessionError> {
     STORE.get(session_id)?.scroll(delta_lines);
+    Ok(())
+}
+
+pub fn scroll_to_session(session_id: u64, offset: usize) -> Result<(), SessionError> {
+    STORE.get(session_id)?.scroll_to(offset);
     Ok(())
 }
 

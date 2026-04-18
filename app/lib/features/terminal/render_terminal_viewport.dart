@@ -1,6 +1,5 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
@@ -38,12 +37,10 @@ class RenderTerminalViewport extends RenderBox {
   RenderTerminalViewport({
     required TerminalViewportController controller,
     required SelectionController selectionController,
-    required ValueChanged<int> onScrollLines,
     required bool cursorVisible,
     required double devicePixelRatio,
   }) : _controller = controller,
        _selectionController = selectionController,
-       _onScrollLines = onScrollLines,
        _cursorVisible = cursorVisible,
        _devicePixelRatio = devicePixelRatio {
     _controller.addListener(markNeedsPaint);
@@ -52,9 +49,7 @@ class RenderTerminalViewport extends RenderBox {
 
   TerminalViewportController _controller;
   SelectionController _selectionController;
-  ValueChanged<int> _onScrollLines;
   double _devicePixelRatio;
-  double _pendingScrollLines = 0.0;
   bool _cursorVisible = true;
   final Map<int, _CachedParagraph> _paragraphCache = {};
   final Map<int, List<TerminalResolvedStyle>> _debugResolvedStyles = {};
@@ -80,10 +75,6 @@ class RenderTerminalViewport extends RenderBox {
     _selectionController = value;
     _selectionController.addListener(markNeedsPaint);
     markNeedsPaint();
-  }
-
-  set onScrollLines(ValueChanged<int> value) {
-    _onScrollLines = value;
   }
 
   set devicePixelRatio(double value) {
@@ -177,13 +168,6 @@ class RenderTerminalViewport extends RenderBox {
       );
     } else if (event is PointerMoveEvent && event.buttons != 0) {
       _selectionController.update(_cellForOffset(event.localPosition));
-    } else if (event is PointerScrollEvent) {
-      _pendingScrollLines += event.scrollDelta.dy / _cellSize.height;
-      final deltaLines = _pendingScrollLines.round();
-      if (deltaLines != 0) {
-        _pendingScrollLines -= deltaLines;
-        _onScrollLines(deltaLines);
-      }
     }
   }
 

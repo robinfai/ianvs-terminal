@@ -275,8 +275,8 @@ void main() {
 
 String _resolveTestLibraryPath() {
   final candidates = <String>[
-    'build/macos/Build/Products/Debug/app.app/Contents/Frameworks/libflutterm_core.dylib',
     '../native/core/target/debug/libflutterm_core.dylib',
+    'build/macos/Build/Products/Debug/app.app/Contents/Frameworks/libflutterm_core.dylib',
   ];
 
   for (final candidate in candidates) {

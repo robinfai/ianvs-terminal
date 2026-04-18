@@ -61,11 +61,7 @@ TerminalFrameDiff _buildReferenceDemoFrame() {
       background: Color(0xFFB7C1FF),
       bold: true,
     ),
-    const _DemoSegment(
-      '',
-      foreground: Color(0xFFB7C1FF),
-      background: null,
-    ),
+    const _DemoSegment('', foreground: Color(0xFFB7C1FF), background: null),
     const _DemoSegment(
       ' ❯ ',
       foreground: Color(0xFFFFFFFF),
@@ -107,17 +103,14 @@ TerminalFrameDiff _buildReferenceDemoFrame() {
 
   return TerminalFrameDiff(
     rows: [
-      TerminalRow(
-        index: 0,
-        text: buffer.toString(),
-        styleRuns: styleRuns,
-      ),
+      TerminalRow(index: 0, text: buffer.toString(), styleRuns: styleRuns),
     ],
     cursor: TerminalCursor(row: 0, col: buffer.length, visible: true),
     viewportRows: 24,
     viewportCols: 80,
     dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
     scrollbackOffset: 0,
+    scrollbackMaxOffset: 0,
   );
 }
 

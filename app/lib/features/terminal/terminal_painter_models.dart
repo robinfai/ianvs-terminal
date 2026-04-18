@@ -136,6 +136,7 @@ class TerminalFrameDiff {
     required this.viewportCols,
     required this.dirtyRanges,
     required this.scrollbackOffset,
+    required this.scrollbackMaxOffset,
     this.selection,
   });
 
@@ -146,6 +147,7 @@ class TerminalFrameDiff {
   final int viewportCols;
   final List<TerminalDirtyRange> dirtyRanges;
   final int scrollbackOffset;
+  final int scrollbackMaxOffset;
 
   static const empty = TerminalFrameDiff(
     rows: [],
@@ -154,6 +156,7 @@ class TerminalFrameDiff {
     viewportCols: 0,
     dirtyRanges: [],
     scrollbackOffset: 0,
+    scrollbackMaxOffset: 0,
   );
 
   factory TerminalFrameDiff.fromJson(Map<String, Object?> json) {
@@ -176,6 +179,7 @@ class TerminalFrameDiff {
           )
           .toList(),
       scrollbackOffset: json['scrollback_offset'] as int? ?? 0,
+      scrollbackMaxOffset: json['scrollback_max_offset'] as int? ?? 0,
     );
   }
 }

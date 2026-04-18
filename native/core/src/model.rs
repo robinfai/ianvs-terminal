@@ -69,6 +69,8 @@ pub struct TerminalFrameDiff {
     pub dirty_ranges: Vec<TerminalDirtyRange>,
     #[serde(default)]
     pub scrollback_offset: usize,
+    #[serde(default)]
+    pub scrollback_max_offset: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -29,6 +29,8 @@ typedef _WriteSessionNative =
 typedef _WriteSessionDart = int Function(int, ffi.Pointer<ffi.Uint8>, int);
 typedef _ScrollSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Int32);
 typedef _ScrollSessionDart = int Function(int, int);
+typedef _ScrollToSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Size);
+typedef _ScrollToSessionDart = int Function(int, int);
 typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
 typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
@@ -47,6 +49,7 @@ abstract class CoreBindings {
   );
   int sessionWrite(int sessionId, ffi.Pointer<ffi.Uint8> bytes, int length);
   int sessionScroll(int sessionId, int deltaLines);
+  int sessionScrollTo(int sessionId, int offset);
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId);
   ffi.Pointer<Utf8> sessionPollEventsJson(int sessionId);
   void stringFree(ffi.Pointer<Utf8> value);
@@ -75,6 +78,10 @@ class FluttermCoreBindings implements CoreBindings {
           .lookupFunction<_ScrollSessionNative, _ScrollSessionDart>(
             'flutterm_session_scroll',
           ),
+      _scrollToSession = library
+          .lookupFunction<_ScrollToSessionNative, _ScrollToSessionDart>(
+            'flutterm_session_scroll_to',
+          ),
       _takeFrameDiffJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'flutterm_session_take_frame_diff_json',
@@ -92,6 +99,7 @@ class FluttermCoreBindings implements CoreBindings {
   final _ResizeSessionDart _resizeSession;
   final _WriteSessionDart _writeSession;
   final _ScrollSessionDart _scrollSession;
+  final _ScrollToSessionDart _scrollToSession;
   final _StringReturningDart _takeFrameDiffJson;
   final _StringReturningDart _pollEventsJson;
   final _FreeStringDart _stringFree;
@@ -129,6 +137,10 @@ class FluttermCoreBindings implements CoreBindings {
   @override
   int sessionScroll(int sessionId, int deltaLines) =>
       _scrollSession(sessionId, deltaLines);
+
+  @override
+  int sessionScrollTo(int sessionId, int offset) =>
+      _scrollToSession(sessionId, offset);
 
   @override
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) =>
@@ -218,6 +230,10 @@ class TerminalCoreClient {
 
   void scrollViewport(String sessionId, int deltaLines) {
     _bindings.sessionScroll(int.parse(sessionId), deltaLines);
+  }
+
+  void scrollViewportTo(String sessionId, int offset) {
+    _bindings.sessionScrollTo(int.parse(sessionId), offset);
   }
 
   TerminalFrameDiff? takeFrameDiff(String sessionId) {

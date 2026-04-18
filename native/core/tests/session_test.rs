@@ -40,6 +40,21 @@ fn prompt_like_profile() -> TerminalProfile {
     }
 }
 
+fn scrollback_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "scrollback".to_string(),
+        name: "Scrollback".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "i=0; while [ \"$i\" -lt 80 ]; do printf 'line%02d\\n' \"$i\"; i=$((i + 1)); done"
+                .to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+    }
+}
+
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     for _ in 0..20 {
         if let Some(frame) = session::take_frame_diff(session_id)
@@ -89,6 +104,34 @@ fn session_can_resize() {
 }
 
 #[test]
+fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&scrollback_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "line79");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let max_offset = parsed["scrollback_max_offset"]
+        .as_u64()
+        .expect("expected scrollback max offset");
+    assert!(max_offset > 0);
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected scrolled frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let offset = parsed["scrollback_offset"]
+        .as_u64()
+        .expect("expected scrollback offset");
+    let max_after_scroll = parsed["scrollback_max_offset"]
+        .as_u64()
+        .expect("expected scrollback max offset");
+
+    assert_eq!(offset, max_after_scroll);
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn interactive_session_accepts_input_and_emits_output() {
     let session_id =
         session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
@@ -108,8 +151,7 @@ fn interactive_session_accepts_input_and_emits_output() {
 #[test]
 fn session_preserves_trailing_spaces_in_row_text() {
     let session_id =
-        session::create_session(&serde_json::to_string(&prompt_like_profile()).unwrap())
-            .unwrap();
+        session::create_session(&serde_json::to_string(&prompt_like_profile()).unwrap()).unwrap();
     thread::sleep(Duration::from_millis(250));
 
     let frame = session::take_frame_diff(session_id)
@@ -122,7 +164,9 @@ fn session_preserves_trailing_spaces_in_row_text() {
     assert!(text.starts_with("abc   "));
     assert!(text.ends_with(' '));
     assert!(text.len() > 6);
-    let style_runs = rows[0]["style_runs"].as_array().expect("expected style runs");
+    let style_runs = rows[0]["style_runs"]
+        .as_array()
+        .expect("expected style runs");
     let first_run = &style_runs[0];
     assert_eq!(first_run["background"].as_str(), Some("#00ff00"));
     assert_eq!(first_run["foreground"].as_str(), Some("#ff0000"));

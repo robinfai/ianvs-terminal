@@ -12,6 +12,7 @@ void main() {
       viewportCols: 80,
       dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
       scrollbackOffset: 0,
+      scrollbackMaxOffset: 0,
     );
   }
 
