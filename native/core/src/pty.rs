@@ -1,4 +1,4 @@
-use crate::model::TerminalProfile;
+use crate::model::{TerminalEmulation, TerminalProfile};
 use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::io::{Read, Write};
 
@@ -33,6 +33,16 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
     }
     for (key, value) in &profile.env {
         command.env(key, value);
+    }
+    match profile.terminal_emulation {
+        TerminalEmulation::Xterm256 => {
+            command.env("TERM", "xterm-256color");
+            command.env("COLORTERM", "truecolor");
+        }
+        TerminalEmulation::Vt220 => {
+            command.env("TERM", "vt220");
+            command.env_remove("COLORTERM");
+        }
     }
 
     let child = pair.slave.spawn_command(command)?;

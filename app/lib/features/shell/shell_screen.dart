@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -228,9 +226,27 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (text.isEmpty) {
       return;
     }
+    final sessionState = ref.read(sessionControllerProvider);
+    final sessionController = ref.read(sessionControllerProvider.notifier);
+    String? profileId;
+    for (final tab in sessionState.tabs) {
+      if (tab.sessionId == sessionId) {
+        profileId = tab.profileId;
+        break;
+      }
+    }
+    final profile = _profileForId(sessionState.profiles, profileId);
+    final frame = sessionController.viewportFor(sessionId).frame;
     ref
         .read(terminalCoreClientProvider)
-        .sendInput(sessionId, Uint8List.fromList(utf8.encode(text)));
+        .sendInput(
+          sessionId,
+          TerminalInputController.clipboardPasteBytesFor(
+            emulation: profile?.terminalEmulation ?? TerminalEmulation.xterm256,
+            modes: frame.modes,
+            text: text,
+          ),
+        );
   }
 
   Future<void> _openDefaultsAndAppearance(
@@ -531,6 +547,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             activeSessionId,
             SelectionController.new,
           );
+    TerminalTab? activeTab;
+    if (activeSessionId != null) {
+      for (final tab in sessionState.tabs) {
+        if (tab.sessionId == activeSessionId) {
+          activeTab = tab;
+          break;
+        }
+      }
+    }
+    final activeProfile = activeTab == null
+        ? null
+        : _profileForId(sessionState.profiles, activeTab.profileId);
     final activeFocusNode = activeSessionId == null
         ? null
         : _terminalFocusNodes.putIfAbsent(
@@ -655,6 +683,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 coreClient: ref.read(
                                   terminalCoreClientProvider,
                                 ),
+                                readFrame: () => sessionController
+                                    .viewportFor(activeSessionId)
+                                    .frame,
+                                emulation:
+                                    activeProfile?.terminalEmulation ??
+                                    TerminalEmulation.xterm256,
                                 readSelection: () =>
                                     selectionController.textForFrame(
                                       sessionController

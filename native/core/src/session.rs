@@ -1,21 +1,27 @@
 use crate::model::{
-    TerminalCursor, TerminalDirtyRange, TerminalEvent, TerminalFrameDiff, TerminalProfile,
-    TerminalRow, TerminalStyleRun,
+    TerminalCursor, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
+    TerminalFrameModes, TerminalProfile, TerminalRow, TerminalStyleRun,
 };
 use crate::pty::spawn_pty;
+use par_term_emu_core_rust::cell::Cell;
+use par_term_emu_core_rust::color::Color;
+use par_term_emu_core_rust::grid::Grid;
+use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
+use par_term_emu_core_rust::terminal::Terminal;
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc, LazyLock,
+    atomic::{AtomicBool, Ordering},
 };
 use std::thread;
-use vt100::{Callbacks, Color, Parser, Screen};
 
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
 const DEFAULT_SCROLLBACK: usize = 8_000;
+const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
+const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
 
 static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
 
@@ -24,44 +30,6 @@ enum CallbackEvent {
     Resize { rows: u16, cols: u16 },
     ClipboardCopy { selection: String, data: String },
     ClipboardPasteRequest { selection: String },
-}
-
-#[derive(Clone, Debug, Default)]
-struct SessionCallbacks {
-    window_title: Option<String>,
-    window_icon_name: Option<String>,
-    pending_events: VecDeque<CallbackEvent>,
-}
-
-impl Callbacks for SessionCallbacks {
-    fn resize(&mut self, _: &mut Screen, request: (u16, u16)) {
-        let rows = request.0.max(1);
-        let cols = request.1.max(1);
-        self.pending_events
-            .push_back(CallbackEvent::Resize { rows, cols });
-    }
-
-    fn set_window_icon_name(&mut self, _: &mut Screen, icon_name: &[u8]) {
-        self.window_icon_name = Some(String::from_utf8_lossy(icon_name).into_owned());
-    }
-
-    fn set_window_title(&mut self, _: &mut Screen, title: &[u8]) {
-        self.window_title = Some(String::from_utf8_lossy(title).into_owned());
-    }
-
-    fn copy_to_clipboard(&mut self, _: &mut Screen, ty: &[u8], data: &[u8]) {
-        self.pending_events.push_back(CallbackEvent::ClipboardCopy {
-            selection: String::from_utf8_lossy(ty).into_owned(),
-            data: String::from_utf8_lossy(data).into_owned(),
-        });
-    }
-
-    fn paste_from_clipboard(&mut self, _: &mut Screen, ty: &[u8]) {
-        self.pending_events
-            .push_back(CallbackEvent::ClipboardPasteRequest {
-                selection: String::from_utf8_lossy(ty).into_owned(),
-            });
-    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -120,10 +88,185 @@ pub enum SessionError {
     Serialize(String),
 }
 
+struct TerminalState {
+    terminal: Terminal,
+    transcript: Vec<u8>,
+    scrollback_offset: usize,
+    host_protocol: HostProtocolState,
+}
+
+#[derive(Clone, Default)]
+struct HostProtocolState {
+    buffer: Vec<u8>,
+    window_icon_name: Option<String>,
+    application_keypad: bool,
+}
+
+impl HostProtocolState {
+    fn observe(&mut self, bytes: &[u8], emulation: TerminalEmulation) -> Vec<CallbackEvent> {
+        self.buffer.extend_from_slice(bytes);
+        let mut events = Vec::new();
+        let mut index = 0usize;
+
+        while index < self.buffer.len() {
+            if self.buffer[index] != 0x1b {
+                index += 1;
+                continue;
+            }
+
+            if index + 1 >= self.buffer.len() {
+                break;
+            }
+
+            match self.buffer[index + 1] {
+                b'=' => {
+                    self.application_keypad = true;
+                    index += 2;
+                }
+                b'>' => {
+                    self.application_keypad = false;
+                    index += 2;
+                }
+                b']' => match self.consume_osc(index, emulation, &mut events) {
+                    Some(next) => index = next,
+                    None => break,
+                },
+                b'[' => match self.consume_csi(index, emulation, &mut events) {
+                    Some(next) => index = next,
+                    None => break,
+                },
+                _ => {
+                    index += 2;
+                }
+            }
+        }
+
+        if index > 0 {
+            self.buffer.drain(..index);
+        } else if self.buffer.len() > 4096 {
+            let keep = 4096usize.min(self.buffer.len());
+            self.buffer.drain(..self.buffer.len() - keep);
+        }
+
+        events
+    }
+
+    fn consume_osc(
+        &mut self,
+        start: usize,
+        emulation: TerminalEmulation,
+        events: &mut Vec<CallbackEvent>,
+    ) -> Option<usize> {
+        let mut cursor = start + 2;
+        let mut terminator_len = 0usize;
+        let mut terminator_start = 0usize;
+
+        while cursor < self.buffer.len() {
+            match self.buffer[cursor] {
+                0x07 => {
+                    terminator_start = cursor;
+                    terminator_len = 1;
+                    break;
+                }
+                0x1b if cursor + 1 < self.buffer.len() && self.buffer[cursor + 1] == b'\\' => {
+                    terminator_start = cursor;
+                    terminator_len = 2;
+                    break;
+                }
+                _ => {
+                    cursor += 1;
+                }
+            }
+        }
+
+        if terminator_len == 0 {
+            return None;
+        }
+
+        if emulation == TerminalEmulation::Xterm256 {
+            let payload = self.buffer[start + 2..terminator_start].to_vec();
+            self.handle_osc_payload(&payload, events);
+        }
+
+        Some(terminator_start + terminator_len)
+    }
+
+    fn handle_osc_payload(&mut self, payload: &[u8], events: &mut Vec<CallbackEvent>) {
+        let mut parts = payload.splitn(2, |byte| *byte == b';');
+        let command = parts.next().unwrap_or_default();
+        let remainder = parts.next().unwrap_or_default();
+
+        match command {
+            b"1" => {
+                self.window_icon_name = match String::from_utf8(remainder.to_vec()) {
+                    Ok(value) if !value.is_empty() => Some(value),
+                    _ => None,
+                };
+            }
+            b"52" => {
+                let mut args = remainder.splitn(2, |byte| *byte == b';');
+                let selection =
+                    String::from_utf8_lossy(args.next().unwrap_or_default()).into_owned();
+                let data = String::from_utf8_lossy(args.next().unwrap_or_default()).into_owned();
+                let selection = if selection.is_empty() {
+                    "c".to_string()
+                } else {
+                    selection
+                };
+
+                if data == "?" {
+                    events.push(CallbackEvent::ClipboardPasteRequest { selection });
+                } else if !data.is_empty() {
+                    events.push(CallbackEvent::ClipboardCopy { selection, data });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn consume_csi(
+        &mut self,
+        start: usize,
+        emulation: TerminalEmulation,
+        events: &mut Vec<CallbackEvent>,
+    ) -> Option<usize> {
+        let mut cursor = start + 2;
+        while cursor < self.buffer.len() {
+            let byte = self.buffer[cursor];
+            if (0x40..=0x7e).contains(&byte) {
+                if emulation == TerminalEmulation::Xterm256 && byte == b't' {
+                    let payload = self.buffer[start + 2..cursor].to_vec();
+                    self.handle_csi_window(&payload, events);
+                }
+                return Some(cursor + 1);
+            }
+            cursor += 1;
+        }
+        None
+    }
+
+    fn handle_csi_window(&mut self, payload: &[u8], events: &mut Vec<CallbackEvent>) {
+        let body = String::from_utf8_lossy(payload);
+        let mut parts = body.split(';');
+        let Some(kind) = parts.next() else {
+            return;
+        };
+        if kind != "8" {
+            return;
+        }
+
+        let rows = parts.next().and_then(|value| value.parse::<u16>().ok());
+        let cols = parts.next().and_then(|value| value.parse::<u16>().ok());
+        if let (Some(rows), Some(cols)) = (rows, cols) {
+            events.push(CallbackEvent::Resize { rows, cols });
+        }
+    }
+}
+
 pub struct TerminalSession {
     session_id: u64,
-    parser: Mutex<Parser<SessionCallbacks>>,
-    transcript: Mutex<Vec<u8>>,
+    emulation: TerminalEmulation,
+    state: Mutex<TerminalState>,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
@@ -138,15 +281,24 @@ impl TerminalSession {
         let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
 
+        let mut terminal = Terminal::with_scrollback(
+            DEFAULT_COLS as usize,
+            DEFAULT_ROWS as usize,
+            DEFAULT_SCROLLBACK,
+        );
+        if profile.terminal_emulation == TerminalEmulation::Vt220 {
+            terminal.process(b"\x1b[62;1\"p");
+        }
+
         let session = Arc::new(Self {
             session_id,
-            parser: Mutex::new(Parser::new_with_callbacks(
-                DEFAULT_ROWS,
-                DEFAULT_COLS,
-                DEFAULT_SCROLLBACK,
-                SessionCallbacks::default(),
-            )),
-            transcript: Mutex::new(Vec::new()),
+            emulation: profile.terminal_emulation,
+            state: Mutex::new(TerminalState {
+                terminal,
+                transcript: Vec::new(),
+                scrollback_offset: 0,
+                host_protocol: HostProtocolState::default(),
+            }),
             writer: Mutex::new(runtime.writer),
             master: Mutex::new(runtime.master),
             child: Mutex::new(runtime.child),
@@ -168,13 +320,27 @@ impl TerminalSession {
                 match reader.read(&mut buf) {
                     Ok(0) => break,
                     Ok(read) => {
-                        let mut parser = reader_session.parser.lock();
-                        parser.process(&buf[..read]);
-                        reader_session
-                            .transcript
-                            .lock()
-                            .extend_from_slice(&buf[..read]);
-                        drop(parser);
+                        let (callback_events, responses) = {
+                            let mut state = reader_session.state.lock();
+                            let callback_events = state
+                                .host_protocol
+                                .observe(&buf[..read], reader_session.emulation);
+                            state.terminal.process(&buf[..read]);
+                            state.transcript.extend_from_slice(&buf[..read]);
+                            let responses = normalize_responses(
+                                reader_session.emulation,
+                                state.terminal.drain_responses(),
+                            );
+                            (callback_events, responses)
+                        };
+
+                        for event in callback_events {
+                            reader_session.push_callback_event(event);
+                        }
+                        if !responses.is_empty() {
+                            let _ = reader_session.writer.lock().write_all(&responses);
+                        }
+
                         reader_session.dirty.store(true, Ordering::SeqCst);
                         reader_session.push_event("activity", None);
                     }
@@ -202,12 +368,15 @@ impl TerminalSession {
         pixel_width: u16,
         pixel_height: u16,
     ) -> Result<(), SessionError> {
-        let mut parser = self.parser.lock();
-        let screen = parser.screen_mut();
-        let (_, current_cols) = screen.size();
-        let scrollback_offset = screen.scrollback();
-        let scrollback_max_offset = screen_max_scrollback(screen);
-        let alternate_screen = screen.alternate_screen();
+        let previous_max = {
+            let state = self.state.lock();
+            current_scrollback_max(&state)
+        };
+        let current_cols = {
+            let state = self.state.lock();
+            state.terminal.size().0 as u16
+        };
+
         self.master
             .lock()
             .resize(portable_pty::PtySize {
@@ -218,18 +387,26 @@ impl TerminalSession {
             })
             .map_err(|error| SessionError::Pty(error.to_string()))?;
 
-        if alternate_screen || current_cols == cols {
-            parser.screen_mut().set_size(rows, cols);
+        let mut state = self.state.lock();
+        if !state.terminal.is_alt_screen_active() && current_cols != cols {
+            let transcript = state.transcript.clone();
+            let mut terminal =
+                Terminal::with_scrollback(cols as usize, rows as usize, DEFAULT_SCROLLBACK);
+            if self.emulation == TerminalEmulation::Vt220 {
+                terminal.process(b"\x1b[62;1\"p");
+            }
+            terminal.process(&transcript);
+            state.terminal = terminal;
         } else {
-            let transcript = self.transcript.lock().clone();
-            *parser = rebuild_parser_from_transcript(
-                &transcript,
-                rows,
-                cols,
-                scrollback_offset,
-                scrollback_max_offset,
-            );
+            state.terminal.resize(cols as usize, rows as usize);
         }
+        let new_max = current_scrollback_max(&state);
+        state.scrollback_offset =
+            remap_scrollback_offset(state.scrollback_offset, previous_max, new_max);
+        if state.terminal.is_alt_screen_active() {
+            state.scrollback_offset = 0;
+        }
+        drop(state);
 
         self.last_rows.lock().clear();
         self.dirty.store(true, Ordering::SeqCst);
@@ -244,17 +421,24 @@ impl TerminalSession {
     }
 
     pub fn scroll(&self, delta_lines: i32) {
-        let mut parser = self.parser.lock();
-        let screen = parser.screen_mut();
-        let current = screen.scrollback() as i32;
-        let next = current.saturating_add(delta_lines).max(0) as usize;
-        screen.set_scrollback(next);
+        let mut state = self.state.lock();
+        if state.terminal.is_alt_screen_active() {
+            state.scrollback_offset = 0;
+        } else {
+            let next = state.scrollback_offset as i32 + delta_lines;
+            state.scrollback_offset = next.max(0) as usize;
+            state.scrollback_offset = state.scrollback_offset.min(current_scrollback_max(&state));
+        }
         self.dirty.store(true, Ordering::SeqCst);
     }
 
     pub fn scroll_to(&self, offset: usize) {
-        let mut parser = self.parser.lock();
-        parser.screen_mut().set_scrollback(offset);
+        let mut state = self.state.lock();
+        if state.terminal.is_alt_screen_active() {
+            state.scrollback_offset = 0;
+        } else {
+            state.scrollback_offset = offset.min(current_scrollback_max(&state));
+        }
         self.dirty.store(true, Ordering::SeqCst);
     }
 
@@ -263,77 +447,80 @@ impl TerminalSession {
             return Ok(None);
         }
 
-        let mut parser = self.parser.lock();
-        let window_title = parser.callbacks().window_title.clone();
-        let window_icon_name = parser.callbacks().window_icon_name.clone();
-        let screen = parser.screen_mut();
-        let (viewport_rows, viewport_cols) = screen.size();
-        let scrollback_offset = screen.scrollback();
-        let scrollback_max_offset = screen_max_scrollback(screen);
-        let cursor = screen.cursor_position();
-        let mut rows = Vec::with_capacity(viewport_rows as usize);
+        let mut state = self.state.lock();
+        let alt_screen_active = state.terminal.is_alt_screen_active();
+        let scrollback_max_offset = current_scrollback_max(&state);
+        if alt_screen_active {
+            state.scrollback_offset = 0;
+        } else {
+            state.scrollback_offset = state.scrollback_offset.min(scrollback_max_offset);
+        }
+        let terminal = &state.terminal;
+        let (viewport_cols, viewport_rows) = terminal.size();
+
+        let cursor = terminal.cursor();
+        let modes = TerminalFrameModes {
+            application_cursor: terminal.application_cursor(),
+            application_keypad: state.host_protocol.application_keypad,
+            insert_mode: terminal.insert_mode(),
+            origin_mode: terminal.origin_mode(),
+            line_feed_new_line_mode: terminal.line_feed_new_line_mode(),
+            hide_cursor: !cursor.visible,
+            bracketed_paste: self.emulation == TerminalEmulation::Xterm256
+                && terminal.bracketed_paste(),
+            focus_tracking: self.emulation == TerminalEmulation::Xterm256
+                && terminal.focus_tracking(),
+            char_protected: false,
+            mouse_mode: if self.emulation == TerminalEmulation::Xterm256 {
+                mouse_mode_name(terminal.mouse_mode()).to_string()
+            } else {
+                "off".to_string()
+            },
+            mouse_encoding: if self.emulation == TerminalEmulation::Xterm256 {
+                mouse_encoding_name(terminal.mouse_encoding()).to_string()
+            } else {
+                "default".to_string()
+            },
+        };
+
+        let window_title = if self.emulation == TerminalEmulation::Xterm256 {
+            match terminal.title() {
+                "" => None,
+                value => Some(value.to_string()),
+            }
+        } else {
+            None
+        };
+        let window_icon_name = if self.emulation == TerminalEmulation::Xterm256 {
+            state.host_protocol.window_icon_name.clone()
+        } else {
+            None
+        };
+
+        let mut rows = Vec::with_capacity(viewport_rows);
         let mut dirty_ranges = Vec::new();
-        let mut current_rows = Vec::with_capacity(viewport_rows as usize);
+        let mut current_rows = Vec::with_capacity(viewport_rows);
         let mut last_rows = self.last_rows.lock();
 
-        for row in 0..viewport_rows as usize {
-            let mut text = String::with_capacity(viewport_cols as usize);
-            let mut style_runs = Vec::new();
-            let mut run_start = 0usize;
-            let mut run_style: Option<TerminalStyleRun> = None;
-            let wrapped = screen.row_wrapped(row as u16);
-
-            for col in 0..viewport_cols as usize {
-                if let Some(cell) = screen.cell(row as u16, col as u16) {
-                    let contents = cell.contents();
-                    let grapheme = if contents.is_empty() { " " } else { contents };
-                    text.push_str(grapheme);
-
-                    let style = TerminalStyleRun {
-                        start: col,
-                        end: col + grapheme.chars().count().max(1),
-                        foreground: color_to_hex(cell.fgcolor()),
-                        background: color_to_hex(cell.bgcolor()),
-                        bold: cell.bold(),
-                        italic: cell.italic(),
-                        underline: cell.underline(),
-                        inverse: cell.inverse(),
-                    };
-
-                    match &run_style {
-                        Some(existing) if same_style(existing, &style) => {}
-                        Some(existing) => {
-                            let mut finalized = existing.clone();
-                            finalized.start = run_start;
-                            finalized.end = col;
-                            style_runs.push(finalized);
-                            run_start = col;
-                            run_style = Some(style);
-                        }
-                        None => {
-                            run_start = col;
-                            run_style = Some(style);
-                        }
-                    }
-                }
-            }
-
-            if let Some(existing) = run_style {
-                let mut finalized = existing.clone();
-                finalized.start = run_start;
-                finalized.end = viewport_cols as usize;
-                style_runs.push(finalized);
-            }
+        for row in 0..viewport_rows {
+            let extracted = if alt_screen_active {
+                extract_row(
+                    terminal.alt_grid().row(row),
+                    terminal.alt_grid().is_line_wrapped(row),
+                )
+            } else {
+                extract_primary_row(terminal.grid(), viewport_rows, state.scrollback_offset, row)
+            };
 
             current_rows.push(CachedRowState {
-                text: text.clone(),
-                wrapped,
+                text: extracted.text.clone(),
+                wrapped: extracted.wrapped,
             });
             rows.push(TerminalRow {
                 index: row,
-                text,
-                wrapped,
-                style_runs,
+                text: extracted.text,
+                wrapped: extracted.wrapped,
+                style_runs: extracted.style_runs,
             });
         }
 
@@ -350,23 +537,23 @@ impl TerminalSession {
         Ok(Some(TerminalFrameDiff {
             rows,
             cursor: TerminalCursor {
-                row: cursor.0 as usize,
-                col: cursor.1 as usize,
-                visible: !screen.hide_cursor(),
+                row: cursor.row,
+                col: cursor.col,
+                visible: cursor.visible,
             },
             selection: None,
-            viewport_rows,
-            viewport_cols,
+            viewport_rows: viewport_rows as u16,
+            viewport_cols: viewport_cols as u16,
             dirty_ranges,
-            scrollback_offset,
+            scrollback_offset: state.scrollback_offset,
             scrollback_max_offset,
+            modes,
             window_title,
             window_icon_name,
         }))
     }
 
     pub fn poll_events(&self) -> Result<Vec<TerminalEvent>, SessionError> {
-        self.drain_callback_events();
         if !self.exited.load(Ordering::SeqCst) {
             let maybe_exit = self
                 .child
@@ -390,34 +577,28 @@ impl TerminalSession {
         Ok(self.events.lock().drain(..).collect())
     }
 
-    fn drain_callback_events(&self) {
-        let mut parser = self.parser.lock();
-        let pending_events = std::mem::take(&mut parser.callbacks_mut().pending_events);
-        drop(parser);
-
-        for event in pending_events {
-            match event {
-                CallbackEvent::Resize { rows, cols } => self.push_event(
-                    "resize",
-                    Some(serde_json::json!({
-                        "rows": rows,
-                        "cols": cols,
-                    })),
-                ),
-                CallbackEvent::ClipboardCopy { selection, data } => self.push_event(
-                    "clipboard_copy",
-                    Some(serde_json::json!({
-                        "selection": selection,
-                        "data": data,
-                    })),
-                ),
-                CallbackEvent::ClipboardPasteRequest { selection } => self.push_event(
-                    "clipboard_paste_request",
-                    Some(serde_json::json!({
-                        "selection": selection,
-                    })),
-                ),
-            }
+    fn push_callback_event(&self, event: CallbackEvent) {
+        match event {
+            CallbackEvent::Resize { rows, cols } => self.push_event(
+                "resize",
+                Some(serde_json::json!({
+                    "rows": rows,
+                    "cols": cols,
+                })),
+            ),
+            CallbackEvent::ClipboardCopy { selection, data } => self.push_event(
+                "clipboard_copy",
+                Some(serde_json::json!({
+                    "selection": selection,
+                    "data": data,
+                })),
+            ),
+            CallbackEvent::ClipboardPasteRequest { selection } => self.push_event(
+                "clipboard_paste_request",
+                Some(serde_json::json!({
+                    "selection": selection,
+                })),
+            ),
         }
     }
 
@@ -430,27 +611,110 @@ impl TerminalSession {
     }
 }
 
-fn rebuild_parser_from_transcript(
-    transcript: &[u8],
-    rows: u16,
-    cols: u16,
-    previous_scrollback_offset: usize,
-    previous_scrollback_max_offset: usize,
-) -> Parser<SessionCallbacks> {
-    let mut parser =
-        Parser::new_with_callbacks(rows, cols, DEFAULT_SCROLLBACK, SessionCallbacks::default());
-    parser.process(transcript);
+struct ExtractedRow {
+    text: String,
+    wrapped: bool,
+    style_runs: Vec<TerminalStyleRun>,
+}
 
-    let new_scrollback_max_offset = screen_max_scrollback(parser.screen_mut());
-    let new_scrollback_offset = remap_scrollback_offset(
-        previous_scrollback_offset,
-        previous_scrollback_max_offset,
-        new_scrollback_max_offset,
-    );
+fn extract_primary_row(
+    grid: &Grid,
+    viewport_rows: usize,
+    scrollback_offset: usize,
+    row: usize,
+) -> ExtractedRow {
+    let scrollback_len = grid.scrollback_len();
+    let total_lines = scrollback_len + viewport_rows;
+    let start_index = total_lines.saturating_sub(viewport_rows + scrollback_offset);
+    let visible_index = start_index + row;
 
-    parser.screen_mut().set_scrollback(new_scrollback_offset);
-    parser.callbacks_mut().pending_events.clear();
-    parser
+    if visible_index < scrollback_len {
+        extract_row(
+            grid.scrollback_line(visible_index),
+            grid.is_scrollback_wrapped(visible_index),
+        )
+    } else {
+        let screen_row = visible_index.saturating_sub(scrollback_len);
+        extract_row(grid.row(screen_row), grid.is_line_wrapped(screen_row))
+    }
+}
+
+fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
+    let mut text = String::new();
+    let mut style_runs = Vec::new();
+    let mut run_start = 0usize;
+    let mut run_style: Option<TerminalStyleRun> = None;
+
+    for cell in cells.unwrap_or_default() {
+        if cell.flags.wide_char_spacer() {
+            continue;
+        }
+
+        let grapheme = cell.get_grapheme();
+        let text_start = text.chars().count();
+        text.push_str(if grapheme.is_empty() { " " } else { &grapheme });
+        let text_end = text.chars().count();
+        let style = TerminalStyleRun {
+            start: text_start,
+            end: text_end,
+            foreground: color_to_hex(cell.fg),
+            background: color_to_hex(cell.bg),
+            bold: cell.flags.bold(),
+            dim: cell.flags.dim(),
+            italic: cell.flags.italic(),
+            underline: cell.flags.underline(),
+            blink: cell.flags.blink(),
+            inverse: cell.flags.reverse(),
+        };
+
+        match &run_style {
+            Some(existing) if same_style(existing, &style) => {}
+            Some(existing) => {
+                let mut finalized = existing.clone();
+                finalized.start = run_start;
+                finalized.end = text_start;
+                style_runs.push(finalized);
+                run_start = text_start;
+                run_style = Some(style);
+            }
+            None => {
+                run_start = text_start;
+                run_style = Some(style);
+            }
+        }
+    }
+
+    if let Some(existing) = run_style {
+        let mut finalized = existing;
+        finalized.start = run_start;
+        finalized.end = text.chars().count();
+        style_runs.push(finalized);
+    }
+
+    ExtractedRow {
+        text,
+        wrapped,
+        style_runs,
+    }
+}
+
+fn normalize_responses(emulation: TerminalEmulation, responses: Vec<u8>) -> Vec<u8> {
+    if emulation != TerminalEmulation::Vt220 || responses.is_empty() {
+        return responses;
+    }
+
+    String::from_utf8_lossy(&responses)
+        .replace("\x1b[?62;1;4;6;9;15;22;52c", VT220_PRIMARY_DA_RESPONSE)
+        .replace("\x1b[>82;10000;0c", VT220_SECONDARY_DA_RESPONSE)
+        .into_bytes()
+}
+
+fn current_scrollback_max(state: &TerminalState) -> usize {
+    if state.terminal.is_alt_screen_active() {
+        0
+    } else {
+        state.terminal.grid().scrollback_len()
+    }
 }
 
 fn remap_scrollback_offset(
@@ -474,68 +738,34 @@ fn same_style(left: &TerminalStyleRun, right: &TerminalStyleRun) -> bool {
     left.foreground == right.foreground
         && left.background == right.background
         && left.bold == right.bold
+        && left.dim == right.dim
         && left.italic == right.italic
         && left.underline == right.underline
+        && left.blink == right.blink
         && left.inverse == right.inverse
 }
 
 fn color_to_hex(color: Color) -> Option<String> {
-    match color {
-        Color::Default => None,
-        Color::Idx(index) => Some(match index {
-            0 => "#000000".to_string(),
-            1 => "#cd0000".to_string(),
-            2 => "#00cd00".to_string(),
-            3 => "#cdcd00".to_string(),
-            4 => "#0000ee".to_string(),
-            5 => "#cd00cd".to_string(),
-            6 => "#00cdcd".to_string(),
-            7 => "#e5e5e5".to_string(),
-            8 => "#7f7f7f".to_string(),
-            9 => "#ff0000".to_string(),
-            10 => "#00ff00".to_string(),
-            11 => "#ffff00".to_string(),
-            12 => "#5c5cff".to_string(),
-            13 => "#ff00ff".to_string(),
-            14 => "#00ffff".to_string(),
-            15 => "#ffffff".to_string(),
-            16..=231 => {
-                let palette = [0, 95, 135, 175, 215, 255];
-                let idx = (index - 16) as usize;
-                let red = palette[idx / 36];
-                let green = palette[(idx % 36) / 6];
-                let blue = palette[idx % 6];
-                format!("#{red:02x}{green:02x}{blue:02x}")
-            }
-            232..=255 => {
-                let level = 8 + ((index - 232) * 10);
-                format!("#{0:02x}{0:02x}{0:02x}", level)
-            }
-        }),
-        Color::Rgb(red, green, blue) => Some(format!("#{red:02x}{green:02x}{blue:02x}")),
+    let (red, green, blue) = color.to_rgb();
+    Some(format!("#{red:02x}{green:02x}{blue:02x}"))
+}
+
+fn mouse_mode_name(mode: MouseMode) -> &'static str {
+    match mode {
+        MouseMode::Off => "off",
+        MouseMode::X10 => "x10",
+        MouseMode::Normal => "normal",
+        MouseMode::ButtonEvent => "button_event",
+        MouseMode::AnyEvent => "any_event",
     }
 }
 
-fn screen_max_scrollback(screen: &mut Screen) -> usize {
-    let current = screen.scrollback();
-    screen.set_scrollback(usize::MAX);
-    let max_offset = screen.scrollback();
-    screen.set_scrollback(current);
-    max_offset
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn color_to_hex_handles_extended_colors() {
-        assert_eq!(color_to_hex(Color::Idx(0)), Some("#000000".to_string()));
-        assert_eq!(color_to_hex(Color::Idx(11)), Some("#ffff00".to_string()));
-        assert_eq!(color_to_hex(Color::Idx(12)), Some("#5c5cff".to_string()));
-        assert_eq!(color_to_hex(Color::Idx(196)), Some("#ff0000".to_string()));
-        assert_eq!(color_to_hex(Color::Idx(46)), Some("#00ff00".to_string()));
-        assert_eq!(color_to_hex(Color::Idx(233)), Some("#121212".to_string()));
+fn mouse_encoding_name(encoding: MouseEncoding) -> &'static str {
+    match encoding {
+        MouseEncoding::Default => "default",
+        MouseEncoding::Utf8 => "utf8",
+        MouseEncoding::Sgr => "sgr",
+        MouseEncoding::Urxvt => "urxvt",
     }
 }
 
@@ -592,4 +822,31 @@ pub fn take_frame_diff(session_id: u64) -> Result<Option<String>, SessionError> 
 pub fn poll_events(session_id: u64) -> Result<String, SessionError> {
     let events = STORE.get(session_id)?.poll_events()?;
     serde_json::to_string(&events).map_err(|error| SessionError::Serialize(error.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn color_to_hex_handles_named_and_rgb_colors() {
+        assert_eq!(
+            color_to_hex(Color::Rgb(255, 0, 0)),
+            Some("#ff0000".to_string())
+        );
+        assert_eq!(
+            color_to_hex(Color::Indexed(46)),
+            Some("#00ff00".to_string())
+        );
+    }
+
+    #[test]
+    fn vt220_response_normalization_rewrites_da_sequences() {
+        let input = b"\x1b[?62;1;4;6;9;15;22;52c\x1b[>82;10000;0c".to_vec();
+        let output = normalize_responses(TerminalEmulation::Vt220, input);
+        assert_eq!(
+            String::from_utf8(output).unwrap(),
+            format!("{VT220_PRIMARY_DA_RESPONSE}{VT220_SECONDARY_DA_RESPONSE}")
+        );
+    }
 }

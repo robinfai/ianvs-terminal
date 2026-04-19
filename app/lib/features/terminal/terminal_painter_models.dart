@@ -7,8 +7,10 @@ class TerminalStyleRun {
     this.foreground,
     this.background,
     this.bold = false,
+    this.dim = false,
     this.italic = false,
     this.underline = false,
+    this.blink = false,
     this.inverse = false,
   });
 
@@ -17,8 +19,10 @@ class TerminalStyleRun {
   final Color? foreground;
   final Color? background;
   final bool bold;
+  final bool dim;
   final bool italic;
   final bool underline;
+  final bool blink;
   final bool inverse;
 
   factory TerminalStyleRun.fromJson(Map<String, Object?> json) {
@@ -28,9 +32,57 @@ class TerminalStyleRun {
       foreground: _colorFromHex(json['foreground'] as String?),
       background: _colorFromHex(json['background'] as String?),
       bold: json['bold'] as bool? ?? false,
+      dim: json['dim'] as bool? ?? false,
       italic: json['italic'] as bool? ?? false,
       underline: json['underline'] as bool? ?? false,
+      blink: json['blink'] as bool? ?? false,
       inverse: json['inverse'] as bool? ?? false,
+    );
+  }
+}
+
+class TerminalFrameModes {
+  const TerminalFrameModes({
+    this.applicationCursor = false,
+    this.applicationKeypad = false,
+    this.insertMode = false,
+    this.originMode = false,
+    this.lineFeedNewLineMode = false,
+    this.hideCursor = false,
+    this.bracketedPaste = false,
+    this.focusTracking = false,
+    this.charProtected = false,
+    this.mouseMode = 'off',
+    this.mouseEncoding = 'default',
+  });
+
+  final bool applicationCursor;
+  final bool applicationKeypad;
+  final bool insertMode;
+  final bool originMode;
+  final bool lineFeedNewLineMode;
+  final bool hideCursor;
+  final bool bracketedPaste;
+  final bool focusTracking;
+  final bool charProtected;
+  final String mouseMode;
+  final String mouseEncoding;
+
+  static const empty = TerminalFrameModes();
+
+  factory TerminalFrameModes.fromJson(Map<String, Object?> json) {
+    return TerminalFrameModes(
+      applicationCursor: json['application_cursor'] as bool? ?? false,
+      applicationKeypad: json['application_keypad'] as bool? ?? false,
+      insertMode: json['insert_mode'] as bool? ?? false,
+      originMode: json['origin_mode'] as bool? ?? false,
+      lineFeedNewLineMode: json['line_feed_new_line_mode'] as bool? ?? false,
+      hideCursor: json['hide_cursor'] as bool? ?? false,
+      bracketedPaste: json['bracketed_paste'] as bool? ?? false,
+      focusTracking: json['focus_tracking'] as bool? ?? false,
+      charProtected: json['char_protected'] as bool? ?? false,
+      mouseMode: json['mouse_mode'] as String? ?? 'off',
+      mouseEncoding: json['mouse_encoding'] as String? ?? 'default',
     );
   }
 }
@@ -140,6 +192,7 @@ class TerminalFrameDiff {
     required this.dirtyRanges,
     required this.scrollbackOffset,
     required this.scrollbackMaxOffset,
+    this.modes = TerminalFrameModes.empty,
     this.selection,
     this.windowTitle,
     this.windowIconName,
@@ -153,6 +206,7 @@ class TerminalFrameDiff {
   final List<TerminalDirtyRange> dirtyRanges;
   final int scrollbackOffset;
   final int scrollbackMaxOffset;
+  final TerminalFrameModes modes;
   final String? windowTitle;
   final String? windowIconName;
 
@@ -164,6 +218,7 @@ class TerminalFrameDiff {
     dirtyRanges: [],
     scrollbackOffset: 0,
     scrollbackMaxOffset: 0,
+    modes: TerminalFrameModes.empty,
   );
 
   factory TerminalFrameDiff.fromJson(Map<String, Object?> json) {
@@ -187,6 +242,9 @@ class TerminalFrameDiff {
           .toList(),
       scrollbackOffset: json['scrollback_offset'] as int? ?? 0,
       scrollbackMaxOffset: json['scrollback_max_offset'] as int? ?? 0,
+      modes: json['modes'] == null
+          ? TerminalFrameModes.empty
+          : TerminalFrameModes.fromJson(json['modes']! as Map<String, Object?>),
       windowTitle: json['window_title'] as String?,
       windowIconName: json['window_icon_name'] as String?,
     );

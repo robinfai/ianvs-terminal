@@ -199,8 +199,10 @@ class RenderTerminalViewport extends RenderBox {
           entry.foreground,
           entry.background,
           entry.bold,
+          entry.dim,
           entry.italic,
           entry.underline,
+          entry.blink,
           entry.inverse,
         ),
       ),
@@ -252,6 +254,9 @@ class RenderTerminalViewport extends RenderBox {
           final swapped = background;
           background = foreground;
           foreground = swapped;
+        }
+        if (run.dim) {
+          foreground = foreground.withValues(alpha: foreground.a * 0.65);
         }
 
         final backgroundPaint = (run.background == null && !run.inverse)

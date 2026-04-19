@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/terminal/selection_controller.dart';
 import 'package:app/features/terminal/terminal_input_controller.dart';
+import 'package:app/features/terminal/terminal_painter_models.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
@@ -322,4 +324,104 @@ void main() {
     expect(result, KeyEventResult.handled);
     expect(bindings.writes.last, utf8.encode('你'));
   });
+
+  test('terminal input switches arrow keys in application cursor mode', () {
+    final bindings = FakeCoreBindings();
+    final coreClient = TerminalCoreClient(bindings);
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      coreClient: coreClient,
+      readFrame: () => const TerminalFrameDiff(
+        rows: [],
+        cursor: TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        modes: TerminalFrameModes(applicationCursor: true),
+      ),
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    final result = inputController.handle(
+      const KeyDownEvent(
+        timeStamp: Duration.zero,
+        physicalKey: PhysicalKeyboardKey.arrowUp,
+        logicalKey: LogicalKeyboardKey.arrowUp,
+      ),
+    );
+
+    expect(result, KeyEventResult.handled);
+    expect(bindings.writes.last, ascii.encode('\x1BOA'));
+  });
+
+  test(
+    'terminal input switches keypad encoding in application keypad mode',
+    () {
+      final bindings = FakeCoreBindings();
+      final coreClient = TerminalCoreClient(bindings);
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: coreClient,
+        readFrame: () => const TerminalFrameDiff(
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: TerminalFrameModes(applicationKeypad: true),
+        ),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      final result = inputController.handle(
+        const KeyDownEvent(
+          timeStamp: Duration.zero,
+          physicalKey: PhysicalKeyboardKey.numpad1,
+          logicalKey: LogicalKeyboardKey.numpad1,
+        ),
+      );
+
+      expect(result, KeyEventResult.handled);
+      expect(bindings.writes.last, ascii.encode('\x1BOq'));
+    },
+  );
+
+  test(
+    'xterm keyboard paste uses bracketed paste when the mode is enabled',
+    () {
+      final bytes = TerminalInputController.clipboardPasteBytesFor(
+        emulation: TerminalEmulation.xterm256,
+        modes: const TerminalFrameModes(bracketedPaste: true),
+        text: 'hello\nworld',
+      );
+
+      expect(
+        bytes,
+        ascii.encode('\x1B[200~') +
+            utf8.encode('hello\nworld') +
+            ascii.encode('\x1B[201~'),
+      );
+    },
+  );
+
+  test(
+    'vt220 keyboard paste stays unwrapped even when xterm paste mode is absent',
+    () {
+      final bytes = TerminalInputController.clipboardPasteBytesFor(
+        emulation: TerminalEmulation.vt220,
+        modes: const TerminalFrameModes(bracketedPaste: true),
+        text: 'plain',
+      );
+
+      expect(bytes, utf8.encode('plain'));
+    },
+  );
 }

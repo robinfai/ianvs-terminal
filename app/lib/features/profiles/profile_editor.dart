@@ -15,6 +15,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _shellController;
   late final TextEditingController _cwdController;
+  late TerminalEmulation _terminalEmulation;
 
   @override
   void initState() {
@@ -22,6 +23,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _nameController = TextEditingController(text: widget.initialValue.name);
     _shellController = TextEditingController(text: widget.initialValue.shell);
     _cwdController = TextEditingController(text: widget.initialValue.cwd ?? '');
+    _terminalEmulation = widget.initialValue.terminalEmulation;
   }
 
   @override
@@ -55,6 +57,30 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               controller: _cwdController,
               decoration: const InputDecoration(labelText: 'Working Directory'),
             ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<TerminalEmulation>(
+              initialValue: _terminalEmulation,
+              decoration: const InputDecoration(labelText: 'Emulation'),
+              items: TerminalEmulation.values
+                  .map(
+                    (value) => DropdownMenuItem<TerminalEmulation>(
+                      value: value,
+                      child: Text(switch (value) {
+                        TerminalEmulation.xterm256 => 'xterm-256color',
+                        TerminalEmulation.vt220 => 'VT220',
+                      }),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _terminalEmulation = value;
+                });
+              },
+            ),
           ],
         ),
       ),
@@ -72,6 +98,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 cwd: _cwdController.text.trim().isEmpty
                     ? null
                     : _cwdController.text.trim(),
+                terminalEmulation: _terminalEmulation,
               ),
             );
           },

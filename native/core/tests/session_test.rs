@@ -1,4 +1,4 @@
-use flutterm_core::model::TerminalProfile;
+use flutterm_core::model::{TerminalEmulation, TerminalProfile};
 use flutterm_core::session;
 use std::collections::BTreeMap;
 use std::thread;
@@ -12,6 +12,7 @@ fn test_profile() -> TerminalProfile {
         args: vec!["-lc".to_string(), "printf 'hello\\n'".to_string()],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -23,6 +24,7 @@ fn interactive_profile() -> TerminalProfile {
         args: vec![],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -37,6 +39,7 @@ fn prompt_like_profile() -> TerminalProfile {
         ],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -52,6 +55,7 @@ fn scrollback_profile() -> TerminalProfile {
         ],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -66,6 +70,7 @@ fn title_profile() -> TerminalProfile {
         ],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -80,6 +85,7 @@ fn icon_name_profile() -> TerminalProfile {
         ],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -91,6 +97,7 @@ fn resize_request_profile() -> TerminalProfile {
         args: vec!["-lc".to_string(), "printf '\\033[8;30;100t'".to_string()],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -105,6 +112,7 @@ fn clipboard_copy_profile() -> TerminalProfile {
         ],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -116,6 +124,35 @@ fn clipboard_paste_request_profile() -> TerminalProfile {
         args: vec!["-lc".to_string(), "printf '\\033]52;c;?\\a'".to_string()],
         env: BTreeMap::new(),
         cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
+    }
+}
+
+fn mode_switch_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "mode-switch".to_string(),
+        name: "Mode Switch".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec!["-lc".to_string(), "printf '\\033[?1h\\033='".to_string()],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
+    }
+}
+
+fn vt220_da_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "vt220-da".to_string(),
+        name: "VT220 DA".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,sys; os.write(1,b"\x1b[c"); sys.stdout.flush(); data=os.read(0,128); os.write(1,repr(data).encode()+b"\n")'"#
+                .to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Vt220,
     }
 }
 
@@ -248,9 +285,11 @@ fn session_reflows_single_long_line_across_resize() {
             .iter()
             .any(|row| row.starts_with("reflow-") && row.len() == 137)
     });
-    assert!(logical_rows_from_frame(&before)
-        .iter()
-        .any(|row| row.starts_with("reflow-") && row.len() == 137));
+    assert!(
+        logical_rows_from_frame(&before)
+            .iter()
+            .any(|row| row.starts_with("reflow-") && row.len() == 137)
+    );
 
     session::resize_session(session_id, 40, 24, 0, 0).unwrap();
 
@@ -260,14 +299,46 @@ fn session_reflows_single_long_line_across_resize() {
             .any(|row| row.starts_with("reflow-") && row.len() == 137)
     });
     let after_parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
-    assert!(after_parsed["rows"]
-        .as_array()
-        .expect("expected rows")
-        .iter()
-        .any(|row| row["wrapped"].as_bool() == Some(true)));
-    assert!(logical_rows_from_frame(&after)
-        .iter()
-        .any(|row| row.starts_with("reflow-") && row.len() == 137));
+    assert!(
+        after_parsed["rows"]
+            .as_array()
+            .expect("expected rows")
+            .iter()
+            .any(|row| row["wrapped"].as_bool() == Some(true))
+    );
+    assert!(
+        logical_rows_from_frame(&after)
+            .iter()
+            .any(|row| row.starts_with("reflow-") && row.len() == 137)
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_application_cursor_and_keypad_modes() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&mode_switch_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["application_cursor"].as_bool(), Some(true));
+    assert_eq!(parsed["modes"]["application_keypad"].as_bool(), Some(true));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_reply_with_vt220_primary_device_attributes() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&vt220_da_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "?62;1;2;6;7;8;9c");
+    assert!(!frame.contains("?62;1;4;6;9;15;22;52c"));
 
     session::close_session(session_id).unwrap();
 }
@@ -351,9 +422,11 @@ fn session_reflows_scrollback_history_across_resize() {
             .iter()
             .any(|row| row.contains(&first_line))
     });
-    assert!(logical_rows_from_frame(&top_before)
-        .iter()
-        .any(|row| row.contains(&first_line)));
+    assert!(
+        logical_rows_from_frame(&top_before)
+            .iter()
+            .any(|row| row.contains(&first_line))
+    );
 
     session::resize_session(session_id, 40, 24, 0, 0).unwrap();
     let top_after = wait_for_frame_where(session_id, |frame| {
@@ -362,14 +435,18 @@ fn session_reflows_scrollback_history_across_resize() {
             .any(|row| row.contains(&first_line))
     });
     let top_after_parsed: serde_json::Value = serde_json::from_str(&top_after).unwrap();
-    assert!(top_after_parsed["rows"]
-        .as_array()
-        .expect("expected rows")
-        .iter()
-        .any(|row| row["wrapped"].as_bool() == Some(true)));
-    assert!(logical_rows_from_frame(&top_after)
-        .iter()
-        .any(|row| row.contains(&first_line)));
+    assert!(
+        top_after_parsed["rows"]
+            .as_array()
+            .expect("expected rows")
+            .iter()
+            .any(|row| row["wrapped"].as_bool() == Some(true))
+    );
+    assert!(
+        logical_rows_from_frame(&top_after)
+            .iter()
+            .any(|row| row.contains(&first_line))
+    );
 
     session::scroll_to_session(session_id, 0).unwrap();
     let bottom_after = wait_for_frame_where(session_id, |frame| {
@@ -377,9 +454,11 @@ fn session_reflows_scrollback_history_across_resize() {
             .iter()
             .any(|row| row.contains(&last_line))
     });
-    assert!(logical_rows_from_frame(&bottom_after)
-        .iter()
-        .any(|row| row.contains(&last_line)));
+    assert!(
+        logical_rows_from_frame(&bottom_after)
+            .iter()
+            .any(|row| row.contains(&last_line))
+    );
 
     session::close_session(session_id).unwrap();
 }

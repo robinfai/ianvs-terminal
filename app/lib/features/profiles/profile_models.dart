@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+enum TerminalEmulation { xterm256, vt220 }
+
 class TerminalProfile {
   const TerminalProfile({
     required this.id,
@@ -8,6 +10,7 @@ class TerminalProfile {
     this.args = const [],
     this.env = const {},
     this.cwd,
+    this.terminalEmulation = TerminalEmulation.xterm256,
   });
 
   final String id;
@@ -16,6 +19,7 @@ class TerminalProfile {
   final List<String> args;
   final Map<String, String> env;
   final String? cwd;
+  final TerminalEmulation terminalEmulation;
 
   TerminalProfile copyWith({
     String? id,
@@ -24,6 +28,7 @@ class TerminalProfile {
     List<String>? args,
     Map<String, String>? env,
     String? cwd,
+    TerminalEmulation? terminalEmulation,
   }) {
     return TerminalProfile(
       id: id ?? this.id,
@@ -32,6 +37,7 @@ class TerminalProfile {
       args: args ?? this.args,
       env: env ?? this.env,
       cwd: cwd ?? this.cwd,
+      terminalEmulation: terminalEmulation ?? this.terminalEmulation,
     );
   }
 
@@ -43,6 +49,7 @@ class TerminalProfile {
       'args': args,
       'env': env,
       'cwd': cwd,
+      'terminalEmulation': terminalEmulation.name,
     };
   }
 
@@ -56,6 +63,7 @@ class TerminalProfile {
         (key, value) => MapEntry(key! as String, value! as String),
       ),
       cwd: json['cwd'] as String?,
+      terminalEmulation: _terminalEmulationFromJson(json['terminalEmulation']),
     );
   }
 }
@@ -99,4 +107,23 @@ TerminalProfile defaultTerminalProfile() {
       defaultValue: '/bin/zsh',
     ),
   );
+}
+
+TerminalProfile vt220TerminalProfile() {
+  return TerminalProfile(
+    id: 'vt220',
+    name: 'Strict VT220',
+    shell: const String.fromEnvironment(
+      'FLUTTERM_DEFAULT_SHELL',
+      defaultValue: '/bin/zsh',
+    ),
+    terminalEmulation: TerminalEmulation.vt220,
+  );
+}
+
+TerminalEmulation _terminalEmulationFromJson(Object? raw) {
+  return switch (raw) {
+    'vt220' => TerminalEmulation.vt220,
+    _ => TerminalEmulation.xterm256,
+  };
 }
