@@ -2,6 +2,7 @@
 .omx-last.txt
 .omx-run.log
 .codex/*
+!.codex/config.toml
 !.codex/agents/
 !.codex/agents/**
 !.codex/skills/
