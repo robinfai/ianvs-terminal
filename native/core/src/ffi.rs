@@ -2,12 +2,12 @@ use crate::session;
 use libc::{c_char, c_int};
 use std::ffi::{CStr, CString};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_ping() -> c_int {
     session::ping()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_create(profile_json: *const c_char) -> u64 {
     if profile_json.is_null() {
         return 0;
@@ -24,12 +24,12 @@ pub extern "C" fn flutterm_session_create(profile_json: *const c_char) -> u64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_close(session_id: u64) -> c_int {
     session::close_session(session_id).map(|_| 0).unwrap_or(-1)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_resize(
     session_id: u64,
     cols: u16,
@@ -42,7 +42,7 @@ pub extern "C" fn flutterm_session_resize(
         .unwrap_or(-1)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_write(session_id: u64, bytes: *const u8, len: usize) -> c_int {
     if bytes.is_null() {
         return -1;
@@ -53,21 +53,21 @@ pub extern "C" fn flutterm_session_write(session_id: u64, bytes: *const u8, len:
         .unwrap_or(-1)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_scroll(session_id: u64, delta_lines: i32) -> c_int {
     session::scroll_session(session_id, delta_lines)
         .map(|_| 0)
         .unwrap_or(-1)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_scroll_to(session_id: u64, offset: usize) -> c_int {
     session::scroll_to_session(session_id, offset)
         .map(|_| 0)
         .unwrap_or(-1)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_take_frame_diff_json(session_id: u64) -> *mut c_char {
     match session::take_frame_diff(session_id).ok().flatten() {
         Some(json) => CString::new(json)
@@ -77,7 +77,7 @@ pub extern "C" fn flutterm_session_take_frame_diff_json(session_id: u64) -> *mut
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_poll_events_json(session_id: u64) -> *mut c_char {
     match session::poll_events(session_id) {
         Ok(json) => CString::new(json)
@@ -87,7 +87,7 @@ pub extern "C" fn flutterm_session_poll_events_json(session_id: u64) -> *mut c_c
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_string_free(value: *mut c_char) {
     if value.is_null() {
         return;
