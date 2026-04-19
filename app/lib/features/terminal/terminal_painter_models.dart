@@ -138,6 +138,8 @@ class TerminalFrameDiff {
     required this.scrollbackOffset,
     required this.scrollbackMaxOffset,
     this.selection,
+    this.windowTitle,
+    this.windowIconName,
   });
 
   final List<TerminalRow> rows;
@@ -148,6 +150,8 @@ class TerminalFrameDiff {
   final List<TerminalDirtyRange> dirtyRanges;
   final int scrollbackOffset;
   final int scrollbackMaxOffset;
+  final String? windowTitle;
+  final String? windowIconName;
 
   static const empty = TerminalFrameDiff(
     rows: [],
@@ -180,6 +184,8 @@ class TerminalFrameDiff {
           .toList(),
       scrollbackOffset: json['scrollback_offset'] as int? ?? 0,
       scrollbackMaxOffset: json['scrollback_max_offset'] as int? ?? 0,
+      windowTitle: json['window_title'] as String?,
+      windowIconName: json['window_icon_name'] as String?,
     );
   }
 }

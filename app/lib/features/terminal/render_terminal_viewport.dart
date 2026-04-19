@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
@@ -101,6 +102,7 @@ class RenderTerminalViewport extends RenderBox {
     final canvas = context.canvas;
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
+    canvas.clipRect(Offset.zero & size);
     canvas.drawRect(
       Offset.zero & size,
       Paint()..color = const Color(0xFF000000),
@@ -295,7 +297,7 @@ class RenderTerminalViewport extends RenderBox {
       }
     }
     final paragraph = builder.build()
-      ..layout(ui.ParagraphConstraints(width: size.width));
+      ..layout(ui.ParagraphConstraints(width: math.max(size.width, 100000.0)));
     _paragraphCache[row.index] = _CachedParagraph(
       signature: signature,
       paragraph: paragraph,

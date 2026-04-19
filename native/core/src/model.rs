@@ -71,6 +71,10 @@ pub struct TerminalFrameDiff {
     pub scrollback_offset: usize,
     #[serde(default)]
     pub scrollback_max_offset: usize,
+    #[serde(default)]
+    pub window_title: Option<String>,
+    #[serde(default)]
+    pub window_icon_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

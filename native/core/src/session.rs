@@ -11,13 +11,58 @@ use std::sync::{
     Arc, LazyLock,
 };
 use std::thread;
-use vt100::{Color, Parser, Screen};
+use vt100::{Callbacks, Color, Parser, Screen};
 
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
 const DEFAULT_SCROLLBACK: usize = 8_000;
 
 static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
+
+enum CallbackEvent {
+    Resize { rows: u16, cols: u16 },
+    ClipboardCopy { selection: String, data: String },
+    ClipboardPasteRequest { selection: String },
+}
+
+#[derive(Default)]
+struct SessionCallbacks {
+    window_title: Option<String>,
+    window_icon_name: Option<String>,
+    pending_events: VecDeque<CallbackEvent>,
+}
+
+impl Callbacks for SessionCallbacks {
+    fn resize(&mut self, screen: &mut Screen, request: (u16, u16)) {
+        let rows = request.0.max(1);
+        let cols = request.1.max(1);
+        screen.set_size(rows, cols);
+        self.pending_events
+            .push_back(CallbackEvent::Resize { rows, cols });
+    }
+
+    fn set_window_icon_name(&mut self, _: &mut Screen, icon_name: &[u8]) {
+        self.window_icon_name = Some(String::from_utf8_lossy(icon_name).into_owned());
+    }
+
+    fn set_window_title(&mut self, _: &mut Screen, title: &[u8]) {
+        self.window_title = Some(String::from_utf8_lossy(title).into_owned());
+    }
+
+    fn copy_to_clipboard(&mut self, _: &mut Screen, ty: &[u8], data: &[u8]) {
+        self.pending_events.push_back(CallbackEvent::ClipboardCopy {
+            selection: String::from_utf8_lossy(ty).into_owned(),
+            data: String::from_utf8_lossy(data).into_owned(),
+        });
+    }
+
+    fn paste_from_clipboard(&mut self, _: &mut Screen, ty: &[u8]) {
+        self.pending_events
+            .push_back(CallbackEvent::ClipboardPasteRequest {
+                selection: String::from_utf8_lossy(ty).into_owned(),
+            });
+    }
+}
 
 #[derive(Default)]
 pub struct SessionStore {
@@ -71,7 +116,7 @@ pub enum SessionError {
 
 pub struct TerminalSession {
     session_id: u64,
-    parser: Mutex<Parser>,
+    parser: Mutex<Parser<SessionCallbacks>>,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
@@ -88,7 +133,12 @@ impl TerminalSession {
 
         let session = Arc::new(Self {
             session_id,
-            parser: Mutex::new(Parser::new(DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_SCROLLBACK)),
+            parser: Mutex::new(Parser::new_with_callbacks(
+                DEFAULT_ROWS,
+                DEFAULT_COLS,
+                DEFAULT_SCROLLBACK,
+                SessionCallbacks::default(),
+            )),
             writer: Mutex::new(runtime.writer),
             master: Mutex::new(runtime.master),
             child: Mutex::new(runtime.child),
@@ -182,6 +232,8 @@ impl TerminalSession {
         }
 
         let mut parser = self.parser.lock();
+        let window_title = parser.callbacks().window_title.clone();
+        let window_icon_name = parser.callbacks().window_icon_name.clone();
         let screen = parser.screen_mut();
         let (viewport_rows, viewport_cols) = screen.size();
         let scrollback_offset = screen.scrollback();
@@ -271,10 +323,13 @@ impl TerminalSession {
             dirty_ranges,
             scrollback_offset,
             scrollback_max_offset,
+            window_title,
+            window_icon_name,
         }))
     }
 
     pub fn poll_events(&self) -> Result<Vec<TerminalEvent>, SessionError> {
+        self.drain_callback_events();
         if !self.exited.load(Ordering::SeqCst) {
             let maybe_exit = self
                 .child
@@ -296,6 +351,37 @@ impl TerminalSession {
         }
 
         Ok(self.events.lock().drain(..).collect())
+    }
+
+    fn drain_callback_events(&self) {
+        let mut parser = self.parser.lock();
+        let pending_events = std::mem::take(&mut parser.callbacks_mut().pending_events);
+        drop(parser);
+
+        for event in pending_events {
+            match event {
+                CallbackEvent::Resize { rows, cols } => self.push_event(
+                    "resize",
+                    Some(serde_json::json!({
+                        "rows": rows,
+                        "cols": cols,
+                    })),
+                ),
+                CallbackEvent::ClipboardCopy { selection, data } => self.push_event(
+                    "clipboard_copy",
+                    Some(serde_json::json!({
+                        "selection": selection,
+                        "data": data,
+                    })),
+                ),
+                CallbackEvent::ClipboardPasteRequest { selection } => self.push_event(
+                    "clipboard_paste_request",
+                    Some(serde_json::json!({
+                        "selection": selection,
+                    })),
+                ),
+            }
+        }
     }
 
     fn push_event(&self, kind: &str, payload: Option<serde_json::Value>) {

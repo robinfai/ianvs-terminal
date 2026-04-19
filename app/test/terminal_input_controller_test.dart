@@ -298,4 +298,28 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
     await tester.pump();
   });
+
+  test('terminal input encodes direct Chinese key input as UTF-8', () {
+    final bindings = FakeCoreBindings();
+    final coreClient = TerminalCoreClient(bindings);
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      coreClient: coreClient,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    final result = inputController.handle(
+      const KeyDownEvent(
+        timeStamp: Duration.zero,
+        physicalKey: PhysicalKeyboardKey.keyA,
+        logicalKey: LogicalKeyboardKey.keyA,
+        character: '你',
+      ),
+    );
+
+    expect(result, KeyEventResult.handled);
+    expect(bindings.writes.last, utf8.encode('你'));
+  });
 }

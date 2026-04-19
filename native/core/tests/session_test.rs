@@ -55,6 +55,70 @@ fn scrollback_profile() -> TerminalProfile {
     }
 }
 
+fn title_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "title".to_string(),
+        name: "Title".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "printf '\\033]2;构建目标\\a'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+    }
+}
+
+fn icon_name_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "icon-name".to_string(),
+        name: "Icon Name".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "printf '\\033]1;图标名称\\a'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+    }
+}
+
+fn resize_request_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "resize-request".to_string(),
+        name: "Resize Request".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec!["-lc".to_string(), "printf '\\033[8;30;100t'".to_string()],
+        env: BTreeMap::new(),
+        cwd: None,
+    }
+}
+
+fn clipboard_copy_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "clipboard-copy".to_string(),
+        name: "Clipboard Copy".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "printf '\\033]52;c;5aSN5Yi25YaF5a658J+Mnw==\\a'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+    }
+}
+
+fn clipboard_paste_request_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "clipboard-paste".to_string(),
+        name: "Clipboard Paste".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec!["-lc".to_string(), "printf '\\033]52;c;?\\a'".to_string()],
+        env: BTreeMap::new(),
+        cwd: None,
+    }
+}
+
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     for _ in 0..20 {
         if let Some(frame) = session::take_frame_diff(session_id)
@@ -66,6 +130,21 @@ fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
         thread::sleep(Duration::from_millis(100));
     }
     panic!("timed out waiting for frame containing {needle:?}");
+}
+
+fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
+    for _ in 0..20 {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        if let Some(event) = parsed
+            .as_array()
+            .and_then(|entries| entries.iter().find(|entry| entry["kind"] == kind))
+        {
+            return event.clone();
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    panic!("timed out waiting for event {kind:?}");
 }
 
 #[test]
@@ -128,6 +207,82 @@ fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
         .expect("expected scrollback max offset");
 
     assert_eq!(offset, max_after_scroll);
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_surfaces_window_title_from_osc_sequences() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&title_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["window_title"].as_str(), Some("构建目标"),);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_surfaces_window_icon_name_from_osc_sequences() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&icon_name_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["window_icon_name"].as_str(), Some("图标名称"),);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_resize_events_from_terminal_requests() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&resize_request_profile()).unwrap())
+            .unwrap();
+
+    let event = wait_for_event(session_id, "resize");
+    assert_eq!(event["payload"]["rows"].as_u64(), Some(30));
+    assert_eq!(event["payload"]["cols"].as_u64(), Some(100));
+    let frame = wait_for_frame_containing(session_id, "\"viewport_cols\":100");
+    assert!(frame.contains("\"viewport_rows\":30"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_clipboard_copy_events_from_osc_52() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&clipboard_copy_profile()).unwrap())
+            .unwrap();
+
+    let event = wait_for_event(session_id, "clipboard_copy");
+    assert_eq!(event["payload"]["selection"].as_str(), Some("c"));
+    assert_eq!(
+        event["payload"]["data"].as_str(),
+        Some("5aSN5Yi25YaF5a658J+Mnw=="),
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_clipboard_paste_requests_from_osc_52_queries() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&clipboard_paste_request_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let event = wait_for_event(session_id, "clipboard_paste_request");
+    assert_eq!(event["payload"]["selection"].as_str(), Some("c"));
+
     session::close_session(session_id).unwrap();
 }
 

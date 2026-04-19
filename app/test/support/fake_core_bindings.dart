@@ -61,6 +61,8 @@ class FakeCoreBindings implements CoreBindings {
       ],
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
+      'window_title': null,
+      'window_icon_name': null,
     };
     _events[sessionId] = [
       {'kind': 'started', 'session_id': sessionId, 'payload': null},

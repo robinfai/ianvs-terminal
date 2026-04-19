@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,9 @@ import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
 import '../shell/shell_acceptance.dart';
 import '../shell/reference_demo.dart';
+import '../shell/window_bridge.dart';
+import '../terminal/clipboard_bridge.dart';
+import '../terminal/terminal_painter_models.dart';
 import '../terminal/terminal_viewport.dart';
 import 'session_state.dart';
 
@@ -79,10 +84,9 @@ class SessionController extends Notifier<SessionState> {
   Future<void> _bootstrap() async {
     if (ref.read(referenceDemoModeProvider)) {
       for (final tab in referenceDemoTabs) {
-        _viewportControllers.putIfAbsent(
-          tab.sessionId,
-          TerminalViewportController.new,
-        ).updateFrame(referenceDemoFrame);
+        _viewportControllers
+            .putIfAbsent(tab.sessionId, TerminalViewportController.new)
+            .updateFrame(referenceDemoFrame);
       }
       state = state.copyWith(
         profiles: [defaultTerminalProfile()],
@@ -155,18 +159,13 @@ class SessionController extends Notifier<SessionState> {
             .read(terminalCoreClientProvider)
             .takeFrameDiff(tab.sessionId);
         if (frame != null) {
-          viewportFor(tab.sessionId).updateFrame(frame);
+          _applyFrame(tab.sessionId, frame);
         }
 
         final events = ref
             .read(terminalCoreClientProvider)
             .pollEvents(tab.sessionId);
-        for (final event in events) {
-          if (event.kind == 'exit') {
-            closeSession(tab.sessionId);
-            break;
-          }
-        }
+        unawaited(_processEvents(tab.sessionId, events));
       }
     });
   }
@@ -178,12 +177,7 @@ class SessionController extends Notifier<SessionState> {
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
     final launchProfile = environmentOverrides.isEmpty
         ? profile
-        : profile.copyWith(
-            env: {
-              ...profile.env,
-              ...environmentOverrides,
-            },
-          );
+        : profile.copyWith(env: {...profile.env, ...environmentOverrides});
     final sessionId = ref
         .read(terminalCoreClientProvider)
         .createSession(launchProfile);
@@ -199,6 +193,7 @@ class SessionController extends Notifier<SessionState> {
       ],
       activeSessionId: sessionId,
     );
+    unawaited(WindowBridge.setTitle(launchProfile.name));
     if (!ref.read(sessionPollingEnabledProvider)) {
       _refreshSession(sessionId);
       _scheduleWarmUpRefreshes(sessionId);
@@ -207,6 +202,16 @@ class SessionController extends Notifier<SessionState> {
 
   void activateSession(String sessionId) {
     state = state.copyWith(activeSessionId: sessionId);
+    TerminalTab? activeTab;
+    for (final tab in state.tabs) {
+      if (tab.sessionId == sessionId) {
+        activeTab = tab;
+        break;
+      }
+    }
+    if (activeTab != null) {
+      unawaited(WindowBridge.setTitle(activeTab.title));
+    }
     if (ref.read(referenceDemoModeProvider)) {
       shellAcceptanceProbe.mergeTerminalContent(
         terminalHasVisibleContent: true,
@@ -302,6 +307,9 @@ class SessionController extends Notifier<SessionState> {
       rows: rows,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
+      logicalWidth: viewportSize.width,
+      logicalHeight: viewportSize.height,
+      devicePixelRatio: devicePixelRatio,
     );
     if (!ref.read(sessionPollingEnabledProvider)) {
       _refreshSession(sessionId);
@@ -311,19 +319,7 @@ class SessionController extends Notifier<SessionState> {
   void _refreshSession(String sessionId) {
     final frame = ref.read(terminalCoreClientProvider).takeFrameDiff(sessionId);
     if (frame != null) {
-      viewportFor(sessionId).updateFrame(frame);
-      String? preview;
-      for (final row in frame.rows) {
-        final text = row.text.trim();
-        if (text.isNotEmpty) {
-          preview = text;
-          break;
-        }
-      }
-      shellAcceptanceProbe.mergeTerminalContent(
-        terminalHasVisibleContent: preview != null,
-        terminalPreview: preview,
-      );
+      _applyFrame(sessionId, frame);
     } else {
       shellAcceptanceProbe.mergeTerminalContent(
         terminalHasVisibleContent: false,
@@ -331,12 +327,198 @@ class SessionController extends Notifier<SessionState> {
       );
     }
     final events = ref.read(terminalCoreClientProvider).pollEvents(sessionId);
-    for (final event in events) {
-      if (event.kind == 'exit') {
-        closeSession(sessionId);
+    unawaited(_processEvents(sessionId, events));
+  }
+
+  void _applyFrame(String sessionId, TerminalFrameDiff frame) {
+    viewportFor(sessionId).updateFrame(frame);
+    _updateTabTitleFromFrame(
+      sessionId,
+      windowTitle: frame.windowTitle,
+      windowIconName: frame.windowIconName,
+    );
+
+    String? preview;
+    for (final row in frame.rows) {
+      final text = row.text.trim();
+      if (text.isNotEmpty) {
+        preview = text;
         break;
       }
     }
+    shellAcceptanceProbe.mergeTerminalContent(
+      terminalHasVisibleContent: preview != null,
+      terminalPreview: preview,
+    );
+  }
+
+  void _updateTabTitleFromFrame(
+    String sessionId, {
+    String? windowTitle,
+    String? windowIconName,
+  }) {
+    final tabIndex = state.tabs.indexWhere((tab) => tab.sessionId == sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+
+    final currentTab = state.tabs[tabIndex];
+    final nextTitle = _resolvedTabTitle(
+      currentTab,
+      windowTitle: windowTitle,
+      windowIconName: windowIconName,
+    );
+    if (nextTitle == currentTab.title) {
+      return;
+    }
+
+    final nextTabs = [...state.tabs];
+    nextTabs[tabIndex] = currentTab.copyWith(title: nextTitle);
+    state = state.copyWith(tabs: nextTabs);
+    if (sessionId == state.activeSessionId) {
+      unawaited(WindowBridge.setTitle(nextTitle));
+    }
+  }
+
+  String _resolvedTabTitle(
+    TerminalTab tab, {
+    String? windowTitle,
+    String? windowIconName,
+  }) {
+    if (windowTitle != null && windowTitle.isNotEmpty) {
+      return windowTitle;
+    }
+    if (windowIconName != null && windowIconName.isNotEmpty) {
+      return windowIconName;
+    }
+
+    for (final profile in state.profiles) {
+      if (profile.id == tab.profileId) {
+        return profile.name;
+      }
+    }
+    return tab.title;
+  }
+
+  Future<void> _processEvents(
+    String sessionId,
+    List<TerminalEvent> events,
+  ) async {
+    for (final event in events) {
+      switch (event.kind) {
+        case 'exit':
+          closeSession(sessionId);
+          return;
+        case 'resize':
+          await _handleResizeEvent(sessionId, event.payload);
+          break;
+        case 'clipboard_copy':
+          await _handleClipboardCopyEvent(event.payload);
+          break;
+        case 'clipboard_paste_request':
+          await _handleClipboardPasteRequestEvent(sessionId, event.payload);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  Future<void> _handleResizeEvent(
+    String sessionId,
+    Map<String, Object?>? payload,
+  ) async {
+    if (sessionId != state.activeSessionId || payload == null) {
+      return;
+    }
+
+    final cols = (payload['cols'] as num?)?.toInt();
+    final rows = (payload['rows'] as num?)?.toInt();
+    final metric = _lastResizeMetrics[sessionId];
+    if (cols == null ||
+        rows == null ||
+        cols <= 0 ||
+        rows <= 0 ||
+        metric == null) {
+      return;
+    }
+
+    final targetWidth = cols * 9.0;
+    final targetHeight = rows * 18.0;
+    final widthDelta = targetWidth - metric.logicalWidth;
+    final heightDelta = targetHeight - metric.logicalHeight;
+    final targetPixelWidth = math.max(
+      1,
+      (targetWidth * metric.devicePixelRatio).round(),
+    );
+    final targetPixelHeight = math.max(
+      1,
+      (targetHeight * metric.devicePixelRatio).round(),
+    );
+
+    ref
+        .read(terminalCoreClientProvider)
+        .resizeSession(
+          sessionId,
+          cols: cols,
+          rows: rows,
+          pixelSize: Size(
+            targetPixelWidth.toDouble(),
+            targetPixelHeight.toDouble(),
+          ),
+          devicePixelRatio: 1,
+        );
+    _lastResizeMetrics[sessionId] = _SessionResizeMetric(
+      cols: cols,
+      rows: rows,
+      pixelWidth: targetPixelWidth,
+      pixelHeight: targetPixelHeight,
+      logicalWidth: targetWidth,
+      logicalHeight: targetHeight,
+      devicePixelRatio: metric.devicePixelRatio,
+    );
+    if (!ref.read(sessionPollingEnabledProvider)) {
+      _refreshSession(sessionId);
+    }
+
+    if (widthDelta == 0 && heightDelta == 0) {
+      return;
+    }
+
+    await WindowBridge.resizeBy(
+      widthDelta: widthDelta,
+      heightDelta: heightDelta,
+    );
+  }
+
+  Future<void> _handleClipboardCopyEvent(Map<String, Object?>? payload) async {
+    if (payload == null) {
+      return;
+    }
+
+    final raw = payload['data'] as String?;
+    if (raw == null || raw.isEmpty) {
+      return;
+    }
+
+    final decoded = utf8.decode(base64.decode(raw), allowMalformed: true);
+    if (decoded.isEmpty) {
+      return;
+    }
+    await ClipboardBridge.copy(decoded);
+  }
+
+  Future<void> _handleClipboardPasteRequestEvent(
+    String sessionId,
+    Map<String, Object?>? payload,
+  ) async {
+    final selection = payload?['selection'] as String? ?? 'c';
+    final clipboardText = await ClipboardBridge.paste();
+    final encoded = base64.encode(utf8.encode(clipboardText));
+    final response = '\x1B]52;$selection;$encoded\x07';
+    ref
+        .read(terminalCoreClientProvider)
+        .sendInput(sessionId, Uint8List.fromList(utf8.encode(response)));
   }
 
   void _scheduleWarmUpRefreshes(String sessionId) {
@@ -364,10 +546,12 @@ class SessionController extends Notifier<SessionState> {
             return;
           }
           final controller = _viewportControllers[sessionId];
-          final hasVisibleContent = controller != null &&
+          final hasVisibleContent =
+              controller != null &&
               controller.frame.rows.any((row) => row.text.trim().isNotEmpty);
           if (hasVisibleContent) {
-            for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
+            for (final timer
+                in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
               timer.cancel();
             }
             return;
@@ -557,12 +741,18 @@ class _SessionResizeMetric {
     required this.rows,
     required this.pixelWidth,
     required this.pixelHeight,
+    required this.logicalWidth,
+    required this.logicalHeight,
+    required this.devicePixelRatio,
   });
 
   final int cols;
   final int rows;
   final int pixelWidth;
   final int pixelHeight;
+  final double logicalWidth;
+  final double logicalHeight;
+  final double devicePixelRatio;
 }
 
 class _BootstrapPreferencesResolution {

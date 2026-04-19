@@ -28,6 +28,38 @@ void main() {
     expect(client.takeFrameDiff(sessionId), isNull);
   });
 
+  test('terminal core client surfaces OSC window title requests', () {
+    final client = TerminalCoreClient(
+      FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
+    );
+
+    final sessionId = client.createSession(
+      defaultTerminalProfile().copyWith(
+        id: 'title-check',
+        name: 'Title Check',
+        shell: '/bin/sh',
+        args: const [],
+      ),
+    );
+    addTearDown(() => client.closeSession(sessionId));
+
+    sleep(const Duration(milliseconds: 250));
+    client.takeFrameDiff(sessionId);
+
+    client.sendInput(
+      sessionId,
+      Uint8List.fromList("printf '\\033]2;Build Target\\a'\n".codeUnits),
+    );
+
+    final frame = _waitForFrameWhere(
+      client,
+      sessionId,
+      (frame) => frame.windowTitle == 'Build Target',
+    );
+
+    expect(frame.windowTitle, 'Build Target');
+  });
+
   test(
     'terminal core client can roundtrip input through a real PTY session',
     () {
@@ -296,13 +328,27 @@ TerminalFrameDiff _waitForFrameContaining(
   String sessionId,
   String needle,
 ) {
+  return _waitForFrameWhere(
+    client,
+    sessionId,
+    (frame) => frame.rows.any((row) => row.text.contains(needle)),
+    description: 'containing "$needle"',
+  );
+}
+
+TerminalFrameDiff _waitForFrameWhere(
+  TerminalCoreClient client,
+  String sessionId,
+  bool Function(TerminalFrameDiff frame) matches, {
+  String description = 'matching predicate',
+}) {
   for (var attempt = 0; attempt < 20; attempt += 1) {
     sleep(const Duration(milliseconds: 100));
     final frame = client.takeFrameDiff(sessionId);
-    if (frame != null && frame.rows.any((row) => row.text.contains(needle))) {
+    if (frame != null && matches(frame)) {
       return frame;
     }
   }
 
-  throw StateError('Timed out waiting for frame containing "$needle"');
+  throw StateError('Timed out waiting for frame $description');
 }
