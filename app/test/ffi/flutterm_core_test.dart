@@ -2,6 +2,7 @@ import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
@@ -215,6 +216,64 @@ void main() {
     },
   );
 
+  test('terminal core client reflows long lines across resize', () {
+    final client = TerminalCoreClient(
+      FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
+    );
+
+    final sessionId = client.createSession(
+      defaultTerminalProfile().copyWith(
+        id: 'interactive-reflow',
+        name: 'Interactive Reflow',
+        shell: '/bin/sh',
+        args: const [],
+      ),
+    );
+    addTearDown(() => client.closeSession(sessionId));
+
+    final marker = 'reflow-${List.filled(130, '0').join()}';
+
+    sleep(const Duration(milliseconds: 250));
+    client.takeFrameDiff(sessionId);
+
+    client.sendInput(
+      sessionId,
+      Uint8List.fromList("printf 'reflow-%0130d\\n' 0\n".codeUnits),
+    );
+    expect(
+      _waitForFrameWhere(
+        client,
+        sessionId,
+        (frame) =>
+            _logicalRowsFromFrame(frame).any((row) => row.contains(marker)),
+      ),
+      isNotNull,
+    );
+
+    client.resizeSession(
+      sessionId,
+      cols: 40,
+      rows: 24,
+      pixelSize: const Size(400, 432),
+      devicePixelRatio: 1,
+    );
+
+    final frame = _waitForFrameWhere(
+      client,
+      sessionId,
+      (frame) =>
+          _logicalRowsFromFrame(frame).any((row) => row.contains(marker)),
+      description: 'containing reflow marker after resize',
+    );
+
+    expect(
+      _logicalRowsFromFrame(frame),
+      contains(marker),
+      reason: 'expected resized frame to preserve the full logical line',
+    );
+    expect(frame.rows.any((row) => row.wrapped), isTrue);
+  });
+
   test(
     'terminal core client stays interactive across different shell prompts',
     () {
@@ -351,4 +410,23 @@ TerminalFrameDiff _waitForFrameWhere(
   }
 
   throw StateError('Timed out waiting for frame $description');
+}
+
+List<String> _logicalRowsFromFrame(TerminalFrameDiff frame) {
+  final logicalRows = <String>[];
+  var current = '';
+
+  for (final row in frame.rows) {
+    current += row.text.trimRight();
+    if (!row.wrapped) {
+      logicalRows.add(current);
+      current = '';
+    }
+  }
+
+  if (current.isNotEmpty) {
+    logicalRows.add(current);
+  }
+
+  return logicalRows;
 }

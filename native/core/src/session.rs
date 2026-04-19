@@ -19,13 +19,14 @@ const DEFAULT_SCROLLBACK: usize = 8_000;
 
 static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
 
+#[derive(Clone, Debug)]
 enum CallbackEvent {
     Resize { rows: u16, cols: u16 },
     ClipboardCopy { selection: String, data: String },
     ClipboardPasteRequest { selection: String },
 }
 
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 struct SessionCallbacks {
     window_title: Option<String>,
     window_icon_name: Option<String>,
@@ -33,10 +34,9 @@ struct SessionCallbacks {
 }
 
 impl Callbacks for SessionCallbacks {
-    fn resize(&mut self, screen: &mut Screen, request: (u16, u16)) {
+    fn resize(&mut self, _: &mut Screen, request: (u16, u16)) {
         let rows = request.0.max(1);
         let cols = request.1.max(1);
-        screen.set_size(rows, cols);
         self.pending_events
             .push_back(CallbackEvent::Resize { rows, cols });
     }
@@ -62,6 +62,12 @@ impl Callbacks for SessionCallbacks {
                 selection: String::from_utf8_lossy(ty).into_owned(),
             });
     }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct CachedRowState {
+    text: String,
+    wrapped: bool,
 }
 
 #[derive(Default)]
@@ -117,12 +123,13 @@ pub enum SessionError {
 pub struct TerminalSession {
     session_id: u64,
     parser: Mutex<Parser<SessionCallbacks>>,
+    transcript: Mutex<Vec<u8>>,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     events: Mutex<VecDeque<TerminalEvent>>,
     dirty: AtomicBool,
-    last_rows: Mutex<Vec<String>>,
+    last_rows: Mutex<Vec<CachedRowState>>,
     exited: AtomicBool,
 }
 
@@ -139,6 +146,7 @@ impl TerminalSession {
                 DEFAULT_SCROLLBACK,
                 SessionCallbacks::default(),
             )),
+            transcript: Mutex::new(Vec::new()),
             writer: Mutex::new(runtime.writer),
             master: Mutex::new(runtime.master),
             child: Mutex::new(runtime.child),
@@ -162,6 +170,10 @@ impl TerminalSession {
                     Ok(read) => {
                         let mut parser = reader_session.parser.lock();
                         parser.process(&buf[..read]);
+                        reader_session
+                            .transcript
+                            .lock()
+                            .extend_from_slice(&buf[..read]);
                         drop(parser);
                         reader_session.dirty.store(true, Ordering::SeqCst);
                         reader_session.push_event("activity", None);
@@ -190,6 +202,12 @@ impl TerminalSession {
         pixel_width: u16,
         pixel_height: u16,
     ) -> Result<(), SessionError> {
+        let mut parser = self.parser.lock();
+        let screen = parser.screen_mut();
+        let (_, current_cols) = screen.size();
+        let scrollback_offset = screen.scrollback();
+        let scrollback_max_offset = screen_max_scrollback(screen);
+        let alternate_screen = screen.alternate_screen();
         self.master
             .lock()
             .resize(portable_pty::PtySize {
@@ -199,7 +217,21 @@ impl TerminalSession {
                 pixel_height,
             })
             .map_err(|error| SessionError::Pty(error.to_string()))?;
-        self.parser.lock().screen_mut().set_size(rows, cols);
+
+        if alternate_screen || current_cols == cols {
+            parser.screen_mut().set_size(rows, cols);
+        } else {
+            let transcript = self.transcript.lock().clone();
+            *parser = rebuild_parser_from_transcript(
+                &transcript,
+                rows,
+                cols,
+                scrollback_offset,
+                scrollback_max_offset,
+            );
+        }
+
+        self.last_rows.lock().clear();
         self.dirty.store(true, Ordering::SeqCst);
         Ok(())
     }
@@ -241,7 +273,7 @@ impl TerminalSession {
         let cursor = screen.cursor_position();
         let mut rows = Vec::with_capacity(viewport_rows as usize);
         let mut dirty_ranges = Vec::new();
-        let mut current_row_text = Vec::with_capacity(viewport_rows as usize);
+        let mut current_rows = Vec::with_capacity(viewport_rows as usize);
         let mut last_rows = self.last_rows.lock();
 
         for row in 0..viewport_rows as usize {
@@ -249,6 +281,7 @@ impl TerminalSession {
             let mut style_runs = Vec::new();
             let mut run_start = 0usize;
             let mut run_style: Option<TerminalStyleRun> = None;
+            let wrapped = screen.row_wrapped(row as u16);
 
             for col in 0..viewport_cols as usize {
                 if let Some(cell) = screen.cell(row as u16, col as u16) {
@@ -292,23 +325,27 @@ impl TerminalSession {
                 style_runs.push(finalized);
             }
 
-            current_row_text.push(text.clone());
+            current_rows.push(CachedRowState {
+                text: text.clone(),
+                wrapped,
+            });
             rows.push(TerminalRow {
                 index: row,
                 text,
+                wrapped,
                 style_runs,
             });
         }
 
-        for (index, row_text) in current_row_text.iter().enumerate() {
-            if last_rows.get(index).map(|entry| entry.as_str()) != Some(row_text.as_str()) {
+        for (index, row_state) in current_rows.iter().enumerate() {
+            if last_rows.get(index) != Some(row_state) {
                 dirty_ranges.push(TerminalDirtyRange {
                     start: index,
                     end: index + 1,
                 });
             }
         }
-        *last_rows = current_row_text;
+        *last_rows = current_rows;
 
         Ok(Some(TerminalFrameDiff {
             rows,
@@ -390,6 +427,46 @@ impl TerminalSession {
             session_id: self.session_id,
             payload,
         });
+    }
+}
+
+fn rebuild_parser_from_transcript(
+    transcript: &[u8],
+    rows: u16,
+    cols: u16,
+    previous_scrollback_offset: usize,
+    previous_scrollback_max_offset: usize,
+) -> Parser<SessionCallbacks> {
+    let mut parser =
+        Parser::new_with_callbacks(rows, cols, DEFAULT_SCROLLBACK, SessionCallbacks::default());
+    parser.process(transcript);
+
+    let new_scrollback_max_offset = screen_max_scrollback(parser.screen_mut());
+    let new_scrollback_offset = remap_scrollback_offset(
+        previous_scrollback_offset,
+        previous_scrollback_max_offset,
+        new_scrollback_max_offset,
+    );
+
+    parser.screen_mut().set_scrollback(new_scrollback_offset);
+    parser.callbacks_mut().pending_events.clear();
+    parser
+}
+
+fn remap_scrollback_offset(
+    previous_offset: usize,
+    previous_max_offset: usize,
+    new_max_offset: usize,
+) -> usize {
+    if previous_offset == 0 || new_max_offset == 0 {
+        0
+    } else if previous_offset >= previous_max_offset {
+        new_max_offset
+    } else if previous_max_offset == 0 {
+        0
+    } else {
+        ((previous_offset as f64 / previous_max_offset as f64) * new_max_offset as f64).round()
+            as usize
     }
 }
 

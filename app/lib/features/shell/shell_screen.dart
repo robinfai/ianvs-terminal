@@ -69,13 +69,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final SessionState snapshotState =
         state ?? ref.read(sessionControllerProvider);
     final activeSessionId = snapshotState.activeSessionId;
-    final terminalRows = activeSessionId == null
-        ? const []
+    final terminalFrame = activeSessionId == null
+        ? null
         : ref
               .read(sessionControllerProvider.notifier)
               .viewportFor(activeSessionId)
-              .frame
-              .rows;
+              .frame;
+    final terminalRows = terminalFrame?.rows ?? const [];
     String? terminalPreview;
     for (final row in terminalRows) {
       final text = row.text.trim();
@@ -96,6 +96,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         activeSessionId: activeSessionId,
         themeMode: snapshotState.themeMode.name,
         snapshotVersion: shellAcceptanceProbe.current.snapshotVersion,
+        terminalFrameSnapshot: terminalFrame == null
+            ? null
+            : <String, Object?>{
+                'viewportRows': terminalFrame.viewportRows,
+                'viewportCols': terminalFrame.viewportCols,
+                'scrollbackOffset': terminalFrame.scrollbackOffset,
+                'scrollbackMaxOffset': terminalFrame.scrollbackMaxOffset,
+                'rows': terminalFrame.rows
+                    .map(
+                      (row) => <String, Object?>{
+                        'index': row.index,
+                        'text': row.text,
+                        'wrapped': row.wrapped,
+                      },
+                    )
+                    .toList(),
+              },
       ),
     );
   }

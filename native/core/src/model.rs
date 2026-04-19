@@ -34,6 +34,8 @@ pub struct TerminalRow {
     pub index: usize,
     pub text: String,
     #[serde(default)]
+    pub wrapped: bool,
+    #[serde(default)]
     pub style_runs: Vec<TerminalStyleRun>,
 }
 

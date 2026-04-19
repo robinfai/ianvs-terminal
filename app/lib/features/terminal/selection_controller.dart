@@ -91,7 +91,7 @@ class SelectionController extends ChangeNotifier {
       if (start < row.text.length) {
         buffer.write(row.text.substring(start, end.clamp(0, row.text.length)));
       }
-      if (rowIndex != normalized.endRow) {
+      if (rowIndex != normalized.endRow && !row.wrapped) {
         buffer.writeln();
       }
     }

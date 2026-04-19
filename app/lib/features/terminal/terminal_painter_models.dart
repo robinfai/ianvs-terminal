@@ -39,17 +39,20 @@ class TerminalRow {
   const TerminalRow({
     required this.index,
     required this.text,
+    this.wrapped = false,
     this.styleRuns = const [],
   });
 
   final int index;
   final String text;
+  final bool wrapped;
   final List<TerminalStyleRun> styleRuns;
 
   factory TerminalRow.fromJson(Map<String, Object?> json) {
     return TerminalRow(
       index: json['index']! as int,
       text: json['text']! as String,
+      wrapped: json['wrapped'] as bool? ?? false,
       styleRuns: (json['style_runs'] as List<dynamic>? ?? const [])
           .map(
             (entry) => TerminalStyleRun.fromJson(entry as Map<String, Object?>),

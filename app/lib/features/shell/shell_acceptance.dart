@@ -12,6 +12,7 @@ class ShellAcceptanceSnapshot {
     required this.activeSessionId,
     required this.themeMode,
     required this.snapshotVersion,
+    this.terminalFrameSnapshot,
   });
 
   static const empty = ShellAcceptanceSnapshot(
@@ -25,6 +26,7 @@ class ShellAcceptanceSnapshot {
     activeSessionId: null,
     themeMode: 'system',
     snapshotVersion: 0,
+    terminalFrameSnapshot: null,
   );
 
   final bool commandMenuOpen;
@@ -37,6 +39,7 @@ class ShellAcceptanceSnapshot {
   final String? activeSessionId;
   final String themeMode;
   final int snapshotVersion;
+  final Map<String, Object?>? terminalFrameSnapshot;
 
   ShellAcceptanceSnapshot copyWith({
     bool? commandMenuOpen,
@@ -49,6 +52,7 @@ class ShellAcceptanceSnapshot {
     Object? activeSessionId = _noChange,
     String? themeMode,
     int? snapshotVersion,
+    Object? terminalFrameSnapshot = _noChange,
   }) {
     return ShellAcceptanceSnapshot(
       commandMenuOpen: commandMenuOpen ?? this.commandMenuOpen,
@@ -66,6 +70,9 @@ class ShellAcceptanceSnapshot {
           : activeSessionId as String?,
       themeMode: themeMode ?? this.themeMode,
       snapshotVersion: snapshotVersion ?? this.snapshotVersion,
+      terminalFrameSnapshot: identical(terminalFrameSnapshot, _noChange)
+          ? this.terminalFrameSnapshot
+          : terminalFrameSnapshot as Map<String, Object?>?,
     );
   }
 
@@ -78,7 +85,9 @@ class ShellAcceptanceSnapshot {
         terminalPreview == other.terminalPreview &&
         activeTabCount == other.activeTabCount &&
         activeSessionId == other.activeSessionId &&
-        themeMode == other.themeMode;
+        themeMode == other.themeMode &&
+        jsonEncode(terminalFrameSnapshot) ==
+            jsonEncode(other.terminalFrameSnapshot);
   }
 
   Map<String, Object?> toJson() {
@@ -93,6 +102,7 @@ class ShellAcceptanceSnapshot {
       'activeSessionId': activeSessionId,
       'themeMode': themeMode,
       'snapshotVersion': snapshotVersion,
+      'terminalFrameSnapshot': terminalFrameSnapshot,
     };
   }
 

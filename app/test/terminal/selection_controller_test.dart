@@ -41,6 +41,21 @@ void main() {
     expect(text, 'llo\nwor');
   });
 
+  test('textForFrame keeps wrapped rows contiguous for linear selections', () {
+    final controller = SelectionController();
+    controller.begin(const TerminalCellPosition(0, 2));
+    controller.update(const TerminalCellPosition(1, 3));
+
+    final text = controller.textForFrame(
+      frameWithRows(const [
+        TerminalRow(index: 0, text: 'hello', wrapped: true),
+        TerminalRow(index: 1, text: 'world'),
+      ]),
+    );
+
+    expect(text, 'llowor');
+  });
+
   test('textForFrame normalizes reverse multi-line selections', () {
     final controller = SelectionController();
     controller.begin(const TerminalCellPosition(2, 4));

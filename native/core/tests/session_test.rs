@@ -120,16 +120,20 @@ fn clipboard_paste_request_profile() -> TerminalProfile {
 }
 
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
+    wait_for_frame_where(session_id, |frame| frame.contains(needle))
+}
+
+fn wait_for_frame_where(session_id: u64, predicate: impl Fn(&str) -> bool) -> String {
     for _ in 0..20 {
         if let Some(frame) = session::take_frame_diff(session_id)
             .unwrap()
-            .filter(|frame| frame.contains(needle))
+            .filter(|frame| predicate(frame))
         {
             return frame;
         }
         thread::sleep(Duration::from_millis(100));
     }
-    panic!("timed out waiting for frame containing {needle:?}");
+    panic!("timed out waiting for matching frame");
 }
 
 fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
@@ -145,6 +149,26 @@ fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
         thread::sleep(Duration::from_millis(100));
     }
     panic!("timed out waiting for event {kind:?}");
+}
+
+fn logical_rows_from_frame(frame: &str) -> Vec<String> {
+    let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    let rows = parsed["rows"].as_array().expect("expected rows");
+    let mut logical_rows = Vec::new();
+    let mut current = String::new();
+
+    for row in rows {
+        current.push_str(row["text"].as_str().unwrap_or_default().trim_end());
+        if !row["wrapped"].as_bool().unwrap_or(false) {
+            logical_rows.push(std::mem::take(&mut current));
+        }
+    }
+
+    if !current.is_empty() {
+        logical_rows.push(current);
+    }
+
+    logical_rows
 }
 
 #[test]
@@ -211,6 +235,44 @@ fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
 }
 
 #[test]
+fn session_reflows_single_long_line_across_resize() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+    let _ = session::take_frame_diff(session_id).unwrap();
+
+    session::write_session(session_id, b"printf 'reflow-%0130d\\n' 0\n").unwrap();
+
+    let before = wait_for_frame_where(session_id, |frame| {
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.starts_with("reflow-") && row.len() == 137)
+    });
+    assert!(logical_rows_from_frame(&before)
+        .iter()
+        .any(|row| row.starts_with("reflow-") && row.len() == 137));
+
+    session::resize_session(session_id, 40, 24, 0, 0).unwrap();
+
+    let after = wait_for_frame_where(session_id, |frame| {
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.starts_with("reflow-") && row.len() == 137)
+    });
+    let after_parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
+    assert!(after_parsed["rows"]
+        .as_array()
+        .expect("expected rows")
+        .iter()
+        .any(|row| row["wrapped"].as_bool() == Some(true)));
+    assert!(logical_rows_from_frame(&after)
+        .iter()
+        .any(|row| row.starts_with("reflow-") && row.len() == 137));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_surfaces_window_title_from_osc_sequences() {
     let session_id =
         session::create_session(&serde_json::to_string(&title_profile()).unwrap()).unwrap();
@@ -251,8 +313,73 @@ fn session_emits_resize_events_from_terminal_requests() {
     let event = wait_for_event(session_id, "resize");
     assert_eq!(event["payload"]["rows"].as_u64(), Some(30));
     assert_eq!(event["payload"]["cols"].as_u64(), Some(100));
-    let frame = wait_for_frame_containing(session_id, "\"viewport_cols\":100");
-    assert!(frame.contains("\"viewport_rows\":30"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_reflows_scrollback_history_across_resize() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    let marker = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZreflow";
+    let first_line = format!("L00-{marker}");
+    let last_line = format!("L47-{marker}");
+    thread::sleep(Duration::from_millis(250));
+    let _ = session::take_frame_diff(session_id);
+
+    let command = format!(
+        "i=0; while [ \"$i\" -lt 48 ]; do printf 'L%02d-{marker}\\n' \"$i\"; i=$((i + 1)); done\n"
+    );
+    session::write_session(session_id, command.as_bytes()).unwrap();
+
+    let bottom_frame = wait_for_frame_where(session_id, |frame| {
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains(&last_line))
+    });
+    let bottom_parsed: serde_json::Value = serde_json::from_str(&bottom_frame).unwrap();
+    assert!(
+        bottom_parsed["scrollback_max_offset"]
+            .as_u64()
+            .expect("expected scrollback max offset")
+            > 0
+    );
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let top_before = wait_for_frame_where(session_id, |frame| {
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains(&first_line))
+    });
+    assert!(logical_rows_from_frame(&top_before)
+        .iter()
+        .any(|row| row.contains(&first_line)));
+
+    session::resize_session(session_id, 40, 24, 0, 0).unwrap();
+    let top_after = wait_for_frame_where(session_id, |frame| {
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains(&first_line))
+    });
+    let top_after_parsed: serde_json::Value = serde_json::from_str(&top_after).unwrap();
+    assert!(top_after_parsed["rows"]
+        .as_array()
+        .expect("expected rows")
+        .iter()
+        .any(|row| row["wrapped"].as_bool() == Some(true)));
+    assert!(logical_rows_from_frame(&top_after)
+        .iter()
+        .any(|row| row.contains(&first_line)));
+
+    session::scroll_to_session(session_id, 0).unwrap();
+    let bottom_after = wait_for_frame_where(session_id, |frame| {
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains(&last_line))
+    });
+    assert!(logical_rows_from_frame(&bottom_after)
+        .iter()
+        .any(|row| row.contains(&last_line)));
 
     session::close_session(session_id).unwrap();
 }
