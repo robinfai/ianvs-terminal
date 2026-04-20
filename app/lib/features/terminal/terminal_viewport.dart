@@ -49,6 +49,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
   Timer? _cursorBlinkTimer;
   bool _cursorVisible = true;
   FocusNode? _ownedFocusNode;
+  FocusNode? _listenedFocusNode;
   final GlobalKey _surfaceKey = GlobalKey();
   double _pendingScrollLines = 0.0;
 
@@ -59,21 +60,86 @@ class _TerminalViewportState extends State<TerminalViewport> {
   @override
   void initState() {
     super.initState();
-    _cursorBlinkTimer = Timer.periodic(const Duration(milliseconds: 650), (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _cursorVisible = !_cursorVisible;
-      });
-    });
+    widget.controller.addListener(_handleFrameUpdate);
+    _bindFocusNodeListener();
+    _syncCursorBlinkTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant TerminalViewport oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.controller, widget.controller)) {
+      oldWidget.controller.removeListener(_handleFrameUpdate);
+      widget.controller.addListener(_handleFrameUpdate);
+    }
+    if (!identical(oldWidget.focusNode, widget.focusNode)) {
+      _unbindFocusNodeListener();
+      _bindFocusNodeListener();
+    }
+    _syncCursorBlinkTimer();
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_handleFrameUpdate);
+    _unbindFocusNodeListener();
     _cursorBlinkTimer?.cancel();
     _ownedFocusNode?.dispose();
     super.dispose();
+  }
+
+  void _bindFocusNodeListener() {
+    final focusNode = _focusNode;
+    _listenedFocusNode = focusNode;
+    focusNode.addListener(_handleFocusChange);
+  }
+
+  void _unbindFocusNodeListener() {
+    _listenedFocusNode?.removeListener(_handleFocusChange);
+    _listenedFocusNode = null;
+  }
+
+  void _handleFrameUpdate() {
+    if (!mounted) {
+      return;
+    }
+    _syncCursorBlinkTimer();
+  }
+
+  void _handleFocusChange() {
+    if (!mounted) {
+      return;
+    }
+    _syncCursorBlinkTimer();
+  }
+
+  bool get _shouldBlinkCursor {
+    final frameCursorVisible = widget.controller.frame.cursor.visible;
+    return _focusNode.hasFocus && frameCursorVisible;
+  }
+
+  void _syncCursorBlinkTimer() {
+    if (_shouldBlinkCursor) {
+      _cursorBlinkTimer ??= Timer.periodic(const Duration(milliseconds: 650), (
+        _,
+      ) {
+        if (!mounted || !_shouldBlinkCursor) {
+          return;
+        }
+        setState(() {
+          _cursorVisible = !_cursorVisible;
+        });
+      });
+      return;
+    }
+
+    _cursorBlinkTimer?.cancel();
+    _cursorBlinkTimer = null;
+    if (!_cursorVisible) {
+      setState(() {
+        _cursorVisible = true;
+      });
+    }
   }
 
   void _handleScrollDelta(double deltaY) {
