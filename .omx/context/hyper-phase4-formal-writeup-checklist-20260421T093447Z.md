@@ -115,3 +115,4 @@ After this checklist is executed correctly:
 - the repo contains the formal Phase 4 PRD and test-spec
 - an implementation agent can work from those two files plus `docs/TESTING.md`
 - the `defaultProfileId` deprecation review still remains a later, separate planning step
+- when that later step begins, start from `.omx/context/defaultprofileid-deprecation-review-parking-lot-20260421T094305Z.md` instead of reopening the compatibility-window question from scratch
