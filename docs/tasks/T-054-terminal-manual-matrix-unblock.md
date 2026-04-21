@@ -43,6 +43,25 @@ flutter run -d macos
 3. 检查当前机器是否安装 `vttest`；若没有，记录标准准备路径或阻塞条件
 4. 若运行期间复现 `HardwareKeyboard` 重复 `KeyDownEvent`，记录最小复现并拆出新任务
 
+## Current Status
+
+`2026-04-21` 本机复跑结果：
+
+- `flutter test integration_test/flutterm_smoke_test.dart`: `pass`
+- `flutter run -d macos`: `blocked`
+  - app 可构建
+  - Dart VM Service 可附着
+  - 运行器仍打印 `Failed to foreground app; open returned 1`
+  - 60 秒内未进入可确认的真实前置台交互状态
+- `command -v vttest`: `blocked`
+  - 当前机器未安装 `vttest`
+  - `brew info vttest` 已确认标准准备路径可用：`brew install vttest`
+- `HardwareKeyboard` 重复 `KeyDownEvent`：`blocked`
+  - 这次复跑未再次触发
+  - 由于 app 未前置到真实交互桌面，暂时不能视为风险收敛
+
+基于这轮结果，`T-054` 在当前机器上只能完成 blocker 归属确认；`T-055` 应迁移到一台标准交互式 macOS 开发机执行。
+
 ## Done When
 
 - 手工矩阵的主要执行阻塞有明确状态，不再停留在口头结论

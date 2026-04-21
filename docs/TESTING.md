@@ -297,12 +297,16 @@ flutter test integration_test/flutterm_smoke_test.dart
 
 - `VT220 vttest`: `blocked`
   - `command -v vttest` 未返回路径，当前机器没有预装 `vttest`
+  - `brew info vttest` 已确认 Homebrew 提供标准安装入口；标准准备路径为 `brew install vttest`
 - `integration_test/flutterm_smoke_test.dart`: `pass`
   - 自动化 smoke 通过，但运行器仍打印 `Failed to foreground app; open returned 1`
 - `flutter run -d macos`: `blocked`
-  - app 可构建并附着 Dart VM Service，但仍打印 `Failed to foreground app; open returned 1`；`2026-04-21` 的复跑在 60 秒后超时结束，因此不能把这次运行记为真实 GUI 手工 smoke 通过
+  - app 可构建并附着 Dart VM Service，但仍打印 `Failed to foreground app; open returned 1`；`2026-04-21 11:28` 的复跑在 60 秒后超时结束，因此不能把这次运行记为真实 GUI 手工 smoke 通过
 - `HardwareKeyboard` 重复 `KeyDownEvent` 断言: `blocked`
   - `2026-04-21` 的非交互式 `flutter run -d macos` 未再次复现，但由于前置台失败，仍无法把该风险视为已收敛
+- `T-055` 本机执行状态: `blocked`
+  - 当前机器缺少 `vttest`、真实前置台 GUI smoke 和 trackpad / 字体度量-DPI 切换条件
+  - 建议迁移到一台标准交互式 macOS 开发机执行，前置条件至少包括：`brew install vttest`、真实可交互桌面、physical trackpad、至少一组替代字体或 DPI 条件
 
 ## 手工 Smoke Checklist
 
