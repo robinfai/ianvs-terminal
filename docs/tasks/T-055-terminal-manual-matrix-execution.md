@@ -93,6 +93,12 @@ flutter run -d macos
 
 因此，本任务在当前机器上不应伪装成“已执行”；应迁移到满足上述前置条件的标准交互式 macOS 开发机完成。
 
+## Off-Machine Handoff
+
+- Off-machine context snapshot: `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md`
+- Target machine must continue from the latest pushed `HEAD` on branch `codex/hyper-first-shell`, not from an older local stop-point checkout.
+- Current machine remains a blocked host for `T-055`; do not treat this host as if it can complete the manual matrix locally.
+
 ## Done When
 
 - 自动化无法证明的 terminal 矩阵已经得到 `pass` / `fail` / `blocked` 结果
