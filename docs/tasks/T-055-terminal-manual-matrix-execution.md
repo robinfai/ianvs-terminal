@@ -78,6 +78,10 @@ flutter run -d macos
 - 影响范围
 - 最小验证命令，或明确的手工验收线
 - 任务类型仅限：VT220 行为缺口、prompt / glyph / trailing background fidelity、trackpad scrollback、DPI / resize translation、`flutter run -d macos` / `HardwareKeyboard` 环境排障
+- 结果分叉 playbook: `.omx/context/t055-result-branching-playbook-20260421T091946Z.md`
+  - 这是分叉任务 playbook，不是新的结果模板
+  - 编号不预留；按实际出现顺序取当时下一个可用 `T-0NN`
+  - `T-055` 只记录结果和任务回指，不吸收修复过程
 
 若某个子项是 `blocked` 且原因属于 host/tooling（例如 `Failed to foreground app; open returned 1`、缺少 `vttest`、缺少真实 trackpad / DPI 条件），不要把它记成产品回归；先回到 `T-054` 这一类环境排障任务，等标准交互式 macOS 机器准备好后再继续 `T-055`。
 
