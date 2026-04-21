@@ -298,24 +298,70 @@ cd /Users/robinfai/personal/flutterm
 ./tools/check_terminal_manual_matrix_prereqs.sh
 ```
 
+本机 unblock 顺序：
+
+1. 从已登录的 macOS 桌面会话里的 Terminal / iTerm 打开一个全新的 login shell，并串行运行诊断命令，不要并行启动多个 `flutter` 命令
+2. 执行 `type flutterm_no_proxy`，确认 `~/.zshrc` 已加载本地 no-proxy helper
+3. 执行 `command -v vttest`；如果已有路径，不要再把 `vttest` 当成当前 blocker
+4. 运行 `flutterm_no_proxy ./tools/check_terminal_manual_matrix_prereqs.sh`，先收集主机、桌面会话、proxy 状态、Flutter 工具链、设备可见性和 `flutter run` 证据
+5. 再单独执行 `cd app && flutterm_no_proxy flutter run -d macos`，人工确认 app 是否真正前置到真实可交互桌面
+6. 若仍提示 foreground failure，再执行 `cd app && flutterm_no_proxy flutter run -d macos --host-vmservice-port 49200`
+7. 若固定端口重试下 app 已实际位于前台，说明 blocker 更偏向 Flutter tool 前置台判定，而不是 app 无法启动
+8. 若仍无法形成已确认键盘输入的前台 app，会话应被记为 `unsuitable local host`
+
 脚本输出中的 `flutter run -d macos` 预检结果也必须固定使用 `pass` / `fail` / `blocked`。只要脚本本身无法证明 app 已进入真实可交互前置台，就默认按 `blocked` 处理，不要写成模糊状态。
+
+脚本现在还会输出以下本机证据，便于 `T-054` 收口：
+
+- host 与 macOS 版本
+- 当前 shell 是否具备本地桌面会话证据
+- 当前 shell 的 `http_proxy` / `https_proxy` / `all_proxy` / `no_proxy`
+- `flutter --version`
+- `flutter doctor -v`
+- `flutter devices`
+- `flutter run -d macos` 的 app bundle / 进程观测结果
+
+如果诊断过程中出现 `Waiting for another flutter command to release the startup lock...`，先清掉残留 `flutter` 进程，再按上述顺序串行重跑，不要把并发锁竞争误记成 terminal 产品回归。
 
 如果 `vttest` 未安装、`flutter run -d macos` 无法前置台，或环境缺少真实 trackpad / DPI 切换条件，应显式记为 `blocked`，不要省略。
 
-当前环境记录（2026-04-21）：
+当前环境记录（2026-04-22）：
 
-- `VT220 vttest`: `blocked`
-  - `command -v vttest` 未返回路径，当前机器没有预装 `vttest`
-  - `brew info vttest` 已确认 Homebrew 提供标准安装入口；标准准备路径为 `brew install vttest`
-- `integration_test/flutterm_smoke_test.dart`: `pass`
-  - 自动化 smoke 通过，但运行器仍打印 `Failed to foreground app; open returned 1`
+- `shell no_proxy helper`: `pass`
+  - 新 login shell 中 `type flutterm_no_proxy` 可用
+  - `no_proxy` / `NO_PROXY` 均为 `127.0.0.1,localhost,::1`
+- `VT220 vttest`: `pass`
+  - `command -v vttest` 返回 `/opt/homebrew/bin/vttest`
+- `desktop GUI session`: `pass`
+  - `2026-04-22 00:28 CST` 的 no-proxy preflight 证明当前机器存在本地 GUI 桌面会话
+  - host: `BINGHUILUO-MB3`
+  - macOS: `15.7.3 (24G419)`
+  - `launchctl gui/501` 可见，AppleScript 可查询 frontmost app
+  - 同一轮脚本中 `http_proxy` / `https_proxy` / `all_proxy` 已全部显示为 `unset`
+- `flutter doctor -v`: `blocked`
+  - `flutterm_no_proxy` 会话下 20 秒超时
+  - 已输出的摘要确认 Flutter 本体正常，但 Android toolchain / Xcode 仍有环境警告
+- `flutter devices`: `blocked`
+  - `flutterm_no_proxy` 会话下 20 秒超时且无输出
+- `integration_test/flutterm_smoke_test.dart`: `blocked`
+  - `flutterm_no_proxy` 会话下 60 秒超时且无输出
 - `flutter run -d macos`: `blocked`
-  - app 可构建并附着 Dart VM Service，但仍打印 `Failed to foreground app; open returned 1`；`2026-04-21 14:52 CST` 的复跑在 60 秒后超时结束，因此不能把这次运行记为真实 GUI 手工 smoke 通过
+  - `flutterm_no_proxy ./tools/check_terminal_manual_matrix_prereqs.sh` 下仍打印 `Failed to foreground app; open returned 1`
+  - 但同一轮脚本已观测到 `Dart VM Service observed: yes`、`app process likely observed: yes`、`app bundle observed: yes`
+- `fixed-port flutter run`: `partial pass`
+  - `flutterm_no_proxy flutter run -d macos --host-vmservice-port 49200` 可稳定暴露本地 VM Service
+  - 即使 Flutter tool 仍打印 foreground failure，运行时查询仍显示：
+    - frontmost app: `app`
+    - frontmost pid: `64518`
+    - `visible: true`
+  - 当前更像是 Flutter tool 的前置台判定异常，而不是 app 真正没进入前台
 - `HardwareKeyboard` 重复 `KeyDownEvent` 断言: `blocked`
-  - `2026-04-21` 的非交互式 `flutter run -d macos` 未再次复现，但由于前置台失败，仍无法把该风险视为已收敛
+  - 最新复跑未再次复现
+  - 由于还未完成一次已确认键盘交互的前台 app 会话，仍不能把该风险视为已收敛
 - `T-055` 本机执行状态: `blocked`
-  - 当前机器缺少 `vttest`、真实前置台 GUI smoke 和 trackpad / 字体度量-DPI 切换条件
-  - 建议迁移到一台标准交互式 macOS 开发机执行，前置条件至少包括：`brew install vttest`、真实可交互桌面、physical trackpad、至少一组替代字体或 DPI 条件
+  - `vttest` 已可用，shell no-proxy 路径也已验证
+  - 剩余 blocker 集中在 Flutter tool 前置台/会话行为，以及还未完成的键盘交互、trackpad 和字体度量 / DPI 切换确认
+  - 当前更合理的下一步是继续 `T-054` 的 host/tooling unblock，而不是把本机直接当作 `T-055` 完成机
 
 若任一 terminal 手工矩阵子项结果为 `fail`，必须立即拆成 focused task，并包含最小复现、影响范围，以及最小验证命令或明确的手工验收线。若结果是 `blocked` 且原因属于 host/tooling，则继续走 `T-054` 这类环境排障路径，不要把它误记成 terminal 产品回归。
 

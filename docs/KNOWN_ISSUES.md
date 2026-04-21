@@ -31,9 +31,9 @@
 
 ## 当前环境相关风险
 
-- 在当前受限的 macOS 运行环境里执行 `flutter run -d macos` 时，应用仍可能打印 `Failed to foreground app; open returned 1`。`2026-04-21 14:52 CST` 的 preflight 复跑里 app 已成功构建并附着 Dart VM Service，但 60 秒内仍未能稳定前置到可交互桌面，因此 terminal 主链路任务暂时不能在这里完成真实 GUI smoke。这类 `blocked` 结论应继续归入环境排障，不应记成 terminal 产品回归。
-- 当前常用开发环境未默认提供 `vttest`，VT220 手工矩阵依赖额外工具准备；当前已确认 Homebrew 提供标准安装入口，可用 `brew install vttest` 作为标准开发机准备路径。执行 `T-055` 的目标机器还需要真实可交互桌面、physical trackpad，以及至少一组替代字体或 DPI 条件。
-- 同一环境下偶发 Flutter `HardwareKeyboard` 重复 `KeyDownEvent` 断言（已观察到 `Backspace` 与 `Y`），异常发生在框架键盘状态校验阶段。`2026-04-21` 的非交互式 `flutter run -d macos` 复跑未再次触发该断言，但因为前置台问题仍阻塞真实键盘交互，这个风险暂时只能继续视为间歇性环境 / Flutter 输入链路风险，后续如持续复现需独立排查。
+- 当前 shell 层已经补上 `no_proxy` / `NO_PROXY=127.0.0.1,localhost,::1`，并提供 `flutterm_no_proxy` helper；在该 no-proxy 会话下，`vttest` 已可直接解析到 `/opt/homebrew/bin/vttest`，`flutter run -d macos` 也能稳定建立本地 Dart VM Service 和 app 进程。但 Flutter tool 仍可能同时打印 `Failed to foreground app; open returned 1`，说明当前 blocker 已经从“代理和工具缺失”收窄到“Flutter tool 前置台/会话判定异常”，而不是 terminal 产品回归。
+- `flutterm_no_proxy flutter run -d macos --host-vmservice-port 49200` 的固定端口重试显示：即使 Flutter tool 仍报告 foreground failure，运行中的 app 仍可能已经是 frontmost 且 `visible=true`。因此，当前环境问题更像是前置台检测竞态或工具链误报；在没有完成人工键盘输入确认之前，不能直接把当前机器判成 `usable for real GUI smoke`。
+- 同一环境下偶发 Flutter `HardwareKeyboard` 重复 `KeyDownEvent` 断言（已观察到 `Backspace` 与 `Y`），异常发生在框架键盘状态校验阶段。`2026-04-22` 的 no-proxy preflight 和固定端口 `flutter run` 都未再次复现该断言，但由于当前仍未完成一次已确认键盘输入的前台 terminal 会话，这个风险暂时仍只能继续视为间歇性环境 / Flutter 输入链路风险，后续如持续复现需独立排查。
 
 ## 使用建议
 

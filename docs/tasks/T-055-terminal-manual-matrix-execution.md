@@ -87,15 +87,21 @@ flutter run -d macos
 
 ## Current Local Status
 
-`2026-04-21` 当前机器状态：`blocked`
+`2026-04-22` 当前机器状态：`blocked`
 
-- `./tools/check_terminal_manual_matrix_prereqs.sh` 已在 `2026-04-21 14:52 CST` 复跑，结果与此前 blocker 结论一致
-- `integration_test/flutterm_smoke_test.dart` 已通过，可作为自动化基线
-- `flutter run -d macos` 仍打印 `Failed to foreground app; open returned 1`
-- `vttest` 未安装
-- 当前执行环境不满足真实 trackpad 与字体度量 / DPI 切换验证条件
+- `zsh` login shell 已补上 `no_proxy` / `NO_PROXY=127.0.0.1,localhost,::1`，且 `flutterm_no_proxy` helper 可用
+- `command -v vttest` 现已返回 `/opt/homebrew/bin/vttest`，所以 `vttest` 不再是当前机器的 blocker
+- `flutterm_no_proxy ./tools/check_terminal_manual_matrix_prereqs.sh` 已在 `2026-04-22 00:28 CST` 复跑：
+  - `flutter doctor -v`: `blocked`
+  - `flutter devices`: `blocked`
+  - `integration_test/flutterm_smoke_test.dart`: `blocked`
+  - `flutter run -d macos`: `blocked`
+    - 仍打印 `Failed to foreground app; open returned 1`
+    - 但已能观测到 Dart VM Service、app process 和 app bundle
+- `flutterm_no_proxy flutter run -d macos --host-vmservice-port 49200` 的固定端口重跑显示 app 实际已处于前台且 `visible=true`，但尚未完成人工键盘输入确认
+- 当前执行环境仍不满足真实 trackpad 与字体度量 / DPI 切换验证条件
 
-因此，本任务在当前机器上不应伪装成“已执行”；应迁移到满足上述前置条件的标准交互式 macOS 开发机完成。
+因此，本任务在当前机器上仍不应伪装成“已执行”；虽然 shell no-proxy 和 `vttest` 已经到位，但在完成前台键盘交互确认以及 trackpad / DPI 条件准备前，`T-055` 仍应迁移到满足前置条件的标准交互式 macOS 开发机完成。
 
 ## Off-Machine Handoff
 
