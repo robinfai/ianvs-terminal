@@ -6,3 +6,5 @@
 [2026-04-15T08:47:42.878Z] Ralph deslop pass on changed files only (terminal_input_controller.dart, terminal_input_controller_test.dart, docs/tasks/T-008...). Cleanup plan: keep scope bounded; remove needless shortcut helper wrappers in TerminalInputController; preserve new Ctrl+C regression behavior; rerun full verification after cleanup.
 
 [2026-04-21T08:10:04Z] 78508cd froze the local T-055 manual-matrix stop point. Added off-machine handoff context snapshot for branch codex/hyper-first-shell so the next machine can take over T-055. Phase 4 planning and defaultProfileId deprecation review remain gated behind a completed T-055.
+
+[2026-04-21T08:47:36Z] Captured a post-T-055 Phase 4 interaction-polish skeleton context snapshot at .omx/context/hyper-phase4-interaction-polish-skeleton-20260421T084736Z.md. It defines the future PRD/test-spec structure, minimum regression chain, and deprecation-review parking lot without creating gated `.omx/plans/` files before T-055 closes.

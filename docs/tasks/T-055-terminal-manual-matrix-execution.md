@@ -109,6 +109,9 @@ flutter run -d macos
 
 只有当四类手工矩阵都拿到明确结果、且没有新的产品级 `fail` 压住优先级时，后续才默认切到 Hyper-like `Phase 4` 的 PRD + test-spec 规划；在这之前不要跳过 `T-055` 直接开启新的产品迭代。
 
+- Phase 4 skeleton context snapshot: `.omx/context/hyper-phase4-interaction-polish-skeleton-20260421T084736Z.md`
+- 在 `T-055` 清空前，不要提前创建 `.omx/plans/prd-hyper-like-phase4-interaction-polish.md` 或 `.omx/plans/test-spec-hyper-like-phase4-interaction-polish.md`
+
 ## Risks / Follow-ups
 
 - 若 `T-054` 未真正解除环境阻塞，本任务可能只能产出部分 `blocked` 结果
