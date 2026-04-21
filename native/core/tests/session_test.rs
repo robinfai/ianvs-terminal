@@ -156,6 +156,63 @@ fn vt220_da_profile() -> TerminalProfile {
     }
 }
 
+fn vt220_title_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "vt220-title".to_string(),
+        name: "VT220 Title".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "printf '\\033]2;构建目标\\a'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Vt220,
+    }
+}
+
+fn vt220_icon_name_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "vt220-icon-name".to_string(),
+        name: "VT220 Icon Name".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "printf '\\033]1;图标名称\\a'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Vt220,
+    }
+}
+
+fn vt220_clipboard_copy_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "vt220-clipboard-copy".to_string(),
+        name: "VT220 Clipboard Copy".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "printf '\\033]52;c;5aSN5Yi25YaF5a658J+Mnw==\\a'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Vt220,
+    }
+}
+
+fn vt220_clipboard_paste_request_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "vt220-clipboard-paste".to_string(),
+        name: "VT220 Clipboard Paste".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec!["-lc".to_string(), "printf '\\033]52;c;?\\a'".to_string()],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Vt220,
+    }
+}
+
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     wait_for_frame_where(session_id, |frame| frame.contains(needle))
 }
@@ -186,6 +243,24 @@ fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
         thread::sleep(Duration::from_millis(100));
     }
     panic!("timed out waiting for event {kind:?}");
+}
+
+fn assert_event_kind_never_arrives(session_id: u64, kind: &str) {
+    for _ in 0..10 {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        let matching = parsed
+            .as_array()
+            .expect("expected events array")
+            .iter()
+            .find(|entry| entry["kind"] == kind);
+        assert!(
+            matching.is_none(),
+            "unexpected event {kind:?}: {}",
+            serde_json::to_string_pretty(&parsed).unwrap()
+        );
+        thread::sleep(Duration::from_millis(50));
+    }
 }
 
 fn logical_rows_from_frame(frame: &str) -> Vec<String> {
@@ -360,6 +435,22 @@ fn session_surfaces_window_title_from_osc_sequences() {
 }
 
 #[test]
+fn vt220_sessions_do_not_surface_window_title_from_osc_sequences() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&vt220_title_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["window_title"].as_str(), None);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_surfaces_window_icon_name_from_osc_sequences() {
     let session_id =
         session::create_session(&serde_json::to_string(&icon_name_profile()).unwrap()).unwrap();
@@ -371,6 +462,23 @@ fn session_surfaces_window_icon_name_from_osc_sequences() {
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
 
     assert_eq!(parsed["window_icon_name"].as_str(), Some("图标名称"),);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_do_not_surface_window_icon_name_from_osc_sequences() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&vt220_icon_name_profile()).unwrap())
+            .unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["window_icon_name"].as_str(), None);
 
     session::close_session(session_id).unwrap();
 }
@@ -480,6 +588,17 @@ fn session_emits_clipboard_copy_events_from_osc_52() {
 }
 
 #[test]
+fn vt220_sessions_do_not_emit_clipboard_copy_events_from_osc_52() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&vt220_clipboard_copy_profile()).unwrap())
+            .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "clipboard_copy");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_emits_clipboard_paste_requests_from_osc_52_queries() {
     let session_id = session::create_session(
         &serde_json::to_string(&clipboard_paste_request_profile()).unwrap(),
@@ -488,6 +607,18 @@ fn session_emits_clipboard_paste_requests_from_osc_52_queries() {
 
     let event = wait_for_event(session_id, "clipboard_paste_request");
     assert_eq!(event["payload"]["selection"].as_str(), Some("c"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_do_not_emit_clipboard_paste_requests_from_osc_52_queries() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&vt220_clipboard_paste_request_profile()).unwrap(),
+    )
+    .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "clipboard_paste_request");
 
     session::close_session(session_id).unwrap();
 }

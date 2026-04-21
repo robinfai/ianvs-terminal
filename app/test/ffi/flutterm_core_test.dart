@@ -30,9 +30,7 @@ void main() {
   });
 
   test('terminal core client surfaces OSC window title requests', () {
-    final client = TerminalCoreClient(
-      FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
-    );
+    final client = _loadRealClient();
 
     final sessionId = client.createSession(
       defaultTerminalProfile().copyWith(
@@ -61,14 +59,62 @@ void main() {
     expect(frame.windowTitle, 'Build Target');
   });
 
+  test('terminal core client surfaces OSC window icon requests', () {
+    final client = _loadRealClient();
+
+    final sessionId = client.createSession(
+      defaultTerminalProfile().copyWith(
+        id: 'icon-check',
+        name: 'Icon Check',
+        shell: '/bin/sh',
+        args: const ['-lc', "printf '\\033]1;Build Icon\\a'"],
+      ),
+    );
+    addTearDown(() => client.closeSession(sessionId));
+
+    final frame = _waitForFrameWhere(
+      client,
+      sessionId,
+      (frame) => frame.windowIconName == 'Build Icon',
+    );
+
+    expect(frame.windowIconName, 'Build Icon');
+  });
+
+  test(
+    'terminal core client suppresses xterm window chrome callbacks in VT220 mode',
+    () {
+      final client = _loadRealClient();
+
+      final sessionId = client.createSession(
+        vt220TerminalProfile().copyWith(
+          id: 'vt220-host-chrome',
+          name: 'VT220 Host Chrome',
+          shell: '/bin/sh',
+          args: const [
+            '-lc',
+            "printf '\\033]2;Build Target\\a\\033]1;Build Icon\\a'",
+          ],
+        ),
+      );
+      addTearDown(() => client.closeSession(sessionId));
+
+      final frame = _waitForFrameWhere(
+        client,
+        sessionId,
+        (_) => true,
+        description: 'initial VT220 frame',
+      );
+
+      expect(frame.windowTitle, isNull);
+      expect(frame.windowIconName, isNull);
+    },
+  );
+
   test(
     'terminal core client can roundtrip input through a real PTY session',
     () {
-      final client = TerminalCoreClient(
-        FluttermCoreBindings(
-          ffi.DynamicLibrary.open(_resolveTestLibraryPath()),
-        ),
-      );
+      final client = _loadRealClient();
 
       final sessionId = client.createSession(
         defaultTerminalProfile().copyWith(
@@ -116,11 +162,7 @@ void main() {
   test(
     'terminal core client can roundtrip multiple commands through one PTY session',
     () {
-      final client = TerminalCoreClient(
-        FluttermCoreBindings(
-          ffi.DynamicLibrary.open(_resolveTestLibraryPath()),
-        ),
-      );
+      final client = _loadRealClient();
 
       final sessionId = client.createSession(
         defaultTerminalProfile().copyWith(
@@ -166,11 +208,7 @@ void main() {
   test(
     'terminal core client stays interactive after a longer PTY output burst',
     () {
-      final client = TerminalCoreClient(
-        FluttermCoreBindings(
-          ffi.DynamicLibrary.open(_resolveTestLibraryPath()),
-        ),
-      );
+      final client = _loadRealClient();
 
       final sessionId = client.createSession(
         defaultTerminalProfile().copyWith(
@@ -217,9 +255,7 @@ void main() {
   );
 
   test('terminal core client reflows long lines across resize', () {
-    final client = TerminalCoreClient(
-      FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
-    );
+    final client = _loadRealClient();
 
     final sessionId = client.createSession(
       defaultTerminalProfile().copyWith(
@@ -277,11 +313,7 @@ void main() {
   test(
     'terminal core client stays interactive across different shell prompts',
     () {
-      final client = TerminalCoreClient(
-        FluttermCoreBindings(
-          ffi.DynamicLibrary.open(_resolveTestLibraryPath()),
-        ),
-      );
+      final client = _loadRealClient();
 
       const cases = [
         ('prompt-one', 'ffi-one>', 'first prompt marker'),
@@ -328,9 +360,7 @@ void main() {
   );
 
   test('terminal core client surfaces shell exit events', () {
-    final client = TerminalCoreClient(
-      FluttermCoreBindings(ffi.DynamicLibrary.open(_resolveTestLibraryPath())),
-    );
+    final client = _loadRealClient();
 
     final sessionId = client.createSession(
       defaultTerminalProfile().copyWith(
@@ -362,6 +392,98 @@ void main() {
     expect(exitEvent, isNotNull, reason: 'expected shell exit event');
     expect(exitEvent!.payload?['code'], 7);
   });
+
+  test(
+    'terminal core client emits OSC 52 clipboard callbacks in xterm mode',
+    () {
+      final client = _loadRealClient();
+
+      final sessionId = client.createSession(
+        defaultTerminalProfile().copyWith(
+          id: 'xterm-clipboard-check',
+          name: 'Xterm Clipboard Check',
+          shell: '/bin/sh',
+          args: const [],
+        ),
+      );
+      addTearDown(() => client.closeSession(sessionId));
+
+      sleep(const Duration(milliseconds: 250));
+      client.takeFrameDiff(sessionId);
+      client.pollEvents(sessionId);
+
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList(
+          "printf '\\033]52;c;5aSN5Yi25YaF5a658J+Mnw==\\a'\n".codeUnits,
+        ),
+      );
+      final copyEvent = _waitForEventKind(client, sessionId, 'clipboard_copy');
+      expect(copyEvent.payload?['selection'], 'c');
+      expect(copyEvent.payload?['data'], '5aSN5Yi25YaF5a658J+Mnw==');
+
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList("printf '\\033]52;c;?\\a'\n".codeUnits),
+      );
+      final pasteEvent = _waitForEventKind(
+        client,
+        sessionId,
+        'clipboard_paste_request',
+      );
+      expect(pasteEvent.payload?['selection'], 'c');
+    },
+  );
+
+  test(
+    'terminal core client suppresses OSC 52 clipboard callbacks in VT220 mode',
+    () {
+      final client = _loadRealClient();
+
+      final sessionId = client.createSession(
+        vt220TerminalProfile().copyWith(
+          id: 'vt220-clipboard-check',
+          name: 'VT220 Clipboard Check',
+          shell: '/bin/sh',
+          args: const [],
+        ),
+      );
+      addTearDown(() => client.closeSession(sessionId));
+
+      sleep(const Duration(milliseconds: 250));
+      client.takeFrameDiff(sessionId);
+      client.pollEvents(sessionId);
+
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList(
+          "printf '\\033]52;c;5aSN5Yi25YaF5a658J+Mnw==\\a'\n".codeUnits,
+        ),
+      );
+      _expectNoEventKind(client, sessionId, 'clipboard_copy');
+
+      client.sendInput(
+        sessionId,
+        Uint8List.fromList("printf '\\033]52;c;?\\a'\n".codeUnits),
+      );
+      _expectNoEventKind(client, sessionId, 'clipboard_paste_request');
+    },
+  );
+}
+
+TerminalCoreClient _loadRealClient() {
+  final libraryPath = _resolveTestLibraryPath();
+  try {
+    return TerminalCoreClient(
+      FluttermCoreBindings(ffi.DynamicLibrary.open(libraryPath)),
+    );
+  } on ArgumentError catch (error) {
+    throw StateError(
+      'Failed to load libflutterm_core.dylib from $libraryPath. '
+      'Run /Users/robinfai/personal/flutterm/tools/build_core.sh before Flutter-side PTY tests. '
+      'Original error: $error',
+    );
+  }
 }
 
 String _resolveTestLibraryPath() {
@@ -380,6 +502,45 @@ String _resolveTestLibraryPath() {
   throw StateError(
     'Unable to locate libflutterm_core.dylib for Flutter-side PTY test.',
   );
+}
+
+TerminalEvent _waitForEventKind(
+  TerminalCoreClient client,
+  String sessionId,
+  String kind,
+) {
+  for (var attempt = 0; attempt < 20; attempt += 1) {
+    sleep(const Duration(milliseconds: 100));
+    final matching = client
+        .pollEvents(sessionId)
+        .where((event) => event.kind == kind)
+        .toList();
+    if (matching.isNotEmpty) {
+      return matching.first;
+    }
+  }
+
+  throw StateError('Timed out waiting for event "$kind".');
+}
+
+void _expectNoEventKind(
+  TerminalCoreClient client,
+  String sessionId,
+  String kind,
+) {
+  for (var attempt = 0; attempt < 10; attempt += 1) {
+    sleep(const Duration(milliseconds: 100));
+    final matching = client
+        .pollEvents(sessionId)
+        .where((event) => event.kind == kind)
+        .toList();
+    expect(
+      matching,
+      isEmpty,
+      reason:
+          'unexpected $kind events: ${matching.map((event) => event.payload).toList()}',
+    );
+  }
 }
 
 TerminalFrameDiff _waitForFrameContaining(

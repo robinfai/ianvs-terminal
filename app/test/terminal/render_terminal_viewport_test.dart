@@ -89,6 +89,9 @@ void main() {
         renderObject.debugParagraphBuilds,
         lessThan(buildsAfterFirstPaint + 3),
       );
+      expect(controller.measuredCellSize, renderObject.debugCellSize);
+      expect(controller.measuredCellSize!.width, greaterThan(0));
+      expect(controller.measuredCellSize!.height, greaterThan(0));
     },
   );
 

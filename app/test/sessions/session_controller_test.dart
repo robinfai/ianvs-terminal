@@ -362,6 +362,12 @@ void main() {
 
     controller.resizeActiveSession(const Size(640, 480), 2.0);
     expect(coreBindings.resizeCalls, hasLength(1));
+    expect(
+      coreBindings.resizeCalls.single,
+      [int.parse(sessionId), 71, 26, 1280, 960],
+      reason:
+          'falls back to the default cell size before viewport metrics exist',
+    );
 
     controller.resizeActiveSession(const Size(640, 480), 2.0);
     expect(
@@ -380,6 +386,55 @@ void main() {
     expect(last[3], greaterThan(0));
     expect(last[4], greaterThan(0));
   });
+
+  test(
+    'resizeActiveSession prefers measured viewport cell size when available',
+    () {
+      final coreBindings = FakeCoreBindings();
+      final coreClient = TerminalCoreClient(coreBindings);
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              const TerminalProfilesDocument(
+                defaultProfileId: '',
+                profiles: [],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(
+        defaultTerminalProfile().copyWith(id: 'shell-1'),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      controller
+          .viewportFor(sessionId)
+          .updateMeasuredCellSize(const Size(10, 20));
+
+      controller.resizeActiveSession(const Size(640, 480), 2.0);
+
+      expect(coreBindings.resizeCalls, hasLength(1));
+      expect(coreBindings.resizeCalls.single, [
+        int.parse(sessionId),
+        64,
+        24,
+        1280,
+        960,
+      ]);
+    },
+  );
 
   test('refreshing a session applies OSC window titles to the tab title', () {
     final coreBindings = FakeCoreBindings();

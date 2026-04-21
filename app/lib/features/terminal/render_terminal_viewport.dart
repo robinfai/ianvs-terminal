@@ -55,7 +55,7 @@ class RenderTerminalViewport extends RenderBox {
   final Map<int, _CachedParagraph> _paragraphCache = {};
   final Map<int, List<TerminalResolvedStyle>> _debugResolvedStyles = {};
   int _paragraphBuilds = 0;
-  Size _cellSize = const Size(9, 18);
+  Size _cellSize = terminalFallbackCellSize;
   List<String> _debugLastPaintedRowTexts = const [];
 
   set controller(TerminalViewportController value) {
@@ -110,6 +110,7 @@ class RenderTerminalViewport extends RenderBox {
 
     final frame = _controller.frame;
     _cellSize = _measureCellSize();
+    _controller.updateMeasuredCellSize(_cellSize);
     final selection = _selectionController.selection;
     final paintedRowTexts = <String>[];
 

@@ -279,8 +279,10 @@ class SessionController extends Notifier<SessionState> {
     if (sessionId == null) {
       return;
     }
-    final cellWidth = 9.0;
-    final cellHeight = 18.0;
+    final measuredCellSize =
+        viewportFor(sessionId).measuredCellSize ?? terminalFallbackCellSize;
+    final cellWidth = measuredCellSize.width;
+    final cellHeight = measuredCellSize.height;
     final cols = math.max(20, (viewportSize.width / cellWidth).floor());
     final rows = math.max(8, (viewportSize.height / cellHeight).floor());
     final pixelWidth = (viewportSize.width * devicePixelRatio).round();

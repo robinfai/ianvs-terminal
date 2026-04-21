@@ -11,15 +11,28 @@ import 'terminal_painter_models.dart';
 
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
+const Size terminalFallbackCellSize = Size(9, 18);
 
 class TerminalViewportController extends ChangeNotifier {
   TerminalFrameDiff _frame = TerminalFrameDiff.empty;
+  Size? _measuredCellSize;
 
   TerminalFrameDiff get frame => _frame;
+  Size? get measuredCellSize => _measuredCellSize;
 
   void updateFrame(TerminalFrameDiff value) {
     _frame = value;
     notifyListeners();
+  }
+
+  void updateMeasuredCellSize(Size value) {
+    if (!value.isFinite ||
+        value.width <= 0 ||
+        value.height <= 0 ||
+        _measuredCellSize == value) {
+      return;
+    }
+    _measuredCellSize = value;
   }
 }
 
@@ -171,7 +184,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
         return renderObject.size.height / frame.viewportRows;
       }
     }
-    return 18.0;
+    return terminalFallbackCellSize.height;
   }
 
   @override

@@ -27,11 +27,13 @@
 - 还没有自动化性能回归检查
 - 还没有跨平台验证
 - 还没有 SSH 兼容性验证
+- 还没有稳定执行的 terminal 手工兼容性矩阵（VT220 `vttest`、powerline / ANSI prompt、真实 trackpad scrollback、字体度量 / DPI resize）
 
 ## 当前环境相关风险
 
-- 在当前受限的 macOS 运行环境里执行 `flutter run -d macos` 时，应用可能无法前置到可交互桌面，因此 terminal 主链路任务暂时不能在这里完成真实 GUI smoke。
-- 同一环境下偶发 Flutter `HardwareKeyboard` 重复 `KeyDownEvent` 断言（已观察到 `Backspace`），异常发生在框架键盘状态校验阶段，当前先视为环境 / Flutter 输入链路风险，后续如持续复现需独立排查。
+- 在当前受限的 macOS 运行环境里执行 `flutter run -d macos` 时，应用仍可能打印 `Failed to foreground app; open returned 1`。`2026-04-21` 的复跑里 app 已成功构建并附着 Dart VM Service，但 60 秒内仍未能稳定前置到可交互桌面，因此 terminal 主链路任务暂时不能在这里完成真实 GUI smoke。
+- 当前常用开发环境未默认提供 `vttest`，VT220 手工矩阵依赖额外工具准备。
+- 同一环境下偶发 Flutter `HardwareKeyboard` 重复 `KeyDownEvent` 断言（已观察到 `Backspace` 与 `Y`），异常发生在框架键盘状态校验阶段。`2026-04-21` 的非交互式 `flutter run -d macos` 复跑未再次触发该断言，但因为前置台问题仍阻塞真实键盘交互，这个风险暂时只能继续视为间歇性环境 / Flutter 输入链路风险，后续如持续复现需独立排查。
 
 ## 使用建议
 

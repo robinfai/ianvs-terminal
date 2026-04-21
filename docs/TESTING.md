@@ -28,6 +28,17 @@ cd /Users/robinfai/personal/flutterm/app
 flutter run -d macos
 ```
 
+### Flutter 侧 terminal 验证链
+
+推荐入口：
+
+```bash
+cd /Users/robinfai/personal/flutterm
+./tools/verify_flutter_terminal.sh
+```
+
+这个入口会先刷新 `native/core/target/debug/libflutterm_core.dylib`，再运行 Flutter 侧的 `analyze` / `flutter test` / `integration_test`，避免 FFI / PTY 测试加载到过期 dylib。
+
 ## 按改动类型选择命令
 
 ### 只改 Flutter UI 或状态层
@@ -48,6 +59,45 @@ flutter run -d macos
 - `cargo fmt --check`
 - `cargo test`
 - 相关 Flutter 侧测试
+
+如果本次改动会影响 Flutter 侧 FFI / PTY / integration 验证，额外执行：
+
+- `cd /Users/robinfai/personal/flutterm`
+- `./tools/verify_flutter_terminal.sh`
+
+### 改 terminal emulation / VT220 host-feature gating
+
+必须执行：
+
+- `cargo fmt --check`
+- `cargo test`
+- `flutter analyze`
+- `flutter test test/ffi/flutterm_core_test.dart`
+- `flutter test test/terminal_input_controller_test.dart`
+
+重点确认：
+
+- VT220 profile 继续返回 VT220 DA
+- VT220 profile 不暴露 `window_title`、`window_icon_name`、OSC 52 copy/paste 事件
+- 默认 xterm profile 继续保留这些 host features
+- VT220 keyboard / paste contract 不回归
+
+### 改 terminal resize / cell metrics contract
+
+必须执行：
+
+- `flutter analyze`
+- `flutter test test/sessions/session_controller_test.dart`
+- `flutter test test/terminal/render_terminal_viewport_test.dart`
+- `flutter test`
+- `flutter test integration_test/flutterm_smoke_test.dart`
+
+重点确认：
+
+- `resizeActiveSession()` 优先使用 viewport 实测 cell size，而不是长期依赖 `9x18` 硬编码
+- viewport 首帧尚未产出测量值时，fallback 行为仍可工作
+- identical resize request 继续被 dedupe
+- scroll、selection、cursor blink、visible-content repaint 不回归
 
 ### 改 terminal 主链路、输入、滚动、viewport
 
@@ -219,7 +269,40 @@ flutter test integration_test/flutterm_smoke_test.dart
 
 当前未覆盖：
 
-- 暂无新的自动化缺口；若后续扩展 block selection 的快捷键/空格 padding 语义，再补专项回归
+- 自动化未直接证明、仍需人工验证的 terminal 矩阵：
+  - VT220 `vttest` 基本矩阵
+  - powerline / ANSI prompt fidelity
+  - 真实 trackpad scrollback 交互
+  - 不同字体度量 / DPI 下的 resize 与 window-size translation
+  - 若后续扩展 block selection 的快捷键 / 空格 padding 语义，再补专项回归
+
+## Terminal 手工矩阵
+
+以下矩阵目前不应被自动化通过结果替代：
+
+1. VT220 `vttest`
+2. powerline / ANSI prompt fidelity
+3. 真实 trackpad scrollback
+4. 字体度量 / DPI resize
+
+建议记录格式：
+
+- `pass`
+- `fail`
+- `blocked`
+
+如果 `vttest` 未安装、`flutter run -d macos` 无法前置台，或环境缺少真实 trackpad / DPI 切换条件，应显式记为 `blocked`，不要省略。
+
+当前环境记录（2026-04-21）：
+
+- `VT220 vttest`: `blocked`
+  - `command -v vttest` 未返回路径，当前机器没有预装 `vttest`
+- `integration_test/flutterm_smoke_test.dart`: `pass`
+  - 自动化 smoke 通过，但运行器仍打印 `Failed to foreground app; open returned 1`
+- `flutter run -d macos`: `blocked`
+  - app 可构建并附着 Dart VM Service，但仍打印 `Failed to foreground app; open returned 1`；`2026-04-21` 的复跑在 60 秒后超时结束，因此不能把这次运行记为真实 GUI 手工 smoke 通过
+- `HardwareKeyboard` 重复 `KeyDownEvent` 断言: `blocked`
+  - `2026-04-21` 的非交互式 `flutter run -d macos` 未再次复现，但由于前置台失败，仍无法把该风险视为已收敛
 
 ## 手工 Smoke Checklist
 
