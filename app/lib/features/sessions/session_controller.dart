@@ -279,8 +279,7 @@ class SessionController extends Notifier<SessionState> {
     if (sessionId == null) {
       return;
     }
-    final measuredCellSize =
-        viewportFor(sessionId).measuredCellSize ?? terminalFallbackCellSize;
+    final measuredCellSize = _cellSizeFor(sessionId);
     final cellWidth = measuredCellSize.width;
     final cellHeight = measuredCellSize.height;
     final cols = math.max(20, (viewportSize.width / cellWidth).floor());
@@ -445,8 +444,9 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
 
-    final targetWidth = cols * 9.0;
-    final targetHeight = rows * 18.0;
+    final measuredCellSize = _cellSizeFor(sessionId);
+    final targetWidth = cols * measuredCellSize.width;
+    final targetHeight = rows * measuredCellSize.height;
     final widthDelta = targetWidth - metric.logicalWidth;
     final heightDelta = targetHeight - metric.logicalHeight;
     final targetPixelWidth = math.max(
@@ -491,6 +491,10 @@ class SessionController extends Notifier<SessionState> {
       widthDelta: widthDelta,
       heightDelta: heightDelta,
     );
+  }
+
+  Size _cellSizeFor(String sessionId) {
+    return viewportFor(sessionId).measuredCellSize ?? terminalFallbackCellSize;
   }
 
   Future<void> _handleClipboardCopyEvent(Map<String, Object?>? payload) async {

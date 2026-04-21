@@ -601,6 +601,76 @@ void main() {
     },
   );
 
+  test(
+    'resize events honor measured cell size before resizing the macOS window',
+    () async {
+      final bindings = _EventfulCoreBindings(FakeCoreBindings());
+      final coreClient = TerminalCoreClient(bindings);
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      MethodCall? resizeCall;
+      const channel = MethodChannel('app/window_bridge');
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'resizeBy') {
+          resizeCall = call;
+        }
+        return null;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              const TerminalProfilesDocument(
+                defaultProfileId: '',
+                profiles: [],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(
+        defaultTerminalProfile().copyWith(id: 'shell-1'),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      controller
+          .viewportFor(sessionId)
+          .updateMeasuredCellSize(const Size(10, 20));
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'resize',
+        'session_id': int.parse(sessionId),
+        'payload': {'rows': 30, 'cols': 100},
+      });
+
+      controller.resizeActiveSession(const Size(640, 480), 1.0);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(bindings._delegate.resizeCalls, hasLength(2));
+      expect(bindings._delegate.resizeCalls.last, [
+        int.parse(sessionId),
+        100,
+        30,
+        1000,
+        600,
+      ]);
+      expect(resizeCall, isNotNull);
+      expect((resizeCall!.arguments as Map)['widthDelta'], 360.0);
+      expect((resizeCall!.arguments as Map)['heightDelta'], 120.0);
+    },
+  );
+
   test('OSC 52 copy events decode UTF-8 clipboard text', () async {
     final bindings = _EventfulCoreBindings(FakeCoreBindings());
     final coreClient = TerminalCoreClient(bindings);
