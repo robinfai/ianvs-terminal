@@ -8,3 +8,5 @@
 [2026-04-21T08:10:04Z] 78508cd froze the local T-055 manual-matrix stop point. Added off-machine handoff context snapshot for branch codex/hyper-first-shell so the next machine can take over T-055. Phase 4 planning and defaultProfileId deprecation review remain gated behind a completed T-055.
 
 [2026-04-21T08:47:36Z] Captured a post-T-055 Phase 4 interaction-polish skeleton context snapshot at .omx/context/hyper-phase4-interaction-polish-skeleton-20260421T084736Z.md. It defines the future PRD/test-spec structure, minimum regression chain, and deprecation-review parking lot without creating gated `.omx/plans/` files before T-055 closes.
+
+[2026-04-21T08:54:50Z] Added a dedicated T-055 target-machine execution runbook at .omx/context/t055-target-machine-execution-runbook-20260421T085450Z.md. The stop-point handoff snapshot remains in place, but the next machine should follow the runbook instead of reconstructing the execution flow. Formal Phase 4 `.omx/plans/` files and the defaultProfileId deprecation review remain gated behind a completed T-055.

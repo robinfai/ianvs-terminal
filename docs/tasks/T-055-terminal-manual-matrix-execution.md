@@ -96,6 +96,8 @@ flutter run -d macos
 ## Off-Machine Handoff
 
 - Off-machine context snapshot: `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md`
+- Target-machine execution runbook: `.omx/context/t055-target-machine-execution-runbook-20260421T085450Z.md`
+  - 这是目标机器执行手册，不是新的结果模板；结果仍然只能回填本任务现有 `Execution Record Template`
 - Target machine must continue from the latest pushed `HEAD` on branch `codex/hyper-first-shell`, not from an older local stop-point checkout.
 - Current machine remains a blocked host for `T-055`; do not treat this host as if it can complete the manual matrix locally.
 
