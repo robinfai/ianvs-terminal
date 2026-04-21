@@ -9,6 +9,7 @@
 - `docs/TESTING.md`
 - `docs/KNOWN_ISSUES.md`
 - `docs/tasks/T-055-terminal-manual-matrix-execution.md`
+- `tools/check_terminal_manual_matrix_prereqs.sh`
 
 ## Non-goals
 
@@ -30,7 +31,7 @@
 
 ```bash
 cd /Users/robinfai/personal/flutterm
-command -v vttest || true
+./tools/check_terminal_manual_matrix_prereqs.sh
 
 cd /Users/robinfai/personal/flutterm/app
 flutter test integration_test/flutterm_smoke_test.dart
@@ -46,17 +47,45 @@ flutter run -d macos
 
 ## Manual QA
 
-1. 在可交互桌面环境下运行 app，并确认 integration smoke 作为自动化基线仍通过
+1. 先运行 `./tools/check_terminal_manual_matrix_prereqs.sh`，把前置检查结果贴入本任务和 `docs/TESTING.md`
 2. 在 VT220 profile 下执行 `vttest` 基本设备属性 / 键盘 / 屏幕更新矩阵
 3. 在真实 powerline / ANSI prompt 下检查颜色、反显、尾随空格背景和 glyph 对齐
 4. 使用真实 trackpad 验证 scrollback、thumb drag、返回底部等交互
 5. 在至少两组字体度量或 DPI 条件下验证 resize 后内容保留与 window-size translation
 6. 将每个子项结果写回文档；若失败，立即拆出新任务
 
+## Execution Record Template
+
+在标准交互式 macOS 开发机上执行时，结果记录固定使用以下格式：
+
+- `command -v vttest`: `pass` / `fail` / `blocked`
+- `integration_test/flutterm_smoke_test.dart`: `pass` / `fail` / `blocked`
+- `flutter run -d macos`: `pass` / `fail` / `blocked`
+  - 绝对日期
+  - 是否附着 Dart VM Service
+  - 是否观察到 `Failed to foreground app; open returned 1`
+  - 是否确认 app 已前置到真实可交互桌面
+- `VT220 vttest`: `pass` / `fail` / `blocked`
+- `powerline / ANSI prompt fidelity`: `pass` / `fail` / `blocked`
+- `trackpad scrollback`: `pass` / `fail` / `blocked`
+- `font-metric / DPI resize`: `pass` / `fail` / `blocked`
+
+## Failure Split Contract
+
+若任一矩阵子项为 `fail`，必须立即单开 focused task，并固定包含：
+
+- 最小复现
+- 影响范围
+- 最小验证命令，或明确的手工验收线
+- 任务类型仅限：VT220 行为缺口、prompt / glyph / trailing background fidelity、trackpad scrollback、DPI / resize translation、`flutter run -d macos` / `HardwareKeyboard` 环境排障
+
+若某个子项是 `blocked` 且原因属于 host/tooling（例如 `Failed to foreground app; open returned 1`、缺少 `vttest`、缺少真实 trackpad / DPI 条件），不要把它记成产品回归；先回到 `T-054` 这一类环境排障任务，等标准交互式 macOS 机器准备好后再继续 `T-055`。
+
 ## Current Local Status
 
 `2026-04-21` 当前机器状态：`blocked`
 
+- `./tools/check_terminal_manual_matrix_prereqs.sh` 已在 `2026-04-21 14:52 CST` 复跑，结果与此前 blocker 结论一致
 - `integration_test/flutterm_smoke_test.dart` 已通过，可作为自动化基线
 - `flutter run -d macos` 仍打印 `Failed to foreground app; open returned 1`
 - `vttest` 未安装
@@ -69,6 +98,10 @@ flutter run -d macos
 - 自动化无法证明的 terminal 矩阵已经得到 `pass` / `fail` / `blocked` 结果
 - 所有失败项都已转化为可执行的 focused task
 - `docs/TESTING.md` / `docs/KNOWN_ISSUES.md` 与最新手工结果一致
+
+## Post-T-055 Default Next Step
+
+只有当四类手工矩阵都拿到明确结果、且没有新的产品级 `fail` 压住优先级时，后续才默认切到 Hyper-like `Phase 4` 的 PRD + test-spec 规划；在这之前不要跳过 `T-055` 直接开启新的产品迭代。
 
 ## Risks / Follow-ups
 

@@ -291,6 +291,15 @@ flutter test integration_test/flutterm_smoke_test.dart
 - `fail`
 - `blocked`
 
+推荐先运行：
+
+```bash
+cd /Users/robinfai/personal/flutterm
+./tools/check_terminal_manual_matrix_prereqs.sh
+```
+
+脚本输出中的 `flutter run -d macos` 预检结果也必须固定使用 `pass` / `fail` / `blocked`。只要脚本本身无法证明 app 已进入真实可交互前置台，就默认按 `blocked` 处理，不要写成模糊状态。
+
 如果 `vttest` 未安装、`flutter run -d macos` 无法前置台，或环境缺少真实 trackpad / DPI 切换条件，应显式记为 `blocked`，不要省略。
 
 当前环境记录（2026-04-21）：
@@ -301,12 +310,14 @@ flutter test integration_test/flutterm_smoke_test.dart
 - `integration_test/flutterm_smoke_test.dart`: `pass`
   - 自动化 smoke 通过，但运行器仍打印 `Failed to foreground app; open returned 1`
 - `flutter run -d macos`: `blocked`
-  - app 可构建并附着 Dart VM Service，但仍打印 `Failed to foreground app; open returned 1`；`2026-04-21 11:28` 的复跑在 60 秒后超时结束，因此不能把这次运行记为真实 GUI 手工 smoke 通过
+  - app 可构建并附着 Dart VM Service，但仍打印 `Failed to foreground app; open returned 1`；`2026-04-21 14:52 CST` 的复跑在 60 秒后超时结束，因此不能把这次运行记为真实 GUI 手工 smoke 通过
 - `HardwareKeyboard` 重复 `KeyDownEvent` 断言: `blocked`
   - `2026-04-21` 的非交互式 `flutter run -d macos` 未再次复现，但由于前置台失败，仍无法把该风险视为已收敛
 - `T-055` 本机执行状态: `blocked`
   - 当前机器缺少 `vttest`、真实前置台 GUI smoke 和 trackpad / 字体度量-DPI 切换条件
   - 建议迁移到一台标准交互式 macOS 开发机执行，前置条件至少包括：`brew install vttest`、真实可交互桌面、physical trackpad、至少一组替代字体或 DPI 条件
+
+若任一 terminal 手工矩阵子项结果为 `fail`，必须立即拆成 focused task，并包含最小复现、影响范围，以及最小验证命令或明确的手工验收线。若结果是 `blocked` 且原因属于 host/tooling，则继续走 `T-054` 这类环境排障路径，不要把它误记成 terminal 产品回归。
 
 ## 手工 Smoke Checklist
 
