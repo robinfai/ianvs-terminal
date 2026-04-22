@@ -10,9 +10,12 @@ This checklist exists so the next planner can write both files in one pass witho
 
 ## Gate Check Before Writing
 Do not start formal Phase 4 writeup until all of the following are true:
-- `docs/tasks/T-055-terminal-manual-matrix-execution.md` has explicit results for all four manual matrix lanes.
-- Every product `fail` from `T-055` has already been split into a focused task.
-- Every host/tooling `blocked` result has already been split into an environment task.
+- `docs/tasks/T-055-terminal-manual-matrix-execution.md` is either:
+  - normally closed with explicit results for all four manual matrix lanes, or
+  - explicitly `forced-closed` with a clear override record
+- If the repo is using the `forced-closed` path, `docs/TESTING.md` and `docs/KNOWN_ISSUES.md` must both say the manual matrix remains unexecuted and survives only as a documented known risk.
+- Every product `fail` from a real `T-055` run has already been split into a focused task.
+- Every host/tooling `blocked` result from a real `T-055` run has already been split into an environment task.
 - No higher-priority lifecycle, focus, or startup regression is currently overriding the main lane.
 
 If any gate fails, stop and return to `T-055` or its follow-up tasks instead of writing the formal Phase 4 plan files.

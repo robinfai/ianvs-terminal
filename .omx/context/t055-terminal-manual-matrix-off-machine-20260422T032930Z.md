@@ -1,5 +1,10 @@
 # Context Snapshot — T-055 Off-Machine Manual Matrix Execution
 
+## Historical Status
+- Superseded on `2026-04-22 15:12 CST / 2026-04-22T07:12:08Z` when `T-055` was `forced-closed` through `.omx/context/t055-forced-close-override-checklist-20260422T071208Z.md`.
+- Retain this file only as the abandoned off-machine handoff record.
+- Do not use this snapshot as a current operator entrypoint.
+
 ## Task Statement
 Resume `T-055 Terminal Manual Matrix Execution` on a standard interactive macOS development machine instead of the current unsuitable local host.
 
@@ -56,4 +61,4 @@ Complete the off-machine manual-matrix run, record all required `pass` / `fail` 
 - `docs/tasks/T-055-terminal-manual-matrix-execution.md`
 - `.omx/context/t055-target-machine-execution-runbook-20260421T085450Z.md`
 - `.omx/context/t055-result-branching-playbook-20260421T091946Z.md`
-- Do not roll back to the older `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md` stop-point when continuing the live handoff.
+- This historical record originally replaced the older `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md` stop-point; do not treat either file as a current live handoff.

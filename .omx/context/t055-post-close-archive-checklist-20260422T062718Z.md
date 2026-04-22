@@ -1,5 +1,9 @@
 # Context Snapshot — T-055 Post-Close Archive Checklist
 
+## Applicability
+- Use this checklist only for the normal path where a target machine actually completed `T-055` and the result closeout checklist judged it closable.
+- If `T-055` is being retired without a completed target-machine run, do not use this checklist; use `.omx/context/t055-forced-close-override-checklist-20260422T071208Z.md` instead.
+
 ## Task Statement
 Once `T-055 Terminal Manual Matrix Execution` is truly closed, convert the current live handoff artifacts into historical records and switch the default planning path to the existing Phase 4 planning chain.
 

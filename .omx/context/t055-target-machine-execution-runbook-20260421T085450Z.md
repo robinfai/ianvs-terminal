@@ -1,5 +1,10 @@
 # Context Snapshot — T-055 Target Machine Execution Runbook
 
+## Historical Status
+- Superseded on `2026-04-22 15:12 CST / 2026-04-22T07:12:08Z` when `T-055` was `forced-closed` through `.omx/context/t055-forced-close-override-checklist-20260422T071208Z.md`.
+- Retain this runbook only as the normal-path execution guide that was not used.
+- Do not treat it as the current entrypoint after the forced close.
+
 ## Task Statement
 Complete `T-055 Terminal Manual Matrix Execution` on a standard interactive macOS development machine and write all results back into the existing `docs/tasks/T-055-terminal-manual-matrix-execution.md` template.
 This runbook is the sole execution and recording guide for the target-machine pass; do not duplicate these steps into the active snapshot.

@@ -1,5 +1,10 @@
 # Context Snapshot — T-055 Result Branching Playbook
 
+## Historical Status
+- Superseded on `2026-04-22 15:12 CST / 2026-04-22T07:12:08Z` when `T-055` was `forced-closed` through `.omx/context/t055-forced-close-override-checklist-20260422T071208Z.md`.
+- Retain this file only as the normal-path branching guide for a target-machine run that never happened.
+- Do not treat it as a current operator entrypoint.
+
 ## Task Statement
 When a target machine finishes `T-055 Terminal Manual Matrix Execution`, split every resulting `blocked` or `fail` outcome into the correct follow-up task instead of leaving repair work inside `T-055`.
 

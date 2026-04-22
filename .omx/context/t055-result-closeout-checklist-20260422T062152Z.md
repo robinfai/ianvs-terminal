@@ -1,5 +1,9 @@
 # Context Snapshot — T-055 Result Closeout Checklist
 
+## Applicability
+- Use this checklist only after a target machine actually completes the `T-055` matrix run and fills the task's `Execution Record Template`.
+- If the repo decides to stop the run and close `T-055` by override instead, do not use this checklist; use `.omx/context/t055-forced-close-override-checklist-20260422T071208Z.md` instead.
+
 ## Task Statement
 After a target machine completes `T-055 Terminal Manual Matrix Execution`, synchronize the results into the task document and shared docs, then decide whether `T-055` can close or must stay open with explicit follow-up owners.
 

@@ -27,14 +27,13 @@
 - 还没有自动化性能回归检查
 - 还没有跨平台验证
 - 还没有 SSH 兼容性验证
-- 还没有稳定执行的 terminal 手工兼容性矩阵（VT220 `vttest`、powerline / ANSI prompt、真实 trackpad scrollback、字体度量 / DPI resize）
+- `T-055` 已于 `2026-04-22` 按 override `forced-closed`，所以 repo 仍缺当前人工验证的 terminal 手工兼容性矩阵（VT220 `vttest`、powerline / ANSI prompt、真实 trackpad scrollback、字体度量 / DPI resize）
 
 ## 当前环境相关风险
 
-- 当前文档里曾假设 `flutterm_no_proxy` helper 已可直接使用，但 `2026-04-22 10:09 CST` 的当前会话实际返回 `flutterm_no_proxy not found`。因此，本机取证现在必须使用显式 no-proxy 环境变量；helper 缺失属于当前 host 事实，不是 terminal 产品行为。
-- `2026-04-22 11:11 CST` 的显式 no-proxy preflight 显示：host `BINGHUILUO-MC6`、macOS `26.3.1 (25D771280a)`、`flutter doctor -v` / `flutter devices` / `integration_test/flutterm_smoke_test.dart` 都已 `pass`，`command -v vttest` 也已恢复为 `pass`，但 `flutter run -d macos` 仍打印 `Failed to foreground app; open returned 1`，即使 Dart VM Service、app bundle 和 app 进程都已出现。这说明当前 host 的剩余问题已经收窄到前置台与交互确认，而不是工具缺失或 terminal 产品回归。
-- 当前会话的 `osascript -e 'tell application "System Events" to get UI elements enabled'` 返回 `false`。再结合 `2026-04-22 10:11 CST` 的固定端口 `flutter run -d macos --host-vmservice-port 49200` 结果可知：app 进程已启动、VM Service 可用、`visible=true`，但本机会话仍没有可用的辅助访问权限来完成 viewport 点击和键盘输入确认。基于这组证据，当前机器仍应被视为 `unsuitable local host`，不应继续承担 `T-055` 的完成责任。
-- Flutter `HardwareKeyboard` 重复 `KeyDownEvent` 风险这轮没有再次复现，但由于 `y` / `Backspace` / `pwd` / `echo hello` / `ls` 这条最小输入链根本没有完成，风险也不能视为已收敛；后续若在可交互前台会话里再次出现，仍应单开环境排障任务。
+- 当前最佳已知证据只说明：`BINGHUILUO-MC6` 是 `unsuitable local host`。`command -v vttest`、`flutter doctor -v`、`flutter devices`、`integration_test/flutterm_smoke_test.dart` 均已有 `pass` 证据，但 `flutter run -d macos` 仍打印 `Failed to foreground app; open returned 1`，而且没有完成真实前台键盘交互确认。
+- `osascript -e 'tell application "System Events" to get UI elements enabled'` 仍返回 `false`，同时当前 repo 也没有真实 trackpad 与替代字体度量 / DPI 条件的手工结果。因此，VT220、powerline / ANSI prompt、真实 trackpad scrollback、字体度量 / DPI resize 这四条矩阵 lane 目前仍是未执行的已知风险，不是已通过的产品证据。
+- 如果未来确实需要补这组人工证据，应新开 focused task，而不是重新激活已经 `forced-closed` 的 `T-055` live handoff。
 
 ## 使用建议
 

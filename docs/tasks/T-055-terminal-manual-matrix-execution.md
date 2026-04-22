@@ -114,26 +114,34 @@ flutter run -d macos
 - 当前执行环境仍不满足真实 trackpad 与字体度量 / DPI 切换验证条件
 - 当前机器继续 `blocked` 的原因已收窄到：foreground failure、`UI elements enabled: false`、未完成人工键盘输入确认，以及真实 trackpad / DPI 条件仍未满足；不是旧的 shell-driven `9x18` Y 轴路径仍未修复
 
-因此，本任务在当前机器上仍不应伪装成“已执行”；当前更准确的本机 verdict 是 `unsuitable local host`。`T-055` 仍应迁移到满足 `vttest`、真实前台交互、真实 trackpad 和字体度量 / DPI 条件的标准交互式 macOS 开发机完成。
+因此，本任务在当前机器上仍不应伪装成“已执行”；当前更准确的本机 verdict 是 `unsuitable local host`。这组证据现在只作为 forced-close 的历史依据保留，不再表示 repo 仍在等待新的目标机 handoff。
 
-## Off-Machine Handoff
+## Final Disposition
 
-- Active off-machine context snapshot: `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md`
-- Historical stop-point snapshot: `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md`
-  - 旧 snapshot 只保留历史 stop-point 价值，不再是当前 handoff 的事实源
-- Target-machine execution runbook: `.omx/context/t055-target-machine-execution-runbook-20260421T085450Z.md`
-  - 这是目标机器执行手册，不是新的结果模板；结果仍然只能回填本任务现有 `Execution Record Template`
-  - 目标机器执行时应把 active snapshot、runbook 和 branching playbook 一起使用；旧 snapshot 只保留历史 stop-point 价值
-- Handoff responsibilities:
-  - active snapshot = 当前事实与本机阻塞背景
-  - runbook = 目标机执行步骤与记录规则
-  - branching playbook = 结果分叉与 follow-up 任务归属
-  - closeout checklist = 文档同步与 `T-055` 关门判断
-- Target machine must continue from the latest pushed `HEAD` on branch `codex/hyper-first-shell`, and must confirm the active snapshot `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md` is present in the workspace.
-- Result closeout checklist: `.omx/context/t055-result-closeout-checklist-20260422T062152Z.md`
-  - 目标机执行完成后，按这份清单同步 `docs/TESTING.md` / `docs/KNOWN_ISSUES.md`，回填 follow-up task 指针，并判断 `T-055` 是否可以真正关闭
-- Current machine remains a blocked host for `T-055`; do not treat this host as if it can complete the manual matrix locally.
-- Current machine is blocked because of foreground / accessibility / keyboard-confirmation conditions, not because `vttest` is still missing.
+`2026-04-22 15:12 CST / 2026-04-22T07:12:08Z` 最终收口状态：`forced-closed`
+
+- 收口依据：仓库当前明确放弃继续等待异机手工矩阵执行，改为把未完成的 manual-matrix 风险保留在 shared docs 中，并继续推进 Hyper-like `Phase 4` 正式 planning
+- 强制收口原因：当前 live handoff 链长期停留在“等待目标机执行”的半状态，仓库需要显式退场这条链，而不是继续把它保留为默认主线入口
+- 本任务按 override 关闭，不是按“已完成手工矩阵”关闭
+- 以下原始 acceptance 仍未满足：
+  - 没有一台标准交互式 macOS 开发机完成真实 `VT220 vttest`
+  - 没有完成 `powerline / ANSI prompt fidelity`
+  - 没有完成真实 `trackpad scrollback`
+  - 没有完成 `font-metric / DPI resize`
+  - `docs/TESTING.md` / `docs/KNOWN_ISSUES.md` 的同步来源不是一次真实完成的 target-machine matrix run，而是这次 forced-close override 的风险保留记录
+- Forced-close override owner: `.omx/context/t055-forced-close-override-checklist-20260422T071208Z.md`
+
+## Historical Off-Machine Handoff
+
+- 下列文件保留为已放弃的异机执行链历史记录，不再是当前操作入口：
+  - active off-machine snapshot: `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md`
+  - historical stop-point snapshot: `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md`
+  - target-machine runbook: `.omx/context/t055-target-machine-execution-runbook-20260421T085450Z.md`
+  - branching playbook: `.omx/context/t055-result-branching-playbook-20260421T091946Z.md`
+  - normal-path closeout checklist: `.omx/context/t055-result-closeout-checklist-20260422T062152Z.md`
+  - normal-path post-close archive checklist: `.omx/context/t055-post-close-archive-checklist-20260422T062718Z.md`
+- 这些文档现在只说明“如果当时继续异机执行，本来会如何推进”，不再表示当前 repo 还在等待那条 live handoff
+- 本次真正负责收口和 lane 切换的文档是 `.omx/context/t055-forced-close-override-checklist-20260422T071208Z.md`
 
 ## Done When
 
@@ -141,16 +149,20 @@ flutter run -d macos
 - 所有失败项都已转化为可执行的 focused task
 - `docs/TESTING.md` / `docs/KNOWN_ISSUES.md` 与最新手工结果一致
 
+历史说明：以上 `Done When` 条件并未满足；本任务当前仅因 `Final Disposition` 中记录的 forced-close override 而关闭。
+
 ## Post-T-055 Default Next Step
 
-只有当四类手工矩阵都拿到明确结果、且没有新的产品级 `fail` 压住优先级时，后续才默认切到 Hyper-like `Phase 4` 的 PRD + test-spec 规划；在这之前不要跳过 `T-055` 直接开启新的产品迭代。
+`T-055` 现在已经按 override `forced-closed`，但 terminal 手工矩阵仍然没有真实执行完成。后续推进默认进入 Hyper-like `Phase 4` 的正式 PRD + test-spec 规划，同时继续把 manual-matrix 缺口保留为 shared docs 里的明确风险，而不是把它伪装成已验证通过。
 
-- Post-close archive checklist: `.omx/context/t055-post-close-archive-checklist-20260422T062718Z.md`
-  - 这份清单只在 `T-055` 真正关闭后使用，用来把 handoff artifacts 从 live 状态切到 historical 状态，并把默认主线切到 Phase 4 planning
+- Forced-close override checklist: `.omx/context/t055-forced-close-override-checklist-20260422T071208Z.md`
+- Normal-path post-close archive checklist: `.omx/context/t055-post-close-archive-checklist-20260422T062718Z.md`
+  - 这份清单描述的是“目标机真实跑完矩阵后的正常关门路径”，这次 forced-close 没有走它
 - Phase 4 skeleton context snapshot: `.omx/context/hyper-phase4-interaction-polish-skeleton-20260421T084736Z.md`
 - Phase 4 formal writeup checklist: `.omx/context/hyper-phase4-formal-writeup-checklist-20260421T093447Z.md`
-  - 这是 `T-055` 清空后的正式落笔清单，不是提前创建 `.omx/plans/` 正式文件
-- 在 `T-055` 清空前，不要提前创建 `.omx/plans/prd-hyper-like-phase4-interaction-polish.md` 或 `.omx/plans/test-spec-hyper-like-phase4-interaction-polish.md`
+  - 当前 live planning lane 直接从这里落地正式 `PRD` / `test-spec`
+- 当前这一步不创建 `docs/tasks/T-056-hyper-phase4-interaction-polish.md`
+- 当前这一步不创建 `.omx/plans/review-terminalprofiles-defaultprofileid-deprecation.md`
 
 ## Risks / Follow-ups
 
