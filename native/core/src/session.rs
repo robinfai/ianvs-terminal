@@ -372,10 +372,6 @@ impl TerminalSession {
             let state = self.state.lock();
             current_scrollback_max(&state)
         };
-        let current_cols = {
-            let state = self.state.lock();
-            state.terminal.size().0 as u16
-        };
 
         self.master
             .lock()
@@ -388,17 +384,29 @@ impl TerminalSession {
             .map_err(|error| SessionError::Pty(error.to_string()))?;
 
         let mut state = self.state.lock();
-        if !state.terminal.is_alt_screen_active() && current_cols != cols {
+        let (current_cols, current_rows) = state.terminal.size();
+        let should_rebuild_main_screen = !state.terminal.is_alt_screen_active()
+            && (current_cols != cols as usize || current_rows != rows as usize);
+
+        if should_rebuild_main_screen {
             let transcript = state.transcript.clone();
             let mut terminal =
                 Terminal::with_scrollback(cols as usize, rows as usize, DEFAULT_SCROLLBACK);
             if self.emulation == TerminalEmulation::Vt220 {
                 terminal.process(b"\x1b[62;1\"p");
             }
+            if pixel_width > 0 && pixel_height > 0 {
+                terminal.set_pixel_size(pixel_width as usize, pixel_height as usize);
+            }
             terminal.process(&transcript);
             state.terminal = terminal;
         } else {
             state.terminal.resize(cols as usize, rows as usize);
+            if pixel_width > 0 && pixel_height > 0 {
+                state
+                    .terminal
+                    .set_pixel_size(pixel_width as usize, pixel_height as usize);
+            }
         }
         let new_max = current_scrollback_max(&state);
         state.scrollback_offset =

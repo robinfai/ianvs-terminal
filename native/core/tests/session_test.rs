@@ -391,6 +391,45 @@ fn session_reflows_single_long_line_across_resize() {
 }
 
 #[test]
+fn session_preserves_latest_visible_output_when_shrinking_height() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+    let _ = session::take_frame_diff(session_id).unwrap();
+
+    session::write_session(
+        session_id,
+        b"i=0; while [ \"$i\" -lt 40 ]; do printf 'keep-%02d\\n' \"$i\"; i=$((i + 1)); done\n",
+    )
+    .unwrap();
+
+    let before = wait_for_frame_where(session_id, |frame| {
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row.contains("keep-39"))
+    });
+    assert!(
+        logical_rows_from_frame(&before)
+            .iter()
+            .any(|row| row.contains("keep-39"))
+    );
+
+    session::resize_session(session_id, 120, 16, 0, 0).unwrap();
+
+    let after = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected resized frame diff");
+    assert!(
+        logical_rows_from_frame(&after)
+            .iter()
+            .any(|row| row.contains("keep-39")),
+        "expected the latest visible output to remain on screen after shrinking height",
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_frame_diff_exposes_application_cursor_and_keypad_modes() {
     let session_id =
         session::create_session(&serde_json::to_string(&mode_switch_profile()).unwrap()).unwrap();
