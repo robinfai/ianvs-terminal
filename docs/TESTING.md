@@ -189,6 +189,25 @@ cd /Users/robinfai/personal/flutterm
 - `MaterialApp` 真正消费 persisted `themeMode`
 - 关闭 defaults surface 后 launcher / focus / terminal input 不回归
 
+### 改 defaultProfileId narrowing（Post-Phase 3 cleanup）
+
+必须执行：
+
+- `flutter analyze`
+- `flutter test test/sessions/session_controller_phase3_test.dart`
+- `flutter test test/sessions/session_controller_test.dart`
+- `flutter test test/profiles/profile_repository_test.dart`
+- `flutter test test/shell/shell_screen_phase1a_test.dart`
+- `flutter test test/shell/shell_screen_phase3_test.dart`
+- `flutter test integration_test/flutterm_smoke_test.dart`
+
+重点确认：
+
+- 新落盘 profile 文档不再写 legacy `defaultProfileId`
+- 旧 on-disk 文档仍可读，preferences 缺失时 bootstrap legacy fallback 仍可工作
+- defaults / empty-state 文案不再使用 compatibility-window 口径
+- canonical default source 继续只在 app preferences
+
 ### 改 shell interaction polish（Phase 4）
 
 必须执行：

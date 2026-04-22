@@ -76,6 +76,16 @@ flutter test integration_test/flutterm_smoke_test.dart
 - 若 `docs/TESTING.md` 文案需要更新则已同步
 - 没有创建 removal task，也没有把本任务扩张成完整 deprecation
 
+## Completion Record
+
+- 完成时间：`2026-04-22 19:11:52 CST / 2026-04-22T11:11:52Z`
+- 落地提交：`1689d1ba6929ffef1596963ca65bf93283982f56`
+- 实际验证链：
+  - `flutter analyze`
+  - `flutter test test/sessions/session_controller_phase3_test.dart test/sessions/session_controller_test.dart test/profiles/profile_repository_test.dart test/shell/shell_screen_phase1a_test.dart test/shell/shell_screen_phase3_test.dart`
+  - `flutter test integration_test/flutterm_smoke_test.dart`
+- 结论：`T-057` 已完成，且不再阻塞 defaults deprecation lane
+
 ## Risks / Follow-ups
 
 - removal 仍需后续单独任务，不在 `T-057` 内提前吸收

@@ -9,13 +9,13 @@ This round produces only the formal review artifact. It does not create a narrow
 ## Current Ownership State
 
 - Canonical ownership already belongs to `TerminalAppPreferencesDocument.defaults.defaultProfileId`, as established by the Phase 3 persistence plan.
-- `SessionController` still owns the active compatibility window:
+- `SessionController` now owns only the remaining read-side compatibility window:
   - `_legacyDefaultProfileId` remains in memory
   - `_bootstrap()` still reads the legacy field when preferences are absent and `allowLegacyFallback` is true
-  - `setDefaultProfile()` and `resetDefaultProfile()` already write only preferences
-  - `saveProfile()` and `deleteProfile()` still write the legacy field back into `TerminalProfilesDocument`
-- `ProfileRepository` still persists the legacy field through `flutterm_profiles.json`.
-- Shell defaults UI still exposes fallback wording for the compatibility window instead of treating legacy behavior as fully retired.
+  - `setDefaultProfile()` and `resetDefaultProfile()` write only preferences
+  - `saveProfile()` and `deleteProfile()` no longer write the legacy field back into `TerminalProfilesDocument`
+- `ProfileRepository` still tolerant-reads the legacy field from `flutterm_profiles.json`, but steady-state writes no longer emit it.
+- Shell defaults UI no longer presents fallback as a primary compatibility-window path; the remaining legacy behavior is now runtime/bootstrap-only.
 
 ## Legacy Read-Path Inventory
 
@@ -25,22 +25,17 @@ Current legacy read paths still in play:
   - `_bootstrap()` normalizes `profiles.defaultProfileId` into `_legacyDefaultProfileId`
   - `_resolveBootstrapPreferences()` still chooses the legacy field when preferences are absent and the legacy id still matches a profile
 - `app/lib/features/profiles/profile_repository.dart`
-  - `load()` still decodes `TerminalProfilesDocument` as-is, including the legacy field
-  - tolerant read remains part of normal repository behavior, not a fixture-only migration helper
-- `app/lib/features/shell/shell_screen.dart`
-  - shell defaults summary and defaults dialog still support the “configured default vs effective fallback default” distinction that makes the compatibility window user-visible
+  - `load()` still decodes `TerminalProfilesDocument` as-is, including older docs that still carry the key
+  - tolerant read is now explicitly migration-oriented behavior rather than a steady-state write contract
 
 ## Legacy Write-Path Inventory
 
 Current legacy write paths still in play:
 
-- `app/lib/features/sessions/session_controller.dart`
-  - `saveProfile()` writes `TerminalProfilesDocument(defaultProfileId: _legacyDefaultProfileId ?? '', profiles: nextProfiles)`
-  - `deleteProfile()` writes the same legacy field back through `TerminalProfilesDocument` before any preferences-side repair write happens
-- `app/lib/features/profiles/profile_repository.dart`
-  - `save()` persists whatever `TerminalProfilesDocument` it receives, so the schema field remains part of normal writes
 - `app/lib/features/profiles/profile_models.dart`
-  - `TerminalProfilesDocument` still requires `defaultProfileId` in both the constructor and JSON encoding/decoding contract
+  - `TerminalProfilesDocument.defaultProfileId` still exists, but it is now nullable and omitted from steady-state JSON writes
+
+There are no remaining intentional steady-state write paths for the legacy field. The remaining exposure is schema/read compatibility only.
 
 ## Compatibility Window Consumers
 
@@ -50,52 +45,53 @@ The compatibility window is still protected and observable in current tests:
   - protects bootstrap pref-over-legacy precedence
   - protects legacy fallback when preferences are absent
   - protects “setDefaultProfile writes only app preferences”
+  - now protects `saveProfile()` keeping legacy ids out of steady-state profile writes
 - `app/test/sessions/session_controller_test.dart`
   - duplicates the same compatibility guarantees in broader regression coverage
-  - explicitly protects `deleteProfile()` keeping the legacy field written while preferences perform repair-write
-- `app/test/shell/shell_screen_phase3_test.dart`
-  - protects fallback wording in the defaults dialog during the compatibility window
+  - now protects `deleteProfile()` repair-write without re-emitting the legacy field
 - `app/test/profiles/profile_repository_test.dart`
   - protects on-disk compatibility for profile documents that still carry `defaultProfileId`
+  - protects first-launch and steady-state writes omitting the legacy field
+- `app/test/shell/shell_screen_phase3_test.dart`
+  - protects the narrowed defaults copy that no longer presents fallback as a steady-state primary path
 
-Today these tests do not treat legacy behavior as migration-only. They still treat it as supported repo behavior.
+Today these tests still protect the legacy bootstrap/read path, but they no longer treat legacy write-through or fallback wording as normal repo behavior.
 
 ## Removal Preconditions
 
 Required preconditions and current evaluation:
 
 - preferences are proven to be the only long-term source of truth
-  - **Met for configured writes**
+  - **Met**
   - `setDefaultProfile()` / `resetDefaultProfile()` already write only preferences
 - bootstrap no longer needs legacy `defaultProfileId` as a normal path
   - **Not met**
   - preferences-absent bootstrap still intentionally falls back to legacy
 - save/delete profile flows no longer need to write the legacy field back into profile docs
-  - **Not met**
-  - both `saveProfile()` and `deleteProfile()` still do this today
+  - **Met**
+  - steady-state save/delete no longer re-emit the legacy field
 - shell Phase 3 UI no longer relies on legacy fallback copy as a primary user path
-  - **Not met**
-  - fallback messaging is still explicitly protected in `shell_screen_phase3_test.dart`
+  - **Met**
+  - UI copy now presents fallback as current behavior, not compatibility-window policy
 - tests can move from “compatibility window is protected behavior” to migration-only or full removal
-  - **Not met**
-  - current tests still codify the compatibility window as intentional runtime behavior
-- repository strategy for older on-disk profile docs is explicit
   - **Partially met**
-  - tolerant read exists, but the repo has not yet committed to “read old docs but stop writing legacy field” versus one-time migration
+  - write-path and UI tests have narrowed, but bootstrap legacy fallback is still intentionally protected
+- repository strategy for older on-disk profile docs is explicit
+  - **Met**
+  - the repo now tolerant-reads old docs while omitting the field from new writes
 - minimum verification chain for future implementation is known
   - **Met**
   - see `Follow-up Tasks` below
 
 ## Risk Review
 
-- **Removal now is too early**
-  - removing the field today would require simultaneous schema, bootstrap, save/delete, UI-copy, and test-contract changes
-  - that is broader than a safe first follow-up for this lane
-- **Keeping the current window forever is also wrong**
-  - canonical ownership is already preferences-first, so continuing to write legacy state indefinitely only extends dual-write ambiguity
-- **The lowest-risk next move is narrowing**
-  - stop normal write-path propagation first
-  - keep tolerant read for older on-disk documents until a later review decides whether full removal is safe
+- **The repo is no longer in a broad compatibility-window state**
+  - write-path propagation is gone
+  - steady-state shell/defaults copy no longer treats legacy fallback as normal user intent
+- **The remaining risk is now concentrated**
+  - removing the field would mainly affect bootstrap fallback, tolerant read behavior, and the tests that still protect that path
+- **Keeping the read-path indefinitely is now the bigger maintenance cost**
+  - it leaves a second source of truth in runtime bootstrap even though canonical ownership has already converged on preferences
 - **Shared-doc risk must stay separate**
   - `T-055 forced-closed` manual-matrix risk is unrelated and should not influence this defaults decision
 
@@ -106,67 +102,71 @@ Required preconditions and current evaluation:
 Keep the current compatibility window untouched.
 
 - Pros:
-  - zero migration risk right now
-  - avoids touching defaults/lifecycle behavior after `T-056`
+  - zero additional migration risk right now
+  - avoids another defaults-focused code change
 - Cons:
-  - leaves canonical ownership and normal write behavior misaligned
-  - preserves unnecessary legacy writes in routine profile mutations
+  - no longer matches the repo's actual narrowed state
+  - leaves the legacy bootstrap path and field alive after the write-path problem is already solved
 
 ### Option 2 — `Ready for narrowing`
 
 Open one focused implementation task that narrows the compatibility window without removing the schema field yet.
 
 - Pros:
-  - aligns normal write behavior with the existing preferences-first contract
-  - keeps tolerant read available for older on-disk profile docs
-  - creates a bounded task instead of a full deprecation swing
+  - was the right transition step before `T-057`
+  - minimizes removal risk if narrowing work had not yet landed
 - Cons:
-  - still leaves a second review/removal step later
-  - requires deliberate test rewriting from “protected compatibility” to “narrowed compatibility”
+  - is now stale relative to current repo facts
+  - would duplicate work that has already been completed in `1689d1b`
 
 ### Option 3 — `Ready for removal`
 
 Open one implementation task that removes the field, shrinks read/write paths, and rewrites the compatibility contract in one round.
 
 - Pros:
-  - finishes the deprecation in a single implementation lane
-  - removes dual-source ambiguity completely
+  - matches the repo's current state after narrowing landed
+  - finishes the deprecation in one focused follow-up instead of reopening another intermediate step
 - Cons:
-  - too broad for the current repo state
-  - current bootstrap, repository schema, UI fallback wording, and tests are not yet reduced enough to make this a narrow change
+  - still needs careful handling for older on-disk docs that may carry the legacy key
+  - requires deliberate test rewrites from “legacy fallback works” to “legacy key is ignored safely”
 
 ## Recommended Verdict
 
-Final locked verdict: `Ready for narrowing`
+Final locked verdict: `Ready for removal`
 
 Rationale:
 
-- The canonical source of truth is already stable: preferences own configured defaults.
-- The remaining problem is not conceptual uncertainty; it is leftover compatibility breadth.
-- The repo is ready to narrow normal behavior by stopping routine legacy write-back and by shrinking which code paths still treat legacy defaults as first-class runtime behavior.
-- The repo is **not** ready for full removal because bootstrap fallback, schema shape, fallback UI wording, and multiple tests still intentionally encode the compatibility window.
+- The canonical source of truth is already stable and exclusive for configured defaults: preferences own the decision.
+- The previously blocking compatibility breadth has been narrowed:
+  - steady-state write-through is gone
+  - new profile documents omit the legacy field
+  - shell/defaults UI no longer presents fallback as a primary steady-state path
+- The remaining problem has collapsed into a single focused lane:
+  - remove `_legacyDefaultProfileId`
+  - drop bootstrap reliance on legacy profile-doc defaults
+  - retire the remaining legacy-field schema/read contract
+  - update tests to treat old on-disk keys as ignorable historical data rather than active default-selection input
 
-`Ready for removal` would skip the needed intermediate contraction step. `Not ready` would ignore that the repo has already finished the source-of-truth decision and now mainly needs cleanup of the remaining compatibility surface.
+`Ready for narrowing` is now outdated because the narrowing work already landed in `1689d1b`. `Not ready` would leave a mostly-retired legacy path alive without a remaining architectural reason.
 
 ## Follow-up Tasks
 
-This review does **not** create an implementation task directly. The next step should go through:
+This review still does **not** create an implementation task directly. The next step should go through:
 
 - `.omx/context/defaultprofileid-deprecation-implementation-kickoff-checklist-20260422T065644Z.md`
 
-That kickoff should create exactly one focused narrowing task whose target is:
+That kickoff should create exactly one focused removal task whose target is:
 
-- stop normal `saveProfile()` / `deleteProfile()` flows from writing legacy `defaultProfileId` back into `TerminalProfilesDocument`
-- keep tolerant read for older on-disk profile documents during the narrowed compatibility window
-- reduce shell/UI wording that treats legacy fallback as a primary steady-state path
-- rewrite tests from “compatibility window is protected runtime behavior” toward “legacy path is narrowed compatibility behavior”
+- remove `_legacyDefaultProfileId` and bootstrap legacy fallback from runtime decision-making
+- remove `TerminalProfilesDocument.defaultProfileId` from the runtime schema surface
+- keep tolerant handling for older on-disk documents that still include the key, but ignore it for default selection
+- rewrite tests from “legacy fallback is supported runtime behavior” toward “legacy key is safely ignored historical input”
 
-Minimum verification chain for that future narrowing task should include:
+Minimum verification chain for that future removal task should include:
 
 - `cd /Users/robinfai/personal/flutterm/app`
 - `flutter analyze`
 - `flutter test test/sessions/session_controller_phase3_test.dart`
 - `flutter test test/sessions/session_controller_test.dart`
 - `flutter test test/profiles/profile_repository_test.dart`
-- `flutter test test/shell/shell_screen_phase3_test.dart`
 - `flutter test integration_test/flutterm_smoke_test.dart`
