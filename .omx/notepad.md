@@ -28,3 +28,5 @@
 [2026-04-22T04:53:26Z] Added a superseded marker to the older 20260421T081004Z off-machine snapshot so search hits do not present it as the live handoff source. The current execution rule remains “latest pushed branch HEAD + active 20260422T032930Z snapshot present.”
 
 [2026-04-22T05:07:54Z] Synced the target-machine execution runbook to the active 20260422T032930Z snapshot instead of the older stop-point baseline. T-055 off-machine execution should now read the active snapshot, the runbook, and the branching playbook together as the current handoff set.
+
+[2026-04-22T06:13:52Z] Split the T-055 handoff responsibilities more cleanly: the active 20260422T032930Z snapshot now carries only current host facts and blocked-host context, while the runbook remains the sole execution and recording guide and the branching playbook remains the sole follow-up owner. Future edits should update the owning document instead of copying the same instructions across the handoff chain.

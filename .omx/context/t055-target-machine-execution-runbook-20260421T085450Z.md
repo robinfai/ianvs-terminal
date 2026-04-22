@@ -2,6 +2,7 @@
 
 ## Task Statement
 Complete `T-055 Terminal Manual Matrix Execution` on a standard interactive macOS development machine and write all results back into the existing `docs/tasks/T-055-terminal-manual-matrix-execution.md` template.
+This runbook is the sole execution and recording guide for the target-machine pass; do not duplicate these steps into the active snapshot.
 
 ## Gate / Constraints
 - Do not modify terminal product logic while executing this runbook.
@@ -22,6 +23,7 @@ Complete `T-055 Terminal Manual Matrix Execution` on a standard interactive macO
 - Task document: `docs/tasks/T-055-terminal-manual-matrix-execution.md`
 - Branching playbook: `.omx/context/t055-result-branching-playbook-20260421T091946Z.md`
 - Historical stop-point only: `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md`
+- Use the active snapshot for current host facts and blocked-host context, this runbook for execution and recording, and the branching playbook for follow-up task ownership.
 
 ## Execution Sequence
 1. `git fetch origin`

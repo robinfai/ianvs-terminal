@@ -46,52 +46,14 @@ Complete the off-machine manual-matrix run, record all required `pass` / `fail` 
 - Do not modify terminal product logic as part of the handoff itself.
 - Do not start `Phase 4` planning until `T-055` is fully resolved and no product `fail` remains.
 
-## Target Machine Preconditions
-- App can be foregrounded to a real interactive macOS desktop.
-- `vttest` is installed.
-- A physical trackpad is available.
-- At least one alternate font or DPI condition is available for resize verification.
-
-## Target Machine Execution Steps
-1. `git fetch origin`
-2. `git checkout codex/hyper-first-shell`
-3. `git pull --ff-only origin codex/hyper-first-shell`
-4. Confirm the workspace contains this active snapshot `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md`, not only the older stop-point snapshot state.
-5. Run `./tools/check_terminal_manual_matrix_prereqs.sh`
-6. Run `cd app && flutter run -d macos`
-7. Confirm foreground interaction manually on the target machine.
-8. Execute the four manual matrix lanes:
-   - `VT220 vttest`
-   - `powerline / ANSI prompt fidelity`
-   - `trackpad scrollback`
-   - `font-metric / DPI resize`
-9. Write all results back into `docs/tasks/T-055-terminal-manual-matrix-execution.md`
-
-## Result Recording
-- Use the existing execution template in `docs/tasks/T-055-terminal-manual-matrix-execution.md`.
-- Required recorded items:
-  - `command -v vttest`
-  - `integration_test/flutterm_smoke_test.dart`
-  - `flutter run -d macos`
-  - `VT220 vttest`
-  - `powerline / ANSI prompt fidelity`
-  - `trackpad scrollback`
-  - `font-metric / DPI resize`
-- Every item must be `pass`, `fail`, or `blocked`.
-
-## Branching Rules
-- host/tooling `blocked`:
-  - return to the environment-unblock lane
-  - create an environment task instead of a product regression task
-- product `fail`:
-  - create a focused task with minimal repro, impact range, and minimum verification line
-- all matrix results explicit and no product `fail`:
-  - close `T-055`
-  - only then start `Phase 4` PRD + test-spec planning
+## Handoff Owners
+- Execution steps, target-machine preconditions, result recording, and evidence requirements live only in `.omx/context/t055-target-machine-execution-runbook-20260421T085450Z.md`.
+- Result splitting and follow-up task creation rules live only in `.omx/context/t055-result-branching-playbook-20260421T091946Z.md`.
+- `docs/tasks/T-055-terminal-manual-matrix-execution.md` remains the single task record that receives the final `pass` / `fail` / `blocked` results and any follow-up task pointers.
+- Do not re-copy runbook or branching instructions into this snapshot when those rules change; update the owning document instead.
 
 ## Key Files
 - `docs/tasks/T-055-terminal-manual-matrix-execution.md`
-- `tools/check_terminal_manual_matrix_prereqs.sh`
-- `docs/TESTING.md`
-- `docs/KNOWN_ISSUES.md`
+- `.omx/context/t055-target-machine-execution-runbook-20260421T085450Z.md`
+- `.omx/context/t055-result-branching-playbook-20260421T091946Z.md`
 - Do not roll back to the older `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md` stop-point when continuing the live handoff.
