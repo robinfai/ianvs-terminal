@@ -38,3 +38,4 @@ Once the formal Phase 4 PRD and test-spec exist, create the actual implementatio
 ## Parking Lot After Kickoff
 - Keep the `defaultProfileId` deprecation review parked.
 - Revisit that parked review only after `T-056` is complete or clearly no longer blocks the main lane.
+- When that gate opens, continue with `.omx/context/defaultprofileid-deprecation-review-kickoff-checklist-20260422T064230Z.md` instead of opening the parked context directly.

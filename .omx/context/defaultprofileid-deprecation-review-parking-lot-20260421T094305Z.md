@@ -15,6 +15,7 @@ Do not create the formal review artifact until all of the following are true:
 - No higher-priority lifecycle, focus, or startup regression is currently overriding the defaults lane.
 
 If any gate fails, keep this topic parked and do not create `.omx/plans/review-terminalprofiles-defaultprofileid-deprecation.md`.
+When the gate does open, start with `.omx/context/defaultprofileid-deprecation-review-kickoff-checklist-20260422T064230Z.md` before creating the formal review artifact.
 
 ## Current Repo Facts
 - `.omx/plans/prd-hyper-like-phase3-persistence-defaults.md` already defines `TerminalAppPreferencesDocument.defaults.defaultProfileId` as the canonical app-defaults source of truth and treats `TerminalProfilesDocument.defaultProfileId` as a compatibility-window legacy field.
