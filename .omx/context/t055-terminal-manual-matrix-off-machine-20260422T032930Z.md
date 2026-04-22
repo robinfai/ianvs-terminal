@@ -8,7 +8,8 @@ Complete the off-machine manual-matrix run, record all required `pass` / `fail` 
 
 ## Current Continuation Baseline
 - Branch for continuation: `codex/hyper-first-shell`
-- Continuation `HEAD`: `6f8b44d394c1005cd1cf07a67db5010c959bd074`
+- Use the latest pushed `HEAD` on `codex/hyper-first-shell`
+- Snapshot last refreshed in commit: `809220b172a65bc2771c583b6145a6938765cdbc`
 - Current local-host verdict: `unsuitable local host`
 
 ## Latest Local Evidence
@@ -55,7 +56,7 @@ Complete the off-machine manual-matrix run, record all required `pass` / `fail` 
 1. `git fetch origin`
 2. `git checkout codex/hyper-first-shell`
 3. `git pull --ff-only origin codex/hyper-first-shell`
-4. Confirm `HEAD` is `6f8b44d394c1005cd1cf07a67db5010c959bd074` or a newer descendant, not the older local stop-point commits.
+4. Confirm the workspace contains this active snapshot `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md`, not only the older stop-point snapshot state.
 5. Run `./tools/check_terminal_manual_matrix_prereqs.sh`
 6. Run `cd app && flutter run -d macos`
 7. Confirm foreground interaction manually on the target machine.
@@ -93,3 +94,4 @@ Complete the off-machine manual-matrix run, record all required `pass` / `fail` 
 - `tools/check_terminal_manual_matrix_prereqs.sh`
 - `docs/TESTING.md`
 - `docs/KNOWN_ISSUES.md`
+- Do not roll back to the older `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md` stop-point when continuing the live handoff.

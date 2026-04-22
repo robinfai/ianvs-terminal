@@ -22,3 +22,5 @@
 [2026-04-22T03:11:00Z] `vttest` is available again at /opt/homebrew/bin/vttest, so the current local-host blocker has narrowed back down to foreground failure, `UI elements enabled: false`, and missing verified keyboard interaction. T-055 still stays off-machine.
 
 [2026-04-22T03:29:30Z] Added a refreshed off-machine handoff snapshot at .omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md. The live handoff baseline is now 6f8b44d, `vttest` is no longer part of the active blocker set, and the remaining local-host gate is foreground/accessibility/keyboard confirmation. The older 20260421T081004Z snapshot remains only as historical stop-point context.
+
+[2026-04-22T03:33:00Z] Normalized the live T-055 handoff contract so it no longer hardcodes a continuation commit hash. The active rule is now “latest pushed branch HEAD + active snapshot file present”; older snapshots remain historical only.

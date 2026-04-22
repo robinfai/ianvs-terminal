@@ -123,7 +123,7 @@ flutter run -d macos
   - 旧 snapshot 只保留历史 stop-point 价值，不再是当前 handoff 的事实源
 - Target-machine execution runbook: `.omx/context/t055-target-machine-execution-runbook-20260421T085450Z.md`
   - 这是目标机器执行手册，不是新的结果模板；结果仍然只能回填本任务现有 `Execution Record Template`
-- Target machine must continue from the latest pushed `HEAD` `6f8b44d394c1005cd1cf07a67db5010c959bd074` on branch `codex/hyper-first-shell`, not from an older local stop-point checkout.
+- Target machine must continue from the latest pushed `HEAD` on branch `codex/hyper-first-shell`, and must confirm the active snapshot `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md` is present in the workspace.
 - Current machine remains a blocked host for `T-055`; do not treat this host as if it can complete the manual matrix locally.
 - Current machine is blocked because of foreground / accessibility / keyboard-confirmation conditions, not because `vttest` is still missing.
 
