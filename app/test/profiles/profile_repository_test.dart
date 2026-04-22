@@ -26,7 +26,6 @@ void main() {
       final loaded = await repository.load();
       final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
 
-      expect(loaded.defaultProfileId, isNull);
       expect(loaded.profiles.single.name, 'Custom Shell');
       expect(raw.containsKey('defaultProfileId'), isFalse);
     },
@@ -46,7 +45,6 @@ void main() {
       final loaded = await repository.load();
       final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
 
-      expect(loaded.defaultProfileId, isNull);
       expect(
         loaded.profiles.map((profile) => profile.id),
         containsAll(<String>[
@@ -65,7 +63,7 @@ void main() {
   );
 
   test(
-    'profile repository still reads older documents with a legacy default profile id',
+    'profile repository ignores legacy defaultProfileId from older documents',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'flutterm-profiles-migration',
@@ -93,11 +91,11 @@ void main() {
 
       final loaded = await repository.load();
 
-      expect(loaded.defaultProfileId, 'legacy');
       expect(
         loaded.profiles.single.terminalEmulation,
         TerminalEmulation.xterm256,
       );
+      expect(loaded.toJson().containsKey('defaultProfileId'), isFalse);
     },
   );
 
@@ -129,7 +127,6 @@ void main() {
 
       final loaded = await repository.load();
 
-      expect(loaded.defaultProfileId, isNull);
       expect(loaded.profiles.single.id, 'default');
       expect(
         loaded.profiles.single.terminalEmulation,

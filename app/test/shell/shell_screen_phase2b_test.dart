@@ -36,59 +36,60 @@ Future<void> pumpShellScreen(
 }
 
 void main() {
-  testWidgets('command-shift-p opens the hyper command menu with secondary tools', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakeCoreBindings(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
+  testWidgets(
+    'command-shift-p opens the hyper command menu with secondary tools',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakeCoreBindings(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
 
-    await tester.sendKeyDownEvent(
-      LogicalKeyboardKey.metaLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyDownEvent(
-      LogicalKeyboardKey.shiftLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyP, platform: 'macos');
-    await tester.pumpAndSettle();
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyP, platform: 'macos');
-    await tester.sendKeyUpEvent(
-      LogicalKeyboardKey.shiftLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
-    await tester.pump();
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyP, platform: 'macos');
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyP, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
 
-    expect(find.text('Top actions'), findsOneWidget);
-    expect(find.text('App actions'), findsOneWidget);
-    expect(find.text('Session actions'), findsOneWidget);
-    expect(find.text('Defaults & appearance'), findsOneWidget);
-    expect(find.text('Profiles…'), findsOneWidget);
-    expect(
-      find.textContaining('Open the default shell profile.'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('Copy the current selection.'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('Paste clipboard into the shell.'),
-      findsOneWidget,
-    );
-  });
+      expect(find.text('Top actions'), findsOneWidget);
+      expect(find.text('App actions'), findsOneWidget);
+      expect(find.text('Session actions'), findsOneWidget);
+      expect(find.text('Defaults & appearance'), findsOneWidget);
+      expect(find.text('Profiles…'), findsOneWidget);
+      expect(
+        find.textContaining('Open the default shell profile.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Copy the current selection.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Paste clipboard into the shell.'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('launcher close restores terminal viewport focus', (
     tester,
@@ -99,10 +100,7 @@ void main() {
       tester,
       fakeBindings: fakeBindings,
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 

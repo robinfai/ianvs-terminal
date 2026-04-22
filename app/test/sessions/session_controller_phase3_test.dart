@@ -63,7 +63,6 @@ void main() {
         profileRepositoryProvider.overrideWithValue(
           _TestProfileRepository(
             const TerminalProfilesDocument(
-              defaultProfileId: 'default',
               profiles: [defaultProfile, sshProfile],
             ),
           ),
@@ -90,7 +89,7 @@ void main() {
   });
 
   test(
-    'bootstrap falls back to legacy default when preferences are absent',
+    'bootstrap ignores legacy profile defaults when preferences are absent',
     () async {
       final container = ProviderContainer(
         overrides: [
@@ -100,7 +99,6 @@ void main() {
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
               const TerminalProfilesDocument(
-                defaultProfileId: 'ssh',
                 profiles: [defaultProfile, sshProfile],
               ),
             ),
@@ -116,9 +114,9 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       final state = container.read(sessionControllerProvider);
-      expect(state.defaultProfileId, 'ssh');
+      expect(state.defaultProfileId, 'default');
       expect(state.configuredDefaultProfileId, isNull);
-      expect(state.tabs.single.profileId, 'ssh');
+      expect(state.tabs.single.profileId, 'default');
     },
   );
 
@@ -138,7 +136,6 @@ void main() {
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
               const TerminalProfilesDocument(
-                defaultProfileId: 'ssh',
                 profiles: [defaultProfile, sshProfile],
               ),
             ),
@@ -175,10 +172,7 @@ void main() {
           ),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: '',
-                profiles: [],
-              ),
+              const TerminalProfilesDocument(profiles: []),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -204,10 +198,7 @@ void main() {
     'setDefaultProfile writes only app preferences during the compatibility window',
     () async {
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultProfile, sshProfile],
-        ),
+        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -245,10 +236,7 @@ void main() {
     'saveProfile keeps legacy default ids out of steady-state profile writes',
     () async {
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(
-          defaultProfileId: 'ssh',
-          profiles: [defaultProfile, sshProfile],
-        ),
+        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -271,7 +259,12 @@ void main() {
           .saveProfile(sshProfile.copyWith(name: 'SSH Updated'));
 
       expect(profileRepository.savedDocuments, hasLength(1));
-      expect(profileRepository.savedDocuments.single.defaultProfileId, isNull);
+      expect(
+        profileRepository.savedDocuments.single.toJson().containsKey(
+          'defaultProfileId',
+        ),
+        isFalse,
+      );
       expect(
         profileRepository.savedDocuments.single.profiles
             .firstWhere((profile) => profile.id == 'ssh')
@@ -279,7 +272,7 @@ void main() {
         'SSH Updated',
       );
       final state = container.read(sessionControllerProvider);
-      expect(state.defaultProfileId, 'ssh');
+      expect(state.defaultProfileId, 'default');
       expect(state.configuredDefaultProfileId, isNull);
       expect(preferencesRepository.savedDocuments, isEmpty);
     },
@@ -301,7 +294,6 @@ void main() {
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
               const TerminalProfilesDocument(
-                defaultProfileId: 'default',
                 profiles: [defaultProfile, sshProfile],
               ),
             ),
@@ -341,7 +333,6 @@ void main() {
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
               const TerminalProfilesDocument(
-                defaultProfileId: 'default',
                 profiles: [defaultProfile, sshProfile],
               ),
             ),

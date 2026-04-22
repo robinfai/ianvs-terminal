@@ -248,9 +248,7 @@ void main() {
         terminalCoreClientProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(
-            const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
-          ),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -294,9 +292,7 @@ void main() {
         terminalCoreClientProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(
-            const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
-          ),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -343,9 +339,7 @@ void main() {
         terminalCoreClientProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(
-            const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
-          ),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -398,10 +392,7 @@ void main() {
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: '',
-                profiles: [],
-              ),
+              const TerminalProfilesDocument(profiles: []),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -444,9 +435,7 @@ void main() {
         terminalCoreClientProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(
-            const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
-          ),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -494,9 +483,7 @@ void main() {
         terminalCoreClientProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(
-            const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
-          ),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -557,10 +544,7 @@ void main() {
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: '',
-                profiles: [],
-              ),
+              const TerminalProfilesDocument(profiles: []),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -624,10 +608,7 @@ void main() {
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: '',
-                profiles: [],
-              ),
+              const TerminalProfilesDocument(profiles: []),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -695,9 +676,7 @@ void main() {
         terminalCoreClientProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(
-            const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
-          ),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -748,9 +727,7 @@ void main() {
         terminalCoreClientProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(
-            const TerminalProfilesDocument(defaultProfileId: '', profiles: []),
-          ),
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -786,10 +763,7 @@ void main() {
     () async {
       final coreClient = TerminalCoreClient(FakeCoreBindings());
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultProfile, sshProfile],
-        ),
+        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(
         const TerminalAppPreferencesDocument(
@@ -828,10 +802,7 @@ void main() {
         terminalCoreClientProvider.overrideWithValue(coreClient),
         profileRepositoryProvider.overrideWithValue(
           _TestProfileRepository(
-            const TerminalProfilesDocument(
-              defaultProfileId: 'default',
-              profiles: [defaultProfile],
-            ),
+            const TerminalProfilesDocument(profiles: [defaultProfile]),
           ),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
@@ -870,10 +841,7 @@ void main() {
           terminalCoreClientProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: 'default',
-                profiles: [defaultProfile],
-              ),
+              const TerminalProfilesDocument(profiles: [defaultProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -916,10 +884,7 @@ void main() {
           terminalCoreClientProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: 'default',
-                profiles: [defaultProfile],
-              ),
+              const TerminalProfilesDocument(profiles: [defaultProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -949,10 +914,7 @@ void main() {
           terminalCoreClientProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: 'default',
-                profiles: [defaultProfile],
-              ),
+              const TerminalProfilesDocument(profiles: [defaultProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -982,10 +944,7 @@ void main() {
   test('bootstrap prefers app defaults over legacy profile defaults', () async {
     final coreClient = TerminalCoreClient(FakeCoreBindings());
     final profileRepository = _TestProfileRepository(
-      const TerminalProfilesDocument(
-        defaultProfileId: 'default',
-        profiles: [defaultProfile, sshProfile],
-      ),
+      const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
     );
     final container = ProviderContainer(
       overrides: [
@@ -1011,14 +970,11 @@ void main() {
   });
 
   test(
-    'bootstrap falls back to legacy default when preferences are absent',
+    'bootstrap ignores legacy profile defaults when preferences are absent',
     () async {
       final coreClient = TerminalCoreClient(FakeCoreBindings());
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(
-          defaultProfileId: 'ssh',
-          profiles: [defaultProfile, sshProfile],
-        ),
+        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -1036,8 +992,8 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       final state = container.read(sessionControllerProvider);
-      expect(state.defaultProfileId, 'ssh');
-      expect(state.tabs.single.profileId, 'ssh');
+      expect(state.defaultProfileId, 'default');
+      expect(state.tabs.single.profileId, 'default');
       expect(preferencesRepository.savedDocuments, isEmpty);
     },
   );
@@ -1057,7 +1013,6 @@ void main() {
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
               const TerminalProfilesDocument(
-                defaultProfileId: 'ssh',
                 profiles: [defaultProfile, sshProfile],
               ),
             ),
@@ -1088,10 +1043,7 @@ void main() {
     () async {
       final coreClient = TerminalCoreClient(FakeCoreBindings());
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultProfile, sshProfile],
-        ),
+        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -1121,14 +1073,11 @@ void main() {
   );
 
   test(
-    'deleteProfile clears a legacy-seeded default through preferences repair-write',
+    'deleteProfile only clears configured defaults tracked in preferences',
     () async {
       final coreClient = TerminalCoreClient(FakeCoreBindings());
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(
-          defaultProfileId: 'ssh',
-          profiles: [defaultProfile, sshProfile],
-        ),
+        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -1150,17 +1099,13 @@ void main() {
 
       final state = container.read(sessionControllerProvider);
       expect(state.defaultProfileId, 'default');
-      expect(
-        preferencesRepository.savedDocuments.last.defaults.defaultProfileId,
-        isNull,
-      );
+      expect(preferencesRepository.savedDocuments, isEmpty);
       expect(
         profileRepository.savedDocuments.single.profiles.map(
           (profile) => profile.id,
         ),
         ['default'],
       );
-      expect(profileRepository.savedDocuments.single.defaultProfileId, isNull);
       expect(
         profileRepository.savedDocuments.single.toJson().containsKey(
           'defaultProfileId',
@@ -1180,10 +1125,7 @@ void main() {
           terminalCoreClientProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: '',
-                profiles: [],
-              ),
+              const TerminalProfilesDocument(profiles: []),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -1236,10 +1178,7 @@ void main() {
           terminalCoreClientProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: '',
-                profiles: [],
-              ),
+              const TerminalProfilesDocument(profiles: []),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -1287,10 +1226,7 @@ void main() {
           terminalCoreClientProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                defaultProfileId: '',
-                profiles: [],
-              ),
+              const TerminalProfilesDocument(profiles: []),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(

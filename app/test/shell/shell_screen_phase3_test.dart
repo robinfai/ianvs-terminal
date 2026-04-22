@@ -44,7 +44,6 @@ void main() {
     (tester) async {
       final profileRepository = MemoryProfileRepository(
         TerminalProfilesDocument(
-          defaultProfileId: 'ssh',
           profiles: [
             defaultTerminalProfile(),
             const TerminalProfile(
@@ -74,7 +73,6 @@ void main() {
     (tester) async {
       final profileRepository = MemoryProfileRepository(
         TerminalProfilesDocument(
-          defaultProfileId: 'ssh',
           profiles: [
             defaultTerminalProfile(),
             const TerminalProfile(
@@ -119,7 +117,6 @@ void main() {
       final preferencesRepository = MemoryAppPreferencesRepository(null);
       final profileRepository = MemoryProfileRepository(
         TerminalProfilesDocument(
-          defaultProfileId: 'default',
           profiles: [
             defaultTerminalProfile(),
             const TerminalProfile(
@@ -181,10 +178,7 @@ void main() {
         tester,
         fakeBindings: fakeBindings,
         profileRepository: MemoryProfileRepository(
-          TerminalProfilesDocument(
-            defaultProfileId: 'default',
-            profiles: [defaultTerminalProfile()],
-          ),
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
         preferencesRepository: MemoryAppPreferencesRepository(null),
       );
@@ -216,7 +210,6 @@ void main() {
   ) async {
     final profileRepository = MemoryProfileRepository(
       TerminalProfilesDocument(
-        defaultProfileId: 'default',
         profiles: [
           defaultTerminalProfile(),
           const TerminalProfile(id: 'ssh', name: 'SSH', shell: '/usr/bin/ssh'),

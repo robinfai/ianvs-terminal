@@ -142,10 +142,7 @@ void main() {
       tester,
       bindings: FakeCoreBindings(),
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 
@@ -187,10 +184,7 @@ void main() {
       tester,
       bindings: fakeBindings,
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 
@@ -233,10 +227,7 @@ void main() {
       tester,
       bindings: fakeBindings,
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
     await tester.pump(const Duration(milliseconds: 40));
@@ -263,10 +254,7 @@ void main() {
       tester,
       bindings: fakeBindings,
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 
@@ -304,10 +292,7 @@ void main() {
       tester,
       bindings: fakeBindings,
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 
@@ -335,10 +320,7 @@ void main() {
       tester,
       bindings: FakeCoreBindings(),
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 
@@ -373,10 +355,7 @@ void main() {
       tester,
       bindings: eventfulBindings,
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 
@@ -406,10 +385,7 @@ void main() {
       tester,
       bindings: fakeBindings,
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 

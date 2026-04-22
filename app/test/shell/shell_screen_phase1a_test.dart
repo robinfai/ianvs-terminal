@@ -45,10 +45,7 @@ void main() {
       tester,
       fakeBindings: FakeCoreBindings(),
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 
@@ -71,10 +68,7 @@ void main() {
         tester,
         fakeBindings: FakeCoreBindings(),
         repository: MemoryProfileRepository(
-          TerminalProfilesDocument(
-            defaultProfileId: 'default',
-            profiles: [defaultTerminalProfile()],
-          ),
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
       );
 
@@ -107,10 +101,7 @@ void main() {
         tester,
         fakeBindings: FakeCoreBindings(),
         repository: MemoryProfileRepository(
-          TerminalProfilesDocument(
-            defaultProfileId: 'default',
-            profiles: [defaultTerminalProfile()],
-          ),
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
         referenceDemoMode: true,
       );

@@ -49,10 +49,7 @@ void main() {
       tester,
       fakeBindings: FakeCoreBindings(),
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 
@@ -88,18 +85,20 @@ void main() {
     expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
     expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
     expect(shellAcceptanceProbe.current.visibleOverlay, 'none');
-    expect(shellAcceptanceProbe.current.snapshotVersion, greaterThan(openVersion));
+    expect(
+      shellAcceptanceProbe.current.snapshotVersion,
+      greaterThan(openVersion),
+    );
   });
 
-  testWidgets('shell screen command menu can create another tab', (tester) async {
+  testWidgets('shell screen command menu can create another tab', (
+    tester,
+  ) async {
     await pumpShellScreen(
       tester,
       fakeBindings: FakeCoreBindings(),
       repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
-        ),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
 

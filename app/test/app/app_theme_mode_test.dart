@@ -24,10 +24,7 @@ Future<void> _pumpApp(
         ),
         profileRepositoryProvider.overrideWithValue(
           MemoryProfileRepository(
-            TerminalProfilesDocument(
-              defaultProfileId: 'default',
-              profiles: [defaultTerminalProfile()],
-            ),
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
           ),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(

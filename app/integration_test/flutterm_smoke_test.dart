@@ -64,10 +64,7 @@ void main() {
   ) async {
     await _pumpSmokeApp(
       tester,
-      profiles: TerminalProfilesDocument(
-        defaultProfileId: 'default',
-        profiles: [defaultTerminalProfile()],
-      ),
+      profiles: TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
     );
 
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
@@ -87,10 +84,7 @@ void main() {
   ) async {
     await _pumpSmokeApp(
       tester,
-      profiles: TerminalProfilesDocument(
-        defaultProfileId: 'default',
-        profiles: [defaultTerminalProfile()],
-      ),
+      profiles: TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
     );
 
     await tester.sendKeyDownEvent(
@@ -139,7 +133,6 @@ void main() {
     await _pumpSmokeApp(
       tester,
       profiles: TerminalProfilesDocument(
-        defaultProfileId: primaryProfile.id,
         profiles: [primaryProfile, secondaryProfile],
       ),
     );
@@ -161,10 +154,7 @@ void main() {
   ) async {
     await _pumpSmokeApp(
       tester,
-      profiles: TerminalProfilesDocument(
-        defaultProfileId: 'default',
-        profiles: [defaultTerminalProfile()],
-      ),
+      profiles: TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
     );
 
     await tester.tap(find.byTooltip('Close Local Shell'));

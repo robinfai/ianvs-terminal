@@ -69,27 +69,18 @@ class TerminalProfile {
 }
 
 class TerminalProfilesDocument {
-  const TerminalProfilesDocument({
-    this.defaultProfileId,
-    required this.profiles,
-  });
+  const TerminalProfilesDocument({required this.profiles});
 
-  final String? defaultProfileId;
   final List<TerminalProfile> profiles;
 
   Map<String, Object?> toJson() {
-    return {
-      if (defaultProfileId != null && defaultProfileId!.isNotEmpty)
-        'defaultProfileId': defaultProfileId,
-      'profiles': profiles.map((profile) => profile.toJson()).toList(),
-    };
+    return {'profiles': profiles.map((profile) => profile.toJson()).toList()};
   }
 
   String encode() => jsonEncode(toJson());
 
   static TerminalProfilesDocument fromJson(Map<String, Object?> json) {
     return TerminalProfilesDocument(
-      defaultProfileId: json['defaultProfileId'] as String?,
       profiles: (json['profiles']! as List<dynamic>)
           .map(
             (entry) => TerminalProfile.fromJson(entry as Map<String, Object?>),

@@ -49,7 +49,6 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, _SessionResizeMetric> _lastResizeMetrics = {};
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
-  String? _legacyDefaultProfileId;
   bool _preferencesLoadedFromDisk = false;
   Timer? _pollTimer;
   final Map<String, List<Timer>> _warmUpTimers = {};
@@ -108,21 +107,14 @@ class SessionController extends Notifier<SessionState> {
         ? [defaultTerminalProfile()]
         : profiles.profiles;
     final preferencesRepository = ref.read(appPreferencesRepositoryProvider);
-    _legacyDefaultProfileId = _normalizeProfileId(profiles.defaultProfileId);
     final persistedPreferences = await preferencesRepository.load();
     _preferencesLoadedFromDisk = persistedPreferences != null;
     final seededPreferences =
-        persistedPreferences ??
-        TerminalAppPreferencesDocument(
-          defaults: TerminalAppDefaults(
-            defaultProfileId: _legacyDefaultProfileId,
-          ),
-        );
+        persistedPreferences ?? const TerminalAppPreferencesDocument();
     final resolution = _resolveBootstrapPreferences(
       profiles: runtimeProfiles,
       preferences: seededPreferences,
       explicitDefaultProfileId: bootstrapDefaultProfileIdOverride,
-      allowLegacyFallback: persistedPreferences == null,
     );
     _appPreferences = resolution.preferences;
     if (resolution.shouldRepairWritePreferences) {
@@ -631,8 +623,7 @@ class SessionController extends Notifier<SessionState> {
         .save(TerminalProfilesDocument(profiles: nextProfiles));
     final deletedConfiguredDefault =
         _normalizeProfileId(_appPreferences.defaults.defaultProfileId) ==
-            profileId ||
-        (!_preferencesLoadedFromDisk && _legacyDefaultProfileId == profileId);
+        profileId;
     if (deletedConfiguredDefault) {
       _appPreferences = _appPreferences.copyWith(
         defaults: _appPreferences.defaults.copyWith(defaultProfileId: null),
@@ -671,7 +662,6 @@ class SessionController extends Notifier<SessionState> {
     required List<TerminalProfile> profiles,
     required TerminalAppPreferencesDocument preferences,
     required String? explicitDefaultProfileId,
-    required bool allowLegacyFallback,
   }) {
     final explicitDefaultId = _normalizeProfileId(explicitDefaultProfileId);
     if (_hasProfileId(profiles, explicitDefaultId)) {
@@ -699,14 +689,6 @@ class SessionController extends Notifier<SessionState> {
         effectiveDefaultProfileId: profiles.isEmpty ? null : profiles.first.id,
         preferences: repairedPreferences,
         shouldRepairWritePreferences: true,
-      );
-    }
-
-    if (allowLegacyFallback &&
-        _hasProfileId(profiles, _legacyDefaultProfileId)) {
-      return _BootstrapPreferencesResolution(
-        effectiveDefaultProfileId: _legacyDefaultProfileId,
-        preferences: preferences,
       );
     }
 
