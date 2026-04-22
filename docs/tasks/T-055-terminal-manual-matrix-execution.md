@@ -128,7 +128,10 @@ flutter run -d macos
   - active snapshot = 当前事实与本机阻塞背景
   - runbook = 目标机执行步骤与记录规则
   - branching playbook = 结果分叉与 follow-up 任务归属
+  - closeout checklist = 文档同步与 `T-055` 关门判断
 - Target machine must continue from the latest pushed `HEAD` on branch `codex/hyper-first-shell`, and must confirm the active snapshot `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md` is present in the workspace.
+- Result closeout checklist: `.omx/context/t055-result-closeout-checklist-20260422T062152Z.md`
+  - 目标机执行完成后，按这份清单同步 `docs/TESTING.md` / `docs/KNOWN_ISSUES.md`，回填 follow-up task 指针，并判断 `T-055` 是否可以真正关闭
 - Current machine remains a blocked host for `T-055`; do not treat this host as if it can complete the manual matrix locally.
 - Current machine is blocked because of foreground / accessibility / keyboard-confirmation conditions, not because `vttest` is still missing.
 

@@ -39,6 +39,7 @@ This runbook is the sole execution and recording guide for the target-machine pa
    - `trackpad scrollback`
    - `font-metric / DPI resize`
 9. Write every result back into `docs/tasks/T-055-terminal-manual-matrix-execution.md` using the existing `Execution Record Template`.
+10. Hand off the completed run to `.omx/context/t055-result-closeout-checklist-20260422T062152Z.md` for document sync, follow-up task pointers, and final `T-055` closure judgment.
 
 ## Recording Rules
 Use only `pass`, `fail`, or `blocked` for every item.
