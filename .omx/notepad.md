@@ -46,3 +46,5 @@
 [2026-04-22T07:12:08Z] Landed the formal Phase 4 planning pair at .omx/plans/prd-hyper-like-phase4-interaction-polish.md and .omx/plans/test-spec-hyper-like-phase4-interaction-polish.md. The next owner after this round remains the existing Phase 4 implementation kickoff checklist; `T-056` and the parked `defaultProfileId` review still stay out of scope for this commit.
 
 [2026-04-22T07:29:25Z] Created docs/tasks/T-056-hyper-phase4-interaction-polish.md from the Phase 4 implementation kickoff chain. The repo's live lane has now moved from formal Phase 4 planning to Phase 4 implementation, while the `defaultProfileId` deprecation review remains parked until `T-056` is complete or clearly no longer blocks that lane.
+
+[2026-04-22T16:09:06+08:00] `T-056` is now complete via commit `6ce0dd8fa531eba279692091268f3316c1439e1e`, and its verification entrypoint has been synced into `docs/TESTING.md`. The live lane now moves from Phase 4 implementation to the formal `defaultProfileId` review lane, while the `T-055 forced-closed` manual-matrix gap remains an unchanged shared-doc risk rather than a reopened handoff.

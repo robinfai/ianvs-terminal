@@ -64,7 +64,23 @@ flutter test test/sessions/session_controller_test.dart
 - 若 shell verification wording 有变化，`docs/TESTING.md` 已同步
 - 没有把 `defaultProfileId` review 或 `T-055 forced-closed` 的未完成 manual-matrix 风险吸收入本任务
 
+## Completion Record
+
+- 完成时间：`2026-04-22 15:45 CST / 2026-04-22T07:45:32Z`
+- 落地提交：`6ce0dd8fa531eba279692091268f3316c1439e1e`
+- 实际验证链：
+  - `flutter analyze`
+  - `flutter test test/widget_test.dart`
+  - `flutter test test/shell/shell_screen_phase1a_test.dart`
+  - `flutter test test/shell/shell_screen_phase1b_test.dart`
+  - `flutter test test/shell/shell_screen_phase2a_test.dart`
+  - `flutter test test/shell/shell_screen_phase2b_test.dart`
+  - `flutter test test/shell/shell_screen_phase3_test.dart`
+  - `flutter test test/shell/shell_screen_phase4_test.dart`
+  - `flutter test integration_test/flutterm_smoke_test.dart`
+- 结论：`T-056` 已完成，且不再阻塞 defaults / lifecycle lane
+
 ## Risks / Follow-ups
 
-- `defaultProfileId` deprecation review 继续 parked，等 `T-056` 完成或明确不再阻塞后再激活
+- `defaultProfileId` deprecation review 现在转入 formal review lane；后续 narrowing/removal implementation 仍需等待正式 review 锁定 verdict
 - 若 Phase 4 实施中发现非本 phase 的问题，拆 focused task，不吸收入 `T-056`

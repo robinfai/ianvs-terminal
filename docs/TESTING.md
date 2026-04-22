@@ -189,6 +189,28 @@ cd /Users/robinfai/personal/flutterm
 - `MaterialApp` 真正消费 persisted `themeMode`
 - 关闭 defaults surface 后 launcher / focus / terminal input 不回归
 
+### 改 shell interaction polish（Phase 4）
+
+必须执行：
+
+- `flutter analyze`
+- `flutter test test/widget_test.dart`
+- `flutter test test/shell/shell_screen_phase2a_test.dart`
+- `flutter test test/shell/shell_screen_phase2b_test.dart`
+- `flutter test test/shell/shell_screen_phase4_test.dart`
+- `flutter test integration_test/flutterm_smoke_test.dart`
+
+如果本次实现直接消费更细粒度的 session lifecycle state，追加：
+
+- `flutter test test/sessions/session_controller_test.dart`
+
+重点确认：
+
+- terminal focus 时 shell workspace cue 显式可见
+- launcher / defaults close 后 cue 回到 shell，且键盘输入路径不变
+- last-tab close / shell `exit` 后 empty-state 文案进入新的 workspace-idle 语境
+- `T-055 forced-closed` 留下的 manual-matrix 风险继续只是已记录风险，不是已通过证据
+
 ### 改 driver-only 验收入口 / Hyper-first MCP 验收状态面
 
 必须执行：
