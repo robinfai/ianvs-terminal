@@ -17,6 +17,8 @@ import 'reference_demo.dart';
 
 enum _ShellCommandAction { newTab, copy, paste, defaults, profiles }
 
+enum _ShellWorkspaceCueTone { active, returning }
+
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
 
 sealed class _ProfilesSheetResult {
@@ -49,6 +51,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
+  bool _activeTerminalHasFocus = false;
+  bool _recentlyClosedLastSession = false;
+  bool _showReturningCueOnNextFocus = false;
+  int _lastObservedTabCount = 0;
+  _ShellWorkspaceCueTone _workspaceCueTone = _ShellWorkspaceCueTone.active;
+
+  @override
+  void dispose() {
+    for (final focusNode in _terminalFocusNodes.values) {
+      focusNode.dispose();
+    }
+    super.dispose();
+  }
 
   String get _visibleOverlay {
     if (_isDefaultsOpen) {
@@ -138,6 +153,117 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌘V' : 'Ctrl+V';
   }
 
+  String get _workspaceCueTitle {
+    return switch (_workspaceCueTone) {
+      _ShellWorkspaceCueTone.active => 'Shell workspace active',
+      _ShellWorkspaceCueTone.returning => 'Back in shell workspace',
+    };
+  }
+
+  String get _emptyStateTitle {
+    return _recentlyClosedLastSession
+        ? 'Shell workspace is idle'
+        : 'Start a shell workspace';
+  }
+
+  String get _emptyStateMessage {
+    return _recentlyClosedLastSession
+        ? 'The last session has closed. Open a new tab to keep working in the shell workspace.'
+        : 'Open a new tab to start working in the shell workspace.';
+  }
+
+  FocusNode _focusNodeFor(String sessionId) {
+    return _terminalFocusNodes.putIfAbsent(sessionId, () {
+      final focusNode = FocusNode(debugLabel: 'shell-terminal-$sessionId');
+      focusNode.addListener(
+        () => _handleTerminalFocusChanged(sessionId, focusNode),
+      );
+      return focusNode;
+    });
+  }
+
+  void _handleTerminalFocusChanged(String sessionId, FocusNode focusNode) {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId != sessionId) {
+      return;
+    }
+
+    final hasFocus = focusNode.hasFocus;
+    final nextTone = hasFocus && _showReturningCueOnNextFocus
+        ? _ShellWorkspaceCueTone.returning
+        : _ShellWorkspaceCueTone.active;
+    final shouldClearPendingReturn = hasFocus && _showReturningCueOnNextFocus;
+    if (_activeTerminalHasFocus == hasFocus &&
+        _workspaceCueTone == nextTone &&
+        !shouldClearPendingReturn) {
+      return;
+    }
+
+    setState(() {
+      _activeTerminalHasFocus = hasFocus;
+      if (hasFocus) {
+        _workspaceCueTone = nextTone;
+        _showReturningCueOnNextFocus = false;
+      }
+    });
+  }
+
+  void _scheduleReturningCue() {
+    _showReturningCueOnNextFocus = true;
+    _recentlyClosedLastSession = false;
+  }
+
+  void _syncPresentationState(SessionState sessionState) {
+    final currentTabCount = sessionState.tabs.length;
+    if (currentTabCount == 0 && _lastObservedTabCount > 0) {
+      _recentlyClosedLastSession = true;
+      _activeTerminalHasFocus = false;
+    } else if (currentTabCount > 0 && _lastObservedTabCount == 0) {
+      _recentlyClosedLastSession = false;
+    }
+    if (sessionState.activeSessionId == null) {
+      _activeTerminalHasFocus = false;
+    }
+    _lastObservedTabCount = currentTabCount;
+  }
+
+  void _createSession(
+    SessionController sessionController,
+    TerminalProfile profile, {
+    required bool returningToWorkspace,
+  }) {
+    if (returningToWorkspace) {
+      _scheduleReturningCue();
+    }
+    sessionController.createSession(profile);
+    _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+  }
+
+  void _activateSession(SessionController sessionController, String sessionId) {
+    _scheduleReturningCue();
+    sessionController.activateSession(sessionId);
+    _focusSession(sessionId);
+  }
+
+  void _closeSession(
+    SessionController sessionController,
+    SessionState sessionState,
+    String sessionId,
+  ) {
+    final closesLastSession = sessionState.tabs.length == 1;
+    if (closesLastSession) {
+      _recentlyClosedLastSession = true;
+    }
+    sessionController.closeSession(sessionId);
+    final nextActiveSessionId = ref
+        .read(sessionControllerProvider)
+        .activeSessionId;
+    if (nextActiveSessionId != null) {
+      _scheduleReturningCue();
+      _focusSession(nextActiveSessionId);
+    }
+  }
+
   void _focusSession(String? sessionId) {
     if (sessionId == null) {
       return;
@@ -162,6 +288,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         activeSessionIdAfterClose != activeSessionIdBeforeOpen) {
       return;
     }
+    _scheduleReturningCue();
     _focusSession(activeSessionIdBeforeOpen);
   }
 
@@ -352,8 +479,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     switch (result) {
       case _OpenProfileResult(:final profile):
-        sessionController.createSession(profile);
-        _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+        _createSession(
+          sessionController,
+          profile,
+          returningToWorkspace: activeSessionIdBeforeOpen == null,
+        );
         return;
       case _EditProfileResult(:final profile):
         final edited = await showDialog<TerminalProfile>(
@@ -478,8 +608,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         if (defaultProfile == null) {
           return;
         }
-        sessionController.createSession(defaultProfile);
-        _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+        _createSession(
+          sessionController,
+          defaultProfile,
+          returningToWorkspace: activeSessionIdBeforeOpen == null,
+        );
         return;
       case _ShellCommandAction.copy:
         if (currentSessionId == null) {
@@ -527,6 +660,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionControllerProvider);
+    _syncPresentationState(sessionState);
     final sessionController = ref.read(sessionControllerProvider.notifier);
     final activeSessionId = sessionState.activeSessionId;
     final defaultProfile = _effectiveDefaultProfileFor(
@@ -561,10 +695,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         : _profileForId(sessionState.profiles, activeTab.profileId);
     final activeFocusNode = activeSessionId == null
         ? null
-        : _terminalFocusNodes.putIfAbsent(
-            activeSessionId,
-            () => FocusNode(debugLabel: 'shell-terminal-$activeSessionId'),
-          );
+        : _focusNodeFor(activeSessionId);
     final palette = _ShellPalette.fromBrightness(Theme.of(context).brightness);
 
     return Focus(
@@ -598,8 +729,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           if (_isCommandMenuOpen || defaultProfile == null) {
             return KeyEventResult.handled;
           }
-          sessionController.createSession(defaultProfile);
-          _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+          _createSession(
+            sessionController,
+            defaultProfile,
+            returningToWorkspace: activeSessionId == null,
+          );
           return KeyEventResult.handled;
         }
 
@@ -622,8 +756,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   tabs: sessionState.tabs,
                   activeSessionId: activeSessionId,
                   referenceDemoMode: referenceDemoMode,
-                  onActivateSession: sessionController.activateSession,
-                  onCloseSession: sessionController.closeSession,
+                  onActivateSession: (sessionId) =>
+                      _activateSession(sessionController, sessionId),
+                  onCloseSession: (sessionId) =>
+                      _closeSession(sessionController, sessionState, sessionId),
                   onShowCommandMenu: () =>
                       _openCommandMenu(sessionController, sessionState),
                 ),
@@ -638,17 +774,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ? _ShellEmptyState(
                             key: const Key('shell-empty-state'),
                             palette: palette,
+                            title: _emptyStateTitle,
+                            message: _emptyStateMessage,
                             defaultSummary: defaultSummary,
                             onNewTab: defaultProfile == null
                                 ? null
                                 : () {
-                                    sessionController.createSession(
+                                    _createSession(
+                                      sessionController,
                                       defaultProfile,
-                                    );
-                                    _focusSession(
-                                      ref
-                                          .read(sessionControllerProvider)
-                                          .activeSessionId,
+                                      returningToWorkspace: true,
                                     );
                                   },
                           )
@@ -709,29 +844,50 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       top: BorderSide(color: palette.divider),
                                     ),
                                   ),
-                                  child: TerminalViewport(
-                                    focusNode: activeFocusNode,
-                                    controller: sessionController.viewportFor(
-                                      activeSessionId,
-                                    ),
-                                    selectionController: selectionController,
-                                    inputController: inputController,
-                                    onScrollLines: (delta) {
-                                      ref
-                                          .read(terminalCoreClientProvider)
-                                          .scrollViewport(
-                                            activeSessionId,
-                                            delta,
-                                          );
-                                    },
-                                    onScrollToOffset: (offset) {
-                                      ref
-                                          .read(terminalCoreClientProvider)
-                                          .scrollViewportTo(
-                                            activeSessionId,
-                                            offset,
-                                          );
-                                    },
+                                  child: Stack(
+                                    children: [
+                                      Positioned.fill(
+                                        child: TerminalViewport(
+                                          focusNode: activeFocusNode,
+                                          controller: sessionController
+                                              .viewportFor(activeSessionId),
+                                          selectionController:
+                                              selectionController,
+                                          inputController: inputController,
+                                          onScrollLines: (delta) {
+                                            ref
+                                                .read(
+                                                  terminalCoreClientProvider,
+                                                )
+                                                .scrollViewport(
+                                                  activeSessionId,
+                                                  delta,
+                                                );
+                                          },
+                                          onScrollToOffset: (offset) {
+                                            ref
+                                                .read(
+                                                  terminalCoreClientProvider,
+                                                )
+                                                .scrollViewportTo(
+                                                  activeSessionId,
+                                                  offset,
+                                                );
+                                          },
+                                        ),
+                                      ),
+                                      if (_activeTerminalHasFocus)
+                                        Positioned(
+                                          top: 12,
+                                          left: 16,
+                                          child: IgnorePointer(
+                                            child: _ShellWorkspaceCue(
+                                              title: _workspaceCueTitle,
+                                              palette: palette,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
                                   ),
                                 ),
                               );
@@ -1011,11 +1167,15 @@ class _ShellEmptyState extends StatelessWidget {
   const _ShellEmptyState({
     super.key,
     required this.palette,
+    required this.title,
+    required this.message,
     required this.defaultSummary,
     required this.onNewTab,
   });
 
   final _ShellPalette palette;
+  final String title;
+  final String message;
   final String defaultSummary;
   final VoidCallback? onNewTab;
 
@@ -1035,7 +1195,7 @@ class _ShellEmptyState extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'No active sessions',
+                  title,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: palette.primaryText,
                     fontWeight: FontWeight.w600,
@@ -1044,7 +1204,7 @@ class _ShellEmptyState extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Open a new tab to start a shell session.',
+                  message,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: palette.mutedText,
                     height: 1.45,
@@ -1073,6 +1233,62 @@ class _ShellEmptyState extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellWorkspaceCue extends StatelessWidget {
+  const _ShellWorkspaceCue({required this.title, required this.palette});
+
+  final String title;
+  final _ShellPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      key: const Key('shell-workspace-focus-cue'),
+      decoration: BoxDecoration(
+        color: palette.overlayBackground.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: palette.accent.withValues(alpha: 0.38)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.keyboard_command_key_rounded, color: palette.accent),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: palette.primaryText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Keyboard input goes to this terminal.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: palette.subtleText),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

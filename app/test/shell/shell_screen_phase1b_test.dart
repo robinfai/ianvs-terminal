@@ -64,45 +64,46 @@ void main() {
     );
   });
 
-  testWidgets('shell screen keeps tab hierarchy clear after opening a second tab', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakeCoreBindings(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
+  testWidgets(
+    'shell screen keeps tab hierarchy clear after opening a second tab',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakeCoreBindings(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(
+            defaultProfileId: 'default',
+            profiles: [defaultTerminalProfile()],
+          ),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('New tab'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New tab'));
+      await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
-    expect(
-      tester.getSemantics(find.bySemanticsLabel('shell-tab-2')),
-      matchesSemantics(
-        label: 'shell-tab-2',
-        hasSelectedState: true,
-        isButton: true,
-        isSelected: true,
-      ),
-    );
-    expect(
-      tester.getSemantics(find.bySemanticsLabel('shell-tab-1')),
-      matchesSemantics(
-        label: 'shell-tab-1',
-        hasSelectedState: true,
-        isButton: true,
-      ),
-    );
-  });
+      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('shell-tab-2')),
+        matchesSemantics(
+          label: 'shell-tab-2',
+          hasSelectedState: true,
+          isButton: true,
+          isSelected: true,
+        ),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('shell-tab-1')),
+        matchesSemantics(
+          label: 'shell-tab-1',
+          hasSelectedState: true,
+          isButton: true,
+        ),
+      );
+    },
+  );
 
   testWidgets('shell screen uses the same dark empty-state language everywhere', (
     tester,
@@ -122,8 +123,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
-    expect(find.text('No active sessions'), findsOneWidget);
-    expect(find.text('Open a new tab to start a shell session.'), findsOneWidget);
+    expect(find.text('Shell workspace is idle'), findsOneWidget);
+    expect(
+      find.text(
+        'The last session has closed. Open a new tab to keep working in the shell workspace.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('reference demo mode keeps the middle Shell tab selected', (

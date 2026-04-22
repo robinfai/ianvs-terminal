@@ -85,32 +85,39 @@ void main() {
 
       expect(find.byType(TerminalViewport), findsNothing);
       expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
-      expect(find.text('No active sessions'), findsOneWidget);
+      expect(find.text('Shell workspace is idle'), findsOneWidget);
       expect(find.text('Fallback default • Local Shell'), findsOneWidget);
+      expect(
+        find.text(
+          'The last session has closed. Open a new tab to keep working in the shell workspace.',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('New Tab'), findsOneWidget);
     },
   );
 
-  testWidgets('reference demo mode boots with three Shell tabs and no menu button', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakeCoreBindings(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(
-          defaultProfileId: 'default',
-          profiles: [defaultTerminalProfile()],
+  testWidgets(
+    'reference demo mode boots with three Shell tabs and no menu button',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakeCoreBindings(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(
+            defaultProfileId: 'default',
+            profiles: [defaultTerminalProfile()],
+          ),
         ),
-      ),
-      referenceDemoMode: true,
-    );
+        referenceDemoMode: true,
+      );
 
-    expect(find.byKey(const Key('shell-chrome-menu')), findsNothing);
-    expect(find.text('Shell'), findsNWidgets(3));
-    expect(find.bySemanticsLabel('shell-tab-demo-1'), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-demo-2'), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-demo-3'), findsOneWidget);
-    expect(find.byType(TerminalViewport), findsOneWidget);
-  });
+      expect(find.byKey(const Key('shell-chrome-menu')), findsNothing);
+      expect(find.text('Shell'), findsNWidgets(3));
+      expect(find.bySemanticsLabel('shell-tab-demo-1'), findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-demo-2'), findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-demo-3'), findsOneWidget);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+    },
+  );
 }

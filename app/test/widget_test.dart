@@ -347,12 +347,20 @@ void main() {
 
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
+    expect(find.text('Shell workspace is idle'), findsOneWidget);
+    expect(
+      find.text(
+        'The last session has closed. Open a new tab to keep working in the shell workspace.',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('New Tab'));
     await tester.pumpAndSettle();
 
     expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
+    expect(find.text('Back in shell workspace'), findsOneWidget);
   });
 
   testWidgets('terminal exit returns the shell to the empty state', (
@@ -380,6 +388,13 @@ void main() {
 
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
+    expect(find.text('Shell workspace is idle'), findsOneWidget);
+    expect(
+      find.text(
+        'The last session has closed. Open a new tab to keep working in the shell workspace.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shell terminal scrollbar drag sends absolute scroll requests', (
