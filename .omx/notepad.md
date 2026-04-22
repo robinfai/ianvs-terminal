@@ -44,3 +44,5 @@
 [2026-04-22T07:12:08Z] Added a dedicated `T-055` forced-close override checklist at .omx/context/t055-forced-close-override-checklist-20260422T071208Z.md and used it to retire the live off-machine handoff chain. `T-055` is now `forced-closed` rather than completed, the unresolved VT220 / powerline / trackpad / DPI matrix remains a documented known risk in shared docs, and the repo's live planning lane has moved to formal Phase 4 writeup.
 
 [2026-04-22T07:12:08Z] Landed the formal Phase 4 planning pair at .omx/plans/prd-hyper-like-phase4-interaction-polish.md and .omx/plans/test-spec-hyper-like-phase4-interaction-polish.md. The next owner after this round remains the existing Phase 4 implementation kickoff checklist; `T-056` and the parked `defaultProfileId` review still stay out of scope for this commit.
+
+[2026-04-22T07:29:25Z] Created docs/tasks/T-056-hyper-phase4-interaction-polish.md from the Phase 4 implementation kickoff chain. The repo's live lane has now moved from formal Phase 4 planning to Phase 4 implementation, while the `defaultProfileId` deprecation review remains parked until `T-056` is complete or clearly no longer blocks that lane.
