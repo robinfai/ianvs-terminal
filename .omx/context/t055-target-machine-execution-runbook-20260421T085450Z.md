@@ -8,13 +8,20 @@ Complete `T-055 Terminal Manual Matrix Execution` on a standard interactive macO
 - Do not invent a new result template; use the existing `Execution Record Template` in `docs/tasks/T-055-terminal-manual-matrix-execution.md`.
 - Do not treat host/tooling `blocked` results as terminal product regressions.
 - Do not create formal Phase 4 `.omx/plans/` artifacts until `T-055` is fully resolved and no product `fail` remains.
-- Keep the existing off-machine stop-point snapshot `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md` as the baseline for why this run must happen on another machine.
+- Use the active off-machine snapshot `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md` as the current baseline for why this run must happen on another machine.
+- Treat `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md` as historical stop-point context only.
 
 ## Target Machine Preconditions
 - App can be foregrounded to a real interactive macOS desktop.
 - `vttest` is installed and callable from `PATH`.
 - A physical trackpad is available.
 - At least one alternate font or DPI condition is available for resize verification.
+
+## Handoff Inputs
+- Active snapshot: `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md`
+- Task document: `docs/tasks/T-055-terminal-manual-matrix-execution.md`
+- Branching playbook: `.omx/context/t055-result-branching-playbook-20260421T091946Z.md`
+- Historical stop-point only: `.omx/context/t055-terminal-manual-matrix-off-machine-20260421T081004Z.md`
 
 ## Execution Sequence
 1. `git fetch origin`
