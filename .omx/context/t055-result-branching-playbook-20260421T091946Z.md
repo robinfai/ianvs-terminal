@@ -65,6 +65,11 @@ Required content inside those sections:
 - result source time and machine
 - the exact `T-055` matrix item that triggered the task
 - one minimum verification command or one explicit manual acceptance line
+- for `terminal-dpi-resize-translation-gap`, also require:
+  - shell-driven or viewport-driven path
+  - X-axis, Y-axis, or both
+  - prompt / cell metric / DPI condition
+  - whether measured cell size had already been established
 
 ## Per-Branch Defaults
 ### Environment tasks
@@ -82,6 +87,7 @@ Required content inside those sections:
 - `Verification Commands` must include at least one minimum automated command or one explicit manual acceptance line.
 - `Manual QA` should reuse the exact matrix step that triggered the `fail`, rather than expanding into a broader smoke pass.
 - default first step is writing minimum repro plus verification line, then scoping implementation work afterward.
+- `terminal-dpi-resize-translation-gap` follow-up tasks must explicitly distinguish shell-driven vs viewport-driven behavior before any implementation work is scoped.
 
 ## T-055 Back-Reference Rule
 - Every new task must reference `T-055` in its opening paragraph or in `Risks / Follow-ups`.

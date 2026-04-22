@@ -65,9 +65,14 @@ Use only `pass`, `fail`, or `blocked` for every item.
 - `fail`: a clear scrolling interaction problem is reproduced.
 
 ### `font-metric / DPI resize`
-- `pass`: resize and window-size translation behave correctly across at least two font-metric or DPI conditions.
+- `pass`: viewport-driven resize and shell-driven rows/cols -> window-size translation both behave correctly across at least two font-metric or DPI conditions.
 - `blocked`: no alternate font or DPI condition is available.
 - `fail`: a clear resize or window-size translation problem is reproduced.
+  - record the prompt / glyph condition used to establish measured cell size
+  - record whether measured cell size was already established before the failure
+  - record whether the problem is shell-driven or viewport-driven
+  - record whether the impact is X-axis, Y-axis, or both
+  - record whether the issue only reproduces under a specific font-metric or DPI condition
 
 ## Evidence Checklist
 - absolute date and time
@@ -76,6 +81,12 @@ Use only `pass`, `fail`, or `blocked` for every item.
 - whether `flutter run -d macos` observed a Dart VM Service
 - whether `Failed to foreground app; open returned 1` was observed
 - whether foreground interaction was manually confirmed
+- for `font-metric / DPI resize`, also record:
+  - prompt / glyph condition
+  - whether measured cell size had already been established
+  - shell-driven or viewport-driven path
+  - X-axis, Y-axis, or both
+  - whether repro is tied to a specific font-metric or DPI condition
 
 ## Branching Rules
 - host/tooling `blocked`:

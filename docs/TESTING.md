@@ -95,7 +95,10 @@ cd /Users/robinfai/personal/flutterm
 重点确认：
 
 - `resizeActiveSession()` 优先使用 viewport 实测 cell size，而不是长期依赖 `9x18` 硬编码
+- shell-originated resize event 的 window-size translation 也使用同一条 measured cell size 链，而不是旧的 `9x18` Y 轴换算
 - viewport 首帧尚未产出测量值时，fallback 行为仍可工作
+- 旧的 shell-driven Y 轴 `9x18` 漂移不再应被视为“已知未修复风险”；手工矩阵现在验证的是修复后是否仍有残余问题
+- `app/test/sessions/session_controller_test.dart` 已有 measured-cell shell-resize regression guardrail
 - identical resize request 继续被 dedupe
 - scroll、selection、cursor blink、visible-content repaint 不回归
 
@@ -301,13 +304,13 @@ cd /Users/robinfai/personal/flutterm
 本机 unblock 顺序：
 
 1. 从已登录的 macOS 桌面会话里的 Terminal / iTerm 打开一个全新的 login shell，并串行运行诊断命令，不要并行启动多个 `flutter` 命令
-2. 执行 `type flutterm_no_proxy`，确认 `~/.zshrc` 已加载本地 no-proxy helper
+2. 直接用显式环境变量清掉代理，不要假设 `flutterm_no_proxy` helper 一定存在
 3. 执行 `command -v vttest`；如果已有路径，不要再把 `vttest` 当成当前 blocker
-4. 运行 `flutterm_no_proxy ./tools/check_terminal_manual_matrix_prereqs.sh`，先收集主机、桌面会话、proxy 状态、Flutter 工具链、设备可见性和 `flutter run` 证据
-5. 再单独执行 `cd app && flutterm_no_proxy flutter run -d macos`，人工确认 app 是否真正前置到真实可交互桌面
-6. 若仍提示 foreground failure，再执行 `cd app && flutterm_no_proxy flutter run -d macos --host-vmservice-port 49200`
-7. 若固定端口重试下 app 已实际位于前台，说明 blocker 更偏向 Flutter tool 前置台判定，而不是 app 无法启动
-8. 若仍无法形成已确认键盘输入的前台 app，会话应被记为 `unsuitable local host`
+4. 运行显式 no-proxy 的 `./tools/check_terminal_manual_matrix_prereqs.sh`，先收集主机、桌面会话、proxy 状态、Flutter 工具链、设备可见性和 `flutter run` 证据
+5. 再单独执行 `cd app && env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY no_proxy=127.0.0.1,localhost,::1 NO_PROXY=127.0.0.1,localhost,::1 flutter run -d macos --host-vmservice-port 49200`
+6. 若 app 实际启动，先记录 frontmost app 与 `visible` 状态，再尝试点击 terminal viewport 并执行最小输入链：`y`、`Backspace`、`pwd`、`echo hello`、`ls`
+7. 若固定端口重试下 app 仍不是 frontmost，或当前会话没有辅助访问 / 截图权限导致无法确认输入，会话应被记为 `unsuitable local host`
+8. 若运行期间复现 `HardwareKeyboard` 重复 `KeyDownEvent`，记录为环境风险并按 `T-055` 现有分叉规则新开环境任务
 
 脚本输出中的 `flutter run -d macos` 预检结果也必须固定使用 `pass` / `fail` / `blocked`。只要脚本本身无法证明 app 已进入真实可交互前置台，就默认按 `blocked` 处理，不要写成模糊状态。
 
@@ -321,47 +324,64 @@ cd /Users/robinfai/personal/flutterm
 - `flutter devices`
 - `flutter run -d macos` 的 app bundle / 进程观测结果
 
+当前机器 verdict 记录字段固定为：
+
+- 绝对时间
+- host / macOS
+- branch 与 `HEAD`
+- 固定端口 VM Service 是否出现
+- frontmost app / `visible` 结果
+- 输入链是否完整执行
+- `y` / `Backspace` 是否触发异常
+- `pwd` / `echo hello` / `ls` 是否真正进入 terminal
+- 最终 verdict
+
 如果诊断过程中出现 `Waiting for another flutter command to release the startup lock...`，先清掉残留 `flutter` 进程，再按上述顺序串行重跑，不要把并发锁竞争误记成 terminal 产品回归。
 
 如果 `vttest` 未安装、`flutter run -d macos` 无法前置台，或环境缺少真实 trackpad / DPI 切换条件，应显式记为 `blocked`，不要省略。
 
 当前环境记录（2026-04-22）：
 
-- `shell no_proxy helper`: `pass`
-  - 新 login shell 中 `type flutterm_no_proxy` 可用
-  - `no_proxy` / `NO_PROXY` 均为 `127.0.0.1,localhost,::1`
-- `VT220 vttest`: `pass`
-  - `command -v vttest` 返回 `/opt/homebrew/bin/vttest`
+- `shell no_proxy helper`: `fail`
+  - `zsh -lic 'type flutterm_no_proxy'` 返回 `flutterm_no_proxy not found`
+  - 当前会话改用显式 no-proxy 环境变量，不再依赖 helper
+- `VT220 vttest`: `blocked`
+  - `command -v vttest` 当前没有返回路径
 - `desktop GUI session`: `pass`
-  - `2026-04-22 00:28 CST` 的 no-proxy preflight 证明当前机器存在本地 GUI 桌面会话
-  - host: `BINGHUILUO-MB3`
-  - macOS: `15.7.3 (24G419)`
+  - `2026-04-22 10:09 CST` 的显式 no-proxy preflight 证明当前机器存在本地 GUI 桌面会话
+  - host: `BINGHUILUO-MC6`
+  - macOS: `26.3.1 (25D771280a)`
+  - branch: `codex/hyper-first-shell`
+  - `HEAD`: `1d104b530912f4a2ff5abc7c465b908d5fe9ea4e`
   - `launchctl gui/501` 可见，AppleScript 可查询 frontmost app
+  - frontmost app 查询结果为 `WeChat`
   - 同一轮脚本中 `http_proxy` / `https_proxy` / `all_proxy` 已全部显示为 `unset`
-- `flutter doctor -v`: `blocked`
-  - `flutterm_no_proxy` 会话下 20 秒超时
-  - 已输出的摘要确认 Flutter 本体正常，但 Android toolchain / Xcode 仍有环境警告
-- `flutter devices`: `blocked`
-  - `flutterm_no_proxy` 会话下 20 秒超时且无输出
-- `integration_test/flutterm_smoke_test.dart`: `blocked`
-  - `flutterm_no_proxy` 会话下 60 秒超时且无输出
+- `flutter doctor -v`: `pass`
+  - Flutter 本体正常，但 Android toolchain / Xcode 仍有环境警告
+- `flutter devices`: `pass`
+- `integration_test/flutterm_smoke_test.dart`: `pass`
 - `flutter run -d macos`: `blocked`
-  - `flutterm_no_proxy ./tools/check_terminal_manual_matrix_prereqs.sh` 下仍打印 `Failed to foreground app; open returned 1`
+  - 显式 no-proxy preflight 下仍打印 `Failed to foreground app; open returned 1`
   - 但同一轮脚本已观测到 `Dart VM Service observed: yes`、`app process likely observed: yes`、`app bundle observed: yes`
-- `fixed-port flutter run`: `partial pass`
-  - `flutterm_no_proxy flutter run -d macos --host-vmservice-port 49200` 可稳定暴露本地 VM Service
-  - 即使 Flutter tool 仍打印 foreground failure，运行时查询仍显示：
-    - frontmost app: `app`
-    - frontmost pid: `64518`
-    - `visible: true`
-  - 当前更像是 Flutter tool 的前置台判定异常，而不是 app 真正没进入前台
+- `fixed-port flutter run`: `blocked`
+  - `2026-04-22 10:11 CST` 的固定端口重跑可稳定暴露本地 VM Service：`http://127.0.0.1:49200/...`
+  - 运行中的 app 进程 PID 为 `57519`
+  - `visible: true`
+  - 但 frontmost app 仍是 `WeChat`，不是 `app`
+  - `tell application "app" to activate` 没能把 app 带到前台
+  - `System Events` 辅助访问被拒绝，`screencapture -x` 也失败，因此这轮无法完成点击 viewport 与键盘输入确认
 - `HardwareKeyboard` 重复 `KeyDownEvent` 断言: `blocked`
-  - 最新复跑未再次复现
-  - 由于还未完成一次已确认键盘交互的前台 app 会话，仍不能把该风险视为已收敛
+  - 这轮没有复现
+  - 但 `y` / `Backspace` 根本没有进入已确认前台 terminal，会话风险不能视为已收敛
+- `foreground keyboard confirmation`: `blocked`
+  - 输入链执行状态：未完成
+  - `y` / `Backspace`: 未执行
+  - `pwd` / `echo hello` / `ls`: 未执行
+  - 最终 verdict：`unsuitable local host`
 - `T-055` 本机执行状态: `blocked`
-  - `vttest` 已可用，shell no-proxy 路径也已验证
-  - 剩余 blocker 集中在 Flutter tool 前置台/会话行为，以及还未完成的键盘交互、trackpad 和字体度量 / DPI 切换确认
-  - 当前更合理的下一步是继续 `T-054` 的 host/tooling unblock，而不是把本机直接当作 `T-055` 完成机
+  - 当前 blocker 已重新包括 `vttest` 缺失
+  - 同时还存在 app 无法被确认带到前台、辅助访问 / 截图权限不足、以及真实 trackpad 与字体度量 / DPI 条件缺失
+  - 当前更合理的下一步是把 `T-054` 收口为 `unsuitable local host`，并把 `T-055` 继续放到标准交互式 macOS 开发机完成
 
 若任一 terminal 手工矩阵子项结果为 `fail`，必须立即拆成 focused task，并包含最小复现、影响范围，以及最小验证命令或明确的手工验收线。若结果是 `blocked` 且原因属于 host/tooling，则继续走 `T-054` 这类环境排障路径，不要把它误记成 terminal 产品回归。
 

@@ -52,6 +52,8 @@ flutter run -d macos
 3. 在真实 powerline / ANSI prompt 下检查颜色、反显、尾随空格背景和 glyph 对齐
 4. 使用真实 trackpad 验证 scrollback、thumb drag、返回底部等交互
 5. 在至少两组字体度量或 DPI 条件下验证 resize 后内容保留与 window-size translation
+   - 先让 prompt / glyph 渲染建立 measured cell size
+   - 分别验证 viewport-driven resize 与 shell-driven rows/cols -> window-size translation
 6. 将每个子项结果写回文档；若失败，立即拆出新任务
 
 ## Execution Record Template
@@ -78,6 +80,7 @@ flutter run -d macos
 - 影响范围
 - 最小验证命令，或明确的手工验收线
 - 任务类型仅限：VT220 行为缺口、prompt / glyph / trailing background fidelity、trackpad scrollback、DPI / resize translation、`flutter run -d macos` / `HardwareKeyboard` 环境排障
+- 若 `font-metric / DPI resize` 为 `fail`，必须明确说明问题发生在 shell-driven 还是 viewport-driven 路径
 - 结果分叉 playbook: `.omx/context/t055-result-branching-playbook-20260421T091946Z.md`
   - 这是分叉任务 playbook，不是新的结果模板
   - 编号不预留；按实际出现顺序取当时下一个可用 `T-0NN`
@@ -89,19 +92,26 @@ flutter run -d macos
 
 `2026-04-22` 当前机器状态：`blocked`
 
-- `zsh` login shell 已补上 `no_proxy` / `NO_PROXY=127.0.0.1,localhost,::1`，且 `flutterm_no_proxy` helper 可用
-- `command -v vttest` 现已返回 `/opt/homebrew/bin/vttest`，所以 `vttest` 不再是当前机器的 blocker
-- `flutterm_no_proxy ./tools/check_terminal_manual_matrix_prereqs.sh` 已在 `2026-04-22 00:28 CST` 复跑：
-  - `flutter doctor -v`: `blocked`
-  - `flutter devices`: `blocked`
-  - `integration_test/flutterm_smoke_test.dart`: `blocked`
+- `zsh -lic 'type flutterm_no_proxy'` 当前返回 `flutterm_no_proxy not found`，所以这轮改用显式 no-proxy 环境变量取证
+- `command -v vttest` 当前为空，`vttest` 已重新成为本机 blocker
+- 显式 no-proxy 的 `./tools/check_terminal_manual_matrix_prereqs.sh` 已在 `2026-04-22 10:09 CST` 复跑：
+  - host: `BINGHUILUO-MC6`
+  - macOS: `26.3.1 (25D771280a)`
+  - `flutter doctor -v`: `pass`
+  - `flutter devices`: `pass`
+  - `integration_test/flutterm_smoke_test.dart`: `pass`
   - `flutter run -d macos`: `blocked`
     - 仍打印 `Failed to foreground app; open returned 1`
     - 但已能观测到 Dart VM Service、app process 和 app bundle
-- `flutterm_no_proxy flutter run -d macos --host-vmservice-port 49200` 的固定端口重跑显示 app 实际已处于前台且 `visible=true`，但尚未完成人工键盘输入确认
+- 显式 no-proxy 的 `flutter run -d macos --host-vmservice-port 49200` 已在 `2026-04-22 10:11 CST` 重跑：
+  - VM Service 已稳定出现于 `http://127.0.0.1:49200/...`
+  - app 进程已启动，且 `visible=true`
+  - 但 frontmost app 仍是 `WeChat`，不是 `app`
+  - 当前会话又缺少 `System Events` 辅助访问与 `screencapture` 显示权限，因此无法完成 viewport 点击和键盘输入确认
 - 当前执行环境仍不满足真实 trackpad 与字体度量 / DPI 切换验证条件
+- 当前机器继续 `blocked` 的原因已包含：`vttest` 缺失、app 无法被确认切到前台、当前会话缺少辅助访问 / 截图权限，以及真实 trackpad / DPI 条件仍未满足；不是旧的 shell-driven `9x18` Y 轴路径仍未修复
 
-因此，本任务在当前机器上仍不应伪装成“已执行”；虽然 shell no-proxy 和 `vttest` 已经到位，但在完成前台键盘交互确认以及 trackpad / DPI 条件准备前，`T-055` 仍应迁移到满足前置条件的标准交互式 macOS 开发机完成。
+因此，本任务在当前机器上仍不应伪装成“已执行”；当前更准确的本机 verdict 是 `unsuitable local host`。`T-055` 仍应迁移到满足 `vttest`、真实前台交互、真实 trackpad 和字体度量 / DPI 条件的标准交互式 macOS 开发机完成。
 
 ## Off-Machine Handoff
 
