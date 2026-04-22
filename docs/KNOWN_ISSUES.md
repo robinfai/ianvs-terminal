@@ -32,8 +32,8 @@
 ## 当前环境相关风险
 
 - 当前文档里曾假设 `flutterm_no_proxy` helper 已可直接使用，但 `2026-04-22 10:09 CST` 的当前会话实际返回 `flutterm_no_proxy not found`。因此，本机取证现在必须使用显式 no-proxy 环境变量；helper 缺失属于当前 host 事实，不是 terminal 产品行为。
-- 同一轮显式 no-proxy preflight 显示：host `BINGHUILUO-MC6`、macOS `26.3.1 (25D771280a)`、`flutter doctor -v` / `flutter devices` / `integration_test/flutterm_smoke_test.dart` 都已 `pass`，但 `command -v vttest` 重新回到 `blocked`，`flutter run -d macos` 仍打印 `Failed to foreground app; open returned 1`，即使 Dart VM Service、app bundle 和 app 进程都已出现。这说明当前 host 的问题仍是环境准备和前置台确认，不是 terminal 产品回归。
-- `2026-04-22 10:11 CST` 的固定端口 `flutter run -d macos --host-vmservice-port 49200` 证明 app 进程已启动、VM Service 可用、`visible=true`，但 frontmost app 仍是 `WeChat`，不是 `app`。同时，当前会话缺少 `System Events` 辅助访问权限，`screencapture -x` 也无法取到显示内容，因此无法完成 viewport 点击和键盘输入确认。基于这组证据，当前机器应被视为 `unsuitable local host`，不应继续承担 `T-055` 的完成责任。
+- `2026-04-22 11:11 CST` 的显式 no-proxy preflight 显示：host `BINGHUILUO-MC6`、macOS `26.3.1 (25D771280a)`、`flutter doctor -v` / `flutter devices` / `integration_test/flutterm_smoke_test.dart` 都已 `pass`，`command -v vttest` 也已恢复为 `pass`，但 `flutter run -d macos` 仍打印 `Failed to foreground app; open returned 1`，即使 Dart VM Service、app bundle 和 app 进程都已出现。这说明当前 host 的剩余问题已经收窄到前置台与交互确认，而不是工具缺失或 terminal 产品回归。
+- 当前会话的 `osascript -e 'tell application "System Events" to get UI elements enabled'` 返回 `false`。再结合 `2026-04-22 10:11 CST` 的固定端口 `flutter run -d macos --host-vmservice-port 49200` 结果可知：app 进程已启动、VM Service 可用、`visible=true`，但本机会话仍没有可用的辅助访问权限来完成 viewport 点击和键盘输入确认。基于这组证据，当前机器仍应被视为 `unsuitable local host`，不应继续承担 `T-055` 的完成责任。
 - Flutter `HardwareKeyboard` 重复 `KeyDownEvent` 风险这轮没有再次复现，但由于 `y` / `Backspace` / `pwd` / `echo hello` / `ls` 这条最小输入链根本没有完成，风险也不能视为已收敛；后续若在可交互前台会话里再次出现，仍应单开环境排障任务。
 
 ## 使用建议

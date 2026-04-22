@@ -93,23 +93,26 @@ flutter run -d macos
 `2026-04-22` 当前机器状态：`blocked`
 
 - `zsh -lic 'type flutterm_no_proxy'` 当前返回 `flutterm_no_proxy not found`，所以这轮改用显式 no-proxy 环境变量取证
-- `command -v vttest` 当前为空，`vttest` 已重新成为本机 blocker
-- 显式 no-proxy 的 `./tools/check_terminal_manual_matrix_prereqs.sh` 已在 `2026-04-22 10:09 CST` 复跑：
+- `command -v vttest` 当前返回 `/opt/homebrew/bin/vttest`，VT220 工具准备已满足
+- 显式 no-proxy 的 `./tools/check_terminal_manual_matrix_prereqs.sh` 已在 `2026-04-22 11:11 CST` 复跑：
   - host: `BINGHUILUO-MC6`
   - macOS: `26.3.1 (25D771280a)`
+  - branch: `codex/hyper-first-shell`
+  - `HEAD`: `758b5c4e57555a7176fe66cbdc7d818cda3ab901`
   - `flutter doctor -v`: `pass`
   - `flutter devices`: `pass`
   - `integration_test/flutterm_smoke_test.dart`: `pass`
   - `flutter run -d macos`: `blocked`
     - 仍打印 `Failed to foreground app; open returned 1`
     - 但已能观测到 Dart VM Service、app process 和 app bundle
+- `osascript -e 'tell application "System Events" to get UI elements enabled'` 当前返回 `false`，所以本机会话仍不能完成已确认的 viewport 点击与键盘输入
 - 显式 no-proxy 的 `flutter run -d macos --host-vmservice-port 49200` 已在 `2026-04-22 10:11 CST` 重跑：
   - VM Service 已稳定出现于 `http://127.0.0.1:49200/...`
   - app 进程已启动，且 `visible=true`
-  - 但 frontmost app 仍是 `WeChat`，不是 `app`
+  - 但 frontmost app 仍不是 `app`
   - 当前会话又缺少 `System Events` 辅助访问与 `screencapture` 显示权限，因此无法完成 viewport 点击和键盘输入确认
 - 当前执行环境仍不满足真实 trackpad 与字体度量 / DPI 切换验证条件
-- 当前机器继续 `blocked` 的原因已包含：`vttest` 缺失、app 无法被确认切到前台、当前会话缺少辅助访问 / 截图权限，以及真实 trackpad / DPI 条件仍未满足；不是旧的 shell-driven `9x18` Y 轴路径仍未修复
+- 当前机器继续 `blocked` 的原因已收窄到：foreground failure、`UI elements enabled: false`、未完成人工键盘输入确认，以及真实 trackpad / DPI 条件仍未满足；不是旧的 shell-driven `9x18` Y 轴路径仍未修复
 
 因此，本任务在当前机器上仍不应伪装成“已执行”；当前更准确的本机 verdict 是 `unsuitable local host`。`T-055` 仍应迁移到满足 `vttest`、真实前台交互、真实 trackpad 和字体度量 / DPI 条件的标准交互式 macOS 开发机完成。
 

@@ -89,19 +89,19 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 - `shell no_proxy helper`: `fail`
   - `zsh -lic 'type flutterm_no_proxy'` 返回 `flutterm_no_proxy not found`
   - `~/.zshrc` 当前没有定义该 helper，因此本轮改用显式 no-proxy 环境变量取证
-- `command -v vttest`: `blocked`
-  - 当前机器没有解析出 `vttest` 路径
-  - `vttest` 已重新成为当前 host 的显式 blocker
+- `command -v vttest`: `pass`
+  - 当前机器可直接解析到 `/opt/homebrew/bin/vttest`
+  - `vttest` 已重新就位，不再是当前 host 的 blocker
 - 显式 no-proxy preflight：`blocked`
-  - 时间：`2026-04-22 10:09 CST`
+  - 时间：`2026-04-22 11:11 CST`
   - host: `BINGHUILUO-MC6`
   - macOS: `26.3.1 (25D771280a)`
   - branch: `codex/hyper-first-shell`
-  - `HEAD`: `1d104b530912f4a2ff5abc7c465b908d5fe9ea4e`
+  - `HEAD`: `758b5c4e57555a7176fe66cbdc7d818cda3ab901`
   - 本地桌面会话证据仍存在：
     - `launchctl gui/501` 可见
     - AppleScript 可查询当前 frontmost app
-    - frontmost app 当时为 `WeChat`
+    - frontmost app 当时为 `Codex`
   - 同一轮 preflight 中代理已被显式清空：
     - `http_proxy`: `unset`
     - `https_proxy`: `unset`
@@ -118,13 +118,16 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
       - `app bundle observed: yes`
       - `app process likely observed: yes`
       - 仍打印 `Failed to foreground app; open returned 1`
+- 当前会话辅助访问状态：`blocked`
+  - `osascript -e 'tell application "System Events" to get UI elements enabled'` 返回 `false`
+  - 当前会话仍不具备已确认的 viewport 点击与键盘输入条件
 - 固定端口 `flutter run -d macos --host-vmservice-port 49200`: `blocked`
   - 时间：`2026-04-22 10:11 CST`
   - 已稳定构建 `build/macos/Build/Products/Debug/app.app`
   - `A Dart VM Service on macOS is available at: http://127.0.0.1:49200/...`
   - app 进程 PID：`57519`
   - `visible`: `true`
-  - 但 frontmost app 查询仍返回 `WeChat`，不是 `app`
+  - 但 frontmost app 仍不是 `app`
   - `tell application "app" to activate` 没能把 app 切到前台
   - `System Events` 辅助访问被拒绝：`osascript` 不允许辅助访问
   - `screencapture -x` 失败：`could not create image from display`
@@ -135,7 +138,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
   - `HardwareKeyboard` 重复 `KeyDownEvent`: 本轮未复现，但由于根本没有完成输入链，不能把该风险视为已收敛
 - 最终 verdict：`unsuitable local host`
   - 不是 terminal 产品逻辑失败
-  - 而是当前 host 同时存在 `vttest` 缺失、app 无法被确认带到前台、以及辅助访问 / 截图权限不足，无法完成决定性的键盘交互确认
+  - 而是当前 host 仍然无法把 app 带入已确认的前台交互状态，并且辅助访问 / 截图权限不足，无法完成决定性的键盘交互确认
 
 基于这轮结果，`T-054` 应收口为“当前机器不适合作为 `T-055` 执行机”。后续若要继续本地主机排障，应聚焦环境权限和 host 准备；`T-055` 主线仍应迁移到满足前置条件的标准交互式 macOS 开发机完成。
 

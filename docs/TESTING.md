@@ -345,16 +345,16 @@ cd /Users/robinfai/personal/flutterm
 - `shell no_proxy helper`: `fail`
   - `zsh -lic 'type flutterm_no_proxy'` 返回 `flutterm_no_proxy not found`
   - 当前会话改用显式 no-proxy 环境变量，不再依赖 helper
-- `VT220 vttest`: `blocked`
-  - `command -v vttest` 当前没有返回路径
+- `VT220 vttest`: `pass`
+  - `command -v vttest` 当前返回 `/opt/homebrew/bin/vttest`
 - `desktop GUI session`: `pass`
-  - `2026-04-22 10:09 CST` 的显式 no-proxy preflight 证明当前机器存在本地 GUI 桌面会话
+  - `2026-04-22 11:11 CST` 的显式 no-proxy preflight 证明当前机器存在本地 GUI 桌面会话
   - host: `BINGHUILUO-MC6`
   - macOS: `26.3.1 (25D771280a)`
   - branch: `codex/hyper-first-shell`
-  - `HEAD`: `1d104b530912f4a2ff5abc7c465b908d5fe9ea4e`
+  - `HEAD`: `758b5c4e57555a7176fe66cbdc7d818cda3ab901`
   - `launchctl gui/501` 可见，AppleScript 可查询 frontmost app
-  - frontmost app 查询结果为 `WeChat`
+  - frontmost app 查询结果为 `Codex`
   - 同一轮脚本中 `http_proxy` / `https_proxy` / `all_proxy` 已全部显示为 `unset`
 - `flutter doctor -v`: `pass`
   - Flutter 本体正常，但 Android toolchain / Xcode 仍有环境警告
@@ -363,11 +363,14 @@ cd /Users/robinfai/personal/flutterm
 - `flutter run -d macos`: `blocked`
   - 显式 no-proxy preflight 下仍打印 `Failed to foreground app; open returned 1`
   - 但同一轮脚本已观测到 `Dart VM Service observed: yes`、`app process likely observed: yes`、`app bundle observed: yes`
+- `UI elements enabled`: `blocked`
+  - `osascript -e 'tell application "System Events" to get UI elements enabled'` 返回 `false`
+  - 当前会话仍无辅助访问权限，不能完成已确认的点击和键盘输入
 - `fixed-port flutter run`: `blocked`
   - `2026-04-22 10:11 CST` 的固定端口重跑可稳定暴露本地 VM Service：`http://127.0.0.1:49200/...`
   - 运行中的 app 进程 PID 为 `57519`
   - `visible: true`
-  - 但 frontmost app 仍是 `WeChat`，不是 `app`
+  - 但 frontmost app 仍不是 `app`
   - `tell application "app" to activate` 没能把 app 带到前台
   - `System Events` 辅助访问被拒绝，`screencapture -x` 也失败，因此这轮无法完成点击 viewport 与键盘输入确认
 - `HardwareKeyboard` 重复 `KeyDownEvent` 断言: `blocked`
@@ -379,8 +382,8 @@ cd /Users/robinfai/personal/flutterm
   - `pwd` / `echo hello` / `ls`: 未执行
   - 最终 verdict：`unsuitable local host`
 - `T-055` 本机执行状态: `blocked`
-  - 当前 blocker 已重新包括 `vttest` 缺失
-  - 同时还存在 app 无法被确认带到前台、辅助访问 / 截图权限不足、以及真实 trackpad 与字体度量 / DPI 条件缺失
+  - `vttest` 已到位，不再是当前 blocker
+  - 当前 remaining blocker 集中在 foreground failure、辅助访问权限未开、无法完成已确认键盘输入，以及真实 trackpad 与字体度量 / DPI 条件缺失
   - 当前更合理的下一步是把 `T-054` 收口为 `unsuitable local host`，并把 `T-055` 继续放到标准交互式 macOS 开发机完成
 
 若任一 terminal 手工矩阵子项结果为 `fail`，必须立即拆成 focused task，并包含最小复现、影响范围，以及最小验证命令或明确的手工验收线。若结果是 `blocked` 且原因属于 host/tooling，则继续走 `T-054` 这类环境排障路径，不要把它误记成 terminal 产品回归。
