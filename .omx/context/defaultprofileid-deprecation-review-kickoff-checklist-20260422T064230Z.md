@@ -35,4 +35,5 @@ Once `T-055` is closed, the formal Phase 4 planning pair exists, and `T-056` is 
   - `Not ready`
   - `Ready for narrowing`
   - `Ready for removal`
-- If the verdict requires implementation work, create the next `docs/tasks/T-0NN-*` task in that later round instead of during kickoff.
+- If the verdict is `Not ready`, stop after the formal review and do not create implementation work yet.
+- If the verdict is `Ready for narrowing` or `Ready for removal`, continue with `.omx/context/defaultprofileid-deprecation-implementation-kickoff-checklist-20260422T065644Z.md` instead of creating a `docs/tasks/T-0NN-*` task directly from the review.
