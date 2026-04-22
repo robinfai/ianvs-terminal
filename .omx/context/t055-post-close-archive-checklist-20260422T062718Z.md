@@ -29,4 +29,5 @@ Once `T-055 Terminal Manual Matrix Execution` is truly closed, convert the curre
 - After archive completes, the default planning entrypoints are:
   - `.omx/context/hyper-phase4-interaction-polish-skeleton-20260421T084736Z.md`
   - `.omx/context/hyper-phase4-formal-writeup-checklist-20260421T093447Z.md`
+- After the formal PRD and test-spec are written, continue with `.omx/context/hyper-phase4-implementation-kickoff-checklist-20260422T063911Z.md` to create the actual implementation task.
 - Keep the `defaultProfileId` deprecation review parked until the formal Phase 4 PRD and test-spec have landed.
