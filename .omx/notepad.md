@@ -20,3 +20,5 @@
 [2026-04-22T03:08:50Z] Synced the terminal manual-matrix docs to the current local-host reality. The resize-lane runbook/playbook refinements remain in place, but the current host now proves `flutterm_no_proxy` is absent, fixed-port `flutter run -d macos --host-vmservice-port 49200` still cannot yield a verified foreground keyboard session, and T-054 should be read as `unsuitable local host`. T-055 must continue off-machine.
 
 [2026-04-22T03:11:00Z] `vttest` is available again at /opt/homebrew/bin/vttest, so the current local-host blocker has narrowed back down to foreground failure, `UI elements enabled: false`, and missing verified keyboard interaction. T-055 still stays off-machine.
+
+[2026-04-22T03:29:30Z] Added a refreshed off-machine handoff snapshot at .omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md. The live handoff baseline is now 6f8b44d, `vttest` is no longer part of the active blocker set, and the remaining local-host gate is foreground/accessibility/keyboard confirmation. The older 20260421T081004Z snapshot remains only as historical stop-point context.
