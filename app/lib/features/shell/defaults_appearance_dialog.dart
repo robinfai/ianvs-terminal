@@ -70,8 +70,12 @@ class _DefaultsAndAppearanceDialogState
     final background = isDark ? const Color(0xFF111111) : Colors.white;
     final panel = isDark ? const Color(0xFF171717) : const Color(0xFFF5F5F5);
     final border = isDark ? const Color(0xFF262626) : const Color(0xFFD2D2D2);
-    final primaryText = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF111111);
-    final subtleText = isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
+    final primaryText = isDark
+        ? const Color(0xFFF5F5F5)
+        : const Color(0xFF111111);
+    final subtleText = isDark
+        ? const Color(0xFF9CA3AF)
+        : const Color(0xFF4B5563);
     final effectiveProfile = _effectiveProfileFor(
       configuredProfileId: _selectedProfileId,
       effectiveProfileId: widget.effectiveDefaultProfileId,
@@ -111,9 +115,9 @@ class _DefaultsAndAppearanceDialogState
                 ),
                 Text(
                   'Pick the default profile for new tabs and choose how the shell follows the app theme.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: subtleText,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: subtleText),
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -139,13 +143,15 @@ class _DefaultsAndAppearanceDialogState
                         contentPadding: EdgeInsets.zero,
                         activeColor: const Color(0xFFF6C344),
                         fillColor: WidgetStatePropertyAll(
-                          isDark ? const Color(0xFFF6C344) : const Color(0xFF111111),
+                          isDark
+                              ? const Color(0xFFF6C344)
+                              : const Color(0xFF111111),
                         ),
-                        title: const Text('Use the first available profile'),
+                        title: const Text('No configured default'),
                         subtitle: Text(
                           effectiveProfile == null
-                              ? 'Fallback mode stays ready even when no saved default exists.'
-                              : 'Fallback • new tabs use ${effectiveProfile.name} until you configure a default.',
+                              ? 'New tabs stay ready even when no default is configured.'
+                              : 'New tabs use ${effectiveProfile.name} until you choose a default.',
                         ),
                       ),
                       for (final profile in widget.profiles)
@@ -155,7 +161,9 @@ class _DefaultsAndAppearanceDialogState
                           contentPadding: EdgeInsets.zero,
                           activeColor: const Color(0xFFF6C344),
                           fillColor: WidgetStatePropertyAll(
-                            isDark ? const Color(0xFFF6C344) : const Color(0xFF111111),
+                            isDark
+                                ? const Color(0xFFF6C344)
+                                : const Color(0xFF111111),
                           ),
                           title: Text(profile.name),
                           subtitle: Text(profile.shell),
@@ -174,7 +182,7 @@ class _DefaultsAndAppearanceDialogState
                   ),
                   child: Text(
                     isUsingFallback
-                        ? 'Fallback default • ${effectiveProfile?.name ?? 'No profile available'}'
+                        ? 'Current new-tab profile • ${effectiveProfile?.name ?? 'No profile available'}'
                         : 'Configured default • ${effectiveProfile?.name ?? 'Unknown profile'}',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: primaryText,
@@ -210,7 +218,9 @@ class _DefaultsAndAppearanceDialogState
                           contentPadding: EdgeInsets.zero,
                           activeColor: const Color(0xFFF6C344),
                           fillColor: WidgetStatePropertyAll(
-                            isDark ? const Color(0xFFF6C344) : const Color(0xFF111111),
+                            isDark
+                                ? const Color(0xFFF6C344)
+                                : const Color(0xFF111111),
                           ),
                           title: Text(themeModeLabel(themeMode)),
                           subtitle: Text(_themeModeDescription(themeMode)),

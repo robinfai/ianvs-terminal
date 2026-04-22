@@ -1160,7 +1160,13 @@ void main() {
         ),
         ['default'],
       );
-      expect(profileRepository.savedDocuments.single.defaultProfileId, 'ssh');
+      expect(profileRepository.savedDocuments.single.defaultProfileId, isNull);
+      expect(
+        profileRepository.savedDocuments.single.toJson().containsKey(
+          'defaultProfileId',
+        ),
+        isFalse,
+      );
     },
   );
 

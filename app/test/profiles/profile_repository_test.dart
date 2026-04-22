@@ -7,28 +7,33 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 
 void main() {
-  test('profile repository persists profiles to disk', () async {
-    final directory = await Directory.systemTemp.createTemp(
-      'flutterm-profiles',
-    );
-    final repository = ProfileRepository(
-      directoryResolver: () async => directory,
-    );
+  test(
+    'profile repository persists profiles to disk without legacy default field',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'flutterm-profiles',
+      );
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+      );
+      final file = File('${directory.path}/flutterm_profiles.json');
 
-    final document = TerminalProfilesDocument(
-      defaultProfileId: 'default',
-      profiles: [defaultTerminalProfile().copyWith(name: 'Custom Shell')],
-    );
+      final document = TerminalProfilesDocument(
+        profiles: [defaultTerminalProfile().copyWith(name: 'Custom Shell')],
+      );
 
-    await repository.save(document);
-    final loaded = await repository.load();
+      await repository.save(document);
+      final loaded = await repository.load();
+      final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
 
-    expect(loaded.defaultProfileId, 'default');
-    expect(loaded.profiles.single.name, 'Custom Shell');
-  });
+      expect(loaded.defaultProfileId, isNull);
+      expect(loaded.profiles.single.name, 'Custom Shell');
+      expect(raw.containsKey('defaultProfileId'), isFalse);
+    },
+  );
 
   test(
-    'profile repository seeds a strict VT220 preset on first launch',
+    'profile repository seeds a strict VT220 preset on first launch without legacy default field',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'flutterm-profiles-seeded',
@@ -36,10 +41,12 @@ void main() {
       final repository = ProfileRepository(
         directoryResolver: () async => directory,
       );
+      final file = File('${directory.path}/flutterm_profiles.json');
 
       final loaded = await repository.load();
+      final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
 
-      expect(loaded.defaultProfileId, defaultTerminalProfile().id);
+      expect(loaded.defaultProfileId, isNull);
       expect(
         loaded.profiles.map((profile) => profile.id),
         containsAll(<String>[
@@ -53,11 +60,12 @@ void main() {
             .terminalEmulation,
         TerminalEmulation.vt220,
       );
+      expect(raw.containsKey('defaultProfileId'), isFalse);
     },
   );
 
   test(
-    'profile repository migrates missing terminal emulation to xterm256',
+    'profile repository still reads older documents with a legacy default profile id',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'flutterm-profiles-migration',
@@ -85,6 +93,44 @@ void main() {
 
       final loaded = await repository.load();
 
+      expect(loaded.defaultProfileId, 'legacy');
+      expect(
+        loaded.profiles.single.terminalEmulation,
+        TerminalEmulation.xterm256,
+      );
+    },
+  );
+
+  test(
+    'profile repository tolerates documents that omit defaultProfileId',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'flutterm-profiles-missing-default',
+      );
+      final file = File('${directory.path}/flutterm_profiles.json');
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        jsonEncode({
+          'profiles': [
+            {
+              'id': 'default',
+              'name': 'Local Shell',
+              'shell': '/bin/zsh',
+              'args': const <String>[],
+              'env': const <String, String>{},
+              'cwd': null,
+            },
+          ],
+        }),
+      );
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded.defaultProfileId, isNull);
+      expect(loaded.profiles.single.id, 'default');
       expect(
         loaded.profiles.single.terminalEmulation,
         TerminalEmulation.xterm256,

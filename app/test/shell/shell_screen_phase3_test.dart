@@ -64,13 +64,13 @@ void main() {
       );
 
       expect(find.byKey(const Key('shell-empty-state')), findsNothing);
-      expect(find.text('Fallback default • SSH'), findsNothing);
+      expect(find.text('Current new-tab profile • SSH'), findsNothing);
       expect(find.text('Theme • System'), findsNothing);
     },
   );
 
   testWidgets(
-    'defaults dialog shows the effective fallback profile during the legacy compatibility window',
+    'defaults dialog shows the current new-tab profile when no default is configured',
     (tester) async {
       final profileRepository = MemoryProfileRepository(
         TerminalProfilesDocument(
@@ -106,12 +106,10 @@ void main() {
       expect(shellAcceptanceProbe.current.terminalHasVisibleContent, isTrue);
       expect(shellAcceptanceProbe.current.terminalPreview, isNotNull);
       expect(
-        find.text(
-          'Fallback • new tabs use SSH until you configure a default.',
-        ),
+        find.text('New tabs use SSH until you choose a default.'),
         findsOneWidget,
       );
-      expect(find.text('Fallback default • SSH'), findsWidgets);
+      expect(find.text('Current new-tab profile • SSH'), findsWidgets);
     },
   );
 
@@ -147,7 +145,7 @@ void main() {
 
       final defaultsVersion = shellAcceptanceProbe.current.snapshotVersion;
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
-      expect(find.text('Use the first available profile'), findsOneWidget);
+      expect(find.text('No configured default'), findsOneWidget);
       expect(find.text('Dark'), findsOneWidget);
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
 
@@ -221,11 +219,7 @@ void main() {
         defaultProfileId: 'default',
         profiles: [
           defaultTerminalProfile(),
-          const TerminalProfile(
-            id: 'ssh',
-            name: 'SSH',
-            shell: '/usr/bin/ssh',
-          ),
+          const TerminalProfile(id: 'ssh', name: 'SSH', shell: '/usr/bin/ssh'),
         ],
       ),
     );
@@ -253,34 +247,37 @@ void main() {
     expect(find.text('SSH'), findsOneWidget);
   });
 
-  test('driver acceptance probe returns the latest shell snapshot as json', () async {
-    shellAcceptanceProbe.update(
-      const ShellAcceptanceSnapshot(
-        commandMenuOpen: true,
-        defaultsOpen: false,
-        profilesOpen: true,
-        visibleOverlay: 'profiles',
-        terminalHasVisibleContent: true,
-        terminalPreview: 'driver ready',
-        activeTabCount: 2,
-        activeSessionId: '2',
-        themeMode: 'dark',
-        snapshotVersion: 4,
-      ),
-    );
+  test(
+    'driver acceptance probe returns the latest shell snapshot as json',
+    () async {
+      shellAcceptanceProbe.update(
+        const ShellAcceptanceSnapshot(
+          commandMenuOpen: true,
+          defaultsOpen: false,
+          profilesOpen: true,
+          visibleOverlay: 'profiles',
+          terminalHasVisibleContent: true,
+          terminalPreview: 'driver ready',
+          activeTabCount: 2,
+          activeSessionId: '2',
+          themeMode: 'dark',
+          snapshotVersion: 4,
+        ),
+      );
 
-    final response = await shellAcceptanceProbe.handleDriverRequest(
-      'shell.acceptance',
-    );
+      final response = await shellAcceptanceProbe.handleDriverRequest(
+        'shell.acceptance',
+      );
 
-    expect(response, contains('"commandMenuOpen":true'));
-    expect(response, contains('"profilesOpen":true'));
-    expect(response, contains('"visibleOverlay":"profiles"'));
-    expect(response, contains('"terminalHasVisibleContent":true'));
-    expect(response, contains('"terminalPreview":"driver ready"'));
-    expect(response, contains('"activeTabCount":2'));
-    expect(response, contains('"activeSessionId":"2"'));
-    expect(response, contains('"themeMode":"dark"'));
-    expect(response, contains('"snapshotVersion":'));
-  });
+      expect(response, contains('"commandMenuOpen":true'));
+      expect(response, contains('"profilesOpen":true'));
+      expect(response, contains('"visibleOverlay":"profiles"'));
+      expect(response, contains('"terminalHasVisibleContent":true'));
+      expect(response, contains('"terminalPreview":"driver ready"'));
+      expect(response, contains('"activeTabCount":2'));
+      expect(response, contains('"activeSessionId":"2"'));
+      expect(response, contains('"themeMode":"dark"'));
+      expect(response, contains('"snapshotVersion":'));
+    },
+  );
 }

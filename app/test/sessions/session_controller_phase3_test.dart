@@ -242,6 +242,50 @@ void main() {
   );
 
   test(
+    'saveProfile keeps legacy default ids out of steady-state profile writes',
+    () async {
+      final profileRepository = _TestProfileRepository(
+        const TerminalProfilesDocument(
+          defaultProfileId: 'ssh',
+          profiles: [defaultProfile, sshProfile],
+        ),
+      );
+      final preferencesRepository = _TestAppPreferencesRepository(null);
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(
+            TerminalCoreClient(FakeCoreBindings()),
+          ),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            preferencesRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await container
+          .read(sessionControllerProvider.notifier)
+          .saveProfile(sshProfile.copyWith(name: 'SSH Updated'));
+
+      expect(profileRepository.savedDocuments, hasLength(1));
+      expect(profileRepository.savedDocuments.single.defaultProfileId, isNull);
+      expect(
+        profileRepository.savedDocuments.single.profiles
+            .firstWhere((profile) => profile.id == 'ssh')
+            .name,
+        'SSH Updated',
+      );
+      final state = container.read(sessionControllerProvider);
+      expect(state.defaultProfileId, 'ssh');
+      expect(state.configuredDefaultProfileId, isNull);
+      expect(preferencesRepository.savedDocuments, isEmpty);
+    },
+  );
+
+  test(
     'resetDefaultProfile clears configured intent and falls back deterministically',
     () async {
       final preferencesRepository = _TestAppPreferencesRepository(

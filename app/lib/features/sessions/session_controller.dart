@@ -577,12 +577,7 @@ class SessionController extends Notifier<SessionState> {
     ];
     await ref
         .read(profileRepositoryProvider)
-        .save(
-          TerminalProfilesDocument(
-            defaultProfileId: _legacyDefaultProfileId ?? '',
-            profiles: nextProfiles,
-          ),
-        );
+        .save(TerminalProfilesDocument(profiles: nextProfiles));
     state = state.copyWith(
       profiles: nextProfiles,
       defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
@@ -633,12 +628,7 @@ class SessionController extends Notifier<SessionState> {
         .toList();
     await ref
         .read(profileRepositoryProvider)
-        .save(
-          TerminalProfilesDocument(
-            defaultProfileId: _legacyDefaultProfileId ?? '',
-            profiles: nextProfiles,
-          ),
-        );
+        .save(TerminalProfilesDocument(profiles: nextProfiles));
     final deletedConfiguredDefault =
         _normalizeProfileId(_appPreferences.defaults.defaultProfileId) ==
             profileId ||

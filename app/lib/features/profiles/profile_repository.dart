@@ -17,7 +17,6 @@ class ProfileRepository {
     final file = await _profilesFile();
     if (!await file.exists()) {
       final fallback = TerminalProfilesDocument(
-        defaultProfileId: defaultTerminalProfile().id,
         profiles: [defaultTerminalProfile(), vt220TerminalProfile()],
       );
       await save(fallback);

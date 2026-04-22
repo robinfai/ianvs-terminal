@@ -325,7 +325,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       effectiveDefaultProfileId,
     );
     if (configuredDefaultProfileId == null) {
-      return 'Fallback default • ${effectiveProfile?.name ?? 'No profile available'}';
+      return 'Current new-tab profile • ${effectiveProfile?.name ?? 'No profile available'}';
     }
     final configuredProfile = _profileForId(
       profiles,
