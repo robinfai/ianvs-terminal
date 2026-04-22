@@ -1,5 +1,10 @@
 # Context Snapshot — T-055 Off-Machine Manual Matrix Execution
 
+## Superseded Snapshot
+- This snapshot is historical only.
+- For live execution, use `.omx/context/t055-terminal-manual-matrix-off-machine-20260422T032930Z.md`.
+- Keep this file only as the original stop-point captured before `vttest` returned and before the live handoff contract was normalized away from a pinned continuation hash.
+
 ## Task Statement
 Resume `T-055 Terminal Manual Matrix Execution` on a standard interactive macOS development machine instead of the current blocked host.
 
