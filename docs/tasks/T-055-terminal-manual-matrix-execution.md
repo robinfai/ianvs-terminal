@@ -145,6 +145,8 @@ flutter run -d macos
 
 只有当四类手工矩阵都拿到明确结果、且没有新的产品级 `fail` 压住优先级时，后续才默认切到 Hyper-like `Phase 4` 的 PRD + test-spec 规划；在这之前不要跳过 `T-055` 直接开启新的产品迭代。
 
+- Post-close archive checklist: `.omx/context/t055-post-close-archive-checklist-20260422T062718Z.md`
+  - 这份清单只在 `T-055` 真正关闭后使用，用来把 handoff artifacts 从 live 状态切到 historical 状态，并把默认主线切到 Phase 4 planning
 - Phase 4 skeleton context snapshot: `.omx/context/hyper-phase4-interaction-polish-skeleton-20260421T084736Z.md`
 - Phase 4 formal writeup checklist: `.omx/context/hyper-phase4-formal-writeup-checklist-20260421T093447Z.md`
   - 这是 `T-055` 清空后的正式落笔清单，不是提前创建 `.omx/plans/` 正式文件

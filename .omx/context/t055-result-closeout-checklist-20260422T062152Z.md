@@ -24,6 +24,7 @@ After a target machine completes `T-055 Terminal Manual Matrix Execution`, synch
 4. Update `docs/KNOWN_ISSUES.md` with any still-accepted product or environment limitation exposed by the run.
 5. Check `T-055` `Done When` against the now-updated task record and shared docs.
 6. If every closeout condition is satisfied, close `T-055`; otherwise keep it open and record the remaining blocker or follow-up owner explicitly.
+7. If `T-055` is truly closed, continue with `.omx/context/t055-post-close-archive-checklist-20260422T062718Z.md` to archive the live handoff artifacts and switch the default planning lane to Phase 4.
 
 ## Document Sync Rules
 - `docs/TESTING.md` should record the latest execution baseline, recommended commands, and current validation contract only.

@@ -32,3 +32,5 @@
 [2026-04-22T06:13:52Z] Split the T-055 handoff responsibilities more cleanly: the active 20260422T032930Z snapshot now carries only current host facts and blocked-host context, while the runbook remains the sole execution and recording guide and the branching playbook remains the sole follow-up owner. Future edits should update the owning document instead of copying the same instructions across the handoff chain.
 
 [2026-04-22T06:21:52Z] Added a dedicated T-055 result closeout checklist at .omx/context/t055-result-closeout-checklist-20260422T062152Z.md. Execution-time docs now stop at run completion; document sync, follow-up task pointers, and final T-055 closure judgment have a separate owner and should not be folded back into the runbook or branching playbook.
+
+[2026-04-22T06:27:18Z] Added a post-close archive checklist at .omx/context/t055-post-close-archive-checklist-20260422T062718Z.md. T-055 now has a separate owner for the period after closure: live handoff artifacts can be marked historical and the default repo planning lane can switch cleanly to the existing Phase 4 skeleton and formal writeup checklist.
