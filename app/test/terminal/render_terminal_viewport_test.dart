@@ -219,6 +219,623 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport resolves powerline rows into terminal cells and keeps cursor aligned by cell column',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(
+                index: 0,
+                text: '󰀵a',
+                styleRuns: [
+                  TerminalStyleRun(
+                    start: 0,
+                    end: 1,
+                    foreground: Color(0xFF11111B),
+                    background: Color(0xFFF38BA8),
+                  ),
+                  TerminalStyleRun(
+                    start: 1,
+                    end: 2,
+                    foreground: Color(0xFFFAB387),
+                    background: Color(0xFFF38BA8),
+                  ),
+                  TerminalStyleRun(
+                    start: 2,
+                    end: 3,
+                    foreground: Color(0xFF11111B),
+                    background: Color(0xFFFAB387),
+                  ),
+                ],
+              ),
+            ],
+            cursor: TerminalCursor(row: 0, col: 3, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      expect(cells.map((cell) => cell.text).toList(), ['󰀵', '', 'a']);
+      expect(cells.map((cell) => cell.glyphClass).toList(), [
+        TerminalGlyphClass.nerdIcon,
+        TerminalGlyphClass.powerlineCustom,
+        TerminalGlyphClass.text,
+      ]);
+      expect(cells.map((cell) => cell.background?.toARGB32()).toList(), [
+        const Color(0xFFF38BA8).toARGB32(),
+        const Color(0xFFF38BA8).toARGB32(),
+        const Color(0xFFFAB387).toARGB32(),
+      ]);
+      expect(cells.map((cell) => cell.foreground.toARGB32()).toList(), [
+        const Color(0xFF11111B).toARGB32(),
+        const Color(0xFFFAB387).toARGB32(),
+        const Color(0xFF11111B).toARGB32(),
+      ]);
+
+      final cursorRect = renderObject.debugCursorRect!;
+      expect(cursorRect.left, 3 * renderObject.debugCellSize.width);
+      expect(cursorRect.width, renderObject.debugCellSize.width);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport positions regular glyphs using shared row text metrics',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'A')],
+            cursor: TerminalCursor(row: 0, col: 1, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cell = renderObject.debugResolvedCellsForRow(0).single;
+      final rowTextMetrics = renderObject.debugRowTextMetrics;
+      final targetBaselineY = _snapToDevicePixel(
+        ((renderObject.debugCellSize.height - rowTextMetrics.textHeight) / 2) +
+            rowTextMetrics.ascent,
+        tester.view.devicePixelRatio,
+      );
+
+      expect(cell.placementPolicy, TerminalGlyphPlacementPolicy.baselineLeft);
+      expect(cell.usesCustomGeometry, isFalse);
+      expect(cell.drawOffset.dx, 0);
+      expect(rowTextMetrics.textHeight, greaterThan(0));
+      expect(
+        cell.drawOffset.dy,
+        closeTo(targetBaselineY - cell.glyphBaseline, 0.001),
+      );
+      expect(cell.baselineY, closeTo(targetBaselineY, 0.001));
+      expect(
+        cell.drawOffset.dy + cell.glyphBaseline,
+        closeTo(cell.baselineY, 0.001),
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal viewport aligns letters and nerd-font glyphs to the same baseline',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'A󰀵B')],
+            cursor: TerminalCursor(row: 0, col: 3, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cells = renderObject.debugResolvedCellsForRow(0);
+
+      expect(cells.map((cell) => cell.text).toList(), ['A', '󰀵', 'B']);
+      expect(cells.map((cell) => cell.glyphClass).toList(), [
+        TerminalGlyphClass.text,
+        TerminalGlyphClass.nerdIcon,
+        TerminalGlyphClass.text,
+      ]);
+      expect(cells.every((cell) => !cell.usesCustomGeometry), isTrue);
+      expect(cells[0].baselineY, closeTo(cells[1].baselineY, 0.001));
+      expect(cells[1].baselineY, closeTo(cells[2].baselineY, 0.001));
+      expect(
+        cells[0].drawOffset.dy + cells[0].glyphBaseline,
+        closeTo(cells[0].baselineY, 0.001),
+      );
+      expect(
+        cells[1].drawOffset.dy + cells[1].glyphBaseline,
+        closeTo(cells[1].baselineY, 0.001),
+      );
+      expect(
+        cells[2].drawOffset.dy + cells[2].glyphBaseline,
+        closeTo(cells[2].baselineY, 0.001),
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps supplementary PUA icons out of the powerline lane',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '󰀵')],
+            cursor: TerminalCursor(row: 0, col: 2, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cells = renderObject.debugResolvedCellsForRow(0);
+
+      expect(cells.map((cell) => cell.text).toList(), ['󰀵', '']);
+      expect(cells.map((cell) => cell.glyphClass).toList(), [
+        TerminalGlyphClass.nerdIcon,
+        TerminalGlyphClass.powerlineCustom,
+      ]);
+      expect(cells[0].usesCustomGeometry, isFalse);
+      expect(cells[1].usesCustomGeometry, isTrue);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport gives powerline glyphs directional placement and bleed',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(
+                index: 0,
+                text: '',
+                styleRuns: [
+                  TerminalStyleRun(
+                    start: 0,
+                    end: 1,
+                    foreground: Color(0xFFFAB387),
+                    background: Color(0xFFF38BA8),
+                  ),
+                  TerminalStyleRun(
+                    start: 1,
+                    end: 2,
+                    foreground: Color(0xFFF38BA8),
+                    background: Color(0xFFFAB387),
+                  ),
+                  TerminalStyleRun(
+                    start: 2,
+                    end: 3,
+                    foreground: Color(0xFFB4BEFE),
+                    background: Color(0xFFF38BA8),
+                  ),
+                  TerminalStyleRun(
+                    start: 3,
+                    end: 4,
+                    foreground: Color(0xFFF38BA8),
+                    background: Color(0xFFB4BEFE),
+                  ),
+                ],
+              ),
+            ],
+            cursor: TerminalCursor(row: 0, col: 4, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      final cellWidth = renderObject.debugCellSize.width;
+      final dpr = tester.view.devicePixelRatio;
+
+      expect(cells.map((cell) => cell.placementPolicy).toList(), [
+        TerminalGlyphPlacementPolicy.powerlineRightArrow,
+        TerminalGlyphPlacementPolicy.powerlineLeftArrow,
+        TerminalGlyphPlacementPolicy.powerlineLeftCap,
+        TerminalGlyphPlacementPolicy.powerlineRightCap,
+      ]);
+      expect(cells.every((cell) => cell.usesCustomGeometry), isTrue);
+      expect(cells[0].placementRect.right, greaterThan(cellWidth));
+      expect(cells[1].placementRect.left, lessThan(cellWidth));
+      expect(cells[2].placementRect.left, lessThan(2 * cellWidth));
+      expect(
+        cells[2].placementRect.right,
+        closeTo(_snapToDevicePixel(3 * cellWidth, dpr), 0.001),
+      );
+      expect(
+        cells[3].placementRect.left,
+        closeTo(_snapToDevicePixel(3 * cellWidth, dpr), 0.001),
+      );
+      expect(cells[3].placementRect.right, greaterThan(4 * cellWidth));
+      expect(
+        cells[2].placementRect.width,
+        lessThan(cells[0].placementRect.width),
+      );
+      expect(
+        cells[3].placementRect.width,
+        lessThan(cells[1].placementRect.width),
+      );
+      expect(cells[0].placementRect.top, closeTo(0, 0.001));
+      expect(
+        cells[0].placementRect.bottom,
+        closeTo(renderObject.debugCellSize.height, 0.001),
+      );
+      expect(cells[1].placementRect.top, closeTo(0, 0.001));
+      expect(
+        cells[1].placementRect.bottom,
+        closeTo(renderObject.debugCellSize.height, 0.001),
+      );
+      expect(cells[2].placementRect.top, closeTo(0, 0.001));
+      expect(
+        cells[2].placementRect.bottom,
+        closeTo(renderObject.debugCellSize.height, 0.001),
+      );
+      expect(cells[3].placementRect.top, closeTo(0, 0.001));
+      expect(
+        cells[3].placementRect.bottom,
+        closeTo(renderObject.debugCellSize.height, 0.001),
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal viewport coalesces adjacent same-color cells into continuous background spans',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(
+                index: 0,
+                text: 'abc',
+                styleRuns: [
+                  TerminalStyleRun(
+                    start: 0,
+                    end: 3,
+                    foreground: Color(0xFF11111B),
+                    background: Color(0xFFF38BA8),
+                  ),
+                  TerminalStyleRun(
+                    start: 3,
+                    end: 4,
+                    foreground: Color(0xFF11111B),
+                    background: Color(0xFFFAB387),
+                  ),
+                ],
+              ),
+            ],
+            cursor: TerminalCursor(row: 0, col: 4, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final spans = renderObject.debugBackgroundSpansForRow(0);
+      final cellWidth = renderObject.debugCellSize.width;
+      final dpr = tester.view.devicePixelRatio;
+
+      expect(spans, hasLength(2));
+      expect(spans[0].startColumn, 0);
+      expect(spans[0].endColumn, 3);
+      expect(spans[0].rect.left, 0);
+      expect(
+        spans[0].rect.width,
+        closeTo(
+          _snapToDevicePixel(3 * cellWidth, dpr) - _snapToDevicePixel(0, dpr),
+          0.001,
+        ),
+      );
+      expect(spans[1].startColumn, 3);
+      expect(spans[1].endColumn, 4);
+      expect(
+        spans[1].rect.left,
+        closeTo(_snapToDevicePixel(3 * cellWidth, dpr), 0.001),
+      );
+      expect(
+        spans[1].rect.width,
+        closeTo(
+          _snapToDevicePixel(4 * cellWidth, dpr) -
+              _snapToDevicePixel(3 * cellWidth, dpr),
+          0.001,
+        ),
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal viewport snaps baselines, background spans, and powerline rects to device pixels',
+    (tester) async {
+      tester.view.devicePixelRatio = 2.5;
+      tester.view.physicalSize = const Size(2400, 1600);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(
+                index: 0,
+                text: 'A󰀵B',
+                styleRuns: [
+                  TerminalStyleRun(
+                    start: 0,
+                    end: 3,
+                    foreground: Color(0xFF11111B),
+                    background: Color(0xFFF38BA8),
+                  ),
+                  TerminalStyleRun(
+                    start: 3,
+                    end: 4,
+                    foreground: Color(0xFF11111B),
+                    background: Color(0xFFFAB387),
+                  ),
+                ],
+              ),
+            ],
+            cursor: TerminalCursor(row: 0, col: 4, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      final spans = renderObject.debugBackgroundSpansForRow(0);
+      final dpr = tester.view.devicePixelRatio;
+
+      for (final cell in cells.where((cell) => !cell.usesCustomGeometry)) {
+        expect(
+          cell.drawOffset.dy + cell.glyphBaseline,
+          closeTo(cell.baselineY, 0.001),
+        );
+        expect(_isSnappedToDevicePixel(cell.baselineY, dpr), isTrue);
+      }
+      for (final cell in cells.where((cell) => cell.usesCustomGeometry)) {
+        expect(_isSnappedToDevicePixel(cell.baselineY, dpr), isTrue);
+      }
+      for (final span in spans) {
+        _expectRectSnapped(span.rect, dpr);
+      }
+      for (final cell in cells.where((cell) => cell.usesCustomGeometry)) {
+        _expectRectSnapped(cell.placementRect, dpr);
+      }
+    },
+  );
+
+  testWidgets(
     'terminal cursor blinks while focused and the frame cursor is visible',
     (tester) async {
       final focusNode = FocusNode(debugLabel: 'terminal-test-focus');
@@ -702,4 +1319,23 @@ void main() {
       expect(selectionController.selection, isNull);
     },
   );
+}
+
+double _snapToDevicePixel(double value, double devicePixelRatio) {
+  if (!value.isFinite || !devicePixelRatio.isFinite || devicePixelRatio <= 0) {
+    return value;
+  }
+  return (value * devicePixelRatio).roundToDouble() / devicePixelRatio;
+}
+
+bool _isSnappedToDevicePixel(double value, double devicePixelRatio) {
+  final deviceValue = value * devicePixelRatio;
+  return (deviceValue - deviceValue.roundToDouble()).abs() < 0.001;
+}
+
+void _expectRectSnapped(Rect rect, double devicePixelRatio) {
+  expect(_isSnappedToDevicePixel(rect.left, devicePixelRatio), isTrue);
+  expect(_isSnappedToDevicePixel(rect.top, devicePixelRatio), isTrue);
+  expect(_isSnappedToDevicePixel(rect.right, devicePixelRatio), isTrue);
+  expect(_isSnappedToDevicePixel(rect.bottom, devicePixelRatio), isTrue);
 }

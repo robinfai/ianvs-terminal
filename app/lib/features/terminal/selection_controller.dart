@@ -84,12 +84,13 @@ class SelectionController extends ChangeNotifier {
         (entry) => entry.index == rowIndex,
         orElse: () => const TerminalRow(index: 0, text: ''),
       );
+      final rowCells = TerminalTextCells.fromText(row.text);
       final start = rowIndex == normalized.startRow ? normalized.startCol : 0;
       final end = rowIndex == normalized.endRow
           ? normalized.endCol
-          : row.text.length;
-      if (start < row.text.length) {
-        buffer.write(row.text.substring(start, end.clamp(0, row.text.length)));
+          : rowCells.cellCount;
+      if (start < rowCells.cellCount) {
+        buffer.write(rowCells.sliceColumns(start, end));
       }
       if (rowIndex != normalized.endRow && !row.wrapped) {
         buffer.writeln();
@@ -109,9 +110,10 @@ class SelectionController extends ChangeNotifier {
       rowIndex += 1
     ) {
       final row = _rowFor(frame, rowIndex);
-      final start = normalized.startCol.clamp(0, row.text.length);
-      final end = normalized.endCol.clamp(start, row.text.length);
-      lines.add(row.text.substring(start, end));
+      final rowCells = TerminalTextCells.fromText(row.text);
+      final start = rowCells.clampColumn(normalized.startCol);
+      final end = normalized.endCol.clamp(start, rowCells.cellCount).toInt();
+      lines.add(rowCells.sliceColumns(start, end));
     }
     return lines.join('\n');
   }

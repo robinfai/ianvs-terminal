@@ -14,81 +14,25 @@ const referenceDemoTabs = <TerminalTab>[
   TerminalTab(sessionId: 'demo-3', title: 'Shell', profileId: 'default'),
 ];
 
-final TerminalFrameDiff referenceDemoFrame = _buildReferenceDemoFrame();
+final TerminalFrameDiff referenceDemoPs1Frame = _buildReferenceDemoFrame(
+  _referencePromptSegments,
+);
 
-TerminalFrameDiff _buildReferenceDemoFrame() {
-  final segments = <_DemoSegment>[
-    const _DemoSegment(
-      ' robinfai',
-      foreground: Color(0xFF111827),
-      background: Color(0xFFF08BB4),
-      bold: true,
-    ),
-    const _DemoSegment(
-      '',
-      foreground: Color(0xFFF6BC89),
-      background: Color(0xFFF08BB4),
-    ),
-    const _DemoSegment(
-      ' ~ ',
-      foreground: Color(0xFF111827),
-      background: Color(0xFFF6BC89),
-      bold: true,
-    ),
-    const _DemoSegment(
-      '',
-      foreground: Color(0xFFE9E3A2),
-      background: Color(0xFFF6BC89),
-    ),
-    const _DemoSegment(
-      '',
-      foreground: Color(0xFFBDE8A0),
-      background: Color(0xFFE9E3A2),
-    ),
-    const _DemoSegment(
-      '',
-      foreground: Color(0xFF8FD3F4),
-      background: Color(0xFFBDE8A0),
-    ),
-    const _DemoSegment(
-      '',
-      foreground: Color(0xFF8DA7FF),
-      background: Color(0xFF8FD3F4),
-    ),
-    const _DemoSegment(
-      '  19:23 ',
-      foreground: Color(0xFF111827),
-      background: Color(0xFFB7C1FF),
-      bold: true,
-    ),
-    const _DemoSegment('', foreground: Color(0xFFB7C1FF), background: null),
-    const _DemoSegment(
-      ' ❯ ',
-      foreground: Color(0xFFFFFFFF),
-      background: null,
-      bold: true,
-    ),
-    const _DemoSegment(
-      'lsof',
-      foreground: Color(0xFFFF6B6B),
-      background: null,
-      bold: true,
-    ),
-    const _DemoSegment(
-      ' -i:3306',
-      foreground: Color(0xFFA5A5AF),
-      background: null,
-      bold: true,
-    ),
-  ];
+final TerminalFrameDiff referenceDemoFrame = _buildReferenceDemoFrame(
+  <_DemoSegment>[
+    ..._referencePromptSegments,
+    ..._referenceCommandTailSegments,
+  ],
+);
 
+TerminalFrameDiff _buildReferenceDemoFrame(List<_DemoSegment> segments) {
   final styleRuns = <TerminalStyleRun>[];
   final buffer = StringBuffer();
   var cursor = 0;
 
   for (final segment in segments) {
     buffer.write(segment.text);
-    final nextCursor = cursor + segment.text.length;
+    final nextCursor = cursor + TerminalTextCells.fromText(segment.text).cellCount;
     styleRuns.add(
       TerminalStyleRun(
         start: cursor,
@@ -105,7 +49,7 @@ TerminalFrameDiff _buildReferenceDemoFrame() {
     rows: [
       TerminalRow(index: 0, text: buffer.toString(), styleRuns: styleRuns),
     ],
-    cursor: TerminalCursor(row: 0, col: buffer.length, visible: true),
+    cursor: TerminalCursor(row: 0, col: cursor, visible: true),
     viewportRows: 24,
     viewportCols: 80,
     dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
@@ -113,6 +57,74 @@ TerminalFrameDiff _buildReferenceDemoFrame() {
     scrollbackMaxOffset: 0,
   );
 }
+
+const List<_DemoSegment> _referencePromptSegments = <_DemoSegment>[
+  _DemoSegment(
+    ' robinfai',
+    foreground: Color(0xFF111827),
+    background: Color(0xFFF08BB4),
+    bold: true,
+  ),
+  _DemoSegment(
+    '',
+    foreground: Color(0xFFF6BC89),
+    background: Color(0xFFF08BB4),
+  ),
+  _DemoSegment(
+    ' ~ ',
+    foreground: Color(0xFF111827),
+    background: Color(0xFFF6BC89),
+    bold: true,
+  ),
+  _DemoSegment(
+    '',
+    foreground: Color(0xFFE9E3A2),
+    background: Color(0xFFF6BC89),
+  ),
+  _DemoSegment(
+    '',
+    foreground: Color(0xFFBDE8A0),
+    background: Color(0xFFE9E3A2),
+  ),
+  _DemoSegment(
+    '',
+    foreground: Color(0xFF8FD3F4),
+    background: Color(0xFFBDE8A0),
+  ),
+  _DemoSegment(
+    '',
+    foreground: Color(0xFF8DA7FF),
+    background: Color(0xFF8FD3F4),
+  ),
+  _DemoSegment(
+    '  19:23 ',
+    foreground: Color(0xFF111827),
+    background: Color(0xFFB7C1FF),
+    bold: true,
+  ),
+  _DemoSegment('', foreground: Color(0xFFB7C1FF), background: null),
+  _DemoSegment(
+    ' ❯ ',
+    foreground: Color(0xFFFFFFFF),
+    background: null,
+    bold: true,
+  ),
+];
+
+const List<_DemoSegment> _referenceCommandTailSegments = <_DemoSegment>[
+  _DemoSegment(
+    'lsof',
+    foreground: Color(0xFFFF6B6B),
+    background: null,
+    bold: true,
+  ),
+  _DemoSegment(
+    ' -i:3306',
+    foreground: Color(0xFFA5A5AF),
+    background: null,
+    bold: true,
+  ),
+];
 
 class _DemoSegment {
   const _DemoSegment(

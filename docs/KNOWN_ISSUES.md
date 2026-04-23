@@ -35,6 +35,11 @@
 - `osascript -e 'tell application "System Events" to get UI elements enabled'` 仍返回 `false`，同时当前 repo 也没有真实 trackpad 与替代字体度量 / DPI 条件的手工结果。因此，VT220、powerline / ANSI prompt、真实 trackpad scrollback、字体度量 / DPI resize 这四条矩阵 lane 目前仍是未执行的已知风险，不是已通过的产品证据。
 - 如果未来确实需要补这组人工证据，应新开 focused task，而不是重新激活已经 `forced-closed` 的 `T-055` live handoff。
 
+## 当前已接受的延期风险
+
+- `2026-04-23` 决定先不处理宽字符和组合字符的真实终端列宽。当前 `TerminalTextCells.fromText(...)` 仍按 rune 计列，所以像 `你`、部分 emoji、组合字符这类内容，仍可能把 style run、cursor、selection、导出的列坐标带偏。当前这轮只保证非 BMP 单字符不会再被 UTF-16 下标切坏，没有把真实终端列宽问题一起收掉。
+- `2026-04-23` 决定先不把 `ps1 diag export` 接到真实 live shell prompt。当前导出链默认仍基于 repo 内固定 fixture，所以 `ps1-current.png`、`shell-surface-current.png` 适合做稳定回归和几何排查，不等于真实用户会话截图。拿它和 Kaku 对比时，要把这个限制算进结论里。
+
 ## 使用建议
 
 - 如果一次改动碰到主链路，请默认做完整 smoke 流程

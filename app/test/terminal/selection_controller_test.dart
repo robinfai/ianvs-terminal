@@ -118,4 +118,16 @@ void main() {
 
     expect(text, 'de\nvwxyz\nmn');
   });
+
+  test('textForFrame uses terminal cell columns for non-BMP glyphs', () {
+    final controller = SelectionController();
+    controller.begin(const TerminalCellPosition(0, 1));
+    controller.update(const TerminalCellPosition(0, 3));
+
+    final text = controller.textForFrame(
+      frameWithRows(const [TerminalRow(index: 0, text: '󰀵abc')]),
+    );
+
+    expect(text, 'ab');
+  });
 }

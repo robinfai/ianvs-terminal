@@ -258,6 +258,70 @@ class TerminalCellPosition {
   final int col;
 }
 
+class TerminalTextCell {
+  const TerminalTextCell({
+    required this.column,
+    required this.text,
+    required this.codeUnitStart,
+    required this.codeUnitEnd,
+  });
+
+  final int column;
+  final String text;
+  final int codeUnitStart;
+  final int codeUnitEnd;
+}
+
+class TerminalTextCells {
+  TerminalTextCells._({
+    required this.text,
+    required List<TerminalTextCell> cells,
+  }) : cells = List<TerminalTextCell>.unmodifiable(cells);
+
+  factory TerminalTextCells.fromText(String text) {
+    final cells = <TerminalTextCell>[];
+    var codeUnitOffset = 0;
+    var column = 0;
+
+    for (final rune in text.runes) {
+      final runeText = String.fromCharCode(rune);
+      final nextOffset = codeUnitOffset + runeText.length;
+      cells.add(
+        TerminalTextCell(
+          column: column,
+          text: runeText,
+          codeUnitStart: codeUnitOffset,
+          codeUnitEnd: nextOffset,
+        ),
+      );
+      codeUnitOffset = nextOffset;
+      column += 1;
+    }
+
+    return TerminalTextCells._(text: text, cells: cells);
+  }
+
+  final String text;
+  final List<TerminalTextCell> cells;
+
+  int get cellCount => cells.length;
+
+  int clampColumn(int value) => value.clamp(0, cellCount).toInt();
+
+  String sliceColumns(int start, int end) {
+    final clampedStart = clampColumn(start);
+    final clampedEnd = end.clamp(clampedStart, cellCount).toInt();
+    if (clampedStart >= clampedEnd) {
+      return '';
+    }
+
+    return text.substring(
+      cells[clampedStart].codeUnitStart,
+      cells[clampedEnd - 1].codeUnitEnd,
+    );
+  }
+}
+
 Color? _colorFromHex(String? value) {
   if (value == null || value.isEmpty) {
     return null;
