@@ -17,6 +17,7 @@ import '../support/memory_profile_repository.dart';
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
   required FakeCoreBindings fakeBindings,
+  ThemeMode themeMode = ThemeMode.light,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -33,7 +34,12 @@ Future<void> _pumpShellScreen(
           MemoryAppPreferencesRepository(null),
         ),
       ],
-      child: const MaterialApp(home: ShellScreen()),
+      child: MaterialApp(
+        theme: ThemeData.light(),
+        darkTheme: ThemeData.dark(),
+        themeMode: themeMode,
+        home: const ShellScreen(),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -131,6 +137,46 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('shell-workspace-focus-cue')), findsNothing);
+  });
+
+  testWidgets('shell passes theme-aware terminal colors into the viewport', (
+    tester,
+  ) async {
+    final fakeBindings = FakeCoreBindings();
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      themeMode: ThemeMode.light,
+    );
+
+    var renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    expect(
+      renderObject.debugColors.canvasBackground.toARGB32(),
+      const Color(0xFFF8F7F2).toARGB32(),
+    );
+    expect(
+      renderObject.debugColors.foreground.toARGB32(),
+      const Color(0xFF111111).toARGB32(),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      themeMode: ThemeMode.dark,
+    );
+    renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    expect(
+      renderObject.debugColors.canvasBackground.toARGB32(),
+      const Color(0xFF050608).toARGB32(),
+    );
+    expect(
+      renderObject.debugColors.foreground.toARGB32(),
+      const Color(0xFFF8FAFC).toARGB32(),
+    );
   });
 
   testWidgets(

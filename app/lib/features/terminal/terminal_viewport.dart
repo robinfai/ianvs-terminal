@@ -8,6 +8,7 @@ import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_painter_models.dart';
+import 'terminal_viewport_colors.dart';
 
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
@@ -46,8 +47,9 @@ class TerminalViewport extends StatefulWidget {
     required this.onScrollToOffset,
     this.onMeasuredCellSizeChanged,
     this.contentPadding = EdgeInsets.zero,
-    this.backgroundColor = terminalDefaultBackground,
-    this.foregroundColor = terminalDefaultForeground,
+    this.colors,
+    this.backgroundColor,
+    this.foregroundColor,
     this.focusNode,
   });
 
@@ -58,8 +60,9 @@ class TerminalViewport extends StatefulWidget {
   final ValueChanged<int> onScrollToOffset;
   final ValueChanged<Size>? onMeasuredCellSizeChanged;
   final EdgeInsets contentPadding;
-  final Color backgroundColor;
-  final Color foregroundColor;
+  final TerminalViewportColors? colors;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
   final FocusNode? focusNode;
 
   @override
@@ -221,9 +224,23 @@ class _TerminalViewportState extends State<TerminalViewport> {
     return terminalFallbackCellSize.height;
   }
 
+  TerminalViewportColors _resolvedColors(BuildContext context) {
+    final base =
+        widget.colors ??
+        TerminalViewportColors.fromBrightness(Theme.of(context).brightness);
+    if (widget.backgroundColor == null && widget.foregroundColor == null) {
+      return base;
+    }
+    return base.copyWith(
+      canvasBackground: widget.backgroundColor,
+      foreground: widget.foregroundColor,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _scheduleMeasuredCellSizeReport();
+    final colors = _resolvedColors(context);
     return Focus(
       autofocus: true,
       focusNode: _focusNode,
@@ -252,7 +269,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
                   final contentPadding = widget.contentPadding;
                   final trackHeight = math.max(0.0, constraints.maxHeight - 16);
                   return DecoratedBox(
-                    decoration: BoxDecoration(color: widget.backgroundColor),
+                    decoration: BoxDecoration(color: colors.canvasBackground),
                     child: Stack(
                       children: [
                         Positioned.fill(
@@ -263,8 +280,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
                               controller: widget.controller,
                               selectionController: widget.selectionController,
                               cursorVisible: _cursorVisible,
-                              backgroundColor: widget.backgroundColor,
-                              foregroundColor: widget.foregroundColor,
+                              colors: colors,
                             ),
                           ),
                         ),
@@ -278,6 +294,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
                               scrollbackOffset: frame.scrollbackOffset,
                               scrollbackMaxOffset: frame.scrollbackMaxOffset,
                               trackHeight: trackHeight,
+                              colors: colors,
                               onScrollToOffset: widget.onScrollToOffset,
                             ),
                           ),
@@ -300,15 +317,13 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.controller,
     required this.selectionController,
     required this.cursorVisible,
-    required this.backgroundColor,
-    required this.foregroundColor,
+    required this.colors,
   });
 
   final TerminalViewportController controller;
   final SelectionController selectionController;
   final bool cursorVisible;
-  final Color backgroundColor;
-  final Color foregroundColor;
+  final TerminalViewportColors colors;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -317,8 +332,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       selectionController: selectionController,
       cursorVisible: cursorVisible,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-      backgroundColor: backgroundColor,
-      foregroundColor: foregroundColor,
+      colors: colors,
     );
   }
 
@@ -331,8 +345,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..controller = controller
       ..selectionController = selectionController
       ..cursorVisible = cursorVisible
-      ..backgroundColor = backgroundColor
-      ..foregroundColor = foregroundColor
+      ..colors = colors
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
   }
 }
@@ -343,6 +356,7 @@ class _TerminalScrollbar extends StatefulWidget {
     required this.scrollbackOffset,
     required this.scrollbackMaxOffset,
     required this.trackHeight,
+    required this.colors,
     required this.onScrollToOffset,
   });
 
@@ -350,6 +364,7 @@ class _TerminalScrollbar extends StatefulWidget {
   final int scrollbackOffset;
   final int scrollbackMaxOffset;
   final double trackHeight;
+  final TerminalViewportColors colors;
   final ValueChanged<int> onScrollToOffset;
 
   @override
@@ -432,7 +447,7 @@ class _TerminalScrollbarState extends State<_TerminalScrollbar> {
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: const Color(0x26FFFFFF),
+                color: widget.colors.scrollbarTrack,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -451,7 +466,7 @@ class _TerminalScrollbarState extends State<_TerminalScrollbar> {
                 key: terminalScrollbarThumbKey,
                 height: _thumbHeight,
                 decoration: BoxDecoration(
-                  color: const Color(0x99FFFFFF),
+                  color: widget.colors.scrollbarThumb,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),

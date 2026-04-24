@@ -155,6 +155,43 @@ void main() {
     }
   });
 
+  testWidgets('ps1 diag export keeps light terminal canvas consistent', (
+    tester,
+  ) async {
+    _configureDiagnosticView(tester);
+    final shellExport = await _captureFixtureShellExport(
+      tester,
+      themeMode: ThemeMode.light,
+    );
+
+    try {
+      const innerCanvasColor = Color(0xFFF8F7F2);
+      final devicePixelRatio =
+          shellExport.metrics['devicePixelRatio'] as double;
+      int scale(double logicalValue) =>
+          (logicalValue * devicePixelRatio).round();
+
+      final rightCanvasPixel = await _readPixelColor(
+        tester,
+        shellExport.shellSurfaceImage,
+        x: shellExport.shellSurfaceImage.width - scale(44),
+        y: shellExport.shellSurfaceImage.height ~/ 2,
+      );
+      expect(rightCanvasPixel.toARGB32(), innerCanvasColor.toARGB32());
+
+      final paddingPixel = await _readPixelColor(
+        tester,
+        shellExport.shellSurfaceImage,
+        x: scale(16),
+        y: scale(28),
+      );
+      expect(paddingPixel.toARGB32(), innerCanvasColor.toARGB32());
+    } finally {
+      shellExport.promptImage.dispose();
+      shellExport.shellSurfaceImage.dispose();
+    }
+  });
+
   testWidgets('ps1 diag export writes diff when reference size matches', (
     tester,
   ) async {
@@ -280,9 +317,13 @@ Future<void> _exportPs1Diagnostics(
   }
 }
 
-Future<_ShellExport> _captureFixtureShellExport(WidgetTester tester) {
+Future<_ShellExport> _captureFixtureShellExport(
+  WidgetTester tester, {
+  ThemeMode themeMode = ThemeMode.dark,
+}) {
   return _captureShellExport(
     tester,
+    themeMode: themeMode,
     coreClient: TerminalCoreClient(
       _FrameSeededCoreBindings(_frameDiffToJson(referenceDemoPs1Frame)),
     ),
@@ -292,6 +333,7 @@ Future<_ShellExport> _captureFixtureShellExport(WidgetTester tester) {
 Future<_ShellExport> _captureShellExport(
   WidgetTester tester, {
   required TerminalCoreClient coreClient,
+  ThemeMode themeMode = ThemeMode.dark,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -310,7 +352,7 @@ Future<_ShellExport> _captureShellExport(
       child: MaterialApp(
         theme: ThemeData.light(),
         darkTheme: ThemeData.dark(),
-        themeMode: ThemeMode.dark,
+        themeMode: themeMode,
         home: const ShellScreen(),
       ),
     ),

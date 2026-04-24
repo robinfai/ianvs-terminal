@@ -7,6 +7,7 @@ import 'package:app/features/terminal/selection_controller.dart';
 import 'package:app/features/terminal/terminal_input_controller.dart';
 import 'package:app/features/terminal/terminal_painter_models.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
+import 'package:app/features/terminal/terminal_viewport_colors.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
 import '../support/fake_core_bindings.dart';
@@ -215,6 +216,156 @@ void main() {
       expect(terminalFontFamilyFallback, isNotEmpty);
       expect(terminalFontFamilyFallback.first, 'Menlo');
       expect(terminalFontFamilyFallback, contains('Apple Symbols'));
+    },
+  );
+
+  testWidgets('terminal viewport defaults follow the light theme colors', (
+    tester,
+  ) async {
+    final renderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.light,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ab')],
+        cursor: TerminalCursor(row: 0, col: 2, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    expect(
+      renderObject.debugColors.canvasBackground.toARGB32(),
+      const Color(0xFFF8F7F2).toARGB32(),
+    );
+    expect(
+      renderObject.debugResolvedCellsForRow(0).first.foreground.toARGB32(),
+      const Color(0xFF111111).toARGB32(),
+    );
+  });
+
+  testWidgets('terminal viewport defaults follow the dark theme colors', (
+    tester,
+  ) async {
+    final renderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.dark,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ab')],
+        cursor: TerminalCursor(row: 0, col: 2, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    expect(
+      renderObject.debugColors.canvasBackground.toARGB32(),
+      const Color(0xFF050608).toARGB32(),
+    );
+    expect(
+      renderObject.debugResolvedCellsForRow(0).first.foreground.toARGB32(),
+      const Color(0xFFF8FAFC).toARGB32(),
+    );
+  });
+
+  testWidgets(
+    'terminal viewport invalidates cached default colors on theme switch',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'ab')],
+            cursor: TerminalCursor(row: 0, col: 2, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await _pumpTerminalViewportWithController(
+        tester,
+        controller: controller,
+        themeMode: ThemeMode.dark,
+      );
+      var renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      expect(
+        renderObject.debugResolvedCellsForRow(0).first.foreground.toARGB32(),
+        const Color(0xFFF8FAFC).toARGB32(),
+      );
+
+      await _pumpTerminalViewportWithController(
+        tester,
+        controller: controller,
+        themeMode: ThemeMode.light,
+      );
+      renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+
+      expect(
+        renderObject.debugColors.foreground.toARGB32(),
+        const Color(0xFF111111).toARGB32(),
+      );
+      expect(
+        renderObject.debugResolvedCellsForRow(0).first.foreground.toARGB32(),
+        const Color(0xFF111111).toARGB32(),
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps explicit style colors above theme defaults',
+    (tester) async {
+      final renderObject = await _pumpThemedTerminalViewport(
+        tester,
+        themeMode: ThemeMode.light,
+        frame: const TerminalFrameDiff(
+          rows: [
+            TerminalRow(
+              index: 0,
+              text: 'ab',
+              styleRuns: [
+                TerminalStyleRun(
+                  start: 0,
+                  end: 1,
+                  foreground: Color(0xFFABCDEF),
+                  background: Color(0xFF123456),
+                ),
+              ],
+            ),
+          ],
+          cursor: TerminalCursor(row: 0, col: 2, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      expect(
+        cells[0].foreground.toARGB32(),
+        const Color(0xFFABCDEF).toARGB32(),
+      );
+      expect(
+        cells[0].background?.toARGB32(),
+        const Color(0xFF123456).toARGB32(),
+      );
+      expect(
+        cells[1].foreground.toARGB32(),
+        const Color(0xFF111111).toARGB32(),
+      );
+      expect(cells[1].background, isNull);
     },
   );
 
@@ -1435,6 +1586,62 @@ void main() {
       expect(selectionController.selection, isNull);
     },
   );
+}
+
+Future<RenderTerminalViewport> _pumpThemedTerminalViewport(
+  WidgetTester tester, {
+  required ThemeMode themeMode,
+  required TerminalFrameDiff frame,
+  TerminalViewportColors? colors,
+}) async {
+  final controller = TerminalViewportController()..updateFrame(frame);
+  await _pumpTerminalViewportWithController(
+    tester,
+    controller: controller,
+    themeMode: themeMode,
+    colors: colors,
+  );
+  return tester.allRenderObjects.whereType<RenderTerminalViewport>().last;
+}
+
+Future<void> _pumpTerminalViewportWithController(
+  WidgetTester tester, {
+  required TerminalViewportController controller,
+  required ThemeMode themeMode,
+  TerminalViewportColors? colors,
+}) async {
+  final selectionController = SelectionController();
+  final inputController = TerminalInputController(
+    sessionId: '1',
+    coreClient: TerminalCoreClient(FakeCoreBindings()),
+    readSelection: () => '',
+    copySelection: (_) async {},
+    readClipboard: () async => '',
+  );
+
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: themeMode,
+      themeAnimationDuration: Duration.zero,
+      home: Scaffold(
+        body: SizedBox(
+          width: 400,
+          height: 200,
+          child: TerminalViewport(
+            controller: controller,
+            selectionController: selectionController,
+            inputController: inputController,
+            colors: colors,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
 }
 
 double _snapToDevicePixel(double value, double devicePixelRatio) {

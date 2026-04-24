@@ -13,6 +13,7 @@ import '../terminal/clipboard_bridge.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
+import '../terminal/terminal_viewport_colors.dart';
 import 'defaults_appearance_dialog.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
@@ -949,10 +950,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                               immediate: true,
                                             );
                                           },
-                                          backgroundColor:
-                                              palette.terminalCanvasBackground,
-                                          foregroundColor:
-                                              palette.terminalCanvasForeground,
+                                          colors: palette.terminalColors,
                                           onScrollLines: (delta) {
                                             ref
                                                 .read(
@@ -1734,8 +1732,7 @@ class _ShellPalette {
     required this.chromeBackground,
     required this.overlayBackground,
     required this.terminalBackground,
-    required this.terminalCanvasBackground,
-    required this.terminalCanvasForeground,
+    required this.terminalColors,
     required this.divider,
     required this.primaryText,
     required this.mutedText,
@@ -1750,8 +1747,7 @@ class _ShellPalette {
         chromeBackground: Color(0xFFEDEDED),
         overlayBackground: Color(0xFFFFFFFF),
         terminalBackground: Color(0xFFEDEDED),
-        terminalCanvasBackground: Color(0xFFF8F7F2),
-        terminalCanvasForeground: Color(0xFF111111),
+        terminalColors: TerminalViewportColors.light,
         divider: Color(0xFFD2D2D2),
         primaryText: Color(0xFF111111),
         mutedText: Color(0xFF4A4A4A),
@@ -1764,8 +1760,7 @@ class _ShellPalette {
       chromeBackground: Color(0xFF17161D),
       overlayBackground: Color(0xFF201E28),
       terminalBackground: Color(0xFF17161D),
-      terminalCanvasBackground: Color(0xFF050608),
-      terminalCanvasForeground: Color(0xFFF8FAFC),
+      terminalColors: TerminalViewportColors.dark,
       divider: Color(0xFF2D2938),
       primaryText: Color(0xFFF1EFF7),
       mutedText: Color(0xFFC4BED3),
@@ -1778,8 +1773,7 @@ class _ShellPalette {
   final Color chromeBackground;
   final Color overlayBackground;
   final Color terminalBackground;
-  final Color terminalCanvasBackground;
-  final Color terminalCanvasForeground;
+  final TerminalViewportColors terminalColors;
   final Color divider;
   final Color primaryText;
   final Color mutedText;
