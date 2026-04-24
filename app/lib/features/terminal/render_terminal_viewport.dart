@@ -10,6 +10,8 @@ import 'terminal_viewport.dart';
 import 'terminal_viewport_colors.dart';
 
 const String terminalPrimaryFontFamily = 'JetBrainsMono Nerd Font Mono';
+const double terminalFontSize = 14;
+const double terminalLineHeight = 1.6;
 const List<String> terminalFontFamilyFallback = <String>[
   'Menlo',
   'JetBrainsMono Nerd Font',
@@ -554,8 +556,8 @@ class RenderTerminalViewport extends RenderBox {
         ui.ParagraphBuilder(
             ui.ParagraphStyle(
               fontFamily: terminalPrimaryFontFamily,
-              fontSize: 14,
-              height: 1.2,
+              fontSize: terminalFontSize,
+              height: terminalLineHeight,
             ),
           )
           ..pushStyle(
@@ -585,8 +587,8 @@ class RenderTerminalViewport extends RenderBox {
     final builder = ui.ParagraphBuilder(
       ui.ParagraphStyle(
         fontFamily: terminalPrimaryFontFamily,
-        fontSize: 14,
-        height: 1.2,
+        fontSize: terminalFontSize,
+        height: terminalLineHeight,
       ),
     )..addText('W');
     final paragraph = builder.build()
@@ -601,8 +603,8 @@ class RenderTerminalViewport extends RenderBox {
     final builder = ui.ParagraphBuilder(
       ui.ParagraphStyle(
         fontFamily: terminalPrimaryFontFamily,
-        fontSize: 14,
-        height: 1.2,
+        fontSize: terminalFontSize,
+        height: terminalLineHeight,
       ),
     )..addText('Hg');
     final paragraph = builder.build()
