@@ -147,6 +147,36 @@ fn clipboard_paste_request_profile() -> TerminalProfile {
     }
 }
 
+fn hyperlink_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "hyperlink".to_string(),
+        name: "Hyperlink".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "printf '\\033]8;;https://example.com/docs\\aDocs\\033]8;;\\a\\n'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
+    }
+}
+
+fn vt220_hyperlink_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "vt220-hyperlink".to_string(),
+        name: "VT220 Hyperlink".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            "printf '\\033]8;;https://example.com/docs\\aDocs\\033]8;;\\a\\n'".to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Vt220,
+    }
+}
+
 fn mode_switch_profile() -> TerminalProfile {
     TerminalProfile {
         id: "mode-switch".to_string(),
@@ -852,6 +882,79 @@ fn vt220_sessions_do_not_emit_clipboard_paste_requests_from_osc_52_queries() {
     .unwrap();
 
     assert_event_kind_never_arrives(session_id, "clipboard_paste_request");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn xterm_sessions_surface_osc8_hyperlink_ranges() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&hyperlink_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "Docs");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let hyperlinks = parsed["hyperlinks"]
+        .as_array()
+        .expect("expected hyperlink ranges");
+
+    assert_eq!(hyperlinks.len(), 1);
+    assert_eq!(hyperlinks[0]["row"].as_u64(), Some(0));
+    assert_eq!(hyperlinks[0]["start_col"].as_u64(), Some(0));
+    assert_eq!(hyperlinks[0]["end_col"].as_u64(), Some(4));
+    assert_eq!(
+        hyperlinks[0]["uri"].as_str(),
+        Some("https://example.com/docs")
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_do_not_surface_osc8_hyperlink_ranges() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&vt220_hyperlink_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "Docs");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let hyperlinks = parsed["hyperlinks"]
+        .as_array()
+        .expect("expected hyperlink ranges");
+
+    assert!(hyperlinks.is_empty());
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_searches_scrollback_text_without_changing_scroll_position() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&scrollback_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "line79");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["scrollback_offset"].as_u64(), Some(0));
+
+    let search = session::search_session(session_id, "line05").unwrap();
+    let matches: serde_json::Value = serde_json::from_str(&search).unwrap();
+    let first = matches
+        .as_array()
+        .and_then(|entries| entries.first())
+        .expect("expected search match");
+
+    assert_eq!(first["text"].as_str(), Some("line05"));
+    assert_eq!(first["start_col"].as_u64(), Some(0));
+    assert_eq!(first["end_col"].as_u64(), Some(6));
+    assert!(
+        first["scrollback_offset"].as_u64().unwrap_or_default() > 0,
+        "expected old scrollback match to have a non-zero scrollback offset"
+    );
+
+    let frame_after = session::take_frame_diff(session_id).unwrap();
+    assert!(
+        frame_after.is_none(),
+        "search should not dirty or scroll the terminal"
+    );
 
     session::close_session(session_id).unwrap();
 }

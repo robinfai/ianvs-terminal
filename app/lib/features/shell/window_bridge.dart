@@ -44,4 +44,15 @@ class WindowBridge {
       return;
     }
   }
+
+  static Future<void> openExternalUrl(String url) async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('openExternalUrl', {'url': url});
+    } on MissingPluginException {
+      return;
+    }
+  }
 }

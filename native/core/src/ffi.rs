@@ -68,6 +68,28 @@ pub extern "C" fn flutterm_session_scroll_to(session_id: u64, offset: usize) -> 
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn flutterm_session_search_json(
+    session_id: u64,
+    query: *const c_char,
+) -> *mut c_char {
+    if query.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let query = unsafe { CStr::from_ptr(query) };
+    match query
+        .to_str()
+        .ok()
+        .and_then(|value| session::search_session(session_id, value).ok())
+    {
+        Some(json) => CString::new(json)
+            .map(CString::into_raw)
+            .unwrap_or(std::ptr::null_mut()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_take_frame_diff_json(session_id: u64) -> *mut c_char {
     match session::take_frame_diff(session_id).ok().flatten() {
         Some(json) => CString::new(json)

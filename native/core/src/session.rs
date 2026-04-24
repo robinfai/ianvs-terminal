@@ -1,6 +1,7 @@
 use crate::model::{
     TerminalCursor, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
-    TerminalFrameModes, TerminalProfile, TerminalRow, TerminalStyleRun,
+    TerminalFrameModes, TerminalHyperlinkRange, TerminalProfile, TerminalRow, TerminalSearchMatch,
+    TerminalStyleRun,
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::Cell;
@@ -516,19 +517,24 @@ impl TerminalSession {
         };
 
         let mut rows = Vec::with_capacity(viewport_rows);
+        let mut hyperlinks = Vec::new();
         let mut dirty_ranges = Vec::new();
         let mut current_rows = Vec::with_capacity(viewport_rows);
         let mut last_rows = self.last_rows.lock();
 
         for row in 0..viewport_rows {
-            let extracted = if alt_screen_active {
-                extract_row(
+            let (cells, wrapped) = if alt_screen_active {
+                (
                     terminal.alt_grid().row(row),
                     terminal.alt_grid().is_line_wrapped(row),
                 )
             } else {
-                extract_primary_row(terminal.grid(), viewport_rows, state.scrollback_offset, row)
+                primary_row_cells(terminal.grid(), viewport_rows, state.scrollback_offset, row)
             };
+            let extracted = extract_row(cells, wrapped);
+            if self.emulation == TerminalEmulation::Xterm256 {
+                hyperlinks.extend(extract_hyperlinks_for_row(terminal, cells, row));
+            }
 
             current_rows.push(CachedRowState {
                 text: extracted.text.clone(),
@@ -568,7 +574,56 @@ impl TerminalSession {
             modes,
             window_title,
             window_icon_name,
+            hyperlinks,
         }))
+    }
+
+    pub fn search(&self, query: &str) -> Vec<TerminalSearchMatch> {
+        if query.is_empty() {
+            return Vec::new();
+        }
+
+        let state = self.state.lock();
+        let terminal = &state.terminal;
+        let (_viewport_cols, viewport_rows) = terminal.size();
+        let mut matches = Vec::new();
+
+        if terminal.is_alt_screen_active() {
+            for row in 0..viewport_rows {
+                let extracted = extract_row(
+                    terminal.alt_grid().row(row),
+                    terminal.alt_grid().is_line_wrapped(row),
+                );
+                collect_text_matches(&mut matches, &extracted.text, query, row, 0);
+            }
+            return matches;
+        }
+
+        let grid = terminal.grid();
+        let scrollback_len = grid.scrollback_len();
+        let total_lines = scrollback_len + viewport_rows;
+
+        for visible_index in 0..total_lines {
+            let extracted = if visible_index < scrollback_len {
+                extract_row(
+                    grid.scrollback_line(visible_index),
+                    grid.is_scrollback_wrapped(visible_index),
+                )
+            } else {
+                let screen_row = visible_index.saturating_sub(scrollback_len);
+                extract_row(grid.row(screen_row), grid.is_line_wrapped(screen_row))
+            };
+            let scrollback_offset = total_lines.saturating_sub(viewport_rows + visible_index);
+            collect_text_matches(
+                &mut matches,
+                &extracted.text,
+                query,
+                visible_index,
+                scrollback_offset,
+            );
+        }
+
+        matches
     }
 
     pub fn poll_events(&self) -> Result<Vec<TerminalEvent>, SessionError> {
@@ -635,26 +690,79 @@ struct ExtractedRow {
     style_runs: Vec<TerminalStyleRun>,
 }
 
-fn extract_primary_row(
+fn primary_row_cells(
     grid: &Grid,
     viewport_rows: usize,
     scrollback_offset: usize,
     row: usize,
-) -> ExtractedRow {
+) -> (Option<&[Cell]>, bool) {
     let scrollback_len = grid.scrollback_len();
     let total_lines = scrollback_len + viewport_rows;
     let start_index = total_lines.saturating_sub(viewport_rows + scrollback_offset);
     let visible_index = start_index + row;
 
     if visible_index < scrollback_len {
-        extract_row(
+        (
             grid.scrollback_line(visible_index),
             grid.is_scrollback_wrapped(visible_index),
         )
     } else {
         let screen_row = visible_index.saturating_sub(scrollback_len);
-        extract_row(grid.row(screen_row), grid.is_line_wrapped(screen_row))
+        (grid.row(screen_row), grid.is_line_wrapped(screen_row))
     }
+}
+
+fn extract_hyperlinks_for_row(
+    terminal: &Terminal,
+    cells: Option<&[Cell]>,
+    row: usize,
+) -> Vec<TerminalHyperlinkRange> {
+    let mut ranges = Vec::new();
+    let mut active_uri: Option<String> = None;
+    let mut active_start = 0usize;
+    let mut column_offset = 0usize;
+
+    for cell in cells.unwrap_or_default() {
+        if cell.flags.wide_char_spacer() {
+            continue;
+        }
+
+        let column_start = column_offset;
+        column_offset += cell.width();
+        let cell_uri = cell
+            .flags
+            .hyperlink_id
+            .and_then(|id| terminal.get_hyperlink_url(id));
+
+        if active_uri.as_deref() == cell_uri.as_deref() {
+            continue;
+        }
+
+        if let Some(uri) = active_uri.take() {
+            ranges.push(TerminalHyperlinkRange {
+                row,
+                start_col: active_start,
+                end_col: column_start,
+                uri,
+            });
+        }
+
+        if let Some(uri) = cell_uri {
+            active_start = column_start;
+            active_uri = Some(uri);
+        }
+    }
+
+    if let Some(uri) = active_uri {
+        ranges.push(TerminalHyperlinkRange {
+            row,
+            start_col: active_start,
+            end_col: column_offset,
+            uri,
+        });
+    }
+
+    ranges
 }
 
 fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
@@ -715,6 +823,59 @@ fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
         text,
         wrapped,
         style_runs,
+    }
+}
+
+fn collect_text_matches(
+    matches: &mut Vec<TerminalSearchMatch>,
+    text: &str,
+    query: &str,
+    row: usize,
+    scrollback_offset: usize,
+) {
+    let mut search_from = 0usize;
+    while search_from <= text.len() {
+        let Some(relative) = text[search_from..].find(query) else {
+            break;
+        };
+        let start = search_from + relative;
+        let end = start + query.len();
+        matches.push(TerminalSearchMatch {
+            row,
+            start_col: column_for_byte_index(text, start),
+            end_col: column_for_byte_index(text, end),
+            text: query.to_string(),
+            scrollback_offset,
+        });
+        search_from = end;
+    }
+}
+
+fn column_for_byte_index(text: &str, byte_index: usize) -> usize {
+    text.char_indices()
+        .take_while(|(index, _)| *index < byte_index)
+        .map(|(_, value)| display_width_for_char(value))
+        .sum()
+}
+
+fn display_width_for_char(value: char) -> usize {
+    if value.is_control() {
+        return 0;
+    }
+    let code = value as u32;
+    if (0x1100..=0x115f).contains(&code)
+        || (0x2e80..=0xa4cf).contains(&code)
+        || (0xac00..=0xd7a3).contains(&code)
+        || (0xf900..=0xfaff).contains(&code)
+        || (0xfe10..=0xfe19).contains(&code)
+        || (0xfe30..=0xfe6f).contains(&code)
+        || (0xff00..=0xff60).contains(&code)
+        || (0xffe0..=0xffe6).contains(&code)
+        || (0x1f300..=0x1faff).contains(&code)
+    {
+        2
+    } else {
+        1
     }
 }
 
@@ -834,6 +995,11 @@ pub fn scroll_session(session_id: u64, delta_lines: i32) -> Result<(), SessionEr
 pub fn scroll_to_session(session_id: u64, offset: usize) -> Result<(), SessionError> {
     STORE.get(session_id)?.scroll_to(offset);
     Ok(())
+}
+
+pub fn search_session(session_id: u64, query: &str) -> Result<String, SessionError> {
+    let matches = STORE.get(session_id)?.search(query);
+    serde_json::to_string(&matches).map_err(|error| SessionError::Serialize(error.to_string()))
 }
 
 pub fn take_frame_diff(session_id: u64) -> Result<Option<String>, SessionError> {

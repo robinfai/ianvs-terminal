@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
@@ -13,6 +14,7 @@ import 'terminal_viewport_colors.dart';
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
 const Size terminalFallbackCellSize = Size(9, 18);
+final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
 
 class TerminalViewportController extends ChangeNotifier {
   TerminalFrameDiff _frame = TerminalFrameDiff.empty;
@@ -51,6 +53,7 @@ class TerminalViewport extends StatefulWidget {
     this.backgroundColor,
     this.foregroundColor,
     this.focusNode,
+    this.onOpenLink,
   });
 
   final TerminalViewportController controller;
@@ -64,6 +67,7 @@ class TerminalViewport extends StatefulWidget {
   final Color? backgroundColor;
   final Color? foregroundColor;
   final FocusNode? focusNode;
+  final ValueChanged<String>? onOpenLink;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -77,6 +81,8 @@ class _TerminalViewportState extends State<TerminalViewport> {
   final GlobalKey _surfaceKey = GlobalKey();
   double _pendingScrollLines = 0.0;
   Size? _lastReportedCellSize;
+  int? _activeMouseButton;
+  bool? _lastReportedFocusTrackingFocus;
 
   FocusNode get _focusNode =>
       widget.focusNode ??
@@ -128,6 +134,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
     if (!mounted) {
       return;
     }
+    _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
     _scheduleMeasuredCellSizeReport();
   }
@@ -136,7 +143,22 @@ class _TerminalViewportState extends State<TerminalViewport> {
     if (!mounted) {
       return;
     }
+    _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
+  }
+
+  void _syncFocusTrackingReport() {
+    final modes = widget.controller.frame.modes;
+    if (!modes.focusTracking) {
+      _lastReportedFocusTrackingFocus = null;
+      return;
+    }
+    final focused = _focusNode.hasFocus;
+    if (_lastReportedFocusTrackingFocus == focused) {
+      return;
+    }
+    _lastReportedFocusTrackingFocus = focused;
+    widget.inputController.sendFocusReport(focused: focused);
   }
 
   void _scheduleMeasuredCellSizeReport() {
@@ -193,6 +215,10 @@ class _TerminalViewportState extends State<TerminalViewport> {
   }
 
   void _handleScrollDelta(double deltaY) {
+    if (_terminalMouseEnabled) {
+      _sendMouseWheel(deltaY);
+      return;
+    }
     final lineHeight = _lineHeight;
     if (lineHeight <= 0) {
       return;
@@ -204,6 +230,184 @@ class _TerminalViewportState extends State<TerminalViewport> {
     }
     _pendingScrollLines -= deltaLines;
     widget.onScrollLines(deltaLines);
+  }
+
+  bool get _terminalMouseEnabled =>
+      widget.controller.frame.modes.mouseMode != 'off';
+
+  RenderTerminalViewport? get _renderViewport {
+    final renderObject = _surfaceKey.currentContext?.findRenderObject();
+    return renderObject is RenderTerminalViewport ? renderObject : null;
+  }
+
+  TerminalCellPosition? _cellForGlobalPosition(Offset globalPosition) {
+    final renderObject = _renderViewport;
+    if (renderObject == null) {
+      return null;
+    }
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    return renderObject.debugCellForOffset(localPosition);
+  }
+
+  int _mouseModifiers() {
+    var modifiers = 0;
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      modifiers += 1;
+    }
+    if (HardwareKeyboard.instance.isAltPressed) {
+      modifiers += 2;
+    }
+    if (HardwareKeyboard.instance.isControlPressed) {
+      modifiers += 4;
+    }
+    return modifiers;
+  }
+
+  int _mouseButtonFor(int buttons) {
+    if ((buttons & kMiddleMouseButton) != 0) {
+      return 1;
+    }
+    if ((buttons & kSecondaryMouseButton) != 0) {
+      return 2;
+    }
+    return 0;
+  }
+
+  void _sendMouseEvent({
+    required Offset globalPosition,
+    required int button,
+    required bool pressed,
+  }) {
+    if (!_terminalMouseEnabled) {
+      return;
+    }
+    final cell = _cellForGlobalPosition(globalPosition);
+    if (cell == null) {
+      return;
+    }
+    widget.inputController.sendMouseReport(
+      modes: widget.controller.frame.modes,
+      row: cell.row,
+      col: cell.col,
+      button: button,
+      pressed: pressed,
+      modifiers: _mouseModifiers(),
+    );
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!_terminalMouseEnabled) {
+      return;
+    }
+    _activeMouseButton = _mouseButtonFor(event.buttons);
+    _sendMouseEvent(
+      globalPosition: event.position,
+      button: _activeMouseButton!,
+      pressed: true,
+    );
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (!_terminalMouseEnabled || event.buttons == 0) {
+      return;
+    }
+    final mode = widget.controller.frame.modes.mouseMode;
+    if (mode != 'button_event' && mode != 'any_event') {
+      return;
+    }
+    _activeMouseButton ??= _mouseButtonFor(event.buttons);
+    _sendMouseEvent(
+      globalPosition: event.position,
+      button: _activeMouseButton! | 32,
+      pressed: true,
+    );
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (!_terminalMouseEnabled) {
+      return;
+    }
+    _sendMouseEvent(
+      globalPosition: event.position,
+      button: _activeMouseButton ?? 0,
+      pressed: false,
+    );
+    _activeMouseButton = null;
+  }
+
+  void _sendMouseWheel(double deltaY, {Offset? globalPosition}) {
+    if (deltaY == 0) {
+      return;
+    }
+    final renderObject = _renderViewport;
+    if (renderObject == null) {
+      return;
+    }
+    final localFallback = Offset(
+      renderObject.size.width / 2,
+      renderObject.size.height / 2,
+    );
+    final cell = globalPosition == null
+        ? renderObject.debugCellForOffset(localFallback)
+        : _cellForGlobalPosition(globalPosition);
+    if (cell == null) {
+      return;
+    }
+    widget.inputController.sendMouseReport(
+      modes: widget.controller.frame.modes,
+      row: cell.row,
+      col: cell.col,
+      button: deltaY < 0 ? 64 : 65,
+      pressed: true,
+      modifiers: _mouseModifiers(),
+    );
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    final onOpenLink = widget.onOpenLink;
+    if (onOpenLink == null) {
+      return;
+    }
+    final link = _linkAt(details.globalPosition);
+    if (link == null) {
+      return;
+    }
+    onOpenLink(link);
+  }
+
+  String? _linkAt(Offset globalPosition) {
+    final cell = _cellForGlobalPosition(globalPosition);
+    if (cell == null) {
+      return null;
+    }
+    final frame = widget.controller.frame;
+    for (final hyperlink in frame.hyperlinks) {
+      if (hyperlink.row == cell.row &&
+          cell.col >= hyperlink.startCol &&
+          cell.col < hyperlink.endCol) {
+        return hyperlink.uri;
+      }
+    }
+
+    TerminalRow? row;
+    for (final candidate in frame.rows) {
+      if (candidate.index == cell.row) {
+        row = candidate;
+        break;
+      }
+    }
+    final text = row?.text;
+    if (text == null || text.isEmpty) {
+      return null;
+    }
+    final textCells = TerminalTextCells.fromText(text);
+    final codeUnit = textCells.codeUnitForColumn(cell.col);
+    for (final match in _visibleUrlPattern.allMatches(text)) {
+      if (codeUnit >= match.start && codeUnit < match.end) {
+        return match.group(0);
+      }
+    }
+    return null;
   }
 
   void _resetPendingScroll() {
@@ -248,16 +452,34 @@ class _TerminalViewportState extends State<TerminalViewport> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _focusNode.requestFocus(),
+        onTapUp: _handleTapUp,
         child: Listener(
           behavior: HitTestBehavior.opaque,
+          onPointerDown: _handlePointerDown,
+          onPointerMove: _handlePointerMove,
+          onPointerUp: _handlePointerUp,
           onPointerSignal: (event) {
             if (event is PointerScrollEvent) {
-              _handleScrollDelta(event.scrollDelta.dy);
+              if (_terminalMouseEnabled) {
+                _sendMouseWheel(
+                  event.scrollDelta.dy,
+                  globalPosition: event.position,
+                );
+              } else {
+                _handleScrollDelta(event.scrollDelta.dy);
+              }
             }
           },
           onPointerPanZoomStart: (_) => _resetPendingScroll(),
           onPointerPanZoomUpdate: (event) {
-            _handleScrollDelta(event.panDelta.dy);
+            if (_terminalMouseEnabled) {
+              _sendMouseWheel(
+                event.panDelta.dy,
+                globalPosition: event.position,
+              );
+            } else {
+              _handleScrollDelta(event.panDelta.dy);
+            }
           },
           onPointerPanZoomEnd: (_) => _resetPendingScroll(),
           child: AnimatedBuilder(
@@ -281,6 +503,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
                               selectionController: widget.selectionController,
                               cursorVisible: _cursorVisible,
                               colors: colors,
+                              terminalMouseEnabled: _terminalMouseEnabled,
                             ),
                           ),
                         ),
@@ -318,12 +541,14 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.selectionController,
     required this.cursorVisible,
     required this.colors,
+    required this.terminalMouseEnabled,
   });
 
   final TerminalViewportController controller;
   final SelectionController selectionController;
   final bool cursorVisible;
   final TerminalViewportColors colors;
+  final bool terminalMouseEnabled;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -333,6 +558,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       cursorVisible: cursorVisible,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       colors: colors,
+      terminalMouseEnabled: terminalMouseEnabled,
     );
   }
 
@@ -346,7 +572,8 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..selectionController = selectionController
       ..cursorVisible = cursorVisible
       ..colors = colors
-      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
+      ..terminalMouseEnabled = terminalMouseEnabled;
   }
 }
 

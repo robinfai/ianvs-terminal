@@ -85,6 +85,10 @@ class _EventfulCoreBindings implements CoreBindings {
       _delegate.sessionScrollTo(sessionId, offset);
 
   @override
+  ffi.Pointer<Utf8> sessionSearchJson(int sessionId, ffi.Pointer<Utf8> query) =>
+      _delegate.sessionSearchJson(sessionId, query);
+
+  @override
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) =>
       _delegate.sessionTakeFrameDiffJson(sessionId);
 
@@ -525,4 +529,50 @@ void main() {
     expect(fakeBindings.scrollToCalls.last.first, 1);
     expect(fakeBindings.scrollToCalls.last.last, greaterThan(0));
   });
+
+  testWidgets(
+    'shell search opens from the command menu and scrolls to matches',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {'row': 42, 'start_col': 5, 'end_col': 11, 'text': 'older needle'},
+        {'row': 3, 'start_col': 0, 'end_col': 6, 'text': 'needle visible'},
+      ]);
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Search scrollback'));
+      await tester.tap(find.text('Search scrollback'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 of 2'), findsOneWidget);
+      expect(fakeBindings.searchCalls.last, [1, 'needle']);
+      expect(fakeBindings.scrollToCalls.last, [1, 42]);
+
+      await tester.tap(find.byKey(const Key('terminal-search-next')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 of 2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [1, 3]);
+
+      await tester.tap(find.byKey(const Key('terminal-search-close')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('terminal-search-bar')), findsNothing);
+      expect(fakeBindings.scrollToCalls.last, [1, 0]);
+    },
+  );
 }

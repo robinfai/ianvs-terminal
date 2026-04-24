@@ -12,6 +12,7 @@ import '../sessions/session_state.dart';
 import '../terminal/clipboard_bridge.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
+import '../terminal/terminal_painter_models.dart';
 import '../terminal/terminal_viewport.dart';
 import '../terminal/terminal_viewport_colors.dart';
 import 'defaults_appearance_dialog.dart';
@@ -19,7 +20,7 @@ import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
 import 'window_bridge.dart';
 
-enum _ShellCommandAction { newTab, copy, paste, defaults, profiles }
+enum _ShellCommandAction { newTab, copy, paste, search, defaults, profiles }
 
 enum _ShellShortcutAction {
   openLauncher,
@@ -68,11 +69,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
+  bool _isSearchOpen = false;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showWorkspaceCue = false;
   bool _showReturningCueOnNextFocus = false;
   int _lastObservedTabCount = 0;
+  String _searchQuery = '';
+  List<TerminalSearchMatch> _searchMatches = const [];
+  int _activeSearchIndex = 0;
 
   @override
   void dispose() {
@@ -336,6 +341,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (sessionState.activeSessionId == null) {
       _activeTerminalHasFocus = false;
       _showWorkspaceCue = false;
+      _isSearchOpen = false;
+      _searchQuery = '';
+      _searchMatches = const [];
+      _activeSearchIndex = 0;
       _workspaceCueTimer?.cancel();
       _workspaceCueTimer = null;
     }
@@ -491,6 +500,73 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             text: text,
           ),
         );
+  }
+
+  void _openSearch() {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    setState(() {
+      _isSearchOpen = true;
+      _searchQuery = '';
+      _searchMatches = const [];
+      _activeSearchIndex = 0;
+    });
+  }
+
+  void _searchScrollback(String query) {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    final matches = ref
+        .read(terminalCoreClientProvider)
+        .searchText(activeSessionId, query);
+    setState(() {
+      _searchQuery = query;
+      _searchMatches = matches;
+      _activeSearchIndex = 0;
+    });
+    if (matches.isNotEmpty) {
+      ref
+          .read(terminalCoreClientProvider)
+          .scrollViewportTo(activeSessionId, matches.first.scrollbackOffset);
+    }
+  }
+
+  void _moveSearchMatch(int delta) {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null || _searchMatches.isEmpty) {
+      return;
+    }
+    final nextIndex = (_activeSearchIndex + delta) % _searchMatches.length;
+    final normalizedIndex = nextIndex < 0
+        ? nextIndex + _searchMatches.length
+        : nextIndex;
+    setState(() {
+      _activeSearchIndex = normalizedIndex;
+    });
+    ref
+        .read(terminalCoreClientProvider)
+        .scrollViewportTo(
+          activeSessionId,
+          _searchMatches[normalizedIndex].scrollbackOffset,
+        );
+  }
+
+  void _closeSearch() {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    setState(() {
+      _isSearchOpen = false;
+      _searchQuery = '';
+      _searchMatches = const [];
+      _activeSearchIndex = 0;
+    });
+    if (activeSessionId != null) {
+      ref.read(terminalCoreClientProvider).scrollViewportTo(activeSessionId, 0);
+      _focusSession(activeSessionId);
+    }
   }
 
   Future<void> _openDefaultsAndAppearance(
@@ -759,6 +835,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
+      case _ShellCommandAction.search:
+        if (currentSessionId == null) {
+          return;
+        }
+        _openSearch();
+        return;
       case _ShellCommandAction.defaults:
         await _openDefaultsAndAppearance(sessionController, sessionState);
         return;
@@ -1019,8 +1101,27 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                                   offset,
                                                 );
                                           },
+                                          onOpenLink: (url) => unawaited(
+                                            WindowBridge.openExternalUrl(url),
+                                          ),
                                         ),
                                       ),
+                                      if (_isSearchOpen)
+                                        Positioned(
+                                          top: _terminalViewportPadding.top,
+                                          right: _terminalViewportPadding.right,
+                                          child: _TerminalSearchBar(
+                                            query: _searchQuery,
+                                            matches: _searchMatches.length,
+                                            activeIndex: _activeSearchIndex,
+                                            palette: palette,
+                                            onChanged: _searchScrollback,
+                                            onPrevious: () =>
+                                                _moveSearchMatch(-1),
+                                            onNext: () => _moveSearchMatch(1),
+                                            onClose: _closeSearch,
+                                          ),
+                                        ),
                                       if (_showWorkspaceCue)
                                         Positioned(
                                           top: _terminalViewportPadding.top,
@@ -1384,6 +1485,120 @@ class _ShellEmptyState extends StatelessWidget {
   }
 }
 
+class _TerminalSearchBar extends StatelessWidget {
+  const _TerminalSearchBar({
+    required this.query,
+    required this.matches,
+    required this.activeIndex,
+    required this.palette,
+    required this.onChanged,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onClose,
+  });
+
+  final String query;
+  final int matches;
+  final int activeIndex;
+  final _ShellPalette palette;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onClose;
+
+  String get _counterText {
+    if (matches == 0) {
+      return query.isEmpty ? '0 of 0' : 'No matches';
+    }
+    return '${activeIndex + 1} of $matches';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('terminal-search-bar'),
+      color: Colors.transparent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.overlayBackground.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: palette.divider),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: 320,
+          height: 42,
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  key: const Key('terminal-search-field'),
+                  autofocus: true,
+                  onChanged: onChanged,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: palette.primaryText),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'Search',
+                    hintStyle: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: palette.subtleText),
+                    border: InputBorder.none,
+                  ),
+                ),
+              ),
+              Text(
+                _counterText,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: matches == 0 && query.isNotEmpty
+                      ? palette.mutedText
+                      : palette.subtleText,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              IconButton(
+                key: const Key('terminal-search-previous'),
+                tooltip: 'Previous match',
+                onPressed: matches == 0 ? null : onPrevious,
+                visualDensity: VisualDensity.compact,
+                splashRadius: 16,
+                iconSize: 18,
+                icon: const Icon(Icons.keyboard_arrow_up_rounded),
+              ),
+              IconButton(
+                key: const Key('terminal-search-next'),
+                tooltip: 'Next match',
+                onPressed: matches == 0 ? null : onNext,
+                visualDensity: VisualDensity.compact,
+                splashRadius: 16,
+                iconSize: 18,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+              ),
+              IconButton(
+                key: const Key('terminal-search-close'),
+                tooltip: 'Close search',
+                onPressed: onClose,
+                visualDensity: VisualDensity.compact,
+                splashRadius: 16,
+                iconSize: 18,
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ShellWorkspaceCue extends StatelessWidget {
   const _ShellWorkspaceCue({required this.title, required this.palette});
 
@@ -1581,6 +1796,14 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.paste),
+                  ),
+                  _ShellCommandTile(
+                    icon: Icons.search_rounded,
+                    title: 'Search scrollback',
+                    subtitle: 'Session action • Find text in local output.',
+                    enabled: hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(_ShellCommandAction.search),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(14, 6, 14, 2),

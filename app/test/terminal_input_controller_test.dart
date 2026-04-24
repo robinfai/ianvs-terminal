@@ -447,6 +447,102 @@ void main() {
     },
   );
 
+  testWidgets('terminal input sends escape-prefixed bytes for Alt key chords', (
+    tester,
+  ) async {
+    final bindings = FakeCoreBindings();
+    final coreClient = TerminalCoreClient(bindings);
+    final viewportController = TerminalViewportController();
+    final selectionController = SelectionController();
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      coreClient: coreClient,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TerminalViewport(
+            controller: viewportController,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.altLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyF, platform: 'macos');
+    await tester.pump();
+
+    expect(bindings.writes, isNotEmpty);
+    expect(bindings.writes.last, ascii.encode('\x1Bf'));
+
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyF, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft, platform: 'macos');
+  });
+
+  testWidgets('terminal input sends modified arrow bytes for Shift+Arrow', (
+    tester,
+  ) async {
+    final bindings = FakeCoreBindings();
+    final coreClient = TerminalCoreClient(bindings);
+    final viewportController = TerminalViewportController();
+    final selectionController = SelectionController();
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      coreClient: coreClient,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TerminalViewport(
+            controller: viewportController,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.arrowUp,
+      platform: 'macos',
+    );
+    await tester.pump();
+
+    expect(bindings.writes, isNotEmpty);
+    expect(bindings.writes.last, ascii.encode('\x1B[1;2A'));
+
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp, platform: 'macos');
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: 'macos',
+    );
+  });
+
   test(
     'xterm keyboard paste uses bracketed paste when the mode is enabled',
     () {

@@ -74,6 +74,23 @@ pub struct TerminalDirtyRange {
     pub end: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalHyperlinkRange {
+    pub row: usize,
+    pub start_col: usize,
+    pub end_col: usize,
+    pub uri: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalSearchMatch {
+    pub row: usize,
+    pub start_col: usize,
+    pub end_col: usize,
+    pub text: String,
+    pub scrollback_offset: usize,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TerminalFrameModes {
     #[serde(default)]
@@ -119,6 +136,8 @@ pub struct TerminalFrameDiff {
     pub window_title: Option<String>,
     #[serde(default)]
     pub window_icon_name: Option<String>,
+    #[serde(default)]
+    pub hyperlinks: Vec<TerminalHyperlinkRange>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

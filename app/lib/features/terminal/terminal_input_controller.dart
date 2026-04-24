@@ -82,6 +82,36 @@ class TerminalInputController {
     return KeyEventResult.handled;
   }
 
+  void sendFocusReport({required bool focused}) {
+    final sequence = focused ? '\x1B[I' : '\x1B[O';
+    coreClient.sendInput(sessionId, Uint8List.fromList(ascii.encode(sequence)));
+  }
+
+  void sendMouseReport({
+    required TerminalFrameModes modes,
+    required int row,
+    required int col,
+    required int button,
+    required bool pressed,
+    int modifiers = 0,
+  }) {
+    if (modes.mouseMode == 'off') {
+      return;
+    }
+    final bytes = mouseReportBytesFor(
+      modes: modes,
+      row: row,
+      col: col,
+      button: button,
+      pressed: pressed,
+      modifiers: modifiers,
+    );
+    if (bytes.isEmpty) {
+      return;
+    }
+    coreClient.sendInput(sessionId, Uint8List.fromList(bytes));
+  }
+
   Future<void> _pasteClipboard() async {
     final text = await readClipboard();
     if (text.isEmpty) {
@@ -125,6 +155,24 @@ class TerminalInputController {
     required TerminalEmulation emulation,
     required TerminalFrameModes modes,
   }) {
+    final modifier = _xtermKeyboardModifier();
+    if (modifier != null) {
+      final modified = _modifiedKeyBytesFor(
+        event.logicalKey,
+        modifier: modifier,
+      );
+      if (modified != null) {
+        return modified;
+      }
+    }
+
+    if (HardwareKeyboard.instance.isAltPressed) {
+      final character = _altCharacterFor(event);
+      if (character != null) {
+        return ascii.encode('\x1B') + utf8.encode(character);
+      }
+    }
+
     return switch (event.logicalKey) {
       LogicalKeyboardKey.enter => ascii.encode(
         modes.lineFeedNewLineMode ? '\r\n' : '\r',
@@ -265,6 +313,41 @@ class TerminalInputController {
       _ => _characterBytesFor(event, emulation: emulation),
     };
   }
+
+  static List<int> mouseReportBytesFor({
+    required TerminalFrameModes modes,
+    required int row,
+    required int col,
+    required int button,
+    required bool pressed,
+    int modifiers = 0,
+  }) {
+    final buttonCode = button | (modifiers << 2);
+    return switch (modes.mouseEncoding) {
+      'sgr' => ascii.encode(
+        '\x1B[<$buttonCode;${col + 1};${row + 1}${pressed ? 'M' : 'm'}',
+      ),
+      'urxvt' => ascii.encode(
+        '\x1B[${(button | (modifiers << 2) | (pressed ? 0 : 3)) + 32};${col + 1};${row + 1}M',
+      ),
+      'utf8' => _defaultMouseReportBytes(
+        row: row,
+        col: col,
+        button: button,
+        pressed: pressed,
+        modifiers: modifiers,
+        utf8Coordinates: true,
+      ),
+      _ => _defaultMouseReportBytes(
+        row: row,
+        col: col,
+        button: button,
+        pressed: pressed,
+        modifiers: modifiers,
+        utf8Coordinates: false,
+      ),
+    };
+  }
 }
 
 List<int>? _characterBytesFor(
@@ -279,6 +362,125 @@ List<int>? _characterBytesFor(
     return ascii.encode('\r');
   }
   return utf8.encode(character);
+}
+
+int? _xtermKeyboardModifier() {
+  var value = 1;
+  if (HardwareKeyboard.instance.isShiftPressed) {
+    value += 1;
+  }
+  if (HardwareKeyboard.instance.isAltPressed) {
+    value += 2;
+  }
+  if (HardwareKeyboard.instance.isControlPressed) {
+    value += 4;
+  }
+  return value == 1 ? null : value;
+}
+
+List<int>? _modifiedKeyBytesFor(
+  LogicalKeyboardKey key, {
+  required int modifier,
+}) {
+  String? finalByte;
+  switch (key) {
+    case LogicalKeyboardKey.arrowUp:
+      finalByte = 'A';
+      break;
+    case LogicalKeyboardKey.arrowDown:
+      finalByte = 'B';
+      break;
+    case LogicalKeyboardKey.arrowRight:
+      finalByte = 'C';
+      break;
+    case LogicalKeyboardKey.arrowLeft:
+      finalByte = 'D';
+      break;
+    case LogicalKeyboardKey.home:
+      finalByte = 'H';
+      break;
+    case LogicalKeyboardKey.end:
+      finalByte = 'F';
+      break;
+    default:
+      finalByte = null;
+  }
+  if (finalByte != null) {
+    return ascii.encode('\x1B[1;$modifier$finalByte');
+  }
+
+  final tildeCode = switch (key) {
+    LogicalKeyboardKey.insert => 2,
+    LogicalKeyboardKey.delete => 3,
+    LogicalKeyboardKey.pageUp => 5,
+    LogicalKeyboardKey.pageDown => 6,
+    _ => null,
+  };
+  if (tildeCode != null) {
+    return ascii.encode('\x1B[$tildeCode;$modifier~');
+  }
+
+  final functionCode = switch (key) {
+    LogicalKeyboardKey.f1 => 1,
+    LogicalKeyboardKey.f2 => 1,
+    LogicalKeyboardKey.f3 => 1,
+    LogicalKeyboardKey.f4 => 1,
+    LogicalKeyboardKey.f5 => 15,
+    LogicalKeyboardKey.f6 => 17,
+    LogicalKeyboardKey.f7 => 18,
+    LogicalKeyboardKey.f8 => 19,
+    LogicalKeyboardKey.f9 => 20,
+    LogicalKeyboardKey.f10 => 21,
+    LogicalKeyboardKey.f11 => 23,
+    LogicalKeyboardKey.f12 => 24,
+    _ => null,
+  };
+  if (functionCode == null) {
+    return null;
+  }
+  final functionFinal = switch (key) {
+    LogicalKeyboardKey.f1 => 'P',
+    LogicalKeyboardKey.f2 => 'Q',
+    LogicalKeyboardKey.f3 => 'R',
+    LogicalKeyboardKey.f4 => 'S',
+    _ => null,
+  };
+  if (functionFinal != null) {
+    return ascii.encode('\x1B[1;$modifier$functionFinal');
+  }
+  return ascii.encode('\x1B[$functionCode;$modifier~');
+}
+
+String? _altCharacterFor(KeyDownEvent event) {
+  final label = event.logicalKey.keyLabel;
+  if (label.length == 1) {
+    return label.toLowerCase();
+  }
+  final character = event.character;
+  if (character == null || character.isEmpty || character == '\n') {
+    return null;
+  }
+  return character;
+}
+
+List<int> _defaultMouseReportBytes({
+  required int row,
+  required int col,
+  required int button,
+  required bool pressed,
+  required int modifiers,
+  required bool utf8Coordinates,
+}) {
+  final buttonCode = button | (modifiers << 2) | (pressed ? 0 : 3);
+  final encoded = <int>[0x1b, 0x5b, 0x4d, buttonCode + 32];
+  if (utf8Coordinates) {
+    encoded.addAll(utf8.encode(String.fromCharCode(col + 33)));
+    encoded.addAll(utf8.encode(String.fromCharCode(row + 33)));
+  } else {
+    encoded.add((col + 33).clamp(0, 255).toInt());
+    encoded.add((row + 33).clamp(0, 255).toInt());
+  }
+  return encoded;
 }
 
 List<int> _keypadSequence({

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/gestures.dart';
@@ -208,6 +210,310 @@ void main() {
       expect(scrollLines.single, isPositive);
     },
   );
+
+  testWidgets(
+    'terminal viewport sends SGR mouse press bytes when mouse mode is enabled',
+    (tester) async {
+      final bindings = FakeCoreBindings();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            modes: TerminalFrameModes(
+              mouseMode: 'normal',
+              mouseEncoding: 'sgr',
+            ),
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: SelectionController(),
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  coreClient: TerminalCoreClient(bindings),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellSize = renderObject.debugCellSize;
+      await tester.tapAt(
+        renderObject.localToGlobal(
+          Offset(cellSize.width / 2, cellSize.height / 2),
+        ),
+      );
+      await tester.pump();
+
+      expect(bindings.writes, isNotEmpty);
+      expect(ascii.decode(bindings.writes.first), '\x1B[<0;1;1M');
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps local selection when mouse mode is off',
+    (tester) async {
+      final bindings = FakeCoreBindings();
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello world')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  coreClient: TerminalCoreClient(bindings),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellSize = renderObject.debugCellSize;
+      await tester.dragFrom(
+        renderObject.localToGlobal(
+          Offset(cellSize.width / 2, cellSize.height / 2),
+        ),
+        Offset(cellSize.width * 4, 0),
+      );
+      await tester.pump();
+
+      expect(bindings.writes, isEmpty);
+      expect(selectionController.selection, isNotNull);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport sends focus tracking bytes on focus gain and loss',
+    (tester) async {
+      final bindings = FakeCoreBindings();
+      final focusNode = FocusNode(debugLabel: 'test-terminal-focus');
+      addTearDown(focusNode.dispose);
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            modes: TerminalFrameModes(focusTracking: true),
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                SizedBox(
+                  width: 400,
+                  height: 120,
+                  child: TerminalViewport(
+                    focusNode: focusNode,
+                    controller: controller,
+                    selectionController: SelectionController(),
+                    inputController: TerminalInputController(
+                      sessionId: '1',
+                      coreClient: TerminalCoreClient(bindings),
+                      readFrame: () => controller.frame,
+                      readSelection: () => '',
+                      copySelection: (_) async {},
+                      readClipboard: () async => '',
+                    ),
+                    onScrollLines: (_) {},
+                    onScrollToOffset: (_) {},
+                  ),
+                ),
+                const TextField(),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+
+      expect(bindings.writes.map(ascii.decode).toList(), ['\x1B[I', '\x1B[O']);
+    },
+  );
+
+  testWidgets('terminal viewport opens OSC 8 hyperlink on explicit tap', (
+    tester,
+  ) async {
+    final opened = <String>[];
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'open docs')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          hyperlinks: [
+            TerminalHyperlinkRange(
+              row: 0,
+              startCol: 5,
+              endCol: 9,
+              uri: 'https://example.com/docs',
+            ),
+          ],
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: SelectionController(),
+              inputController: TerminalInputController(
+                sessionId: '1',
+                coreClient: TerminalCoreClient(FakeCoreBindings()),
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onOpenLink: opened.add,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final cellSize = renderObject.debugCellSize;
+    await tester.tapAt(
+      renderObject.localToGlobal(
+        Offset(cellSize.width * 6, cellSize.height / 2),
+      ),
+    );
+    await tester.pump();
+
+    expect(opened, ['https://example.com/docs']);
+  });
+
+  testWidgets('terminal viewport opens visible URL hints on explicit tap', (
+    tester,
+  ) async {
+    final opened = <String>[];
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [
+            TerminalRow(index: 0, text: 'see https://example.com/path now'),
+          ],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 500,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: SelectionController(),
+              inputController: TerminalInputController(
+                sessionId: '1',
+                coreClient: TerminalCoreClient(FakeCoreBindings()),
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onOpenLink: opened.add,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final cellSize = renderObject.debugCellSize;
+    await tester.tapAt(
+      renderObject.localToGlobal(
+        Offset(cellSize.width * 8, cellSize.height / 2),
+      ),
+    );
+    await tester.pump();
+
+    expect(opened, ['https://example.com/path']);
+  });
 
   test(
     'terminal text style keeps a nerd-font fallback ahead of generic system fonts',

@@ -31,6 +31,9 @@ typedef _ScrollSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Int32);
 typedef _ScrollSessionDart = int Function(int, int);
 typedef _ScrollToSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Size);
 typedef _ScrollToSessionDart = int Function(int, int);
+typedef _SearchSessionNative =
+    ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>);
+typedef _SearchSessionDart = ffi.Pointer<Utf8> Function(int, ffi.Pointer<Utf8>);
 typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
 typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
@@ -50,6 +53,7 @@ abstract class CoreBindings {
   int sessionWrite(int sessionId, ffi.Pointer<ffi.Uint8> bytes, int length);
   int sessionScroll(int sessionId, int deltaLines);
   int sessionScrollTo(int sessionId, int offset);
+  ffi.Pointer<Utf8> sessionSearchJson(int sessionId, ffi.Pointer<Utf8> query);
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId);
   ffi.Pointer<Utf8> sessionPollEventsJson(int sessionId);
   void stringFree(ffi.Pointer<Utf8> value);
@@ -82,6 +86,10 @@ class FluttermCoreBindings implements CoreBindings {
           .lookupFunction<_ScrollToSessionNative, _ScrollToSessionDart>(
             'flutterm_session_scroll_to',
           ),
+      _searchSession = library
+          .lookupFunction<_SearchSessionNative, _SearchSessionDart>(
+            'flutterm_session_search_json',
+          ),
       _takeFrameDiffJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'flutterm_session_take_frame_diff_json',
@@ -100,6 +108,7 @@ class FluttermCoreBindings implements CoreBindings {
   final _WriteSessionDart _writeSession;
   final _ScrollSessionDart _scrollSession;
   final _ScrollToSessionDart _scrollToSession;
+  final _SearchSessionDart _searchSession;
   final _StringReturningDart _takeFrameDiffJson;
   final _StringReturningDart _pollEventsJson;
   final _FreeStringDart _stringFree;
@@ -141,6 +150,10 @@ class FluttermCoreBindings implements CoreBindings {
   @override
   int sessionScrollTo(int sessionId, int offset) =>
       _scrollToSession(sessionId, offset);
+
+  @override
+  ffi.Pointer<Utf8> sessionSearchJson(int sessionId, ffi.Pointer<Utf8> query) =>
+      _searchSession(sessionId, query);
 
   @override
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) =>
@@ -234,6 +247,36 @@ class TerminalCoreClient {
 
   void scrollViewportTo(String sessionId, int offset) {
     _bindings.sessionScrollTo(int.parse(sessionId), offset);
+  }
+
+  List<TerminalSearchMatch> searchText(String sessionId, String query) {
+    if (query.isEmpty) {
+      return const [];
+    }
+    final queryPointer = query.toNativeUtf8();
+    final ffi.Pointer<Utf8> jsonPointer;
+    try {
+      jsonPointer = _bindings.sessionSearchJson(
+        int.parse(sessionId),
+        queryPointer,
+      );
+    } finally {
+      malloc.free(queryPointer);
+    }
+    if (jsonPointer == ffi.nullptr) {
+      return const [];
+    }
+    try {
+      final raw = jsonPointer.toDartString();
+      return (jsonDecode(raw) as List<dynamic>)
+          .map(
+            (entry) =>
+                TerminalSearchMatch.fromJson(entry as Map<String, Object?>),
+          )
+          .toList();
+    } finally {
+      _bindings.stringFree(jsonPointer);
+    }
   }
 
   TerminalFrameDiff? takeFrameDiff(String sessionId) {

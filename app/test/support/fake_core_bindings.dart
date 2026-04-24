@@ -10,16 +10,29 @@ class FakeCoreBindings implements CoreBindings {
   int _nextSessionId = 0;
   final Map<int, Map<String, Object?>> _frames = {};
   final Map<int, List<Map<String, Object?>>> _events = {};
+  final Map<int, Map<String, List<Map<String, Object?>>>> _searchMatches = {};
   final Map<int, int> _frameDiffReads = {};
   final List<Uint8List> writes = [];
   final List<List<int>> resizeCalls = [];
   final List<List<int>> scrollCalls = [];
   final List<List<int>> scrollToCalls = [];
+  final List<List<Object?>> searchCalls = [];
   Map<String, Object?>? lastCreatedProfileJson;
   bool pingCalled = false;
 
   void setFrame(int sessionId, Map<String, Object?> frame) {
     _frames[sessionId] = frame;
+  }
+
+  void setSearchMatches(
+    int sessionId,
+    String query,
+    List<Map<String, Object?>> matches,
+  ) {
+    _searchMatches.putIfAbsent(
+      sessionId,
+      () => <String, List<Map<String, Object?>>>{},
+    )[query] = matches;
   }
 
   @override
@@ -128,6 +141,22 @@ class FakeCoreBindings implements CoreBindings {
     final maxOffset = frame['scrollback_max_offset'] as int? ?? 0;
     frame['scrollback_offset'] = offset.clamp(0, maxOffset);
     return 0;
+  }
+
+  @override
+  ffi.Pointer<Utf8> sessionSearchJson(int sessionId, ffi.Pointer<Utf8> query) {
+    final queryText = query.toDartString();
+    searchCalls.add([sessionId, queryText]);
+    final matches =
+        _searchMatches[sessionId]?[queryText] ?? const <Map<String, Object?>>[];
+    return jsonEncode(
+      matches.map((match) {
+        return <String, Object?>{
+          ...match,
+          'scrollback_offset': match['scrollback_offset'] ?? match['row'] ?? 0,
+        };
+      }).toList(),
+    ).toNativeUtf8();
   }
 
   @override

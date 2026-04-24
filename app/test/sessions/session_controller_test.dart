@@ -135,6 +135,10 @@ class _EventfulCoreBindings implements CoreBindings {
       _delegate.sessionScrollTo(sessionId, offset);
 
   @override
+  ffi.Pointer<Utf8> sessionSearchJson(int sessionId, ffi.Pointer<Utf8> query) =>
+      _delegate.sessionSearchJson(sessionId, query);
+
+  @override
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) =>
       _delegate.sessionTakeFrameDiffJson(sessionId);
 

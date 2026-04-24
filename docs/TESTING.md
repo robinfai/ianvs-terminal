@@ -317,7 +317,7 @@ flutter test integration_test/flutterm_smoke_test.dart
   - 真实 trackpad scrollback 交互
   - 不同字体度量 / DPI 下的 resize 与 window-size translation
   - `T-055` 已于 `2026-04-22` 被 `forced-closed`，所以这些条目当前是“未执行但已记录风险”，不是“已经通过”
-  - 若未来需要补这组证据，请新开 focused task，不要复活旧的 `T-055` live handoff
+  - 当前 local-only 跟进入口是 `docs/tasks/T-059-local-terminal-manual-matrix.md`，不要复活旧的 `T-055` live handoff
   - 若后续扩展 block selection 的快捷键 / 空格 padding 语义，再补专项回归
 
 ## Terminal 手工矩阵
@@ -333,8 +333,9 @@ flutter test integration_test/flutterm_smoke_test.dart
 
 - `T-055` 已于 `2026-04-22 15:12 CST / 2026-04-22T07:12:08Z` 按 override `forced-closed`
 - forced-close 只表示 repo 继续推进主线，不表示手工矩阵已经完成
+- 当前 local terminal 的新 focused task 是 `docs/tasks/T-059-local-terminal-manual-matrix.md`
 - 当前最佳已知证据仍只是：`BINGHUILUO-MC6` 是 `unsuitable local host`
-- 若未来需要真的补跑这组矩阵，应新开 focused task，并继续使用下列记录格式与前置检查命令
+- 若未来需要真的补跑这组矩阵，应执行 `T-059` 或新开 focused task，并继续使用下列记录格式与前置检查命令
 
 建议记录格式仍为：
 
@@ -358,7 +359,7 @@ cd /Users/robinfai/personal/flutterm
 - 若未来后续 focused task 真的补跑这组矩阵：
   - `flutter run -d macos` 仍只能记为 `pass` / `fail` / `blocked`
   - 任何 host/tooling `blocked` 仍不应被写成 terminal 产品回归
-  - 任何新的人工矩阵证据都应进入新的 focused task，而不是回填到已经 `forced-closed` 的 `T-055`
+  - 任何新的人工矩阵证据都应进入 `T-059` 或新的 focused task，而不是回填到已经 `forced-closed` 的 `T-055`
 
 ## 手工 Smoke Checklist
 

@@ -62,6 +62,24 @@ class MainFlutterWindow: NSWindow {
       case "requestQuitConfirmation":
         NSApp.terminate(nil)
         result(nil)
+      case "openExternalUrl":
+        guard
+          let arguments = call.arguments as? [String: Any],
+          let rawUrl = arguments["url"] as? String,
+          let url = URL(string: rawUrl)
+        else {
+          result(
+            FlutterError(
+              code: "invalid_url",
+              message: "External URL is missing or invalid",
+              details: nil
+            )
+          )
+          return
+        }
+
+        NSWorkspace.shared.open(url)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

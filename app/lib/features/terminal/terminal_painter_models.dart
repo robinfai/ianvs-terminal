@@ -183,6 +183,55 @@ class TerminalDirtyRange {
   }
 }
 
+class TerminalHyperlinkRange {
+  const TerminalHyperlinkRange({
+    required this.row,
+    required this.startCol,
+    required this.endCol,
+    required this.uri,
+  });
+
+  final int row;
+  final int startCol;
+  final int endCol;
+  final String uri;
+
+  factory TerminalHyperlinkRange.fromJson(Map<String, Object?> json) {
+    return TerminalHyperlinkRange(
+      row: json['row']! as int,
+      startCol: json['start_col']! as int,
+      endCol: json['end_col']! as int,
+      uri: json['uri']! as String,
+    );
+  }
+}
+
+class TerminalSearchMatch {
+  const TerminalSearchMatch({
+    required this.row,
+    required this.startCol,
+    required this.endCol,
+    required this.text,
+    required this.scrollbackOffset,
+  });
+
+  final int row;
+  final int startCol;
+  final int endCol;
+  final String text;
+  final int scrollbackOffset;
+
+  factory TerminalSearchMatch.fromJson(Map<String, Object?> json) {
+    return TerminalSearchMatch(
+      row: json['row']! as int,
+      startCol: json['start_col']! as int,
+      endCol: json['end_col']! as int,
+      text: json['text']! as String,
+      scrollbackOffset: json['scrollback_offset'] as int? ?? 0,
+    );
+  }
+}
+
 class TerminalFrameDiff {
   const TerminalFrameDiff({
     required this.rows,
@@ -196,6 +245,7 @@ class TerminalFrameDiff {
     this.selection,
     this.windowTitle,
     this.windowIconName,
+    this.hyperlinks = const [],
   });
 
   final List<TerminalRow> rows;
@@ -209,6 +259,7 @@ class TerminalFrameDiff {
   final TerminalFrameModes modes;
   final String? windowTitle;
   final String? windowIconName;
+  final List<TerminalHyperlinkRange> hyperlinks;
 
   static const empty = TerminalFrameDiff(
     rows: [],
@@ -247,6 +298,12 @@ class TerminalFrameDiff {
           : TerminalFrameModes.fromJson(json['modes']! as Map<String, Object?>),
       windowTitle: json['window_title'] as String?,
       windowIconName: json['window_icon_name'] as String?,
+      hyperlinks: (json['hyperlinks'] as List<dynamic>? ?? const [])
+          .map(
+            (entry) =>
+                TerminalHyperlinkRange.fromJson(entry as Map<String, Object?>),
+          )
+          .toList(),
     );
   }
 }
@@ -320,6 +377,24 @@ class TerminalTextCells {
   int get cellCount => cells.length;
 
   int clampColumn(int value) => value.clamp(0, cellCount).toInt();
+
+  int columnForCodeUnit(int value) {
+    final clamped = value.clamp(0, text.length).toInt();
+    for (final cell in cells) {
+      if (cell.codeUnitEnd > clamped) {
+        return cell.column;
+      }
+    }
+    return cellCount;
+  }
+
+  int codeUnitForColumn(int value) {
+    final clamped = clampColumn(value);
+    if (clamped >= cellCount) {
+      return text.length;
+    }
+    return cells[clamped].codeUnitStart;
+  }
 
   String sliceColumns(int start, int end) {
     final clampedStart = clampColumn(start);

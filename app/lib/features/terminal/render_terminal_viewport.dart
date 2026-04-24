@@ -122,11 +122,13 @@ class RenderTerminalViewport extends RenderBox {
     required bool cursorVisible,
     required double devicePixelRatio,
     required TerminalViewportColors colors,
+    required bool terminalMouseEnabled,
   }) : _controller = controller,
        _selectionController = selectionController,
        _cursorVisible = cursorVisible,
        _devicePixelRatio = devicePixelRatio,
-       _colors = colors {
+       _colors = colors,
+       _terminalMouseEnabled = terminalMouseEnabled {
     _controller.addListener(markNeedsPaint);
     _selectionController.addListener(markNeedsPaint);
   }
@@ -136,6 +138,7 @@ class RenderTerminalViewport extends RenderBox {
   double _devicePixelRatio;
   bool _cursorVisible = true;
   TerminalViewportColors _colors;
+  bool _terminalMouseEnabled;
   final Map<int, _CachedRowLayout> _rowLayoutCache = {};
   final Map<int, _CachedGlyphParagraph> _glyphParagraphCache = {};
   final Map<int, List<TerminalResolvedStyle>> _debugResolvedStyles = {};
@@ -186,6 +189,10 @@ class RenderTerminalViewport extends RenderBox {
     _clearResolvedLayoutCaches();
     _glyphParagraphCache.clear();
     markNeedsPaint();
+  }
+
+  set terminalMouseEnabled(bool value) {
+    _terminalMouseEnabled = value;
   }
 
   @override
@@ -326,6 +333,9 @@ class RenderTerminalViewport extends RenderBox {
 
   @override
   void handleEvent(PointerEvent event, BoxHitTestEntry entry) {
+    if (_terminalMouseEnabled) {
+      return;
+    }
     if (event is PointerDownEvent) {
       _selectionController.begin(
         _cellForOffset(event.localPosition),
