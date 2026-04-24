@@ -28,6 +28,25 @@ fn interactive_profile() -> TerminalProfile {
     }
 }
 
+fn bash_readline_profile() -> TerminalProfile {
+    let mut env = BTreeMap::new();
+    env.insert("PS1".to_string(), "PROMPT-XYZ> ".to_string());
+    env.insert("INPUTRC".to_string(), "/dev/null".to_string());
+    TerminalProfile {
+        id: "bash-readline".to_string(),
+        name: "Bash Readline".to_string(),
+        shell: "/bin/bash".to_string(),
+        args: vec![
+            "--noprofile".to_string(),
+            "--norc".to_string(),
+            "-i".to_string(),
+        ],
+        env,
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
+    }
+}
+
 fn prompt_like_profile() -> TerminalProfile {
     TerminalProfile {
         id: "prompt-like".to_string(),
@@ -153,6 +172,22 @@ fn vt220_da_profile() -> TerminalProfile {
         env: BTreeMap::new(),
         cwd: None,
         terminal_emulation: TerminalEmulation::Vt220,
+    }
+}
+
+fn pixel_size_query_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "pixel-size-query".to_string(),
+        name: "Pixel Size Query".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,sys,termios,tty,time; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b[14t"); sys.stdout.flush(); data=os.read(0,128); termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"PIXEL-RESPONSE:"+repr(data).encode()+b"\n")'"#
+                .to_string(),
+        ],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
     }
 }
 
@@ -605,6 +640,165 @@ fn session_reflows_scrollback_history_across_resize() {
         logical_rows_from_frame(&bottom_after)
             .iter()
             .any(|row| row.contains(&last_line))
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_resize_does_not_insert_blank_rows_before_readline_prompt() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&bash_readline_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_containing(session_id, "PROMPT-XYZ>");
+
+    session::write_session(
+        session_id,
+        b"printf 'HEADER-%050d\\nMID-%050d\\nENDMARK\\n' 0 0\n",
+    )
+    .unwrap();
+
+    let before = wait_for_frame_where(session_id, |frame| {
+        let rows = logical_rows_from_frame(frame);
+        rows.iter().any(|row| row.contains("ENDMARK"))
+            && rows.iter().any(|row| row.contains("PROMPT-XYZ>"))
+    });
+    let before_rows = logical_rows_from_frame(&before);
+    let before_end = before_rows
+        .iter()
+        .rposition(|row| row.contains("ENDMARK"))
+        .expect("expected ENDMARK before resize");
+    let before_prompt = before_rows
+        .iter()
+        .rposition(|row| row.contains("PROMPT-XYZ>"))
+        .expect("expected prompt before resize");
+    assert_eq!(
+        before_prompt,
+        before_end + 1,
+        "expected prompt to stay adjacent before resize: {before_rows:#?}"
+    );
+
+    session::resize_session(session_id, 48, 24, 0, 0).unwrap();
+    let _ = wait_for_frame_where(session_id, |frame| frame.contains("PROMPT-XYZ>"));
+    session::resize_session(session_id, 92, 24, 0, 0).unwrap();
+
+    let after = wait_for_frame_where(session_id, |frame| {
+        let rows = logical_rows_from_frame(frame);
+        rows.iter().any(|row| row.contains("ENDMARK"))
+            && rows.iter().any(|row| row.contains("PROMPT-XYZ>"))
+    });
+    let after_rows = logical_rows_from_frame(&after);
+    let after_end = after_rows
+        .iter()
+        .rposition(|row| row.contains("ENDMARK"))
+        .expect("expected ENDMARK after resize");
+    let after_prompt = after_rows
+        .iter()
+        .rposition(|row| row.contains("PROMPT-XYZ>"))
+        .expect("expected prompt after resize");
+
+    assert_eq!(
+        after_prompt,
+        after_end + 1,
+        "resize inserted blank logical rows before prompt: {after_rows:#?}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_resize_keeps_readline_input_compact() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&bash_readline_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_containing(session_id, "PROMPT-XYZ>");
+
+    session::write_session(
+        session_id,
+        b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+    )
+    .unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        frame.contains("PROMPT-XYZ>")
+            && frame.contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    });
+
+    session::resize_session(session_id, 40, 24, 0, 0).unwrap();
+    let _ = wait_for_frame_where(session_id, |frame| frame.contains("PROMPT-XYZ>"));
+    session::resize_session(session_id, 96, 24, 0, 0).unwrap();
+
+    let after = wait_for_frame_where(session_id, |frame| {
+        frame.contains("PROMPT-XYZ>")
+            && frame.contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
+    let rows = parsed["rows"].as_array().expect("expected rows");
+    let prompt_row = rows
+        .iter()
+        .rposition(|row| {
+            row["text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("PROMPT-XYZ>")
+        })
+        .expect("expected prompt row after resize");
+    let cursor_row = parsed["cursor"]["row"]
+        .as_u64()
+        .expect("expected cursor row") as usize;
+
+    for row in &rows[prompt_row..=cursor_row] {
+        let text = row["text"].as_str().unwrap_or_default().trim_end();
+        assert!(
+            !text.is_empty(),
+            "resize inserted blank physical rows inside readline block: {}",
+            serde_json::to_string_pretty(&parsed).unwrap()
+        );
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_pixel_only_resize_does_not_emit_winch_redraw() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&bash_readline_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_containing(session_id, "PROMPT-XYZ>");
+
+    session::write_session(session_id, b"trap 'printf \"\\127INCH-MARKER\"' WINCH\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "PROMPT-XYZ>");
+
+    for _ in 0..3 {
+        let _ = session::take_frame_diff(session_id).unwrap();
+        thread::sleep(Duration::from_millis(20));
+    }
+
+    session::resize_session(session_id, 120, 32, 1600, 768).unwrap();
+    thread::sleep(Duration::from_millis(200));
+
+    let frame = session::take_frame_diff(session_id).unwrap();
+    let frame_text = frame.unwrap_or_default();
+    assert!(
+        !frame_text.contains("WINCH-MARKER"),
+        "pixel-only resize should not signal readline redraw: {frame_text}"
+    );
+
+    session::resize_session(session_id, 119, 32, 1600, 768).unwrap();
+    let _ = wait_for_frame_containing(session_id, "WINCH-MARKER");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_pixel_only_resize_updates_xtwinops_pixel_size() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&pixel_size_query_profile()).unwrap())
+            .unwrap();
+
+    session::resize_session(session_id, 120, 32, 1600, 768).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "PIXEL-RESPONSE");
+    assert!(
+        frame.contains(r"PIXEL-RESPONSE:b'\\x1b[4;768;1600t'"),
+        "expected CSI 14 t to report pixel-only resize dimensions: {frame}"
     );
 
     session::close_session(session_id).unwrap();

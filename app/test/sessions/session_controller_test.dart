@@ -371,7 +371,28 @@ void main() {
     );
 
     controller.resizeActiveSession(const Size(644, 480), 2.0);
-    expect(coreBindings.resizeCalls, hasLength(2));
+    expect(
+      coreBindings.resizeCalls,
+      hasLength(2),
+      reason: 'pixel-only viewport changes still update native pixel size',
+    );
+    expect(coreBindings.resizeCalls.last, [
+      int.parse(sessionId),
+      71,
+      26,
+      1288,
+      960,
+    ]);
+
+    controller.resizeActiveSession(const Size(644, 480), 2.0);
+    expect(
+      coreBindings.resizeCalls,
+      hasLength(2),
+      reason: 'full metric duplicate skipped',
+    );
+
+    controller.resizeActiveSession(const Size(650, 480), 2.0);
+    expect(coreBindings.resizeCalls, hasLength(3));
 
     final last = coreBindings.resizeCalls.last;
     expect(last[0], equals(int.parse(sessionId)));
@@ -379,6 +400,40 @@ void main() {
     expect(last[2], greaterThan(0));
     expect(last[3], greaterThan(0));
     expect(last[4], greaterThan(0));
+  });
+
+  test('resizeActiveSession uses the provided inner viewport size as-is', () {
+    final coreBindings = FakeCoreBindings();
+    final coreClient = TerminalCoreClient(coreBindings);
+    final container = ProviderContainer(
+      overrides: [
+        terminalCoreClientProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.resizeActiveSession(const Size(1540, 1106), 2.0);
+
+    expect(coreBindings.resizeCalls.single, [
+      int.parse(sessionId),
+      171,
+      61,
+      3080,
+      2212,
+    ]);
   });
 
   test(

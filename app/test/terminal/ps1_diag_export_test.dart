@@ -97,6 +97,64 @@ void main() {
     expect((metrics['backgroundSpans'] as List<dynamic>), isNotEmpty);
   });
 
+  testWidgets('ps1 diag export keeps prompt inset and dark shell surface', (
+    tester,
+  ) async {
+    _configureDiagnosticView(tester);
+    final shellExport = await _captureFixtureShellExport(tester);
+
+    try {
+      const innerCanvasColor = Color(0xFF050608);
+      final devicePixelRatio =
+          shellExport.metrics['devicePixelRatio'] as double;
+      int scale(double logicalValue) =>
+          (logicalValue * devicePixelRatio).round();
+
+      final innerCanvasPixel = await _readPixelColor(
+        tester,
+        shellExport.shellSurfaceImage,
+        x: shellExport.shellSurfaceImage.width - scale(44),
+        y: shellExport.shellSurfaceImage.height ~/ 2,
+      );
+      expect(innerCanvasPixel.toARGB32(), innerCanvasColor.toARGB32());
+
+      final leftInsetPixel = await _readPixelColor(
+        tester,
+        shellExport.shellSurfaceImage,
+        x: scale(16),
+        y: scale(28),
+      );
+      expect(leftInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
+
+      final topInsetPixel = await _readPixelColor(
+        tester,
+        shellExport.shellSurfaceImage,
+        x: scale(120),
+        y: scale(10),
+      );
+      expect(topInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
+
+      final outerRightPixel = await _readPixelColor(
+        tester,
+        shellExport.shellSurfaceImage,
+        x: shellExport.shellSurfaceImage.width - scale(12),
+        y: shellExport.shellSurfaceImage.height ~/ 2,
+      );
+      expect(outerRightPixel.toARGB32(), innerCanvasColor.toARGB32());
+
+      final promptPixel = await _readPixelColor(
+        tester,
+        shellExport.shellSurfaceImage,
+        x: scale(120),
+        y: scale(28),
+      );
+      expect(promptPixel.toARGB32(), isNot(innerCanvasColor.toARGB32()));
+    } finally {
+      shellExport.promptImage.dispose();
+      shellExport.shellSurfaceImage.dispose();
+    }
+  });
+
   testWidgets('ps1 diag export writes diff when reference size matches', (
     tester,
   ) async {
@@ -249,7 +307,12 @@ Future<_ShellExport> _captureShellExport(
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
-      child: const MaterialApp(home: ShellScreen()),
+      child: MaterialApp(
+        theme: ThemeData.light(),
+        darkTheme: ThemeData.dark(),
+        themeMode: ThemeMode.dark,
+        home: const ShellScreen(),
+      ),
     ),
   );
   await tester.pump();
@@ -647,6 +710,29 @@ Rect _rectToDevice(Rect logicalRect, double devicePixelRatio) => Rect.fromLTRB(
 
 String _colorToHex(Color color) =>
     '#${color.toARGB32().toRadixString(16).padLeft(8, '0')}';
+
+Future<Color> _readPixelColor(
+  WidgetTester tester,
+  ui.Image image, {
+  required int x,
+  required int y,
+}) async {
+  final byteData = await _runUiAsync(
+    tester,
+    () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+  );
+  if (byteData == null) {
+    throw StateError('Failed to read image bytes.');
+  }
+  final bytes = byteData.buffer.asUint8List();
+  final pixelOffset = ((y * image.width) + x) * 4;
+  return Color.fromARGB(
+    bytes[pixelOffset + 3],
+    bytes[pixelOffset],
+    bytes[pixelOffset + 1],
+    bytes[pixelOffset + 2],
+  );
+}
 
 int mathMax(int left, int right) => left > right ? left : right;
 

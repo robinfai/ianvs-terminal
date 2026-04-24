@@ -44,6 +44,10 @@ class TerminalViewport extends StatefulWidget {
     required this.inputController,
     required this.onScrollLines,
     required this.onScrollToOffset,
+    this.onMeasuredCellSizeChanged,
+    this.contentPadding = EdgeInsets.zero,
+    this.backgroundColor = terminalDefaultBackground,
+    this.foregroundColor = terminalDefaultForeground,
     this.focusNode,
   });
 
@@ -52,6 +56,10 @@ class TerminalViewport extends StatefulWidget {
   final TerminalInputController inputController;
   final ValueChanged<int> onScrollLines;
   final ValueChanged<int> onScrollToOffset;
+  final ValueChanged<Size>? onMeasuredCellSizeChanged;
+  final EdgeInsets contentPadding;
+  final Color backgroundColor;
+  final Color foregroundColor;
   final FocusNode? focusNode;
 
   @override
@@ -65,6 +73,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
   FocusNode? _listenedFocusNode;
   final GlobalKey _surfaceKey = GlobalKey();
   double _pendingScrollLines = 0.0;
+  Size? _lastReportedCellSize;
 
   FocusNode get _focusNode =>
       widget.focusNode ??
@@ -117,6 +126,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
       return;
     }
     _syncCursorBlinkTimer();
+    _scheduleMeasuredCellSizeReport();
   }
 
   void _handleFocusChange() {
@@ -124,6 +134,30 @@ class _TerminalViewportState extends State<TerminalViewport> {
       return;
     }
     _syncCursorBlinkTimer();
+  }
+
+  void _scheduleMeasuredCellSizeReport() {
+    if (widget.onMeasuredCellSizeChanged == null) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final renderObject = _surfaceKey.currentContext?.findRenderObject();
+      if (renderObject is! RenderTerminalViewport) {
+        return;
+      }
+      final measured = renderObject.debugCellSize;
+      if (measured.width <= 0 || measured.height <= 0) {
+        return;
+      }
+      if (_lastReportedCellSize == measured) {
+        return;
+      }
+      _lastReportedCellSize = measured;
+      widget.onMeasuredCellSizeChanged?.call(measured);
+    });
   }
 
   bool get _shouldBlinkCursor {
@@ -189,6 +223,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
 
   @override
   Widget build(BuildContext context) {
+    _scheduleMeasuredCellSizeReport();
     return Focus(
       autofocus: true,
       focusNode: _focusNode,
@@ -214,31 +249,40 @@ class _TerminalViewportState extends State<TerminalViewport> {
               final frame = widget.controller.frame;
               return LayoutBuilder(
                 builder: (context, constraints) {
+                  final contentPadding = widget.contentPadding;
                   final trackHeight = math.max(0.0, constraints.maxHeight - 16);
-                  return Stack(
-                    children: [
-                      Positioned.fill(
-                        child: _TerminalViewportSurface(
-                          key: _surfaceKey,
-                          controller: widget.controller,
-                          selectionController: widget.selectionController,
-                          cursorVisible: _cursorVisible,
-                        ),
-                      ),
-                      if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
-                        Positioned(
-                          top: 8,
-                          right: 6,
-                          bottom: 8,
-                          child: _TerminalScrollbar(
-                            viewportRows: frame.viewportRows,
-                            scrollbackOffset: frame.scrollbackOffset,
-                            scrollbackMaxOffset: frame.scrollbackMaxOffset,
-                            trackHeight: trackHeight,
-                            onScrollToOffset: widget.onScrollToOffset,
+                  return DecoratedBox(
+                    decoration: BoxDecoration(color: widget.backgroundColor),
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Padding(
+                            padding: contentPadding,
+                            child: _TerminalViewportSurface(
+                              key: _surfaceKey,
+                              controller: widget.controller,
+                              selectionController: widget.selectionController,
+                              cursorVisible: _cursorVisible,
+                              backgroundColor: widget.backgroundColor,
+                              foregroundColor: widget.foregroundColor,
+                            ),
                           ),
                         ),
-                    ],
+                        if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
+                          Positioned(
+                            top: 8,
+                            right: 6,
+                            bottom: 8,
+                            child: _TerminalScrollbar(
+                              viewportRows: frame.viewportRows,
+                              scrollbackOffset: frame.scrollbackOffset,
+                              scrollbackMaxOffset: frame.scrollbackMaxOffset,
+                              trackHeight: trackHeight,
+                              onScrollToOffset: widget.onScrollToOffset,
+                            ),
+                          ),
+                      ],
+                    ),
                   );
                 },
               );
@@ -256,11 +300,15 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.controller,
     required this.selectionController,
     required this.cursorVisible,
+    required this.backgroundColor,
+    required this.foregroundColor,
   });
 
   final TerminalViewportController controller;
   final SelectionController selectionController;
   final bool cursorVisible;
+  final Color backgroundColor;
+  final Color foregroundColor;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -269,6 +317,8 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       selectionController: selectionController,
       cursorVisible: cursorVisible,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
     );
   }
 
@@ -281,6 +331,8 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..controller = controller
       ..selectionController = selectionController
       ..cursorVisible = cursorVisible
+      ..backgroundColor = backgroundColor
+      ..foregroundColor = foregroundColor
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
   }
 }

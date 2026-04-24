@@ -264,12 +264,16 @@ class TerminalTextCell {
     required this.text,
     required this.codeUnitStart,
     required this.codeUnitEnd,
+    this.columnSpan = 1,
+    this.isContinuation = false,
   });
 
   final int column;
   final String text;
   final int codeUnitStart;
   final int codeUnitEnd;
+  final int columnSpan;
+  final bool isContinuation;
 }
 
 class TerminalTextCells {
@@ -280,22 +284,31 @@ class TerminalTextCells {
 
   factory TerminalTextCells.fromText(String text) {
     final cells = <TerminalTextCell>[];
-    var codeUnitOffset = 0;
     var column = 0;
 
-    for (final rune in text.runes) {
-      final runeText = String.fromCharCode(rune);
-      final nextOffset = codeUnitOffset + runeText.length;
+    for (final grapheme in _terminalGraphemeClusters(text)) {
+      final columnSpan = _terminalDisplayWidthForGrapheme(grapheme.text);
       cells.add(
         TerminalTextCell(
           column: column,
-          text: runeText,
-          codeUnitStart: codeUnitOffset,
-          codeUnitEnd: nextOffset,
+          text: grapheme.text,
+          codeUnitStart: grapheme.codeUnitStart,
+          codeUnitEnd: grapheme.codeUnitEnd,
+          columnSpan: columnSpan,
         ),
       );
-      codeUnitOffset = nextOffset;
-      column += 1;
+      for (var continuation = 1; continuation < columnSpan; continuation += 1) {
+        cells.add(
+          TerminalTextCell(
+            column: column + continuation,
+            text: '',
+            codeUnitStart: grapheme.codeUnitStart,
+            codeUnitEnd: grapheme.codeUnitEnd,
+            isContinuation: true,
+          ),
+        );
+      }
+      column += columnSpan;
     }
 
     return TerminalTextCells._(text: text, cells: cells);
@@ -328,4 +341,275 @@ Color? _colorFromHex(String? value) {
   }
   final normalized = value.replaceFirst('#', '');
   return Color(int.parse('FF$normalized', radix: 16));
+}
+
+int _terminalDisplayWidthForGrapheme(String grapheme) {
+  var width = 0;
+  for (final rune in grapheme.runes) {
+    if (_isZeroWidthRune(rune)) {
+      continue;
+    }
+    final runeWidth = _isWideRune(rune) ? 2 : 1;
+    if (runeWidth > width) {
+      width = runeWidth;
+    }
+  }
+  return width == 0 ? 1 : width;
+}
+
+List<_TerminalGraphemeCluster> _terminalGraphemeClusters(String text) {
+  final clusters = <_TerminalGraphemeCluster>[];
+  final buffer = StringBuffer();
+  var clusterStart = 0;
+  var codeUnitOffset = 0;
+  var previousWasJoiner = false;
+
+  void flushCurrentCluster() {
+    if (buffer.isEmpty) {
+      return;
+    }
+    clusters.add(
+      _TerminalGraphemeCluster(
+        text: buffer.toString(),
+        codeUnitStart: clusterStart,
+        codeUnitEnd: codeUnitOffset,
+      ),
+    );
+    buffer.clear();
+    previousWasJoiner = false;
+  }
+
+  for (final rune in text.runes) {
+    final runeText = String.fromCharCode(rune);
+    final attachesToPrevious =
+        buffer.isNotEmpty && (_isZeroWidthRune(rune) || previousWasJoiner);
+    if (!attachesToPrevious) {
+      flushCurrentCluster();
+      clusterStart = codeUnitOffset;
+    }
+    buffer.write(runeText);
+    codeUnitOffset += runeText.length;
+    previousWasJoiner = rune == 0x200D;
+  }
+  flushCurrentCluster();
+  return clusters;
+}
+
+bool _isZeroWidthRune(int rune) {
+  return (rune >= 0x0000 && rune <= 0x001F) ||
+      (rune >= 0x007F && rune <= 0x009F) ||
+      rune == 0x200C ||
+      rune == 0x200D ||
+      (rune >= 0x0300 && rune <= 0x036F) ||
+      (rune >= 0x0483 && rune <= 0x0489) ||
+      (rune >= 0x0591 && rune <= 0x05BD) ||
+      rune == 0x05BF ||
+      (rune >= 0x05C1 && rune <= 0x05C2) ||
+      rune == 0x05C4 ||
+      rune == 0x05C5 ||
+      rune == 0x05C7 ||
+      (rune >= 0x0610 && rune <= 0x061A) ||
+      (rune >= 0x064B && rune <= 0x065F) ||
+      rune == 0x0670 ||
+      (rune >= 0x06D6 && rune <= 0x06ED) ||
+      (rune >= 0x0711 && rune <= 0x0711) ||
+      (rune >= 0x0730 && rune <= 0x074A) ||
+      (rune >= 0x07A6 && rune <= 0x07B0) ||
+      (rune >= 0x07EB && rune <= 0x07F3) ||
+      (rune >= 0x0816 && rune <= 0x0819) ||
+      (rune >= 0x081B && rune <= 0x0823) ||
+      (rune >= 0x0825 && rune <= 0x0827) ||
+      (rune >= 0x0829 && rune <= 0x082D) ||
+      (rune >= 0x0859 && rune <= 0x085B) ||
+      (rune >= 0x08D3 && rune <= 0x08E1) ||
+      (rune >= 0x08E3 && rune <= 0x0902) ||
+      rune == 0x093A ||
+      rune == 0x093C ||
+      (rune >= 0x0941 && rune <= 0x0948) ||
+      rune == 0x094D ||
+      (rune >= 0x0951 && rune <= 0x0957) ||
+      (rune >= 0x0962 && rune <= 0x0963) ||
+      (rune >= 0x0981 && rune <= 0x0981) ||
+      rune == 0x09BC ||
+      rune == 0x09CD ||
+      (rune >= 0x09E2 && rune <= 0x09E3) ||
+      rune == 0x0A01 ||
+      rune == 0x0A02 ||
+      rune == 0x0A3C ||
+      rune == 0x0A41 ||
+      rune == 0x0A42 ||
+      rune == 0x0A47 ||
+      rune == 0x0A48 ||
+      rune == 0x0A4B ||
+      rune == 0x0A4D ||
+      (rune >= 0x0A51 && rune <= 0x0A51) ||
+      (rune >= 0x0A70 && rune <= 0x0A71) ||
+      (rune >= 0x0A75 && rune <= 0x0A75) ||
+      (rune >= 0x0A81 && rune <= 0x0A82) ||
+      rune == 0x0ABC ||
+      rune == 0x0AC1 ||
+      rune == 0x0AC5 ||
+      rune == 0x0AC7 ||
+      rune == 0x0AC8 ||
+      rune == 0x0ACD ||
+      (rune >= 0x0AE2 && rune <= 0x0AE3) ||
+      (rune >= 0x0AFA && rune <= 0x0AFF) ||
+      (rune >= 0x0B01 && rune <= 0x0B01) ||
+      rune == 0x0B3C ||
+      rune == 0x0B3F ||
+      rune == 0x0B41 ||
+      rune == 0x0B42 ||
+      rune == 0x0B4D ||
+      (rune >= 0x0B55 && rune <= 0x0B56) ||
+      (rune >= 0x0B62 && rune <= 0x0B63) ||
+      rune == 0x0B82 ||
+      rune == 0x0BC0 ||
+      rune == 0x0BCD ||
+      (rune >= 0x0C00 && rune <= 0x0C00) ||
+      rune == 0x0C04 ||
+      (rune >= 0x0C3E && rune <= 0x0C40) ||
+      (rune >= 0x0C46 && rune <= 0x0C48) ||
+      (rune >= 0x0C4A && rune <= 0x0C4D) ||
+      (rune >= 0x0C55 && rune <= 0x0C56) ||
+      (rune >= 0x0C62 && rune <= 0x0C63) ||
+      (rune >= 0x0C81 && rune <= 0x0C81) ||
+      rune == 0x0CBC ||
+      rune == 0x0CBF ||
+      rune == 0x0CC6 ||
+      rune == 0x0CCC ||
+      rune == 0x0CCD ||
+      (rune >= 0x0CE2 && rune <= 0x0CE3) ||
+      (rune >= 0x0D00 && rune <= 0x0D01) ||
+      (rune >= 0x0D3B && rune <= 0x0D3C) ||
+      rune == 0x0D41 ||
+      rune == 0x0D42 ||
+      rune == 0x0D4D ||
+      (rune >= 0x0D62 && rune <= 0x0D63) ||
+      rune == 0x0D81 ||
+      rune == 0x0DCA ||
+      rune == 0x0DD2 ||
+      rune == 0x0DD4 ||
+      (rune >= 0x0DD6 && rune <= 0x0DD6) ||
+      rune == 0x0E31 ||
+      (rune >= 0x0E34 && rune <= 0x0E3A) ||
+      (rune >= 0x0E47 && rune <= 0x0E4E) ||
+      rune == 0x0EB1 ||
+      (rune >= 0x0EB4 && rune <= 0x0EBC) ||
+      (rune >= 0x0EC8 && rune <= 0x0ECD) ||
+      rune == 0x0F18 ||
+      rune == 0x0F19 ||
+      rune == 0x0F35 ||
+      rune == 0x0F37 ||
+      rune == 0x0F39 ||
+      (rune >= 0x0F71 && rune <= 0x0F7E) ||
+      (rune >= 0x0F80 && rune <= 0x0F84) ||
+      (rune >= 0x0F86 && rune <= 0x0F87) ||
+      (rune >= 0x0F8D && rune <= 0x0F97) ||
+      (rune >= 0x0F99 && rune <= 0x0FBC) ||
+      rune == 0x0FC6 ||
+      (rune >= 0x102D && rune <= 0x1030) ||
+      (rune >= 0x1032 && rune <= 0x1037) ||
+      rune == 0x1039 ||
+      rune == 0x103A ||
+      (rune >= 0x103D && rune <= 0x103E) ||
+      (rune >= 0x1058 && rune <= 0x1059) ||
+      (rune >= 0x105E && rune <= 0x1060) ||
+      rune == 0x1071 ||
+      (rune >= 0x1072 && rune <= 0x1074) ||
+      rune == 0x1082 ||
+      (rune >= 0x1085 && rune <= 0x1086) ||
+      rune == 0x108D ||
+      rune == 0x109D ||
+      (rune >= 0x135D && rune <= 0x135F) ||
+      (rune >= 0x1712 && rune <= 0x1714) ||
+      (rune >= 0x1732 && rune <= 0x1734) ||
+      (rune >= 0x1752 && rune <= 0x1753) ||
+      (rune >= 0x1772 && rune <= 0x1773) ||
+      (rune >= 0x17B4 && rune <= 0x17B5) ||
+      (rune >= 0x17B7 && rune <= 0x17BD) ||
+      rune == 0x17C6 ||
+      (rune >= 0x17C9 && rune <= 0x17D3) ||
+      rune == 0x17DD ||
+      (rune >= 0x180B && rune <= 0x180F) ||
+      (rune >= 0x1885 && rune <= 0x1886) ||
+      rune == 0x18A9 ||
+      (rune >= 0x1920 && rune <= 0x1922) ||
+      (rune >= 0x1927 && rune <= 0x1928) ||
+      rune == 0x1932 ||
+      (rune >= 0x1939 && rune <= 0x193B) ||
+      (rune >= 0x1A17 && rune <= 0x1A18) ||
+      rune == 0x1A1B ||
+      rune == 0x1A56 ||
+      (rune >= 0x1A58 && rune <= 0x1A5E) ||
+      rune == 0x1A60 ||
+      rune == 0x1A62 ||
+      (rune >= 0x1A65 && rune <= 0x1A6C) ||
+      (rune >= 0x1A73 && rune <= 0x1A7C) ||
+      rune == 0x1A7F ||
+      (rune >= 0x1AB0 && rune <= 0x1ACE) ||
+      (rune >= 0x1B00 && rune <= 0x1B03) ||
+      rune == 0x1B34 ||
+      rune == 0x1B36 ||
+      (rune >= 0x1B37 && rune <= 0x1B3A) ||
+      rune == 0x1B3C ||
+      rune == 0x1B42 ||
+      (rune >= 0x1B6B && rune <= 0x1B73) ||
+      (rune >= 0x1B80 && rune <= 0x1B81) ||
+      (rune >= 0x1BA2 && rune <= 0x1BA5) ||
+      (rune >= 0x1BA8 && rune <= 0x1BA9) ||
+      (rune >= 0x1BAB && rune <= 0x1BAD) ||
+      rune == 0x1BE6 ||
+      (rune >= 0x1BE8 && rune <= 0x1BE9) ||
+      rune == 0x1BED ||
+      (rune >= 0x1BEF && rune <= 0x1BF1) ||
+      (rune >= 0x1C2C && rune <= 0x1C33) ||
+      (rune >= 0x1C36 && rune <= 0x1C37) ||
+      (rune >= 0x1CD0 && rune <= 0x1CD2) ||
+      (rune >= 0x1CD4 && rune <= 0x1CE0) ||
+      (rune >= 0x1CE2 && rune <= 0x1CE8) ||
+      rune == 0x1CED ||
+      rune == 0x1CF4 ||
+      rune == 0x1CF8 ||
+      rune == 0x1CF9 ||
+      (rune >= 0x1DC0 && rune <= 0x1DFF) ||
+      (rune >= 0x200B && rune <= 0x200F) ||
+      (rune >= 0x202A && rune <= 0x202E) ||
+      (rune >= 0x2060 && rune <= 0x2064) ||
+      (rune >= 0x2066 && rune <= 0x206F) ||
+      (rune >= 0x20D0 && rune <= 0x20F0) ||
+      (rune >= 0xFE00 && rune <= 0xFE0F) ||
+      rune == 0xFEFF ||
+      (rune >= 0xFFF9 && rune <= 0xFFFB) ||
+      (rune >= 0x1F3FB && rune <= 0x1F3FF) ||
+      (rune >= 0xE0100 && rune <= 0xE01EF);
+}
+
+bool _isWideRune(int rune) {
+  return (rune >= 0x1100 && rune <= 0x115F) ||
+      rune == 0x2329 ||
+      rune == 0x232A ||
+      (rune >= 0x2E80 && rune <= 0x303E) ||
+      (rune >= 0x3040 && rune <= 0xA4CF) ||
+      (rune >= 0xAC00 && rune <= 0xD7A3) ||
+      (rune >= 0xF900 && rune <= 0xFAFF) ||
+      (rune >= 0xFE10 && rune <= 0xFE19) ||
+      (rune >= 0xFE30 && rune <= 0xFE6F) ||
+      (rune >= 0xFF00 && rune <= 0xFF60) ||
+      (rune >= 0xFFE0 && rune <= 0xFFE6) ||
+      (rune >= 0x1F1E6 && rune <= 0x1F1FF) ||
+      (rune >= 0x1F300 && rune <= 0x1FAFF) ||
+      (rune >= 0x20000 && rune <= 0x2FFFD) ||
+      (rune >= 0x30000 && rune <= 0x3FFFD);
+}
+
+class _TerminalGraphemeCluster {
+  const _TerminalGraphemeCluster({
+    required this.text,
+    required this.codeUnitStart,
+    required this.codeUnitEnd,
+  });
+
+  final String text;
+  final int codeUnitStart;
+  final int codeUnitEnd;
 }

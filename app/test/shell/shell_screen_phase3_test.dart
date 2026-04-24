@@ -104,10 +104,10 @@ void main() {
       expect(shellAcceptanceProbe.current.terminalHasVisibleContent, isTrue);
       expect(shellAcceptanceProbe.current.terminalPreview, isNotNull);
       expect(
-        find.text('New tabs use SSH until you choose a default.'),
+        find.text('New tabs use Local Shell until you choose a default.'),
         findsOneWidget,
       );
-      expect(find.text('Current new-tab profile • SSH'), findsWidgets);
+      expect(find.text('Current new-tab profile • Local Shell'), findsWidgets);
     },
   );
 

@@ -743,6 +743,122 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport advances the next glyph after a wide CJK character',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '你a')],
+            cursor: TerminalCursor(row: 0, col: 3, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      final cellWidth = renderObject.debugCellSize.width;
+
+      expect(cells, hasLength(2));
+      expect(cells[0].text, '你');
+      expect(cells[0].column, 0);
+      expect(cells[1].text, 'a');
+      expect(cells[1].column, 2);
+      expect(cells[1].drawOffset.dx, closeTo(2 * cellWidth, 0.001));
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps emoji zwj clusters on one wide glyph slot',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '👨‍👩‍👧a')],
+            cursor: TerminalCursor(row: 0, col: 3, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: TerminalCoreClient(FakeCoreBindings()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      final cellWidth = renderObject.debugCellSize.width;
+
+      expect(cells, hasLength(2));
+      expect(cells[0].text, '👨‍👩‍👧');
+      expect(cells[0].column, 0);
+      expect(cells[1].text, 'a');
+      expect(cells[1].column, 2);
+      expect(cells[1].drawOffset.dx, closeTo(2 * cellWidth, 0.001));
+    },
+  );
+
+  testWidgets(
     'terminal viewport snaps baselines, background spans, and powerline rects to device pixels',
     (tester) async {
       tester.view.devicePixelRatio = 2.5;

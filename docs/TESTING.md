@@ -223,7 +223,7 @@ cd /Users/robinfai/personal/flutterm
 
 重点确认：
 
-- terminal focus 时 shell workspace cue 显式可见
+- 切回 shell 时右上角 cue 短暂可见，随后自动消失
 - launcher / defaults close 后 cue 回到 shell，且键盘输入路径不变
 - last-tab close / shell `exit` 后 empty-state 文案进入新的 workspace-idle 语境
 - `T-055 forced-closed` 留下的 manual-matrix 风险继续只是已记录风险，不是已通过证据

@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal/render_terminal_viewport.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
@@ -232,8 +233,10 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
-    final viewportTopLeft = tester.getTopLeft(find.byType(TerminalViewport));
-    final selectionStart = viewportTopLeft + const Offset(1, 9);
+    final renderViewport = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final selectionStart = renderViewport.localToGlobal(const Offset(1, 9));
     await tester.dragFrom(selectionStart, const Offset(300, 0));
     await tester.pump();
 
@@ -342,7 +345,7 @@ void main() {
 
     expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
-    expect(find.text('Back in shell workspace'), findsOneWidget);
+    expect(find.text('Back in shell'), findsOneWidget);
   });
 
   testWidgets('terminal exit returns the shell to the empty state', (

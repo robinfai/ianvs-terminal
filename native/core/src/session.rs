@@ -4,7 +4,7 @@ use crate::model::{
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::Cell;
-use par_term_emu_core_rust::color::Color;
+use par_term_emu_core_rust::color::{Color, NamedColor};
 use par_term_emu_core_rust::grid::Grid;
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::Terminal;
@@ -368,11 +368,24 @@ impl TerminalSession {
         pixel_width: u16,
         pixel_height: u16,
     ) -> Result<(), SessionError> {
-        let previous_max = {
-            let state = self.state.lock();
-            current_scrollback_max(&state)
-        };
+        let mut state = self.state.lock();
+        let (current_cols, current_rows) = state.terminal.size();
+        let size_changed = current_cols != cols as usize || current_rows != rows as usize;
 
+        if !size_changed {
+            if pixel_width > 0 && pixel_height > 0 {
+                state
+                    .terminal
+                    .set_pixel_size(pixel_width as usize, pixel_height as usize);
+            }
+            return Ok(());
+        }
+
+        let previous_max = current_scrollback_max(&state);
+
+        // Keep SIGWINCH-triggered redraw output from being processed between
+        // the PTY resize and the internal reflow/replay. Otherwise readline can
+        // leak transient prompt redraws into the replay transcript.
         self.master
             .lock()
             .resize(portable_pty::PtySize {
@@ -383,10 +396,7 @@ impl TerminalSession {
             })
             .map_err(|error| SessionError::Pty(error.to_string()))?;
 
-        let mut state = self.state.lock();
-        let (current_cols, current_rows) = state.terminal.size();
-        let should_rebuild_main_screen = !state.terminal.is_alt_screen_active()
-            && (current_cols != cols as usize || current_rows != rows as usize);
+        let should_rebuild_main_screen = !state.terminal.is_alt_screen_active();
 
         if should_rebuild_main_screen {
             let transcript = state.transcript.clone();
@@ -652,6 +662,7 @@ fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
     let mut style_runs = Vec::new();
     let mut run_start = 0usize;
     let mut run_style: Option<TerminalStyleRun> = None;
+    let mut column_offset = 0usize;
 
     for cell in cells.unwrap_or_default() {
         if cell.flags.wide_char_spacer() {
@@ -659,14 +670,15 @@ fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
         }
 
         let grapheme = cell.get_grapheme();
-        let text_start = text.chars().count();
         text.push_str(if grapheme.is_empty() { " " } else { &grapheme });
-        let text_end = text.chars().count();
+        let column_start = column_offset;
+        column_offset += cell.width();
+        let column_end = column_offset;
         let style = TerminalStyleRun {
-            start: text_start,
-            end: text_end,
-            foreground: color_to_hex(cell.fg),
-            background: color_to_hex(cell.bg),
+            start: column_start,
+            end: column_end,
+            foreground: color_to_hex_delta(cell.fg, Color::Named(NamedColor::White)),
+            background: color_to_hex_delta(cell.bg, Color::Named(NamedColor::Black)),
             bold: cell.flags.bold(),
             dim: cell.flags.dim(),
             italic: cell.flags.italic(),
@@ -680,13 +692,13 @@ fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
             Some(existing) => {
                 let mut finalized = existing.clone();
                 finalized.start = run_start;
-                finalized.end = text_start;
+                finalized.end = column_start;
                 style_runs.push(finalized);
-                run_start = text_start;
+                run_start = column_start;
                 run_style = Some(style);
             }
             None => {
-                run_start = text_start;
+                run_start = column_start;
                 run_style = Some(style);
             }
         }
@@ -695,7 +707,7 @@ fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
     if let Some(existing) = run_style {
         let mut finalized = existing;
         finalized.start = run_start;
-        finalized.end = text.chars().count();
+        finalized.end = column_offset;
         style_runs.push(finalized);
     }
 
@@ -756,6 +768,13 @@ fn same_style(left: &TerminalStyleRun, right: &TerminalStyleRun) -> bool {
 fn color_to_hex(color: Color) -> Option<String> {
     let (red, green, blue) = color.to_rgb();
     Some(format!("#{red:02x}{green:02x}{blue:02x}"))
+}
+
+fn color_to_hex_delta(color: Color, default: Color) -> Option<String> {
+    if color == default {
+        return None;
+    }
+    color_to_hex(color)
 }
 
 fn mouse_mode_name(mode: MouseMode) -> &'static str {
@@ -835,6 +854,7 @@ pub fn poll_events(session_id: u64) -> Result<String, SessionError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use par_term_emu_core_rust::cell::Cell;
 
     #[test]
     fn color_to_hex_handles_named_and_rgb_colors() {
@@ -846,6 +866,67 @@ mod tests {
             color_to_hex(Color::Indexed(46)),
             Some("#00ff00".to_string())
         );
+        assert_eq!(
+            color_to_hex_delta(
+                Color::Named(NamedColor::White),
+                Color::Named(NamedColor::White)
+            ),
+            None
+        );
+        assert_eq!(
+            color_to_hex_delta(
+                Color::Named(NamedColor::Black),
+                Color::Named(NamedColor::Black)
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn extract_row_tracks_style_runs_in_terminal_columns() {
+        let wide = Cell::with_colors(
+            '你',
+            Color::Named(NamedColor::White),
+            Color::Named(NamedColor::Black),
+        );
+        let mut spacer = Cell::default();
+        spacer.flags.set_wide_char_spacer(true);
+        let ascii = Cell::with_colors(
+            'a',
+            Color::Named(NamedColor::Red),
+            Color::Named(NamedColor::Black),
+        );
+        let row = vec![wide, spacer, ascii];
+
+        let extracted = extract_row(Some(&row), false);
+
+        assert_eq!(extracted.text, "你a");
+        assert_eq!(extracted.style_runs.len(), 2);
+        assert_eq!(extracted.style_runs[0].start, 0);
+        assert_eq!(extracted.style_runs[0].end, 2);
+        assert_eq!(extracted.style_runs[0].foreground, None);
+        assert_eq!(extracted.style_runs[0].background, None);
+        assert_eq!(extracted.style_runs[1].start, 2);
+        assert_eq!(extracted.style_runs[1].end, 3);
+        assert_eq!(
+            extracted.style_runs[1].foreground,
+            Some("#800000".to_string())
+        );
+        assert_eq!(extracted.style_runs[1].background, None);
+    }
+
+    #[test]
+    fn extract_row_omits_default_colors_from_style_runs() {
+        let row = vec![Cell::new('a')];
+
+        let extracted = extract_row(Some(&row), false);
+
+        assert_eq!(extracted.text, "a");
+        assert_eq!(extracted.style_runs.len(), 1);
+        assert_eq!(extracted.style_runs[0].start, 0);
+        assert_eq!(extracted.style_runs[0].end, 1);
+        assert_eq!(extracted.style_runs[0].foreground, None);
+        assert_eq!(extracted.style_runs[0].background, None);
     }
 
     #[test]

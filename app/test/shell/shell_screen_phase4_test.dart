@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal/render_terminal_viewport.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
@@ -39,7 +40,89 @@ Future<void> _pumpShellScreen(
 }
 
 void main() {
-  testWidgets('terminal focus shows a visible shell workspace cue', (
+  testWidgets('shell resizes the session from the padded terminal viewport', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.physicalSize = const Size(1600, 1200);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final fakeBindings = FakeCoreBindings();
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final viewportSize = renderObject.size;
+    final resizeCall = fakeBindings.resizeCalls.last;
+
+    expect(
+      resizeCall[1],
+      (viewportSize.width / renderObject.debugCellSize.width).floor(),
+    );
+    expect(
+      resizeCall[2],
+      (viewportSize.height / renderObject.debugCellSize.height).floor(),
+    );
+    expect(
+      resizeCall[3],
+      (viewportSize.width * tester.view.devicePixelRatio).round(),
+    );
+    expect(
+      resizeCall[4],
+      (viewportSize.height * tester.view.devicePixelRatio).round(),
+    );
+    expect(fakeBindings.resizeCalls.length, greaterThanOrEqualTo(2));
+  });
+
+  testWidgets(
+    'shell coalesces rapid window-width changes into the final terminal resize',
+    (tester) async {
+      tester.view.devicePixelRatio = 2.0;
+      tester.view.physicalSize = const Size(1600, 1200);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final fakeBindings = FakeCoreBindings();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final initialResizeCount = fakeBindings.resizeCalls.length;
+
+      tester.view.physicalSize = const Size(1480, 1200);
+      await tester.pump();
+      tester.view.physicalSize = const Size(1320, 1200);
+      await tester.pump(const Duration(milliseconds: 120));
+
+      expect(fakeBindings.resizeCalls.length, initialResizeCount);
+
+      await tester.pump(const Duration(milliseconds: 260));
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final resizeCall = fakeBindings.resizeCalls.last;
+
+      expect(fakeBindings.resizeCalls.length, initialResizeCount + 1);
+      expect(
+        resizeCall[1],
+        (renderObject.size.width / renderObject.debugCellSize.width).floor(),
+      );
+      expect(
+        resizeCall[2],
+        (renderObject.size.height / renderObject.debugCellSize.height).floor(),
+      );
+      expect(
+        resizeCall[3],
+        (renderObject.size.width * tester.view.devicePixelRatio).round(),
+      );
+      expect(
+        resizeCall[4],
+        (renderObject.size.height * tester.view.devicePixelRatio).round(),
+      );
+    },
+  );
+
+  testWidgets('terminal focus alone does not show the shell workspace cue', (
     tester,
   ) async {
     await _pumpShellScreen(tester, fakeBindings: FakeCoreBindings());
@@ -47,36 +130,44 @@ void main() {
     await tester.tap(find.byType(TerminalViewport));
     await tester.pump();
 
-    expect(find.byKey(const Key('shell-workspace-focus-cue')), findsOneWidget);
-    expect(find.text('Shell workspace active'), findsOneWidget);
-    expect(find.text('Keyboard input goes to this terminal.'), findsOneWidget);
+    expect(find.byKey(const Key('shell-workspace-focus-cue')), findsNothing);
   });
 
-  testWidgets('launcher close restores the workspace cue and keyboard path', (
-    tester,
-  ) async {
-    final fakeBindings = FakeCoreBindings();
+  testWidgets(
+    'launcher close shows a brief return cue at top right and keeps keyboard path',
+    (tester) async {
+      final fakeBindings = FakeCoreBindings();
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
-    expect(find.text('Shell workspace active'), findsOneWidget);
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      expect(find.byKey(const Key('shell-workspace-focus-cue')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Close actions'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Close actions'));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-workspace-focus-cue')), findsOneWidget);
-    expect(find.text('Back in shell workspace'), findsOneWidget);
+      final cueFinder = find.byKey(const Key('shell-workspace-focus-cue'));
+      expect(cueFinder, findsOneWidget);
+      expect(find.text('Back in shell'), findsOneWidget);
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
-    await tester.pump();
+      final cueRect = tester.getRect(cueFinder);
+      final viewportRect = tester.getRect(find.byType(TerminalViewport));
+      expect(cueRect.left, greaterThan(viewportRect.center.dx));
+      expect(cueRect.top, lessThan(viewportRect.top + 40));
 
-    expect(fakeBindings.writes, isNotEmpty);
-    expect(fakeBindings.writes.last, 'v'.codeUnits);
-  });
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+      await tester.pump();
+
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, 'v'.codeUnits);
+
+      await tester.pump(const Duration(milliseconds: 1600));
+      expect(cueFinder, findsNothing);
+    },
+  );
 
   testWidgets('defaults close restores the workspace cue and keyboard path', (
     tester,
@@ -96,7 +187,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-workspace-focus-cue')), findsOneWidget);
-    expect(find.text('Back in shell workspace'), findsOneWidget);
+    expect(find.text('Back in shell'), findsOneWidget);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
     await tester.pump();

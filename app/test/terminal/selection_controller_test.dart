@@ -130,4 +130,33 @@ void main() {
 
     expect(text, 'ab');
   });
+
+  test('terminal text cells treat wide CJK glyphs as two columns', () {
+    final cells = TerminalTextCells.fromText('你a');
+
+    expect(cells.cellCount, 3);
+    expect(cells.sliceColumns(0, 2), '你');
+    expect(cells.sliceColumns(1, 2), '你');
+    expect(cells.sliceColumns(2, 3), 'a');
+  });
+
+  test('terminal text cells keep emoji zwj clusters in one wide cell', () {
+    final cells = TerminalTextCells.fromText('👨‍👩‍👧a');
+
+    expect(cells.cellCount, 3);
+    expect(cells.sliceColumns(0, 2), '👨‍👩‍👧');
+    expect(cells.sliceColumns(1, 2), '👨‍👩‍👧');
+    expect(cells.sliceColumns(2, 3), 'a');
+  });
+
+  test(
+    'terminal text cells keep combining marks attached to the base glyph',
+    () {
+      final cells = TerminalTextCells.fromText('e\u0301a');
+
+      expect(cells.cellCount, 2);
+      expect(cells.sliceColumns(0, 1), 'e\u0301');
+      expect(cells.sliceColumns(1, 2), 'a');
+    },
+  );
 }

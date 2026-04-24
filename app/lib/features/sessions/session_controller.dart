@@ -278,6 +278,15 @@ class SessionController extends Notifier<SessionState> {
     final rows = math.max(8, (viewportSize.height / cellHeight).floor());
     final pixelWidth = (viewportSize.width * devicePixelRatio).round();
     final pixelHeight = (viewportSize.height * devicePixelRatio).round();
+    final nextMetric = _SessionResizeMetric(
+      cols: cols,
+      rows: rows,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      logicalWidth: viewportSize.width,
+      logicalHeight: viewportSize.height,
+      devicePixelRatio: devicePixelRatio,
+    );
     final previous = _lastResizeMetrics[sessionId];
     if (previous != null &&
         previous.cols == cols &&
@@ -295,15 +304,7 @@ class SessionController extends Notifier<SessionState> {
           pixelSize: Size(pixelWidth.toDouble(), pixelHeight.toDouble()),
           devicePixelRatio: 1,
         );
-    _lastResizeMetrics[sessionId] = _SessionResizeMetric(
-      cols: cols,
-      rows: rows,
-      pixelWidth: pixelWidth,
-      pixelHeight: pixelHeight,
-      logicalWidth: viewportSize.width,
-      logicalHeight: viewportSize.height,
-      devicePixelRatio: devicePixelRatio,
-    );
+    _lastResizeMetrics[sessionId] = nextMetric;
     if (!ref.read(sessionPollingEnabledProvider)) {
       _refreshSession(sessionId);
     }

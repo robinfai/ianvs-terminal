@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,8 +18,6 @@ import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
 
 enum _ShellCommandAction { newTab, copy, paste, defaults, profiles }
-
-enum _ShellWorkspaceCueTone { active, returning }
 
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
 
@@ -45,20 +45,29 @@ class ShellScreen extends ConsumerStatefulWidget {
 }
 
 class _ShellScreenState extends ConsumerState<ShellScreen> {
+  static const _workspaceCueDuration = Duration(milliseconds: 1400);
+  static const _viewportResizeDebounce = Duration(milliseconds: 240);
+  static const _terminalViewportPadding = EdgeInsets.fromLTRB(20, 14, 24, 18);
+
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final Map<String, Size> _scheduledViewportSizes = {};
+  final Map<String, Size> _committedViewportSizes = {};
+  Timer? _workspaceCueTimer;
+  Timer? _viewportResizeTimer;
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
+  bool _showWorkspaceCue = false;
   bool _showReturningCueOnNextFocus = false;
   int _lastObservedTabCount = 0;
-  _ShellWorkspaceCueTone _workspaceCueTone = _ShellWorkspaceCueTone.active;
 
   @override
   void dispose() {
+    _workspaceCueTimer?.cancel();
+    _viewportResizeTimer?.cancel();
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }
@@ -153,11 +162,61 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌘V' : 'Ctrl+V';
   }
 
-  String get _workspaceCueTitle {
-    return switch (_workspaceCueTone) {
-      _ShellWorkspaceCueTone.active => 'Shell workspace active',
-      _ShellWorkspaceCueTone.returning => 'Back in shell workspace',
-    };
+  String get _workspaceCueTitle => 'Back in shell';
+
+  Size _terminalContentSizeFor(BoxConstraints constraints) {
+    return Size(
+      (constraints.maxWidth - _terminalViewportPadding.horizontal)
+          .clamp(1.0, double.infinity)
+          .toDouble(),
+      (constraints.maxHeight - _terminalViewportPadding.vertical)
+          .clamp(1.0, double.infinity)
+          .toDouble(),
+    );
+  }
+
+  void _commitViewportResize(
+    SessionController sessionController,
+    String sessionId,
+    Size viewportSize,
+    double devicePixelRatio,
+  ) {
+    if (!mounted ||
+        ref.read(sessionControllerProvider).activeSessionId != sessionId) {
+      return;
+    }
+    sessionController.resizeActiveSession(viewportSize, devicePixelRatio);
+    _committedViewportSizes[sessionId] = viewportSize;
+  }
+
+  void _scheduleViewportResize(
+    SessionController sessionController,
+    String sessionId,
+    Size viewportSize,
+    double devicePixelRatio, {
+    required bool immediate,
+  }) {
+    _scheduledViewportSizes[sessionId] = viewportSize;
+    _viewportResizeTimer?.cancel();
+    _viewportResizeTimer = null;
+    if (immediate) {
+      _commitViewportResize(
+        sessionController,
+        sessionId,
+        viewportSize,
+        devicePixelRatio,
+      );
+      return;
+    }
+
+    _viewportResizeTimer = Timer(_viewportResizeDebounce, () {
+      _commitViewportResize(
+        sessionController,
+        sessionId,
+        viewportSize,
+        devicePixelRatio,
+      );
+    });
   }
 
   String get _emptyStateTitle {
@@ -189,23 +248,34 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
 
     final hasFocus = focusNode.hasFocus;
-    final nextTone = hasFocus && _showReturningCueOnNextFocus
-        ? _ShellWorkspaceCueTone.returning
-        : _ShellWorkspaceCueTone.active;
-    final shouldClearPendingReturn = hasFocus && _showReturningCueOnNextFocus;
+    final shouldShowCue = hasFocus && _showReturningCueOnNextFocus;
     if (_activeTerminalHasFocus == hasFocus &&
-        _workspaceCueTone == nextTone &&
-        !shouldClearPendingReturn) {
+        _showWorkspaceCue == shouldShowCue) {
       return;
     }
 
+    _workspaceCueTimer?.cancel();
+    _workspaceCueTimer = null;
     setState(() {
       _activeTerminalHasFocus = hasFocus;
       if (hasFocus) {
-        _workspaceCueTone = nextTone;
+        _showWorkspaceCue = shouldShowCue;
         _showReturningCueOnNextFocus = false;
+      } else {
+        _showWorkspaceCue = false;
       }
     });
+
+    if (shouldShowCue) {
+      _workspaceCueTimer = Timer(_workspaceCueDuration, () {
+        if (!mounted || !_showWorkspaceCue) {
+          return;
+        }
+        setState(() {
+          _showWorkspaceCue = false;
+        });
+      });
+    }
   }
 
   void _scheduleReturningCue() {
@@ -218,11 +288,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (currentTabCount == 0 && _lastObservedTabCount > 0) {
       _recentlyClosedLastSession = true;
       _activeTerminalHasFocus = false;
+      _showWorkspaceCue = false;
     } else if (currentTabCount > 0 && _lastObservedTabCount == 0) {
       _recentlyClosedLastSession = false;
     }
     if (sessionState.activeSessionId == null) {
       _activeTerminalHasFocus = false;
+      _showWorkspaceCue = false;
+      _workspaceCueTimer?.cancel();
+      _workspaceCueTimer = null;
     }
     _lastObservedTabCount = currentTabCount;
   }
@@ -254,6 +328,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (closesLastSession) {
       _recentlyClosedLastSession = true;
     }
+    _scheduledViewportSizes.remove(sessionId);
+    _committedViewportSizes.remove(sessionId);
     sessionController.closeSession(sessionId);
     final nextActiveSessionId = ref
         .read(sessionControllerProvider)
@@ -790,9 +866,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         : LayoutBuilder(
                             key: ValueKey(activeSessionId),
                             builder: (context, constraints) {
-                              final viewportSize = Size(
-                                constraints.maxWidth,
-                                constraints.maxHeight,
+                              final viewportSize = _terminalContentSizeFor(
+                                constraints,
                               );
                               final scheduledSize =
                                   _scheduledViewportSizes[activeSessionId];
@@ -803,9 +878,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                   _,
                                 ) {
                                   if (mounted) {
-                                    sessionController.resizeActiveSession(
+                                    _scheduleViewportResize(
+                                      sessionController,
+                                      activeSessionId,
                                       viewportSize,
                                       MediaQuery.devicePixelRatioOf(context),
+                                      immediate: !_committedViewportSizes
+                                          .containsKey(activeSessionId),
                                     );
                                   }
                                 });
@@ -854,6 +933,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                           selectionController:
                                               selectionController,
                                           inputController: inputController,
+                                          contentPadding:
+                                              _terminalViewportPadding,
+                                          onMeasuredCellSizeChanged: (_) {
+                                            if (!mounted) {
+                                              return;
+                                            }
+                                            _scheduleViewportResize(
+                                              sessionController,
+                                              activeSessionId,
+                                              viewportSize,
+                                              MediaQuery.devicePixelRatioOf(
+                                                context,
+                                              ),
+                                              immediate: true,
+                                            );
+                                          },
+                                          backgroundColor:
+                                              palette.terminalCanvasBackground,
+                                          foregroundColor:
+                                              palette.terminalCanvasForeground,
                                           onScrollLines: (delta) {
                                             ref
                                                 .read(
@@ -876,10 +975,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                           },
                                         ),
                                       ),
-                                      if (_activeTerminalHasFocus)
+                                      if (_showWorkspaceCue)
                                         Positioned(
-                                          top: 12,
-                                          left: 16,
+                                          top: _terminalViewportPadding.top,
+                                          right: _terminalViewportPadding.right,
                                           child: IgnorePointer(
                                             child: _ShellWorkspaceCue(
                                               title: _workspaceCueTitle,
@@ -1262,31 +1361,22 @@ class _ShellWorkspaceCue extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.keyboard_command_key_rounded, color: palette.accent),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: palette.primaryText,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Keyboard input goes to this terminal.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: palette.subtleText),
-                ),
-              ],
+            Icon(
+              Icons.keyboard_command_key_rounded,
+              color: palette.accent,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: palette.primaryText,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -1644,6 +1734,8 @@ class _ShellPalette {
     required this.chromeBackground,
     required this.overlayBackground,
     required this.terminalBackground,
+    required this.terminalCanvasBackground,
+    required this.terminalCanvasForeground,
     required this.divider,
     required this.primaryText,
     required this.mutedText,
@@ -1657,7 +1749,9 @@ class _ShellPalette {
         background: Color(0xFFF4F4F4),
         chromeBackground: Color(0xFFEDEDED),
         overlayBackground: Color(0xFFFFFFFF),
-        terminalBackground: Color(0xFF000000),
+        terminalBackground: Color(0xFFEDEDED),
+        terminalCanvasBackground: Color(0xFFF8F7F2),
+        terminalCanvasForeground: Color(0xFF111111),
         divider: Color(0xFFD2D2D2),
         primaryText: Color(0xFF111111),
         mutedText: Color(0xFF4A4A4A),
@@ -1666,14 +1760,16 @@ class _ShellPalette {
       );
     }
     return const _ShellPalette(
-      background: Color(0xFF000000),
-      chromeBackground: Color(0xFF0E0E0E),
-      overlayBackground: Color(0xFF111111),
-      terminalBackground: Color(0xFF000000),
-      divider: Color(0xFF262626),
-      primaryText: Color(0xFFF5F5F5),
-      mutedText: Color(0xFFB8B8B8),
-      subtleText: Color(0xFF8A8A8A),
+      background: Color(0xFF17161D),
+      chromeBackground: Color(0xFF17161D),
+      overlayBackground: Color(0xFF201E28),
+      terminalBackground: Color(0xFF17161D),
+      terminalCanvasBackground: Color(0xFF050608),
+      terminalCanvasForeground: Color(0xFFF8FAFC),
+      divider: Color(0xFF2D2938),
+      primaryText: Color(0xFFF1EFF7),
+      mutedText: Color(0xFFC4BED3),
+      subtleText: Color(0xFF918AA3),
       accent: Color(0xFFF6C344),
     );
   }
@@ -1682,6 +1778,8 @@ class _ShellPalette {
   final Color chromeBackground;
   final Color overlayBackground;
   final Color terminalBackground;
+  final Color terminalCanvasBackground;
+  final Color terminalCanvasForeground;
   final Color divider;
   final Color primaryText;
   final Color mutedText;

@@ -10,7 +10,7 @@ import 'terminal_viewport.dart';
 
 const String terminalPrimaryFontFamily = 'JetBrainsMono Nerd Font Mono';
 const Color terminalDefaultForeground = Color(0xFFF8FAFC);
-const Color terminalDefaultBackground = Color(0xFF000000);
+const Color terminalDefaultBackground = Color(0xFF17161D);
 const Color terminalCursorColor = Color(0xFFBBF7D0);
 const List<String> terminalFontFamilyFallback = <String>[
   'Menlo',
@@ -121,10 +121,14 @@ class RenderTerminalViewport extends RenderBox {
     required SelectionController selectionController,
     required bool cursorVisible,
     required double devicePixelRatio,
+    required Color backgroundColor,
+    required Color foregroundColor,
   }) : _controller = controller,
        _selectionController = selectionController,
        _cursorVisible = cursorVisible,
-       _devicePixelRatio = devicePixelRatio {
+       _devicePixelRatio = devicePixelRatio,
+       _backgroundColor = backgroundColor,
+       _foregroundColor = foregroundColor {
     _controller.addListener(markNeedsPaint);
     _selectionController.addListener(markNeedsPaint);
   }
@@ -133,6 +137,8 @@ class RenderTerminalViewport extends RenderBox {
   SelectionController _selectionController;
   double _devicePixelRatio;
   bool _cursorVisible = true;
+  Color _backgroundColor;
+  Color _foregroundColor;
   final Map<int, _CachedRowLayout> _rowLayoutCache = {};
   final Map<int, _CachedGlyphParagraph> _glyphParagraphCache = {};
   final Map<int, List<TerminalResolvedStyle>> _debugResolvedStyles = {};
@@ -175,6 +181,25 @@ class RenderTerminalViewport extends RenderBox {
     markNeedsPaint();
   }
 
+  set backgroundColor(Color value) {
+    if (value == _backgroundColor) {
+      return;
+    }
+    _backgroundColor = value;
+    _clearResolvedLayoutCaches();
+    markNeedsPaint();
+  }
+
+  set foregroundColor(Color value) {
+    if (value == _foregroundColor) {
+      return;
+    }
+    _foregroundColor = value;
+    _clearResolvedLayoutCaches();
+    _glyphParagraphCache.clear();
+    markNeedsPaint();
+  }
+
   @override
   bool hitTestSelf(Offset position) => true;
 
@@ -191,10 +216,7 @@ class RenderTerminalViewport extends RenderBox {
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
     canvas.clipRect(Offset.zero & size);
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xFF000000),
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = _backgroundColor);
 
     final frame = _controller.frame;
     final cellMetrics = _measureCellMetrics();
@@ -246,6 +268,9 @@ class RenderTerminalViewport extends RenderBox {
         );
       }
       for (final cell in rowLayout.cells) {
+        if (cell.isContinuation) {
+          continue;
+        }
         final placement = _placementForCell(cell, y);
         final paragraph = cell.paragraph;
         if (cell.usesCustomGeometry) {
@@ -350,6 +375,13 @@ class RenderTerminalViewport extends RenderBox {
 
   Rect? get debugCursorRect => _debugCursorRect;
 
+  void _clearResolvedLayoutCaches() {
+    _rowLayoutCache.clear();
+    _debugResolvedStyles.clear();
+    _debugResolvedCells.clear();
+    _debugBackgroundSpans.clear();
+  }
+
   _CachedRowLayout _rowLayoutFor(TerminalRow row) {
     final signature = Object.hashAll([
       row.text,
@@ -425,6 +457,7 @@ class RenderTerminalViewport extends RenderBox {
       cells.add(
         _PaintCell(
           column: textCell.column,
+          columnSpan: textCell.columnSpan,
           text: glyph,
           foreground: style.foreground,
           background: style.background,
@@ -434,6 +467,7 @@ class RenderTerminalViewport extends RenderBox {
           alphabeticBaseline: alphabeticBaseline,
           usesCustomGeometry: usesCustomGeometry,
           placementPolicy: placementPolicy,
+          isContinuation: textCell.isContinuation,
         ),
       );
     }
@@ -486,8 +520,8 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   _ResolvedCellStyle _resolvedCellStyleFor(TerminalStyleRun run) {
-    var foreground = run.foreground ?? terminalDefaultForeground;
-    var background = run.background ?? terminalDefaultBackground;
+    var foreground = run.foreground ?? _foregroundColor;
+    var background = run.background ?? _backgroundColor;
 
     if (run.inverse) {
       final swapped = background;
@@ -597,7 +631,7 @@ class RenderTerminalViewport extends RenderBox {
 
   _PlacedCell _placementForCell(_PaintCell cell, double rowY) {
     final cellLeft = cell.column * _cellSize.width;
-    final cellRight = cellLeft + _cellSize.width;
+    final cellRight = cellLeft + (cell.columnSpan * _cellSize.width);
     final targetBaselineY = _snapLogicalY(
       rowY +
           ((_cellSize.height - _rowTextMetrics.textHeight) / 2) +
@@ -837,6 +871,7 @@ class _ResolvedCellStyle {
 class _PaintCell {
   const _PaintCell({
     required this.column,
+    required this.columnSpan,
     required this.text,
     required this.foreground,
     required this.background,
@@ -846,9 +881,11 @@ class _PaintCell {
     required this.alphabeticBaseline,
     required this.usesCustomGeometry,
     required this.placementPolicy,
+    this.isContinuation = false,
   });
 
   final int column;
+  final int columnSpan;
   final String text;
   final Color foreground;
   final Color? background;
@@ -858,6 +895,7 @@ class _PaintCell {
   final double alphabeticBaseline;
   final bool usesCustomGeometry;
   final TerminalGlyphPlacementPolicy placementPolicy;
+  final bool isContinuation;
 }
 
 class _CachedRowLayout {
