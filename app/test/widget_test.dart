@@ -123,6 +123,18 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _sendMetaShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key,
+) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.sendKeyDownEvent(key, platform: 'macos');
+  await tester.pumpAndSettle();
+  await tester.sendKeyUpEvent(key, platform: 'macos');
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.pump();
+}
+
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
   expect(
     tester.getSemantics(find.bySemanticsLabel('shell-tab-$sessionId')),
@@ -314,6 +326,99 @@ void main() {
     expect(find.text('Top actions'), findsNothing);
     expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command-q requests quit confirmation without leaking input', (
+    tester,
+  ) async {
+    final fakeBindings = FakeCoreBindings();
+    final windowBridgeCalls = <MethodCall>[];
+    const channel = MethodChannel('app/window_bridge');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      windowBridgeCalls.add(call);
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyQ);
+
+    expect(
+      windowBridgeCalls.map((call) => call.method),
+      contains('requestQuitConfirmation'),
+    );
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command-w closes the active tab without leaking input', (
+    tester,
+  ) async {
+    final fakeBindings = FakeCoreBindings();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+
+    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+    expect(find.byType(TerminalViewport), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command-comma opens defaults and returns keyboard to terminal', (
+    tester,
+  ) async {
+    final fakeBindings = FakeCoreBindings();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.comma);
+
+    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+
+    await tester.tap(find.byTooltip('Close defaults'));
+    await tester.pumpAndSettle();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+    await tester.pump();
+
+    expect(fakeBindings.writes, isNotEmpty);
+    expect(fakeBindings.writes.last, utf8.encode('v'));
   });
 
   testWidgets('closing the last tab can recover from the empty state', (

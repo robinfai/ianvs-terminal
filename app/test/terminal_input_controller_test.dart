@@ -301,6 +301,59 @@ void main() {
     await tester.pump();
   });
 
+  testWidgets(
+    'terminal input ignores unhandled Meta app shortcuts without writing text',
+    (tester) async {
+      final bindings = FakeCoreBindings();
+      final coreClient = TerminalCoreClient(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        coreClient: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => 'ignored',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      for (final key in <LogicalKeyboardKey>[
+        LogicalKeyboardKey.keyQ,
+        LogicalKeyboardKey.keyW,
+        LogicalKeyboardKey.comma,
+      ]) {
+        await tester.sendKeyDownEvent(key, platform: 'macos');
+        await tester.sendKeyUpEvent(key, platform: 'macos');
+      }
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(bindings.writes, isEmpty);
+    },
+  );
+
   test('terminal input encodes direct Chinese key input as UTF-8', () {
     final bindings = FakeCoreBindings();
     final coreClient = TerminalCoreClient(bindings);

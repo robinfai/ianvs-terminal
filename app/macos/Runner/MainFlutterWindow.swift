@@ -59,6 +59,9 @@ class MainFlutterWindow: NSWindow {
 
         self.title = title
         result(nil)
+      case "requestQuitConfirmation":
+        NSApp.terminate(nil)
+        result(nil)
       default:
         result(FlutterMethodNotImplemented)
       }

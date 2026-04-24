@@ -64,6 +64,10 @@ class TerminalInputController {
       return KeyEventResult.ignored;
     }
 
+    if (isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+
     final bytes = keyBytesFor(
       event: event,
       emulation: emulation,

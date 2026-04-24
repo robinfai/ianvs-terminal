@@ -17,8 +17,17 @@ import '../terminal/terminal_viewport_colors.dart';
 import 'defaults_appearance_dialog.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
+import 'window_bridge.dart';
 
 enum _ShellCommandAction { newTab, copy, paste, defaults, profiles }
+
+enum _ShellShortcutAction {
+  openLauncher,
+  newTab,
+  closeActiveTab,
+  openDefaults,
+  requestQuitConfirmation,
+}
 
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
 
@@ -164,6 +173,37 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   String get _workspaceCueTitle => 'Back in shell';
+
+  _ShellShortcutAction? _shortcutActionFor(KeyDownEvent event) {
+    final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
+    final isControlPressed = HardwareKeyboard.instance.isControlPressed;
+    final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final usesAppModifier = isMetaPressed || isControlPressed;
+
+    if (isMetaPressed && !isControlPressed && !isShiftPressed) {
+      final platformAction = switch (event.logicalKey) {
+        LogicalKeyboardKey.keyQ => _ShellShortcutAction.requestQuitConfirmation,
+        LogicalKeyboardKey.keyW => _ShellShortcutAction.closeActiveTab,
+        LogicalKeyboardKey.comma => _ShellShortcutAction.openDefaults,
+        _ => null,
+      };
+      if (platformAction != null) {
+        return platformAction;
+      }
+    }
+
+    if (usesAppModifier &&
+        isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyP) {
+      return _ShellShortcutAction.openLauncher;
+    }
+
+    if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
+      return _ShellShortcutAction.newTab;
+    }
+
+    return null;
+  }
 
   Size _terminalContentSizeFor(BoxConstraints constraints) {
     return Size(
@@ -781,40 +821,48 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         if (event is! KeyDownEvent) {
           return KeyEventResult.ignored;
         }
-        final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
-        final isControlPressed = HardwareKeyboard.instance.isControlPressed;
-        final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
-        final isLauncherShortcut =
-            (isMetaPressed || isControlPressed) &&
-            isShiftPressed &&
-            event.logicalKey == LogicalKeyboardKey.keyP;
-        final isNewTabShortcut =
-            (isMetaPressed || isControlPressed) &&
-            event.logicalKey == LogicalKeyboardKey.keyT;
+        final shortcutAction = _shortcutActionFor(event);
+        if (shortcutAction == null) {
+          return KeyEventResult.ignored;
+        }
 
-        if ((_isDefaultsOpen || _isProfilesOpen) &&
-            (isLauncherShortcut || isNewTabShortcut)) {
+        if (shortcutAction == _ShellShortcutAction.requestQuitConfirmation) {
+          unawaited(WindowBridge.requestQuitConfirmation());
           return KeyEventResult.handled;
         }
 
-        if (isLauncherShortcut) {
-          _openCommandMenu(sessionController, sessionState);
+        if (_isCommandMenuOpen || _isDefaultsOpen || _isProfilesOpen) {
           return KeyEventResult.handled;
         }
 
-        if (isNewTabShortcut) {
-          if (_isCommandMenuOpen || defaultProfile == null) {
+        switch (shortcutAction) {
+          case _ShellShortcutAction.openLauncher:
+            unawaited(_openCommandMenu(sessionController, sessionState));
             return KeyEventResult.handled;
-          }
-          _createSession(
-            sessionController,
-            defaultProfile,
-            returningToWorkspace: activeSessionId == null,
-          );
-          return KeyEventResult.handled;
+          case _ShellShortcutAction.newTab:
+            if (defaultProfile == null) {
+              return KeyEventResult.handled;
+            }
+            _createSession(
+              sessionController,
+              defaultProfile,
+              returningToWorkspace: activeSessionId == null,
+            );
+            return KeyEventResult.handled;
+          case _ShellShortcutAction.closeActiveTab:
+            if (activeSessionId == null) {
+              return KeyEventResult.handled;
+            }
+            _closeSession(sessionController, sessionState, activeSessionId);
+            return KeyEventResult.handled;
+          case _ShellShortcutAction.openDefaults:
+            unawaited(
+              _openDefaultsAndAppearance(sessionController, sessionState),
+            );
+            return KeyEventResult.handled;
+          case _ShellShortcutAction.requestQuitConfirmation:
+            return KeyEventResult.handled;
         }
-
-        return KeyEventResult.ignored;
       },
       child: Scaffold(
         backgroundColor: palette.background,

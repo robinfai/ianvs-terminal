@@ -33,4 +33,15 @@ class WindowBridge {
       return;
     }
   }
+
+  static Future<void> requestQuitConfirmation() async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('requestQuitConfirmation');
+    } on MissingPluginException {
+      return;
+    }
+  }
 }
