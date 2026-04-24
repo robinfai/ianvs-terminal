@@ -372,10 +372,11 @@ Future<_ShellExport> _captureShellExport(
   final devicePixelRatio = tester.view.devicePixelRatio;
   final cursorRect = renderObject.debugCursorRect!;
   final promptRow = (cursorRect.top / renderObject.debugCellSize.height)
-      .round();
+      .floor();
+  final promptRowTop = promptRow * renderObject.debugCellSize.height;
   final promptBoundsLogical = Rect.fromLTWH(
     0,
-    cursorRect.top,
+    promptRowTop,
     cursorRect.left,
     renderObject.debugCellSize.height,
   );
@@ -461,7 +462,7 @@ Future<void> _waitForPromptReady(WidgetTester tester) async {
       continue;
     }
     final promptRow = (cursorRect.top / renderObject.debugCellSize.height)
-        .round();
+        .floor();
     if (renderObject.debugResolvedCellsForRow(promptRow).isNotEmpty) {
       return;
     }

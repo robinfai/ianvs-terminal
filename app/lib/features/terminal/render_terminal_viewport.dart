@@ -311,19 +311,13 @@ class RenderTerminalViewport extends RenderBox {
     _debugLastPaintedRowTexts = paintedRowTexts;
 
     if (frame.cursor.visible && _cursorVisible) {
-      final cursorRect = Rect.fromLTWH(
-        frame.cursor.col * _cellSize.width,
-        frame.cursor.row * _cellSize.height,
-        _cellSize.width,
-        _cellSize.height,
-      );
+      final cursorRect = _cursorUnderlineRect(frame.cursor);
       _debugCursorRect = cursorRect;
       canvas.drawRect(
         cursorRect,
         Paint()
           ..color = _colors.cursor
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = _devicePixelRatio.clamp(1, 2),
+          ..isAntiAlias = false,
       );
     } else {
       _debugCursorRect = null;
@@ -768,6 +762,24 @@ class RenderTerminalViewport extends RenderBox {
     }
 
     return spans;
+  }
+
+  Rect _cursorUnderlineRect(TerminalCursor cursor) {
+    final devicePixelRatio = _devicePixelRatio.isFinite && _devicePixelRatio > 0
+        ? _devicePixelRatio
+        : 1.0;
+    final thickness = math.max(1.0, 2.0 / devicePixelRatio);
+    final left = cursor.col * _cellSize.width;
+    final top = cursor.row * _cellSize.height;
+    final bottom = top + _cellSize.height;
+    return _snapRect(
+      Rect.fromLTRB(
+        left,
+        math.max(top, bottom - thickness),
+        left + _cellSize.width,
+        bottom,
+      ),
+    );
   }
 
   void _paintPowerlineGeometry(Canvas canvas, _PaintCell cell, Rect rect) {

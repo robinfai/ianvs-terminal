@@ -1474,6 +1474,30 @@ void main() {
     },
   );
 
+  testWidgets('terminal cursor defaults to an underline shape', (tester) async {
+    final renderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.dark,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ready')],
+        cursor: TerminalCursor(row: 0, col: 2, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    final cursorRect = renderObject.debugCursorRect!;
+    final cellSize = renderObject.debugCellSize;
+
+    expect(cursorRect.left, 2 * cellSize.width);
+    expect(cursorRect.width, cellSize.width);
+    expect(cursorRect.height, lessThan(cellSize.height / 3));
+    expect(cursorRect.bottom, cellSize.height);
+  });
+
   testWidgets(
     'terminal cursor stops blinking and resets visible when focus is lost',
     (tester) async {
