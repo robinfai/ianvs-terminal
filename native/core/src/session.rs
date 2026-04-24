@@ -1,10 +1,10 @@
 use crate::model::{
     TerminalCursor, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
     TerminalFrameModes, TerminalHyperlinkRange, TerminalProfile, TerminalRow, TerminalSearchMatch,
-    TerminalStyleRun,
+    TerminalSelectionRequest, TerminalStyleRun,
 };
 use crate::pty::spawn_pty;
-use par_term_emu_core_rust::cell::Cell;
+use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::{Color, NamedColor};
 use par_term_emu_core_rust::grid::Grid;
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
@@ -81,6 +81,8 @@ pub enum SessionError {
     MissingSession(u64),
     #[error("invalid profile JSON: {0}")]
     InvalidProfile(String),
+    #[error("invalid selection JSON: {0}")]
+    InvalidSelection(String),
     #[error("pty error: {0}")]
     Pty(String),
     #[error("io error: {0}")]
@@ -571,6 +573,11 @@ impl TerminalSession {
             dirty_ranges,
             scrollback_offset: state.scrollback_offset,
             scrollback_max_offset,
+            viewport_start_row: if alt_screen_active {
+                0
+            } else {
+                scrollback_max_offset.saturating_sub(state.scrollback_offset)
+            },
             modes,
             window_title,
             window_icon_name,
@@ -624,6 +631,11 @@ impl TerminalSession {
         }
 
         matches
+    }
+
+    pub fn selection_text(&self, request: TerminalSelectionRequest) -> String {
+        let state = self.state.lock();
+        selection_text_for_state(&state, request)
     }
 
     pub fn poll_events(&self) -> Result<Vec<TerminalEvent>, SessionError> {
@@ -851,6 +863,175 @@ fn collect_text_matches(
     }
 }
 
+fn selection_text_for_state(state: &TerminalState, request: TerminalSelectionRequest) -> String {
+    let normalized = normalize_selection_request(request);
+    let terminal = &state.terminal;
+    let total_lines = total_visible_lines(terminal);
+    if total_lines == 0 || normalized.start_row >= total_lines {
+        return String::new();
+    }
+
+    let end_row = normalized.end_row.min(total_lines.saturating_sub(1));
+    if normalized.block {
+        let mut lines = Vec::new();
+        for row in normalized.start_row..=end_row {
+            let (cells, _) = row_cells_for_visible_index(terminal, row);
+            lines.push(slice_cells_columns(
+                cells,
+                normalized.start_col,
+                normalized.end_col,
+            ));
+        }
+        return lines.join("\n");
+    }
+
+    let mut text = String::new();
+    for row in normalized.start_row..=end_row {
+        let (cells, wrapped) = row_cells_for_visible_index(terminal, row);
+        let start_col = if row == normalized.start_row {
+            normalized.start_col
+        } else {
+            0
+        };
+        let end_col = if row == end_row && normalized.end_row < total_lines {
+            normalized.end_col
+        } else {
+            usize::MAX
+        };
+        text.push_str(&slice_cells_columns(cells, start_col, end_col));
+        if row != end_row && !wrapped {
+            text.push('\n');
+        }
+    }
+    text
+}
+
+fn normalize_selection_request(request: TerminalSelectionRequest) -> TerminalSelectionRequest {
+    if request.block {
+        return TerminalSelectionRequest {
+            start_row: request.start_row.min(request.end_row),
+            start_col: request.start_col.min(request.end_col),
+            end_row: request.start_row.max(request.end_row),
+            end_col: request.start_col.max(request.end_col),
+            block: true,
+        };
+    }
+
+    if request.start_row < request.end_row
+        || (request.start_row == request.end_row && request.start_col <= request.end_col)
+    {
+        return request;
+    }
+
+    TerminalSelectionRequest {
+        start_row: request.end_row,
+        start_col: request.end_col,
+        end_row: request.start_row,
+        end_col: request.start_col,
+        block: false,
+    }
+}
+
+fn total_visible_lines(terminal: &Terminal) -> usize {
+    let (_, viewport_rows) = terminal.size();
+    if terminal.is_alt_screen_active() {
+        viewport_rows
+    } else {
+        terminal.grid().scrollback_len() + viewport_rows
+    }
+}
+
+fn row_cells_for_visible_index(
+    terminal: &Terminal,
+    visible_index: usize,
+) -> (Option<&[Cell]>, bool) {
+    let (_, viewport_rows) = terminal.size();
+    if terminal.is_alt_screen_active() {
+        if visible_index >= viewport_rows {
+            (None, false)
+        } else {
+            (
+                terminal.alt_grid().row(visible_index),
+                terminal.alt_grid().is_line_wrapped(visible_index),
+            )
+        }
+    } else {
+        primary_row_cells_for_visible_index(terminal.grid(), viewport_rows, visible_index)
+    }
+}
+
+fn primary_row_cells_for_visible_index(
+    grid: &Grid,
+    viewport_rows: usize,
+    visible_index: usize,
+) -> (Option<&[Cell]>, bool) {
+    let scrollback_len = grid.scrollback_len();
+    if visible_index < scrollback_len {
+        (
+            grid.scrollback_line(visible_index),
+            grid.is_scrollback_wrapped(visible_index),
+        )
+    } else {
+        let screen_row = visible_index.saturating_sub(scrollback_len);
+        if screen_row >= viewport_rows {
+            (None, false)
+        } else {
+            (grid.row(screen_row), grid.is_line_wrapped(screen_row))
+        }
+    }
+}
+
+fn slice_cells_columns(cells: Option<&[Cell]>, start_col: usize, end_col: usize) -> String {
+    let effective_end_col = end_col.min(last_significant_column(cells));
+    if start_col >= effective_end_col {
+        return String::new();
+    }
+
+    let mut text = String::new();
+    let mut column_offset = 0usize;
+    for cell in cells.unwrap_or_default() {
+        if cell.flags.wide_char_spacer() {
+            continue;
+        }
+
+        let column_start = column_offset;
+        column_offset += cell.width();
+        if column_offset <= start_col {
+            continue;
+        }
+        if column_start >= effective_end_col {
+            break;
+        }
+
+        let grapheme = cell.get_grapheme();
+        text.push_str(&grapheme);
+    }
+    text
+}
+
+fn last_significant_column(cells: Option<&[Cell]>) -> usize {
+    let default_fg = Color::Named(NamedColor::White);
+    let default_bg = Color::Named(NamedColor::Black);
+    let default_flags = CellFlags::default();
+    let mut last_significant = 0usize;
+    let mut column_offset = 0usize;
+
+    for cell in cells.unwrap_or_default() {
+        if cell.flags.wide_char_spacer() {
+            continue;
+        }
+        column_offset += cell.width();
+        let has_content = cell.c != ' ' || !cell.combining.is_empty();
+        let has_styling =
+            cell.fg != default_fg || cell.bg != default_bg || cell.flags != default_flags;
+        if has_content || has_styling {
+            last_significant = column_offset;
+        }
+    }
+
+    last_significant
+}
+
 fn column_for_byte_index(text: &str, byte_index: usize) -> usize {
     text.char_indices()
         .take_while(|(index, _)| *index < byte_index)
@@ -1000,6 +1181,12 @@ pub fn scroll_to_session(session_id: u64, offset: usize) -> Result<(), SessionEr
 pub fn search_session(session_id: u64, query: &str) -> Result<String, SessionError> {
     let matches = STORE.get(session_id)?.search(query);
     serde_json::to_string(&matches).map_err(|error| SessionError::Serialize(error.to_string()))
+}
+
+pub fn selection_text_session(session_id: u64, request_json: &str) -> Result<String, SessionError> {
+    let request: TerminalSelectionRequest = serde_json::from_str(request_json)
+        .map_err(|error| SessionError::InvalidSelection(error.to_string()))?;
+    Ok(STORE.get(session_id)?.selection_text(request))
 }
 
 pub fn take_frame_diff(session_id: u64) -> Result<Option<String>, SessionError> {

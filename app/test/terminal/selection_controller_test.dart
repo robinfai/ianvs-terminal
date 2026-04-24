@@ -103,6 +103,59 @@ void main() {
     expect(text, 'bc\nwxy\nn');
   });
 
+  test('textForFrame maps stable rows through viewportStartRow', () {
+    final controller = SelectionController();
+    controller.begin(const TerminalCellPosition(1, 1), viewportStartRow: 40);
+    controller.update(const TerminalCellPosition(2, 2), viewportStartRow: 40);
+
+    final text = controller.textForFrame(
+      const TerminalFrameDiff(
+        rows: [
+          TerminalRow(index: 0, text: 'zero'),
+          TerminalRow(index: 1, text: 'alpha'),
+          TerminalRow(index: 2, text: 'beta'),
+        ],
+        cursor: TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 3,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        viewportStartRow: 40,
+      ),
+    );
+
+    expect(text, 'lpha\nbe');
+  });
+
+  test(
+    'textForFrame clips stable selections entering from above the viewport',
+    () {
+      final controller = SelectionController();
+      controller.begin(const TerminalCellPosition(0, 1), viewportStartRow: 10);
+      controller.update(const TerminalCellPosition(2, 2), viewportStartRow: 10);
+
+      final text = controller.textForFrame(
+        const TerminalFrameDiff(
+          rows: [
+            TerminalRow(index: 0, text: 'visible'),
+            TerminalRow(index: 1, text: 'frame'),
+            TerminalRow(index: 2, text: 'tail'),
+          ],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 3,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          viewportStartRow: 11,
+        ),
+      );
+
+      expect(text, 'visible\nfr');
+    },
+  );
+
   test('textForFrame keeps asymmetric multi-line column ranges linearized', () {
     final controller = SelectionController();
     controller.begin(const TerminalCellPosition(0, 3));

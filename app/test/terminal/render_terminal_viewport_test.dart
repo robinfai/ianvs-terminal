@@ -334,6 +334,320 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport auto-scrolls selection upward near the top edge',
+    (tester) async {
+      final bindings = FakeCoreBindings();
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _scrollbackFrame(
+            viewportStartRow: 10,
+            scrollbackOffset: 10,
+            scrollbackMaxOffset: 20,
+          ),
+        );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  coreClient: TerminalCoreClient(bindings),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (delta) {
+                  scrollLines.add(delta);
+                  final frame = controller.frame;
+                  final nextOffset = (frame.scrollbackOffset + delta)
+                      .clamp(0, frame.scrollbackMaxOffset)
+                      .toInt();
+                  controller.updateFrame(
+                    _scrollbackFrame(
+                      viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
+                      scrollbackOffset: nextOffset,
+                      scrollbackMaxOffset: frame.scrollbackMaxOffset,
+                    ),
+                  );
+                },
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellSize = renderObject.debugCellSize;
+      final gesture = await tester.startGesture(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 2, cellSize.height * 3.5),
+        ),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      await gesture.moveTo(
+        renderObject.localToGlobal(Offset(cellSize.width * 2, 4)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+
+      expect(scrollLines, isNotEmpty);
+      expect(scrollLines.last, isPositive);
+      expect(selectionController.selection, isNotNull);
+      expect(selectionController.selection!.startRow, lessThan(13));
+
+      await gesture.up();
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'terminal viewport auto-scrolls selection downward near the bottom edge',
+    (tester) async {
+      final bindings = FakeCoreBindings();
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _scrollbackFrame(
+            viewportStartRow: 10,
+            scrollbackOffset: 10,
+            scrollbackMaxOffset: 20,
+          ),
+        );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  coreClient: TerminalCoreClient(bindings),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (delta) {
+                  scrollLines.add(delta);
+                  final frame = controller.frame;
+                  final nextOffset = (frame.scrollbackOffset + delta)
+                      .clamp(0, frame.scrollbackMaxOffset)
+                      .toInt();
+                  controller.updateFrame(
+                    _scrollbackFrame(
+                      viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
+                      scrollbackOffset: nextOffset,
+                      scrollbackMaxOffset: frame.scrollbackMaxOffset,
+                    ),
+                  );
+                },
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellSize = renderObject.debugCellSize;
+      final gesture = await tester.startGesture(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 2, cellSize.height * 1.5),
+        ),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      await gesture.moveTo(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 2, renderObject.size.height - 4),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+
+      expect(scrollLines, isNotEmpty);
+      expect(scrollLines.last, isNegative);
+      expect(selectionController.selection, isNotNull);
+      expect(selectionController.selection!.endRow, greaterThan(11));
+
+      await gesture.up();
+      await tester.pump();
+    },
+  );
+
+  testWidgets('terminal viewport stops edge auto-scroll after pointer up', (
+    tester,
+  ) async {
+    final bindings = FakeCoreBindings();
+    final selectionController = SelectionController();
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        _scrollbackFrame(
+          viewportStartRow: 10,
+          scrollbackOffset: 10,
+          scrollbackMaxOffset: 20,
+        ),
+      );
+    final scrollLines = <int>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: TerminalInputController(
+                sessionId: '1',
+                coreClient: TerminalCoreClient(bindings),
+                readFrame: () => controller.frame,
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (delta) {
+                scrollLines.add(delta);
+                final frame = controller.frame;
+                final nextOffset = (frame.scrollbackOffset + delta)
+                    .clamp(0, frame.scrollbackMaxOffset)
+                    .toInt();
+                controller.updateFrame(
+                  _scrollbackFrame(
+                    viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
+                    scrollbackOffset: nextOffset,
+                    scrollbackMaxOffset: frame.scrollbackMaxOffset,
+                  ),
+                );
+              },
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final cellSize = renderObject.debugCellSize;
+    final gesture = await tester.startGesture(
+      renderObject.localToGlobal(
+        Offset(cellSize.width * 2, cellSize.height * 3.5),
+      ),
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+
+    await gesture.moveTo(
+      renderObject.localToGlobal(Offset(cellSize.width * 2, 4)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+    final scrollCountBeforeUp = scrollLines.length;
+
+    await gesture.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+
+    expect(scrollCountBeforeUp, greaterThan(0));
+    expect(scrollLines.length, scrollCountBeforeUp);
+  });
+
+  testWidgets(
+    'terminal viewport does not start local edge auto-scroll when mouse mode is enabled',
+    (tester) async {
+      final bindings = FakeCoreBindings();
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _scrollbackFrame(
+            viewportStartRow: 10,
+            scrollbackOffset: 10,
+            scrollbackMaxOffset: 20,
+            modes: const TerminalFrameModes(
+              mouseMode: 'button_event',
+              mouseEncoding: 'sgr',
+            ),
+          ),
+        );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  coreClient: TerminalCoreClient(bindings),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: scrollLines.add,
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellSize = renderObject.debugCellSize;
+      final gesture = await tester.startGesture(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 2, cellSize.height * 3.5),
+        ),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      await gesture.moveTo(
+        renderObject.localToGlobal(Offset(cellSize.width * 2, 4)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(scrollLines, isEmpty);
+      expect(selectionController.selection, isNull);
+
+      await gesture.up();
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
     'terminal viewport sends focus tracking bytes on focus gain and loss',
     (tester) async {
       final bindings = FakeCoreBindings();
@@ -1972,6 +2286,32 @@ Future<void> _pumpTerminalViewportWithController(
     ),
   );
   await tester.pump();
+}
+
+TerminalFrameDiff _scrollbackFrame({
+  required int viewportStartRow,
+  required int scrollbackOffset,
+  required int scrollbackMaxOffset,
+  int viewportRows = 8,
+  TerminalFrameModes modes = TerminalFrameModes.empty,
+}) {
+  return TerminalFrameDiff(
+    rows: List<TerminalRow>.generate(
+      viewportRows,
+      (index) => TerminalRow(
+        index: index,
+        text: 'line${(viewportStartRow + index).toString().padLeft(2, '0')}',
+      ),
+    ),
+    cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+    viewportRows: viewportRows,
+    viewportCols: 80,
+    dirtyRanges: [TerminalDirtyRange(start: 0, end: viewportRows)],
+    scrollbackOffset: scrollbackOffset,
+    scrollbackMaxOffset: scrollbackMaxOffset,
+    viewportStartRow: viewportStartRow,
+    modes: modes,
+  );
 }
 
 double _snapToDevicePixel(double value, double devicePixelRatio) {

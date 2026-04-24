@@ -74,7 +74,11 @@ class TerminalViewport extends StatefulWidget {
 }
 
 class _TerminalViewportState extends State<TerminalViewport> {
+  static const Duration _selectionAutoScrollInterval = Duration(
+    milliseconds: 50,
+  );
   Timer? _cursorBlinkTimer;
+  Timer? _selectionAutoScrollTimer;
   bool _cursorVisible = true;
   FocusNode? _ownedFocusNode;
   FocusNode? _listenedFocusNode;
@@ -83,6 +87,8 @@ class _TerminalViewportState extends State<TerminalViewport> {
   Size? _lastReportedCellSize;
   int? _activeMouseButton;
   bool? _lastReportedFocusTrackingFocus;
+  bool _isLocalSelectionActive = false;
+  Offset? _selectionPointerGlobalPosition;
 
   FocusNode get _focusNode =>
       widget.focusNode ??
@@ -115,6 +121,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
     widget.controller.removeListener(_handleFrameUpdate);
     _unbindFocusNodeListener();
     _cursorBlinkTimer?.cancel();
+    _selectionAutoScrollTimer?.cancel();
     _ownedFocusNode?.dispose();
     super.dispose();
   }
@@ -137,6 +144,16 @@ class _TerminalViewportState extends State<TerminalViewport> {
     _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
     _scheduleMeasuredCellSizeReport();
+    if (_isLocalSelectionActive &&
+        !_terminalMouseEnabled &&
+        _selectionPointerGlobalPosition != null) {
+      _updateLocalSelectionFromPointer(_selectionPointerGlobalPosition!);
+      _syncSelectionAutoScroll();
+    } else if (_terminalMouseEnabled) {
+      _isLocalSelectionActive = false;
+      _selectionPointerGlobalPosition = null;
+      _stopSelectionAutoScroll();
+    }
   }
 
   void _handleFocusChange() {
@@ -249,6 +266,54 @@ class _TerminalViewportState extends State<TerminalViewport> {
     return renderObject.debugCellForOffset(localPosition);
   }
 
+  TerminalCellPosition? _selectionCellForGlobalPosition(Offset globalPosition) {
+    final renderObject = _renderViewport;
+    if (renderObject == null) {
+      return null;
+    }
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    final clampedPosition = Offset(
+      localPosition.dx
+          .clamp(0.0, math.max(0.0, renderObject.size.width - 0.001))
+          .toDouble(),
+      localPosition.dy
+          .clamp(0.0, math.max(0.0, renderObject.size.height - 0.001))
+          .toDouble(),
+    );
+    return renderObject.debugCellForOffset(clampedPosition);
+  }
+
+  bool _surfaceContainsGlobalPosition(Offset globalPosition) {
+    final renderObject = _renderViewport;
+    if (renderObject == null) {
+      return false;
+    }
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    return localPosition.dx >= 0 &&
+        localPosition.dy >= 0 &&
+        localPosition.dx < renderObject.size.width &&
+        localPosition.dy < renderObject.size.height;
+  }
+
+  bool _scrollbarContainsGlobalPosition(Offset globalPosition) {
+    final frame = widget.controller.frame;
+    if (frame.scrollbackMaxOffset <= 0) {
+      return false;
+    }
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || renderObject.size.height <= 16) {
+      return false;
+    }
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    final trackRect = Rect.fromLTWH(
+      renderObject.size.width - 18,
+      8,
+      12,
+      renderObject.size.height - 16,
+    );
+    return trackRect.contains(localPosition);
+  }
+
   int _mouseModifiers() {
     var modifiers = 0;
     if (HardwareKeyboard.instance.isShiftPressed) {
@@ -271,6 +336,10 @@ class _TerminalViewportState extends State<TerminalViewport> {
       return 2;
     }
     return 0;
+  }
+
+  bool _isPrimarySelectionButton(int buttons) {
+    return (buttons & kPrimaryButton) != 0;
   }
 
   void _sendMouseEvent({
@@ -297,6 +366,26 @@ class _TerminalViewportState extends State<TerminalViewport> {
 
   void _handlePointerDown(PointerDownEvent event) {
     if (!_terminalMouseEnabled) {
+      if (!_isPrimarySelectionButton(event.buttons) ||
+          _scrollbarContainsGlobalPosition(event.position) ||
+          !_surfaceContainsGlobalPosition(event.position)) {
+        return;
+      }
+      _focusNode.requestFocus();
+      _selectionPointerGlobalPosition = event.position;
+      final cell = _selectionCellForGlobalPosition(event.position);
+      if (cell == null) {
+        _isLocalSelectionActive = false;
+        _stopSelectionAutoScroll();
+        return;
+      }
+      _isLocalSelectionActive = true;
+      widget.selectionController.begin(
+        cell,
+        block: HardwareKeyboard.instance.isAltPressed,
+        viewportStartRow: widget.controller.frame.viewportStartRow,
+      );
+      _syncSelectionAutoScroll();
       return;
     }
     _activeMouseButton = _mouseButtonFor(event.buttons);
@@ -308,7 +397,17 @@ class _TerminalViewportState extends State<TerminalViewport> {
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
-    if (!_terminalMouseEnabled || event.buttons == 0) {
+    if (!_terminalMouseEnabled) {
+      if (!_isLocalSelectionActive ||
+          !_isPrimarySelectionButton(event.buttons)) {
+        return;
+      }
+      _selectionPointerGlobalPosition = event.position;
+      _updateLocalSelectionFromPointer(event.position);
+      _syncSelectionAutoScroll();
+      return;
+    }
+    if (event.buttons == 0) {
       return;
     }
     final mode = widget.controller.frame.modes.mouseMode;
@@ -325,6 +424,13 @@ class _TerminalViewportState extends State<TerminalViewport> {
 
   void _handlePointerUp(PointerUpEvent event) {
     if (!_terminalMouseEnabled) {
+      if (_isLocalSelectionActive) {
+        _selectionPointerGlobalPosition = event.position;
+        _updateLocalSelectionFromPointer(event.position);
+      }
+      _isLocalSelectionActive = false;
+      _selectionPointerGlobalPosition = null;
+      _stopSelectionAutoScroll();
       return;
     }
     _sendMouseEvent(
@@ -333,6 +439,16 @@ class _TerminalViewportState extends State<TerminalViewport> {
       pressed: false,
     );
     _activeMouseButton = null;
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (_terminalMouseEnabled) {
+      _activeMouseButton = null;
+      return;
+    }
+    _isLocalSelectionActive = false;
+    _selectionPointerGlobalPosition = null;
+    _stopSelectionAutoScroll();
   }
 
   void _sendMouseWheel(double deltaY, {Offset? globalPosition}) {
@@ -414,6 +530,108 @@ class _TerminalViewportState extends State<TerminalViewport> {
     _pendingScrollLines = 0.0;
   }
 
+  void _updateLocalSelectionFromPointer(
+    Offset globalPosition, {
+    int? viewportStartRow,
+  }) {
+    final cell = _selectionCellForGlobalPosition(globalPosition);
+    if (cell == null) {
+      return;
+    }
+    widget.selectionController.update(
+      cell,
+      viewportStartRow:
+          viewportStartRow ?? widget.controller.frame.viewportStartRow,
+    );
+  }
+
+  double get _selectionEdgeExtent => math.max(_lineHeight * 2, 24.0);
+
+  int _autoScrollLinesForOvershoot(double overshoot) {
+    final lineHeight = _lineHeight;
+    if (lineHeight <= 0) {
+      return 1;
+    }
+    return (1 + (overshoot / lineHeight).floor()).clamp(1, 6).toInt();
+  }
+
+  int _selectionAutoScrollDelta() {
+    final pointer = _selectionPointerGlobalPosition;
+    final renderObject = _renderViewport;
+    if (pointer == null || renderObject == null) {
+      return 0;
+    }
+    final localPosition = renderObject.globalToLocal(pointer);
+    final edgeExtent = _selectionEdgeExtent;
+    if (localPosition.dy <= edgeExtent) {
+      return _autoScrollLinesForOvershoot(math.max(0.0, -localPosition.dy));
+    }
+    if (localPosition.dy >= renderObject.size.height - edgeExtent) {
+      return -_autoScrollLinesForOvershoot(
+        math.max(0.0, localPosition.dy - renderObject.size.height),
+      );
+    }
+    return 0;
+  }
+
+  bool _canScrollSelection(int deltaLines) {
+    final frame = widget.controller.frame;
+    if (deltaLines > 0) {
+      return frame.scrollbackOffset < frame.scrollbackMaxOffset;
+    }
+    if (deltaLines < 0) {
+      return frame.scrollbackOffset > 0;
+    }
+    return false;
+  }
+
+  int _predictedViewportStartRow(int deltaLines) {
+    final frame = widget.controller.frame;
+    final nextOffset = (frame.scrollbackOffset + deltaLines)
+        .clamp(0, frame.scrollbackMaxOffset)
+        .toInt();
+    return frame.scrollbackMaxOffset - nextOffset;
+  }
+
+  void _syncSelectionAutoScroll() {
+    final deltaLines = _selectionAutoScrollDelta();
+    if (!_isLocalSelectionActive ||
+        _terminalMouseEnabled ||
+        deltaLines == 0 ||
+        !_canScrollSelection(deltaLines)) {
+      _stopSelectionAutoScroll();
+      return;
+    }
+    _selectionAutoScrollTimer ??= Timer.periodic(
+      _selectionAutoScrollInterval,
+      (_) => _handleSelectionAutoScrollTick(),
+    );
+  }
+
+  void _handleSelectionAutoScrollTick() {
+    final deltaLines = _selectionAutoScrollDelta();
+    if (!_isLocalSelectionActive ||
+        _terminalMouseEnabled ||
+        deltaLines == 0 ||
+        !_canScrollSelection(deltaLines)) {
+      _stopSelectionAutoScroll();
+      return;
+    }
+    widget.onScrollLines(deltaLines);
+    final pointer = _selectionPointerGlobalPosition;
+    if (pointer != null) {
+      _updateLocalSelectionFromPointer(
+        pointer,
+        viewportStartRow: _predictedViewportStartRow(deltaLines),
+      );
+    }
+  }
+
+  void _stopSelectionAutoScroll() {
+    _selectionAutoScrollTimer?.cancel();
+    _selectionAutoScrollTimer = null;
+  }
+
   double get _lineHeight {
     final renderObject = _surfaceKey.currentContext?.findRenderObject();
     if (renderObject is RenderTerminalViewport) {
@@ -458,6 +676,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
           onPointerDown: _handlePointerDown,
           onPointerMove: _handlePointerMove,
           onPointerUp: _handlePointerUp,
+          onPointerCancel: _handlePointerCancel,
           onPointerSignal: (event) {
             if (event is PointerScrollEvent) {
               if (_terminalMouseEnabled) {
@@ -503,7 +722,6 @@ class _TerminalViewportState extends State<TerminalViewport> {
                               selectionController: widget.selectionController,
                               cursorVisible: _cursorVisible,
                               colors: colors,
-                              terminalMouseEnabled: _terminalMouseEnabled,
                             ),
                           ),
                         ),
@@ -541,14 +759,12 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.selectionController,
     required this.cursorVisible,
     required this.colors,
-    required this.terminalMouseEnabled,
   });
 
   final TerminalViewportController controller;
   final SelectionController selectionController;
   final bool cursorVisible;
   final TerminalViewportColors colors;
-  final bool terminalMouseEnabled;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -558,7 +774,6 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       cursorVisible: cursorVisible,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       colors: colors,
-      terminalMouseEnabled: terminalMouseEnabled,
     );
   }
 
@@ -572,8 +787,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..selectionController = selectionController
       ..cursorVisible = cursorVisible
       ..colors = colors
-      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
-      ..terminalMouseEnabled = terminalMouseEnabled;
+      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
   }
 }
 

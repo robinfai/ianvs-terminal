@@ -28,18 +28,22 @@ class SelectionController extends ChangeNotifier {
 
   bool get isBlockSelection => _mode == SelectionMode.block;
 
-  void begin(TerminalCellPosition cell, {bool block = false}) {
+  void begin(
+    TerminalCellPosition cell, {
+    bool block = false,
+    int viewportStartRow = 0,
+  }) {
     _mode = block ? SelectionMode.block : SelectionMode.linear;
     _selection = TerminalSelection(
-      startRow: cell.row,
+      startRow: viewportStartRow + cell.row,
       startCol: cell.col,
-      endRow: cell.row,
+      endRow: viewportStartRow + cell.row,
       endCol: cell.col,
     );
     notifyListeners();
   }
 
-  void update(TerminalCellPosition cell) {
+  void update(TerminalCellPosition cell, {int viewportStartRow = 0}) {
     final current = _selection;
     if (current == null) {
       return;
@@ -47,7 +51,7 @@ class SelectionController extends ChangeNotifier {
     _selection = TerminalSelection(
       startRow: current.startRow,
       startCol: current.startCol,
-      endRow: cell.row,
+      endRow: viewportStartRow + cell.row,
       endCol: cell.col,
     );
     notifyListeners();
@@ -59,8 +63,37 @@ class SelectionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  String textForFrame(TerminalFrameDiff frame) {
+  TerminalSelection? selectionForFrame(TerminalFrameDiff frame) {
     final normalized = selection;
+    if (normalized == null || frame.viewportRows <= 0) {
+      return null;
+    }
+    final frameStartRow = frame.viewportStartRow;
+    final frameEndRow = frameStartRow + frame.viewportRows - 1;
+    if (normalized.endRow < frameStartRow ||
+        normalized.startRow > frameEndRow) {
+      return null;
+    }
+
+    final startsBeforeFrame = normalized.startRow < frameStartRow;
+    final endsAfterFrame = normalized.endRow > frameEndRow;
+    return TerminalSelection(
+      startRow: math.max(0, normalized.startRow - frameStartRow),
+      startCol: _mode == SelectionMode.block || !startsBeforeFrame
+          ? normalized.startCol
+          : 0,
+      endRow: math.min(
+        frame.viewportRows - 1,
+        normalized.endRow - frameStartRow,
+      ),
+      endCol: _mode == SelectionMode.block || !endsAfterFrame
+          ? normalized.endCol
+          : frame.viewportCols,
+    );
+  }
+
+  String textForFrame(TerminalFrameDiff frame) {
+    final normalized = selectionForFrame(frame);
     if (normalized == null) {
       return '';
     }

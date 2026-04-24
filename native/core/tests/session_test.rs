@@ -78,6 +78,18 @@ fn scrollback_profile() -> TerminalProfile {
     }
 }
 
+fn wrapped_selection_profile() -> TerminalProfile {
+    TerminalProfile {
+        id: "wrapped-selection".to_string(),
+        name: "Wrapped Selection".to_string(),
+        shell: "/bin/sh".to_string(),
+        args: vec!["-lc".to_string(), "printf 'abcdefghij\\nkl\\n'".to_string()],
+        env: BTreeMap::new(),
+        cwd: None,
+        terminal_emulation: TerminalEmulation::Xterm256,
+    }
+}
+
 fn title_profile() -> TerminalProfile {
     TerminalProfile {
         id: "title".to_string(),
@@ -328,6 +340,23 @@ fn assert_event_kind_never_arrives(session_id: u64, kind: &str) {
     }
 }
 
+fn selection_request(
+    start_row: usize,
+    start_col: usize,
+    end_row: usize,
+    end_col: usize,
+    block: bool,
+) -> String {
+    serde_json::json!({
+        "start_row": start_row,
+        "start_col": start_col,
+        "end_row": end_row,
+        "end_col": end_col,
+        "block": block,
+    })
+    .to_string()
+}
+
 fn logical_rows_from_frame(frame: &str) -> Vec<String> {
     let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
     let rows = parsed["rows"].as_array().expect("expected rows");
@@ -408,6 +437,49 @@ fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
         .expect("expected scrollback max offset");
 
     assert_eq!(offset, max_after_scroll);
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_selection_text_reads_linear_ranges_across_scrollback() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&scrollback_profile()).unwrap()).unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "line79");
+    let text =
+        session::selection_text_session(session_id, &selection_request(5, 2, 7, 4, false)).unwrap();
+
+    assert_eq!(text, "ne05\nline06\nline");
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_selection_text_keeps_wrapped_rows_contiguous() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&wrapped_selection_profile()).unwrap())
+            .unwrap();
+
+    thread::sleep(Duration::from_millis(200));
+    session::resize_session(session_id, 5, 4, 50, 80).unwrap();
+    let _ = wait_for_frame_containing(session_id, "kl");
+    let text =
+        session::selection_text_session(session_id, &selection_request(0, 3, 1, 2, false)).unwrap();
+
+    assert_eq!(text, "defg");
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_selection_text_clamps_block_ranges_to_available_rows_and_columns() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&scrollback_profile()).unwrap()).unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "line79");
+    let text =
+        session::selection_text_session(session_id, &selection_request(78, 4, 120, 20, true))
+            .unwrap();
+
+    assert_eq!(text, "78\n79\n");
     session::close_session(session_id).unwrap();
 }
 

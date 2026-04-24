@@ -34,6 +34,10 @@ typedef _ScrollToSessionDart = int Function(int, int);
 typedef _SearchSessionNative =
     ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>);
 typedef _SearchSessionDart = ffi.Pointer<Utf8> Function(int, ffi.Pointer<Utf8>);
+typedef _SelectionTextSessionNative =
+    ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>);
+typedef _SelectionTextSessionDart =
+    ffi.Pointer<Utf8> Function(int, ffi.Pointer<Utf8>);
 typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
 typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
@@ -54,6 +58,10 @@ abstract class CoreBindings {
   int sessionScroll(int sessionId, int deltaLines);
   int sessionScrollTo(int sessionId, int offset);
   ffi.Pointer<Utf8> sessionSearchJson(int sessionId, ffi.Pointer<Utf8> query);
+  ffi.Pointer<Utf8> sessionSelectionText(
+    int sessionId,
+    ffi.Pointer<Utf8> requestJson,
+  );
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId);
   ffi.Pointer<Utf8> sessionPollEventsJson(int sessionId);
   void stringFree(ffi.Pointer<Utf8> value);
@@ -90,6 +98,11 @@ class FluttermCoreBindings implements CoreBindings {
           .lookupFunction<_SearchSessionNative, _SearchSessionDart>(
             'flutterm_session_search_json',
           ),
+      _selectionTextSession = library
+          .lookupFunction<
+            _SelectionTextSessionNative,
+            _SelectionTextSessionDart
+          >('flutterm_session_selection_text'),
       _takeFrameDiffJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'flutterm_session_take_frame_diff_json',
@@ -109,6 +122,7 @@ class FluttermCoreBindings implements CoreBindings {
   final _ScrollSessionDart _scrollSession;
   final _ScrollToSessionDart _scrollToSession;
   final _SearchSessionDart _searchSession;
+  final _SelectionTextSessionDart _selectionTextSession;
   final _StringReturningDart _takeFrameDiffJson;
   final _StringReturningDart _pollEventsJson;
   final _FreeStringDart _stringFree;
@@ -154,6 +168,12 @@ class FluttermCoreBindings implements CoreBindings {
   @override
   ffi.Pointer<Utf8> sessionSearchJson(int sessionId, ffi.Pointer<Utf8> query) =>
       _searchSession(sessionId, query);
+
+  @override
+  ffi.Pointer<Utf8> sessionSelectionText(
+    int sessionId,
+    ffi.Pointer<Utf8> requestJson,
+  ) => _selectionTextSession(sessionId, requestJson);
 
   @override
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) =>
@@ -247,6 +267,33 @@ class TerminalCoreClient {
 
   void scrollViewportTo(String sessionId, int offset) {
     _bindings.sessionScrollTo(int.parse(sessionId), offset);
+  }
+
+  String? selectionText(
+    String sessionId,
+    TerminalSelection selection, {
+    required bool block,
+  }) {
+    final requestPointer = jsonEncode(<String, Object?>{
+      ...selection.toJson(),
+      'block': block,
+    }).toNativeUtf8();
+    ffi.Pointer<Utf8> textPointer = ffi.nullptr;
+    try {
+      textPointer = _bindings.sessionSelectionText(
+        int.parse(sessionId),
+        requestPointer,
+      );
+      if (textPointer == ffi.nullptr) {
+        return null;
+      }
+      return textPointer.toDartString();
+    } finally {
+      malloc.free(requestPointer);
+      if (textPointer != ffi.nullptr) {
+        _bindings.stringFree(textPointer);
+      }
+    }
   }
 
   List<TerminalSearchMatch> searchText(String sessionId, String query) {

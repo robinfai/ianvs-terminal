@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:ffi' as ffi;
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
+import 'package:app/features/terminal/terminal_painter_models.dart';
 import 'package:app/ffi/flutterm_core.dart';
 
 class FakeCoreBindings implements CoreBindings {
@@ -17,6 +19,7 @@ class FakeCoreBindings implements CoreBindings {
   final List<List<int>> scrollCalls = [];
   final List<List<int>> scrollToCalls = [];
   final List<List<Object?>> searchCalls = [];
+  final List<List<Object?>> selectionTextCalls = [];
   Map<String, Object?>? lastCreatedProfileJson;
   bool pingCalled = false;
 
@@ -160,6 +163,26 @@ class FakeCoreBindings implements CoreBindings {
   }
 
   @override
+  ffi.Pointer<Utf8> sessionSelectionText(
+    int sessionId,
+    ffi.Pointer<Utf8> requestJson,
+  ) {
+    final request =
+        jsonDecode(requestJson.toDartString()) as Map<String, Object?>;
+    selectionTextCalls.add([sessionId, request]);
+    final frame = _frames[sessionId];
+    if (frame == null) {
+      return ffi.nullptr;
+    }
+    final text = _selectionTextForFrame(
+      TerminalFrameDiff.fromJson(frame),
+      TerminalSelection.fromJson(request),
+      block: request['block'] as bool? ?? false,
+    );
+    return text.toNativeUtf8();
+  }
+
+  @override
   ffi.Pointer<Utf8> sessionTakeFrameDiffJson(int sessionId) {
     final frame = _frames[sessionId];
     if (frame == null) {
@@ -179,4 +202,92 @@ class FakeCoreBindings implements CoreBindings {
   void stringFree(ffi.Pointer<Utf8> value) {
     malloc.free(value);
   }
+}
+
+String _selectionTextForFrame(
+  TerminalFrameDiff frame,
+  TerminalSelection selection, {
+  required bool block,
+}) {
+  if (frame.viewportRows <= 0) {
+    return '';
+  }
+  final normalized = block
+      ? TerminalSelection(
+          startRow: math.min(selection.startRow, selection.endRow),
+          startCol: math.min(selection.startCol, selection.endCol),
+          endRow: math.max(selection.startRow, selection.endRow),
+          endCol: math.max(selection.startCol, selection.endCol),
+        )
+      : selection.normalized();
+  final frameStartRow = frame.viewportStartRow;
+  final frameEndRow = frameStartRow + frame.viewportRows - 1;
+  if (normalized.endRow < frameStartRow || normalized.startRow > frameEndRow) {
+    return '';
+  }
+  final visibleSelection = TerminalSelection(
+    startRow: math.max(0, normalized.startRow - frameStartRow),
+    startCol: block || normalized.startRow >= frameStartRow
+        ? normalized.startCol
+        : 0,
+    endRow: math.min(frame.viewportRows - 1, normalized.endRow - frameStartRow),
+    endCol: block || normalized.endRow <= frameEndRow
+        ? normalized.endCol
+        : frame.viewportCols,
+  );
+  return block
+      ? _blockSelectionText(frame, visibleSelection)
+      : _linearSelectionText(frame, visibleSelection);
+}
+
+String _linearSelectionText(
+  TerminalFrameDiff frame,
+  TerminalSelection selection,
+) {
+  final buffer = StringBuffer();
+  for (
+    var rowIndex = selection.startRow;
+    rowIndex <= selection.endRow;
+    rowIndex += 1
+  ) {
+    final row = _rowFor(frame, rowIndex);
+    final rowCells = TerminalTextCells.fromText(row.text);
+    final start = rowIndex == selection.startRow ? selection.startCol : 0;
+    final end = rowIndex == selection.endRow
+        ? selection.endCol
+        : rowCells.cellCount;
+    if (start < rowCells.cellCount) {
+      buffer.write(rowCells.sliceColumns(start, end));
+    }
+    if (rowIndex != selection.endRow && !row.wrapped) {
+      buffer.writeln();
+    }
+  }
+  return buffer.toString();
+}
+
+String _blockSelectionText(
+  TerminalFrameDiff frame,
+  TerminalSelection selection,
+) {
+  final lines = <String>[];
+  for (
+    var rowIndex = selection.startRow;
+    rowIndex <= selection.endRow;
+    rowIndex += 1
+  ) {
+    final row = _rowFor(frame, rowIndex);
+    final rowCells = TerminalTextCells.fromText(row.text);
+    final start = rowCells.clampColumn(selection.startCol);
+    final end = selection.endCol.clamp(start, rowCells.cellCount).toInt();
+    lines.add(rowCells.sliceColumns(start, end));
+  }
+  return lines.join('\n');
+}
+
+TerminalRow _rowFor(TerminalFrameDiff frame, int rowIndex) {
+  return frame.rows.firstWhere(
+    (entry) => entry.index == rowIndex,
+    orElse: () => const TerminalRow(index: 0, text: ''),
+  );
 }

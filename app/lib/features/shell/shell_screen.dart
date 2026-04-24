@@ -465,13 +465,38 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     String sessionId,
     SelectionController selectionController,
   ) async {
-    final text = selectionController.textForFrame(
-      sessionController.viewportFor(sessionId).frame,
+    final text = _selectionTextForSession(
+      sessionController,
+      sessionId,
+      selectionController,
     );
     if (text.isEmpty) {
       return;
     }
     await ClipboardBridge.copy(text);
+  }
+
+  String _selectionTextForSession(
+    SessionController sessionController,
+    String sessionId,
+    SelectionController selectionController,
+  ) {
+    final frame = sessionController.viewportFor(sessionId).frame;
+    final selection = selectionController.selection;
+    if (selection == null) {
+      return '';
+    }
+    if (ref.read(referenceDemoModeProvider)) {
+      return selectionController.textForFrame(frame);
+    }
+    final text = ref
+        .read(terminalCoreClientProvider)
+        .selectionText(
+          sessionId,
+          selection,
+          block: selectionController.isBlockSelection,
+        );
+    return text ?? selectionController.textForFrame(frame);
   }
 
   Future<void> _pasteToSession(String sessionId) async {
@@ -1034,12 +1059,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 emulation:
                                     activeProfile?.terminalEmulation ??
                                     TerminalEmulation.xterm256,
-                                readSelection: () =>
-                                    selectionController.textForFrame(
-                                      sessionController
-                                          .viewportFor(activeSessionId)
-                                          .frame,
-                                    ),
+                                readSelection: () => _selectionTextForSession(
+                                  sessionController,
+                                  activeSessionId,
+                                  selectionController,
+                                ),
                                 copySelection: (text) =>
                                     ClipboardBridge.copy(text),
                                 readClipboard: ClipboardBridge.paste,

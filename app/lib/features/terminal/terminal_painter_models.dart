@@ -159,6 +159,15 @@ class TerminalSelection {
     );
   }
 
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'start_row': startRow,
+      'start_col': startCol,
+      'end_row': endRow,
+      'end_col': endCol,
+    };
+  }
+
   factory TerminalSelection.fromJson(Map<String, Object?> json) {
     return TerminalSelection(
       startRow: json['start_row']! as int,
@@ -241,6 +250,7 @@ class TerminalFrameDiff {
     required this.dirtyRanges,
     required this.scrollbackOffset,
     required this.scrollbackMaxOffset,
+    this.viewportStartRow = 0,
     this.modes = TerminalFrameModes.empty,
     this.selection,
     this.windowTitle,
@@ -256,6 +266,7 @@ class TerminalFrameDiff {
   final List<TerminalDirtyRange> dirtyRanges;
   final int scrollbackOffset;
   final int scrollbackMaxOffset;
+  final int viewportStartRow;
   final TerminalFrameModes modes;
   final String? windowTitle;
   final String? windowIconName;
@@ -293,6 +304,7 @@ class TerminalFrameDiff {
           .toList(),
       scrollbackOffset: json['scrollback_offset'] as int? ?? 0,
       scrollbackMaxOffset: json['scrollback_max_offset'] as int? ?? 0,
+      viewportStartRow: json['viewport_start_row'] as int? ?? 0,
       modes: json['modes'] == null
           ? TerminalFrameModes.empty
           : TerminalFrameModes.fromJson(json['modes']! as Map<String, Object?>),

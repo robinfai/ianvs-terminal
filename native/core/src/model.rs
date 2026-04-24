@@ -69,6 +69,16 @@ pub struct TerminalSelection {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalSelectionRequest {
+    pub start_row: usize,
+    pub start_col: usize,
+    pub end_row: usize,
+    pub end_col: usize,
+    #[serde(default)]
+    pub block: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalDirtyRange {
     pub start: usize,
     pub end: usize,
@@ -130,6 +140,8 @@ pub struct TerminalFrameDiff {
     pub scrollback_offset: usize,
     #[serde(default)]
     pub scrollback_max_offset: usize,
+    #[serde(default)]
+    pub viewport_start_row: usize,
     #[serde(default)]
     pub modes: TerminalFrameModes,
     #[serde(default)]
