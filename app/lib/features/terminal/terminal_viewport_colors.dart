@@ -82,3 +82,22 @@ class TerminalViewportColors {
     scrollbarThumb,
   );
 }
+
+Color? terminalViewportColorFromHex(String? value) {
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  final normalized = value.replaceFirst('#', '');
+  return Color(int.parse('FF$normalized', radix: 16));
+}
+
+String terminalViewportHexFromColor(Color color) {
+  final red = _colorChannel(color.r).toRadixString(16).padLeft(2, '0');
+  final green = _colorChannel(color.g).toRadixString(16).padLeft(2, '0');
+  final blue = _colorChannel(color.b).toRadixString(16).padLeft(2, '0');
+  return '#${(red + green + blue).toUpperCase()}';
+}
+
+int _colorChannel(double component) {
+  return (component * 255).round().clamp(0, 255);
+}

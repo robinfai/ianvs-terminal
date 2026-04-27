@@ -18,23 +18,23 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
         pixel_height: 0,
     })?;
 
-    let shell = if profile.shell.is_empty() {
+    let shell = if profile.launch.program.is_empty() {
         crate::platform::macos::default_shell()
     } else {
-        profile.shell.clone()
+        profile.launch.program.clone()
     };
 
     let mut command = CommandBuilder::new(shell);
-    for arg in &profile.args {
+    for arg in &profile.launch.args {
         command.arg(arg);
     }
-    if let Some(cwd) = &profile.cwd {
+    if let Some(cwd) = &profile.launch.cwd {
         command.cwd(cwd);
     }
-    for (key, value) in &profile.env {
+    for (key, value) in &profile.launch.env {
         command.env(key, value);
     }
-    match profile.terminal_emulation {
+    match profile.terminal.emulation {
         TerminalEmulation::Xterm256 => {
             command.env("TERM", "xterm-256color");
             command.env("COLORTERM", "truecolor");

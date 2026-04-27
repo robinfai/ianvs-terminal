@@ -1,293 +1,330 @@
-use flutterm_core::model::{TerminalEmulation, TerminalProfile};
+use flutterm_core::model::{
+    TerminalEmulation, TerminalProfile, TerminalProfileAppearance, TerminalProfileInteraction,
+    TerminalProfileLaunch, TerminalProfileTerminal,
+};
 use flutterm_core::session;
 use std::collections::BTreeMap;
 use std::thread;
 use std::time::Duration;
 
-fn test_profile() -> TerminalProfile {
+fn local_profile(
+    id: &str,
+    name: &str,
+    shell: &str,
+    args: Vec<String>,
+    env: BTreeMap<String, String>,
+    emulation: TerminalEmulation,
+) -> TerminalProfile {
+    local_profile_with_scrollback(id, name, shell, args, env, emulation, 8_000)
+}
+
+fn local_profile_with_scrollback(
+    id: &str,
+    name: &str,
+    shell: &str,
+    args: Vec<String>,
+    env: BTreeMap<String, String>,
+    emulation: TerminalEmulation,
+    scrollback_lines: usize,
+) -> TerminalProfile {
     TerminalProfile {
-        id: "test".to_string(),
-        name: "Test".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec!["-lc".to_string(), "printf 'hello\\n'".to_string()],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
+        id: id.to_string(),
+        name: name.to_string(),
+        launch: TerminalProfileLaunch {
+            program: shell.to_string(),
+            args,
+            env,
+            cwd: None,
+        },
+        terminal: TerminalProfileTerminal {
+            emulation,
+            scrollback_lines,
+        },
+        appearance: TerminalProfileAppearance::default(),
+        interaction: TerminalProfileInteraction::default(),
     }
 }
 
+fn test_profile() -> TerminalProfile {
+    local_profile(
+        "test",
+        "Test",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf 'hello\\n'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn interactive_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "interactive".to_string(),
-        name: "Interactive".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+    local_profile(
+        "interactive",
+        "Interactive",
+        "/bin/sh",
+        vec![],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn bash_readline_profile() -> TerminalProfile {
     let mut env = BTreeMap::new();
     env.insert("PS1".to_string(), "PROMPT-XYZ> ".to_string());
     env.insert("INPUTRC".to_string(), "/dev/null".to_string());
-    TerminalProfile {
-        id: "bash-readline".to_string(),
-        name: "Bash Readline".to_string(),
-        shell: "/bin/bash".to_string(),
-        args: vec![
+    local_profile(
+        "bash-readline",
+        "Bash Readline",
+        "/bin/bash",
+        vec![
             "--noprofile".to_string(),
             "--norc".to_string(),
             "-i".to_string(),
         ],
         env,
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn prompt_like_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "prompt-like".to_string(),
-        name: "Prompt-Like".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "prompt-like",
+        "Prompt-Like",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             r"printf '\x1b[38;5;196m\x1b[48;5;46mabc   \x1b[0m\n'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn scrollback_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "scrollback".to_string(),
-        name: "Scrollback".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "scrollback",
+        "Scrollback",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "i=0; while [ \"$i\" -lt 80 ]; do printf 'line%02d\\n' \"$i\"; i=$((i + 1)); done"
                 .to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn limited_scrollback_profile() -> TerminalProfile {
+    local_profile_with_scrollback(
+        "scrollback-limited",
+        "Scrollback Limited",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "i=0; while [ \"$i\" -lt 40 ]; do printf 'line%02d\\n' \"$i\"; i=$((i + 1)); done"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        4,
+    )
 }
 
 fn wrapped_selection_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "wrapped-selection".to_string(),
-        name: "Wrapped Selection".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec!["-lc".to_string(), "printf 'abcdefghij\\nkl\\n'".to_string()],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+    local_profile(
+        "wrapped-selection",
+        "Wrapped Selection",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf 'abcdefghij\\nkl\\n'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn title_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "title".to_string(),
-        name: "Title".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "title",
+        "Title",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "printf '\\033]2;构建目标\\a'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn icon_name_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "icon-name".to_string(),
-        name: "Icon Name".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "icon-name",
+        "Icon Name",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "printf '\\033]1;图标名称\\a'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn resize_request_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "resize-request".to_string(),
-        name: "Resize Request".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec!["-lc".to_string(), "printf '\\033[8;30;100t'".to_string()],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+    local_profile(
+        "resize-request",
+        "Resize Request",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033[8;30;100t'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn clipboard_copy_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "clipboard-copy".to_string(),
-        name: "Clipboard Copy".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "clipboard-copy",
+        "Clipboard Copy",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "printf '\\033]52;c;5aSN5Yi25YaF5a658J+Mnw==\\a'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn clipboard_paste_request_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "clipboard-paste".to_string(),
-        name: "Clipboard Paste".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec!["-lc".to_string(), "printf '\\033]52;c;?\\a'".to_string()],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+    local_profile(
+        "clipboard-paste",
+        "Clipboard Paste",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033]52;c;?\\a'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn hyperlink_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "hyperlink".to_string(),
-        name: "Hyperlink".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "hyperlink",
+        "Hyperlink",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "printf '\\033]8;;https://example.com/docs\\aDocs\\033]8;;\\a\\n'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn vt220_hyperlink_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "vt220-hyperlink".to_string(),
-        name: "VT220 Hyperlink".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "vt220-hyperlink",
+        "VT220 Hyperlink",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "printf '\\033]8;;https://example.com/docs\\aDocs\\033]8;;\\a\\n'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Vt220,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Vt220,
+    )
 }
 
 fn mode_switch_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "mode-switch".to_string(),
-        name: "Mode Switch".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec!["-lc".to_string(), "printf '\\033[?1h\\033='".to_string()],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+    local_profile(
+        "mode-switch",
+        "Mode Switch",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033[?1h\\033='".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn vt220_da_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "vt220-da".to_string(),
-        name: "VT220 DA".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "vt220-da",
+        "VT220 DA",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             r#"python3 -c 'import os,sys; os.write(1,b"\x1b[c"); sys.stdout.flush(); data=os.read(0,128); os.write(1,repr(data).encode()+b"\n")'"#
                 .to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Vt220,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Vt220,
+    )
 }
 
 fn pixel_size_query_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "pixel-size-query".to_string(),
-        name: "Pixel Size Query".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "pixel-size-query",
+        "Pixel Size Query",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             r#"python3 -c 'import os,sys,termios,tty,time; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b[14t"); sys.stdout.flush(); data=os.read(0,128); termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"PIXEL-RESPONSE:"+repr(data).encode()+b"\n")'"#
                 .to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Xterm256,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
 }
 
 fn vt220_title_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "vt220-title".to_string(),
-        name: "VT220 Title".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "vt220-title",
+        "VT220 Title",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "printf '\\033]2;构建目标\\a'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Vt220,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Vt220,
+    )
 }
 
 fn vt220_icon_name_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "vt220-icon-name".to_string(),
-        name: "VT220 Icon Name".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "vt220-icon-name",
+        "VT220 Icon Name",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "printf '\\033]1;图标名称\\a'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Vt220,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Vt220,
+    )
 }
 
 fn vt220_clipboard_copy_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "vt220-clipboard-copy".to_string(),
-        name: "VT220 Clipboard Copy".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec![
+    local_profile(
+        "vt220-clipboard-copy",
+        "VT220 Clipboard Copy",
+        "/bin/sh",
+        vec![
             "-lc".to_string(),
             "printf '\\033]52;c;5aSN5Yi25YaF5a658J+Mnw==\\a'".to_string(),
         ],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Vt220,
-    }
+        BTreeMap::new(),
+        TerminalEmulation::Vt220,
+    )
 }
 
 fn vt220_clipboard_paste_request_profile() -> TerminalProfile {
-    TerminalProfile {
-        id: "vt220-clipboard-paste".to_string(),
-        name: "VT220 Clipboard Paste".to_string(),
-        shell: "/bin/sh".to_string(),
-        args: vec!["-lc".to_string(), "printf '\\033]52;c;?\\a'".to_string()],
-        env: BTreeMap::new(),
-        cwd: None,
-        terminal_emulation: TerminalEmulation::Vt220,
-    }
+    local_profile(
+        "vt220-clipboard-paste",
+        "VT220 Clipboard Paste",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033]52;c;?\\a'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Vt220,
+    )
 }
 
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
@@ -437,6 +474,35 @@ fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
         .expect("expected scrollback max offset");
 
     assert_eq!(offset, max_after_scroll);
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_uses_profile_scrollback_limit_for_spawn_and_resize_rebuild() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&limited_scrollback_profile()).unwrap())
+            .unwrap();
+
+    thread::sleep(Duration::from_millis(250));
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected initial limited scrollback frame");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["scrollback_max_offset"].as_u64(), Some(4));
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let top_frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected top-of-scrollback frame");
+    assert!(!top_frame.contains("line00"));
+
+    session::resize_session(session_id, 120, 20, 0, 0).unwrap();
+    let resized_frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected resized limited scrollback frame");
+    let resized_parsed: serde_json::Value = serde_json::from_str(&resized_frame).unwrap();
+    assert_eq!(resized_parsed["scrollback_max_offset"].as_u64(), Some(4));
+
     session::close_session(session_id).unwrap();
 }
 

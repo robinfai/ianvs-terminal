@@ -859,6 +859,75 @@ void main() {
     },
   );
 
+  test(
+    'bootstrap surfaces configuration warnings and starts sessions from recovered values',
+    () async {
+      final coreBindings = FakeCoreBindings();
+      final coreClient = TerminalCoreClient(coreBindings);
+      final invalidDocument = TerminalProfilesDocument.fromJson({
+        'schemaVersion': 2,
+        'profiles': [
+          {
+            'id': 'default',
+            'name': 'Local Shell',
+            'launch': {
+              'program': '',
+              'args': const ['-l', 2],
+              'env': const {'TERM_PROGRAM': 'flutterm', 'BAD': false},
+              'cwd': null,
+            },
+            'terminal': {'emulation': 'ansi', 'scrollbackLines': -1},
+            'appearance': {
+              'font': {
+                'family': 'Menlo',
+                'fallback': const ['Monaco'],
+              },
+            },
+          },
+        ],
+      });
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(invalidDocument),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.configurationWarnings, isNotEmpty);
+      expect(
+        state.configurationWarnings.map((warning) => warning.path),
+        containsAll(<String>[
+          'launch.program',
+          'launch.args[1]',
+          'launch.env.BAD',
+          'terminal.emulation',
+          'terminal.scrollbackLines',
+        ]),
+      );
+      expect(coreBindings.lastCreatedProfileJson, isNotNull);
+      expect(coreBindings.lastCreatedProfileJson!['launch'], {
+        'program': defaultTerminalProfile().shell,
+        'args': const ['-l'],
+        'env': const {'TERM_PROGRAM': 'flutterm'},
+        'cwd': null,
+      });
+      expect(coreBindings.lastCreatedProfileJson!['terminal'], {
+        'emulation': 'xterm256',
+        'scrollbackLines': 8000,
+      });
+    },
+  );
+
   test('driver-friendly mode avoids the periodic session polling loop', () async {
     final coreBindings = _CountingCoreBindings();
     final coreClient = TerminalCoreClient(coreBindings);
@@ -998,8 +1067,16 @@ void main() {
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 80));
 
+      final state = container.read(sessionControllerProvider);
       expect(coreBindings.lastCreatedProfileJson, isNotNull);
-      expect(coreBindings.lastCreatedProfileJson!['env'], {
+      expect(coreBindings.lastCreatedProfileJson!['launch'], {
+        'program': defaultProfile.shell,
+        'args': defaultProfile.args,
+        'env': {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
+        'cwd': defaultProfile.cwd,
+      });
+      expect(state.tabs.single.profileSnapshot, isNotNull);
+      expect(state.tabs.single.profileSnapshot!.env, {
         'TERM': 'xterm-256color',
         'COLORTERM': 'truecolor',
       });
@@ -1033,6 +1110,58 @@ void main() {
     expect(state.defaultProfileId, 'ssh');
     expect(state.tabs.single.profileId, 'ssh');
   });
+
+  test(
+    'saveProfile clears configuration warnings for the saved profile',
+    () async {
+      final coreClient = TerminalCoreClient(FakeCoreBindings());
+      final profileRepository = _TestProfileRepository(
+        TerminalProfilesDocument(
+          profiles: const [defaultProfile, sshProfile],
+          loadWarnings: const [
+            TerminalProfileLoadWarning(
+              profileId: 'ssh',
+              profileName: 'SSH',
+              path: 'terminal.scrollbackLines',
+              rawValueSummary: '-1',
+              fallbackSummary: 'used default value 8000',
+            ),
+          ],
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          terminalCoreClientProvider.overrideWithValue(coreClient),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      final controller = container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(
+        container.read(sessionControllerProvider).configurationWarnings,
+        hasLength(1),
+      );
+
+      await controller.saveProfile(
+        sshProfile.copyWith(
+          scrollbackLines: 4096,
+          appearance: sshProfile.appearance.copyWith(
+            colors: const TerminalProfileColors(foreground: '#112233'),
+          ),
+        ),
+      );
+
+      final state = container.read(sessionControllerProvider);
+      expect(state.configurationWarnings, isEmpty);
+      expect(profileRepository.savedDocuments.last.loadWarnings, isEmpty);
+    },
+  );
 
   test(
     'bootstrap ignores legacy profile defaults when preferences are absent',

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
+import '../profiles/profile_models.dart';
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
 import 'terminal_input_controller.dart';
@@ -52,6 +53,10 @@ class TerminalViewport extends StatefulWidget {
     this.colors,
     this.backgroundColor,
     this.foregroundColor,
+    this.font = const TerminalProfileFont(),
+    this.cursor = const TerminalProfileCursor(),
+    this.copyOnSelect = false,
+    this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.focusNode,
     this.onOpenLink,
   });
@@ -66,6 +71,10 @@ class TerminalViewport extends StatefulWidget {
   final TerminalViewportColors? colors;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final TerminalProfileFont font;
+  final TerminalProfileCursor cursor;
+  final bool copyOnSelect;
+  final TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
   final ValueChanged<String>? onOpenLink;
 
@@ -204,7 +213,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
 
   bool get _shouldBlinkCursor {
     final frameCursorVisible = widget.controller.frame.cursor.visible;
-    return _focusNode.hasFocus && frameCursorVisible;
+    return widget.cursor.blink && _focusNode.hasFocus && frameCursorVisible;
   }
 
   void _syncCursorBlinkTimer() {
@@ -251,6 +260,10 @@ class _TerminalViewportState extends State<TerminalViewport> {
 
   bool get _terminalMouseEnabled =>
       widget.controller.frame.modes.mouseMode != 'off';
+
+  bool get _usesOptionBlockSelection =>
+      widget.optionDragMode == TerminalOptionDragMode.blockSelection &&
+      HardwareKeyboard.instance.isAltPressed;
 
   RenderTerminalViewport? get _renderViewport {
     final renderObject = _surfaceKey.currentContext?.findRenderObject();
@@ -382,7 +395,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
       _isLocalSelectionActive = true;
       widget.selectionController.begin(
         cell,
-        block: HardwareKeyboard.instance.isAltPressed,
+        block: _usesOptionBlockSelection,
         viewportStartRow: widget.controller.frame.viewportStartRow,
       );
       _syncSelectionAutoScroll();
@@ -427,6 +440,9 @@ class _TerminalViewportState extends State<TerminalViewport> {
       if (_isLocalSelectionActive) {
         _selectionPointerGlobalPosition = event.position;
         _updateLocalSelectionFromPointer(event.position);
+        if (widget.copyOnSelect) {
+          unawaited(widget.inputController.copySelection());
+        }
       }
       _isLocalSelectionActive = false;
       _selectionPointerGlobalPosition = null;
@@ -721,6 +737,8 @@ class _TerminalViewportState extends State<TerminalViewport> {
                               controller: widget.controller,
                               selectionController: widget.selectionController,
                               cursorVisible: _cursorVisible,
+                              font: widget.font,
+                              cursor: widget.cursor,
                               colors: colors,
                             ),
                           ),
@@ -758,12 +776,16 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.controller,
     required this.selectionController,
     required this.cursorVisible,
+    required this.font,
+    required this.cursor,
     required this.colors,
   });
 
   final TerminalViewportController controller;
   final SelectionController selectionController;
   final bool cursorVisible;
+  final TerminalProfileFont font;
+  final TerminalProfileCursor cursor;
   final TerminalViewportColors colors;
 
   @override
@@ -772,6 +794,8 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       controller: controller,
       selectionController: selectionController,
       cursorVisible: cursorVisible,
+      font: font,
+      cursor: cursor,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       colors: colors,
     );
@@ -786,6 +810,8 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..controller = controller
       ..selectionController = selectionController
       ..cursorVisible = cursorVisible
+      ..font = font
+      ..cursor = cursor
       ..colors = colors
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
   }

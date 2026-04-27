@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 
+import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/terminal/render_terminal_viewport.dart';
 import 'package:app/features/terminal/selection_controller.dart';
+import 'package:app/features/terminal/terminal_defaults.dart';
 import 'package:app/features/terminal/terminal_input_controller.dart';
 import 'package:app/features/terminal/terminal_painter_models.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
@@ -332,6 +335,188 @@ void main() {
       expect(selectionController.selection, isNotNull);
     },
   );
+
+  testWidgets(
+    'terminal viewport keeps option-drag block selection by default',
+    (tester) async {
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello world')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  coreClient: TerminalCoreClient(FakeCoreBindings()),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellSize = renderObject.debugCellSize;
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.dragFrom(
+        renderObject.localToGlobal(
+          Offset(cellSize.width / 2, cellSize.height / 2),
+        ),
+        Offset(cellSize.width * 4, cellSize.height),
+      );
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+
+      expect(selectionController.selection, isNotNull);
+      expect(selectionController.isBlockSelection, isTrue);
+    },
+  );
+
+  testWidgets('terminal viewport can disable option-drag block selection', (
+    tester,
+  ) async {
+    final selectionController = SelectionController();
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'hello world')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: TerminalInputController(
+                sessionId: '1',
+                coreClient: TerminalCoreClient(FakeCoreBindings()),
+                readFrame: () => controller.frame,
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              optionDragMode: TerminalOptionDragMode.normalSelection,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final cellSize = renderObject.debugCellSize;
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await tester.dragFrom(
+      renderObject.localToGlobal(
+        Offset(cellSize.width / 2, cellSize.height / 2),
+      ),
+      Offset(cellSize.width * 4, cellSize.height),
+    );
+    await tester.pump();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+
+    expect(selectionController.selection, isNotNull);
+    expect(selectionController.isBlockSelection, isFalse);
+  });
+
+  testWidgets('terminal viewport copies selection on pointer up when enabled', (
+    tester,
+  ) async {
+    final copied = <String>[];
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'hello world')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: SelectionController(),
+              inputController: TerminalInputController(
+                sessionId: '1',
+                coreClient: TerminalCoreClient(FakeCoreBindings()),
+                readFrame: () => controller.frame,
+                readSelection: () => 'hello',
+                copySelection: (text) async => copied.add(text),
+                readClipboard: () async => '',
+              ),
+              copyOnSelect: true,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final cellSize = renderObject.debugCellSize;
+    await tester.dragFrom(
+      renderObject.localToGlobal(
+        Offset(cellSize.width / 2, cellSize.height / 2),
+      ),
+      Offset(cellSize.width * 4, 0),
+    );
+    await tester.pump();
+
+    expect(copied, ['hello']);
+  });
 
   testWidgets(
     'terminal viewport auto-scrolls selection upward near the top edge',
@@ -1788,7 +1973,7 @@ void main() {
     },
   );
 
-  testWidgets('terminal cursor defaults to an underline shape', (tester) async {
+  testWidgets('terminal cursor defaults to a block shape', (tester) async {
     final renderObject = await _pumpThemedTerminalViewport(
       tester,
       themeMode: ThemeMode.dark,
@@ -1808,8 +1993,74 @@ void main() {
 
     expect(cursorRect.left, 2 * cellSize.width);
     expect(cursorRect.width, cellSize.width);
+    expect(cursorRect.height, cellSize.height);
+    expect(cursorRect.top, 0);
+  });
+
+  testWidgets('terminal viewport paints underline cursor overrides', (
+    tester,
+  ) async {
+    final renderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.dark,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ready')],
+        cursor: TerminalCursor(row: 0, col: 2, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+      cursor: const TerminalProfileCursor(shape: TerminalCursorShape.underline),
+    );
+
+    final cursorRect = renderObject.debugCursorRect!;
+    final cellSize = renderObject.debugCellSize;
+
+    expect(cursorRect.left, 2 * cellSize.width);
+    expect(cursorRect.width, cellSize.width);
     expect(cursorRect.height, lessThan(cellSize.height / 3));
     expect(cursorRect.bottom, cellSize.height);
+  });
+
+  testWidgets('terminal viewport updates measured cells for font overrides', (
+    tester,
+  ) async {
+    final defaultRenderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.dark,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ready')],
+        cursor: TerminalCursor(row: 0, col: 2, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+    final defaultCellHeight = defaultRenderObject.debugCellSize.height;
+
+    final largerFontRenderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.dark,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'ready')],
+        cursor: TerminalCursor(row: 0, col: 2, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+      font: const TerminalProfileFont(size: 18, lineHeight: 1.8),
+    );
+
+    expect(
+      largerFontRenderObject.debugCellSize.height,
+      greaterThan(defaultCellHeight),
+    );
   });
 
   testWidgets(
@@ -2237,6 +2488,8 @@ Future<RenderTerminalViewport> _pumpThemedTerminalViewport(
   required ThemeMode themeMode,
   required TerminalFrameDiff frame,
   TerminalViewportColors? colors,
+  TerminalProfileFont font = const TerminalProfileFont(),
+  TerminalProfileCursor cursor = const TerminalProfileCursor(),
 }) async {
   final controller = TerminalViewportController()..updateFrame(frame);
   await _pumpTerminalViewportWithController(
@@ -2244,6 +2497,8 @@ Future<RenderTerminalViewport> _pumpThemedTerminalViewport(
     controller: controller,
     themeMode: themeMode,
     colors: colors,
+    font: font,
+    cursor: cursor,
   );
   return tester.allRenderObjects.whereType<RenderTerminalViewport>().last;
 }
@@ -2253,6 +2508,8 @@ Future<void> _pumpTerminalViewportWithController(
   required TerminalViewportController controller,
   required ThemeMode themeMode,
   TerminalViewportColors? colors,
+  TerminalProfileFont font = const TerminalProfileFont(),
+  TerminalProfileCursor cursor = const TerminalProfileCursor(),
 }) async {
   final selectionController = SelectionController();
   final inputController = TerminalInputController(
@@ -2278,6 +2535,8 @@ Future<void> _pumpTerminalViewportWithController(
             selectionController: selectionController,
             inputController: inputController,
             colors: colors,
+            font: font,
+            cursor: cursor,
             onScrollLines: (_) {},
             onScrollToOffset: (_) {},
           ),

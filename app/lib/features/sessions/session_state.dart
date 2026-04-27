@@ -6,6 +6,7 @@ class TerminalTab {
     required this.sessionId,
     required this.title,
     required this.profileId,
+    this.profileSnapshot,
     this.isExited = false,
     this.exitCode,
   });
@@ -13,14 +14,21 @@ class TerminalTab {
   final String sessionId;
   final String title;
   final String profileId;
+  final TerminalProfile? profileSnapshot;
   final bool isExited;
   final int? exitCode;
 
-  TerminalTab copyWith({String? title, bool? isExited, int? exitCode}) {
+  TerminalTab copyWith({
+    String? title,
+    TerminalProfile? profileSnapshot,
+    bool? isExited,
+    int? exitCode,
+  }) {
     return TerminalTab(
       sessionId: sessionId,
       title: title ?? this.title,
       profileId: profileId,
+      profileSnapshot: profileSnapshot ?? this.profileSnapshot,
       isExited: isExited ?? this.isExited,
       exitCode: exitCode ?? this.exitCode,
     );
@@ -34,6 +42,7 @@ class SessionState {
     required this.profiles,
     required this.defaultProfileId,
     required this.configuredDefaultProfileId,
+    required this.configurationWarnings,
     required this.themeMode,
     required this.isReady,
     this.lastError,
@@ -44,6 +53,7 @@ class SessionState {
   final List<TerminalProfile> profiles;
   final String? defaultProfileId;
   final String? configuredDefaultProfileId;
+  final List<TerminalProfileLoadWarning> configurationWarnings;
   final TerminalThemeMode themeMode;
   final bool isReady;
   final String? lastError;
@@ -55,6 +65,7 @@ class SessionState {
       profiles: [],
       defaultProfileId: null,
       configuredDefaultProfileId: null,
+      configurationWarnings: [],
       themeMode: TerminalThemeMode.system,
       isReady: false,
     );
@@ -66,6 +77,7 @@ class SessionState {
     List<TerminalProfile>? profiles,
     Object? defaultProfileId = _sessionStateNoChange,
     Object? configuredDefaultProfileId = _sessionStateNoChange,
+    List<TerminalProfileLoadWarning>? configurationWarnings,
     TerminalThemeMode? themeMode,
     bool? isReady,
     Object? lastError = _sessionStateNoChange,
@@ -83,6 +95,8 @@ class SessionState {
           identical(configuredDefaultProfileId, _sessionStateNoChange)
           ? this.configuredDefaultProfileId
           : configuredDefaultProfileId as String?,
+      configurationWarnings:
+          configurationWarnings ?? this.configurationWarnings,
       themeMode: themeMode ?? this.themeMode,
       isReady: isReady ?? this.isReady,
       lastError: identical(lastError, _sessionStateNoChange)

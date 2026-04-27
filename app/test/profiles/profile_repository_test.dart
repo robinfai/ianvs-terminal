@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
+import 'package:app/features/terminal/terminal_defaults.dart';
 
 void main() {
   test(
@@ -27,7 +28,18 @@ void main() {
       final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
 
       expect(loaded.profiles.single.name, 'Custom Shell');
+      expect(
+        raw['schemaVersion'],
+        TerminalProfilesDocument.currentSchemaVersion,
+      );
       expect(raw.containsKey('defaultProfileId'), isFalse);
+      expect(
+        (raw['profiles'] as List<dynamic>).single,
+        containsPair(
+          'launch',
+          containsPair('program', defaultTerminalProfile().shell),
+        ),
+      );
     },
   );
 
@@ -57,6 +69,10 @@ void main() {
             .firstWhere((profile) => profile.id == vt220TerminalProfile().id)
             .terminalEmulation,
         TerminalEmulation.vt220,
+      );
+      expect(
+        raw['schemaVersion'],
+        TerminalProfilesDocument.currentSchemaVersion,
       );
       expect(raw.containsKey('defaultProfileId'), isFalse);
     },
@@ -95,6 +111,8 @@ void main() {
         loaded.profiles.single.terminalEmulation,
         TerminalEmulation.xterm256,
       );
+      expect(loaded.schemaVersion, 1);
+      expect(loaded.toJson()['schemaVersion'], 1);
       expect(loaded.toJson().containsKey('defaultProfileId'), isFalse);
     },
   );
@@ -132,6 +150,220 @@ void main() {
         loaded.profiles.single.terminalEmulation,
         TerminalEmulation.xterm256,
       );
+      expect(loaded.schemaVersion, 1);
+    },
+  );
+
+  test('profile repository reads nested schema v2 documents', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'flutterm-profiles-v2',
+    );
+    final file = File('${directory.path}/flutterm_profiles.json');
+    await file.parent.create(recursive: true);
+    await file.writeAsString(
+      jsonEncode({
+        'schemaVersion': 2,
+        'profiles': [
+          {
+            'id': 'default',
+            'name': 'Local Shell',
+            'launch': {
+              'program': '/bin/zsh',
+              'args': const ['-l'],
+              'env': const {'TERM_PROGRAM': 'flutterm'},
+              'cwd': '/tmp',
+            },
+            'terminal': {'emulation': 'vt220', 'scrollbackLines': 4096},
+            'appearance': {
+              'font': {
+                'family': 'Menlo',
+                'fallback': const ['Monaco'],
+                'size': 13,
+                'lineHeight': 1.4,
+              },
+              'colors': {
+                'foreground': '#eeeeee',
+                'background': '#111111',
+                'cursor': '#22c55e',
+                'selection': '#334155',
+              },
+              'cursor': {'shape': 'beam', 'blink': false},
+            },
+            'interaction': {
+              'copyOnSelect': true,
+              'optionDragMode': 'normal_selection',
+            },
+          },
+        ],
+      }),
+    );
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
+
+    final loaded = await repository.load();
+
+    expect(loaded.schemaVersion, 2);
+    expect(loaded.profiles.single.shell, '/bin/zsh');
+    expect(loaded.profiles.single.args, const ['-l']);
+    expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
+    expect(loaded.profiles.single.cwd, '/tmp');
+    expect(loaded.profiles.single.terminalEmulation, TerminalEmulation.vt220);
+    expect(loaded.profiles.single.scrollbackLines, 4096);
+    expect(loaded.profiles.single.appearance.font.family, 'Menlo');
+    expect(
+      loaded.profiles.single.appearance.cursor.shape,
+      TerminalCursorShape.beam,
+    );
+    expect(loaded.profiles.single.appearance.cursor.blink, isFalse);
+    expect(loaded.profiles.single.interaction.copyOnSelect, isTrue);
+    expect(
+      loaded.profiles.single.interaction.optionDragMode,
+      TerminalOptionDragMode.normalSelection,
+    );
+  });
+
+  test(
+    'profile repository tolerates invalid nested fields and reports warnings',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'flutterm-profiles-invalid-fields',
+      );
+      final file = File('${directory.path}/flutterm_profiles.json');
+      await file.parent.create(recursive: true);
+      final rawDocument = jsonEncode({
+        'schemaVersion': 2,
+        'profiles': [
+          {
+            'name': '',
+            'launch': {
+              'program': 7,
+              'args': const ['-l', 3, ''],
+              'env': const {'TERM_PROGRAM': 'flutterm', 'BAD': 9, '': 'empty'},
+              'cwd': 42,
+            },
+            'terminal': {'emulation': 'ansi', 'scrollbackLines': -1},
+            'appearance': {
+              'font': {
+                'family': '',
+                'fallback': const ['Monaco', 4, ' '],
+                'size': 0,
+                'lineHeight': -1,
+              },
+              'colors': {
+                'foreground': 'red',
+                'background': '#112233',
+                'cursor': 12,
+                'selection': '#334455',
+              },
+              'cursor': {'shape': 'triangle', 'blink': 'yes'},
+            },
+            'interaction': {'copyOnSelect': 'no', 'optionDragMode': 'diagonal'},
+          },
+        ],
+      });
+      await file.writeAsString(rawDocument);
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+      final rawAfterLoad = await file.readAsString();
+
+      expect(rawAfterLoad, rawDocument);
+      expect(loaded.profiles.single.id, 'profile-1');
+      expect(loaded.profiles.single.name, 'profile-1');
+      expect(loaded.profiles.single.shell, defaultTerminalProfile().shell);
+      expect(loaded.profiles.single.args, const ['-l']);
+      expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
+      expect(loaded.profiles.single.cwd, isNull);
+      expect(
+        loaded.profiles.single.terminalEmulation,
+        TerminalEmulation.xterm256,
+      );
+      expect(loaded.profiles.single.scrollbackLines, 8000);
+      expect(
+        loaded.profiles.single.appearance.font.family,
+        terminalPrimaryFontFamily,
+      );
+      expect(loaded.profiles.single.appearance.font.fallback, const ['Monaco']);
+      expect(loaded.profiles.single.appearance.font.size, terminalFontSize);
+      expect(
+        loaded.profiles.single.appearance.font.lineHeight,
+        terminalLineHeight,
+      );
+      expect(loaded.profiles.single.appearance.colors.foreground, isNull);
+      expect(loaded.profiles.single.appearance.colors.background, '#112233');
+      expect(loaded.profiles.single.appearance.colors.cursor, isNull);
+      expect(loaded.profiles.single.appearance.colors.selection, '#334455');
+      expect(
+        loaded.profiles.single.appearance.cursor.shape,
+        TerminalCursorShape.block,
+      );
+      expect(loaded.profiles.single.appearance.cursor.blink, isTrue);
+      expect(loaded.profiles.single.interaction.copyOnSelect, isFalse);
+      expect(
+        loaded.profiles.single.interaction.optionDragMode,
+        TerminalOptionDragMode.blockSelection,
+      );
+      expect(loaded.loadWarnings, isNotEmpty);
+      expect(
+        loaded.loadWarnings.map((warning) => warning.path),
+        containsAll(<String>[
+          'id',
+          'name',
+          'launch.program',
+          'launch.args[1]',
+          'launch.env.BAD',
+          'launch.cwd',
+          'terminal.emulation',
+          'terminal.scrollbackLines',
+          'appearance.font.family',
+          'appearance.font.fallback[1]',
+          'appearance.font.size',
+          'appearance.font.lineHeight',
+          'appearance.colors.foreground',
+          'appearance.colors.cursor',
+          'appearance.cursor.shape',
+          'appearance.cursor.blink',
+          'interaction.copyOnSelect',
+          'interaction.optionDragMode',
+        ]),
+      );
+      expect(loaded.toJson().containsKey('loadWarnings'), isFalse);
+    },
+  );
+
+  test(
+    'profile repository falls back in-memory when the json document is malformed',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'flutterm-profiles-malformed-json',
+      );
+      final file = File('${directory.path}/flutterm_profiles.json');
+      await file.parent.create(recursive: true);
+      await file.writeAsString('{bad json');
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(
+        loaded.profiles.map((profile) => profile.id),
+        containsAll(<String>[
+          defaultTerminalProfile().id,
+          vt220TerminalProfile().id,
+        ]),
+      );
+      expect(loaded.loadWarnings, hasLength(1));
+      expect(loaded.loadWarnings.single.profileId, 'document');
+      expect(loaded.loadWarnings.single.path, 'document');
+      expect(
+        loaded.loadWarnings.single.fallbackSummary,
+        'loaded in-memory fallback profiles',
+      );
+      expect(await file.readAsString(), '{bad json');
     },
   );
 }

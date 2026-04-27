@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -9,18 +10,195 @@ pub enum TerminalEmulation {
     Vt220,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TerminalProfile {
-    pub id: String,
-    pub name: String,
-    pub shell: String,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalCursorShape {
+    #[default]
+    Block,
+    Underline,
+    Beam,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalOptionDragMode {
+    NormalSelection,
+    #[default]
+    BlockSelection,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TerminalProfileLaunch {
+    #[serde(default)]
+    pub program: String,
     #[serde(default)]
     pub args: Vec<String>,
     #[serde(default)]
-    pub env: std::collections::BTreeMap<String, String>,
+    pub env: BTreeMap<String, String>,
+    #[serde(default)]
     pub cwd: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalProfileTerminal {
+    #[serde(default)]
+    pub emulation: TerminalEmulation,
+    #[serde(rename = "scrollbackLines", default = "default_scrollback_lines")]
+    pub scrollback_lines: usize,
+}
+
+impl Default for TerminalProfileTerminal {
+    fn default() -> Self {
+        Self {
+            emulation: TerminalEmulation::Xterm256,
+            scrollback_lines: default_scrollback_lines(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalProfileFont {
+    #[serde(default = "default_terminal_primary_font_family")]
+    pub family: String,
+    #[serde(default = "default_terminal_font_fallback")]
+    pub fallback: Vec<String>,
+    #[serde(default = "default_terminal_font_size")]
+    pub size: f64,
+    #[serde(rename = "lineHeight", default = "default_terminal_line_height")]
+    pub line_height: f64,
+}
+
+impl Default for TerminalProfileFont {
+    fn default() -> Self {
+        Self {
+            family: default_terminal_primary_font_family(),
+            fallback: default_terminal_font_fallback(),
+            size: default_terminal_font_size(),
+            line_height: default_terminal_line_height(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TerminalProfileColors {
+    #[serde(default)]
+    pub foreground: Option<String>,
+    #[serde(default)]
+    pub background: Option<String>,
+    #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
+    pub selection: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalProfileCursor {
+    #[serde(default)]
+    pub shape: TerminalCursorShape,
+    #[serde(default = "default_cursor_blink")]
+    pub blink: bool,
+}
+
+impl Default for TerminalProfileCursor {
+    fn default() -> Self {
+        Self {
+            shape: TerminalCursorShape::Block,
+            blink: default_cursor_blink(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TerminalProfileAppearance {
+    #[serde(default)]
+    pub font: TerminalProfileFont,
+    #[serde(default)]
+    pub colors: TerminalProfileColors,
+    #[serde(default)]
+    pub cursor: TerminalProfileCursor,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalProfileInteraction {
+    #[serde(rename = "copyOnSelect", default)]
+    pub copy_on_select: bool,
+    #[serde(rename = "optionDragMode", default)]
+    pub option_drag_mode: TerminalOptionDragMode,
+}
+
+impl Default for TerminalProfileInteraction {
+    fn default() -> Self {
+        Self {
+            copy_on_select: false,
+            option_drag_mode: TerminalOptionDragMode::BlockSelection,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TerminalProfile {
+    pub id: String,
+    pub name: String,
+    pub launch: TerminalProfileLaunch,
+    #[serde(default)]
+    pub terminal: TerminalProfileTerminal,
+    #[serde(default)]
+    pub appearance: TerminalProfileAppearance,
+    #[serde(default)]
+    pub interaction: TerminalProfileInteraction,
+}
+
+impl<'de> Deserialize<'de> for TerminalProfile {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = TerminalProfileWire::deserialize(deserializer)?;
+
+        let launch = wire.launch.unwrap_or_else(|| TerminalProfileLaunch {
+            program: wire.shell.unwrap_or_default(),
+            args: wire.args.unwrap_or_default(),
+            env: wire.env.unwrap_or_default(),
+            cwd: wire.cwd,
+        });
+        let terminal = wire.terminal.unwrap_or_else(|| TerminalProfileTerminal {
+            emulation: wire.terminal_emulation.unwrap_or_default(),
+            ..TerminalProfileTerminal::default()
+        });
+
+        Ok(Self {
+            id: wire.id,
+            name: wire.name,
+            launch,
+            terminal,
+            appearance: wire.appearance.unwrap_or_default(),
+            interaction: wire.interaction.unwrap_or_default(),
+        })
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TerminalProfileWire {
+    id: String,
+    name: String,
+    #[serde(default)]
+    launch: Option<TerminalProfileLaunch>,
+    #[serde(default)]
+    terminal: Option<TerminalProfileTerminal>,
+    #[serde(default)]
+    appearance: Option<TerminalProfileAppearance>,
+    #[serde(default)]
+    interaction: Option<TerminalProfileInteraction>,
+    #[serde(default)]
+    shell: Option<String>,
+    #[serde(default)]
+    args: Option<Vec<String>>,
+    #[serde(default)]
+    env: Option<BTreeMap<String, String>>,
+    #[serde(default)]
+    cwd: Option<String>,
     #[serde(rename = "terminalEmulation", default)]
-    pub terminal_emulation: TerminalEmulation,
+    terminal_emulation: Option<TerminalEmulation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,4 +343,34 @@ fn default_mouse_mode() -> String {
 
 fn default_mouse_encoding() -> String {
     "default".to_string()
+}
+
+fn default_scrollback_lines() -> usize {
+    8_000
+}
+
+fn default_terminal_primary_font_family() -> String {
+    "JetBrainsMono Nerd Font Mono".to_string()
+}
+
+fn default_terminal_font_fallback() -> Vec<String> {
+    vec![
+        "Menlo".to_string(),
+        "JetBrainsMono Nerd Font".to_string(),
+        "SF Mono".to_string(),
+        "Monaco".to_string(),
+        "Apple Symbols".to_string(),
+    ]
+}
+
+fn default_terminal_font_size() -> f64 {
+    14.0
+}
+
+fn default_terminal_line_height() -> f64 {
+    1.6
+}
+
+fn default_cursor_blink() -> bool {
+    true
 }

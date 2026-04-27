@@ -3,21 +3,11 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
 
+import '../profiles/profile_models.dart';
 import 'selection_controller.dart';
 import 'terminal_painter_models.dart';
 import 'terminal_viewport.dart';
 import 'terminal_viewport_colors.dart';
-
-const String terminalPrimaryFontFamily = 'JetBrainsMono Nerd Font Mono';
-const double terminalFontSize = 14;
-const double terminalLineHeight = 1.6;
-const List<String> terminalFontFamilyFallback = <String>[
-  'Menlo',
-  'JetBrainsMono Nerd Font',
-  'SF Mono',
-  'Monaco',
-  'Apple Symbols',
-];
 
 enum TerminalGlyphPlacementPolicy {
   baselineLeft,
@@ -119,11 +109,15 @@ class RenderTerminalViewport extends RenderBox {
     required TerminalViewportController controller,
     required SelectionController selectionController,
     required bool cursorVisible,
+    required TerminalProfileFont font,
+    required TerminalProfileCursor cursor,
     required double devicePixelRatio,
     required TerminalViewportColors colors,
   }) : _controller = controller,
        _selectionController = selectionController,
        _cursorVisible = cursorVisible,
+       _font = font,
+       _cursor = cursor,
        _devicePixelRatio = devicePixelRatio,
        _colors = colors {
     _controller.addListener(markNeedsPaint);
@@ -132,6 +126,8 @@ class RenderTerminalViewport extends RenderBox {
 
   TerminalViewportController _controller;
   SelectionController _selectionController;
+  TerminalProfileFont _font;
+  TerminalProfileCursor _cursor;
   double _devicePixelRatio;
   bool _cursorVisible = true;
   TerminalViewportColors _colors;
@@ -170,6 +166,24 @@ class RenderTerminalViewport extends RenderBox {
 
   set devicePixelRatio(double value) {
     _devicePixelRatio = value;
+  }
+
+  set font(TerminalProfileFont value) {
+    if (_sameFontConfig(value, _font)) {
+      return;
+    }
+    _font = value;
+    _clearResolvedLayoutCaches();
+    _glyphParagraphCache.clear();
+    markNeedsPaint();
+  }
+
+  set cursor(TerminalProfileCursor value) {
+    if (_cursor.shape == value.shape && _cursor.blink == value.blink) {
+      return;
+    }
+    _cursor = value;
+    markNeedsPaint();
   }
 
   set cursorVisible(bool value) {
@@ -303,7 +317,7 @@ class RenderTerminalViewport extends RenderBox {
     _debugLastPaintedRowTexts = paintedRowTexts;
 
     if (frame.cursor.visible && _cursorVisible) {
-      final cursorRect = _cursorUnderlineRect(frame.cursor);
+      final cursorRect = _cursorRect(frame.cursor);
       _debugCursorRect = cursorRect;
       canvas.drawRect(
         cursorRect,
@@ -525,6 +539,10 @@ class RenderTerminalViewport extends RenderBox {
     final signature = Object.hash(
       text,
       style.foreground.toARGB32(),
+      _font.family,
+      Object.hashAll(_font.fallback),
+      _font.size,
+      _font.lineHeight,
       style.fontWeight,
       style.fontStyle,
       style.decoration,
@@ -533,26 +551,17 @@ class RenderTerminalViewport extends RenderBox {
     if (cached != null) {
       return cached;
     }
-    final builder =
-        ui.ParagraphBuilder(
-            ui.ParagraphStyle(
-              fontFamily: terminalPrimaryFontFamily,
-              fontSize: terminalFontSize,
-              height: terminalLineHeight,
-            ),
-          )
-          ..pushStyle(
-            ui.TextStyle(
-              color: style.foreground,
-              fontFamily: terminalPrimaryFontFamily,
-              fontFamilyFallback: terminalFontFamilyFallback,
-              fontWeight: style.fontWeight,
-              fontStyle: style.fontStyle,
-              decoration: style.decoration,
-            ),
-          )
-          ..addText(text)
-          ..pop();
+    final builder = ui.ParagraphBuilder(_paragraphStyle())
+      ..pushStyle(
+        _textStyle(
+          color: style.foreground,
+          fontWeight: style.fontWeight,
+          fontStyle: style.fontStyle,
+          decoration: style.decoration,
+        ),
+      )
+      ..addText(text)
+      ..pop();
     final paragraph = builder.build()
       ..layout(ui.ParagraphConstraints(width: math.max(size.width, 100000.0)));
     final glyphParagraph = _CachedGlyphParagraph(
@@ -565,13 +574,10 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   _MeasuredCellMetrics _measureCellMetrics() {
-    final builder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        fontFamily: terminalPrimaryFontFamily,
-        fontSize: terminalFontSize,
-        height: terminalLineHeight,
-      ),
-    )..addText('W');
+    final builder = ui.ParagraphBuilder(_paragraphStyle())
+      ..pushStyle(_textStyle())
+      ..addText('W')
+      ..pop();
     final paragraph = builder.build()
       ..layout(const ui.ParagraphConstraints(width: double.infinity));
     return _MeasuredCellMetrics(
@@ -581,13 +587,10 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   TerminalRowTextMetrics _measureRowTextMetrics() {
-    final builder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(
-        fontFamily: terminalPrimaryFontFamily,
-        fontSize: terminalFontSize,
-        height: terminalLineHeight,
-      ),
-    )..addText('Hg');
+    final builder = ui.ParagraphBuilder(_paragraphStyle())
+      ..pushStyle(_textStyle())
+      ..addText('Hg')
+      ..pop();
     final paragraph = builder.build()
       ..layout(const ui.ParagraphConstraints(width: double.infinity));
     final lineMetrics = paragraph.computeLineMetrics();
@@ -741,6 +744,32 @@ class RenderTerminalViewport extends RenderBox {
     return spans;
   }
 
+  Rect _cursorRect(TerminalCursor cursor) {
+    return switch (_cursor.shape) {
+      TerminalCursorShape.block => _cursorBlockRect(cursor),
+      TerminalCursorShape.beam => _cursorBeamRect(cursor),
+      TerminalCursorShape.underline => _cursorUnderlineRect(cursor),
+    };
+  }
+
+  Rect _cursorBlockRect(TerminalCursor cursor) {
+    final left = cursor.col * _cellSize.width;
+    final top = cursor.row * _cellSize.height;
+    return _snapRect(
+      Rect.fromLTWH(left, top, _cellSize.width, _cellSize.height),
+    );
+  }
+
+  Rect _cursorBeamRect(TerminalCursor cursor) {
+    final devicePixelRatio = _devicePixelRatio.isFinite && _devicePixelRatio > 0
+        ? _devicePixelRatio
+        : 1.0;
+    final thickness = math.max(1.0, 2.0 / devicePixelRatio);
+    final left = cursor.col * _cellSize.width;
+    final top = cursor.row * _cellSize.height;
+    return _snapRect(Rect.fromLTWH(left, top, thickness, _cellSize.height));
+  }
+
   Rect _cursorUnderlineRect(TerminalCursor cursor) {
     final devicePixelRatio = _devicePixelRatio.isFinite && _devicePixelRatio > 0
         ? _devicePixelRatio
@@ -756,6 +785,32 @@ class RenderTerminalViewport extends RenderBox {
         left + _cellSize.width,
         bottom,
       ),
+    );
+  }
+
+  ui.ParagraphStyle _paragraphStyle() {
+    return ui.ParagraphStyle(
+      fontFamily: _font.family,
+      fontSize: _font.size,
+      height: _font.lineHeight,
+    );
+  }
+
+  ui.TextStyle _textStyle({
+    Color? color,
+    FontWeight? fontWeight,
+    FontStyle? fontStyle,
+    TextDecoration? decoration,
+  }) {
+    return ui.TextStyle(
+      color: color,
+      fontFamily: _font.family,
+      fontFamilyFallback: _font.fallback,
+      fontSize: _font.size,
+      height: _font.lineHeight,
+      fontWeight: fontWeight,
+      fontStyle: fontStyle,
+      decoration: decoration,
     );
   }
 
@@ -843,6 +898,25 @@ class RenderTerminalViewport extends RenderBox {
     _selectionController.removeListener(markNeedsPaint);
     super.dispose();
   }
+}
+
+bool _sameFontConfig(TerminalProfileFont left, TerminalProfileFont right) {
+  return left.family == right.family &&
+      left.size == right.size &&
+      left.lineHeight == right.lineHeight &&
+      _sameStringList(left.fallback, right.fallback);
+}
+
+bool _sameStringList(List<String> left, List<String> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    if (left[index] != right[index]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 class _ResolvedCellStyle {

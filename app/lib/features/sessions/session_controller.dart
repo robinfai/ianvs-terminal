@@ -128,6 +128,7 @@ class SessionController extends Notifier<SessionState> {
       profiles: runtimeProfiles,
       defaultProfileId: resolution.effectiveDefaultProfileId,
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+      configurationWarnings: profiles.loadWarnings,
       themeMode: _appPreferences.appearance.themeMode,
       isReady: true,
     );
@@ -179,8 +180,9 @@ class SessionController extends Notifier<SessionState> {
         ...state.tabs,
         TerminalTab(
           sessionId: sessionId,
-          title: profile.name,
+          title: launchProfile.name,
           profileId: profile.id,
+          profileSnapshot: launchProfile,
         ),
       ],
       activeSessionId: sessionId,
@@ -386,6 +388,11 @@ class SessionController extends Notifier<SessionState> {
       return windowIconName;
     }
 
+    final profileSnapshot = tab.profileSnapshot;
+    if (profileSnapshot != null) {
+      return profileSnapshot.name;
+    }
+
     for (final profile in state.profiles) {
       if (profile.id == tab.profileId) {
         return profile.name;
@@ -575,7 +582,18 @@ class SessionController extends Notifier<SessionState> {
       profiles: nextProfiles,
       defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+      configurationWarnings: [
+        for (final warning in state.configurationWarnings)
+          if (warning.profileId != profile.id) warning,
+      ],
     );
+  }
+
+  void dismissConfigurationWarnings() {
+    if (state.configurationWarnings.isEmpty) {
+      return;
+    }
+    state = state.copyWith(configurationWarnings: const []);
   }
 
   Future<void> setDefaultProfile(String profileId) async {
@@ -636,6 +654,10 @@ class SessionController extends Notifier<SessionState> {
       profiles: nextProfiles,
       defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+      configurationWarnings: [
+        for (final warning in state.configurationWarnings)
+          if (warning.profileId != profileId) warning,
+      ],
     );
   }
 

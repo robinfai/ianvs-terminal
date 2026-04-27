@@ -441,6 +441,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         (profiles.isEmpty ? null : profiles.first);
   }
 
+  TerminalViewportColors _terminalColorsForProfile(
+    TerminalViewportColors baseColors,
+    TerminalProfile? profile,
+  ) {
+    final overrides = profile?.appearance.colors;
+    if (overrides == null) {
+      return baseColors;
+    }
+    return baseColors.copyWith(
+      canvasBackground: terminalViewportColorFromHex(overrides.background),
+      foreground: terminalViewportColorFromHex(overrides.foreground),
+      cursor: terminalViewportColorFromHex(overrides.cursor),
+      selection: terminalViewportColorFromHex(overrides.selection),
+    );
+  }
+
   String _defaultSummary(
     List<TerminalProfile> profiles,
     String? configuredDefaultProfileId,
@@ -631,8 +647,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     });
     _publishAcceptanceSnapshot();
 
-    final stateBeforeSave = ref.read(sessionControllerProvider);
     if (selection != null) {
+      if (selection.openProfiles) {
+        await _openProfilesSheet(
+          sessionController,
+          ref.read(sessionControllerProvider),
+        );
+        return;
+      }
+      final stateBeforeSave = ref.read(sessionControllerProvider);
       if (selection.configuredDefaultProfileId !=
           stateBeforeSave.configuredDefaultProfileId) {
         if (selection.configuredDefaultProfileId == null) {
@@ -916,11 +939,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     final activeProfile = activeTab == null
         ? null
-        : _profileForId(sessionState.profiles, activeTab.profileId);
+        : activeTab.profileSnapshot ??
+              _profileForId(sessionState.profiles, activeTab.profileId);
     final activeFocusNode = activeSessionId == null
         ? null
         : _focusNodeFor(activeSessionId);
     final palette = _ShellPalette.fromBrightness(Theme.of(context).brightness);
+    final terminalColors = _terminalColorsForProfile(
+      palette.terminalColors,
+      activeProfile,
+    );
 
     return Focus(
       canRequestFocus: false,
@@ -995,6 +1023,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   onShowCommandMenu: () =>
                       _openCommandMenu(sessionController, sessionState),
                 ),
+                if (sessionState.configurationWarnings.isNotEmpty)
+                  _ShellConfigurationWarningsBanner(
+                    palette: palette,
+                    warnings: sessionState.configurationWarnings,
+                    onReviewProfiles: () => _openProfilesSheet(
+                      sessionController,
+                      ref.read(sessionControllerProvider),
+                    ),
+                    onDismiss: sessionController.dismissConfigurationWarnings,
+                  ),
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: animationsEnabled
@@ -1104,7 +1142,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                               immediate: true,
                                             );
                                           },
-                                          colors: palette.terminalColors,
+                                          colors: terminalColors,
+                                          font:
+                                              activeProfile?.appearance.font ??
+                                              const TerminalProfileFont(),
+                                          cursor:
+                                              activeProfile
+                                                  ?.appearance
+                                                  .cursor ??
+                                              const TerminalProfileCursor(),
+                                          copyOnSelect:
+                                              activeProfile
+                                                  ?.interaction
+                                                  .copyOnSelect ??
+                                              false,
+                                          optionDragMode:
+                                              activeProfile
+                                                  ?.interaction
+                                                  .optionDragMode ??
+                                              TerminalOptionDragMode
+                                                  .blockSelection,
                                           onScrollLines: (delta) {
                                             ref
                                                 .read(
@@ -1239,6 +1296,89 @@ class _ShellChromeBar extends StatelessWidget {
               const SizedBox(width: 8),
             ] else
               const SizedBox(width: 24),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellConfigurationWarningsBanner extends StatelessWidget {
+  const _ShellConfigurationWarningsBanner({
+    required this.palette,
+    required this.warnings,
+    required this.onReviewProfiles,
+    required this.onDismiss,
+  });
+
+  final _ShellPalette palette;
+  final List<TerminalProfileLoadWarning> warnings;
+  final Future<void> Function() onReviewProfiles;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      key: const Key('shell-configuration-warnings'),
+      decoration: BoxDecoration(
+        color: palette.overlayBackground,
+        border: Border(bottom: BorderSide(color: palette.divider)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.warning_amber_rounded, color: palette.accent),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Some terminal profile values were ignored and reset to safe defaults.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: palette.primaryText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      for (final warning in warnings)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            terminalProfileLoadWarningMessage(warning),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: palette.subtleText),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  key: const Key('shell-configuration-warnings-dismiss'),
+                  tooltip: 'Dismiss configuration warnings',
+                  onPressed: onDismiss,
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.close_rounded, color: palette.subtleText),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                FilledButton.tonal(
+                  key: const Key('shell-configuration-warnings-review'),
+                  onPressed: () => unawaited(onReviewProfiles()),
+                  child: const Text('Review Profiles'),
+                ),
+                const SizedBox(width: 8),
+                TextButton(onPressed: onDismiss, child: const Text('Dismiss')),
+              ],
+            ),
           ],
         ),
       ),
@@ -1962,7 +2102,7 @@ class _ProfilesSheet extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  'Open a tab with any saved profile or edit its shell settings.',
+                  'Open a tab with any saved profile or edit its terminal settings.',
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: palette.subtleText),
@@ -1977,6 +2117,10 @@ class _ProfilesSheet extends StatelessWidget {
                     itemBuilder: (context, index) {
                       final profile = profiles[index];
                       final isDefault = profile.id == effectiveDefaultProfileId;
+                      final summary = _profileSummary(
+                        profile,
+                        isDefault: isDefault,
+                      );
                       return ListTile(
                         key: Key('profile-entry-${profile.id}'),
                         contentPadding: EdgeInsets.zero,
@@ -1989,9 +2133,7 @@ class _ProfilesSheet extends StatelessWidget {
                               ),
                         ),
                         subtitle: Text(
-                          isDefault
-                              ? '${profile.shell} • Default profile'
-                              : profile.shell,
+                          summary,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: palette.subtleText),
                         ),
@@ -2018,6 +2160,12 @@ class _ProfilesSheet extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _profileSummary(TerminalProfile profile, {required bool isDefault}) {
+    final base =
+        '${profile.shell} • ${terminalEmulationLabel(profile.terminalEmulation)} • ${profile.scrollbackLines} lines';
+    return isDefault ? '$base • Default profile' : base;
   }
 }
 

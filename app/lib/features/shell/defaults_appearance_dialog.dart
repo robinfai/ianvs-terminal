@@ -7,10 +7,12 @@ class DefaultsAndAppearanceSelection {
   const DefaultsAndAppearanceSelection({
     required this.configuredDefaultProfileId,
     required this.themeMode,
+    this.openProfiles = false,
   });
 
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final bool openProfiles;
 }
 
 class DefaultsAndAppearanceDialog extends StatefulWidget {
@@ -118,6 +120,54 @@ class _DefaultsAndAppearanceDialogState
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: subtleText),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: panel,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Detailed terminal settings live in Profiles.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: primaryText,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Edit font, colors, cursor, scrollback, and startup arguments from the Profiles editor.',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: subtleText),
+                      ),
+                      if (effectiveProfile != null) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          key: const Key('defaults-open-profiles'),
+                          onPressed: () {
+                            Navigator.of(context).pop(
+                              DefaultsAndAppearanceSelection(
+                                configuredDefaultProfileId: _selectedProfileId,
+                                themeMode: _selectedThemeMode,
+                                openProfiles: true,
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.tune_rounded),
+                          label: Text(
+                            'Edit ${effectiveProfile.name} in Profiles',
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Text(
@@ -266,6 +316,7 @@ class _DefaultsAndAppearanceDialogState
                           DefaultsAndAppearanceSelection(
                             configuredDefaultProfileId: _selectedProfileId,
                             themeMode: _selectedThemeMode,
+                            openProfiles: false,
                           ),
                         );
                       },

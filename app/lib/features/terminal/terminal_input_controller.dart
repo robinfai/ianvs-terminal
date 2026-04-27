@@ -14,17 +14,20 @@ class TerminalInputController {
     TerminalFrameDiff Function()? readFrame,
     this.emulation = TerminalEmulation.xterm256,
     required this.readSelection,
-    required this.copySelection,
+    required Future<void> Function(String text) copySelection,
     required this.readClipboard,
-  }) : readFrame = readFrame ?? _readEmptyFrame;
+  }) : _copySelectionToClipboard = copySelection,
+       readFrame = readFrame ?? _readEmptyFrame;
 
   final String sessionId;
   final TerminalCoreClient coreClient;
   final TerminalFrameDiff Function() readFrame;
   final TerminalEmulation emulation;
   final String Function() readSelection;
-  final Future<void> Function(String text) copySelection;
+  final Future<void> Function(String text) _copySelectionToClipboard;
   final Future<String> Function() readClipboard;
+
+  Future<void> copySelection() => _copySelection();
 
   KeyEventResult handle(KeyEvent event) {
     if (event is! KeyDownEvent) {
@@ -132,7 +135,7 @@ class TerminalInputController {
     if (text.isEmpty) {
       return;
     }
-    await copySelection(text);
+    await _copySelectionToClipboard(text);
   }
 
   static Uint8List clipboardPasteBytesFor({

@@ -20,7 +20,6 @@ use std::thread;
 
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
-const DEFAULT_SCROLLBACK: usize = 8_000;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
 
@@ -269,6 +268,7 @@ impl HostProtocolState {
 pub struct TerminalSession {
     session_id: u64,
     emulation: TerminalEmulation,
+    scrollback_lines: usize,
     state: Mutex<TerminalState>,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
@@ -281,21 +281,24 @@ pub struct TerminalSession {
 
 impl TerminalSession {
     pub fn spawn(session_id: u64, profile: TerminalProfile) -> Result<Arc<Self>, SessionError> {
+        let emulation = profile.terminal.emulation;
+        let scrollback_lines = profile.terminal.scrollback_lines.max(1);
         let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
 
         let mut terminal = Terminal::with_scrollback(
             DEFAULT_COLS as usize,
             DEFAULT_ROWS as usize,
-            DEFAULT_SCROLLBACK,
+            scrollback_lines,
         );
-        if profile.terminal_emulation == TerminalEmulation::Vt220 {
+        if emulation == TerminalEmulation::Vt220 {
             terminal.process(b"\x1b[62;1\"p");
         }
 
         let session = Arc::new(Self {
             session_id,
-            emulation: profile.terminal_emulation,
+            emulation,
+            scrollback_lines,
             state: Mutex::new(TerminalState {
                 terminal,
                 transcript: Vec::new(),
@@ -404,7 +407,7 @@ impl TerminalSession {
         if should_rebuild_main_screen {
             let transcript = state.transcript.clone();
             let mut terminal =
-                Terminal::with_scrollback(cols as usize, rows as usize, DEFAULT_SCROLLBACK);
+                Terminal::with_scrollback(cols as usize, rows as usize, self.scrollback_lines);
             if self.emulation == TerminalEmulation::Vt220 {
                 terminal.process(b"\x1b[62;1\"p");
             }
