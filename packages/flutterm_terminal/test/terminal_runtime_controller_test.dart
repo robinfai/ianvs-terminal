@@ -73,74 +73,69 @@ void main() {
     },
   );
 
-  testWidgets(
-    'terminal runtime controller dispose closes active sessions',
-    (tester) async {
-      final runtimeBackend = _FakePtyBackend();
-      final runtime = TerminalRuntimeController(
-        backend: runtimeBackend,
-        copyToClipboard: (_) async {},
-        readClipboard: () async => '',
-        enableSessionPolling: false,
-      );
+  testWidgets('terminal runtime controller dispose closes active sessions', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
 
-      runtime.createSession(
-        const TerminalSessionConfig(
-          launch: TerminalLaunchConfig(program: '/bin/sh'),
-        ),
-      );
-      runtime.createSession(
-        const TerminalSessionConfig(
-          launch: TerminalLaunchConfig(program: '/bin/zsh'),
-        ),
-      );
+    runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/zsh'),
+      ),
+    );
 
-      runtime.dispose();
+    runtime.dispose();
 
-      expect(runtimeBackend.closeCalls, <String>['1', '2']);
-    },
-  );
+    expect(runtimeBackend.closeCalls, <String>['1', '2']);
+  });
 
-  testWidgets(
-    'terminal runtime controller continues to handle exit events',
-    (tester) async {
-      final runtimeBackend = _FakePtyBackend();
-      final runtime = TerminalRuntimeController(
-        backend: runtimeBackend,
-        copyToClipboard: (_) async {},
-        readClipboard: () async => '',
-        enableSessionPolling: false,
-      );
-      addTearDown(runtime.dispose);
+  testWidgets('terminal runtime controller continues to handle exit events', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
 
-      final seenEvents = <TerminalSessionEvent>[];
-      final subscription = runtime.events.listen(seenEvents.add);
-      addTearDown(subscription.cancel);
+    final seenEvents = <TerminalSessionEvent>[];
+    final subscription = runtime.events.listen(seenEvents.add);
+    addTearDown(subscription.cancel);
 
-      final sessionId = runtime.createSession(
-        const TerminalSessionConfig(
-          launch: TerminalLaunchConfig(program: '/bin/sh'),
-        ),
-      );
-      runtimeBackend.enqueueEvent(
-        sessionId,
-        const PtyEvent(
-          kind: 'exit',
-          sessionId: '1',
-          payload: <String, Object?>{'code': 7},
-        ),
-      );
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      const PtyEvent(
+        kind: 'exit',
+        sessionId: '1',
+        payload: <String, Object?>{'code': 7},
+      ),
+    );
 
-      runtime.sendInput(sessionId, Uint8List(0));
-      await tester.pump();
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
 
-      expect(runtime.hasSession(sessionId), isFalse);
-      expect(
-        seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode,
-        7,
-      );
-    },
-  );
+    expect(runtime.hasSession(sessionId), isFalse);
+    expect(seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode, 7);
+  });
 
   testWidgets(
     'terminal runtime controller continues to handle clipboard and resize events',
@@ -156,13 +151,11 @@ void main() {
           copiedText = text;
         },
         readClipboard: () async => 'paste me',
-        resizeWindowBy: ({
-          required double widthDelta,
-          required double heightDelta,
-        }) async {
-          resizeWidthDelta = widthDelta;
-          resizeHeightDelta = heightDelta;
-        },
+        resizeWindowBy:
+            ({required double widthDelta, required double heightDelta}) async {
+              resizeWidthDelta = widthDelta;
+              resizeHeightDelta = heightDelta;
+            },
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -210,10 +203,7 @@ void main() {
       expect(pasteWrite, '\x1B]52;c;cGFzdGUgbWU=\x07');
       expect(resizeWidthDelta, 9);
       expect(resizeHeightDelta, 18);
-      expect(
-        runtimeBackend.resizeCalls.last,
-        <Object?>['1', 21, 9, 189, 162],
-      );
+      expect(runtimeBackend.resizeCalls.last, <Object?>['1', 21, 9, 189, 162]);
     },
   );
 }
@@ -252,7 +242,11 @@ class _FakePtyBackend implements PtySessionBackend {
     final sessionId = (++_nextSessionId).toString();
     _frames[sessionId] = <String, Object?>{
       'rows': <Object?>[
-        <String, Object?>{'index': 0, 'text': 'demo', 'style_runs': <Object?>[]},
+        <String, Object?>{
+          'index': 0,
+          'text': 'demo',
+          'style_runs': <Object?>[],
+        },
       ],
       'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
       'viewport_rows': 24,

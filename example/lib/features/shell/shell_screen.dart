@@ -538,7 +538,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           sessionId,
           TerminalInputController.clipboardPasteBytesFor(
             emulation:
-                terminalConfig?.emulation ?? terminal.TerminalEmulation.xterm256,
+                terminalConfig?.emulation ??
+                terminal.TerminalEmulation.xterm256,
             modes: frame.modes,
             text: text,
           ),
@@ -607,7 +608,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _activeSearchIndex = 0;
     });
     if (activeSessionId != null) {
-      ref.read(terminalRuntimeControllerProvider).scrollViewportTo(activeSessionId, 0);
+      ref
+          .read(terminalRuntimeControllerProvider)
+          .scrollViewportTo(activeSessionId, 0);
       _focusSession(activeSessionId);
     }
   }
@@ -1088,8 +1091,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
                               final selectionController =
                                   activeSelectionController!;
-                              final terminalConfig =
-                                  activeProfile?.toSessionConfig();
+                              final terminalConfig = activeProfile
+                                  ?.toSessionConfig();
                               final inputController = TerminalInputController(
                                 sessionId: activeSessionId,
                                 runtime: ref.read(
@@ -1162,7 +1165,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                               terminalConfig
                                                   ?.interaction
                                                   .optionDragMode ??
-                                              terminal.TerminalOptionDragMode
+                                              terminal
+                                                  .TerminalOptionDragMode
                                                   .blockSelection,
                                           onScrollLines: (delta) {
                                             ref

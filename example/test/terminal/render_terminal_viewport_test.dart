@@ -334,6 +334,231 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport double-click selects a whole xterm-style word',
+    (tester) async {
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'alpha beta gamma')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      await _mouseDoubleClickAt(
+        tester,
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 7, cellSize.height / 2),
+        ),
+      );
+
+      expect(selectionController.textForFrame(controller.frame), 'beta');
+    },
+  );
+
+  testWidgets(
+    'terminal viewport double-click selects a contiguous whitespace run',
+    (tester) async {
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'alpha   beta')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      await _mouseDoubleClickAt(
+        tester,
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 6, cellSize.height / 2),
+        ),
+      );
+
+      expect(selectionController.textForFrame(controller.frame), '   ');
+    },
+  );
+
+  testWidgets('terminal viewport double-click drag expands selection by word', (
+    tester,
+  ) async {
+    final selectionController = SelectionController();
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'alpha beta gamma')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: TerminalInputController(
+                sessionId: '1',
+                runtime: testRuntime(FakePtyBackend()),
+                readFrame: () => controller.frame,
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = _terminalRenderObject(tester);
+    final cellSize = renderObject.debugCellSize;
+    await _mouseDoubleClickDrag(
+      tester,
+      start: renderObject.localToGlobal(
+        Offset(cellSize.width * 7, cellSize.height / 2),
+      ),
+      end: renderObject.localToGlobal(
+        Offset(cellSize.width * 2, cellSize.height / 2),
+      ),
+    );
+
+    expect(selectionController.textForFrame(controller.frame), 'alpha beta');
+  });
+
+  testWidgets(
+    'terminal viewport double-click word selection follows wrapped logical rows',
+    (tester) async {
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(index: 0, text: 'super', wrapped: true),
+              TerminalRow(index: 1, text: 'word'),
+            ],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      await _mouseDoubleClickAt(
+        tester,
+        renderObject.localToGlobal(
+          Offset(cellSize.width, cellSize.height * 1.5),
+        ),
+      );
+
+      expect(selectionController.textForFrame(controller.frame), 'superword');
+    },
+  );
+
+  testWidgets(
     'terminal viewport keeps option-drag block selection by default',
     (tester) async {
       final selectionController = SelectionController();
@@ -516,7 +741,79 @@ void main() {
   });
 
   testWidgets(
-    'terminal viewport auto-scrolls selection upward near the top edge',
+    'terminal viewport does not auto-scroll while the pointer stays inside the viewport',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _scrollbackFrame(
+            viewportStartRow: 10,
+            scrollbackOffset: 10,
+            scrollbackMaxOffset: 20,
+          ),
+        );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(bindings),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: scrollLines.add,
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      final gesture = await tester.startGesture(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 2, cellSize.height * 3.5),
+        ),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      await gesture.moveTo(
+        renderObject.localToGlobal(Offset(cellSize.width * 2, 4)),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      await gesture.moveTo(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 2, renderObject.size.height - 4),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(scrollLines, isEmpty);
+      expect(selectionController.selection, isNotNull);
+
+      await gesture.up();
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'terminal viewport auto-scrolls selection upward only after the pointer leaves the viewport',
     (tester) async {
       final bindings = FakePtyBackend();
       final selectionController = SelectionController();
@@ -581,7 +878,7 @@ void main() {
       await tester.pump();
 
       await gesture.moveTo(
-        renderObject.localToGlobal(Offset(cellSize.width * 2, 4)),
+        renderObject.localToGlobal(Offset(cellSize.width * 2, -4)),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 120));
@@ -597,7 +894,7 @@ void main() {
   );
 
   testWidgets(
-    'terminal viewport auto-scrolls selection downward near the bottom edge',
+    'terminal viewport auto-scrolls selection downward only after the pointer leaves the viewport',
     (tester) async {
       final bindings = FakePtyBackend();
       final selectionController = SelectionController();
@@ -663,7 +960,7 @@ void main() {
 
       await gesture.moveTo(
         renderObject.localToGlobal(
-          Offset(cellSize.width * 2, renderObject.size.height - 4),
+          Offset(cellSize.width * 2, renderObject.size.height + 4),
         ),
       );
       await tester.pump();
@@ -745,7 +1042,7 @@ void main() {
     await tester.pump();
 
     await gesture.moveTo(
-      renderObject.localToGlobal(Offset(cellSize.width * 2, 4)),
+      renderObject.localToGlobal(Offset(cellSize.width * 2, -4)),
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 120));
@@ -816,7 +1113,7 @@ void main() {
       await tester.pump();
 
       await gesture.moveTo(
-        renderObject.localToGlobal(Offset(cellSize.width * 2, 4)),
+        renderObject.localToGlobal(Offset(cellSize.width * 2, -4)),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 160));
@@ -826,6 +1123,67 @@ void main() {
 
       await gesture.up();
       await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'terminal viewport ignores local double-click word selection when mouse mode is enabled',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'alpha beta')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            modes: TerminalFrameModes(
+              mouseMode: 'button_event',
+              mouseEncoding: 'sgr',
+            ),
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(bindings),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      await _mouseDoubleClickAt(
+        tester,
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 7, cellSize.height / 2),
+        ),
+      );
+
+      expect(selectionController.selection, isNull);
+      expect(bindings.writes, isNotEmpty);
     },
   );
 
@@ -943,11 +1301,13 @@ void main() {
         .whereType<RenderTerminalViewport>()
         .last;
     final cellSize = renderObject.debugCellSize;
-    await tester.tapAt(
+    await _mouseClickAt(
+      tester,
       renderObject.localToGlobal(
         Offset(cellSize.width * 6, cellSize.height / 2),
       ),
     );
+    await tester.pump(kDoubleTapTimeout);
     await tester.pump();
 
     expect(opened, ['https://example.com/docs']);
@@ -1001,15 +1361,161 @@ void main() {
         .whereType<RenderTerminalViewport>()
         .last;
     final cellSize = renderObject.debugCellSize;
-    await tester.tapAt(
+    await _mouseClickAt(
+      tester,
       renderObject.localToGlobal(
         Offset(cellSize.width * 8, cellSize.height / 2),
       ),
     );
+    await tester.pump(kDoubleTapTimeout);
     await tester.pump();
 
     expect(opened, ['https://example.com/path']);
   });
+
+  testWidgets(
+    'terminal viewport does not open hyperlinks during a double-click selection sequence',
+    (tester) async {
+      final opened = <String>[];
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'open docs')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            hyperlinks: [
+              TerminalHyperlinkRange(
+                row: 0,
+                startCol: 5,
+                endCol: 9,
+                uri: 'https://example.com/docs',
+              ),
+            ],
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+                onOpenLink: opened.add,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      await _mouseDoubleClickAt(
+        tester,
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 6, cellSize.height / 2),
+        ),
+      );
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pump();
+
+      expect(opened, isEmpty);
+      expect(selectionController.textForFrame(controller.frame), 'docs');
+    },
+  );
+
+  testWidgets(
+    'terminal viewport does not open hyperlinks while drag-selecting',
+    (tester) async {
+      final opened = <String>[];
+      final selectionController = SelectionController();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'open docs')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            hyperlinks: [
+              TerminalHyperlinkRange(
+                row: 0,
+                startCol: 5,
+                endCol: 9,
+                uri: 'https://example.com/docs',
+              ),
+            ],
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+                onOpenLink: opened.add,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      final gesture = await tester.startGesture(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 6, cellSize.height / 2),
+        ),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await gesture.moveTo(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 8, cellSize.height / 2),
+        ),
+      );
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(opened, isEmpty);
+      expect(selectionController.selection, isNotNull);
+    },
+  );
 
   test(
     'terminal text style keeps a nerd-font fallback ahead of generic system fonts',
@@ -2568,6 +3074,44 @@ TerminalFrameDiff _scrollbackFrame({
     viewportStartRow: viewportStartRow,
     modes: modes,
   );
+}
+
+RenderTerminalViewport _terminalRenderObject(WidgetTester tester) {
+  return tester.allRenderObjects.whereType<RenderTerminalViewport>().last;
+}
+
+Future<void> _mouseClickAt(WidgetTester tester, Offset position) async {
+  final gesture = await tester.startGesture(
+    position,
+    kind: PointerDeviceKind.mouse,
+  );
+  await tester.pump();
+  await gesture.up();
+  await tester.pump();
+}
+
+Future<void> _mouseDoubleClickAt(WidgetTester tester, Offset position) async {
+  await _mouseClickAt(tester, position);
+  await tester.pump(const Duration(milliseconds: 40));
+  await _mouseClickAt(tester, position);
+}
+
+Future<void> _mouseDoubleClickDrag(
+  WidgetTester tester, {
+  required Offset start,
+  required Offset end,
+}) async {
+  await _mouseClickAt(tester, start);
+  await tester.pump(const Duration(milliseconds: 40));
+  final gesture = await tester.startGesture(
+    start,
+    kind: PointerDeviceKind.mouse,
+  );
+  await tester.pump();
+  await gesture.moveTo(end);
+  await tester.pump();
+  await gesture.up();
+  await tester.pump();
 }
 
 double _snapToDevicePixel(double value, double devicePixelRatio) {

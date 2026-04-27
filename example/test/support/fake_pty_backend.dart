@@ -84,10 +84,7 @@ class FakePtyBackend implements PtySessionBackend {
       'window_icon_name': null,
     };
     _events[sessionId] = <PtyEvent>[
-      PtyEvent(
-        kind: 'started',
-        sessionId: sessionId,
-      ),
+      PtyEvent(kind: 'started', sessionId: sessionId),
     ];
     return sessionId;
   }
@@ -252,7 +249,9 @@ String _linearSelectionText(
 ) {
   final lines = <String>[];
   for (var row = selection.startRow; row <= selection.endRow; row += 1) {
-    final text = row >= 0 && row < frame.rows.length ? frame.rows[row].text : '';
+    final text = row >= 0 && row < frame.rows.length
+        ? frame.rows[row].text
+        : '';
     final start = row == selection.startRow
         ? selection.startCol.clamp(0, text.length)
         : 0;
@@ -272,7 +271,9 @@ String _blockSelectionText(
   final startCol = math.min(selection.startCol, selection.endCol);
   final endCol = math.max(selection.startCol, selection.endCol);
   for (var row = selection.startRow; row <= selection.endRow; row += 1) {
-    final text = row >= 0 && row < frame.rows.length ? frame.rows[row].text : '';
+    final text = row >= 0 && row < frame.rows.length
+        ? frame.rows[row].text
+        : '';
     if (startCol >= text.length) {
       lines.add('');
       continue;

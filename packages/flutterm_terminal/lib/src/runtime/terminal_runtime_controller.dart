@@ -74,7 +74,9 @@ class TerminalRuntimeController {
   bool hasSession(String sessionId) => _activeSessionIds.contains(sessionId);
 
   String createSession(TerminalSessionConfig config) {
-    final sessionId = _backend.createSession(_encodeNativeSessionConfig(config));
+    final sessionId = _backend.createSession(
+      _encodeNativeSessionConfig(config),
+    );
     _activeSessionIds.add(sessionId);
     viewportFor(sessionId);
     _refreshSession(sessionId);
@@ -113,10 +115,7 @@ class TerminalRuntimeController {
   }) {
     return _backend.selectionText(
       sessionId,
-      jsonEncode(<String, Object?>{
-        ...selection.toJson(),
-        'block': block,
-      }),
+      jsonEncode(<String, Object?>{...selection.toJson(), 'block': block}),
     );
   }
 
@@ -210,10 +209,7 @@ class TerminalRuntimeController {
     _events.add(TerminalSessionFrameEvent(sessionId, frame));
   }
 
-  Future<void> _processEvents(
-    String sessionId,
-    List<PtyEvent> events,
-  ) async {
+  Future<void> _processEvents(String sessionId, List<PtyEvent> events) async {
     for (final event in events) {
       switch (event.kind) {
         case 'exit':

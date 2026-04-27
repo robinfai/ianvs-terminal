@@ -6,10 +6,7 @@ void main() {
     final backend = NativePtyBackend.fromBindings(_NoopPtyBindings());
 
     expect(backend.ping(), 42);
-    expect(
-      backend.createSession('{"launch":{"program":"/bin/sh"}}'),
-      '1',
-    );
+    expect(backend.createSession('{"launch":{"program":"/bin/sh"}}'), '1');
     backend.resizeSession(
       '1',
       cols: 80,

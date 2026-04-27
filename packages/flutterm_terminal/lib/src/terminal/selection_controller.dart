@@ -28,6 +28,15 @@ class SelectionController extends ChangeNotifier {
 
   bool get isBlockSelection => _mode == SelectionMode.block;
 
+  void setSelection(
+    TerminalSelection? selection, {
+    SelectionMode mode = SelectionMode.linear,
+  }) {
+    _selection = selection;
+    _mode = mode;
+    notifyListeners();
+  }
+
   void begin(
     TerminalCellPosition cell, {
     bool block = false,

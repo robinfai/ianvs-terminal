@@ -39,11 +39,7 @@ typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
 typedef _FreeStringDart = void Function(ffi.Pointer<Utf8>);
 
 class PtyEvent {
-  const PtyEvent({
-    required this.kind,
-    required this.sessionId,
-    this.payload,
-  });
+  const PtyEvent({required this.kind, required this.sessionId, this.payload});
 
   final String kind;
   final String sessionId;
@@ -249,9 +245,8 @@ class NativePtyBindings implements PtyBindings {
       final entries = jsonDecode(raw) as List<dynamic>;
       return entries
           .map(
-            (entry) => PtyEvent.fromJson(
-              (entry as Map).cast<String, Object?>(),
-            ),
+            (entry) =>
+                PtyEvent.fromJson((entry as Map).cast<String, Object?>()),
           )
           .toList();
     } finally {

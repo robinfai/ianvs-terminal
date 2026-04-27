@@ -128,16 +128,16 @@ class _EventfulPtyBackend implements PtySessionBackend {
       _delegate.searchTextJson(sessionId, query);
 
   @override
+  void writeInput(String sessionId, List<int> bytes) =>
+      _delegate.writeInput(sessionId, bytes);
+
+  @override
   String? selectionText(String sessionId, String requestJson) =>
       _delegate.selectionText(sessionId, requestJson);
 
   @override
   String? takeFrameDiffJson(String sessionId) =>
       _delegate.takeFrameDiffJson(sessionId);
-
-  @override
-  void writeInput(String sessionId, List<int> bytes) =>
-      _delegate.writeInput(sessionId, bytes);
 }
 
 class _CountingPtyBackend extends FakePtyBackend {

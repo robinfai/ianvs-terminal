@@ -16,6 +16,7 @@ const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
 const Size terminalFallbackCellSize = Size(9, 18);
 final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
+const String _xtermWordSeparators = " ()[]{}',\"`";
 
 class TerminalViewportController extends ChangeNotifier {
   TerminalFrameDiff _frame = TerminalFrameDiff.empty;
@@ -82,12 +83,15 @@ class TerminalViewport extends StatefulWidget {
   State<TerminalViewport> createState() => _TerminalViewportState();
 }
 
+enum _LocalSelectionMode { cell, word }
+
 class _TerminalViewportState extends State<TerminalViewport> {
   static const Duration _selectionAutoScrollInterval = Duration(
     milliseconds: 50,
   );
   Timer? _cursorBlinkTimer;
   Timer? _selectionAutoScrollTimer;
+  Timer? _pendingLinkOpenTimer;
   bool _cursorVisible = true;
   FocusNode? _ownedFocusNode;
   FocusNode? _listenedFocusNode;
@@ -98,6 +102,14 @@ class _TerminalViewportState extends State<TerminalViewport> {
   bool? _lastReportedFocusTrackingFocus;
   bool _isLocalSelectionActive = false;
   Offset? _selectionPointerGlobalPosition;
+  Offset? _selectionPointerDownGlobalPosition;
+  Offset? _lastPrimaryTapUpPosition;
+  Duration? _lastPrimaryTapUpTimestamp;
+  int _lastPrimaryTapCount = 0;
+  int _currentPrimaryTapCount = 0;
+  bool _selectionMovedSincePointerDown = false;
+  _LocalSelectionMode _localSelectionMode = _LocalSelectionMode.cell;
+  _TerminalWordRange? _wordSelectionAnchor;
 
   FocusNode get _focusNode =>
       widget.focusNode ??
@@ -131,6 +143,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
     _unbindFocusNodeListener();
     _cursorBlinkTimer?.cancel();
     _selectionAutoScrollTimer?.cancel();
+    _pendingLinkOpenTimer?.cancel();
     _ownedFocusNode?.dispose();
     super.dispose();
   }
@@ -156,11 +169,14 @@ class _TerminalViewportState extends State<TerminalViewport> {
     if (_isLocalSelectionActive &&
         !_terminalMouseEnabled &&
         _selectionPointerGlobalPosition != null) {
-      _updateLocalSelectionFromPointer(_selectionPointerGlobalPosition!);
+      _updateSelectionFromPointer(_selectionPointerGlobalPosition!);
       _syncSelectionAutoScroll();
     } else if (_terminalMouseEnabled) {
       _isLocalSelectionActive = false;
       _selectionPointerGlobalPosition = null;
+      _selectionPointerDownGlobalPosition = null;
+      _wordSelectionAnchor = null;
+      _localSelectionMode = _LocalSelectionMode.cell;
       _stopSelectionAutoScroll();
     }
   }
@@ -384,15 +400,36 @@ class _TerminalViewportState extends State<TerminalViewport> {
           !_surfaceContainsGlobalPosition(event.position)) {
         return;
       }
+      _cancelPendingLinkOpen();
       _focusNode.requestFocus();
       _selectionPointerGlobalPosition = event.position;
+      _selectionPointerDownGlobalPosition = event.position;
+      _selectionMovedSincePointerDown = false;
       final cell = _selectionCellForGlobalPosition(event.position);
       if (cell == null) {
         _isLocalSelectionActive = false;
+        _selectionPointerDownGlobalPosition = null;
+        _wordSelectionAnchor = null;
         _stopSelectionAutoScroll();
         return;
       }
+      _currentPrimaryTapCount = _nextPrimaryTapCount(
+        event.position,
+        event.timeStamp,
+      );
       _isLocalSelectionActive = true;
+      if (!_usesOptionBlockSelection && _currentPrimaryTapCount == 2) {
+        final wordRange = _wordRangeAtCell(cell);
+        if (wordRange != null) {
+          _localSelectionMode = _LocalSelectionMode.word;
+          _wordSelectionAnchor = wordRange;
+          widget.selectionController.setSelection(wordRange.selection);
+          _syncSelectionAutoScroll();
+          return;
+        }
+      }
+      _localSelectionMode = _LocalSelectionMode.cell;
+      _wordSelectionAnchor = null;
       widget.selectionController.begin(
         cell,
         block: _usesOptionBlockSelection,
@@ -416,7 +453,10 @@ class _TerminalViewportState extends State<TerminalViewport> {
         return;
       }
       _selectionPointerGlobalPosition = event.position;
-      _updateLocalSelectionFromPointer(event.position);
+      _selectionMovedSincePointerDown =
+          _selectionMovedSincePointerDown ||
+          _didSelectionMoveBeyondTapSlop(event.position);
+      _updateSelectionFromPointer(event.position);
       _syncSelectionAutoScroll();
       return;
     }
@@ -439,13 +479,24 @@ class _TerminalViewportState extends State<TerminalViewport> {
     if (!_terminalMouseEnabled) {
       if (_isLocalSelectionActive) {
         _selectionPointerGlobalPosition = event.position;
-        _updateLocalSelectionFromPointer(event.position);
+        _selectionMovedSincePointerDown =
+            _selectionMovedSincePointerDown ||
+            _didSelectionMoveBeyondTapSlop(event.position);
+        _updateSelectionFromPointer(event.position);
         if (widget.copyOnSelect) {
           unawaited(widget.inputController.copySelection());
         }
       }
+      final shouldOpenLink = _shouldOpenLinkForPointerUp(event);
+      _recordPrimaryTapUp(event);
+      if (shouldOpenLink) {
+        _schedulePendingLinkOpen(event.position);
+      }
       _isLocalSelectionActive = false;
       _selectionPointerGlobalPosition = null;
+      _selectionPointerDownGlobalPosition = null;
+      _wordSelectionAnchor = null;
+      _localSelectionMode = _LocalSelectionMode.cell;
       _stopSelectionAutoScroll();
       return;
     }
@@ -462,8 +513,14 @@ class _TerminalViewportState extends State<TerminalViewport> {
       _activeMouseButton = null;
       return;
     }
+    _currentPrimaryTapCount = 0;
+    _selectionMovedSincePointerDown = false;
     _isLocalSelectionActive = false;
     _selectionPointerGlobalPosition = null;
+    _selectionPointerDownGlobalPosition = null;
+    _wordSelectionAnchor = null;
+    _localSelectionMode = _LocalSelectionMode.cell;
+    _cancelPendingLinkOpen();
     _stopSelectionAutoScroll();
   }
 
@@ -496,15 +553,81 @@ class _TerminalViewportState extends State<TerminalViewport> {
   }
 
   void _handleTapUp(TapUpDetails details) {
+    _openLinkAt(details.globalPosition);
+  }
+
+  void _openLinkAt(Offset globalPosition) {
     final onOpenLink = widget.onOpenLink;
     if (onOpenLink == null) {
       return;
     }
-    final link = _linkAt(details.globalPosition);
+    final link = _linkAt(globalPosition);
     if (link == null) {
       return;
     }
     onOpenLink(link);
+  }
+
+  int _nextPrimaryTapCount(Offset globalPosition, Duration timeStamp) {
+    final lastPosition = _lastPrimaryTapUpPosition;
+    final lastTimeStamp = _lastPrimaryTapUpTimestamp;
+    if (lastPosition == null || lastTimeStamp == null) {
+      return 1;
+    }
+    final withinTimeout = timeStamp - lastTimeStamp <= kDoubleTapTimeout;
+    final withinSlop =
+        (globalPosition - lastPosition).distance <= kDoubleTapSlop;
+    if (!withinTimeout || !withinSlop) {
+      return 1;
+    }
+    return _lastPrimaryTapCount == 1 ? 2 : 1;
+  }
+
+  bool _didSelectionMoveBeyondTapSlop(Offset globalPosition) {
+    final start = _selectionPointerDownGlobalPosition;
+    if (start == null) {
+      return false;
+    }
+    return (globalPosition - start).distance > kTouchSlop;
+  }
+
+  void _recordPrimaryTapUp(PointerUpEvent event) {
+    if (_selectionMovedSincePointerDown || _currentPrimaryTapCount != 1) {
+      _lastPrimaryTapCount = 0;
+    } else {
+      _lastPrimaryTapCount = _currentPrimaryTapCount;
+      _lastPrimaryTapUpPosition = event.position;
+      _lastPrimaryTapUpTimestamp = event.timeStamp;
+    }
+    _currentPrimaryTapCount = 0;
+    _selectionMovedSincePointerDown = false;
+  }
+
+  bool _shouldOpenLinkForPointerUp(PointerUpEvent event) {
+    return !_selectionMovedSincePointerDown &&
+        _currentPrimaryTapCount == 1 &&
+        _localSelectionMode == _LocalSelectionMode.cell &&
+        _surfaceContainsGlobalPosition(event.position) &&
+        !_scrollbarContainsGlobalPosition(event.position);
+  }
+
+  void _schedulePendingLinkOpen(Offset globalPosition) {
+    if (widget.onOpenLink == null) {
+      return;
+    }
+    _cancelPendingLinkOpen();
+    _pendingLinkOpenTimer = Timer(kDoubleTapTimeout, () {
+      _pendingLinkOpenTimer = null;
+      if (!mounted) {
+        return;
+      }
+      _openLinkAt(globalPosition);
+    });
+  }
+
+  void _cancelPendingLinkOpen() {
+    _pendingLinkOpenTimer?.cancel();
+    _pendingLinkOpenTimer = null;
   }
 
   String? _linkAt(Offset globalPosition) {
@@ -546,7 +669,29 @@ class _TerminalViewportState extends State<TerminalViewport> {
     _pendingScrollLines = 0.0;
   }
 
-  void _updateLocalSelectionFromPointer(
+  _TerminalWordRange? _wordRangeAtCell(TerminalCellPosition cell) {
+    return _wordRangeAtRelativeCell(
+      widget.controller.frame,
+      cell.row,
+      cell.col,
+    );
+  }
+
+  void _updateSelectionFromPointer(
+    Offset globalPosition, {
+    int? viewportStartRow,
+  }) {
+    if (_localSelectionMode == _LocalSelectionMode.word) {
+      _updateWordSelectionFromPointer(globalPosition);
+      return;
+    }
+    _updateCellSelectionFromPointer(
+      globalPosition,
+      viewportStartRow: viewportStartRow,
+    );
+  }
+
+  void _updateCellSelectionFromPointer(
     Offset globalPosition, {
     int? viewportStartRow,
   }) {
@@ -561,7 +706,20 @@ class _TerminalViewportState extends State<TerminalViewport> {
     );
   }
 
-  double get _selectionEdgeExtent => math.max(_lineHeight * 2, 24.0);
+  void _updateWordSelectionFromPointer(Offset globalPosition) {
+    final cell = _selectionCellForGlobalPosition(globalPosition);
+    final anchor = _wordSelectionAnchor;
+    if (cell == null || anchor == null) {
+      return;
+    }
+    final targetRange = _wordRangeAtCell(cell);
+    if (targetRange == null) {
+      return;
+    }
+    widget.selectionController.setSelection(
+      _selectionForWordDrag(anchor, targetRange),
+    );
+  }
 
   int _autoScrollLinesForOvershoot(double overshoot) {
     final lineHeight = _lineHeight;
@@ -578,13 +736,12 @@ class _TerminalViewportState extends State<TerminalViewport> {
       return 0;
     }
     final localPosition = renderObject.globalToLocal(pointer);
-    final edgeExtent = _selectionEdgeExtent;
-    if (localPosition.dy <= edgeExtent) {
-      return _autoScrollLinesForOvershoot(math.max(0.0, -localPosition.dy));
+    if (localPosition.dy < 0) {
+      return _autoScrollLinesForOvershoot(-localPosition.dy);
     }
-    if (localPosition.dy >= renderObject.size.height - edgeExtent) {
+    if (localPosition.dy > renderObject.size.height) {
       return -_autoScrollLinesForOvershoot(
-        math.max(0.0, localPosition.dy - renderObject.size.height),
+        localPosition.dy - renderObject.size.height,
       );
     }
     return 0;
@@ -636,7 +793,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
     widget.onScrollLines(deltaLines);
     final pointer = _selectionPointerGlobalPosition;
     if (pointer != null) {
-      _updateLocalSelectionFromPointer(
+      _updateSelectionFromPointer(
         pointer,
         viewportStartRow: _predictedViewportStartRow(deltaLines),
       );
@@ -686,7 +843,6 @@ class _TerminalViewportState extends State<TerminalViewport> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _focusNode.requestFocus(),
-        onTapUp: _handleTapUp,
         child: Listener(
           behavior: HitTestBehavior.opaque,
           onPointerDown: _handlePointerDown,
@@ -768,6 +924,271 @@ class _TerminalViewportState extends State<TerminalViewport> {
       ),
     );
   }
+}
+
+_TerminalWordRange? _wordRangeAtRelativeCell(
+  TerminalFrameDiff frame,
+  int relativeRow,
+  int column, {
+  bool allowWhitespaceOnlySelection = true,
+  bool followWrappedLinesAbove = true,
+  bool followWrappedLinesBelow = true,
+}) {
+  final row = _rowForRelativeIndex(frame, relativeRow);
+  if (row == null) {
+    return null;
+  }
+  final rowCells = TerminalTextCells.fromText(row.text);
+  final cell = _primaryCellAtColumn(rowCells, column);
+  if (cell == null) {
+    return null;
+  }
+  final kind = _wordCellKind(cell);
+  if (!allowWhitespaceOnlySelection && kind == _WordCellKind.whitespace) {
+    return null;
+  }
+
+  var startRow = frame.viewportStartRow + relativeRow;
+  var startCol = cell.column;
+  var endRow = frame.viewportStartRow + relativeRow;
+  var endCol = cell.column + cell.columnSpan;
+
+  switch (kind) {
+    case _WordCellKind.whitespace:
+      while (true) {
+        final previous = _primaryCellBeforeColumn(rowCells, startCol);
+        if (previous == null || _wordCellKind(previous) != kind) {
+          break;
+        }
+        startCol = previous.column;
+      }
+      while (true) {
+        final next = _primaryCellAtOrAfterColumn(rowCells, endCol);
+        if (next == null || _wordCellKind(next) != kind) {
+          break;
+        }
+        endCol = next.column + next.columnSpan;
+      }
+      break;
+    case _WordCellKind.separator:
+      break;
+    case _WordCellKind.text:
+      while (true) {
+        final previous = _primaryCellBeforeColumn(rowCells, startCol);
+        if (previous == null || _wordCellKind(previous) != kind) {
+          break;
+        }
+        startCol = previous.column;
+      }
+      while (true) {
+        final next = _primaryCellAtOrAfterColumn(rowCells, endCol);
+        if (next == null || _wordCellKind(next) != kind) {
+          break;
+        }
+        endCol = next.column + next.columnSpan;
+      }
+
+      if (followWrappedLinesAbove &&
+          startCol == 0 &&
+          _rowContinuesFromAbove(frame, relativeRow)) {
+        final previousRow = _rowForRelativeIndex(frame, relativeRow - 1);
+        final previousCells = previousRow == null
+            ? null
+            : TerminalTextCells.fromText(previousRow.text);
+        final previousLastCell = previousCells == null
+            ? null
+            : _primaryCellBeforeColumn(previousCells, previousCells.cellCount);
+        if (previousLastCell != null &&
+            _wordCellKind(previousLastCell) == _WordCellKind.text) {
+          final previousRange = _wordRangeAtRelativeCell(
+            frame,
+            relativeRow - 1,
+            previousLastCell.column,
+            allowWhitespaceOnlySelection: false,
+            followWrappedLinesAbove: true,
+            followWrappedLinesBelow: false,
+          );
+          if (previousRange != null) {
+            startRow = previousRange.startRow;
+            startCol = previousRange.startCol;
+          }
+        }
+      }
+
+      if (followWrappedLinesBelow &&
+          endCol == rowCells.cellCount &&
+          row.wrapped) {
+        final nextRow = _rowForRelativeIndex(frame, relativeRow + 1);
+        final nextCells = nextRow == null
+            ? null
+            : TerminalTextCells.fromText(nextRow.text);
+        final nextFirstCell = nextCells == null
+            ? null
+            : _primaryCellAtOrAfterColumn(nextCells, 0);
+        if (nextFirstCell != null &&
+            _wordCellKind(nextFirstCell) == _WordCellKind.text) {
+          final nextRange = _wordRangeAtRelativeCell(
+            frame,
+            relativeRow + 1,
+            nextFirstCell.column,
+            allowWhitespaceOnlySelection: false,
+            followWrappedLinesAbove: false,
+            followWrappedLinesBelow: true,
+          );
+          if (nextRange != null) {
+            endRow = nextRange.endRow;
+            endCol = nextRange.endCol;
+          }
+        }
+      }
+  }
+
+  return _TerminalWordRange(
+    startRow: startRow,
+    startCol: startCol,
+    endRow: endRow,
+    endCol: endCol,
+  );
+}
+
+TerminalRow? _rowForRelativeIndex(TerminalFrameDiff frame, int rowIndex) {
+  for (final row in frame.rows) {
+    if (row.index == rowIndex) {
+      return row;
+    }
+  }
+  return null;
+}
+
+bool _rowContinuesFromAbove(TerminalFrameDiff frame, int rowIndex) {
+  final previousRow = _rowForRelativeIndex(frame, rowIndex - 1);
+  return previousRow?.wrapped ?? false;
+}
+
+TerminalTextCell? _primaryCellAtColumn(TerminalTextCells cells, int column) {
+  if (cells.cellCount <= 0) {
+    return null;
+  }
+  var index = column.clamp(0, cells.cellCount - 1).toInt();
+  while (index > 0 && cells.cells[index].isContinuation) {
+    index -= 1;
+  }
+  final cell = cells.cells[index];
+  return cell.isContinuation ? null : cell;
+}
+
+TerminalTextCell? _primaryCellBeforeColumn(
+  TerminalTextCells cells,
+  int column,
+) {
+  for (
+    var index = math.min(column, cells.cellCount).toInt() - 1;
+    index >= 0;
+    index -= 1
+  ) {
+    final cell = cells.cells[index];
+    if (!cell.isContinuation) {
+      return cell;
+    }
+  }
+  return null;
+}
+
+TerminalTextCell? _primaryCellAtOrAfterColumn(
+  TerminalTextCells cells,
+  int column,
+) {
+  for (
+    var index = math.max(0, column).toInt();
+    index < cells.cellCount;
+    index += 1
+  ) {
+    final cell = cells.cells[index];
+    if (!cell.isContinuation) {
+      return cell;
+    }
+  }
+  return null;
+}
+
+_WordCellKind _wordCellKind(TerminalTextCell cell) {
+  if (cell.text.trim().isEmpty) {
+    return _WordCellKind.whitespace;
+  }
+  if (_xtermWordSeparators.contains(cell.text)) {
+    return _WordCellKind.separator;
+  }
+  return _WordCellKind.text;
+}
+
+TerminalSelection _selectionForWordDrag(
+  _TerminalWordRange anchor,
+  _TerminalWordRange target,
+) {
+  if (_compareSelectionPositions(
+        target.endRow,
+        target.endCol,
+        anchor.startRow,
+        anchor.startCol,
+      ) <=
+      0) {
+    return TerminalSelection(
+      startRow: target.startRow,
+      startCol: target.startCol,
+      endRow: anchor.endRow,
+      endCol: anchor.endCol,
+    );
+  }
+  if (_compareSelectionPositions(
+        target.startRow,
+        target.startCol,
+        anchor.endRow,
+        anchor.endCol,
+      ) >=
+      0) {
+    return TerminalSelection(
+      startRow: anchor.startRow,
+      startCol: anchor.startCol,
+      endRow: target.endRow,
+      endCol: target.endCol,
+    );
+  }
+  return anchor.selection;
+}
+
+int _compareSelectionPositions(
+  int leftRow,
+  int leftCol,
+  int rightRow,
+  int rightCol,
+) {
+  if (leftRow != rightRow) {
+    return leftRow.compareTo(rightRow);
+  }
+  return leftCol.compareTo(rightCol);
+}
+
+enum _WordCellKind { whitespace, separator, text }
+
+class _TerminalWordRange {
+  const _TerminalWordRange({
+    required this.startRow,
+    required this.startCol,
+    required this.endRow,
+    required this.endCol,
+  });
+
+  final int startRow;
+  final int startCol;
+  final int endRow;
+  final int endCol;
+
+  TerminalSelection get selection => TerminalSelection(
+    startRow: startRow,
+    startCol: startCol,
+    endRow: endRow,
+    endCol: endCol,
+  );
 }
 
 class _TerminalViewportSurface extends LeafRenderObjectWidget {
