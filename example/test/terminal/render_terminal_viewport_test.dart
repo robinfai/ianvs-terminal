@@ -2738,6 +2738,174 @@ void main() {
   );
 
   testWidgets(
+    'terminal cursor hides when scrollback leaves the live bottom viewport',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _scrollbackFrame(
+            viewportStartRow: 20,
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 20,
+          ),
+        );
+
+      await _pumpTerminalViewportWithController(
+        tester,
+        controller: controller,
+        themeMode: ThemeMode.dark,
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+
+      expect(renderObject.debugCursorVisible, isTrue);
+      expect(renderObject.debugCursorRect, isNotNull);
+
+      controller.updateFrame(
+        _scrollbackFrame(
+          viewportStartRow: 10,
+          scrollbackOffset: 10,
+          scrollbackMaxOffset: 20,
+        ),
+      );
+      await tester.pump();
+
+      expect(renderObject.debugCursorVisible, isFalse);
+      expect(renderObject.debugCursorRect, isNull);
+    },
+  );
+
+  testWidgets(
+    'terminal cursor reappears after returning from scrollback to bottom',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _scrollbackFrame(
+            viewportStartRow: 10,
+            scrollbackOffset: 10,
+            scrollbackMaxOffset: 20,
+          ),
+        );
+
+      await _pumpTerminalViewportWithController(
+        tester,
+        controller: controller,
+        themeMode: ThemeMode.dark,
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+
+      expect(renderObject.debugCursorVisible, isFalse);
+      expect(renderObject.debugCursorRect, isNull);
+
+      controller.updateFrame(
+        _scrollbackFrame(
+          viewportStartRow: 20,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 20,
+        ),
+      );
+      await tester.pump();
+
+      expect(renderObject.debugCursorVisible, isTrue);
+      expect(renderObject.debugCursorRect, isNotNull);
+    },
+  );
+
+  testWidgets(
+    'terminal cursor stays hidden and does not keep blinking when it falls outside the viewport',
+    (tester) async {
+      final focusNode = FocusNode(debugLabel: 'terminal-test-outside-focus');
+      addTearDown(focusNode.dispose);
+
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'ready')],
+            cursor: TerminalCursor(row: 24, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+                focusNode: focusNode,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      focusNode.requestFocus();
+      await tester.pump();
+
+      final renderObject = _terminalRenderObject(tester);
+
+      expect(renderObject.debugCursorVisible, isFalse);
+      expect(renderObject.debugCursorRect, isNull);
+
+      await tester.pump(const Duration(milliseconds: 700));
+
+      expect(renderObject.debugCursorVisible, isFalse);
+      expect(renderObject.debugCursorRect, isNull);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'ready')],
+          cursor: TerminalCursor(row: 0, col: 80, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      await tester.pump();
+
+      expect(renderObject.debugCursorVisible, isFalse);
+      expect(renderObject.debugCursorRect, isNull);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'ready')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      await tester.pump();
+
+      expect(renderObject.debugCursorVisible, isTrue);
+      expect(renderObject.debugCursorRect, isNotNull);
+    },
+  );
+
+  testWidgets(
     'terminal viewport rebinds focus and controller updates after widget rebuild',
     (tester) async {
       final focusNodeA = FocusNode(debugLabel: 'terminal-test-focus-a');

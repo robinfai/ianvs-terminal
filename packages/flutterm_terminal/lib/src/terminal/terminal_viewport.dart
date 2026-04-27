@@ -227,10 +227,20 @@ class _TerminalViewportState extends State<TerminalViewport> {
     });
   }
 
-  bool get _shouldBlinkCursor {
-    final frameCursorVisible = widget.controller.frame.cursor.visible;
-    return widget.cursor.blink && _focusNode.hasFocus && frameCursorVisible;
+  bool get _canDisplayFrameCursor {
+    final frame = widget.controller.frame;
+    final cursor = frame.cursor;
+    if (!cursor.visible ||
+        frame.scrollbackOffset > 0 ||
+        frame.viewportRows <= 0 ||
+        frame.viewportCols <= 0) {
+      return false;
+    }
+    return cursor.row < frame.viewportRows && cursor.col < frame.viewportCols;
   }
+
+  bool get _shouldBlinkCursor =>
+      widget.cursor.blink && _focusNode.hasFocus && _canDisplayFrameCursor;
 
   void _syncCursorBlinkTimer() {
     if (_shouldBlinkCursor) {
@@ -892,7 +902,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
                               key: _surfaceKey,
                               controller: widget.controller,
                               selectionController: widget.selectionController,
-                              cursorVisible: _cursorVisible,
+                              cursorVisible: _canDisplayFrameCursor && _cursorVisible,
                               font: widget.font,
                               cursor: widget.cursor,
                               colors: colors,
