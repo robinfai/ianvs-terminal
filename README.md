@@ -1,29 +1,22 @@
 # flutterm
 
-`flutterm` 是一个桌面 terminal MVP。
+`flutterm` 现在按 workspace 组织：
 
-当前路线：
+- `packages/flutterm_pty`：PTY 会话传输和 FFI 包装
+- `packages/flutterm_terminal`：session runtime、viewport、输入/选区/滚动适配
+- `example/`：tab、窗口壳、菜单、profile 编辑和 demo 流程
+- `native/core`：Rust PTY / VT core，当前仍作为 `flutterm_pty` 背后的原生实现
 
-- Flutter 负责 GUI 和 terminal viewport
-- Rust 负责 PTY、terminal state 和 FFI
-- 首版只做 `macOS + local shell`
-- 先验证产品与工程路径，再决定是否升级 renderer
-
-## 当前状态
-
-目前已经打通：
-
-- Flutter app 启动
-- Rust 动态库加载
-- 本地 PTY shell 创建
-- terminal frame diff 渲染
-- 多 tab 与 profile 持久化
-- `flutter run -d macos` 可运行
+`example/` 不再定义终端能力；共享终端能力统一从 package 暴露。`example` 目录里的 Flutter package 现阶段仍保留 `name: app`，只是为了不顺手扩大平台工程改动面。
 
 ## 快速开始
 
 ```bash
-cd app
+dart pub get
+```
+
+```bash
+cd example
 flutter analyze
 flutter test
 flutter run -d macos
@@ -35,37 +28,21 @@ cargo fmt --check
 cargo test
 ```
 
+## 工作区结构
+
+```text
+flutterm/
+├── example/
+├── packages/
+│   ├── flutterm_pty/
+│   └── flutterm_terminal/
+├── native/core/
+├── docs/
+└── tools/
+```
+
 ## 文档入口
 
-- 工作入口： [docs/README.md](/Users/robinfai/personal/flutterm/docs/README.md)
-- 稳定设计： [docs/ARCHITECTURE.md](/Users/robinfai/personal/flutterm/docs/ARCHITECTURE.md)
-- 路线图： [docs/ROADMAP.md](/Users/robinfai/personal/flutterm/docs/ROADMAP.md)
-- 全局验收： [docs/ACCEPTANCE.md](/Users/robinfai/personal/flutterm/docs/ACCEPTANCE.md)
-- 测试命令： [docs/TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)
-- 已知边界： [docs/KNOWN_ISSUES.md](/Users/robinfai/personal/flutterm/docs/KNOWN_ISSUES.md)
-- 任务模板： [docs/tasks/TEMPLATE.md](/Users/robinfai/personal/flutterm/docs/tasks/TEMPLATE.md)
-
-## 当前范围
-
-已纳入：
-
-- macOS
-- local shell
-- 多 tab
-- profile 持久化
-- FFI 动态库加载
-- 基础输入
-- 鼠标线性选区
-- 复制 / 粘贴
-- scrollback 滚动
-- resize
-
-暂不纳入：
-
-- SSH
-- split pane
-- 全文搜索
-- sync
-- 插件系统
-- native renderer
-- `wgpu` renderer
+- 仓库边界： [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- 测试命令： [docs/TESTING.md](docs/TESTING.md)
+- 文档总览： [docs/README.md](docs/README.md)

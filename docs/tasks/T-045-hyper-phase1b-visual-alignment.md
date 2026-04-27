@@ -10,8 +10,8 @@
 
 ## Scope
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/test/shell/shell_screen_phase1b_test.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/test/shell/shell_screen_phase1b_test.dart`
 - `docs/tasks/T-045-hyper-phase1b-visual-alignment.md`
 
 ## Non-goals
@@ -31,7 +31,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/shell/shell_screen_phase1a_test.dart
 flutter test test/shell/shell_screen_phase1b_test.dart

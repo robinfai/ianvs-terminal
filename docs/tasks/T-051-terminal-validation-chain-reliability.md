@@ -7,7 +7,7 @@
 ## Scope
 
 - `tools/verify_flutter_terminal.sh`
-- `app/test/ffi/flutterm_core_test.dart`
+- `example/test/ffi/flutterm_core_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/T-051-terminal-validation-chain-reliability.md`
 
@@ -21,7 +21,7 @@
 ## Files In Scope
 
 - `tools/verify_flutter_terminal.sh`
-- `app/test/ffi/flutterm_core_test.dart`
+- `example/test/ffi/flutterm_core_test.dart`
 - `docs/TESTING.md`
 
 ## Functional Acceptance

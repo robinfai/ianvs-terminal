@@ -23,8 +23,8 @@
 
 ## Files In Scope
 
-- `app/lib/...`
-- `app/test/...`
+- `example/lib/...`
+- `example/test/...`
 - `native/core/...`
 
 ## Functional Acceptance
@@ -34,10 +34,10 @@
 
 ## Verification Commands
 
-参考 [../TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)，只选这次真正需要的命令。
+参考 [../TESTING.md](../TESTING.md)，只选这次真正需要的命令。
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 ```

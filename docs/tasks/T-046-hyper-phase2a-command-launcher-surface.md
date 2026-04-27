@@ -6,10 +6,10 @@
 
 ## Scope
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/test/shell/shell_screen_phase2a_test.dart`
-- `app/test/widget_test.dart`
-- `app/integration_test/flutterm_smoke_test.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/test/shell/shell_screen_phase2a_test.dart`
+- `example/test/widget_test.dart`
+- `example/integration_test/flutterm_smoke_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/T-046-hyper-phase2a-command-launcher-surface.md`
 
@@ -33,7 +33,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/shell/shell_screen_phase2a_test.dart
 flutter test test/widget_test.dart

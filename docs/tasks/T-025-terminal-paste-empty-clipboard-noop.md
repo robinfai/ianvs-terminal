@@ -6,9 +6,9 @@
 
 ## Scope
 
-- `app/lib/features/shell/shell_screen.dart`
+- `example/lib/features/shell/shell_screen.dart`
   - 让按钮式 `Paste` 与现有键盘粘贴路径保持一致：空文本直接返回。
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 新增空剪贴板按钮粘贴回归测试。
 - `docs/tasks/T-025-terminal-paste-empty-clipboard-noop.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -22,8 +22,8 @@
 
 ## Files In Scope
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/test/widget_test.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/test/widget_test.dart`
 - `docs/tasks/T-025-terminal-paste-empty-clipboard-noop.md`
 
 ## Functional Acceptance
@@ -34,7 +34,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/widget_test.dart
 ```

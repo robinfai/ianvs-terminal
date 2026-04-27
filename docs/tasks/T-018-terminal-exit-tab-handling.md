@@ -6,9 +6,9 @@
 
 ## Scope
 
-- `app/lib/features/sessions/session_controller.dart`
+- `example/lib/features/sessions/session_controller.dart`
   - 将 shell `exit` 事件收敛到既有 tab 关闭路径。
-- `app/test/sessions/session_controller_test.dart`
+- `example/test/sessions/session_controller_test.dart`
   - 为 shell 退出后的 tab 关闭与焦点迁移补最小回归测试。
 - `docs/tasks/T-018-terminal-exit-tab-handling.md`
   - 记录本次任务边界、验收、验证与风险。
@@ -22,8 +22,8 @@
 
 ## Files In Scope
 
-- `app/lib/features/sessions/session_controller.dart`
-- `app/test/sessions/session_controller_test.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/test/sessions/session_controller_test.dart`
 - `docs/tasks/T-018-terminal-exit-tab-handling.md`
 
 ## Functional Acceptance
@@ -36,10 +36,10 @@
 
 ## Verification Commands
 
-参考 [../TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)：
+参考 [../TESTING.md](../TESTING.md)：
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/sessions/session_controller_test.dart
 ```

@@ -6,11 +6,11 @@
 
 ## Scope
 
-- `app/lib/features/terminal/terminal_viewport.dart`
-- `app/lib/features/terminal/render_terminal_viewport.dart`
-- `app/lib/features/sessions/session_controller.dart`
-- `app/test/terminal/render_terminal_viewport_test.dart`
-- `app/test/sessions/session_controller_test.dart`
+- `example/lib/features/terminal/terminal_viewport.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/test/terminal/render_terminal_viewport_test.dart`
+- `example/test/sessions/session_controller_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/T-053-cell-metric-driven-resize-contract.md`
 
@@ -32,7 +32,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/sessions/session_controller_test.dart
 flutter test test/terminal/render_terminal_viewport_test.dart

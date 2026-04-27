@@ -1,0 +1,547 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:flutterm_terminal/flutterm_terminal.dart';
+
+import '../preferences/app_preferences_models.dart';
+import '../preferences/app_preferences_repository.dart';
+import '../profiles/profile_models.dart';
+import '../profiles/profile_repository.dart';
+import '../shell/reference_demo.dart';
+import '../shell/shell_acceptance.dart';
+import '../shell/window_bridge.dart';
+import '../terminal/clipboard_bridge.dart';
+import 'session_state.dart';
+
+final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
+  return NativePtyBackend.load();
+});
+
+final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
+  ref,
+) {
+  final controller = TerminalRuntimeController(
+    backend: ref.read(ptySessionBackendProvider),
+    copyToClipboard: ClipboardBridge.copy,
+    readClipboard: ClipboardBridge.paste,
+    resizeWindowBy: ({
+      required double widthDelta,
+      required double heightDelta,
+    }) {
+      return WindowBridge.resizeBy(
+        widthDelta: widthDelta,
+        heightDelta: heightDelta,
+      );
+    },
+    enableSessionPolling: ref.read(sessionPollingEnabledProvider),
+    enableWarmUpRefresh: ref.read(driverWarmUpRefreshEnabledProvider),
+  );
+  ref.onDispose(controller.dispose);
+  return controller;
+});
+
+final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
+  return ProfileRepository();
+});
+
+final appPreferencesRepositoryProvider = Provider<AppPreferencesRepository>((
+  ref,
+) {
+  return AppPreferencesRepository();
+});
+
+final sessionPollingEnabledProvider = Provider<bool>((ref) => true);
+final driverWarmUpRefreshEnabledProvider = Provider<bool>((ref) => false);
+final sessionEnvironmentOverridesProvider = Provider<Map<String, String>>((
+  ref,
+) {
+  return const <String, String>{};
+});
+
+final sessionControllerProvider =
+    NotifierProvider<SessionController, SessionState>(SessionController.new);
+
+class SessionController extends Notifier<SessionState> {
+  final Map<String, TerminalViewportController> _referenceDemoViewports =
+      <String, TerminalViewportController>{};
+  TerminalAppPreferencesDocument _appPreferences =
+      const TerminalAppPreferencesDocument();
+  bool _preferencesLoadedFromDisk = false;
+  StreamSubscription<TerminalSessionEvent>? _runtimeEventsSubscription;
+
+  @protected
+  String? get bootstrapDefaultProfileIdOverride => null;
+
+  TerminalRuntimeController get _runtime =>
+      ref.read(terminalRuntimeControllerProvider);
+
+  @override
+  SessionState build() {
+    Future.microtask(_bootstrap);
+    ref.onDispose(() {
+      _runtimeEventsSubscription?.cancel();
+      for (final controller in _referenceDemoViewports.values) {
+        controller.dispose();
+      }
+    });
+    return SessionState.initial();
+  }
+
+  TerminalViewportController viewportFor(String sessionId) {
+    if (ref.read(referenceDemoModeProvider)) {
+      return _referenceDemoViewports.putIfAbsent(
+        sessionId,
+        TerminalViewportController.new,
+      );
+    }
+    return _runtime.viewportFor(sessionId);
+  }
+
+  Future<void> _bootstrap() async {
+    if (ref.read(referenceDemoModeProvider)) {
+      for (final tab in referenceDemoTabs) {
+        _referenceDemoViewports
+            .putIfAbsent(tab.sessionId, TerminalViewportController.new)
+            .updateFrame(referenceDemoFrame);
+      }
+      state = state.copyWith(
+        profiles: <TerminalProfile>[defaultTerminalProfile()],
+        tabs: referenceDemoTabs,
+        activeSessionId: referenceDemoActiveSessionId,
+        defaultProfileId: defaultTerminalProfile().id,
+        themeMode: TerminalThemeMode.dark,
+        isReady: true,
+      );
+      shellAcceptanceProbe.mergeTerminalContent(
+        terminalHasVisibleContent: true,
+        terminalPreview: referenceDemoFrame.rows.first.text,
+      );
+      return;
+    }
+
+    _ensureRuntimeSubscription();
+    final profiles = await ref.read(profileRepositoryProvider).load();
+    final runtimeProfiles = profiles.profiles.isEmpty
+        ? <TerminalProfile>[defaultTerminalProfile()]
+        : profiles.profiles;
+    final preferencesRepository = ref.read(appPreferencesRepositoryProvider);
+    final persistedPreferences = await preferencesRepository.load();
+    _preferencesLoadedFromDisk = persistedPreferences != null;
+    final seededPreferences =
+        persistedPreferences ?? const TerminalAppPreferencesDocument();
+    final resolution = _resolveBootstrapPreferences(
+      profiles: runtimeProfiles,
+      preferences: seededPreferences,
+      explicitDefaultProfileId: bootstrapDefaultProfileIdOverride,
+    );
+    _appPreferences = resolution.preferences;
+    if (resolution.shouldRepairWritePreferences) {
+      await preferencesRepository.save(_appPreferences);
+      _preferencesLoadedFromDisk = true;
+    }
+    if (!ref.mounted) {
+      return;
+    }
+    state = state.copyWith(
+      profiles: runtimeProfiles,
+      defaultProfileId: resolution.effectiveDefaultProfileId,
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+      configurationWarnings: profiles.loadWarnings,
+      themeMode: _appPreferences.appearance.themeMode,
+      isReady: true,
+    );
+    if (resolution.effectiveDefaultProfileId != null) {
+      createSession(
+        runtimeProfiles.firstWhere(
+          (profile) => profile.id == resolution.effectiveDefaultProfileId,
+          orElse: () => runtimeProfiles.first,
+        ),
+      );
+    }
+  }
+
+  void _ensureRuntimeSubscription() {
+    _runtimeEventsSubscription ??= _runtime.events.listen(_handleRuntimeEvent);
+  }
+
+  void createSession(TerminalProfile profile) {
+    if (ref.read(referenceDemoModeProvider)) {
+      return;
+    }
+    _ensureRuntimeSubscription();
+    final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
+    final launchProfile = environmentOverrides.isEmpty
+        ? profile
+        : profile.copyWith(env: <String, String>{
+            ...profile.env,
+            ...environmentOverrides,
+          });
+    final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+    state = state.copyWith(
+      tabs: <TerminalTab>[
+        ...state.tabs,
+        TerminalTab(
+          sessionId: sessionId,
+          title: launchProfile.name,
+          profileId: profile.id,
+          profileSnapshot: launchProfile,
+        ),
+      ],
+      activeSessionId: sessionId,
+    );
+    unawaited(WindowBridge.setTitle(launchProfile.name));
+  }
+
+  void activateSession(String sessionId) {
+    state = state.copyWith(activeSessionId: sessionId);
+    for (final tab in state.tabs) {
+      if (tab.sessionId == sessionId) {
+        unawaited(WindowBridge.setTitle(tab.title));
+        break;
+      }
+    }
+    if (ref.read(referenceDemoModeProvider)) {
+      shellAcceptanceProbe.mergeTerminalContent(
+        terminalHasVisibleContent: true,
+        terminalPreview: referenceDemoFrame.rows.first.text,
+      );
+    }
+  }
+
+  void closeSession(String sessionId) {
+    if (ref.read(referenceDemoModeProvider)) {
+      _removeSessionState(sessionId);
+      return;
+    }
+    _runtime.closeSession(sessionId);
+    _removeSessionState(sessionId);
+  }
+
+  void resizeActiveSession(Size viewportSize, double devicePixelRatio) {
+    if (ref.read(referenceDemoModeProvider)) {
+      return;
+    }
+    final sessionId = state.activeSessionId;
+    if (sessionId == null) {
+      return;
+    }
+    _runtime.resizeSession(sessionId, viewportSize, devicePixelRatio);
+    _applyFrame(sessionId, _runtime.viewportFor(sessionId).frame);
+  }
+
+  void _handleRuntimeEvent(TerminalSessionEvent event) {
+    if (!ref.mounted) {
+      return;
+    }
+    switch (event) {
+      case TerminalSessionFrameEvent():
+        _applyFrame(event.sessionId, event.frame);
+        break;
+      case TerminalSessionExitEvent():
+        _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
+        break;
+    }
+  }
+
+  void _applyFrame(String sessionId, TerminalFrameDiff frame) {
+    _updateTabTitleFromFrame(
+      sessionId,
+      windowTitle: frame.windowTitle,
+      windowIconName: frame.windowIconName,
+    );
+
+    String? preview;
+    for (final row in frame.rows) {
+      final text = row.text.trim();
+      if (text.isNotEmpty) {
+        preview = text;
+        break;
+      }
+    }
+    shellAcceptanceProbe.mergeTerminalContent(
+      terminalHasVisibleContent: preview != null,
+      terminalPreview: preview,
+    );
+  }
+
+  void _updateTabTitleFromFrame(
+    String sessionId, {
+    String? windowTitle,
+    String? windowIconName,
+  }) {
+    final tabIndex = state.tabs.indexWhere((tab) => tab.sessionId == sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+
+    final currentTab = state.tabs[tabIndex];
+    final nextTitle = _resolvedTabTitle(
+      currentTab,
+      windowTitle: windowTitle,
+      windowIconName: windowIconName,
+    );
+    if (nextTitle == currentTab.title) {
+      return;
+    }
+
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[tabIndex] = currentTab.copyWith(title: nextTitle);
+    state = state.copyWith(tabs: nextTabs);
+    if (sessionId == state.activeSessionId) {
+      unawaited(WindowBridge.setTitle(nextTitle));
+    }
+  }
+
+  String _resolvedTabTitle(
+    TerminalTab tab, {
+    String? windowTitle,
+    String? windowIconName,
+  }) {
+    if (windowTitle != null && windowTitle.isNotEmpty) {
+      return windowTitle;
+    }
+    if (windowIconName != null && windowIconName.isNotEmpty) {
+      return windowIconName;
+    }
+
+    final profileSnapshot = tab.profileSnapshot;
+    if (profileSnapshot != null) {
+      return profileSnapshot.name;
+    }
+
+    for (final profile in state.profiles) {
+      if (profile.id == tab.profileId) {
+        return profile.name;
+      }
+    }
+    return tab.title;
+  }
+
+  void _removeSessionState(
+    String sessionId, {
+    bool runtimeAlreadyClosed = false,
+  }) {
+    final nextTabs = state.tabs
+        .where((tab) => tab.sessionId != sessionId)
+        .toList();
+    final nextActiveSessionId = state.activeSessionId == sessionId
+        ? (nextTabs.isEmpty ? null : nextTabs.last.sessionId)
+        : state.activeSessionId;
+
+    state = state.copyWith(
+      tabs: nextTabs,
+      activeSessionId: nextActiveSessionId,
+    );
+
+    if (ref.read(referenceDemoModeProvider)) {
+      if (nextTabs.isEmpty) {
+        shellAcceptanceProbe.mergeTerminalContent(
+          terminalHasVisibleContent: false,
+          terminalPreview: null,
+        );
+      } else {
+        shellAcceptanceProbe.mergeTerminalContent(
+          terminalHasVisibleContent: true,
+          terminalPreview: referenceDemoFrame.rows.first.text,
+        );
+      }
+      return;
+    }
+
+    if (nextActiveSessionId != null) {
+      final activeTab = nextTabs.firstWhere(
+        (tab) => tab.sessionId == nextActiveSessionId,
+      );
+      unawaited(WindowBridge.setTitle(activeTab.title));
+    } else {
+      shellAcceptanceProbe.mergeTerminalContent(
+        terminalHasVisibleContent: false,
+        terminalPreview: null,
+      );
+    }
+
+    if (!runtimeAlreadyClosed && _runtime.hasSession(sessionId)) {
+      _runtime.closeSession(sessionId);
+    }
+  }
+
+  Future<void> saveProfile(TerminalProfile profile) async {
+    final nextProfiles = <TerminalProfile>[
+      for (final existing in state.profiles)
+        if (existing.id == profile.id) profile else existing,
+      if (!state.profiles.any((existing) => existing.id == profile.id)) profile,
+    ];
+    await ref
+        .read(profileRepositoryProvider)
+        .save(TerminalProfilesDocument(profiles: nextProfiles));
+    state = state.copyWith(
+      profiles: nextProfiles,
+      defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+      configurationWarnings: <TerminalProfileLoadWarning>[
+        for (final warning in state.configurationWarnings)
+          if (warning.profileId != profile.id) warning,
+      ],
+    );
+  }
+
+  void dismissConfigurationWarnings() {
+    if (state.configurationWarnings.isEmpty) {
+      return;
+    }
+    state = state.copyWith(configurationWarnings: const []);
+  }
+
+  Future<void> setDefaultProfile(String profileId) async {
+    _appPreferences = _appPreferences.copyWith(
+      defaults: _appPreferences.defaults.copyWith(defaultProfileId: profileId),
+    );
+    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+    _preferencesLoadedFromDisk = true;
+    state = state.copyWith(
+      defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+    );
+  }
+
+  Future<void> resetDefaultProfile() async {
+    _appPreferences = _appPreferences.copyWith(
+      defaults: _appPreferences.defaults.copyWith(defaultProfileId: null),
+    );
+    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+    _preferencesLoadedFromDisk = true;
+    state = state.copyWith(
+      defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+    );
+  }
+
+  Future<void> setThemeMode(TerminalThemeMode themeMode) async {
+    _appPreferences = _appPreferences.copyWith(
+      appearance: _appPreferences.appearance.copyWith(themeMode: themeMode),
+    );
+    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+    _preferencesLoadedFromDisk = true;
+    state = state.copyWith(themeMode: _appPreferences.appearance.themeMode);
+  }
+
+  Future<void> resetThemeMode() async {
+    await setThemeMode(TerminalThemeMode.system);
+  }
+
+  Future<void> deleteProfile(String profileId) async {
+    final nextProfiles = state.profiles
+        .where((profile) => profile.id != profileId)
+        .toList();
+    await ref
+        .read(profileRepositoryProvider)
+        .save(TerminalProfilesDocument(profiles: nextProfiles));
+    final deletedConfiguredDefault =
+        _normalizeProfileId(_appPreferences.defaults.defaultProfileId) ==
+        profileId;
+    if (deletedConfiguredDefault) {
+      _appPreferences = _appPreferences.copyWith(
+        defaults: _appPreferences.defaults.copyWith(defaultProfileId: null),
+      );
+      await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+      _preferencesLoadedFromDisk = true;
+    }
+    state = state.copyWith(
+      profiles: nextProfiles,
+      defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
+      configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+      configurationWarnings: <TerminalProfileLoadWarning>[
+        for (final warning in state.configurationWarnings)
+          if (warning.profileId != profileId) warning,
+      ],
+    );
+  }
+
+  String? _effectiveDefaultProfileIdFor(List<TerminalProfile> profiles) {
+    final configuredDefaultId = _normalizeProfileId(
+      _appPreferences.defaults.defaultProfileId,
+    );
+    if (_hasProfileId(profiles, configuredDefaultId)) {
+      return configuredDefaultId;
+    }
+    if (profiles.isEmpty) {
+      return null;
+    }
+    return profiles.first.id;
+  }
+
+  String? _configuredDefaultProfileIdForUi() {
+    if (!_preferencesLoadedFromDisk) {
+      return null;
+    }
+    return _normalizeProfileId(_appPreferences.defaults.defaultProfileId);
+  }
+
+  _BootstrapPreferencesResolution _resolveBootstrapPreferences({
+    required List<TerminalProfile> profiles,
+    required TerminalAppPreferencesDocument preferences,
+    required String? explicitDefaultProfileId,
+  }) {
+    final explicitDefaultId = _normalizeProfileId(explicitDefaultProfileId);
+    if (_hasProfileId(profiles, explicitDefaultId)) {
+      return _BootstrapPreferencesResolution(
+        effectiveDefaultProfileId: explicitDefaultId,
+        preferences: preferences,
+      );
+    }
+
+    final preferencesDefaultId = _normalizeProfileId(
+      preferences.defaults.defaultProfileId,
+    );
+    if (_hasProfileId(profiles, preferencesDefaultId)) {
+      return _BootstrapPreferencesResolution(
+        effectiveDefaultProfileId: preferencesDefaultId,
+        preferences: preferences,
+      );
+    }
+
+    if (preferencesDefaultId != null) {
+      final repairedPreferences = preferences.copyWith(
+        defaults: preferences.defaults.copyWith(defaultProfileId: null),
+      );
+      return _BootstrapPreferencesResolution(
+        effectiveDefaultProfileId: profiles.isEmpty ? null : profiles.first.id,
+        preferences: repairedPreferences,
+        shouldRepairWritePreferences: true,
+      );
+    }
+
+    return _BootstrapPreferencesResolution(
+      effectiveDefaultProfileId: profiles.isEmpty ? null : profiles.first.id,
+      preferences: preferences,
+    );
+  }
+
+  String? _normalizeProfileId(String? profileId) {
+    if (profileId == null || profileId.isEmpty) {
+      return null;
+    }
+    return profileId;
+  }
+
+  bool _hasProfileId(List<TerminalProfile> profiles, String? profileId) {
+    if (profileId == null) {
+      return false;
+    }
+    return profiles.any((profile) => profile.id == profileId);
+  }
+}
+
+class _BootstrapPreferencesResolution {
+  const _BootstrapPreferencesResolution({
+    required this.effectiveDefaultProfileId,
+    required this.preferences,
+    this.shouldRepairWritePreferences = false,
+  });
+
+  final String? effectiveDefaultProfileId;
+  final TerminalAppPreferencesDocument preferences;
+  final bool shouldRepairWritePreferences;
+}

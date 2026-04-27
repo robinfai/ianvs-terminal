@@ -6,16 +6,16 @@
 
 如果要开始一个新迭代，推荐按这个顺序读：
 
-1. [../README.md](/Users/robinfai/personal/flutterm/README.md)
-2. [ROADMAP.md](/Users/robinfai/personal/flutterm/docs/ROADMAP.md)
-3. 对应任务文档，或从 [tasks/TEMPLATE.md](/Users/robinfai/personal/flutterm/docs/tasks/TEMPLATE.md) 新建一个
-4. [ACCEPTANCE.md](/Users/robinfai/personal/flutterm/docs/ACCEPTANCE.md)
-5. [TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)
-6. [ARCHITECTURE.md](/Users/robinfai/personal/flutterm/docs/ARCHITECTURE.md)
-7. [HYPER_LIKE_TARGET.md](/Users/robinfai/personal/flutterm/docs/HYPER_LIKE_TARGET.md)
-8. [HYPER_LIKE_GAP_MATRIX.md](/Users/robinfai/personal/flutterm/docs/HYPER_LIKE_GAP_MATRIX.md)
-9. [DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md](/Users/robinfai/personal/flutterm/docs/DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md)
-10. [KNOWN_ISSUES.md](/Users/robinfai/personal/flutterm/docs/KNOWN_ISSUES.md)
+1. [../README.md](../README.md)
+2. [ROADMAP.md](ROADMAP.md)
+3. 对应任务文档，或从 [tasks/TEMPLATE.md](tasks/TEMPLATE.md) 新建一个
+4. [ACCEPTANCE.md](ACCEPTANCE.md)
+5. [TESTING.md](TESTING.md)
+6. [ARCHITECTURE.md](ARCHITECTURE.md)
+7. [HYPER_LIKE_TARGET.md](HYPER_LIKE_TARGET.md)
+8. [HYPER_LIKE_GAP_MATRIX.md](HYPER_LIKE_GAP_MATRIX.md)
+9. [DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md](DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md)
+10. [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
 
 ## 文档职责
 

@@ -6,11 +6,11 @@
 
 ## Scope
 
-- `app/lib/features/shell/`
-- `app/test/shell/`
-- `app/test/widget_test.dart`
-- `app/integration_test/flutterm_smoke_test.dart`
-- `app/test/sessions/session_controller_test.dart`
+- `example/lib/features/shell/`
+- `example/test/shell/`
+- `example/test/widget_test.dart`
+- `example/integration_test/flutterm_smoke_test.dart`
+- `example/test/sessions/session_controller_test.dart`
   - 仅在实现直接消费 session lifecycle state 时才纳入
 - `docs/TESTING.md`
 - `docs/tasks/T-056-hyper-phase4-interaction-polish.md`
@@ -33,7 +33,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/widget_test.dart
 flutter test test/shell/shell_screen_phase2a_test.dart
@@ -44,7 +44,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 若实现直接消费 session lifecycle state，追加：
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter test test/sessions/session_controller_test.dart
 ```
 

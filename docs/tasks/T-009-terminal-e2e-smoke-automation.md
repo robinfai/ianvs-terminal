@@ -6,13 +6,13 @@
 
 ## Scope
 
-- `app/pubspec.yaml`
+- `example/pubspec.yaml`
   - 增加 `integration_test` 开发依赖。
-- `app/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/flutterm_smoke_test.dart`
   - 增加最小启动/开 tab 冒烟用例。
-- `app/test/support/memory_profile_repository.dart`
+- `example/test/support/memory_profile_repository.dart`
   - 抽出测试内存 profile 仓储供 widget/integration 测试复用。
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 复用新的测试支持类，保持现有 widget 冒烟语义。
 - `docs/TESTING.md`
   - 补充自动化 smoke 命令与适用范围。
@@ -26,10 +26,10 @@
 
 ## Files In Scope
 
-- `app/pubspec.yaml`
-- `app/integration_test/flutterm_smoke_test.dart`
-- `app/test/support/memory_profile_repository.dart`
-- `app/test/widget_test.dart`
+- `example/pubspec.yaml`
+- `example/integration_test/flutterm_smoke_test.dart`
+- `example/test/support/memory_profile_repository.dart`
+- `example/test/widget_test.dart`
 - `docs/TESTING.md`
 
 ## Functional Acceptance
@@ -41,10 +41,10 @@
 
 ## Verification Commands
 
-参考 [../TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)：
+参考 [../TESTING.md](../TESTING.md)：
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 flutter test integration_test/flutterm_smoke_test.dart

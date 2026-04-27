@@ -67,7 +67,7 @@ fi
 mkdir -p "$out_dir"
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-app_dir="$repo_root/app"
+app_dir="$repo_root/example"
 
 cmd=(
   flutter

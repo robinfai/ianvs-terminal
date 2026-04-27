@@ -32,10 +32,10 @@
 
 ## Verification Commands
 
-参考 [../TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)：
+参考 [../TESTING.md](../TESTING.md)：
 
 ```bash
-cd /Users/robinfai/personal/flutterm/native/core
+cd native/core
 cargo fmt --check
 cargo test
 ```

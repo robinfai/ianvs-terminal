@@ -38,7 +38,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
   ./tools/check_terminal_manual_matrix_prereqs.sh
 command -v vttest || true
 
-cd /Users/robinfai/personal/flutterm/app
+cd example
 env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
   no_proxy=127.0.0.1,localhost,::1 NO_PROXY=127.0.0.1,localhost,::1 \
   flutter --version

@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/terminal_input_controller_test.dart`
+- `example/test/terminal_input_controller_test.dart`
   - 新增键盘粘贴与复制的 Unicode 回归用例。
 
 ## Non-goals
@@ -17,7 +17,7 @@
 
 ## Files In Scope
 
-- `app/test/terminal_input_controller_test.dart`
+- `example/test/terminal_input_controller_test.dart`
 
 ## Functional Acceptance
 
@@ -27,7 +27,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 ```

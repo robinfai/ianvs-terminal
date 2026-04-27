@@ -1,6 +1,10 @@
 .omx/
 .omx-last.txt
 .omx-run.log
+/.dart_tool/
+/build/
+packages/*/.dart_tool/
+packages/*/build/
 .codex/*
 !.codex/config.toml
 !.codex/agents/

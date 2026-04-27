@@ -6,9 +6,9 @@
 
 ## Scope
 
-- `app/lib/features/terminal/render_terminal_viewport.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
   - 增加最小 debug-only 测试可观测面，记录最近一次 paint 的可见行文本。
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 新增一条 shell screen 级别的 scroll + frame update + repaint 测试。
 - `docs/tasks/T-037-terminal-scroll-visible-content-smoke.md`
   - 记录本次任务边界、验收、验证与风险。
@@ -23,8 +23,8 @@
 
 ## Files In Scope
 
-- `app/lib/features/terminal/render_terminal_viewport.dart`
-- `app/test/widget_test.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
+- `example/test/widget_test.dart`
 - `docs/tasks/T-037-terminal-scroll-visible-content-smoke.md`
 - `docs/TESTING.md`
 
@@ -38,7 +38,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/widget_test.dart
 flutter test test/terminal/render_terminal_viewport_test.dart

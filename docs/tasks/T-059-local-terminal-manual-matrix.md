@@ -35,7 +35,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter test integration_test/flutterm_smoke_test.dart
 flutter run -d macos
 ```

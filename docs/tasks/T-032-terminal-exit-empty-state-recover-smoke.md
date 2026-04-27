@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 新增一条通过可控 `exit` 事件验证 empty-state 后恢复路径的 widget 测试。
 - `docs/tasks/T-032-terminal-exit-empty-state-recover-smoke.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -22,7 +22,7 @@
 
 ## Files In Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
 - `docs/tasks/T-032-terminal-exit-empty-state-recover-smoke.md`
 - `docs/TESTING.md`
 
@@ -36,7 +36,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/widget_test.dart
 ```

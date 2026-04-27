@@ -6,16 +6,16 @@
 
 ## Scope
 
-- `app/lib/features/sessions/session_controller.dart`
-- `app/lib/features/profiles/profile_models.dart`
-- `app/lib/features/profiles/profile_repository.dart`
-- `app/lib/features/shell/defaults_appearance_dialog.dart`
-- `app/lib/features/shell/shell_screen.dart`
-- `app/test/sessions/session_controller_phase3_test.dart`
-- `app/test/sessions/session_controller_test.dart`
-- `app/test/profiles/profile_repository_test.dart`
-- `app/test/shell/shell_screen_phase3_test.dart`
-- `app/integration_test/flutterm_smoke_test.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/lib/features/profiles/profile_models.dart`
+- `example/lib/features/profiles/profile_repository.dart`
+- `example/lib/features/shell/defaults_appearance_dialog.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/test/sessions/session_controller_phase3_test.dart`
+- `example/test/sessions/session_controller_test.dart`
+- `example/test/profiles/profile_repository_test.dart`
+- `example/test/shell/shell_screen_phase3_test.dart`
+- `example/integration_test/flutterm_smoke_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/T-057-terminalprofiles-defaultprofileid-narrowing.md`
 
@@ -29,16 +29,16 @@
 
 ## Files In Scope
 
-- `app/lib/features/sessions/session_controller.dart`
-- `app/lib/features/profiles/profile_models.dart`
-- `app/lib/features/profiles/profile_repository.dart`
-- `app/lib/features/shell/defaults_appearance_dialog.dart`
-- `app/lib/features/shell/shell_screen.dart`
-- `app/test/sessions/session_controller_phase3_test.dart`
-- `app/test/sessions/session_controller_test.dart`
-- `app/test/profiles/profile_repository_test.dart`
-- `app/test/shell/shell_screen_phase3_test.dart`
-- `app/integration_test/flutterm_smoke_test.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/lib/features/profiles/profile_models.dart`
+- `example/lib/features/profiles/profile_repository.dart`
+- `example/lib/features/shell/defaults_appearance_dialog.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/test/sessions/session_controller_phase3_test.dart`
+- `example/test/sessions/session_controller_test.dart`
+- `example/test/profiles/profile_repository_test.dart`
+- `example/test/shell/shell_screen_phase3_test.dart`
+- `example/integration_test/flutterm_smoke_test.dart`
 - `docs/TESTING.md`
 
 ## Functional Acceptance
@@ -50,10 +50,10 @@
 
 ## Verification Commands
 
-参考 [TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)。
+参考 [TESTING.md](../TESTING.md)。
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/sessions/session_controller_phase3_test.dart
 flutter test test/sessions/session_controller_test.dart

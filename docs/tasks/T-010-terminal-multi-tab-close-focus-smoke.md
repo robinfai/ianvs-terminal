@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/flutterm_smoke_test.dart`
   - 增加多 tab close/focus 的 UI 冒烟检查。
 - `docs/tasks/T-010-terminal-multi-tab-close-focus-smoke.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -20,7 +20,7 @@
 
 ## Files In Scope
 
-- `app/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/flutterm_smoke_test.dart`
 - `docs/tasks/T-010-terminal-multi-tab-close-focus-smoke.md`
 
 ## Functional Acceptance
@@ -31,10 +31,10 @@
 
 ## Verification Commands
 
-参考 [../TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)：
+参考 [../TESTING.md](../TESTING.md)：
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 flutter test integration_test/flutterm_smoke_test.dart

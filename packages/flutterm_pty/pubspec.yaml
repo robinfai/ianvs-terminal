@@ -1,0 +1,13 @@
+name: flutterm_pty
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+resolution: workspace
+
+dependencies:
+  ffi: ^2.2.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

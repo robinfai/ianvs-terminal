@@ -38,7 +38,7 @@
 cd /Users/robinfai/personal/flutterm
 command -v vttest || true
 
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter test integration_test/flutterm_smoke_test.dart
 flutter run -d macos
 ```

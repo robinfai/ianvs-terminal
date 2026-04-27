@@ -14,23 +14,23 @@
   - 暴露 selection text FFI 入口。
 - `native/core/tests/session_test.rs`
   - 增加跨 scrollback、wrapped row、block selection 的 selection text 回归。
-- `app/lib/features/terminal/terminal_painter_models.dart`
+- `example/lib/features/terminal/terminal_painter_models.dart`
   - 解析 `viewportStartRow` 并补 `TerminalSelection.toJson()`。
-- `app/lib/features/terminal/selection_controller.dart`
+- `example/lib/features/terminal/selection_controller.dart`
   - 把内部行号切换到稳定 scrollback 坐标，并支持映射回当前 viewport。
-- `app/lib/features/terminal/render_terminal_viewport.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
   - 只负责绘制当前 frame 下的选区，不再直接处理拖选事件。
-- `app/lib/features/terminal/terminal_viewport.dart`
+- `example/lib/features/terminal/terminal_viewport.dart`
   - 在 state 层管理本地拖选、边缘自动滚动、停止条件与 scroll callback。
-- `app/lib/features/shell/shell_screen.dart`
+- `example/lib/features/shell/shell_screen.dart`
   - 复制路径改为 native selection text 优先，frame fallback 兜底。
-- `app/lib/ffi/flutterm_core.dart`
+- `example/lib/ffi/flutterm_core.dart`
   - 增加 selection text 绑定与客户端封装。
-- `app/test/support/fake_core_bindings.dart`
+- `example/test/support/fake_core_bindings.dart`
   - 为 widget 测试补 selection text 假实现。
-- `app/test/terminal/selection_controller_test.dart`
+- `example/test/terminal/selection_controller_test.dart`
   - 增加非零 `viewportStartRow` 映射与 viewport 裁剪回归。
-- `app/test/terminal/render_terminal_viewport_test.dart`
+- `example/test/terminal/render_terminal_viewport_test.dart`
   - 增加上下边缘自动滚动、pointer up 停止、mouse mode 禁用本地自动滚动回归。
 
 ## Non-goals
@@ -46,15 +46,15 @@
 - `native/core/src/session.rs`
 - `native/core/src/ffi.rs`
 - `native/core/tests/session_test.rs`
-- `app/lib/features/terminal/terminal_painter_models.dart`
-- `app/lib/features/terminal/selection_controller.dart`
-- `app/lib/features/terminal/render_terminal_viewport.dart`
-- `app/lib/features/terminal/terminal_viewport.dart`
-- `app/lib/features/shell/shell_screen.dart`
-- `app/lib/ffi/flutterm_core.dart`
-- `app/test/support/fake_core_bindings.dart`
-- `app/test/terminal/selection_controller_test.dart`
-- `app/test/terminal/render_terminal_viewport_test.dart`
+- `example/lib/features/terminal/terminal_painter_models.dart`
+- `example/lib/features/terminal/selection_controller.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
+- `example/lib/features/terminal/terminal_viewport.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/lib/ffi/flutterm_core.dart`
+- `example/test/support/fake_core_bindings.dart`
+- `example/test/terminal/selection_controller_test.dart`
+- `example/test/terminal/render_terminal_viewport_test.dart`
 - `docs/tasks/T-060-terminal-edge-drag-selection-scroll.md`
 
 ## Functional Acceptance
@@ -67,14 +67,14 @@
 
 ## Verification Commands
 
-参考 [../TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)：
+参考 [../TESTING.md](../TESTING.md)：
 
 ```bash
-cd /Users/robinfai/personal/flutterm/native/core
+cd native/core
 cargo fmt --check
 cargo test
 
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 flutter test integration_test/flutterm_smoke_test.dart

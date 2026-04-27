@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/terminal/selection_controller_test.dart`
+- `example/test/terminal/selection_controller_test.dart`
   - 新增 `SelectionController.textForFrame` 的多行选区回归测试。
 - `docs/tasks/T-020-terminal-multiline-selection-copy-smoke.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -20,7 +20,7 @@
 
 ## Files In Scope
 
-- `app/test/terminal/selection_controller_test.dart`
+- `example/test/terminal/selection_controller_test.dart`
 - `docs/tasks/T-020-terminal-multiline-selection-copy-smoke.md`
 
 ## Functional Acceptance
@@ -33,7 +33,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/terminal/selection_controller_test.dart
 ```

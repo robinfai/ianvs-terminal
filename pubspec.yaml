@@ -1,0 +1,10 @@
+name: _
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+workspace:
+  - example
+  - packages/flutterm_pty
+  - packages/flutterm_terminal

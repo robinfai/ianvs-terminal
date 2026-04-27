@@ -6,8 +6,8 @@
 
 ## Scope
 
-- `app/lib/features/shell/shell_screen.dart`：修复粘贴分支的字节编码。
-- `app/test/widget_test.dart`（可选）：在必要时补充回归测试覆盖粘贴行为。
+- `example/lib/features/shell/shell_screen.dart`：修复粘贴分支的字节编码。
+- `example/test/widget_test.dart`（可选）：在必要时补充回归测试覆盖粘贴行为。
 
 ## Non-goals
 
@@ -17,8 +17,8 @@
 
 ## Files In Scope
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/test/widget_test.dart`（若本次回归测试需要）
+- `example/lib/features/shell/shell_screen.dart`
+- `example/test/widget_test.dart`（若本次回归测试需要）
 
 ## Functional Acceptance
 
@@ -29,7 +29,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 ```

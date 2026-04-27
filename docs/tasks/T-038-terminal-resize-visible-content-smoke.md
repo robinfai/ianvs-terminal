@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 新增一条 shell screen 级别的 resize + frame update + repaint 测试。
 - `docs/tasks/T-038-terminal-resize-visible-content-smoke.md`
   - 记录本次任务边界、验收、验证与风险。
@@ -21,7 +21,7 @@
 
 ## Files In Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
 - `docs/tasks/T-038-terminal-resize-visible-content-smoke.md`
 - `docs/TESTING.md`
 
@@ -35,7 +35,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/widget_test.dart
 ```

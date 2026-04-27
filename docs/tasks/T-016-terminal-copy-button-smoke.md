@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 新增一条基于现有 `FakeCoreBindings` 和 Flutter 平台通道 mock 的最小 UI 测试。
   - 在 terminal 视图中制造线性选区后，点击可见的 `Copy` 按钮。
   - 断言系统剪贴板写入内容与当前选区文本一致。
@@ -25,7 +25,7 @@
 
 ## Files In Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
 - `docs/tasks/T-016-terminal-copy-button-smoke.md`
 - `docs/TESTING.md`
 
@@ -39,10 +39,10 @@
 
 ## Verification Commands
 
-参考 [../TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)：
+参考 [../TESTING.md](../TESTING.md)：
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/widget_test.dart
 ```

@@ -6,9 +6,9 @@
 
 ## Scope
 
-- `app/lib/features/terminal/terminal_input_controller.dart`
+- `example/lib/features/terminal/terminal_input_controller.dart`
   - 调整 `Ctrl+C` 与复制快捷键的判定。
-- `app/test/terminal_input_controller_test.dart`
+- `example/test/terminal_input_controller_test.dart`
   - 增加 `Ctrl+C` 中断回归测试，并保留现有复制回归。
 
 ## Non-goals
@@ -20,8 +20,8 @@
 
 ## Files In Scope
 
-- `app/lib/features/terminal/terminal_input_controller.dart`
-- `app/test/terminal_input_controller_test.dart`
+- `example/lib/features/terminal/terminal_input_controller.dart`
+- `example/test/terminal_input_controller_test.dart`
 
 ## Functional Acceptance
 
@@ -31,14 +31,14 @@
 
 ## Verification Commands
 
-参考 [../TESTING.md](/Users/robinfai/personal/flutterm/docs/TESTING.md)：
+参考 [../TESTING.md](../TESTING.md)：
 
 ```bash
-cd /Users/robinfai/personal/flutterm/native/core
+cd native/core
 cargo fmt --check
 cargo test
 
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 flutter run -d macos

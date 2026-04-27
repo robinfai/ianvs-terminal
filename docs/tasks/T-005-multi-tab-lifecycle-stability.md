@@ -6,9 +6,9 @@
 
 ## Scope
 
-- `app/test/sessions/session_controller_test.dart`
+- `example/test/sessions/session_controller_test.dart`
   - 增加会话创建/切换/关闭路径回归用例。
-- `app/lib/features/sessions/session_controller.dart`
+- `example/lib/features/sessions/session_controller.dart`
   - 仅限验证使用，避免超范围改动。
 
 ## Non-goals
@@ -19,7 +19,7 @@
 
 ## Files In Scope
 
-- `app/test/sessions/session_controller_test.dart`
+- `example/test/sessions/session_controller_test.dart`
 
 ## Functional Acceptance
 
@@ -30,7 +30,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter test
 ```
 

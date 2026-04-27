@@ -1,0 +1,284 @@
+import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:typed_data';
+
+import 'package:flutterm_terminal/flutterm_terminal.dart';
+import 'package:flutterm_pty/flutterm_pty.dart';
+
+class FakePtyBackend implements PtySessionBackend {
+  int _nextSessionId = 0;
+  final Map<String, Map<String, Object?>> _frames =
+      <String, Map<String, Object?>>{};
+  final Map<String, List<PtyEvent>> _events = <String, List<PtyEvent>>{};
+  final Map<String, Map<String, List<Map<String, Object?>>>> _searchMatches =
+      <String, Map<String, List<Map<String, Object?>>>>{};
+  final Map<String, int> _frameDiffReads = <String, int>{};
+  final List<Uint8List> writes = <Uint8List>[];
+  final List<List<int>> resizeCalls = <List<int>>[];
+  final List<List<int>> scrollCalls = <List<int>>[];
+  final List<List<int>> scrollToCalls = <List<int>>[];
+  final List<List<Object?>> searchCalls = <List<Object?>>[];
+  final List<List<Object?>> selectionTextCalls = <List<Object?>>[];
+  Map<String, Object?>? lastCreatedSessionPayload;
+  bool pingCalled = false;
+
+  void setFrame(Object sessionId, Map<String, Object?> frame) {
+    _frames[_sessionKey(sessionId)] = frame;
+  }
+
+  void setSearchMatches(
+    Object sessionId,
+    String query,
+    List<Map<String, Object?>> matches,
+  ) {
+    _searchMatches.putIfAbsent(
+      _sessionKey(sessionId),
+      () => <String, List<Map<String, Object?>>>{},
+    )[query] = matches;
+  }
+
+  void enqueueEvent(Object sessionId, PtyEvent event) {
+    _events.putIfAbsent(_sessionKey(sessionId), () => <PtyEvent>[]).add(event);
+  }
+
+  @override
+  int ping() {
+    pingCalled = true;
+    return 42;
+  }
+
+  @override
+  String createSession(String sessionConfigJson) {
+    lastCreatedSessionPayload =
+        jsonDecode(sessionConfigJson) as Map<String, Object?>;
+    final sessionId = (++_nextSessionId).toString();
+    _frames[sessionId] = <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'flutterm ready',
+          'style_runs': <Object?>[
+            <String, Object?>{
+              'start': 0,
+              'end': 14,
+              'foreground': '#f8fafc',
+              'background': null,
+              'bold': false,
+              'italic': false,
+              'underline': false,
+              'inverse': false,
+            },
+          ],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 4, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'window_title': null,
+      'window_icon_name': null,
+    };
+    _events[sessionId] = <PtyEvent>[
+      PtyEvent(
+        kind: 'started',
+        sessionId: sessionId,
+      ),
+    ];
+    return sessionId;
+  }
+
+  @override
+  void closeSession(String sessionId) {
+    _frames.remove(sessionId);
+    _events.remove(sessionId);
+  }
+
+  @override
+  void resizeSession(
+    String sessionId, {
+    required int cols,
+    required int rows,
+    required int pixelWidth,
+    required int pixelHeight,
+  }) {
+    resizeCalls.add([
+      _numericSessionId(sessionId),
+      cols,
+      rows,
+      pixelWidth,
+      pixelHeight,
+    ]);
+    final frame = _frames[sessionId];
+    if (frame != null) {
+      frame['viewport_cols'] = cols;
+      frame['viewport_rows'] = rows;
+    }
+  }
+
+  @override
+  void scrollViewport(String sessionId, int deltaLines) {
+    scrollCalls.add([_numericSessionId(sessionId), deltaLines]);
+    final frame = _frames[sessionId];
+    if (frame == null) {
+      return;
+    }
+    final maxOffset = frame['scrollback_max_offset'] as int? ?? 0;
+    final currentOffset = frame['scrollback_offset'] as int? ?? 0;
+    frame['scrollback_offset'] = (currentOffset + deltaLines).clamp(
+      0,
+      maxOffset,
+    );
+  }
+
+  @override
+  void scrollViewportTo(String sessionId, int offset) {
+    scrollToCalls.add([_numericSessionId(sessionId), offset]);
+    final frame = _frames[sessionId];
+    if (frame == null) {
+      return;
+    }
+    final maxOffset = frame['scrollback_max_offset'] as int? ?? 0;
+    frame['scrollback_offset'] = offset.clamp(0, maxOffset);
+  }
+
+  @override
+  String? searchTextJson(String sessionId, String query) {
+    searchCalls.add([_numericSessionId(sessionId), query]);
+    final matches =
+        _searchMatches[sessionId]?[query] ?? const <Map<String, Object?>>[];
+    return jsonEncode(
+      matches.map((match) {
+        return <String, Object?>{
+          ...match,
+          'scrollback_offset': match['scrollback_offset'] ?? match['row'] ?? 0,
+        };
+      }).toList(),
+    );
+  }
+
+  @override
+  String? selectionText(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map<String, Object?>;
+    selectionTextCalls.add([_numericSessionId(sessionId), request]);
+    final frame = _frames[sessionId];
+    if (frame == null) {
+      return null;
+    }
+    return _selectionTextForFrame(
+      TerminalFrameDiff.fromJson(frame),
+      TerminalSelection.fromJson(request),
+      block: request['block'] as bool? ?? false,
+    );
+  }
+
+  @override
+  String? takeFrameDiffJson(String sessionId) {
+    final frame = _frames[sessionId];
+    if (frame == null) {
+      return null;
+    }
+    _frameDiffReads.update(sessionId, (value) => value + 1, ifAbsent: () => 1);
+    return jsonEncode(frame);
+  }
+
+  @override
+  void writeInput(String sessionId, List<int> bytes) {
+    writes.add(Uint8List.fromList(bytes));
+  }
+
+  @override
+  List<PtyEvent> pollEvents(String sessionId) {
+    final events = _events.putIfAbsent(sessionId, () => <PtyEvent>[]);
+    final copy = List<PtyEvent>.from(events);
+    events.clear();
+    return copy;
+  }
+
+  int getFrameDiffReadCount(Object sessionId) {
+    return _frameDiffReads[_sessionKey(sessionId)] ?? 0;
+  }
+
+  String _sessionKey(Object sessionId) => sessionId.toString();
+
+  int _numericSessionId(Object sessionId) {
+    return int.tryParse(_sessionKey(sessionId)) ?? 0;
+  }
+}
+
+String _selectionTextForFrame(
+  TerminalFrameDiff frame,
+  TerminalSelection selection, {
+  required bool block,
+}) {
+  if (frame.viewportRows <= 0) {
+    return '';
+  }
+  final normalized = block
+      ? TerminalSelection(
+          startRow: math.min(selection.startRow, selection.endRow),
+          startCol: math.min(selection.startCol, selection.endCol),
+          endRow: math.max(selection.startRow, selection.endRow),
+          endCol: math.max(selection.startCol, selection.endCol),
+        )
+      : selection.normalized();
+  final frameStartRow = frame.viewportStartRow;
+  final frameEndRow = frameStartRow + frame.viewportRows - 1;
+  if (normalized.endRow < frameStartRow || normalized.startRow > frameEndRow) {
+    return '';
+  }
+  final visibleSelection = TerminalSelection(
+    startRow: math.max(0, normalized.startRow - frameStartRow),
+    startCol: block || normalized.startRow >= frameStartRow
+        ? normalized.startCol
+        : 0,
+    endRow: math.min(frame.viewportRows - 1, normalized.endRow - frameStartRow),
+    endCol: block || normalized.endRow <= frameEndRow
+        ? normalized.endCol
+        : frame.viewportCols,
+  );
+  return block
+      ? _blockSelectionText(frame, visibleSelection)
+      : _linearSelectionText(frame, visibleSelection);
+}
+
+String _linearSelectionText(
+  TerminalFrameDiff frame,
+  TerminalSelection selection,
+) {
+  final lines = <String>[];
+  for (var row = selection.startRow; row <= selection.endRow; row += 1) {
+    final text = row >= 0 && row < frame.rows.length ? frame.rows[row].text : '';
+    final start = row == selection.startRow
+        ? selection.startCol.clamp(0, text.length)
+        : 0;
+    final end = row == selection.endRow
+        ? selection.endCol.clamp(0, text.length)
+        : text.length;
+    lines.add(text.substring(start, math.max(start, end)));
+  }
+  return lines.join('\n');
+}
+
+String _blockSelectionText(
+  TerminalFrameDiff frame,
+  TerminalSelection selection,
+) {
+  final lines = <String>[];
+  final startCol = math.min(selection.startCol, selection.endCol);
+  final endCol = math.max(selection.startCol, selection.endCol);
+  for (var row = selection.startRow; row <= selection.endRow; row += 1) {
+    final text = row >= 0 && row < frame.rows.length ? frame.rows[row].text : '';
+    if (startCol >= text.length) {
+      lines.add('');
+      continue;
+    }
+    final safeEnd = endCol.clamp(startCol, text.length);
+    lines.add(text.substring(startCol, safeEnd));
+  }
+  return lines.join('\n');
+}

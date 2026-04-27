@@ -33,7 +33,7 @@
 cd /Users/robinfai/personal/flutterm
 ./tools/check_terminal_manual_matrix_prereqs.sh
 
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter test integration_test/flutterm_smoke_test.dart
 flutter run -d macos
 ```

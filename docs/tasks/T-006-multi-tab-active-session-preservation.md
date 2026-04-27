@@ -6,8 +6,8 @@
 
 ## Scope
 
-- `app/lib/features/sessions/session_controller.dart`
-- `app/test/sessions/session_controller_test.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/test/sessions/session_controller_test.dart`
 
 ## Non-goals
 
@@ -17,8 +17,8 @@
 
 ## Files In Scope
 
-- `app/lib/features/sessions/session_controller.dart`
-- `app/test/sessions/session_controller_test.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/test/sessions/session_controller_test.dart`
 
 ## Functional Acceptance
 
@@ -29,7 +29,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 ```

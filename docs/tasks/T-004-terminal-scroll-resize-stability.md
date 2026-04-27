@@ -8,15 +8,15 @@
 
 ## Scope
 
-- `app/lib/features/terminal/render_terminal_viewport.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
   - 优化 `PointerScrollEvent` 的行数计算，按 viewport 单元高度聚合滚动位移。
-- `app/lib/features/sessions/session_controller.dart`
+- `example/lib/features/sessions/session_controller.dart`
   - 缓存上一次的 resize 参数，跳过重复请求。
-- `app/test/terminal/render_terminal_viewport_test.dart`（按需新增/更新）：
+- `example/test/terminal/render_terminal_viewport_test.dart`（按需新增/更新）：
   - 覆盖滚轮位移聚合逻辑。
-- `app/test/sessions/session_controller_test.dart`
+- `example/test/sessions/session_controller_test.dart`
   - 覆盖 resize 去重行为。
-- `app/test/support/fake_core_bindings.dart`
+- `example/test/support/fake_core_bindings.dart`
   - 记录 resize 调用次数与参数。
 
 ## Non-goals
@@ -27,11 +27,11 @@
 
 ## Files In Scope
 
-- `app/lib/features/terminal/render_terminal_viewport.dart`
-- `app/lib/features/sessions/session_controller.dart`
-- `app/test/terminal/render_terminal_viewport_test.dart`
-- `app/test/sessions/session_controller_test.dart`
-- `app/test/support/fake_core_bindings.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/test/terminal/render_terminal_viewport_test.dart`
+- `example/test/sessions/session_controller_test.dart`
+- `example/test/support/fake_core_bindings.dart`
 
 ## Functional Acceptance
 
@@ -42,7 +42,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 ```

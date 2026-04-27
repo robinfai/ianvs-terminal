@@ -6,13 +6,13 @@
 
 ## Scope
 
-- `app/lib/features/terminal/terminal_input_controller.dart`
+- `example/lib/features/terminal/terminal_input_controller.dart`
   - 增加 `⌘V`/`Ctrl+V` 快捷键分支。
-- `app/lib/features/shell/shell_screen.dart`
+- `example/lib/features/shell/shell_screen.dart`
   - 为 `TerminalInputController` 提供粘贴文本读取入口。
-- `app/test/terminal_input_controller_test.dart`
+- `example/test/terminal_input_controller_test.dart`
   - 新增键盘粘贴快捷键单测。
-- `app/test/support/fake_core_bindings.dart`
+- `example/test/support/fake_core_bindings.dart`
   - 捕获写入字节用于单测断言（仅测试用途）。
 
 ## Non-goals
@@ -23,10 +23,10 @@
 
 ## Files In Scope
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/lib/features/terminal/terminal_input_controller.dart`
-- `app/test/terminal_input_controller_test.dart`
-- `app/test/support/fake_core_bindings.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/lib/features/terminal/terminal_input_controller.dart`
+- `example/test/terminal_input_controller_test.dart`
+- `example/test/support/fake_core_bindings.dart`
 
 ## Functional Acceptance
 
@@ -37,7 +37,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 ```

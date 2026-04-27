@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/ffi/flutterm_core_test.dart`
+- `example/test/ffi/flutterm_core_test.dart`
   - 新增一条基于真实 `TerminalCoreClient.load()` 的长会话 roundtrip 测试。
 - `docs/tasks/T-036-flutter-pty-long-session-smoke.md`
   - 记录本次任务边界、验收、验证与风险。
@@ -22,7 +22,7 @@
 
 ## Files In Scope
 
-- `app/test/ffi/flutterm_core_test.dart`
+- `example/test/ffi/flutterm_core_test.dart`
 - `docs/tasks/T-036-flutter-pty-long-session-smoke.md`
 - `docs/TESTING.md`
 
@@ -36,7 +36,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/ffi/flutterm_core_test.dart
 ```

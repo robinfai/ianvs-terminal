@@ -11,9 +11,9 @@
 - `docs/ARCHITECTURE.md`
 - `.omx/plans/prd-hyper-like-terminal-evolution.md`
 - `.omx/plans/test-spec-hyper-like-terminal-evolution.md`
-- `app/lib/features/shell/shell_screen.dart`
-- `app/lib/features/sessions/session_controller.dart`
-- `app/lib/features/terminal/`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/lib/features/terminal/`
 
 ## Repo Baseline Today
 
@@ -41,8 +41,8 @@
 
 受影响模块：
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/lib/features/sessions/session_state.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/lib/features/sessions/session_state.dart`
 
 ### 2. Active / inactive hierarchy 必须一眼可读
 
@@ -55,8 +55,8 @@
 
 受影响模块：
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/lib/features/sessions/session_controller.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/lib/features/sessions/session_controller.dart`
 
 ### 3. Empty-state 要从占位提示升级为 intentional first-run surface
 
@@ -69,9 +69,9 @@
 
 受影响模块：
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/lib/features/profiles/`
-- `app/lib/features/sessions/session_controller.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/lib/features/profiles/`
+- `example/lib/features/sessions/session_controller.dart`
 
 ### 4. 顶层动作入口要更明显，但不引入 Hyper 级功能膨胀
 
@@ -84,9 +84,9 @@
 
 预期影响模块：
 
-- `app/lib/features/shell/shell_screen.dart`
-- `app/lib/features/terminal/terminal_input_controller.dart`
-- `app/lib/features/terminal/terminal_viewport.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/lib/features/terminal/terminal_input_controller.dart`
+- `example/lib/features/terminal/terminal_viewport.dart`
 
 ### 5. Profile / theme identity 要可感知，但先从默认体验做起
 
@@ -98,9 +98,9 @@ flutterm 已有 profile 持久化基础，因此 Hyper-inspired 方向可以增�
 
 受影响模块：
 
-- `app/lib/features/profiles/profile_models.dart`
-- `app/lib/features/profiles/profile_repository.dart`
-- `app/lib/features/shell/shell_screen.dart`
+- `example/lib/features/profiles/profile_models.dart`
+- `example/lib/features/profiles/profile_repository.dart`
+- `example/lib/features/shell/shell_screen.dart`
 
 ## Non-goals
 

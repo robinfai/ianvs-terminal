@@ -6,11 +6,11 @@
 
 ## Scope
 
-- `app/lib/features/preferences/app_preferences_models.dart`
-- `app/lib/features/preferences/app_preferences_repository.dart`
-- `app/lib/features/sessions/session_controller.dart`
-- `app/test/preferences/app_preferences_repository_test.dart`
-- `app/test/sessions/session_controller_test.dart`
+- `example/lib/features/preferences/app_preferences_models.dart`
+- `example/lib/features/preferences/app_preferences_repository.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/test/preferences/app_preferences_repository_test.dart`
+- `example/test/sessions/session_controller_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/T-048-hyper-phase3-persistence-defaults.md`
 
@@ -33,7 +33,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/preferences/app_preferences_repository_test.dart
 flutter test test/sessions/session_controller_test.dart

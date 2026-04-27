@@ -6,12 +6,12 @@
 
 ## Scope
 
-- `app/lib/features/terminal/terminal_input_controller.dart`
+- `example/lib/features/terminal/terminal_input_controller.dart`
   - 增加 `⌘C`/`Ctrl+C` 快捷键分支。
   - 将选区文本通过回调交给上层进行剪贴板写入。
-- `app/lib/features/shell/shell_screen.dart`
+- `example/lib/features/shell/shell_screen.dart`
   - 为 `TerminalInputController` 提供快捷键复制回调。
-- `app/test/terminal_input_controller_test.dart`
+- `example/test/terminal_input_controller_test.dart`
   - 增加覆盖 `⌘C` 复制行为的测试。
 
 ## Non-goals
@@ -22,9 +22,9 @@
 
 ## Files In Scope
 
-- `app/lib/features/terminal/terminal_input_controller.dart`
-- `app/lib/features/shell/shell_screen.dart`
-- `app/test/terminal_input_controller_test.dart`
+- `example/lib/features/terminal/terminal_input_controller.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/test/terminal_input_controller_test.dart`
 
 ## Functional Acceptance
 
@@ -35,7 +35,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test
 ```

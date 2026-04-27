@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 新增一条反向多行拖选 + `Copy` 按钮的 widget 测试。
 - `docs/tasks/T-034-terminal-reverse-multiline-copy-button-smoke.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -20,7 +20,7 @@
 
 ## Files In Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
 - `docs/tasks/T-034-terminal-reverse-multiline-copy-button-smoke.md`
 
 ## Functional Acceptance
@@ -32,7 +32,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/widget_test.dart
 ```

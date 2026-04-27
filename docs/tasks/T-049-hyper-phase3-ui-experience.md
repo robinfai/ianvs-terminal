@@ -6,15 +6,15 @@
 
 ## Scope
 
-- `app/lib/app.dart`
-- `app/lib/features/sessions/session_controller.dart`
-- `app/lib/features/sessions/session_state.dart`
-- `app/lib/features/shell/shell_screen.dart`
-- `app/lib/features/shell/defaults_appearance_dialog.dart`
-- `app/test/app/app_theme_mode_test.dart`
-- `app/test/shell/shell_screen_phase3_test.dart`
-- `app/test/sessions/session_controller_phase3_test.dart`
-- `app/integration_test/flutterm_smoke_test.dart`
+- `example/lib/app.dart`
+- `example/lib/features/sessions/session_controller.dart`
+- `example/lib/features/sessions/session_state.dart`
+- `example/lib/features/shell/shell_screen.dart`
+- `example/lib/features/shell/defaults_appearance_dialog.dart`
+- `example/test/app/app_theme_mode_test.dart`
+- `example/test/shell/shell_screen_phase3_test.dart`
+- `example/test/sessions/session_controller_phase3_test.dart`
+- `example/integration_test/flutterm_smoke_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/T-049-hyper-phase3-ui-experience.md`
 
@@ -41,7 +41,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/shell/shell_screen_phase2a_test.dart
 flutter test test/shell/shell_screen_phase2b_test.dart

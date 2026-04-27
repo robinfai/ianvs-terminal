@@ -6,13 +6,13 @@
 
 ## Scope
 
-- `app/lib/features/terminal/selection_controller.dart`
+- `example/lib/features/terminal/selection_controller.dart`
   - 增加 block selection 模式与逐行裁剪文本提取语义。
-- `app/lib/features/terminal/render_terminal_viewport.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
   - 在 Alt / Option 拖选时进入 block selection，并按矩形范围高亮。
-- `app/test/terminal/selection_controller_test.dart`
+- `example/test/terminal/selection_controller_test.dart`
   - 新增 block selection 语义单元测试。
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 新增 Alt / Option 拖选 + `Copy` 按钮的 widget 测试。
 - `docs/tasks/T-043-terminal-block-selection-smoke.md`
   - 记录本次任务边界、验收、验证与风险。
@@ -27,10 +27,10 @@
 
 ## Files In Scope
 
-- `app/lib/features/terminal/selection_controller.dart`
-- `app/lib/features/terminal/render_terminal_viewport.dart`
-- `app/test/terminal/selection_controller_test.dart`
-- `app/test/widget_test.dart`
+- `example/lib/features/terminal/selection_controller.dart`
+- `example/lib/features/terminal/render_terminal_viewport.dart`
+- `example/test/terminal/selection_controller_test.dart`
+- `example/test/widget_test.dart`
 - `docs/tasks/T-043-terminal-block-selection-smoke.md`
 - `docs/TESTING.md`
 
@@ -44,7 +44,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/terminal/selection_controller_test.dart
 flutter test test/widget_test.dart

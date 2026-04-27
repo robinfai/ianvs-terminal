@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
   - 新增一条通过可控 `exit` 事件验证 UI 焦点保持的 widget 测试。
 - `docs/tasks/T-029-terminal-exit-focus-ui-smoke.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -20,7 +20,7 @@
 
 ## Files In Scope
 
-- `app/test/widget_test.dart`
+- `example/test/widget_test.dart`
 - `docs/tasks/T-029-terminal-exit-focus-ui-smoke.md`
 
 ## Functional Acceptance
@@ -34,7 +34,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/widget_test.dart
 ```

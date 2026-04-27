@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `app/test/terminal/selection_controller_test.dart`
+- `example/test/terminal/selection_controller_test.dart`
   - 新增一条非对称多行列范围选择的单元测试。
 - `docs/tasks/T-041-terminal-selection-asymmetric-columns.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -21,7 +21,7 @@
 
 ## Files In Scope
 
-- `app/test/terminal/selection_controller_test.dart`
+- `example/test/terminal/selection_controller_test.dart`
 - `docs/tasks/T-041-terminal-selection-asymmetric-columns.md`
 - `docs/TESTING.md`
 
@@ -34,7 +34,7 @@
 ## Verification Commands
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd example
 flutter analyze
 flutter test test/terminal/selection_controller_test.dart
 ```
