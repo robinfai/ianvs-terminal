@@ -38,6 +38,19 @@ typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
 typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
 typedef _FreeStringDart = void Function(ffi.Pointer<Utf8>);
 
+_StringReturningDart? _lookupOptionalStringReturning(
+  ffi.DynamicLibrary library,
+  String symbolName,
+) {
+  try {
+    return library.lookupFunction<_StringReturningNative, _StringReturningDart>(
+      symbolName,
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
 class PtyEvent {
   const PtyEvent({required this.kind, required this.sessionId, this.payload});
 
@@ -74,7 +87,12 @@ abstract class PtyBindings {
   List<PtyEvent> sessionPollEvents(int sessionId);
 }
 
-class NativePtyBindings implements PtyBindings {
+abstract class PtyDebugBindings {
+  String? sessionTakeFrameDebugStatsJson(int sessionId);
+  String? sessionTakeSessionDebugStatsJson(int sessionId);
+}
+
+class NativePtyBindings implements PtyBindings, PtyDebugBindings {
   NativePtyBindings(ffi.DynamicLibrary library)
     : _ping = library.lookupFunction<_PingNative, _PingDart>('flutterm_ping'),
       _createSession = library
@@ -114,6 +132,14 @@ class NativePtyBindings implements PtyBindings {
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'flutterm_session_take_frame_diff_json',
           ),
+      _takeFrameDebugStatsJson = _lookupOptionalStringReturning(
+        library,
+        'flutterm_session_take_frame_debug_stats_json',
+      ),
+      _takeSessionDebugStatsJson = _lookupOptionalStringReturning(
+        library,
+        'flutterm_session_take_session_debug_stats_json',
+      ),
       _pollEventsJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'flutterm_session_poll_events_json',
@@ -132,6 +158,8 @@ class NativePtyBindings implements PtyBindings {
   final _SearchSessionDart _searchSession;
   final _SelectionTextSessionDart _selectionTextSession;
   final _StringReturningDart _takeFrameDiffJson;
+  final _StringReturningDart? _takeFrameDebugStatsJson;
+  final _StringReturningDart? _takeSessionDebugStatsJson;
   final _StringReturningDart _pollEventsJson;
   final _FreeStringDart _stringFree;
 
@@ -235,6 +263,40 @@ class NativePtyBindings implements PtyBindings {
   }
 
   @override
+  String? sessionTakeFrameDebugStatsJson(int sessionId) {
+    final takeFrameDebugStatsJson = _takeFrameDebugStatsJson;
+    if (takeFrameDebugStatsJson == null) {
+      return null;
+    }
+    final resultPointer = takeFrameDebugStatsJson(sessionId);
+    if (resultPointer == ffi.nullptr) {
+      return null;
+    }
+    try {
+      return resultPointer.toDartString();
+    } finally {
+      _stringFree(resultPointer);
+    }
+  }
+
+  @override
+  String? sessionTakeSessionDebugStatsJson(int sessionId) {
+    final takeSessionDebugStatsJson = _takeSessionDebugStatsJson;
+    if (takeSessionDebugStatsJson == null) {
+      return null;
+    }
+    final resultPointer = takeSessionDebugStatsJson(sessionId);
+    if (resultPointer == ffi.nullptr) {
+      return null;
+    }
+    try {
+      return resultPointer.toDartString();
+    } finally {
+      _stringFree(resultPointer);
+    }
+  }
+
+  @override
   List<PtyEvent> sessionPollEvents(int sessionId) {
     final resultPointer = _pollEventsJson(sessionId);
     if (resultPointer == ffi.nullptr) {
@@ -275,7 +337,32 @@ abstract class PtySessionBackend {
   List<PtyEvent> pollEvents(String sessionId);
 }
 
-class NativePtyBackend implements PtySessionBackend {
+abstract class PtySessionDebugBackend {
+  String? takeFrameDebugStatsJson(String sessionId);
+  String? takeSessionDebugStatsJson(String sessionId);
+}
+
+extension PtySessionBackendDebugExtension on PtySessionBackend {
+  String? takeFrameDebugStatsJson(String sessionId) {
+    final backend = this;
+    if (backend is PtySessionDebugBackend) {
+      final debugBackend = backend as PtySessionDebugBackend;
+      return debugBackend.takeFrameDebugStatsJson(sessionId);
+    }
+    return null;
+  }
+
+  String? takeSessionDebugStatsJson(String sessionId) {
+    final backend = this;
+    if (backend is PtySessionDebugBackend) {
+      final debugBackend = backend as PtySessionDebugBackend;
+      return debugBackend.takeSessionDebugStatsJson(sessionId);
+    }
+    return null;
+  }
+}
+
+class NativePtyBackend implements PtySessionBackend, PtySessionDebugBackend {
   NativePtyBackend(this._bindings);
 
   final PtyBindings _bindings;
@@ -347,6 +434,28 @@ class NativePtyBackend implements PtySessionBackend {
   @override
   String? takeFrameDiffJson(String sessionId) {
     return _bindings.sessionTakeFrameDiffJson(int.parse(sessionId));
+  }
+
+  @override
+  String? takeFrameDebugStatsJson(String sessionId) {
+    final bindings = _bindings;
+    if (bindings is PtyDebugBindings) {
+      final debugBindings = bindings as PtyDebugBindings;
+      return debugBindings.sessionTakeFrameDebugStatsJson(int.parse(sessionId));
+    }
+    return null;
+  }
+
+  @override
+  String? takeSessionDebugStatsJson(String sessionId) {
+    final bindings = _bindings;
+    if (bindings is PtyDebugBindings) {
+      final debugBindings = bindings as PtyDebugBindings;
+      return debugBindings.sessionTakeSessionDebugStatsJson(
+        int.parse(sessionId),
+      );
+    }
+    return null;
   }
 
   @override

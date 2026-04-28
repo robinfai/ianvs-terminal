@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui';
@@ -7,6 +8,42 @@ import 'package:flutterm_terminal/flutterm_terminal.dart';
 import 'package:flutterm_pty/flutterm_pty.dart';
 
 void main() {
+  test(
+    'terminal viewport controller normalizes delta fallback state as a snapshot',
+    () {
+      final controller = TerminalViewportController();
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 1, text: 'beta')],
+          cursor: TerminalCursor(row: 1, col: 4, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 1, end: 2)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          viewportStartRow: 12,
+          viewportRowShift: -1,
+        ),
+      );
+
+      final frame = controller.frame;
+      expect(frame.frameKind, TerminalFrameKind.snapshot);
+      expect(frame.viewportRowShift, 0);
+      expect(
+        frame.dirtyRanges
+            .map((range) => (range.start, range.end))
+            .toList(growable: false),
+        <(int, int)>[(0, 2)],
+      );
+      expect(
+        frame.rows.map((row) => (row.index, row.text)).toList(growable: false),
+        <(int, String)>[(0, ''), (1, 'beta')],
+      );
+    },
+  );
+
   testWidgets(
     'terminal runtime controller owns sessions and viewport state without demo imports',
     (tester) async {
@@ -26,7 +63,7 @@ void main() {
       );
 
       expect(sessionId, '1');
-      expect(runtime.viewportFor(sessionId).frame.rows.single.text, 'demo');
+      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
       expect(runtimeBackend.lastCreateSessionJson, isNotNull);
       expect(runtimeBackend.lastCreateSessionPayload!['id'], 'runtime-1');
       expect(runtimeBackend.lastCreateSessionPayload!['name'], 'sh');
@@ -68,8 +105,519 @@ void main() {
       runtime.scrollViewportTo(sessionId, 2);
       await tester.pump();
 
-      expect(runtimeBackend.takeFrameDiffCalls, 4);
-      expect(runtimeBackend.pollEventsCalls, 4);
+      expect(runtimeBackend.takeFrameDiffCalls, 2);
+      expect(runtimeBackend.pollEventsCalls, 2);
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller does not keep started-only refreshes in flight',
+    (tester) async {
+      final runtimeBackend = _StartedEventPtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      runtimeBackend.setFrame(sessionId, _singleRowSnapshot('fresh'));
+      runtime.resizeSession(sessionId, const Size(180, 144), 1);
+      await tester.pump();
+
+      expect(runtimeBackend.takeFrameDiffCalls, 2);
+      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'fresh');
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller merges delta frames into stable viewport state',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      runtimeBackend.setFrame(sessionId, <String, Object?>{
+        'frame_kind': 'snapshot',
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'alpha',
+            'style_runs': const <Object?>[],
+          },
+          <String, Object?>{
+            'index': 1,
+            'text': 'beta',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 1, 'col': 4, 'visible': true},
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'hyperlinks': <Object?>[
+          <String, Object?>{
+            'row': 0,
+            'start_col': 0,
+            'end_col': 5,
+            'uri': 'https://example.com/alpha',
+          },
+        ],
+      });
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      runtimeBackend.setFrame(sessionId, <String, Object?>{
+        'frame_kind': 'delta',
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 1,
+            'text': 'beta*',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 1, 'col': 5, 'visible': true},
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 1, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'hyperlinks': <Object?>[
+          <String, Object?>{
+            'row': 1,
+            'start_col': 0,
+            'end_col': 5,
+            'uri': 'https://example.com/beta',
+          },
+        ],
+      });
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      final merged = runtime.viewportFor(sessionId).frame;
+      expect(merged.frameKind, TerminalFrameKind.delta);
+      expect(merged.rows.map((row) => row.text).toList(), <String>[
+        'alpha',
+        'beta*',
+      ]);
+      expect(merged.hyperlinks.map((range) => range.uri).toList(), <String>[
+        'https://example.com/alpha',
+        'https://example.com/beta',
+      ]);
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller shifts viewport rows forward on scrolling delta frames',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      runtimeBackend.setFrame(sessionId, <String, Object?>{
+        'frame_kind': 'snapshot',
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'alpha',
+            'style_runs': const <Object?>[],
+          },
+          <String, Object?>{
+            'index': 1,
+            'text': 'beta',
+            'style_runs': const <Object?>[],
+          },
+          <String, Object?>{
+            'index': 2,
+            'text': 'gamma',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 2, 'col': 5, 'visible': true},
+        'viewport_rows': 3,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 3},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+        'viewport_start_row': 20,
+        'hyperlinks': <Object?>[
+          <String, Object?>{
+            'row': 1,
+            'start_col': 0,
+            'end_col': 4,
+            'uri': 'https://example.com/beta',
+          },
+        ],
+      });
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      runtimeBackend.setFrame(sessionId, <String, Object?>{
+        'frame_kind': 'delta',
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 2,
+            'text': 'delta',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 2, 'col': 5, 'visible': true},
+        'viewport_rows': 3,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 2, 'end': 3},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 21,
+        'viewport_start_row': 21,
+        'viewport_row_shift': -1,
+        'hyperlinks': <Object?>[
+          <String, Object?>{
+            'row': 2,
+            'start_col': 0,
+            'end_col': 5,
+            'uri': 'https://example.com/delta',
+          },
+        ],
+      });
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      final shifted = runtime.viewportFor(sessionId).frame;
+      expect(shifted.rows.map((row) => row.text).toList(), <String>[
+        'beta',
+        'gamma',
+        'delta',
+      ]);
+      expect(
+        shifted.hyperlinks
+            .map((range) => '${range.row}:${range.uri}')
+            .toList(growable: false),
+        <String>['0:https://example.com/beta', '2:https://example.com/delta'],
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller coalesces refreshes while event handling is still in flight',
+    (tester) async {
+      final copyCompleter = Completer<void>();
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) => copyCompleter.future,
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      runtimeBackend.setFrame(
+        sessionId,
+        _singleRowSnapshot('queued visible frame'),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'data': base64.encode(utf8.encode('queued copy')),
+          },
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(viewport.frame.rows.first.text, 'queued visible frame');
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(
+        runtimeBackend.takeFrameDiffCalls,
+        2,
+        reason:
+            'second refresh should queue instead of re-entering immediately',
+      );
+
+      copyCompleter.complete();
+      await tester.pump();
+      await tester.pump();
+
+      expect(runtimeBackend.takeFrameDiffCalls, 3);
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller applies queued delta frames in order after a blocked refresh',
+    (tester) async {
+      final copyCompleter = Completer<void>();
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) => copyCompleter.future,
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      await tester.pump();
+
+      expect(viewport.frameVersion, 1);
+
+      runtimeBackend.setFrame(sessionId, <String, Object?>{
+        'frame_kind': 'snapshot',
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'alpha',
+            'style_runs': const <Object?>[],
+          },
+          <String, Object?>{
+            'index': 1,
+            'text': 'beta',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 1, 'col': 4, 'visible': true},
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(viewport.frame.rows.map((row) => row.text).toList(), <String>[
+        'alpha',
+        'beta',
+      ]);
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'data': base64.encode(utf8.encode('block refresh')),
+          },
+        ),
+      );
+      runtimeBackend.enqueueFrame(sessionId, <String, Object?>{
+        'frame_kind': 'delta',
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'alpha*',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 0, 'col': 6, 'visible': true},
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      runtimeBackend.enqueueFrame(sessionId, <String, Object?>{
+        'frame_kind': 'delta',
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 1,
+            'text': 'beta*',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 1, 'col': 5, 'visible': true},
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 1, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(viewport.frame.rows.map((row) => row.text).toList(), <String>[
+        'alpha*',
+        'beta',
+      ]);
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(viewport.frame.rows.map((row) => row.text).toList(), <String>[
+        'alpha*',
+        'beta',
+      ]);
+
+      copyCompleter.complete();
+      await tester.pump();
+      await tester.pump();
+
+      expect(viewport.frame.rows.map((row) => row.text).toList(), <String>[
+        'alpha*',
+        'beta*',
+      ]);
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller lets a queued snapshot replace older blocked frames',
+    (tester) async {
+      final copyCompleter = Completer<void>();
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) => copyCompleter.future,
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      await tester.pump();
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'data': base64.encode(utf8.encode('block refresh')),
+          },
+        ),
+      );
+      runtimeBackend.enqueueFrame(sessionId, _singleRowSnapshot('stale'));
+      runtimeBackend.enqueueFrame(sessionId, _singleRowSnapshot('fresh'));
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(viewport.frame.rows.first.text, 'stale');
+
+      copyCompleter.complete();
+      await tester.pump();
+      await tester.pump();
+
+      expect(viewport.frame.rows.first.text, 'fresh');
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller applies visible frames before clipboard paste handling completes',
+    (tester) async {
+      final readClipboardCompleter = Completer<String>();
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () => readClipboardCompleter.future,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      runtimeBackend.setFrame(
+        sessionId,
+        _singleRowSnapshot('paste visible frame'),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(viewport.frame.rows.first.text, 'paste visible frame');
+      expect(
+        runtimeBackend.writeCalls.where((call) => call.isNotEmpty),
+        isEmpty,
+      );
+
+      readClipboardCompleter.complete('paste me');
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        utf8.decode(runtimeBackend.writeCalls.last),
+        '\x1B]52;c;cGFzdGUgbWU=\x07',
+      );
     },
   );
 
@@ -136,6 +684,56 @@ void main() {
     expect(runtime.hasSession(sessionId), isFalse);
     expect(seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode, 7);
   });
+
+  testWidgets(
+    'terminal runtime controller applies the final frame before handling exit',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final seenEvents = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(seenEvents.add);
+      addTearDown(subscription.cancel);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      await tester.pump();
+      seenEvents.clear();
+      runtimeBackend.setFrame(sessionId, _singleRowSnapshot('final output'));
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        const PtyEvent(
+          kind: 'exit',
+          sessionId: '1',
+          payload: <String, Object?>{'code': 9},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(viewport.frame.rows.first.text, 'final output');
+      expect(seenEvents.map((event) => event.runtimeType).toList(), <Type>[
+        TerminalSessionFrameEvent,
+        TerminalSessionExitEvent,
+      ]);
+      expect(
+        seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode,
+        9,
+      );
+      expect(runtime.hasSession(sessionId), isFalse);
+    },
+  );
 
   testWidgets(
     'terminal runtime controller continues to handle clipboard and resize events',
@@ -218,6 +816,8 @@ class _FakePtyBackend implements PtySessionBackend {
 
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
+  final Map<String, List<Map<String, Object?>>> _queuedFrames =
+      <String, List<Map<String, Object?>>>{};
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
   int _nextSessionId = 0;
 
@@ -227,6 +827,16 @@ class _FakePtyBackend implements PtySessionBackend {
       return null;
     }
     return (jsonDecode(raw) as Map).cast<String, Object?>();
+  }
+
+  void setFrame(String sessionId, Map<String, Object?> frame) {
+    _frames[sessionId] = frame;
+  }
+
+  void enqueueFrame(String sessionId, Map<String, Object?> frame) {
+    _queuedFrames
+        .putIfAbsent(sessionId, () => <Map<String, Object?>>[])
+        .add(frame);
   }
 
   void enqueueEvent(String sessionId, PtyEvent event) {
@@ -241,6 +851,7 @@ class _FakePtyBackend implements PtySessionBackend {
     lastCreateSessionJson = sessionConfigJson;
     final sessionId = (++_nextSessionId).toString();
     _frames[sessionId] = <String, Object?>{
+      'frame_kind': 'snapshot',
       'rows': <Object?>[
         <String, Object?>{
           'index': 0,
@@ -262,6 +873,7 @@ class _FakePtyBackend implements PtySessionBackend {
   void closeSession(String sessionId) {
     closeCalls.add(sessionId);
     _frames.remove(sessionId);
+    _queuedFrames.remove(sessionId);
     _queuedEvents.remove(sessionId);
   }
 
@@ -301,6 +913,10 @@ class _FakePtyBackend implements PtySessionBackend {
   @override
   String? takeFrameDiffJson(String sessionId) {
     takeFrameDiffCalls += 1;
+    final queuedFrames = _queuedFrames[sessionId];
+    if (queuedFrames != null && queuedFrames.isNotEmpty) {
+      return jsonEncode(queuedFrames.removeAt(0));
+    }
     final frame = _frames[sessionId];
     return frame == null ? null : jsonEncode(frame);
   }
@@ -310,4 +926,30 @@ class _FakePtyBackend implements PtySessionBackend {
     pollEventsCalls += 1;
     return _queuedEvents.remove(sessionId) ?? const <PtyEvent>[];
   }
+}
+
+class _StartedEventPtyBackend extends _FakePtyBackend {
+  @override
+  String createSession(String sessionConfigJson) {
+    final sessionId = super.createSession(sessionConfigJson);
+    enqueueEvent(sessionId, PtyEvent(kind: 'started', sessionId: sessionId));
+    return sessionId;
+  }
+}
+
+Map<String, Object?> _singleRowSnapshot(String text) {
+  return <String, Object?>{
+    'frame_kind': 'snapshot',
+    'rows': <Object?>[
+      <String, Object?>{'index': 0, 'text': text, 'style_runs': const []},
+    ],
+    'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+    'viewport_rows': 24,
+    'viewport_cols': 80,
+    'dirty_ranges': <Object?>[
+      <String, Object?>{'start': 0, 'end': 1},
+    ],
+    'scrollback_offset': 0,
+    'scrollback_max_offset': 0,
+  };
 }

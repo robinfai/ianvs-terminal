@@ -15,7 +15,8 @@
 7. [HYPER_LIKE_TARGET.md](HYPER_LIKE_TARGET.md)
 8. [HYPER_LIKE_GAP_MATRIX.md](HYPER_LIKE_GAP_MATRIX.md)
 9. [DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md](DECISIONS/ADR-0001-hyper-phase0-shell-boundaries.md)
-10. [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
+10. [DECISIONS/ADR-0002-terminal-core-fork-rationale.md](DECISIONS/ADR-0002-terminal-core-fork-rationale.md)
+11. [KNOWN_ISSUES.md](KNOWN_ISSUES.md)
 
 ## 文档职责
 

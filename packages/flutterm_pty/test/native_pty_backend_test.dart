@@ -1,9 +1,14 @@
+import 'dart:ffi' as ffi;
+import 'dart:io';
+
 import 'package:flutterm_pty/flutterm_pty.dart';
 import 'package:test/test.dart';
 
 void main() {
   test('native pty backend exposes the planned low-level API', () {
-    final backend = NativePtyBackend.fromBindings(_NoopPtyBindings());
+    final PtySessionBackend backend = NativePtyBackend.fromBindings(
+      _NoopPtyBindings(),
+    );
 
     expect(backend.ping(), 42);
     expect(backend.createSession('{"launch":{"program":"/bin/sh"}}'), '1');
@@ -18,15 +23,62 @@ void main() {
     backend.scrollViewport('1', 3);
     backend.scrollViewportTo('1', 4);
     expect(backend.takeFrameDiffJson('1'), '{"rows":[]}');
+    expect(backend.takeFrameDebugStatsJson('1'), isNull);
+    expect(backend.takeSessionDebugStatsJson('1'), isNull);
     expect(backend.pollEvents('1'), isEmpty);
     backend.closeSession('1');
   });
 
-  test('native pty backend can bridge to the real Rust core', () {
-    final backend = NativePtyBackend.load();
-    expect(backend.ping(), 42);
-  });
+  test(
+    'native pty backend surfaces optional debug bindings when available',
+    () {
+      final PtySessionBackend backend = NativePtyBackend.fromBindings(
+        _NoopDebugPtyBindings(),
+      );
+
+      expect(backend.takeFrameDebugStatsJson('1'), '{"rows_scanned":2}');
+      expect(backend.takeSessionDebugStatsJson('1'), '{"bytes_read":4}');
+    },
+  );
+
+  test(
+    'native pty backend can bridge to the real Rust core',
+    () {
+      final libraryPath = _workspaceCoreLibraryPath!;
+      final backend = NativePtyBackend.fromBindings(
+        NativePtyBindings(ffi.DynamicLibrary.open(libraryPath)),
+      );
+
+      expect(File(libraryPath).existsSync(), isTrue);
+      expect(backend.ping(), 42);
+    },
+    skip: _workspaceCoreLibraryPath == null
+        ? 'libflutterm_core.dylib is unavailable for this test run.'
+        : false,
+  );
 }
+
+String? _resolveWorkspaceCoreLibraryPath() {
+  if (!Platform.isMacOS) {
+    return null;
+  }
+
+  const relativeCandidates = <String>[
+    'native/core/target/debug/libflutterm_core.dylib',
+    '../native/core/target/debug/libflutterm_core.dylib',
+    '../../native/core/target/debug/libflutterm_core.dylib',
+  ];
+
+  for (final relativePath in relativeCandidates) {
+    final candidate = File.fromUri(Directory.current.uri.resolve(relativePath));
+    if (candidate.existsSync()) {
+      return candidate.absolute.path;
+    }
+  }
+  return null;
+}
+
+final String? _workspaceCoreLibraryPath = _resolveWorkspaceCoreLibraryPath();
 
 class _NoopPtyBindings implements PtyBindings {
   @override
@@ -67,4 +119,13 @@ class _NoopPtyBindings implements PtyBindings {
 
   @override
   List<PtyEvent> sessionPollEvents(int sessionId) => const [];
+}
+
+class _NoopDebugPtyBindings extends _NoopPtyBindings
+    implements PtyDebugBindings {
+  @override
+  String? sessionTakeFrameDebugStatsJson(int sessionId) => '{"rows_scanned":2}';
+
+  @override
+  String? sessionTakeSessionDebugStatsJson(int sessionId) => '{"bytes_read":4}';
 }

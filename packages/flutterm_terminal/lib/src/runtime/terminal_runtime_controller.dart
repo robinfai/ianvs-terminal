@@ -59,6 +59,9 @@ class TerminalRuntimeController {
   final StreamController<TerminalSessionEvent> _events =
       StreamController<TerminalSessionEvent>.broadcast();
   final Set<String> _activeSessionIds = <String>{};
+  final Set<String> _refreshingSessionIds = <String>{};
+  final Set<String> _queuedRefreshSessionIds = <String>{};
+  final Set<String> _scheduledRefreshSessionIds = <String>{};
   Timer? _pollTimer;
   int _wireSessionSeed = 0;
 
@@ -79,7 +82,7 @@ class TerminalRuntimeController {
     );
     _activeSessionIds.add(sessionId);
     viewportFor(sessionId);
-    _refreshSession(sessionId);
+    _requestRefreshSession(sessionId, immediate: true);
     if (enableSessionPolling) {
       _startPolling();
     } else {
@@ -175,38 +178,146 @@ class TerminalRuntimeController {
     );
     _lastResizeMetrics[sessionId] = nextMetric;
     if (!enableSessionPolling) {
-      _refreshSession(sessionId);
+      _requestRefreshSession(sessionId, immediate: true);
     }
   }
 
   void _startPolling() {
     _pollTimer ??= Timer.periodic(const Duration(milliseconds: 33), (_) {
       for (final sessionId in _activeSessionIds.toList(growable: false)) {
-        _refreshSession(sessionId);
+        _requestRefreshSession(sessionId, immediate: true);
       }
     });
   }
 
-  void _refreshSession(String sessionId) {
-    final rawFrame = _backend.takeFrameDiffJson(sessionId);
-    if (rawFrame != null && rawFrame.isNotEmpty) {
-      final frame = TerminalFrameDiff.fromJson(
-        (jsonDecode(rawFrame) as Map).cast<String, Object?>(),
-      );
-      _applyFrame(sessionId, frame);
+  void _requestRefreshSession(String sessionId, {bool immediate = false}) {
+    if (!hasSession(sessionId)) {
+      return;
     }
-    unawaited(_processEvents(sessionId, _backend.pollEvents(sessionId)));
+    if (_refreshingSessionIds.contains(sessionId)) {
+      _queuedRefreshSessionIds.add(sessionId);
+      return;
+    }
+    if (!immediate) {
+      if (!_scheduledRefreshSessionIds.add(sessionId)) {
+        return;
+      }
+      scheduleMicrotask(() {
+        _scheduledRefreshSessionIds.remove(sessionId);
+        _requestRefreshSession(sessionId, immediate: true);
+      });
+      return;
+    }
+    unawaited(_refreshSession(sessionId));
+  }
+
+  Future<void> _refreshSession(String sessionId) async {
+    if (!hasSession(sessionId)) {
+      return;
+    }
+
+    _refreshingSessionIds.add(sessionId);
+    try {
+      var runAgain = true;
+      final pendingFrames = <TerminalFrameDiff>[];
+      var skippedQueuedFrames = 0;
+      while (runAgain && hasSession(sessionId)) {
+        _queuedRefreshSessionIds.remove(sessionId);
+        runAgain = false;
+
+        final rawFrame = _backend.takeFrameDiffJson(sessionId);
+        if (rawFrame != null && rawFrame.isNotEmpty) {
+          _queuePendingFrame(pendingFrames, _decodeFrame(rawFrame));
+        }
+
+        final events = _backend.pollEvents(sessionId);
+        final shouldApplyBeforeEvents =
+            pendingFrames.isNotEmpty &&
+            (!_eventsDelayFrame(events) || _eventsContainExit(events));
+        if (shouldApplyBeforeEvents) {
+          _applyPendingFrames(sessionId, pendingFrames);
+          skippedQueuedFrames = 0;
+        }
+
+        await _processEvents(sessionId, events);
+        if (!hasSession(sessionId)) {
+          return;
+        }
+
+        runAgain = _queuedRefreshSessionIds.remove(sessionId);
+        final shouldApplyPendingFrame =
+            pendingFrames.isNotEmpty && (!runAgain || skippedQueuedFrames >= 1);
+        if (shouldApplyPendingFrame) {
+          _applyPendingFrames(sessionId, pendingFrames);
+          skippedQueuedFrames = 0;
+        } else if (runAgain && pendingFrames.isNotEmpty) {
+          skippedQueuedFrames += 1;
+        }
+      }
+    } finally {
+      _refreshingSessionIds.remove(sessionId);
+      if (_queuedRefreshSessionIds.remove(sessionId) && hasSession(sessionId)) {
+        _requestRefreshSession(sessionId);
+      }
+    }
   }
 
   void _refreshSessionIfNeeded(String sessionId) {
     if (!enableSessionPolling) {
-      _refreshSession(sessionId);
+      _requestRefreshSession(sessionId);
     }
   }
 
   void _applyFrame(String sessionId, TerminalFrameDiff frame) {
     viewportFor(sessionId).updateFrame(frame);
     _events.add(TerminalSessionFrameEvent(sessionId, frame));
+  }
+
+  TerminalFrameDiff _decodeFrame(String rawFrame) {
+    return TerminalFrameDiff.fromJson(
+      (jsonDecode(rawFrame) as Map).cast<String, Object?>(),
+    );
+  }
+
+  void _queuePendingFrame(
+    List<TerminalFrameDiff> pendingFrames,
+    TerminalFrameDiff frame,
+  ) {
+    if (frame.frameKind == TerminalFrameKind.snapshot) {
+      pendingFrames.clear();
+    }
+    pendingFrames.add(frame);
+  }
+
+  void _applyPendingFrames(
+    String sessionId,
+    List<TerminalFrameDiff> pendingFrames,
+  ) {
+    for (final frame in pendingFrames) {
+      _applyFrame(sessionId, frame);
+    }
+    pendingFrames.clear();
+  }
+
+  bool _eventsContainExit(List<PtyEvent> events) {
+    for (final event in events) {
+      if (event.kind == 'exit') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _eventsDelayFrame(List<PtyEvent> events) {
+    for (final event in events) {
+      switch (event.kind) {
+        case 'resize':
+          return true;
+        default:
+          break;
+      }
+    }
+    return false;
   }
 
   Future<void> _processEvents(String sessionId, List<PtyEvent> events) async {
@@ -281,7 +392,7 @@ class TerminalRuntimeController {
       devicePixelRatio: metric.devicePixelRatio,
     );
     if (!enableSessionPolling) {
-      _refreshSession(sessionId);
+      _requestRefreshSession(sessionId, immediate: true);
     }
 
     if (widthDelta == 0 && heightDelta == 0) {
@@ -354,7 +465,7 @@ class TerminalRuntimeController {
             }
             return;
           }
-          _refreshSession(sessionId);
+          _requestRefreshSession(sessionId);
         }),
       );
     }
@@ -363,6 +474,9 @@ class TerminalRuntimeController {
 
   void _removeSessionState(String sessionId) {
     _activeSessionIds.remove(sessionId);
+    _refreshingSessionIds.remove(sessionId);
+    _queuedRefreshSessionIds.remove(sessionId);
+    _scheduledRefreshSessionIds.remove(sessionId);
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
     }

@@ -4,6 +4,7 @@ use flutterm_core::model::{
 };
 use flutterm_core::session;
 use std::collections::BTreeMap;
+use std::ffi::CStr;
 use std::thread;
 use std::time::Duration;
 
@@ -96,6 +97,82 @@ fn prompt_like_profile() -> TerminalProfile {
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
+    )
+}
+
+fn style_only_change_profile() -> TerminalProfile {
+    local_profile(
+        "style-only-change",
+        "Style Only Change",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.write("\x1b[31msame\x1b[0m"); sys.stdout.flush(); time.sleep(0.35); sys.stdout.write("\r\x1b[32msame\x1b[0m\n"); sys.stdout.flush()'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn streaming_scrollback_profile() -> TerminalProfile {
+    local_profile(
+        "streaming-scrollback",
+        "Streaming Scrollback",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "i=0; while [ \"$i\" -lt 14 ]; do printf 'line%02d\\n' \"$i\"; i=$((i + 1)); if [ \"$i\" -eq 7 ]; then sleep 0.35; fi; done"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn single_line_scroll_shift_profile() -> TerminalProfile {
+    local_profile(
+        "single-line-scroll-shift",
+        "Single Line Scroll Shift",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "i=0; while [ \"$i\" -lt 6 ]; do printf 'line%02d\\n' \"$i\"; i=$((i + 1)); if [ \"$i\" -eq 5 ]; then sleep 0.35; fi; done"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn clear_screen_profile() -> TerminalProfile {
+    local_profile(
+        "clear-screen",
+        "Clear Screen",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.write("before\n"); sys.stdout.flush(); time.sleep(0.35); sys.stdout.write("\x1b[2J\x1b[Hafter\n"); sys.stdout.flush()'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn large_transcript_profile() -> TerminalProfile {
+    local_profile_with_scrollback(
+        "large-transcript",
+        "Large Transcript",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys\nfor i in range(9000):\n    sys.stdout.write(f'line-{i:05d} abcdefghijklmnopqrstuvwxyz\\n')\nsys.stdout.flush()\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        8_000,
     )
 }
 
@@ -328,7 +405,15 @@ fn vt220_clipboard_paste_request_profile() -> TerminalProfile {
 }
 
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
-    wait_for_frame_where(session_id, |frame| frame.contains(needle))
+    for _ in 0..20 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            if frame.contains(needle) {
+                return frame;
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    panic!("timed out waiting for frame containing {needle}");
 }
 
 fn wait_for_frame_where(session_id: u64, predicate: impl Fn(&str) -> bool) -> String {
@@ -412,6 +497,16 @@ fn logical_rows_from_frame(frame: &str) -> Vec<String> {
     }
 
     logical_rows
+}
+
+fn frame_row_with_text<'a>(frame: &'a serde_json::Value, needle: &str) -> &'a serde_json::Value {
+    frame["rows"]
+        .as_array()
+        .and_then(|rows| {
+            rows.iter()
+                .find(|row| row["text"].as_str().unwrap_or_default().contains(needle))
+        })
+        .expect("expected matching frame row")
 }
 
 #[test]
@@ -739,6 +834,63 @@ fn session_emits_resize_events_from_terminal_requests() {
 }
 
 #[test]
+fn session_output_does_not_emit_activity_events() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+    let _ = session::take_frame_diff(session_id).unwrap();
+    let _ = session::poll_events(session_id).unwrap();
+
+    session::write_session(session_id, b"printf 'quiet-output\\n'\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "quiet-output");
+
+    let events = session::poll_events(session_id).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+    let activity = parsed
+        .as_array()
+        .expect("expected events array")
+        .iter()
+        .find(|entry| entry["kind"] == "activity");
+
+    assert!(
+        activity.is_none(),
+        "output should not enqueue activity events: {}",
+        serde_json::to_string_pretty(&parsed).unwrap()
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn ffi_poll_events_returns_null_when_queue_is_empty() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+
+    let first_ptr = flutterm_core::ffi::flutterm_session_poll_events_json(session_id);
+    assert!(
+        !first_ptr.is_null(),
+        "expected initial started event payload"
+    );
+    let first_payload = unsafe { CStr::from_ptr(first_ptr) }
+        .to_str()
+        .expect("expected utf8 event payload")
+        .to_string();
+    assert!(
+        first_payload.contains("\"kind\":\"started\""),
+        "expected started event payload: {first_payload}"
+    );
+    unsafe { flutterm_core::ffi::flutterm_string_free(first_ptr) };
+
+    let second_ptr = flutterm_core::ffi::flutterm_session_poll_events_json(session_id);
+    assert!(
+        second_ptr.is_null(),
+        "expected empty event queue to short-circuit without JSON allocation"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_reflows_scrollback_history_across_resize() {
     let session_id =
         session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
@@ -895,7 +1047,8 @@ fn session_resize_keeps_readline_input_compact() {
     session::resize_session(session_id, 96, 24, 0, 0).unwrap();
 
     let after = wait_for_frame_where(session_id, |frame| {
-        frame.contains("PROMPT-XYZ>")
+        frame.contains("\"frame_kind\":\"snapshot\"")
+            && frame.contains("PROMPT-XYZ>")
             && frame.contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
     });
     let parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
@@ -1111,6 +1264,260 @@ fn interactive_session_accepts_input_and_emits_output() {
     assert!(frame.contains("roundtrip"));
 
     session::write_session(session_id, b"exit\n").unwrap();
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn first_frame_uses_snapshot_kind_and_incremental_output_uses_delta_kind() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let initial = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected initial frame");
+    let initial_parsed: serde_json::Value = serde_json::from_str(&initial).unwrap();
+    assert_eq!(initial_parsed["frame_kind"].as_str(), Some("snapshot"));
+
+    session::write_session(session_id, b"printf 'delta-one\\n'\n").unwrap();
+
+    let updated = wait_for_frame_containing(session_id, "delta-one");
+    let updated_parsed: serde_json::Value = serde_json::from_str(&updated).unwrap();
+    assert_eq!(updated_parsed["frame_kind"].as_str(), Some("delta"));
+    assert!(
+        updated_parsed["rows"]
+            .as_array()
+            .expect("expected frame rows")
+            .len()
+            < updated_parsed["viewport_rows"]
+                .as_u64()
+                .expect("expected viewport row count") as usize,
+        "delta frame should only send changed rows: {}",
+        serde_json::to_string_pretty(&updated_parsed).unwrap()
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn style_only_output_changes_still_mark_the_row_dirty() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&style_only_change_profile()).unwrap())
+            .unwrap();
+
+    let first = wait_for_frame_containing(session_id, "same");
+    let second = wait_for_frame_containing(session_id, "same");
+
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let second_parsed: serde_json::Value = serde_json::from_str(&second).unwrap();
+    let first_row = frame_row_with_text(&first_parsed, "same");
+    let second_row = frame_row_with_text(&second_parsed, "same");
+    let first_foreground = first_row["style_runs"]
+        .as_array()
+        .and_then(|runs| runs.first())
+        .and_then(|run| run["foreground"].as_str())
+        .expect("expected first foreground");
+    let second_foreground = second_row["style_runs"]
+        .as_array()
+        .and_then(|runs| runs.first())
+        .and_then(|run| run["foreground"].as_str())
+        .expect("expected second foreground");
+
+    assert_ne!(first_foreground, second_foreground);
+    assert_eq!(second_parsed["frame_kind"].as_str(), Some("delta"));
+    assert_eq!(
+        second_parsed["dirty_ranges"]
+            .as_array()
+            .expect("expected dirty ranges")
+            .first()
+            .and_then(|range| range["start"].as_u64()),
+        Some(
+            second_row["index"]
+                .as_u64()
+                .expect("expected dirty row index")
+        ),
+        "style-only changes should still flag the row dirty: {}",
+        serde_json::to_string_pretty(&second_parsed).unwrap()
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn scrolling_output_keeps_using_delta_frames_after_viewport_advances() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&streaming_scrollback_profile()).unwrap())
+            .unwrap();
+    session::resize_session(session_id, 40, 5, 0, 0).unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "line06");
+
+    let second = wait_for_frame_containing(session_id, "line13");
+    let second_parsed: serde_json::Value = serde_json::from_str(&second).unwrap();
+    assert_eq!(
+        second_parsed["frame_kind"].as_str(),
+        Some("delta"),
+        "streaming output should stay on the delta path even after the visible window advances: {}",
+        serde_json::to_string_pretty(&second_parsed).unwrap()
+    );
+    assert!(
+        second_parsed["viewport_row_shift"]
+            .as_i64()
+            .expect("expected viewport row shift")
+            < 0,
+        "streaming delta frame should report that the viewport moved upward: {}",
+        serde_json::to_string_pretty(&second_parsed).unwrap()
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn single_line_scroll_reports_viewport_row_shift_and_bottom_dirty_range() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&single_line_scroll_shift_profile()).unwrap(),
+    )
+    .unwrap();
+    session::resize_session(session_id, 40, 5, 0, 0).unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "line04");
+
+    let shifted = wait_for_frame_containing(session_id, "line05");
+    let shifted_parsed: serde_json::Value = serde_json::from_str(&shifted).unwrap();
+
+    assert_eq!(shifted_parsed["frame_kind"].as_str(), Some("delta"));
+    assert_eq!(shifted_parsed["viewport_row_shift"].as_i64(), Some(-1));
+    assert_eq!(
+        shifted_parsed["dirty_ranges"].as_array(),
+        Some(&vec![serde_json::json!({
+            "start": 3,
+            "end": 5,
+        })]),
+        "single-line viewport scroll should only dirty the newly revealed line plus the trailing cursor row: {}",
+        serde_json::to_string_pretty(&shifted_parsed).unwrap()
+    );
+    assert_eq!(
+        shifted_parsed["rows"]
+            .as_array()
+            .expect("expected delta rows")
+            .len(),
+        2,
+        "single-line viewport scroll should only emit the newly revealed line plus the trailing cursor row: {}",
+        serde_json::to_string_pretty(&shifted_parsed).unwrap()
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn damage_driven_delta_reports_low_rows_scanned_for_single_line_scroll() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&single_line_scroll_shift_profile()).unwrap(),
+    )
+    .unwrap();
+    session::resize_session(session_id, 40, 5, 0, 0).unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "line04");
+    let _ = wait_for_frame_containing(session_id, "line05");
+    let debug_stats = session::take_frame_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected frame debug stats");
+    let parsed: serde_json::Value = serde_json::from_str(&debug_stats).unwrap();
+
+    assert_eq!(parsed["viewport_row_shift"].as_i64(), Some(-1));
+    assert_eq!(parsed["rows_emitted"].as_u64(), Some(2));
+    assert!(parsed["state_lock_wait_micros"].as_u64().is_some());
+    assert!(parsed["frame_extract_micros"].as_u64().is_some());
+    assert!(parsed["json_encode_micros"].as_u64().is_some());
+    assert!(
+        parsed["rows_scanned"]
+            .as_u64()
+            .expect("expected rows_scanned")
+            <= 4,
+        "single-line scroll should not rescan the full viewport: {}",
+        serde_json::to_string_pretty(&parsed).unwrap()
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn clear_screen_falls_back_to_snapshot_with_reason() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&clear_screen_profile()).unwrap()).unwrap();
+    session::resize_session(session_id, 40, 5, 0, 0).unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "before");
+    let frame = wait_for_frame_containing(session_id, "after");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let debug_stats = session::take_frame_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected frame debug stats");
+    let debug_parsed: serde_json::Value = serde_json::from_str(&debug_stats).unwrap();
+
+    assert_eq!(parsed["frame_kind"].as_str(), Some("snapshot"));
+    assert_eq!(debug_parsed["full_repaint"].as_bool(), Some(true));
+    assert_eq!(
+        debug_parsed["snapshot_fallback_reason"].as_str(),
+        Some("clear_screen")
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_debug_stats_accumulate_input_processing_costs() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_containing(session_id, "hello");
+
+    let stats = session::take_session_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected session debug stats");
+    let parsed: serde_json::Value = serde_json::from_str(&stats).unwrap();
+
+    assert!(parsed["bytes_read"].as_u64().unwrap_or_default() > 0);
+    assert!(parsed["read_chunks"].as_u64().unwrap_or_default() > 0);
+    assert!(parsed["terminal_process_micros"].as_u64().is_some());
+    assert!(parsed["host_protocol_micros"].as_u64().is_some());
+    assert!(parsed["damage_merge_micros"].as_u64().is_some());
+    assert!(parsed["pending_dirty_rows"].as_u64().is_some());
+    let breakdown = &parsed["terminal_process_breakdown"];
+    assert!(
+        breakdown.is_object(),
+        "missing terminal_process_breakdown: {parsed}"
+    );
+    assert!(breakdown["process_calls"].as_u64().unwrap_or_default() > 0);
+    assert!(breakdown["process_bytes"].as_u64().unwrap_or_default() > 0);
+    assert!(breakdown["plain_ascii_bytes"].as_u64().unwrap_or_default() > 0);
+    assert!(breakdown["escape_or_control_bytes"].as_u64().is_some());
+    assert!(breakdown["parser_advance_micros"].as_u64().is_some());
+    assert!(breakdown["scroll_micros"].as_u64().is_some());
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn transcript_is_bounded_and_resize_still_returns_snapshot() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&large_transcript_profile()).unwrap())
+            .unwrap();
+    let _ = wait_for_frame_containing(session_id, "line-08999");
+
+    let stats = session::take_session_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected session debug stats");
+    let parsed: serde_json::Value = serde_json::from_str(&stats).unwrap();
+    assert_eq!(parsed["transcript_truncated"].as_bool(), Some(true));
+    assert!(parsed["transcript_bytes"].as_u64().unwrap_or_default() <= 262_144);
+
+    session::resize_session(session_id, 100, 20, 1000, 400).unwrap();
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame after resize");
+    let parsed_frame: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed_frame["frame_kind"].as_str(), Some("snapshot"));
+
     session::close_session(session_id).unwrap();
 }
 

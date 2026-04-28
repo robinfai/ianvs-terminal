@@ -19,14 +19,30 @@ final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
 const String _xtermWordSeparators = " ()[]{}',\"`";
 
 class TerminalViewportController extends ChangeNotifier {
-  TerminalFrameDiff _frame = TerminalFrameDiff.empty;
+  TerminalViewportState _state = TerminalViewportState.empty;
   Size? _measuredCellSize;
+  int _frameVersion = 0;
 
-  TerminalFrameDiff get frame => _frame;
+  TerminalViewportState get state => _state;
+  TerminalFrameDiff get frame => _state.frame;
+  int get frameVersion => _frameVersion;
   Size? get measuredCellSize => _measuredCellSize;
 
   void updateFrame(TerminalFrameDiff value) {
-    _frame = value;
+    _state = _state.applyFrame(value);
+    _frameVersion += 1;
+    notifyListeners();
+  }
+
+  void applySnapshot(TerminalFrameDiff value) {
+    _state = _state.applySnapshot(value);
+    _frameVersion += 1;
+    notifyListeners();
+  }
+
+  void applyDelta(TerminalFrameDiff value) {
+    _state = _state.applyDelta(value);
+    _frameVersion += 1;
     notifyListeners();
   }
 
@@ -562,10 +578,6 @@ class _TerminalViewportState extends State<TerminalViewport> {
     );
   }
 
-  void _handleTapUp(TapUpDetails details) {
-    _openLinkAt(details.globalPosition);
-  }
-
   void _openLinkAt(Offset globalPosition) {
     final onOpenLink = widget.onOpenLink;
     if (onOpenLink == null) {
@@ -902,7 +914,8 @@ class _TerminalViewportState extends State<TerminalViewport> {
                               key: _surfaceKey,
                               controller: widget.controller,
                               selectionController: widget.selectionController,
-                              cursorVisible: _canDisplayFrameCursor && _cursorVisible,
+                              cursorVisible:
+                                  _canDisplayFrameCursor && _cursorVisible,
                               font: widget.font,
                               cursor: widget.cursor,
                               colors: colors,

@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+enum TerminalFrameKind { snapshot, delta }
+
 class TerminalStyleRun {
   const TerminalStyleRun({
     required this.start,
@@ -243,6 +245,7 @@ class TerminalSearchMatch {
 
 class TerminalFrameDiff {
   const TerminalFrameDiff({
+    this.frameKind = TerminalFrameKind.snapshot,
     required this.rows,
     required this.cursor,
     required this.viewportRows,
@@ -251,6 +254,7 @@ class TerminalFrameDiff {
     required this.scrollbackOffset,
     required this.scrollbackMaxOffset,
     this.viewportStartRow = 0,
+    this.viewportRowShift = 0,
     this.modes = TerminalFrameModes.empty,
     this.selection,
     this.windowTitle,
@@ -258,6 +262,7 @@ class TerminalFrameDiff {
     this.hyperlinks = const [],
   });
 
+  final TerminalFrameKind frameKind;
   final List<TerminalRow> rows;
   final TerminalCursor cursor;
   final TerminalSelection? selection;
@@ -267,12 +272,14 @@ class TerminalFrameDiff {
   final int scrollbackOffset;
   final int scrollbackMaxOffset;
   final int viewportStartRow;
+  final int viewportRowShift;
   final TerminalFrameModes modes;
   final String? windowTitle;
   final String? windowIconName;
   final List<TerminalHyperlinkRange> hyperlinks;
 
   static const empty = TerminalFrameDiff(
+    frameKind: TerminalFrameKind.snapshot,
     rows: [],
     cursor: TerminalCursor(row: 0, col: 0, visible: false),
     viewportRows: 0,
@@ -280,11 +287,13 @@ class TerminalFrameDiff {
     dirtyRanges: [],
     scrollbackOffset: 0,
     scrollbackMaxOffset: 0,
+    viewportRowShift: 0,
     modes: TerminalFrameModes.empty,
   );
 
   factory TerminalFrameDiff.fromJson(Map<String, Object?> json) {
     return TerminalFrameDiff(
+      frameKind: _terminalFrameKindFromWire(json['frame_kind'] as String?),
       rows: (json['rows'] as List<dynamic>? ?? const [])
           .map((entry) => TerminalRow.fromJson(entry as Map<String, Object?>))
           .toList(),
@@ -305,6 +314,7 @@ class TerminalFrameDiff {
       scrollbackOffset: json['scrollback_offset'] as int? ?? 0,
       scrollbackMaxOffset: json['scrollback_max_offset'] as int? ?? 0,
       viewportStartRow: json['viewport_start_row'] as int? ?? 0,
+      viewportRowShift: json['viewport_row_shift'] as int? ?? 0,
       modes: json['modes'] == null
           ? TerminalFrameModes.empty
           : TerminalFrameModes.fromJson(json['modes']! as Map<String, Object?>),
@@ -316,6 +326,75 @@ class TerminalFrameDiff {
                 TerminalHyperlinkRange.fromJson(entry as Map<String, Object?>),
           )
           .toList(),
+    );
+  }
+}
+
+class TerminalViewportState {
+  const TerminalViewportState({required this.frame});
+
+  final TerminalFrameDiff frame;
+
+  static const empty = TerminalViewportState(frame: TerminalFrameDiff.empty);
+
+  TerminalViewportState applyFrame(TerminalFrameDiff nextFrame) {
+    return switch (nextFrame.frameKind) {
+      TerminalFrameKind.snapshot => applySnapshot(nextFrame),
+      TerminalFrameKind.delta => applyDelta(nextFrame),
+    };
+  }
+
+  TerminalViewportState applySnapshot(TerminalFrameDiff nextFrame) {
+    return TerminalViewportState(frame: _normalizeSnapshotFrame(nextFrame));
+  }
+
+  TerminalViewportState applyDelta(TerminalFrameDiff nextFrame) {
+    if (frame.viewportRows <= 0 ||
+        frame.viewportCols <= 0 ||
+        frame.rows.isEmpty ||
+        frame.viewportRows != nextFrame.viewportRows ||
+        frame.viewportCols != nextFrame.viewportCols) {
+      return applySnapshot(nextFrame);
+    }
+
+    final mergedRows = _mergeViewportRows(
+      currentRows: _shiftViewportRows(
+        rows: frame.rows,
+        viewportRows: nextFrame.viewportRows,
+        rowShift: nextFrame.viewportRowShift,
+      ),
+      incomingRows: nextFrame.rows,
+      viewportRows: nextFrame.viewportRows,
+    );
+    final mergedHyperlinks = _mergeHyperlinks(
+      currentRanges: _shiftHyperlinks(
+        ranges: frame.hyperlinks,
+        viewportRows: nextFrame.viewportRows,
+        rowShift: nextFrame.viewportRowShift,
+      ),
+      incomingRanges: nextFrame.hyperlinks,
+      dirtyRanges: nextFrame.dirtyRanges,
+      viewportRows: nextFrame.viewportRows,
+    );
+
+    return TerminalViewportState(
+      frame: TerminalFrameDiff(
+        frameKind: nextFrame.frameKind,
+        rows: mergedRows,
+        cursor: nextFrame.cursor,
+        selection: nextFrame.selection,
+        viewportRows: nextFrame.viewportRows,
+        viewportCols: nextFrame.viewportCols,
+        dirtyRanges: nextFrame.dirtyRanges,
+        scrollbackOffset: nextFrame.scrollbackOffset,
+        scrollbackMaxOffset: nextFrame.scrollbackMaxOffset,
+        viewportStartRow: nextFrame.viewportStartRow,
+        viewportRowShift: nextFrame.viewportRowShift,
+        modes: nextFrame.modes,
+        windowTitle: nextFrame.windowTitle,
+        windowIconName: nextFrame.windowIconName,
+        hyperlinks: mergedHyperlinks,
+      ),
     );
   }
 }
@@ -428,6 +507,191 @@ Color? _colorFromHex(String? value) {
   }
   final normalized = value.replaceFirst('#', '');
   return Color(int.parse('FF$normalized', radix: 16));
+}
+
+TerminalFrameKind _terminalFrameKindFromWire(String? value) {
+  return switch (value) {
+    'delta' => TerminalFrameKind.delta,
+    _ => TerminalFrameKind.snapshot,
+  };
+}
+
+TerminalFrameDiff _normalizeSnapshotFrame(TerminalFrameDiff frame) {
+  return TerminalFrameDiff(
+    frameKind: TerminalFrameKind.snapshot,
+    rows: _normalizeViewportRows(
+      rows: frame.rows,
+      viewportRows: frame.viewportRows,
+    ),
+    cursor: frame.cursor,
+    selection: frame.selection,
+    viewportRows: frame.viewportRows,
+    viewportCols: frame.viewportCols,
+    dirtyRanges: _fullViewportDirtyRanges(frame.viewportRows),
+    scrollbackOffset: frame.scrollbackOffset,
+    scrollbackMaxOffset: frame.scrollbackMaxOffset,
+    viewportStartRow: frame.viewportStartRow,
+    viewportRowShift: 0,
+    modes: frame.modes,
+    windowTitle: frame.windowTitle,
+    windowIconName: frame.windowIconName,
+    hyperlinks: frame.hyperlinks
+        .where((range) {
+          return range.row >= 0 && range.row < frame.viewportRows;
+        })
+        .toList(growable: false),
+  );
+}
+
+List<TerminalDirtyRange> _fullViewportDirtyRanges(int viewportRows) {
+  if (viewportRows <= 0) {
+    return const <TerminalDirtyRange>[];
+  }
+  return <TerminalDirtyRange>[TerminalDirtyRange(start: 0, end: viewportRows)];
+}
+
+List<TerminalRow> _normalizeViewportRows({
+  required List<TerminalRow> rows,
+  required int viewportRows,
+}) {
+  if (viewportRows <= 0) {
+    return const <TerminalRow>[];
+  }
+
+  final rowsByIndex = <int, TerminalRow>{};
+  for (final row in rows) {
+    if (row.index < 0 || row.index >= viewportRows) {
+      continue;
+    }
+    rowsByIndex[row.index] = row;
+  }
+
+  return List<TerminalRow>.generate(viewportRows, (index) {
+    return rowsByIndex[index] ?? TerminalRow(index: index, text: '');
+  }, growable: false);
+}
+
+List<TerminalRow> _mergeViewportRows({
+  required List<TerminalRow> currentRows,
+  required List<TerminalRow> incomingRows,
+  required int viewportRows,
+}) {
+  final normalizedCurrent = _normalizeViewportRows(
+    rows: currentRows,
+    viewportRows: viewportRows,
+  );
+  if (incomingRows.isEmpty) {
+    return normalizedCurrent;
+  }
+
+  final rowsByIndex = <int, TerminalRow>{};
+  for (final row in incomingRows) {
+    if (row.index < 0 || row.index >= viewportRows) {
+      continue;
+    }
+    rowsByIndex[row.index] = row;
+  }
+
+  return List<TerminalRow>.generate(viewportRows, (index) {
+    return rowsByIndex[index] ?? normalizedCurrent[index];
+  }, growable: false);
+}
+
+List<TerminalRow> _shiftViewportRows({
+  required List<TerminalRow> rows,
+  required int viewportRows,
+  required int rowShift,
+}) {
+  final normalizedRows = _normalizeViewportRows(
+    rows: rows,
+    viewportRows: viewportRows,
+  );
+  if (rowShift == 0) {
+    return normalizedRows;
+  }
+
+  return List<TerminalRow>.generate(viewportRows, (index) {
+    final previousIndex = index - rowShift;
+    if (previousIndex < 0 || previousIndex >= viewportRows) {
+      return TerminalRow(index: index, text: '');
+    }
+    final sourceRow = normalizedRows[previousIndex];
+    return TerminalRow(
+      index: index,
+      text: sourceRow.text,
+      wrapped: sourceRow.wrapped,
+      styleRuns: sourceRow.styleRuns,
+    );
+  }, growable: false);
+}
+
+List<TerminalHyperlinkRange> _mergeHyperlinks({
+  required List<TerminalHyperlinkRange> currentRanges,
+  required List<TerminalHyperlinkRange> incomingRanges,
+  required List<TerminalDirtyRange> dirtyRanges,
+  required int viewportRows,
+}) {
+  final dirtyRows = <int>{
+    for (final range in dirtyRanges)
+      for (var row = range.start; row < range.end; row += 1)
+        if (row >= 0 && row < viewportRows) row,
+  };
+  if (dirtyRows.isEmpty) {
+    return currentRanges
+        .where((range) => range.row >= 0 && range.row < viewportRows)
+        .toList(growable: false);
+  }
+
+  final merged = <TerminalHyperlinkRange>[
+    for (final range in currentRanges)
+      if (!dirtyRows.contains(range.row) &&
+          range.row >= 0 &&
+          range.row < viewportRows)
+        range,
+    for (final range in incomingRanges)
+      if (range.row >= 0 && range.row < viewportRows) range,
+  ];
+  merged.sort((left, right) {
+    final byRow = left.row.compareTo(right.row);
+    if (byRow != 0) {
+      return byRow;
+    }
+    final byStart = left.startCol.compareTo(right.startCol);
+    if (byStart != 0) {
+      return byStart;
+    }
+    return left.endCol.compareTo(right.endCol);
+  });
+  return merged;
+}
+
+List<TerminalHyperlinkRange> _shiftHyperlinks({
+  required List<TerminalHyperlinkRange> ranges,
+  required int viewportRows,
+  required int rowShift,
+}) {
+  if (rowShift == 0) {
+    return ranges
+        .where((range) => range.row >= 0 && range.row < viewportRows)
+        .toList(growable: false);
+  }
+
+  final shifted = <TerminalHyperlinkRange>[];
+  for (final range in ranges) {
+    final nextRow = range.row + rowShift;
+    if (nextRow < 0 || nextRow >= viewportRows) {
+      continue;
+    }
+    shifted.add(
+      TerminalHyperlinkRange(
+        row: nextRow,
+        startCol: range.startCol,
+        endCol: range.endCol,
+        uri: range.uri,
+      ),
+    );
+  }
+  return shifted;
 }
 
 int _terminalDisplayWidthForGrapheme(String grapheme) {

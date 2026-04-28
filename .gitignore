@@ -15,3 +15,7 @@ packages/*/build/
 !.codex/prompts/
 !.codex/prompts/**
 native/core/target/
+native/vendor/**/target/
+native/vendor/**/.cargo-ok
+native/vendor/**/.cargo_vcs_info.json
+native/vendor/**/Cargo.toml.orig

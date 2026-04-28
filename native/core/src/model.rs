@@ -279,7 +279,7 @@ pub struct TerminalSearchMatch {
     pub scrollback_offset: usize,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerminalFrameModes {
     #[serde(default)]
     pub application_cursor: bool,
@@ -305,8 +305,18 @@ pub struct TerminalFrameModes {
     pub mouse_encoding: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalFrameKind {
+    #[default]
+    Snapshot,
+    Delta,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalFrameDiff {
+    #[serde(default)]
+    pub frame_kind: TerminalFrameKind,
     pub rows: Vec<TerminalRow>,
     pub cursor: TerminalCursor,
     pub selection: Option<TerminalSelection>,
@@ -320,6 +330,8 @@ pub struct TerminalFrameDiff {
     pub scrollback_max_offset: usize,
     #[serde(default)]
     pub viewport_start_row: usize,
+    #[serde(default)]
+    pub viewport_row_shift: i32,
     #[serde(default)]
     pub modes: TerminalFrameModes,
     #[serde(default)]

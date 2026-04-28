@@ -154,6 +154,270 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport only rebuilds dirty row visuals for delta frames',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            frameKind: TerminalFrameKind.snapshot,
+            rows: [
+              TerminalRow(index: 0, text: 'alpha'),
+              TerminalRow(index: 1, text: 'beta'),
+            ],
+            cursor: TerminalCursor(row: 1, col: 1, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: SelectionController(),
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      expect(renderObject.debugRowPictureBuildsForRow(0), 1);
+      expect(renderObject.debugRowPictureBuildsForRow(1), 1);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 1, text: 'beta*')],
+          cursor: TerminalCursor(row: 1, col: 2, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 1, end: 2)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      await tester.pump();
+
+      expect(renderObject.debugRowPictureBuildsForRow(0), 1);
+      expect(renderObject.debugRowPictureBuildsForRow(1), 2);
+      expect(renderObject.debugLastRebuiltRowIndexes, <int>[1]);
+      expect(
+        controller.frame.rows.take(2).map((row) => row.text).toList(),
+        <String>['alpha', 'beta*'],
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal viewport skips row visual rebuilds for cursor-only delta frames',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            frameKind: TerminalFrameKind.snapshot,
+            rows: [TerminalRow(index: 0, text: 'cursor lane')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: SelectionController(),
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final rowBuildsBefore = renderObject.debugRowPictureBuildsForRow(0);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [],
+          cursor: TerminalCursor(row: 0, col: 4, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      await tester.pump();
+
+      expect(renderObject.debugRowPictureBuildsForRow(0), rowBuildsBefore);
+      expect(renderObject.debugLastRebuiltRowIndexes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport reuses row visuals when a scrolling delta shifts the viewport',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          TerminalFrameDiff.fromJson(<String, Object?>{
+            'frame_kind': 'snapshot',
+            'rows': <Object?>[
+              <String, Object?>{
+                'index': 0,
+                'text': 'alpha',
+                'style_runs': const <Object?>[],
+              },
+              <String, Object?>{
+                'index': 1,
+                'text': 'beta',
+                'style_runs': const <Object?>[],
+              },
+              <String, Object?>{
+                'index': 2,
+                'text': 'gamma',
+                'style_runs': const <Object?>[],
+              },
+            ],
+            'cursor': <String, Object?>{'row': 2, 'col': 5, 'visible': true},
+            'viewport_rows': 3,
+            'viewport_cols': 80,
+            'dirty_ranges': <Object?>[
+              <String, Object?>{'start': 0, 'end': 3},
+            ],
+            'scrollback_offset': 0,
+            'scrollback_max_offset': 20,
+            'viewport_start_row': 20,
+          }),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: SelectionController(),
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      expect(_resolvedRowText(renderObject, 0), 'alpha');
+      expect(_resolvedRowText(renderObject, 1), 'beta');
+      expect(_resolvedRowText(renderObject, 2), 'gamma');
+
+      controller.updateFrame(
+        TerminalFrameDiff.fromJson(<String, Object?>{
+          'frame_kind': 'delta',
+          'rows': <Object?>[
+            <String, Object?>{
+              'index': 2,
+              'text': 'delta',
+              'style_runs': const <Object?>[],
+            },
+          ],
+          'cursor': <String, Object?>{'row': 2, 'col': 5, 'visible': true},
+          'viewport_rows': 3,
+          'viewport_cols': 80,
+          'dirty_ranges': <Object?>[
+            <String, Object?>{'start': 2, 'end': 3},
+          ],
+          'scrollback_offset': 0,
+          'scrollback_max_offset': 21,
+          'viewport_start_row': 21,
+          'viewport_row_shift': -1,
+        }),
+      );
+      await tester.pump();
+
+      expect(renderObject.debugLastRebuiltRowIndexes, <int>[2]);
+      expect(_resolvedRowText(renderObject, 0), 'beta');
+      expect(_resolvedRowText(renderObject, 1), 'gamma');
+      expect(_resolvedRowText(renderObject, 2), 'delta');
+      final shiftedRowZeroCells = renderObject.debugResolvedCellsForRow(0);
+      expect(shiftedRowZeroCells, isNotEmpty);
+      for (final cell in shiftedRowZeroCells) {
+        expect(
+          cell.placementRect.top,
+          lessThan(renderObject.debugCellSize.height / 2),
+          reason:
+              'shifted row 0 cells must repaint near row 0, not at old lower rows',
+        );
+        expect(
+          cell.drawOffset.dy,
+          lessThan(renderObject.debugCellSize.height),
+          reason: 'shifted row 0 glyph draw offsets must stay within row 0',
+        );
+      }
+      final shiftedRowZeroSpans = renderObject.debugBackgroundSpansForRow(0);
+      for (final span in shiftedRowZeroSpans) {
+        expect(
+          span.rect.top,
+          closeTo(0, 0.001),
+          reason:
+              'shifted row 0 background spans must repaint at row 0, not old row 1',
+        );
+      }
+      final shiftedRowOneCells = renderObject.debugResolvedCellsForRow(1);
+      expect(shiftedRowOneCells, isNotEmpty);
+      for (final cell in shiftedRowOneCells) {
+        expect(
+          cell.placementRect.top,
+          greaterThan(renderObject.debugCellSize.height / 2),
+          reason: 'shifted row 1 cells must repaint below row 0',
+        );
+      }
+    },
+  );
+
+  testWidgets(
     'terminal viewport translates trackpad pan updates into positive scrollback deltas',
     (tester) async {
       final controller = TerminalViewportController()
@@ -3060,7 +3324,7 @@ void main() {
           .whereType<RenderTerminalViewport>()
           .last;
 
-      expect(renderObject.debugLastPaintedRowTexts.single, 'abc   ');
+      expect(renderObject.debugLastPaintedRowTexts.first, 'abc   ');
 
       final resolvedStyle = renderObject.debugResolvedStylesForRow(0).single;
       expect(resolvedStyle.start, 0);
@@ -3246,6 +3510,13 @@ TerminalFrameDiff _scrollbackFrame({
 
 RenderTerminalViewport _terminalRenderObject(WidgetTester tester) {
   return tester.allRenderObjects.whereType<RenderTerminalViewport>().last;
+}
+
+String _resolvedRowText(RenderTerminalViewport renderObject, int row) {
+  return renderObject
+      .debugResolvedCellsForRow(row)
+      .map((cell) => cell.text)
+      .join();
 }
 
 Future<void> _mouseClickAt(WidgetTester tester, Offset position) async {

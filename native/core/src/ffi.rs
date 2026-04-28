@@ -8,20 +8,21 @@ pub extern "C" fn flutterm_ping() -> c_int {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_create(profile_json: *const c_char) -> u64 {
+/// # Safety
+///
+/// `profile_json` must be a valid, NUL-terminated UTF-8 string pointer that
+/// remains alive for the duration of this call.
+pub unsafe extern "C" fn flutterm_session_create(profile_json: *const c_char) -> u64 {
     if profile_json.is_null() {
         return 0;
     }
 
     let profile_json = unsafe { CStr::from_ptr(profile_json) };
-    match profile_json
+    profile_json
         .to_str()
         .ok()
         .and_then(|json| session::create_session(json).ok())
-    {
-        Some(session_id) => session_id,
-        None => 0,
-    }
+        .unwrap_or_default()
 }
 
 #[unsafe(no_mangle)]
@@ -43,7 +44,14 @@ pub extern "C" fn flutterm_session_resize(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_write(session_id: u64, bytes: *const u8, len: usize) -> c_int {
+/// # Safety
+///
+/// `bytes` must point to `len` readable bytes for the duration of this call.
+pub unsafe extern "C" fn flutterm_session_write(
+    session_id: u64,
+    bytes: *const u8,
+    len: usize,
+) -> c_int {
     if bytes.is_null() {
         return -1;
     }
@@ -68,7 +76,11 @@ pub extern "C" fn flutterm_session_scroll_to(session_id: u64, offset: usize) -> 
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_search_json(
+/// # Safety
+///
+/// `query` must be a valid, NUL-terminated UTF-8 string pointer that remains
+/// alive for the duration of this call.
+pub unsafe extern "C" fn flutterm_session_search_json(
     session_id: u64,
     query: *const c_char,
 ) -> *mut c_char {
@@ -90,7 +102,11 @@ pub extern "C" fn flutterm_session_search_json(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_selection_text(
+/// # Safety
+///
+/// `request_json` must be a valid, NUL-terminated UTF-8 string pointer that
+/// remains alive for the duration of this call.
+pub unsafe extern "C" fn flutterm_session_selection_text(
     session_id: u64,
     request_json: *const c_char,
 ) -> *mut c_char {
@@ -122,9 +138,38 @@ pub extern "C" fn flutterm_session_take_frame_diff_json(session_id: u64) -> *mut
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn flutterm_session_take_frame_debug_stats_json(session_id: u64) -> *mut c_char {
+    match session::take_frame_debug_stats_json(session_id)
+        .ok()
+        .flatten()
+    {
+        Some(json) => CString::new(json)
+            .map(CString::into_raw)
+            .unwrap_or(std::ptr::null_mut()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn flutterm_session_take_session_debug_stats_json(session_id: u64) -> *mut c_char {
+    match session::take_session_debug_stats_json(session_id)
+        .ok()
+        .flatten()
+    {
+        Some(json) => CString::new(json)
+            .map(CString::into_raw)
+            .unwrap_or(std::ptr::null_mut()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_poll_events_json(session_id: u64) -> *mut c_char {
-    match session::poll_events(session_id) {
-        Ok(json) => CString::new(json)
+    match session::take_events(session_id) {
+        Ok(events) if events.is_empty() => std::ptr::null_mut(),
+        Ok(events) => serde_json::to_string(&events)
+            .ok()
+            .and_then(|json| CString::new(json).ok())
             .map(CString::into_raw)
             .unwrap_or(std::ptr::null_mut()),
         Err(_) => std::ptr::null_mut(),
@@ -132,7 +177,11 @@ pub extern "C" fn flutterm_session_poll_events_json(session_id: u64) -> *mut c_c
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_string_free(value: *mut c_char) {
+/// # Safety
+///
+/// `value` must be a pointer previously returned by this library via
+/// `CString::into_raw`, and it must not be freed more than once.
+pub unsafe extern "C" fn flutterm_string_free(value: *mut c_char) {
     if value.is_null() {
         return;
     }

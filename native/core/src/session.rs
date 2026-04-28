@@ -1,25 +1,28 @@
 use crate::model::{
     TerminalCursor, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
-    TerminalFrameModes, TerminalHyperlinkRange, TerminalProfile, TerminalRow, TerminalSearchMatch,
-    TerminalSelectionRequest, TerminalStyleRun,
+    TerminalFrameKind, TerminalFrameModes, TerminalHyperlinkRange, TerminalProfile, TerminalRow,
+    TerminalSearchMatch, TerminalSelectionRequest, TerminalStyleRun,
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::{Color, NamedColor};
-use par_term_emu_core_rust::grid::Grid;
+use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
-use par_term_emu_core_rust::terminal::Terminal;
+use par_term_emu_core_rust::terminal::{Terminal, TerminalDamage, TerminalProcessDebugStats};
 use parking_lot::Mutex;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
     Arc, LazyLock,
     atomic::{AtomicBool, Ordering},
 };
 use std::thread;
+use std::time::Instant;
 
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
+const MAX_TRANSCRIPT_BYTES: usize = 256 * 1024;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
 
@@ -36,6 +39,144 @@ enum CallbackEvent {
 struct CachedRowState {
     text: String,
     wrapped: bool,
+    style_signature: u64,
+    hyperlink_signature: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CachedFrameMeta {
+    viewport_rows: usize,
+    viewport_cols: usize,
+    scrollback_offset: usize,
+    viewport_start_row: usize,
+    alt_screen_active: bool,
+    modes: TerminalFrameModes,
+    window_title: Option<String>,
+    window_icon_name: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PendingScrollRegion {
+    top: usize,
+    bottom_exclusive: usize,
+    delta_rows: i32,
+}
+
+impl From<ScrollRegionDamage> for PendingScrollRegion {
+    fn from(value: ScrollRegionDamage) -> Self {
+        Self {
+            top: value.top,
+            bottom_exclusive: value.bottom_exclusive,
+            delta_rows: value.delta_rows,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct PendingFrameWork {
+    full_repaint: bool,
+    snapshot_fallback_reason: Option<String>,
+    dirty_rows: BTreeSet<usize>,
+    scroll_region: Option<PendingScrollRegion>,
+    cursor_before: Option<TerminalCursor>,
+    cursor_after: Option<TerminalCursor>,
+    damage_generation: u64,
+}
+
+impl PendingFrameWork {
+    fn mark_full_repaint(&mut self, reason: &str) {
+        self.full_repaint = true;
+        self.dirty_rows.clear();
+        self.scroll_region = None;
+        self.bump_generation();
+        if self.snapshot_fallback_reason.is_none() {
+            self.snapshot_fallback_reason = Some(reason.to_string());
+        }
+    }
+
+    fn merge_terminal_damage(
+        &mut self,
+        damage: TerminalDamage,
+        cursor_before: TerminalCursor,
+        cursor_after: TerminalCursor,
+    ) {
+        self.bump_generation();
+        if self.cursor_before.is_none() {
+            self.cursor_before = Some(cursor_before);
+        }
+        self.cursor_after = Some(cursor_after);
+
+        if damage.full_repaint {
+            self.full_repaint = true;
+            self.dirty_rows.clear();
+            self.scroll_region = None;
+            if self.snapshot_fallback_reason.is_none() {
+                self.snapshot_fallback_reason = damage.snapshot_fallback_reason;
+            }
+            return;
+        }
+
+        self.dirty_rows.extend(damage.dirty_rows);
+        if let Some(scroll_region) = damage.scroll_region {
+            self.merge_scroll_region(scroll_region.into());
+        }
+    }
+
+    fn merge_scroll_region(&mut self, scroll_region: PendingScrollRegion) {
+        match self.scroll_region.as_mut() {
+            None => {
+                self.scroll_region = Some(scroll_region);
+            }
+            Some(existing)
+                if existing.top == scroll_region.top
+                    && existing.bottom_exclusive == scroll_region.bottom_exclusive
+                    && existing.delta_rows.signum() == scroll_region.delta_rows.signum() =>
+            {
+                existing.delta_rows = existing.delta_rows.saturating_add(scroll_region.delta_rows);
+            }
+            Some(_) => self.mark_full_repaint("conflicting_scroll_regions"),
+        }
+    }
+
+    fn bump_generation(&mut self) {
+        self.damage_generation = self.damage_generation.saturating_add(1);
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct FrameDebugStats {
+    rows_scanned: usize,
+    rows_emitted: usize,
+    frame_build_micros: u64,
+    state_lock_wait_micros: u64,
+    frame_extract_micros: u64,
+    json_encode_micros: u64,
+    full_repaint: bool,
+    snapshot_fallback_reason: Option<String>,
+    viewport_row_shift: i32,
+    damage_generation: u64,
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize)]
+struct SessionDebugStats {
+    bytes_read: u64,
+    read_chunks: u64,
+    host_protocol_micros: u64,
+    terminal_process_micros: u64,
+    terminal_process_breakdown: TerminalProcessDebugStats,
+    damage_merge_micros: u64,
+    response_write_micros: u64,
+    transcript_bytes: usize,
+    transcript_truncated: bool,
+    pending_dirty_rows: usize,
+    pending_scroll_region: Option<SessionDebugScrollRegion>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct SessionDebugScrollRegion {
+    top: usize,
+    bottom_exclusive: usize,
+    delta_rows: i32,
 }
 
 #[derive(Default)]
@@ -93,6 +234,7 @@ pub enum SessionError {
 struct TerminalState {
     terminal: Terminal,
     transcript: Vec<u8>,
+    transcript_truncated: bool,
     scrollback_offset: usize,
     host_protocol: HostProtocolState,
 }
@@ -106,6 +248,10 @@ struct HostProtocolState {
 
 impl HostProtocolState {
     fn observe(&mut self, bytes: &[u8], emulation: TerminalEmulation) -> Vec<CallbackEvent> {
+        if self.buffer.is_empty() && !bytes.contains(&0x1b) {
+            return Vec::new();
+        }
+
         self.buffer.extend_from_slice(bytes);
         let mut events = Vec::new();
         let mut index = 0usize;
@@ -275,7 +421,11 @@ pub struct TerminalSession {
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     events: Mutex<VecDeque<TerminalEvent>>,
     dirty: AtomicBool,
+    pending_frame_work: Mutex<PendingFrameWork>,
+    session_debug_stats: Mutex<SessionDebugStats>,
     last_rows: Mutex<Vec<CachedRowState>>,
+    last_frame_meta: Mutex<Option<CachedFrameMeta>>,
+    last_frame_debug_stats: Mutex<Option<FrameDebugStats>>,
     exited: AtomicBool,
 }
 
@@ -302,6 +452,7 @@ impl TerminalSession {
             state: Mutex::new(TerminalState {
                 terminal,
                 transcript: Vec::new(),
+                transcript_truncated: false,
                 scrollback_offset: 0,
                 host_protocol: HostProtocolState::default(),
             }),
@@ -314,7 +465,11 @@ impl TerminalSession {
                 payload: None,
             }])),
             dirty: AtomicBool::new(true),
+            pending_frame_work: Mutex::new(PendingFrameWork::default()),
+            session_debug_stats: Mutex::new(SessionDebugStats::default()),
             last_rows: Mutex::new(Vec::new()),
+            last_frame_meta: Mutex::new(None),
+            last_frame_debug_stats: Mutex::new(None),
             exited: AtomicBool::new(false),
         });
 
@@ -326,29 +481,75 @@ impl TerminalSession {
                 match reader.read(&mut buf) {
                     Ok(0) => break,
                     Ok(read) => {
-                        let (callback_events, responses) = {
+                        let (
+                            callback_events,
+                            responses,
+                            damage,
+                            cursor_before,
+                            cursor_after,
+                            host_protocol_micros,
+                            terminal_process_micros,
+                            terminal_process_breakdown,
+                        ) = {
                             let mut state = reader_session.state.lock();
+                            let cursor_before = terminal_cursor_snapshot(state.terminal.cursor());
+                            let host_started_at = Instant::now();
                             let callback_events = state
                                 .host_protocol
                                 .observe(&buf[..read], reader_session.emulation);
+                            let host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
+                            let process_started_at = Instant::now();
                             state.terminal.process(&buf[..read]);
-                            state.transcript.extend_from_slice(&buf[..read]);
+                            let terminal_process_micros =
+                                process_started_at.elapsed().as_micros() as u64;
+                            let terminal_process_breakdown =
+                                state.terminal.take_process_debug_stats();
+                            append_transcript(&mut state, &buf[..read]);
+                            let damage = state.terminal.drain_active_screen_damage();
+                            let cursor_after = terminal_cursor_snapshot(state.terminal.cursor());
                             let responses = normalize_responses(
                                 reader_session.emulation,
                                 state.terminal.drain_responses(),
                             );
-                            (callback_events, responses)
+                            (
+                                callback_events,
+                                responses,
+                                damage,
+                                cursor_before,
+                                cursor_after,
+                                host_protocol_micros,
+                                terminal_process_micros,
+                                terminal_process_breakdown,
+                            )
                         };
+
+                        let damage_merge_started_at = Instant::now();
+                        reader_session
+                            .pending_frame_work
+                            .lock()
+                            .merge_terminal_damage(damage, cursor_before, cursor_after);
+                        let damage_merge_micros =
+                            damage_merge_started_at.elapsed().as_micros() as u64;
 
                         for event in callback_events {
                             reader_session.push_callback_event(event);
                         }
+                        let response_write_started_at = Instant::now();
                         if !responses.is_empty() {
                             let _ = reader_session.writer.lock().write_all(&responses);
                         }
+                        let response_write_micros =
+                            response_write_started_at.elapsed().as_micros() as u64;
+                        reader_session.record_input_debug_stats(
+                            read,
+                            host_protocol_micros,
+                            terminal_process_micros,
+                            terminal_process_breakdown,
+                            damage_merge_micros,
+                            response_write_micros,
+                        );
 
                         reader_session.dirty.store(true, Ordering::SeqCst);
-                        reader_session.push_event("activity", None);
                     }
                     Err(_) => break,
                 }
@@ -404,7 +605,7 @@ impl TerminalSession {
 
         let should_rebuild_main_screen = !state.terminal.is_alt_screen_active();
 
-        if should_rebuild_main_screen {
+        if should_rebuild_main_screen && !state.transcript_truncated {
             let transcript = state.transcript.clone();
             let mut terminal =
                 Terminal::with_scrollback(cols as usize, rows as usize, self.scrollback_lines);
@@ -433,6 +634,8 @@ impl TerminalSession {
         drop(state);
 
         self.last_rows.lock().clear();
+        *self.last_frame_meta.lock() = None;
+        self.pending_frame_work.lock().mark_full_repaint("resize");
         self.dirty.store(true, Ordering::SeqCst);
         Ok(())
     }
@@ -453,6 +656,9 @@ impl TerminalSession {
             state.scrollback_offset = next.max(0) as usize;
             state.scrollback_offset = state.scrollback_offset.min(current_scrollback_max(&state));
         }
+        self.pending_frame_work
+            .lock()
+            .mark_full_repaint("scrollback_navigation");
         self.dirty.store(true, Ordering::SeqCst);
     }
 
@@ -463,6 +669,9 @@ impl TerminalSession {
         } else {
             state.scrollback_offset = offset.min(current_scrollback_max(&state));
         }
+        self.pending_frame_work
+            .lock()
+            .mark_full_repaint("scrollback_navigation");
         self.dirty.store(true, Ordering::SeqCst);
     }
 
@@ -471,7 +680,12 @@ impl TerminalSession {
             return Ok(None);
         }
 
+        let frame_started_at = Instant::now();
+
+        let state_lock_started_at = Instant::now();
         let mut state = self.state.lock();
+        let state_lock_wait_micros = state_lock_started_at.elapsed().as_micros() as u64;
+        let frame_extract_started_at = Instant::now();
         let alt_screen_active = state.terminal.is_alt_screen_active();
         let scrollback_max_offset = current_scrollback_max(&state);
         if alt_screen_active {
@@ -520,67 +734,97 @@ impl TerminalSession {
         } else {
             None
         };
-
-        let mut rows = Vec::with_capacity(viewport_rows);
-        let mut hyperlinks = Vec::new();
-        let mut dirty_ranges = Vec::new();
-        let mut current_rows = Vec::with_capacity(viewport_rows);
+        let viewport_start_row = if alt_screen_active {
+            0
+        } else {
+            scrollback_max_offset.saturating_sub(state.scrollback_offset)
+        };
+        let scrollback_len = if alt_screen_active {
+            0
+        } else {
+            terminal.grid().scrollback_len()
+        };
+        let cursor_snapshot = terminal_cursor_snapshot(cursor);
+        let pending_frame_work = {
+            let mut pending_frame_work = self.pending_frame_work.lock();
+            std::mem::take(&mut *pending_frame_work)
+        };
         let mut last_rows = self.last_rows.lock();
-
-        for row in 0..viewport_rows {
-            let (cells, wrapped) = if alt_screen_active {
-                (
-                    terminal.alt_grid().row(row),
-                    terminal.alt_grid().is_line_wrapped(row),
-                )
+        let mut last_frame_meta = self.last_frame_meta.lock();
+        let frame_meta = CachedFrameMeta {
+            viewport_rows,
+            viewport_cols,
+            scrollback_offset: state.scrollback_offset,
+            viewport_start_row,
+            alt_screen_active,
+            modes: modes.clone(),
+            window_title: window_title.clone(),
+            window_icon_name: window_icon_name.clone(),
+        };
+        let snapshot_fallback_reason = snapshot_fallback_reason(
+            &pending_frame_work,
+            &last_rows,
+            last_frame_meta.as_ref(),
+            &frame_meta,
+        );
+        let frame_kind = if snapshot_fallback_reason.is_some() {
+            TerminalFrameKind::Snapshot
+        } else {
+            TerminalFrameKind::Delta
+        };
+        let viewport_row_shift = if frame_kind == TerminalFrameKind::Delta {
+            resolve_viewport_row_shift(
+                last_frame_meta.as_ref(),
+                viewport_start_row,
+                &frame_meta,
+                pending_frame_work.scroll_region.as_ref(),
+            )
+        } else {
+            0
+        };
+        let (rows, hyperlinks, current_rows, dirty_ranges, rows_scanned, rows_emitted) =
+            if frame_kind == TerminalFrameKind::Snapshot {
+                build_snapshot_frame(terminal, self.emulation, viewport_start_row, viewport_rows)
             } else {
-                primary_row_cells(terminal.grid(), viewport_rows, state.scrollback_offset, row)
+                build_delta_frame(
+                    terminal,
+                    self.emulation,
+                    viewport_start_row,
+                    viewport_rows,
+                    scrollback_len,
+                    alt_screen_active,
+                    &pending_frame_work,
+                    &last_rows,
+                    viewport_row_shift,
+                )
             };
-            let extracted = extract_row(cells, wrapped);
-            if self.emulation == TerminalEmulation::Xterm256 {
-                hyperlinks.extend(extract_hyperlinks_for_row(terminal, cells, row));
-            }
-
-            current_rows.push(CachedRowState {
-                text: extracted.text.clone(),
-                wrapped: extracted.wrapped,
-            });
-            rows.push(TerminalRow {
-                index: row,
-                text: extracted.text,
-                wrapped: extracted.wrapped,
-                style_runs: extracted.style_runs,
-            });
-        }
-
-        for (index, row_state) in current_rows.iter().enumerate() {
-            if last_rows.get(index) != Some(row_state) {
-                dirty_ranges.push(TerminalDirtyRange {
-                    start: index,
-                    end: index + 1,
-                });
-            }
-        }
         *last_rows = current_rows;
+        *last_frame_meta = Some(frame_meta);
+        *self.last_frame_debug_stats.lock() = Some(FrameDebugStats {
+            rows_scanned,
+            rows_emitted,
+            frame_build_micros: frame_started_at.elapsed().as_micros() as u64,
+            state_lock_wait_micros,
+            frame_extract_micros: frame_extract_started_at.elapsed().as_micros() as u64,
+            json_encode_micros: 0,
+            full_repaint: frame_kind == TerminalFrameKind::Snapshot,
+            snapshot_fallback_reason,
+            viewport_row_shift,
+            damage_generation: pending_frame_work.damage_generation,
+        });
 
         Ok(Some(TerminalFrameDiff {
+            frame_kind,
             rows,
-            cursor: TerminalCursor {
-                row: cursor.row,
-                col: cursor.col,
-                visible: cursor.visible,
-            },
+            cursor: cursor_snapshot,
             selection: None,
             viewport_rows: viewport_rows as u16,
             viewport_cols: viewport_cols as u16,
             dirty_ranges,
             scrollback_offset: state.scrollback_offset,
             scrollback_max_offset,
-            viewport_start_row: if alt_screen_active {
-                0
-            } else {
-                scrollback_max_offset.saturating_sub(state.scrollback_offset)
-            },
+            viewport_start_row,
+            viewport_row_shift,
             modes,
             window_title,
             window_icon_name,
@@ -665,6 +909,77 @@ impl TerminalSession {
         Ok(self.events.lock().drain(..).collect())
     }
 
+    pub fn take_frame_debug_stats_json(&self) -> Result<Option<String>, SessionError> {
+        self.last_frame_debug_stats
+            .lock()
+            .take()
+            .map(|stats| {
+                serde_json::to_string(&stats)
+                    .map_err(|error| SessionError::Serialize(error.to_string()))
+            })
+            .transpose()
+    }
+
+    fn record_frame_json_encode_micros(&self, micros: u64) {
+        if let Some(stats) = self.last_frame_debug_stats.lock().as_mut() {
+            stats.json_encode_micros = micros;
+        }
+    }
+
+    pub fn take_session_debug_stats_json(&self) -> Result<Option<String>, SessionError> {
+        let mut stats = self.session_debug_stats.lock().clone();
+        {
+            let state = self.state.lock();
+            stats.transcript_bytes = state.transcript.len();
+            stats.transcript_truncated = state.transcript_truncated;
+        }
+        {
+            let pending = self.pending_frame_work.lock();
+            stats.pending_dirty_rows = pending.dirty_rows.len();
+            stats.pending_scroll_region =
+                pending
+                    .scroll_region
+                    .as_ref()
+                    .map(|scroll_region| SessionDebugScrollRegion {
+                        top: scroll_region.top,
+                        bottom_exclusive: scroll_region.bottom_exclusive,
+                        delta_rows: scroll_region.delta_rows,
+                    });
+        }
+        serde_json::to_string(&stats)
+            .map(Some)
+            .map_err(|error| SessionError::Serialize(error.to_string()))
+    }
+
+    fn record_input_debug_stats(
+        &self,
+        bytes_read: usize,
+        host_protocol_micros: u64,
+        terminal_process_micros: u64,
+        terminal_process_breakdown: TerminalProcessDebugStats,
+        damage_merge_micros: u64,
+        response_write_micros: u64,
+    ) {
+        let mut stats = self.session_debug_stats.lock();
+        stats.bytes_read = stats.bytes_read.saturating_add(bytes_read as u64);
+        stats.read_chunks = stats.read_chunks.saturating_add(1);
+        stats.host_protocol_micros = stats
+            .host_protocol_micros
+            .saturating_add(host_protocol_micros);
+        stats.terminal_process_micros = stats
+            .terminal_process_micros
+            .saturating_add(terminal_process_micros);
+        stats
+            .terminal_process_breakdown
+            .add_assign(terminal_process_breakdown);
+        stats.damage_merge_micros = stats
+            .damage_merge_micros
+            .saturating_add(damage_merge_micros);
+        stats.response_write_micros = stats
+            .response_write_micros
+            .saturating_add(response_write_micros);
+    }
+
     fn push_callback_event(&self, event: CallbackEvent) {
         match event {
             CallbackEvent::Resize { rows, cols } => self.push_event(
@@ -705,26 +1020,361 @@ struct ExtractedRow {
     style_runs: Vec<TerminalStyleRun>,
 }
 
-fn primary_row_cells(
-    grid: &Grid,
-    viewport_rows: usize,
-    scrollback_offset: usize,
-    row: usize,
-) -> (Option<&[Cell]>, bool) {
-    let scrollback_len = grid.scrollback_len();
-    let total_lines = scrollback_len + viewport_rows;
-    let start_index = total_lines.saturating_sub(viewport_rows + scrollback_offset);
-    let visible_index = start_index + row;
+struct ExtractedVisibleRow {
+    row: TerminalRow,
+    hyperlinks: Vec<TerminalHyperlinkRange>,
+}
 
-    if visible_index < scrollback_len {
-        (
-            grid.scrollback_line(visible_index),
-            grid.is_scrollback_wrapped(visible_index),
-        )
-    } else {
-        let screen_row = visible_index.saturating_sub(scrollback_len);
-        (grid.row(screen_row), grid.is_line_wrapped(screen_row))
+fn terminal_cursor_snapshot(cursor: &par_term_emu_core_rust::cursor::Cursor) -> TerminalCursor {
+    TerminalCursor {
+        row: cursor.row,
+        col: cursor.col,
+        visible: cursor.visible,
     }
+}
+
+fn append_transcript(state: &mut TerminalState, bytes: &[u8]) {
+    state.transcript.extend_from_slice(bytes);
+    if state.transcript.len() <= MAX_TRANSCRIPT_BYTES {
+        return;
+    }
+
+    let overflow = state.transcript.len() - MAX_TRANSCRIPT_BYTES;
+    state.transcript.drain(..overflow);
+    state.transcript_truncated = true;
+}
+
+fn cached_row_state_for(entry: &ExtractedVisibleRow) -> CachedRowState {
+    CachedRowState {
+        text: entry.row.text.clone(),
+        wrapped: entry.row.wrapped,
+        style_signature: style_signature(&entry.row.style_runs),
+        hyperlink_signature: hyperlink_signature(&entry.hyperlinks),
+    }
+}
+
+fn extract_viewport_row(
+    terminal: &Terminal,
+    emulation: TerminalEmulation,
+    viewport_start_row: usize,
+    viewport_row: usize,
+) -> ExtractedVisibleRow {
+    let absolute_visible_index = viewport_start_row.saturating_add(viewport_row);
+    let (cells, wrapped) = row_cells_for_visible_index(terminal, absolute_visible_index);
+    let extracted = extract_row(cells, wrapped);
+    let hyperlinks = if emulation == TerminalEmulation::Xterm256 {
+        extract_hyperlinks_for_row(terminal, cells, viewport_row)
+    } else {
+        Vec::new()
+    };
+
+    ExtractedVisibleRow {
+        row: TerminalRow {
+            index: viewport_row,
+            text: extracted.text,
+            wrapped: extracted.wrapped,
+            style_runs: extracted.style_runs,
+        },
+        hyperlinks,
+    }
+}
+
+fn shift_cached_rows(
+    previous_rows: &[CachedRowState],
+    viewport_rows: usize,
+    viewport_row_shift: i32,
+) -> Vec<CachedRowState> {
+    let mut shifted = vec![CachedRowState::default(); viewport_rows];
+    for row in 0..viewport_rows {
+        let previous_index = row as isize - viewport_row_shift as isize;
+        let Some(previous_index) = usize::try_from(previous_index).ok() else {
+            continue;
+        };
+        if let Some(previous_row) = previous_rows.get(previous_index) {
+            shifted[row] = previous_row.clone();
+        }
+    }
+    shifted
+}
+
+fn build_snapshot_frame(
+    terminal: &Terminal,
+    emulation: TerminalEmulation,
+    viewport_start_row: usize,
+    viewport_rows: usize,
+) -> (
+    Vec<TerminalRow>,
+    Vec<TerminalHyperlinkRange>,
+    Vec<CachedRowState>,
+    Vec<TerminalDirtyRange>,
+    usize,
+    usize,
+) {
+    let mut rows = Vec::with_capacity(viewport_rows);
+    let mut hyperlinks = Vec::new();
+    let mut current_rows = Vec::with_capacity(viewport_rows);
+
+    for row in 0..viewport_rows {
+        let extracted = extract_viewport_row(terminal, emulation, viewport_start_row, row);
+        current_rows.push(cached_row_state_for(&extracted));
+        hyperlinks.extend(extracted.hyperlinks.clone());
+        rows.push(extracted.row);
+    }
+
+    let dirty_ranges = if viewport_rows == 0 {
+        Vec::new()
+    } else {
+        vec![TerminalDirtyRange {
+            start: 0,
+            end: viewport_rows,
+        }]
+    };
+
+    (
+        rows,
+        hyperlinks,
+        current_rows,
+        dirty_ranges,
+        viewport_rows,
+        viewport_rows,
+    )
+}
+
+fn build_delta_frame(
+    terminal: &Terminal,
+    emulation: TerminalEmulation,
+    viewport_start_row: usize,
+    viewport_rows: usize,
+    scrollback_len: usize,
+    alt_screen_active: bool,
+    pending_frame_work: &PendingFrameWork,
+    previous_rows: &[CachedRowState],
+    viewport_row_shift: i32,
+) -> (
+    Vec<TerminalRow>,
+    Vec<TerminalHyperlinkRange>,
+    Vec<CachedRowState>,
+    Vec<TerminalDirtyRange>,
+    usize,
+    usize,
+) {
+    let candidate_row_indexes = delta_candidate_row_indexes(
+        pending_frame_work,
+        viewport_rows,
+        viewport_start_row,
+        scrollback_len,
+        alt_screen_active,
+        viewport_row_shift,
+    );
+    let mut next_rows = shift_cached_rows(previous_rows, viewport_rows, viewport_row_shift);
+    let mut dirty_row_indexes = Vec::new();
+    let mut rows = Vec::new();
+    let mut hyperlinks = Vec::new();
+
+    for row_index in &candidate_row_indexes {
+        let extracted = extract_viewport_row(terminal, emulation, viewport_start_row, *row_index);
+        let row_state = cached_row_state_for(&extracted);
+        if next_rows.get(*row_index) != Some(&row_state) {
+            dirty_row_indexes.push(*row_index);
+            hyperlinks.extend(extracted.hyperlinks.clone());
+            rows.push(extracted.row);
+        }
+        next_rows[*row_index] = row_state;
+    }
+
+    let dirty_ranges = merge_dirty_ranges(&dirty_row_indexes);
+    let rows_emitted = rows.len();
+
+    (
+        rows,
+        hyperlinks,
+        next_rows,
+        dirty_ranges,
+        candidate_row_indexes.len(),
+        rows_emitted,
+    )
+}
+
+fn delta_candidate_row_indexes(
+    pending_frame_work: &PendingFrameWork,
+    viewport_rows: usize,
+    viewport_start_row: usize,
+    scrollback_len: usize,
+    alt_screen_active: bool,
+    viewport_row_shift: i32,
+) -> Vec<usize> {
+    let mut candidates = BTreeSet::new();
+    let uses_viewport_shift =
+        pending_frame_work
+            .scroll_region
+            .as_ref()
+            .is_some_and(|scroll_region| {
+                viewport_row_shift != 0
+                    && scroll_region_covers_full_active_screen(scroll_region, viewport_rows)
+            });
+
+    add_shift_exposed_rows(&mut candidates, viewport_rows, viewport_row_shift);
+    for row in &pending_frame_work.dirty_rows {
+        if let Some(visible_row) = visible_row_for_screen_row(
+            *row,
+            viewport_start_row,
+            viewport_rows,
+            scrollback_len,
+            alt_screen_active,
+        ) {
+            candidates.insert(visible_row);
+        }
+        if uses_viewport_shift {
+            let shifted_row = *row as isize + viewport_row_shift as isize;
+            let Some(shifted_row) = usize::try_from(shifted_row).ok() else {
+                continue;
+            };
+            if let Some(visible_row) = visible_row_for_screen_row(
+                shifted_row,
+                viewport_start_row,
+                viewport_rows,
+                scrollback_len,
+                alt_screen_active,
+            ) {
+                candidates.insert(visible_row);
+            }
+        }
+    }
+
+    if let Some(scroll_region) = pending_frame_work.scroll_region.as_ref() {
+        if !uses_viewport_shift {
+            add_visible_rows_for_scroll_region(
+                &mut candidates,
+                scroll_region,
+                viewport_start_row,
+                viewport_rows,
+                scrollback_len,
+                alt_screen_active,
+            );
+        }
+    }
+
+    add_visible_cursor_row(
+        &mut candidates,
+        pending_frame_work.cursor_before.as_ref(),
+        viewport_start_row,
+        viewport_rows,
+        scrollback_len,
+        alt_screen_active,
+    );
+    add_visible_cursor_row(
+        &mut candidates,
+        pending_frame_work.cursor_after.as_ref(),
+        viewport_start_row,
+        viewport_rows,
+        scrollback_len,
+        alt_screen_active,
+    );
+
+    candidates.into_iter().collect()
+}
+
+fn add_shift_exposed_rows(
+    candidates: &mut BTreeSet<usize>,
+    viewport_rows: usize,
+    viewport_row_shift: i32,
+) {
+    if viewport_row_shift == 0 || viewport_rows == 0 {
+        return;
+    }
+
+    let shift = viewport_row_shift.unsigned_abs() as usize;
+    if viewport_row_shift < 0 {
+        let start = viewport_rows.saturating_sub(shift);
+        for row in start..viewport_rows {
+            candidates.insert(row);
+        }
+        return;
+    }
+
+    for row in 0..shift.min(viewport_rows) {
+        candidates.insert(row);
+    }
+}
+
+fn add_visible_rows_for_scroll_region(
+    candidates: &mut BTreeSet<usize>,
+    scroll_region: &PendingScrollRegion,
+    viewport_start_row: usize,
+    viewport_rows: usize,
+    scrollback_len: usize,
+    alt_screen_active: bool,
+) {
+    if viewport_rows == 0 || scroll_region.top >= scroll_region.bottom_exclusive {
+        return;
+    }
+
+    if alt_screen_active {
+        let start = scroll_region.top.min(viewport_rows);
+        let end = scroll_region.bottom_exclusive.min(viewport_rows);
+        for row in start..end {
+            candidates.insert(row);
+        }
+        return;
+    }
+
+    let region_start = scrollback_len.saturating_add(scroll_region.top);
+    let region_end = scrollback_len.saturating_add(scroll_region.bottom_exclusive);
+    let viewport_end = viewport_start_row.saturating_add(viewport_rows);
+    let visible_start = region_start.max(viewport_start_row);
+    let visible_end = region_end.min(viewport_end);
+    for absolute_row in visible_start..visible_end {
+        candidates.insert(absolute_row.saturating_sub(viewport_start_row));
+    }
+}
+
+fn add_visible_cursor_row(
+    candidates: &mut BTreeSet<usize>,
+    cursor: Option<&TerminalCursor>,
+    viewport_start_row: usize,
+    viewport_rows: usize,
+    scrollback_len: usize,
+    alt_screen_active: bool,
+) {
+    let Some(cursor) = cursor else {
+        return;
+    };
+
+    if let Some(visible_row) = visible_row_for_screen_row(
+        cursor.row,
+        viewport_start_row,
+        viewport_rows,
+        scrollback_len,
+        alt_screen_active,
+    ) {
+        candidates.insert(visible_row);
+    }
+}
+
+fn visible_row_for_screen_row(
+    screen_row: usize,
+    viewport_start_row: usize,
+    viewport_rows: usize,
+    scrollback_len: usize,
+    alt_screen_active: bool,
+) -> Option<usize> {
+    if alt_screen_active {
+        return (screen_row < viewport_rows).then_some(screen_row);
+    }
+
+    let absolute_row = scrollback_len.saturating_add(screen_row);
+    let viewport_end = viewport_start_row.saturating_add(viewport_rows);
+    if absolute_row < viewport_start_row || absolute_row >= viewport_end {
+        return None;
+    }
+    Some(absolute_row.saturating_sub(viewport_start_row))
+}
+
+fn scroll_region_covers_full_active_screen(
+    scroll_region: &PendingScrollRegion,
+    viewport_rows: usize,
+) -> bool {
+    scroll_region.top == 0 && scroll_region.bottom_exclusive >= viewport_rows
 }
 
 fn extract_hyperlinks_for_row(
@@ -1110,6 +1760,150 @@ fn same_style(left: &TerminalStyleRun, right: &TerminalStyleRun) -> bool {
         && left.inverse == right.inverse
 }
 
+fn style_signature(style_runs: &[TerminalStyleRun]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for run in style_runs {
+        run.start.hash(&mut hasher);
+        run.end.hash(&mut hasher);
+        run.foreground.hash(&mut hasher);
+        run.background.hash(&mut hasher);
+        run.bold.hash(&mut hasher);
+        run.dim.hash(&mut hasher);
+        run.italic.hash(&mut hasher);
+        run.underline.hash(&mut hasher);
+        run.blink.hash(&mut hasher);
+        run.inverse.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn hyperlink_signature(hyperlinks: &[TerminalHyperlinkRange]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    for hyperlink in hyperlinks {
+        hyperlink.start_col.hash(&mut hasher);
+        hyperlink.end_col.hash(&mut hasher);
+        hyperlink.uri.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn viewport_row_shift_for(
+    previous_frame_meta: Option<&CachedFrameMeta>,
+    viewport_start_row: usize,
+    frame_meta: &CachedFrameMeta,
+) -> i32 {
+    let Some(previous_frame_meta) = previous_frame_meta else {
+        return 0;
+    };
+    if !frame_meta_is_delta_compatible(Some(previous_frame_meta), frame_meta) {
+        return 0;
+    }
+    let row_shift = previous_frame_meta.viewport_start_row as i64 - viewport_start_row as i64;
+    row_shift.clamp(i32::MIN as i64, i32::MAX as i64) as i32
+}
+
+fn resolve_viewport_row_shift(
+    previous_frame_meta: Option<&CachedFrameMeta>,
+    viewport_start_row: usize,
+    frame_meta: &CachedFrameMeta,
+    scroll_region: Option<&PendingScrollRegion>,
+) -> i32 {
+    let frame_meta_shift =
+        viewport_row_shift_for(previous_frame_meta, viewport_start_row, frame_meta);
+    if frame_meta_shift != 0 {
+        return frame_meta_shift;
+    }
+
+    let Some(scroll_region) = scroll_region else {
+        return 0;
+    };
+    if !scroll_region_covers_full_active_screen(scroll_region, frame_meta.viewport_rows) {
+        return 0;
+    }
+    scroll_region.delta_rows.clamp(
+        -(frame_meta.viewport_rows as i32),
+        frame_meta.viewport_rows as i32,
+    )
+}
+
+fn snapshot_fallback_reason(
+    pending_frame_work: &PendingFrameWork,
+    previous_rows: &[CachedRowState],
+    previous_frame_meta: Option<&CachedFrameMeta>,
+    frame_meta: &CachedFrameMeta,
+) -> Option<String> {
+    if pending_frame_work.full_repaint {
+        return Some(
+            pending_frame_work
+                .snapshot_fallback_reason
+                .clone()
+                .unwrap_or_else(|| "pending_full_repaint".to_string()),
+        );
+    }
+    if previous_rows.is_empty() {
+        return Some("no_previous_frame".to_string());
+    }
+    if previous_rows.len() != frame_meta.viewport_rows {
+        return Some("viewport_row_count_changed".to_string());
+    }
+    frame_meta_delta_break_reason(previous_frame_meta, frame_meta).map(str::to_string)
+}
+
+fn frame_meta_delta_break_reason(
+    previous_frame_meta: Option<&CachedFrameMeta>,
+    frame_meta: &CachedFrameMeta,
+) -> Option<&'static str> {
+    let previous_frame_meta = previous_frame_meta?;
+    if previous_frame_meta.viewport_rows != frame_meta.viewport_rows
+        || previous_frame_meta.viewport_cols != frame_meta.viewport_cols
+    {
+        return Some("viewport_metrics_changed");
+    }
+    if previous_frame_meta.scrollback_offset != frame_meta.scrollback_offset {
+        return Some("scrollback_offset_changed");
+    }
+    if previous_frame_meta.alt_screen_active != frame_meta.alt_screen_active {
+        return Some("alternate_screen_changed");
+    }
+    if previous_frame_meta.modes != frame_meta.modes {
+        return Some("terminal_modes_changed");
+    }
+    if previous_frame_meta.window_title != frame_meta.window_title {
+        return Some("window_title_changed");
+    }
+    if previous_frame_meta.window_icon_name != frame_meta.window_icon_name {
+        return Some("window_icon_name_changed");
+    }
+    None
+}
+
+fn frame_meta_is_delta_compatible(
+    previous_frame_meta: Option<&CachedFrameMeta>,
+    frame_meta: &CachedFrameMeta,
+) -> bool {
+    frame_meta_delta_break_reason(previous_frame_meta, frame_meta).is_none()
+}
+
+fn merge_dirty_ranges(dirty_row_indexes: &[usize]) -> Vec<TerminalDirtyRange> {
+    let mut ranges = Vec::new();
+    let Some((&first, rest)) = dirty_row_indexes.split_first() else {
+        return ranges;
+    };
+    let mut start = first;
+    let mut end = first + 1;
+    for index in rest {
+        if *index == end {
+            end += 1;
+            continue;
+        }
+        ranges.push(TerminalDirtyRange { start, end });
+        start = *index;
+        end = *index + 1;
+    }
+    ranges.push(TerminalDirtyRange { start, end });
+    ranges
+}
+
 fn color_to_hex(color: Color) -> Option<String> {
     let (red, green, blue) = color.to_rgb();
     Some(format!("#{red:02x}{green:02x}{blue:02x}"))
@@ -1193,18 +1987,32 @@ pub fn selection_text_session(session_id: u64, request_json: &str) -> Result<Str
 }
 
 pub fn take_frame_diff(session_id: u64) -> Result<Option<String>, SessionError> {
-    Ok(STORE
-        .get(session_id)?
-        .take_frame_diff()?
-        .map(|diff| {
-            serde_json::to_string(&diff).map_err(|error| SessionError::Serialize(error.to_string()))
-        })
-        .transpose()?)
+    let session = STORE.get(session_id)?;
+    let Some(diff) = session.take_frame_diff()? else {
+        return Ok(None);
+    };
+    let encode_started_at = Instant::now();
+    let json =
+        serde_json::to_string(&diff).map_err(|error| SessionError::Serialize(error.to_string()))?;
+    session.record_frame_json_encode_micros(encode_started_at.elapsed().as_micros() as u64);
+    Ok(Some(json))
+}
+
+pub fn take_frame_debug_stats_json(session_id: u64) -> Result<Option<String>, SessionError> {
+    STORE.get(session_id)?.take_frame_debug_stats_json()
+}
+
+pub fn take_session_debug_stats_json(session_id: u64) -> Result<Option<String>, SessionError> {
+    STORE.get(session_id)?.take_session_debug_stats_json()
 }
 
 pub fn poll_events(session_id: u64) -> Result<String, SessionError> {
-    let events = STORE.get(session_id)?.poll_events()?;
+    let events = take_events(session_id)?;
     serde_json::to_string(&events).map_err(|error| SessionError::Serialize(error.to_string()))
+}
+
+pub fn take_events(session_id: u64) -> Result<Vec<TerminalEvent>, SessionError> {
+    STORE.get(session_id)?.poll_events()
 }
 
 #[cfg(test)]
@@ -1293,5 +2101,33 @@ mod tests {
             String::from_utf8(output).unwrap(),
             format!("{VT220_PRIMARY_DA_RESPONSE}{VT220_SECONDARY_DA_RESPONSE}")
         );
+    }
+
+    #[test]
+    fn host_protocol_observe_fast_path_keeps_plain_chunks_unbuffered() {
+        let mut state = HostProtocolState::default();
+
+        let events = state.observe(b"plain cat log chunk\n", TerminalEmulation::Xterm256);
+
+        assert!(events.is_empty());
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_observe_keeps_split_osc_sequences_working() {
+        let mut state = HostProtocolState::default();
+
+        assert!(
+            state
+                .observe(b"\x1b]1;build", TerminalEmulation::Xterm256)
+                .is_empty()
+        );
+        assert!(!state.buffer.is_empty());
+
+        let events = state.observe(b" icon\x07", TerminalEmulation::Xterm256);
+
+        assert!(events.is_empty());
+        assert_eq!(state.window_icon_name.as_deref(), Some("build icon"));
+        assert!(state.buffer.is_empty());
     }
 }

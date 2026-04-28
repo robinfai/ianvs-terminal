@@ -133,16 +133,24 @@ class RenderTerminalViewport extends RenderBox {
   TerminalViewportColors _colors;
   final Map<int, _CachedRowLayout> _rowLayoutCache = {};
   final Map<int, _CachedGlyphParagraph> _glyphParagraphCache = {};
+  final Map<int, _CachedRowVisual> _rowVisualCache = {};
   final Map<int, List<TerminalResolvedStyle>> _debugResolvedStyles = {};
   final Map<int, List<TerminalResolvedCell>> _debugResolvedCells = {};
   final Map<int, List<TerminalResolvedBackgroundSpan>> _debugBackgroundSpans =
       {};
+  final Map<int, int> _rowPictureBuildCounts = {};
   int _paragraphBuilds = 0;
   Size _cellSize = terminalFallbackCellSize;
   double _cellBaseline = terminalFallbackCellSize.height;
   TerminalRowTextMetrics _rowTextMetrics = terminalFallbackRowTextMetrics;
   List<String> _debugLastPaintedRowTexts = const [];
+  List<int> _debugLastRebuiltRowIndexes = const [];
   Rect? _debugCursorRect;
+  _MeasuredCellMetrics? _cachedCellMetrics;
+  TerminalRowTextMetrics? _cachedMeasuredRowTextMetrics;
+  int? _textMetricsSignature;
+  int _lastPaintedFrameVersion = -1;
+  bool _needsFullRowVisualRebuild = true;
 
   set controller(TerminalViewportController value) {
     if (identical(value, _controller)) {
@@ -151,6 +159,8 @@ class RenderTerminalViewport extends RenderBox {
     _controller.removeListener(markNeedsPaint);
     _controller = value;
     _controller.addListener(markNeedsPaint);
+    _lastPaintedFrameVersion = -1;
+    _needsFullRowVisualRebuild = true;
     markNeedsPaint();
   }
 
@@ -165,7 +175,12 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   set devicePixelRatio(double value) {
+    if (_devicePixelRatio == value) {
+      return;
+    }
     _devicePixelRatio = value;
+    _invalidateVisualCaches();
+    markNeedsPaint();
   }
 
   set font(TerminalFontConfig value) {
@@ -173,8 +188,11 @@ class RenderTerminalViewport extends RenderBox {
       return;
     }
     _font = value;
-    _clearResolvedLayoutCaches();
+    _invalidateVisualCaches();
     _glyphParagraphCache.clear();
+    _cachedCellMetrics = null;
+    _cachedMeasuredRowTextMetrics = null;
+    _textMetricsSignature = null;
     markNeedsPaint();
   }
 
@@ -196,7 +214,7 @@ class RenderTerminalViewport extends RenderBox {
       return;
     }
     _colors = value;
-    _clearResolvedLayoutCaches();
+    _invalidateVisualCaches();
     _glyphParagraphCache.clear();
     markNeedsPaint();
   }
@@ -223,44 +241,74 @@ class RenderTerminalViewport extends RenderBox {
     );
 
     final frame = _controller.frame;
-    final cellMetrics = _measureCellMetrics();
-    _cellSize = cellMetrics.size;
-    _cellBaseline = cellMetrics.alphabeticBaseline;
-    _rowTextMetrics = _measureRowTextMetrics();
+    _syncTextMetrics();
     _controller.updateMeasuredCellSize(_cellSize);
     final selection = _selectionController.selectionForFrame(frame);
     final paintedRowTexts = <String>[];
     final activeRowIndexes = <int>{};
+    final rebuiltRowIndexes = <int>[];
+    final hasNewFrame = _lastPaintedFrameVersion != _controller.frameVersion;
+    if (hasNewFrame &&
+        frame.frameKind == TerminalFrameKind.delta &&
+        frame.viewportRowShift != 0) {
+      _shiftRowCaches(frame.viewportRowShift, frame.viewportRows);
+    }
+    final shouldRebuildAllRows =
+        _needsFullRowVisualRebuild ||
+        (hasNewFrame && frame.frameKind == TerminalFrameKind.snapshot);
+    final dirtyRowIndexes = shouldRebuildAllRows
+        ? <int>{}
+        : (hasNewFrame ? _dirtyRowIndexesFor(frame) : const <int>{});
 
     for (final row in frame.rows) {
       activeRowIndexes.add(row.index);
       paintedRowTexts.add(row.text);
-      final rowLayout = _rowLayoutFor(row);
+      final rowNeedsRebuild =
+          shouldRebuildAllRows ||
+          dirtyRowIndexes.contains(row.index) ||
+          !_rowVisualCache.containsKey(row.index);
+      final activeSelection = selection;
+      final selectionTouchesRow =
+          activeSelection != null &&
+          row.index >= activeSelection.startRow &&
+          row.index <= activeSelection.endRow;
+      final rowLayout = rowNeedsRebuild || selectionTouchesRow
+          ? _rowLayoutFor(row)
+          : null;
+      if (rowNeedsRebuild) {
+        _rebuildRowVisual(
+          row: row,
+          rowLayout: rowLayout!,
+          rebuiltRowIndexes: rebuiltRowIndexes,
+        );
+      }
+      final rowVisual = _rowVisualCache[row.index];
       final y = row.index * _cellSize.height;
-      final debugCells = <TerminalResolvedCell>[];
-      final backgroundSpans = _backgroundSpansForCells(rowLayout.cells, y);
+      final backgroundSpans =
+          rowVisual?.backgroundSpans ??
+          const <TerminalResolvedBackgroundSpan>[];
       for (final span in backgroundSpans) {
         canvas.drawRect(
-          span.rect,
+          span.rect.shift(Offset(0, y)),
           Paint()
             ..color = span.background
             ..isAntiAlias = false,
         );
       }
-      _debugBackgroundSpans[row.index] = backgroundSpans;
-      if (selection != null &&
-          row.index >= selection.startRow &&
-          row.index <= selection.endRow) {
+      if (selectionTouchesRow) {
+        final rowCellCount = rowVisual?.cellCount ?? rowLayout?.cellCount ?? 0;
         final selectedStart = _selectionController.isBlockSelection
-            ? selection.startCol
-            : (row.index == selection.startRow ? selection.startCol : 0);
+            ? activeSelection.startCol
+            : (row.index == activeSelection.startRow
+                  ? activeSelection.startCol
+                  : 0);
         final selectedEnd = _selectionController.isBlockSelection
-            ? selection.endCol
-            : (row.index == selection.endRow
-                  ? selection.endCol
-                  : rowLayout.cellCount);
-        final clampedStart = selectedStart.clamp(0, rowLayout.cellCount);
-        final clampedEnd = selectedEnd.clamp(clampedStart, rowLayout.cellCount);
+            ? activeSelection.endCol
+            : (row.index == activeSelection.endRow
+                  ? activeSelection.endCol
+                  : rowCellCount);
+        final clampedStart = selectedStart.clamp(0, rowCellCount);
+        final clampedEnd = selectedEnd.clamp(clampedStart, rowCellCount);
         canvas.drawRect(
           Rect.fromLTWH(
             clampedStart * _cellSize.width,
@@ -271,50 +319,20 @@ class RenderTerminalViewport extends RenderBox {
           Paint()..color = _colors.selection,
         );
       }
-      for (final cell in rowLayout.cells) {
-        if (cell.isContinuation) {
-          continue;
-        }
-        final placement = _placementForCell(cell, y);
-        final paragraph = cell.paragraph;
-        if (cell.usesCustomGeometry) {
-          _paintPowerlineGeometry(canvas, cell, placement.rect);
-        } else if (paragraph != null) {
-          canvas.save();
-          canvas.translate(placement.drawOffset.dx, placement.drawOffset.dy);
-          if (placement.scaleX != 1 || placement.scaleY != 1) {
-            canvas.scale(placement.scaleX, placement.scaleY);
-          }
-          canvas.drawParagraph(paragraph, Offset.zero);
-          canvas.restore();
-        }
-        debugCells.add(
-          TerminalResolvedCell(
-            column: cell.column,
-            text: cell.text,
-            foreground: cell.foreground,
-            background: cell.background,
-            glyphClass: cell.glyphClass,
-            usesCustomGeometry: cell.usesCustomGeometry,
-            placementPolicy: cell.placementPolicy,
-            drawOffset: placement.drawOffset,
-            placementRect: placement.rect,
-            baselineY: placement.baselineY,
-            glyphBaseline: cell.alphabeticBaseline,
-            scaleX: placement.scaleX,
-            scaleY: placement.scaleY,
-          ),
-        );
+      if (rowVisual != null) {
+        canvas.save();
+        canvas.translate(0, y);
+        canvas.drawPicture(rowVisual.picture);
+        canvas.restore();
       }
-      _debugResolvedCells[row.index] = debugCells;
     }
-    _debugResolvedCells.removeWhere(
-      (key, _) => !activeRowIndexes.contains(key),
-    );
-    _debugBackgroundSpans.removeWhere(
-      (key, _) => !activeRowIndexes.contains(key),
-    );
+    _pruneInactiveRowCaches(activeRowIndexes);
     _debugLastPaintedRowTexts = paintedRowTexts;
+    _debugLastRebuiltRowIndexes = List<int>.unmodifiable(rebuiltRowIndexes);
+    if (hasNewFrame) {
+      _lastPaintedFrameVersion = _controller.frameVersion;
+    }
+    _needsFullRowVisualRebuild = false;
 
     if (frame.cursor.visible && _cursorVisible) {
       final cursorRect = _cursorRect(frame.cursor);
@@ -339,10 +357,14 @@ class RenderTerminalViewport extends RenderBox {
   int get debugParagraphBuilds => _paragraphBuilds;
   List<String> get debugLastPaintedRowTexts =>
       List<String>.unmodifiable(_debugLastPaintedRowTexts);
+  List<int> get debugLastRebuiltRowIndexes =>
+      List<int>.unmodifiable(_debugLastRebuiltRowIndexes);
   bool get debugCursorVisible {
     final frame = _controller.frame;
     return frame.cursor.visible && _cursorVisible;
   }
+
+  int debugRowPictureBuildsForRow(int row) => _rowPictureBuildCounts[row] ?? 0;
 
   List<TerminalResolvedStyle> debugResolvedStylesForRow(int row) =>
       List<TerminalResolvedStyle>.unmodifiable(
@@ -351,22 +373,70 @@ class RenderTerminalViewport extends RenderBox {
 
   List<TerminalResolvedCell> debugResolvedCellsForRow(int row) =>
       List<TerminalResolvedCell>.unmodifiable(
-        _debugResolvedCells[row] ?? const <TerminalResolvedCell>[],
+        (_debugResolvedCells[row] ?? const <TerminalResolvedCell>[]).map(
+          (cell) =>
+              _resolvedCellWithAbsoluteRowOffset(cell, row * _cellSize.height),
+        ),
       );
 
   List<TerminalResolvedBackgroundSpan> debugBackgroundSpansForRow(int row) =>
       List<TerminalResolvedBackgroundSpan>.unmodifiable(
-        _debugBackgroundSpans[row] ?? const <TerminalResolvedBackgroundSpan>[],
+        (_debugBackgroundSpans[row] ?? const <TerminalResolvedBackgroundSpan>[])
+            .map(
+              (span) => _backgroundSpanWithAbsoluteRowOffset(
+                span,
+                row * _cellSize.height,
+              ),
+            ),
       );
 
   Rect? get debugCursorRect => _debugCursorRect;
   TerminalViewportColors get debugColors => _colors;
 
-  void _clearResolvedLayoutCaches() {
+  void _invalidateVisualCaches() {
+    for (final rowVisual in _rowVisualCache.values) {
+      rowVisual.picture.dispose();
+    }
+    _rowVisualCache.clear();
     _rowLayoutCache.clear();
     _debugResolvedStyles.clear();
     _debugResolvedCells.clear();
     _debugBackgroundSpans.clear();
+    _debugLastRebuiltRowIndexes = const [];
+    _needsFullRowVisualRebuild = true;
+  }
+
+  void _shiftRowCaches(int rowShift, int viewportRows) {
+    if (rowShift == 0 || viewportRows <= 0) {
+      return;
+    }
+    _shiftIndexedCache<_CachedRowVisual>(
+      _rowVisualCache,
+      rowShift,
+      viewportRows,
+      onDrop: (rowVisual) => rowVisual.picture.dispose(),
+    );
+    _shiftIndexedCache<_CachedRowLayout>(
+      _rowLayoutCache,
+      rowShift,
+      viewportRows,
+    );
+    _shiftIndexedCache<List<TerminalResolvedStyle>>(
+      _debugResolvedStyles,
+      rowShift,
+      viewportRows,
+    );
+    _shiftIndexedCache<List<TerminalResolvedCell>>(
+      _debugResolvedCells,
+      rowShift,
+      viewportRows,
+    );
+    _shiftIndexedCache<List<TerminalResolvedBackgroundSpan>>(
+      _debugBackgroundSpans,
+      rowShift,
+      viewportRows,
+    );
+    _shiftIndexedCache<int>(_rowPictureBuildCounts, rowShift, viewportRows);
   }
 
   _CachedRowLayout _rowLayoutFor(TerminalRow row) {
@@ -470,6 +540,175 @@ class RenderTerminalViewport extends RenderBox {
     _debugResolvedStyles[row.index] = resolvedStyles;
     _paragraphBuilds += 1;
     return rowLayout;
+  }
+
+  void _syncTextMetrics() {
+    final signature = Object.hash(
+      _font.family,
+      Object.hashAll(_font.fallback),
+      _font.size,
+      _font.lineHeight,
+      _devicePixelRatio,
+    );
+    if (_textMetricsSignature != signature ||
+        _cachedCellMetrics == null ||
+        _cachedMeasuredRowTextMetrics == null) {
+      _cachedCellMetrics = _measureCellMetrics();
+      _cachedMeasuredRowTextMetrics = _measureRowTextMetrics();
+      _textMetricsSignature = signature;
+    }
+    _cellSize = _cachedCellMetrics!.size;
+    _cellBaseline = _cachedCellMetrics!.alphabeticBaseline;
+    _rowTextMetrics = _cachedMeasuredRowTextMetrics!;
+  }
+
+  Set<int> _dirtyRowIndexesFor(TerminalFrameDiff frame) {
+    final dirtyRows = <int>{};
+    for (final range in frame.dirtyRanges) {
+      for (var rowIndex = range.start; rowIndex < range.end; rowIndex += 1) {
+        dirtyRows.add(rowIndex);
+      }
+    }
+    return dirtyRows;
+  }
+
+  void _rebuildRowVisual({
+    required TerminalRow row,
+    required _CachedRowLayout rowLayout,
+    required List<int> rebuiltRowIndexes,
+  }) {
+    const rowY = 0.0;
+    final backgroundSpans = _backgroundSpansForCells(rowLayout.cells, rowY);
+    final debugCells = <TerminalResolvedCell>[];
+    final recorder = ui.PictureRecorder();
+    final pictureCanvas = Canvas(recorder);
+
+    for (final cell in rowLayout.cells) {
+      if (cell.isContinuation) {
+        continue;
+      }
+      final placement = _placementForCell(cell, rowY);
+      final paragraph = cell.paragraph;
+      if (cell.usesCustomGeometry) {
+        _paintPowerlineGeometry(pictureCanvas, cell, placement.rect);
+      } else if (paragraph != null) {
+        pictureCanvas.save();
+        pictureCanvas.translate(
+          placement.drawOffset.dx,
+          placement.drawOffset.dy,
+        );
+        if (placement.scaleX != 1 || placement.scaleY != 1) {
+          pictureCanvas.scale(placement.scaleX, placement.scaleY);
+        }
+        pictureCanvas.drawParagraph(paragraph, Offset.zero);
+        pictureCanvas.restore();
+      }
+      debugCells.add(
+        TerminalResolvedCell(
+          column: cell.column,
+          text: cell.text,
+          foreground: cell.foreground,
+          background: cell.background,
+          glyphClass: cell.glyphClass,
+          usesCustomGeometry: cell.usesCustomGeometry,
+          placementPolicy: cell.placementPolicy,
+          drawOffset: placement.drawOffset,
+          placementRect: placement.rect,
+          baselineY: placement.baselineY,
+          glyphBaseline: cell.alphabeticBaseline,
+          scaleX: placement.scaleX,
+          scaleY: placement.scaleY,
+        ),
+      );
+    }
+
+    _rowVisualCache.remove(row.index)?.picture.dispose();
+    _rowVisualCache[row.index] = _CachedRowVisual(
+      signature: rowLayout.signature,
+      picture: recorder.endRecording(),
+      cellCount: rowLayout.cellCount,
+      backgroundSpans: backgroundSpans,
+    );
+    _debugResolvedCells[row.index] = debugCells;
+    _debugBackgroundSpans[row.index] = backgroundSpans;
+    _rowPictureBuildCounts[row.index] =
+        (_rowPictureBuildCounts[row.index] ?? 0) + 1;
+    rebuiltRowIndexes.add(row.index);
+  }
+
+  TerminalResolvedCell _resolvedCellWithAbsoluteRowOffset(
+    TerminalResolvedCell cell,
+    double rowOffset,
+  ) {
+    return TerminalResolvedCell(
+      column: cell.column,
+      text: cell.text,
+      foreground: cell.foreground,
+      background: cell.background,
+      glyphClass: cell.glyphClass,
+      usesCustomGeometry: cell.usesCustomGeometry,
+      placementPolicy: cell.placementPolicy,
+      drawOffset: cell.drawOffset.translate(0, rowOffset),
+      placementRect: cell.placementRect.shift(Offset(0, rowOffset)),
+      baselineY: cell.baselineY + rowOffset,
+      glyphBaseline: cell.glyphBaseline,
+      scaleX: cell.scaleX,
+      scaleY: cell.scaleY,
+    );
+  }
+
+  TerminalResolvedBackgroundSpan _backgroundSpanWithAbsoluteRowOffset(
+    TerminalResolvedBackgroundSpan span,
+    double rowOffset,
+  ) {
+    return TerminalResolvedBackgroundSpan(
+      startColumn: span.startColumn,
+      endColumn: span.endColumn,
+      background: span.background,
+      rect: span.rect.shift(Offset(0, rowOffset)),
+    );
+  }
+
+  void _pruneInactiveRowCaches(Set<int> activeRowIndexes) {
+    final inactiveVisualRows = _rowVisualCache.keys
+        .where((rowIndex) => !activeRowIndexes.contains(rowIndex))
+        .toList(growable: false);
+    for (final rowIndex in inactiveVisualRows) {
+      _rowVisualCache.remove(rowIndex)?.picture.dispose();
+    }
+    _rowLayoutCache.removeWhere((key, _) => !activeRowIndexes.contains(key));
+    _debugResolvedStyles.removeWhere(
+      (key, _) => !activeRowIndexes.contains(key),
+    );
+    _debugResolvedCells.removeWhere(
+      (key, _) => !activeRowIndexes.contains(key),
+    );
+    _debugBackgroundSpans.removeWhere(
+      (key, _) => !activeRowIndexes.contains(key),
+    );
+  }
+
+  void _shiftIndexedCache<T>(
+    Map<int, T> cache,
+    int rowShift,
+    int viewportRows, {
+    void Function(T value)? onDrop,
+  }) {
+    if (cache.isEmpty) {
+      return;
+    }
+    final shifted = <int, T>{};
+    for (final entry in cache.entries) {
+      final nextRow = entry.key + rowShift;
+      if (nextRow < 0 || nextRow >= viewportRows) {
+        onDrop?.call(entry.value);
+        continue;
+      }
+      shifted[nextRow] = entry.value;
+    }
+    cache
+      ..clear()
+      ..addAll(shifted);
   }
 
   TerminalGlyphPlacementPolicy _placementPolicyForGlyph(String glyph) {
@@ -896,6 +1135,9 @@ class RenderTerminalViewport extends RenderBox {
   void dispose() {
     _controller.removeListener(markNeedsPaint);
     _selectionController.removeListener(markNeedsPaint);
+    for (final rowVisual in _rowVisualCache.values) {
+      rowVisual.picture.dispose();
+    }
     super.dispose();
   }
 }
@@ -987,6 +1229,20 @@ class _CachedGlyphParagraph {
   final ui.Paragraph paragraph;
   final Size size;
   final double alphabeticBaseline;
+}
+
+class _CachedRowVisual {
+  const _CachedRowVisual({
+    required this.signature,
+    required this.picture,
+    required this.cellCount,
+    required this.backgroundSpans,
+  });
+
+  final int signature;
+  final ui.Picture picture;
+  final int cellCount;
+  final List<TerminalResolvedBackgroundSpan> backgroundSpans;
 }
 
 class _MeasuredCellMetrics {
