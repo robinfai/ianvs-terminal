@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -31,6 +32,18 @@ Future<void> pumpShellScreen(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> sendMetaShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key,
+) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.sendKeyDownEvent(key, platform: 'macos');
+  await tester.pumpAndSettle();
+  await tester.sendKeyUpEvent(key, platform: 'macos');
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.pump();
 }
 
 void main() {
@@ -132,6 +145,9 @@ void main() {
       referenceDemoMode: true,
     );
 
+    expect(find.text('⌘1'), findsOneWidget);
+    expect(find.text('⌘2'), findsOneWidget);
+    expect(find.text('⌘3'), findsOneWidget);
     expect(
       tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-2')),
       matchesSemantics(
@@ -147,6 +163,31 @@ void main() {
         label: 'shell-tab-demo-1',
         hasSelectedState: true,
         isButton: true,
+      ),
+    );
+  });
+
+  testWidgets('reference demo mode supports command-number tab selection', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      referenceDemoMode: true,
+    );
+
+    await sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
+
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-1')),
+      matchesSemantics(
+        label: 'shell-tab-demo-1',
+        hasSelectedState: true,
+        isButton: true,
+        isSelected: true,
       ),
     );
   });

@@ -353,6 +353,104 @@ void main() {
     },
   );
 
+  testWidgets('terminal input sends Home for Command+Left', (tester) async {
+    final bindings = FakePtyBackend();
+    final coreClient = testRuntime(bindings);
+    final viewportController = TerminalViewportController();
+    final selectionController = SelectionController();
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: coreClient,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TerminalViewport(
+            controller: viewportController,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.arrowLeft,
+      platform: 'macos',
+    );
+    await tester.pump();
+
+    expect(bindings.writes, isNotEmpty);
+    expect(bindings.writes.last, ascii.encode('\x1B[H'));
+
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.arrowLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  });
+
+  testWidgets('terminal input sends End for Command+Right', (tester) async {
+    final bindings = FakePtyBackend();
+    final coreClient = testRuntime(bindings);
+    final viewportController = TerminalViewportController();
+    final selectionController = SelectionController();
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: coreClient,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TerminalViewport(
+            controller: viewportController,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.arrowRight,
+      platform: 'macos',
+    );
+    await tester.pump();
+
+    expect(bindings.writes, isNotEmpty);
+    expect(bindings.writes.last, ascii.encode('\x1B[F'));
+
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.arrowRight,
+      platform: 'macos',
+    );
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  });
+
   test('terminal input encodes direct Chinese key input as UTF-8', () {
     final bindings = FakePtyBackend();
     final coreClient = testRuntime(bindings);
@@ -490,6 +588,134 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.keyF, platform: 'macos');
     await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft, platform: 'macos');
   });
+
+  testWidgets(
+    'terminal input maps Option+Left and Option+Right to word moves',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.altLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.arrowLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.arrowLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.arrowRight,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(bindings.writes, hasLength(2));
+      expect(bindings.writes[0], ascii.encode('\x1Bb'));
+      expect(bindings.writes[1], ascii.encode('\x1Bf'));
+
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.arrowRight,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.altLeft,
+        platform: 'macos',
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal input keeps Option+Up and Option+Down as plain arrows',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.altLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.arrowUp,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.arrowUp,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.arrowDown,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(bindings.writes, hasLength(2));
+      expect(bindings.writes[0], ascii.encode('\x1B[A'));
+      expect(bindings.writes[1], ascii.encode('\x1B[B'));
+
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.arrowDown,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.altLeft,
+        platform: 'macos',
+      );
+    },
+  );
 
   testWidgets('terminal input sends modified arrow bytes for Shift+Arrow', (
     tester,

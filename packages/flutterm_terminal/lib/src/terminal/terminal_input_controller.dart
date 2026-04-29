@@ -67,6 +67,18 @@ class TerminalInputController {
       return KeyEventResult.ignored;
     }
 
+    if (isMetaPressed && !isControlPressed && !isShiftPressed) {
+      final navigationBytes = switch (event.logicalKey) {
+        LogicalKeyboardKey.arrowLeft => ascii.encode('\x1B[H'),
+        LogicalKeyboardKey.arrowRight => ascii.encode('\x1B[F'),
+        _ => null,
+      };
+      if (navigationBytes != null) {
+        runtime.sendInput(sessionId, Uint8List.fromList(navigationBytes));
+        return KeyEventResult.handled;
+      }
+    }
+
     if (isMetaPressed) {
       return KeyEventResult.ignored;
     }
@@ -158,6 +170,15 @@ class TerminalInputController {
     required TerminalEmulation emulation,
     required TerminalFrameModes modes,
   }) {
+    if (HardwareKeyboard.instance.isAltPressed &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isControlPressed) {
+      final optionArrow = _optionArrowBytesFor(event.logicalKey, modes: modes);
+      if (optionArrow != null) {
+        return optionArrow;
+      }
+    }
+
     final modifier = _xtermKeyboardModifier();
     if (modifier != null) {
       final modified = _modifiedKeyBytesFor(
@@ -464,6 +485,23 @@ String? _altCharacterFor(KeyDownEvent event) {
     return null;
   }
   return character;
+}
+
+List<int>? _optionArrowBytesFor(
+  LogicalKeyboardKey key, {
+  required TerminalFrameModes modes,
+}) {
+  return switch (key) {
+    LogicalKeyboardKey.arrowLeft => ascii.encode('\x1Bb'),
+    LogicalKeyboardKey.arrowRight => ascii.encode('\x1Bf'),
+    LogicalKeyboardKey.arrowUp => ascii.encode(
+      modes.applicationCursor ? '\x1BOA' : '\x1B[A',
+    ),
+    LogicalKeyboardKey.arrowDown => ascii.encode(
+      modes.applicationCursor ? '\x1BOB' : '\x1B[B',
+    ),
+    _ => null,
+  };
 }
 
 List<int> _defaultMouseReportBytes({

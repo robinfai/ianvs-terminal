@@ -28,6 +28,14 @@ enum _ShellShortcutAction {
   closeActiveTab,
   openDefaults,
   requestQuitConfirmation,
+  activateTab,
+}
+
+class _ShellShortcut {
+  const _ShellShortcut(this.action, {this.tabIndex});
+
+  final _ShellShortcutAction action;
+  final int? tabIndex;
 }
 
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
@@ -179,7 +187,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   String get _workspaceCueTitle => 'Back in shell';
 
-  _ShellShortcutAction? _shortcutActionFor(KeyDownEvent event) {
+  _ShellShortcut? _shortcutActionFor(KeyDownEvent event) {
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;
     final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
@@ -193,21 +201,43 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         _ => null,
       };
       if (platformAction != null) {
-        return platformAction;
+        return _ShellShortcut(platformAction);
+      }
+      final tabIndex = _tabShortcutIndexFor(event.logicalKey);
+      if (tabIndex != null) {
+        return _ShellShortcut(
+          _ShellShortcutAction.activateTab,
+          tabIndex: tabIndex,
+        );
       }
     }
 
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyP) {
-      return _ShellShortcutAction.openLauncher;
+      return const _ShellShortcut(_ShellShortcutAction.openLauncher);
     }
 
     if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
-      return _ShellShortcutAction.newTab;
+      return const _ShellShortcut(_ShellShortcutAction.newTab);
     }
 
     return null;
+  }
+
+  int? _tabShortcutIndexFor(LogicalKeyboardKey key) {
+    return switch (key) {
+      LogicalKeyboardKey.digit1 || LogicalKeyboardKey.numpad1 => 0,
+      LogicalKeyboardKey.digit2 || LogicalKeyboardKey.numpad2 => 1,
+      LogicalKeyboardKey.digit3 || LogicalKeyboardKey.numpad3 => 2,
+      LogicalKeyboardKey.digit4 || LogicalKeyboardKey.numpad4 => 3,
+      LogicalKeyboardKey.digit5 || LogicalKeyboardKey.numpad5 => 4,
+      LogicalKeyboardKey.digit6 || LogicalKeyboardKey.numpad6 => 5,
+      LogicalKeyboardKey.digit7 || LogicalKeyboardKey.numpad7 => 6,
+      LogicalKeyboardKey.digit8 || LogicalKeyboardKey.numpad8 => 7,
+      LogicalKeyboardKey.digit9 || LogicalKeyboardKey.numpad9 => 8,
+      _ => null,
+    };
   }
 
   Size _terminalContentSizeFor(BoxConstraints constraints) {
@@ -394,8 +424,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (sessionId == null) {
       return;
     }
-    final focusNode = _terminalFocusNodes[sessionId];
-    if (focusNode == null || !focusNode.canRequestFocus) {
+    final focusNode = _focusNodeFor(sessionId);
+    if (!focusNode.canRequestFocus) {
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -961,12 +991,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         if (event is! KeyDownEvent) {
           return KeyEventResult.ignored;
         }
-        final shortcutAction = _shortcutActionFor(event);
-        if (shortcutAction == null) {
+        final shortcut = _shortcutActionFor(event);
+        if (shortcut == null) {
           return KeyEventResult.ignored;
         }
 
-        if (shortcutAction == _ShellShortcutAction.requestQuitConfirmation) {
+        if (shortcut.action == _ShellShortcutAction.requestQuitConfirmation) {
           unawaited(WindowBridge.requestQuitConfirmation());
           return KeyEventResult.handled;
         }
@@ -975,7 +1005,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return KeyEventResult.handled;
         }
 
-        switch (shortcutAction) {
+        switch (shortcut.action) {
           case _ShellShortcutAction.openLauncher:
             unawaited(_openCommandMenu(sessionController, sessionState));
             return KeyEventResult.handled;
@@ -1001,6 +1031,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             );
             return KeyEventResult.handled;
           case _ShellShortcutAction.requestQuitConfirmation:
+            return KeyEventResult.handled;
+          case _ShellShortcutAction.activateTab:
+            final tabIndex = shortcut.tabIndex;
+            if (tabIndex == null || tabIndex >= sessionState.tabs.length) {
+              return KeyEventResult.handled;
+            }
+            final tab = sessionState.tabs[tabIndex];
+            if (tab.sessionId == activeSessionId) {
+              _focusSession(tab.sessionId);
+              return KeyEventResult.handled;
+            }
+            _activateSession(sessionController, tab.sessionId);
             return KeyEventResult.handled;
         }
       },
@@ -1415,6 +1457,7 @@ class _ReferenceDemoTabStrip extends StatelessWidget {
             child: _ReferenceDemoTab(
               palette: palette,
               tab: tabs[index],
+              shortcutIndex: index < 9 ? index + 1 : null,
               isActive: tabs[index].sessionId == activeSessionId,
               onActivate: () => onActivateSession(tabs[index].sessionId),
             ),
@@ -1435,12 +1478,14 @@ class _ReferenceDemoTab extends StatelessWidget {
   const _ReferenceDemoTab({
     required this.palette,
     required this.tab,
+    required this.shortcutIndex,
     required this.isActive,
     required this.onActivate,
   });
 
   final _ShellPalette palette;
   final TerminalTab tab;
+  final int? shortcutIndex;
   final bool isActive;
   final VoidCallback onActivate;
 
@@ -1459,12 +1504,27 @@ class _ReferenceDemoTab extends StatelessWidget {
           shape: const RoundedRectangleBorder(),
         ),
         child: Center(
-          child: Text(
-            tab.title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: isActive ? palette.primaryText : palette.subtleText,
-              fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (shortcutIndex != null) ...[
+                Text(
+                  '⌘$shortcutIndex',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isActive ? palette.mutedText : palette.subtleText,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                tab.title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: isActive ? palette.primaryText : palette.subtleText,
+                  fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1507,6 +1567,7 @@ class _ShellTabStrip extends StatelessWidget {
           return _ShellTabButton(
             palette: palette,
             tab: tab,
+            shortcutIndex: index < 9 ? index + 1 : null,
             isActive: isActive,
             onActivate: () => onActivateSession(tab.sessionId),
             onClose: () => onCloseSession(tab.sessionId),
@@ -1521,6 +1582,7 @@ class _ShellTabButton extends StatelessWidget {
   const _ShellTabButton({
     required this.palette,
     required this.tab,
+    required this.shortcutIndex,
     required this.isActive,
     required this.onActivate,
     required this.onClose,
@@ -1528,6 +1590,7 @@ class _ShellTabButton extends StatelessWidget {
 
   final _ShellPalette palette;
   final TerminalTab tab;
+  final int? shortcutIndex;
   final bool isActive;
   final VoidCallback onActivate;
   final VoidCallback onClose;
@@ -1549,6 +1612,16 @@ class _ShellTabButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (shortcutIndex != null) ...[
+              Text(
+                '⌘$shortcutIndex',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: isActive ? palette.mutedText : palette.subtleText,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 140),
               style: Theme.of(context).textTheme.titleSmall!.copyWith(

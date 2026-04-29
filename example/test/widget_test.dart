@@ -270,6 +270,30 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('command-number activates the matching tab without input leak', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
+    await tester.pumpAndSettle();
+    _expectSelectedTab(tester, '2');
+
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
+
+    _expectSelectedTab(tester, '1');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('command-q requests quit confirmation without leaking input', (
     tester,
   ) async {
