@@ -1,0 +1,9 @@
+{
+  "name": "ianvs-fig-spec-converter",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "convert": "node src/cli.mjs"
+  }
+}

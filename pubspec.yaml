@@ -1,0 +1,32 @@
+name: ianvs_terminal
+description: Ianvs Terminal macOS client.
+publish_to: none
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 产品层只用 NativePtyBackend.load() 加载 flutterm native core；
+  # terminal 的 runtime、viewport 和输入能力走 flutterm_terminal。
+  flutterm_pty:
+    path: ../../flutterm/packages/flutterm_pty
+  flutterm_terminal:
+    path: ../../flutterm/packages/flutterm_terminal
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/fig_specs/index.json
+    - assets/fig_specs/diagnostics.json
+    - assets/fig_specs/specs/
