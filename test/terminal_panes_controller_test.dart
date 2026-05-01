@@ -188,6 +188,90 @@ void main() {
     expect(_createdCwdAt(backend, 2), cwdTwo.path);
   });
 
+  test('restore reassigns duplicate pane ids before creating panes', () {
+    final backend = _FakePtySessionBackend();
+    final restoreController = TerminalSessionRestoreController(
+      store: TerminalSessionRestoreStore.memory(
+        TerminalSessionRestoreState(
+          activeTabIndex: 1,
+          tabs: <TerminalSessionRestoreTab>[
+            TerminalSessionRestoreTab(
+              fallbackTitle: 'Local 1',
+              activePaneId: 2,
+              rootPane: TerminalSessionRestorePaneSplit(
+                direction: TerminalPaneSplitDirection.right,
+                first: const TerminalSessionRestorePaneLeaf(id: 1, cwd: ''),
+                second: const TerminalSessionRestorePaneLeaf(id: 2, cwd: ''),
+              ),
+            ),
+            const TerminalSessionRestoreTab(
+              fallbackTitle: 'Local 2',
+              activePaneId: 2,
+              rootPane: TerminalSessionRestorePaneLeaf(id: 2, cwd: ''),
+            ),
+          ],
+        ),
+      ),
+      debounceDuration: Duration.zero,
+    );
+    final tabs = _tabs(backend, restoreController: restoreController);
+    addTearDown(() {
+      tabs.dispose();
+      restoreController.dispose();
+    });
+
+    tabs.createInitialTab();
+
+    final paneIds = tabs.tabs
+        .expand((tab) => tab.panes)
+        .map((pane) => pane.id)
+        .toList(growable: false);
+    expect(paneIds, <int>[1, 2, 3]);
+    expect(paneIds.toSet().length, paneIds.length);
+    expect(tabs.activeIndex, 1);
+    expect(tabs.activePane.id, 3);
+
+    tabs.selectTab(0);
+    tabs.selectPane(2);
+    expect(tabs.activePane.id, 2);
+  });
+
+  test(
+    'shell hooks from another session do not mutate active pane state',
+    () async {
+      final backend = _FakePtySessionBackend();
+      final tabs = _tabs(backend);
+      addTearDown(tabs.dispose);
+
+      tabs.createInitialTab();
+      final originalCwd = tabs.activeShell.completionController.cwd;
+      backend.enqueueEvent(
+        'session-1',
+        const PtyEvent(
+          kind: 'shell_hook',
+          sessionId: 'session-2',
+          payload: <String, Object?>{
+            'hook': 'preexec',
+            'command': 'echo wrong',
+          },
+        ),
+      );
+      backend.enqueueEvent(
+        'session-1',
+        const PtyEvent(
+          kind: 'shell_hook',
+          sessionId: 'session-2',
+          payload: <String, Object?>{'hook': 'precmd', 'pwd': '/tmp/wrong'},
+        ),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(tabs.activeShell.blocksController.blocks, isEmpty);
+      expect(tabs.activeShell.completionController.cwd, originalCwd);
+    },
+  );
+
   test('restore falls back when restored cwd does not exist', () {
     final backend = _FakePtySessionBackend();
     final restoreController = TerminalSessionRestoreController(
@@ -329,6 +413,10 @@ class _FakePtySessionBackend implements PtySessionBackend {
   final List<String> closedSessionIds = <String>[];
   final Map<String, Queue<PtyEvent>> _queuedEvents =
       <String, Queue<PtyEvent>>{};
+
+  void enqueueEvent(String sessionId, PtyEvent event) {
+    _queuedEvents.putIfAbsent(sessionId, Queue<PtyEvent>.new).add(event);
+  }
 
   @override
   int ping() => 42;

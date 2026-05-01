@@ -117,7 +117,17 @@ Ianvs Terminal 当前工作树的 path dependency 解析到 `/Users/luobinghui/p
 - 复现或触发条件：在当前本机依赖树 `/Users/luobinghui/projects/flutter/flutterm` 下运行 `FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart`，前两个 smoke 用例会立即在 `NativePtyBackend.load()` 处失败；随后其他真实 shell 用例也会因为 runtime 无法正常工作而超时。
 - 期望行为：当前 `libflutterm_core.dylib` 应导出 `flutterm_session_search_json`、`flutterm_session_selection_text` 等 `flutterm_pty` 当前绑定需要的符号；或者 `flutterm_pty` / `flutterm_terminal` 与 native core 一起以同一基线构建和验证，避免出现 Dart 层 API 已升级而 native dylib 仍停留在旧 ABI 的情况。
 - 候选上游位置：`native/core` 导出符号与构建产物，`flutterm_pty` 的 FFI 绑定基线，`flutterm` 本地开发工作流。
-- 当前处理：已记录为上游风险。Ianvs Terminal 本轮产品代码改动后，`flutter analyze` 与 `flutter test` 已通过，但真实 shell smoke 仍被此 native/dart 基线失配阻断；在修复上游基线前，这条验证应视为 `UPSTREAM-BLOCKED`。
+- 当前处理：关闭。`2026-05-02` 在 `/Users/luobinghui/projects/flutter/flutterm` 重新构建 debug native core 后，`nm -gU native/core/target/debug/libflutterm_core.dylib` 已确认导出 `_flutterm_session_search_json` 和 `_flutterm_session_selection_text`。真实 shell smoke 不再因缺符号失败；后续 shell-hook / cwd / block 超时另记为 `FT-011`。
+
+### FT-011：真实 zsh shell_hook / cwd 事件链路未贯通
+
+- 类型：bug
+- 影响里程碑：M2 block 化命令历史，M3 现代输入和命令复用，M4 工作区、pane 和启动配置
+- 现象或需求：在 `FT-010` 的 FFI 符号预检通过后，Ianvs Terminal 真实 shell smoke 仍有 6 个用例失败，集中表现为 zsh `preexec` / `command_finished` / `precmd.pwd` hook 没有到达产品层：真实 command block 列表为空，pane restore / split pane / path completion 等用例等待 cwd 更新超时。
+- 复现或触发条件：在当前本机依赖树 `/Users/luobinghui/projects/flutter/flutterm` 下运行 `FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart`。截至 `2026-05-02`，结果为部分通过但 zsh hook / cwd / block 相关用例失败。
+- 期望行为：flutterm native/core 应解析 Ianvs zsh integration 发送的通用 DCS hook：`ESC P hook;<hex-json> ESC \`，生成 `shell_hook` 事件并避免把 hook 控制序列渲染为 terminal 内容；`flutterm_pty` / `flutterm_terminal` 应把该事件稳定透出给消费方，使 Ianvs Terminal 能创建真实 command blocks、更新 cwd，并驱动 cwd-aware completion。
+- 候选上游位置：`native/core` 控制序列解析，`flutterm_pty` 的 `PtyEvent` 透出，`flutterm_terminal` 的 runtime event 模型。
+- 当前处理：关闭。`2026-05-02` 已在 `/Users/luobinghui/projects/flutter/flutterm` 的 `native/core` 实现 DCS `hook;<hex-json>` 解析，并通过 `TerminalEvent(kind: "shell_hook")` 透出到 `flutterm_pty`。验证通过：`cargo test shell_hook`、`dart test packages/flutterm_pty/test/native_pty_backend_test.dart`、`./tools/build_core.sh`、以及 Ianvs Terminal 真实 shell smoke `+15`。后续若要清理产品侧 `PtySessionBackend` adapter，可在 flutterm_terminal typed runtime event 层另开非阻塞 follow-up。
 
 ## 模板
 

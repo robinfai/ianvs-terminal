@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
 enum ModernInputEffectiveMode { modern, raw }
@@ -37,19 +38,37 @@ class ModernInputController extends ChangeNotifier {
   final Future<void> Function(String command) submitCommand;
 
   ModernInputState _state = const ModernInputState();
+  TextEditingValue _editingValue = const TextEditingValue();
 
   ModernInputState get state => _state;
+  TextEditingValue get editingValue => _editingValue;
   bool get canSubmit => _state.draft.isNotEmpty;
 
   void updateDraft(String value) {
-    _setState(_state.copyWith(draft: value));
+    updateEditingValue(
+      TextEditingValue(
+        text: value,
+        selection: TextSelection.collapsed(offset: value.length),
+      ),
+    );
+  }
+
+  void updateEditingValue(TextEditingValue value) {
+    final nextValue = _normalizedEditingValue(value);
+    final nextState = _state.copyWith(draft: nextValue.text);
+    if (nextState.draft == _state.draft) {
+      _editingValue = nextValue;
+      return;
+    }
+    _editingValue = nextValue;
+    _setState(nextState);
   }
 
   void insertText(String value) {
     if (value.isEmpty) {
       return;
     }
-    _setState(_state.copyWith(draft: '${_state.draft}$value'));
+    updateEditingValue(_editingValueWithInsertedText(value));
   }
 
   void insertNewline() {
@@ -62,6 +81,7 @@ class ModernInputController extends ChangeNotifier {
       return false;
     }
     await submitCommand(command);
+    _editingValue = const TextEditingValue();
     _setState(_state.copyWith(draft: ''));
     return true;
   }
@@ -91,7 +111,41 @@ class ModernInputController extends ChangeNotifier {
   }
 
   void reset() {
+    _editingValue = const TextEditingValue();
     _setState(const ModernInputState());
+  }
+
+  TextEditingValue _editingValueWithInsertedText(String value) {
+    final baseValue = _editingValue.text == _state.draft
+        ? _editingValue
+        : TextEditingValue(
+            text: _state.draft,
+            selection: TextSelection.collapsed(offset: _state.draft.length),
+          );
+    final normalizedValue = _normalizedEditingValue(baseValue);
+    final selection = normalizedValue.selection;
+    final start = selection.start;
+    final end = selection.end;
+    final nextText = normalizedValue.text.replaceRange(start, end, value);
+    return normalizedValue.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: start + value.length),
+      composing: TextRange.empty,
+    );
+  }
+
+  TextEditingValue _normalizedEditingValue(TextEditingValue value) {
+    final text = value.text;
+    if (!value.selection.isValid) {
+      return value.copyWith(
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    }
+    final start = value.selection.start.clamp(0, text.length);
+    final end = value.selection.end.clamp(0, text.length);
+    return value.copyWith(
+      selection: TextSelection(baseOffset: start, extentOffset: end),
+    );
   }
 
   void _setState(ModernInputState next) {

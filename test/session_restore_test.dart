@@ -125,6 +125,41 @@ void main() {
     expect((split.first as TerminalSessionRestorePaneLeaf).cwd, isEmpty);
   });
 
+  test('restore reassigns duplicate pane ids globally', () {
+    final parsed = TerminalSessionRestoreState.fromJson(<String, Object?>{
+      'activeTabIndex': 1,
+      'tabs': <Object?>[
+        <String, Object?>{
+          'fallbackTitle': 'Local 1',
+          'activePaneId': 1,
+          'rootPane': <String, Object?>{
+            'type': 'split',
+            'first': <String, Object?>{'type': 'leaf', 'id': 1},
+            'second': <String, Object?>{'type': 'leaf', 'id': 1},
+          },
+        },
+        <String, Object?>{
+          'fallbackTitle': 'Local 2',
+          'activePaneId': 1,
+          'rootPane': <String, Object?>{'type': 'leaf', 'id': 1},
+        },
+      ],
+    });
+
+    final firstSplit =
+        parsed.tabs.first.rootPane as TerminalSessionRestorePaneSplit;
+    final paneIds = parsed.tabs
+        .expand((tab) => tab.rootPane.leaves)
+        .map((leaf) => leaf.id)
+        .toList(growable: false);
+
+    expect(paneIds, <int>[1, 2, 3]);
+    expect(paneIds.toSet().length, paneIds.length);
+    expect(parsed.tabs.first.activePaneId, 1);
+    expect((firstSplit.second as TerminalSessionRestorePaneLeaf).id, 2);
+    expect(parsed.tabs.last.activePaneId, 3);
+  });
+
   test('controller debounces repeated saves', () async {
     final store = TerminalSessionRestoreStore.memory();
     final controller = TerminalSessionRestoreController(

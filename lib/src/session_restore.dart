@@ -33,7 +33,7 @@ class TerminalSessionRestoreState {
     return TerminalSessionRestoreState(
       activeTabIndex: _intInRange(map['activeTabIndex'], 0, tabs.length - 1),
       tabs: tabs,
-    );
+    ).withUniquePaneIds();
   }
 
   final int version;
@@ -41,6 +41,48 @@ class TerminalSessionRestoreState {
   final List<TerminalSessionRestoreTab> tabs;
 
   bool get hasTabs => tabs.isNotEmpty;
+
+  TerminalSessionRestoreState withUniquePaneIds() {
+    if (tabs.isEmpty) {
+      return this;
+    }
+    final usedPaneIds = <int>{};
+    final maxPaneId = tabs
+        .expand((tab) => tab.rootPane.leaves)
+        .fold<int>(0, (max, leaf) => leaf.id > max ? leaf.id : max);
+    var nextPaneId = maxPaneId + 1;
+    var changed = false;
+    final uniqueTabs = <TerminalSessionRestoreTab>[];
+
+    for (final tab in tabs) {
+      final remappedIds = <int, int>{};
+      final acceptedOriginalIds = <int>{};
+      final uniqueRootPane = _paneNodeWithUniqueIds(
+        tab.rootPane,
+        usedPaneIds,
+        acceptedOriginalIds,
+        remappedIds,
+        () => nextPaneId++,
+      );
+      changed = changed || !identical(uniqueRootPane, tab.rootPane);
+      uniqueTabs.add(
+        TerminalSessionRestoreTab(
+          fallbackTitle: tab.fallbackTitle,
+          activePaneId: remappedIds[tab.activePaneId] ?? tab.activePaneId,
+          rootPane: uniqueRootPane,
+        ),
+      );
+    }
+
+    if (!changed) {
+      return this;
+    }
+    return TerminalSessionRestoreState(
+      version: version,
+      activeTabIndex: activeTabIndex,
+      tabs: uniqueTabs,
+    );
+  }
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -250,7 +292,7 @@ class TerminalSessionRestoreController {
   Timer? _saveTimer;
   TerminalSessionRestoreState? _pendingState;
 
-  TerminalSessionRestoreState load() => store.load();
+  TerminalSessionRestoreState load() => store.load().withUniquePaneIds();
 
   void saveNow(TerminalSessionRestoreState state) {
     _saveTimer?.cancel();
@@ -338,6 +380,52 @@ double _ratioFromJson(Object? value) {
     return _validRatioOrDefault(value.toDouble());
   }
   return 0.5;
+}
+
+TerminalSessionRestorePaneNode _paneNodeWithUniqueIds(
+  TerminalSessionRestorePaneNode node,
+  Set<int> usedPaneIds,
+  Set<int> acceptedOriginalIds,
+  Map<int, int> remappedIds,
+  int Function() allocatePaneId,
+) {
+  if (node is TerminalSessionRestorePaneLeaf) {
+    if (usedPaneIds.add(node.id)) {
+      acceptedOriginalIds.add(node.id);
+      return node;
+    }
+    final nextId = allocatePaneId();
+    usedPaneIds.add(nextId);
+    if (!acceptedOriginalIds.contains(node.id)) {
+      remappedIds[node.id] = nextId;
+    }
+    return TerminalSessionRestorePaneLeaf(id: nextId, cwd: node.cwd);
+  }
+
+  final split = node as TerminalSessionRestorePaneSplit;
+  final first = _paneNodeWithUniqueIds(
+    split.first,
+    usedPaneIds,
+    acceptedOriginalIds,
+    remappedIds,
+    allocatePaneId,
+  );
+  final second = _paneNodeWithUniqueIds(
+    split.second,
+    usedPaneIds,
+    acceptedOriginalIds,
+    remappedIds,
+    allocatePaneId,
+  );
+  if (identical(first, split.first) && identical(second, split.second)) {
+    return split;
+  }
+  return TerminalSessionRestorePaneSplit(
+    direction: split.direction,
+    ratio: split.ratio,
+    first: first,
+    second: second,
+  );
 }
 
 String defaultSessionRestoreFilePath({

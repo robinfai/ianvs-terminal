@@ -22,7 +22,7 @@
 
 - macOS 端能打开一个本地 shell session。
 - 终端内容来自 flutterm，不是 Ianvs Terminal 自己实现的假终端。
-- 真实 shell smoke 使用 `FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart` 验证 `echo ianvs` 输出能进入 flutterm runtime frame；若当前 dylib 不导出 `flutterm_session_search_json` 等绑定需要的符号，则先记录 `FT-010` 并视为 `UPSTREAM-BLOCKED`。
+- 真实 shell smoke 使用 `FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart` 验证 `echo ianvs` 输出能进入 flutterm runtime frame；若当前 dylib 不导出 `flutterm_session_search_json` 等绑定需要的符号，则先记录 `FT-010` 并视为 `UPSTREAM-BLOCKED`；若符号预检通过但 zsh shell hook / cwd / block 用例失败，则记录 `FT-011` 并按上游事件链路阻塞处理。
 - `test/macos_entitlements_test.dart` 验证 Debug / Release entitlements 不打开 App Sandbox。
 - 平台相关代码已有明确放置位置，不把 macOS 专属逻辑散落到产品核心模型里。
 - 已记录第一版 flutterm 依赖边界和已知缺口。

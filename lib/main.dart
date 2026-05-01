@@ -1124,7 +1124,9 @@ class _TabStrip extends StatelessWidget {
                 title: tabsController.tabs[index].title,
                 active: index == tabsController.activeIndex,
                 onSelect: () => tabsController.selectTab(index),
-                onClose: () => tabsController.closeTab(index),
+                onClose: tabsController.canCloseActiveTab
+                    ? () => tabsController.closeTab(index)
+                    : null,
               ),
             ),
         ],
@@ -1138,13 +1140,13 @@ class _TerminalTabButton extends StatelessWidget {
     required this.title,
     required this.active,
     required this.onSelect,
-    required this.onClose,
+    this.onClose,
   });
 
   final String title;
   final bool active;
   final VoidCallback onSelect;
-  final VoidCallback onClose;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -1697,9 +1699,10 @@ class _ModernInputBarState extends State<_ModernInputBar> {
   @override
   void initState() {
     super.initState();
-    _textController = TextEditingController(
-      text: widget.controller.state.draft,
+    _textController = TextEditingController.fromValue(
+      widget.controller.editingValue,
     );
+    _textController.addListener(_syncToController);
     widget.controller.addListener(_syncFromController);
   }
 
@@ -1716,19 +1719,21 @@ class _ModernInputBarState extends State<_ModernInputBar> {
   @override
   void dispose() {
     widget.controller.removeListener(_syncFromController);
+    _textController.removeListener(_syncToController);
     _textController.dispose();
     super.dispose();
   }
 
   void _syncFromController() {
-    final draft = widget.controller.state.draft;
-    if (_textController.text == draft) {
+    final value = widget.controller.editingValue;
+    if (_textController.value == value) {
       return;
     }
-    _textController.value = TextEditingValue(
-      text: draft,
-      selection: TextSelection.collapsed(offset: draft.length),
-    );
+    _textController.value = value;
+  }
+
+  void _syncToController() {
+    widget.controller.updateEditingValue(_textController.value);
   }
 
   @override
@@ -1925,6 +1930,7 @@ class _ModernInputBarState extends State<_ModernInputBar> {
       return KeyEventResult.handled;
     }
     if (HardwareKeyboard.instance.isShiftPressed) {
+      widget.controller.updateEditingValue(_textController.value);
       widget.controller.insertNewline();
       return KeyEventResult.handled;
     }
@@ -1936,12 +1942,11 @@ class _ModernInputBarState extends State<_ModernInputBar> {
 
   void _applyModernInputEdit(TextEditingValue value) {
     _textController.value = value;
-    widget.controller.updateDraft(value.text);
+    widget.controller.updateEditingValue(value);
   }
 
   void _handleTextChanged(String value) {
     widget.completionController.close();
-    widget.controller.updateDraft(value);
   }
 
   Future<void> _completeOrAccept() async {

@@ -299,6 +299,9 @@ class LocalShellSessionController extends ChangeNotifier {
   }
 
   void _handleShellHookEvent(ShellHookEvent event) {
+    if (event.sessionId != _sessionId) {
+      return;
+    }
     switch (event.hook) {
       case 'preexec':
         _startHookBlock(event.payload);
@@ -543,7 +546,7 @@ class LocalShellSessionController extends ChangeNotifier {
       return;
     }
     if (event is terminal.TerminalSessionExitEvent) {
-      _finishRunningBlock(TerminalBlockStatus.unknown);
+      _finishRunningBlock(_blockStatusForExitCode(event.exitCode));
       _exitCode = event.exitCode;
       _status = LocalShellStatus.exited;
       notifyListeners();

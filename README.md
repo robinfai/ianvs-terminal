@@ -91,6 +91,7 @@ FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target
 ```
 
 这个 smoke 会验证普通输出、`echo ianvs && exit 7` 的退出码事件、产品侧查找和复制真实终端输出、多 tab 独立输出，以及默认 shell 设置可用于新建本地 shell。
+若符号预检通过但 zsh block、cwd completion 或 pane restore cwd 仍超时，把问题归入 `FT-011`，按 shell-hook / `precmd.pwd` 事件链路处理，不再归因到 `FT-010`。
 M1E 还会重复启动带可控 `PS1` 的真实本地 shell，验证初始 prompt 文本进入 frame，而不是只显示光标。
 M2B 还会用 `/bin/zsh` 验证真实命令 block：`echo ianvs-block` 应生成 succeeded block，`false` 应生成 failed block。
 M2C 会验证 block 历史面板和 Header 始终同步当前 active tab，退出态仍可选择、跳转和复制已有 block。
@@ -231,7 +232,7 @@ M4B session restore 验证点：
 - `MANAGER_TASK_BOARD.md` 是 manager-only rollout 的唯一真相源，记录 lane、triage、watchdog、verification 和 open blockers。
 - 主 agent 只做管理：维护看板、拆 scope、分派 owner、收敛 findings、监控卡死和安排下一轮路由。
 - 子 agent 的常态化分组固定为：`Baseline Lane`、`Session/UI Fix Lane`、`Input/Command Fix Lane`，以及 `Fresh Core Review`、`Fresh Workspace Review`、`Fresh Command UX Review`。
-- 当前 repo-local 绿色基线定义为：`flutter analyze` 与 `flutter test` 通过。真实 shell smoke 当前不计入产品代码回归门槛，因为它被 `FT-010` 阻断。
+- 当前绿色基线定义为：`flutter analyze`、`flutter test` 和带 `FLUTTERM_CORE_LIB` 的真实 shell smoke 通过；`FT-010` 与 `FT-011` 已在当前本地 flutterm 基线关闭。
 
 本地启动 macOS app：
 

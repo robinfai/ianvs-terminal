@@ -102,6 +102,41 @@ void main() {
     expect(backend.writes, isEmpty);
   });
 
+  testWidgets('modern paste replaces the active draft selection', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final clipboard = _FakeClipboardClient('Ianvs');
+
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        clipboardClient: clipboard,
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'echo world',
+    );
+    _setModernInputValue(
+      tester,
+      const TextEditingValue(
+        text: 'echo world',
+        selection: TextSelection(baseOffset: 5, extentOffset: 10),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Paste'));
+    await tester.pump();
+
+    expect(_modernInputText(tester), 'echo Ianvs');
+    expect(_modernInputValue(tester).selection.baseOffset, 10);
+    expect(backend.writes, isEmpty);
+  });
+
   testWidgets('modern input submits draft only after enter', (tester) async {
     final backend = _FakePtySessionBackend();
     await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
@@ -161,6 +196,36 @@ void main() {
       backend.writesBySession['session-1'],
       contains('echo one\necho two\r'),
     );
+  });
+
+  testWidgets('shift-enter inserts newline at the active selection', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'echo one',
+    );
+    _setModernInputValue(
+      tester,
+      const TextEditingValue(
+        text: 'echo one',
+        selection: TextSelection.collapsed(offset: 5),
+      ),
+    );
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+
+    expect(_modernInputText(tester), 'echo \none');
+    expect(_modernInputValue(tester).selection.baseOffset, 6);
+    expect(backend.writes, isEmpty);
   });
 
   testWidgets('modern input completes brackets and quotes', (tester) async {
@@ -1446,6 +1511,28 @@ void main() {
     expect(clipboard.copied, contains('ianvs-block\n'));
   });
 
+  testWidgets('shell hooks from another session do not create blocks', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    backend.enqueueEvent(
+      'session-1',
+      const PtyEvent(
+        kind: 'shell_hook',
+        sessionId: 'session-2',
+        payload: <String, Object?>{'hook': 'preexec', 'command': 'echo wrong'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    expect(find.text('Block 1/1'), findsNothing);
+    expect(find.textContaining('echo wrong'), findsNothing);
+  });
+
   testWidgets('duplicate command blocks keep distinct output ranges', (
     tester,
   ) async {
@@ -1596,6 +1683,32 @@ void main() {
     await tester.pump();
 
     expect(find.text('Interrupted'), findsOneWidget);
+  });
+
+  testWidgets('shell exit maps a running block status from exit code', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    backend.enqueueEvent(
+      'session-1',
+      const PtyEvent(
+        kind: 'shell_hook',
+        sessionId: 'session-1',
+        payload: <String, Object?>{'hook': 'preexec', 'command': 'false'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    backend.exitOnNextPollBySession['session-1'] = 1;
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    expect(find.text('Failed'), findsOneWidget);
+    expect(find.text('Unknown'), findsNothing);
   });
 
   testWidgets('non zsh default shell does not inject zsh hook env', (
@@ -1915,7 +2028,7 @@ void main() {
     final closeOnlyTab = tester.widget<IconButton>(
       find.byKey(const Key('terminal-close-tab-Local 1')),
     );
-    closeOnlyTab.onPressed!();
+    expect(closeOnlyTab.onPressed, isNull);
     await tester.pump();
     await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyW);

@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
@@ -25,8 +26,36 @@ void main() {
       expect(submittedCommand, isTrue);
       expect(submitted, <String>['echo ianvs\necho next']);
       expect(controller.state.draft, isEmpty);
+      expect(controller.editingValue.text, isEmpty);
     },
   );
+
+  test('inserts text and newlines at the current selection', () {
+    final controller = ModernInputController(submitCommand: (_) async {});
+
+    controller.updateEditingValue(
+      const TextEditingValue(
+        text: 'echo world',
+        selection: TextSelection(baseOffset: 5, extentOffset: 10),
+      ),
+    );
+    controller.insertText('ianvs');
+
+    expect(controller.state.draft, 'echo ianvs');
+    expect(controller.editingValue.selection.baseOffset, 10);
+    expect(controller.editingValue.selection.extentOffset, 10);
+
+    controller.updateEditingValue(
+      const TextEditingValue(
+        text: 'echo ianvs',
+        selection: TextSelection.collapsed(offset: 5),
+      ),
+    );
+    controller.insertNewline();
+
+    expect(controller.state.draft, 'echo \nianvs');
+    expect(controller.editingValue.selection.baseOffset, 6);
+  });
 
   test('empty draft submit is a no-op', () async {
     final submitted = <String>[];
