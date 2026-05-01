@@ -257,6 +257,21 @@ fn resize_request_profile() -> TerminalProfile {
     )
 }
 
+fn shell_hook_profile() -> TerminalProfile {
+    local_profile(
+        "shell-hook",
+        "Shell Hook",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1bPhook;7b22686f6f6b223a22707265636d64222c22707764223a222f746d702f666c75747465726d227d\x1b\\")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn clipboard_copy_profile() -> TerminalProfile {
     local_profile(
         "clipboard-copy",
@@ -829,6 +844,18 @@ fn session_emits_resize_events_from_terminal_requests() {
     let event = wait_for_event(session_id, "resize");
     assert_eq!(event["payload"]["rows"].as_u64(), Some(30));
     assert_eq!(event["payload"]["cols"].as_u64(), Some(100));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_shell_hook_events_from_dcs_hooks() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&shell_hook_profile()).unwrap()).unwrap();
+
+    let event = wait_for_event(session_id, "shell_hook");
+    assert_eq!(event["payload"]["hook"].as_str(), Some("precmd"));
+    assert_eq!(event["payload"]["pwd"].as_str(), Some("/tmp/flutterm"));
 
     session::close_session(session_id).unwrap();
 }

@@ -33,6 +33,7 @@ enum CallbackEvent {
     Resize { rows: u16, cols: u16 },
     ClipboardCopy { selection: String, data: String },
     ClipboardPasteRequest { selection: String },
+    ShellHook { payload: serde_json::Value },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -279,6 +280,10 @@ impl HostProtocolState {
                     Some(next) => index = next,
                     None => break,
                 },
+                b'P' => match self.consume_dcs(index, emulation, &mut events) {
+                    Some(next) => index = next,
+                    None => break,
+                },
                 b'[' => match self.consume_csi(index, emulation, &mut events) {
                     Some(next) => index = next,
                     None => break,
@@ -337,6 +342,69 @@ impl HostProtocolState {
         }
 
         Some(terminator_start + terminator_len)
+    }
+
+    fn consume_dcs(
+        &mut self,
+        start: usize,
+        emulation: TerminalEmulation,
+        events: &mut Vec<CallbackEvent>,
+    ) -> Option<usize> {
+        let mut cursor = start + 2;
+        let mut terminator_start = 0usize;
+
+        while cursor < self.buffer.len() {
+            if self.buffer[cursor] == 0x1b
+                && cursor + 1 < self.buffer.len()
+                && self.buffer[cursor + 1] == b'\\'
+            {
+                terminator_start = cursor;
+                break;
+            }
+            cursor += 1;
+        }
+
+        if terminator_start == 0 {
+            return None;
+        }
+
+        if emulation == TerminalEmulation::Xterm256 {
+            let payload = self.buffer[start + 2..terminator_start].to_vec();
+            self.handle_dcs_payload(&payload, events);
+        }
+
+        Some(terminator_start + 2)
+    }
+
+    fn handle_dcs_payload(&self, payload: &[u8], events: &mut Vec<CallbackEvent>) {
+        let mut parts = payload.splitn(2, |byte| *byte == b';');
+        let command = parts.next().unwrap_or_default();
+        let encoded = parts.next().unwrap_or_default();
+
+        if command != b"hook" || encoded.is_empty() || encoded.len() % 2 != 0 {
+            return;
+        }
+
+        let mut json_bytes = Vec::with_capacity(encoded.len() / 2);
+        for chunk in encoded.chunks_exact(2) {
+            let Some(high) = hex_nibble(chunk[0]) else {
+                return;
+            };
+            let Some(low) = hex_nibble(chunk[1]) else {
+                return;
+            };
+            json_bytes.push((high << 4) | low);
+        }
+
+        let Ok(json) = String::from_utf8(json_bytes) else {
+            return;
+        };
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&json) else {
+            return;
+        };
+        if value.is_object() {
+            events.push(CallbackEvent::ShellHook { payload: value });
+        }
     }
 
     fn handle_osc_payload(&mut self, payload: &[u8], events: &mut Vec<CallbackEvent>) {
@@ -1002,6 +1070,7 @@ impl TerminalSession {
                     "selection": selection,
                 })),
             ),
+            CallbackEvent::ShellHook { payload } => self.push_event("shell_hook", Some(payload)),
         }
     }
 
@@ -1030,6 +1099,15 @@ fn terminal_cursor_snapshot(cursor: &par_term_emu_core_rust::cursor::Cursor) -> 
         row: cursor.row,
         col: cursor.col,
         visible: cursor.visible,
+    }
+}
+
+fn hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -2128,6 +2206,36 @@ mod tests {
 
         assert!(events.is_empty());
         assert_eq!(state.window_icon_name.as_deref(), Some("build icon"));
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_observe_emits_split_shell_hook_dcs() {
+        let mut state = HostProtocolState::default();
+
+        assert!(
+            state
+                .observe(
+                    b"\x1bPhook;7b22686f6f6b223a22707265636d64222c",
+                    TerminalEmulation::Xterm256
+                )
+                .is_empty()
+        );
+        assert!(!state.buffer.is_empty());
+
+        let events = state.observe(
+            b"22707764223a222f746d702f666c75747465726d227d\x1b\\",
+            TerminalEmulation::Xterm256,
+        );
+
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            CallbackEvent::ShellHook { payload } => {
+                assert_eq!(payload["hook"].as_str(), Some("precmd"));
+                assert_eq!(payload["pwd"].as_str(), Some("/tmp/flutterm"));
+            }
+            event => panic!("expected shell hook event, got {event:?}"),
+        }
         assert!(state.buffer.is_empty());
     }
 }
