@@ -1,8 +1,8 @@
 # Ianvs Terminal 对 flutterm 的反馈
 
-Ianvs Terminal 使用 `/Users/robinfai/personal/flutterm` 作为 terminal 实现依赖库。这里记录 Ianvs Terminal 消费 flutterm 时发现的 bug、限制和 feature 需求。
+Ianvs Terminal 当前工作树的 path dependency 解析到 `/Users/luobinghui/projects/flutter/flutterm`，并以这份本地 checkout 作为 terminal 实现依赖库。这里记录 Ianvs Terminal 消费 flutterm 时发现的 bug、限制和 feature 需求。
 
-这份文档不是 flutterm 的任务清单。是否进入 flutterm 实现，要另行在 `/Users/robinfai/personal/flutterm/docs/tasks/` 里写任务文档。
+这份文档不是 flutterm 的任务清单。是否进入 flutterm 实现，要另行在对应 flutterm 工作树的 `docs/tasks/` 里写任务文档。
 
 ## 记录规则
 
@@ -108,6 +108,16 @@ Ianvs Terminal 使用 `/Users/robinfai/personal/flutterm` 作为 terminal 实现
 - 期望行为：flutterm 在 `TerminalFrameModes` 或 runtime event 中公开 `alternate_screen_active` 或通用 raw app hint，让产品层能更可靠地决定是否自动切到 Raw 输入。
 - 候选上游位置：`native/core` frame meta，`flutterm_terminal` 的 `TerminalFrameModes` / `TerminalFrameDiff`。
 - 当前处理：产品侧绕行。M3A 使用 `mouseMode != off`、`applicationCursor`、`applicationKeypad`、`focusTracking` 作为自动 Raw 条件，并提供 `Cmd+Shift+I` 手动 Raw 兜底。
+
+### FT-010：当前 native core debug dylib 与 flutterm_pty 绑定符号不匹配
+
+- 类型：risk
+- 影响里程碑：M1 日常本地终端，M2 block 化命令历史，M3 现代输入和命令复用，M4 工作区、pane 和启动配置
+- 现象或需求：Ianvs Terminal 在 `2026-05-01` 本地执行真实 shell smoke 时，`NativePtyBackend.load()` 直接失败，报 `Failed to lookup symbol 'flutterm_session_search_json'`。这说明当前 debug `libflutterm_core.dylib` 与 `flutterm_pty` / `flutterm_terminal` Dart 侧绑定不匹配，导致真实本地 shell 路径无法稳定验证。
+- 复现或触发条件：在当前本机依赖树 `/Users/luobinghui/projects/flutter/flutterm` 下运行 `FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart`，前两个 smoke 用例会立即在 `NativePtyBackend.load()` 处失败；随后其他真实 shell 用例也会因为 runtime 无法正常工作而超时。
+- 期望行为：当前 `libflutterm_core.dylib` 应导出 `flutterm_session_search_json`、`flutterm_session_selection_text` 等 `flutterm_pty` 当前绑定需要的符号；或者 `flutterm_pty` / `flutterm_terminal` 与 native core 一起以同一基线构建和验证，避免出现 Dart 层 API 已升级而 native dylib 仍停留在旧 ABI 的情况。
+- 候选上游位置：`native/core` 导出符号与构建产物，`flutterm_pty` 的 FFI 绑定基线，`flutterm` 本地开发工作流。
+- 当前处理：已记录为上游风险。Ianvs Terminal 本轮产品代码改动后，`flutter analyze` 与 `flutter test` 已通过，但真实 shell smoke 仍被此 native/dart 基线失配阻断；在修复上游基线前，这条验证应视为 `UPSTREAM-BLOCKED`。
 
 ## 模板
 

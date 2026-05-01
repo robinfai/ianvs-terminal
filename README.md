@@ -6,7 +6,7 @@ Ianvs Terminal 是 Ianvs 产品族下的现代终端客户端。当前推进 mac
 
 - 客户端框架：Flutter。
 - 首要平台：macOS。
-- terminal 实现：依赖 `/Users/robinfai/personal/flutterm`。
+- terminal 实现：当前工作树的 path dependency 解析到 `/Users/luobinghui/projects/flutter/flutterm`。
 - `flutterm_pty` 只用于 `NativePtyBackend.load()`；terminal runtime、viewport 和输入能力走 `flutterm_terminal`。
 - macOS App Sandbox 必须关闭，否则 flutterm native core 无法创建本地 PTY shell。
 - M1A 聚焦单个本地 shell session：运行状态、退出状态、重启、复制和粘贴。
@@ -46,6 +46,12 @@ Session restore 文件位置固定为：
 ~/Library/Application Support/Ianvs/ianvs-terminal/session_restore.json
 ```
 
+manager-only 多 agent 推进看板固定写在：
+
+```text
+MANAGER_TASK_BOARD.md
+```
+
 Fig completion specs 默认资产位置：
 
 ```text
@@ -72,10 +78,16 @@ flutter test
 flutter build macos
 ```
 
-真实 shell smoke 需要显式指定本地 flutterm native core：
+真实 shell smoke 采用两段式验证。先确认当前 native core 导出了 Dart 绑定需要的符号：
 
 ```bash
-FLUTTERM_CORE_LIB=/Users/robinfai/personal/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart
+nm -gU /Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib | rg 'flutterm_session_search_json'
+```
+
+如果这一步没有命中，把问题记到 `FLUTTERM_FEEDBACK.md` 的 `FT-010`，并视为 `UPSTREAM-BLOCKED`。只有预检通过时，才运行：
+
+```bash
+FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart
 ```
 
 这个 smoke 会验证普通输出、`echo ianvs && exit 7` 的退出码事件、产品侧查找和复制真实终端输出、多 tab 独立输出，以及默认 shell 设置可用于新建本地 shell。
@@ -213,6 +225,13 @@ M4B session restore 验证点：
 - restore 文件缺失、坏 JSON、空 tabs 或非法 split ratio 时，直接回退为一个默认 tab / 一个默认 pane。
 - 恢复 cwd 不存在时，回退到设置默认 cwd、`$HOME` 或当前目录，并保存回退后的 cwd。
 - M4B 不恢复旧进程、scrollback、blocks、modern draft、selection、find query、history query、completion panel、窗口尺寸或窗口位置。
+
+## 多 Agent 推进
+
+- `MANAGER_TASK_BOARD.md` 是 manager-only rollout 的唯一真相源，记录 lane、triage、watchdog、verification 和 open blockers。
+- 主 agent 只做管理：维护看板、拆 scope、分派 owner、收敛 findings、监控卡死和安排下一轮路由。
+- 子 agent 的常态化分组固定为：`Baseline Lane`、`Session/UI Fix Lane`、`Input/Command Fix Lane`，以及 `Fresh Core Review`、`Fresh Workspace Review`、`Fresh Command UX Review`。
+- 当前 repo-local 绿色基线定义为：`flutter analyze` 与 `flutter test` 通过。真实 shell smoke 当前不计入产品代码回归门槛，因为它被 `FT-010` 阻断。
 
 本地启动 macOS app：
 

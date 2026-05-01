@@ -145,6 +145,45 @@ void main() {
         store.load().tabs.single.rootPane as TerminalSessionRestorePaneLeaf;
     expect(leaf.cwd, '/tmp/three');
   });
+
+  test('default restore path keeps platform-specific storage boundaries', () {
+    expect(
+      defaultSessionRestoreFilePath(
+        environment: const <String, String>{'HOME': '/Users/robin'},
+        operatingSystem: 'macos',
+        currentPath: '/workspace',
+      ),
+      '/Users/robin/Library/Application Support/Ianvs/ianvs-terminal/session_restore.json',
+    );
+    expect(
+      defaultSessionRestoreFilePath(
+        environment: const <String, String>{
+          'APPDATA': r'C:\Users\Robin\AppData\Roaming',
+        },
+        operatingSystem: 'windows',
+        currentPath: r'C:\workspace',
+      ),
+      r'C:\Users\Robin\AppData\Roaming\Ianvs\ianvs-terminal\session_restore.json',
+    );
+    expect(
+      defaultSessionRestoreFilePath(
+        environment: const <String, String>{'HOME': '/home/robin'},
+        operatingSystem: 'linux',
+        currentPath: '/workspace',
+      ),
+      '/home/robin/.local/state/ianvs-terminal/session_restore.json',
+    );
+    expect(
+      defaultSessionRestoreFilePath(
+        environment: const <String, String>{
+          'XDG_STATE_HOME': '/tmp/ianvs-state',
+        },
+        operatingSystem: 'linux',
+        currentPath: '/workspace',
+      ),
+      '/tmp/ianvs-state/ianvs-terminal/session_restore.json',
+    );
+  });
 }
 
 TerminalSessionRestoreState _stateWithCwd(String cwd) {

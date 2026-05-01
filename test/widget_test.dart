@@ -583,6 +583,35 @@ void main() {
     expect(find.byKey(const Key('terminal-find-field')), findsNothing);
   });
 
+  testWidgets('opening find closes command history and moves focus', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: _blocksForSession,
+      ),
+    );
+    await tester.pump();
+
+    await _metaShortcut(tester, LogicalKeyboardKey.keyR);
+    expect(
+      find.byKey(const Key('terminal-command-history-panel')),
+      findsOneWidget,
+    );
+
+    await _metaShortcut(tester, LogicalKeyboardKey.keyF);
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('terminal-command-history-panel')),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('terminal-find-field')), findsOneWidget);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'ianvs-find');
+  });
+
   testWidgets('find navigation scrolls to matches and updates active index', (
     tester,
   ) async {
@@ -649,8 +678,11 @@ void main() {
   testWidgets('exited shell still supports find and copy but disables paste', (
     tester,
   ) async {
-    final backend = _FakePtySessionBackend(selectedText: 'ready');
+    final backend = _FakePtySessionBackend(selectedText: 'ianvs');
     final clipboard = _FakeClipboardClient('');
+    backend.searchResults['ianvs'] = <Map<String, Object?>>[
+      _matchJson(row: 12, startCol: 0, endCol: 5, text: 'ianvs', offset: 4),
+    ];
     await tester.pumpWidget(
       IanvsTerminalApp(
         backendFactory: () => backend,
@@ -672,16 +704,17 @@ void main() {
     await tester.pump();
     await tester.enterText(
       find.byKey(const Key('terminal-find-field')),
-      'ready',
+      'ianvs',
     );
     await tester.pump();
 
     expect(find.text('1/1'), findsOneWidget);
+    expect(backend.searchedQueries, contains('ianvs'));
 
     await tester.tap(find.byTooltip('Copy'));
     await tester.pump();
 
-    expect(clipboard.copied, contains('ready'));
+    expect(clipboard.copied, contains('ianvs'));
   });
 
   testWidgets('empty find result shows zero count and does not scroll', (
@@ -1413,6 +1446,105 @@ void main() {
     expect(clipboard.copied, contains('ianvs-block\n'));
   });
 
+  testWidgets('duplicate command blocks keep distinct output ranges', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend(
+      selectionTextResolver: (_, request) {
+        return switch (request['start_row']) {
+          1 => 'first-output\n',
+          3 => 'second-output\n',
+          _ => '',
+        };
+      },
+    );
+    final clipboard = _FakeClipboardClient('');
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        clipboardClient: clipboard,
+      ),
+    );
+    await tester.pump();
+
+    backend.enqueueFrame(_frameJson(text: 'echo same', cursorRow: 0));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    backend.enqueueEvent(
+      'session-1',
+      const PtyEvent(
+        kind: 'shell_hook',
+        sessionId: 'session-1',
+        payload: <String, Object?>{'hook': 'preexec', 'command': 'echo same'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    backend.enqueueEvent(
+      'session-1',
+      const PtyEvent(
+        kind: 'shell_hook',
+        sessionId: 'session-1',
+        payload: <String, Object?>{'hook': 'command_finished', 'exit_code': 0},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    backend.enqueueFrame(_frameJson(text: 'echo same', cursorRow: 2));
+    await tester.pump(const Duration(milliseconds: 34));
+    final viewport = tester.widget<terminal.TerminalViewport>(
+      find.byType(terminal.TerminalViewport).first,
+    );
+    expect(viewport.controller.frame.cursor.row, 2);
+
+    backend.enqueueEvent(
+      'session-1',
+      const PtyEvent(
+        kind: 'shell_hook',
+        sessionId: 'session-1',
+        payload: <String, Object?>{'hook': 'preexec', 'command': 'echo same'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    backend.enqueueEvent(
+      'session-1',
+      const PtyEvent(
+        kind: 'shell_hook',
+        sessionId: 'session-1',
+        payload: <String, Object?>{'hook': 'command_finished', 'exit_code': 0},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    expect(find.text('Block 2/2'), findsOneWidget);
+
+    await _tapHeaderControl(
+      tester,
+      find.byKey(const Key('terminal-block-copy-output-button')),
+    );
+    expect(clipboard.copied.last, 'second-output\n');
+
+    await _tapHeaderControl(
+      tester,
+      find.byKey(const Key('terminal-block-previous-button')),
+    );
+    await _tapHeaderControl(
+      tester,
+      find.byKey(const Key('terminal-block-copy-output-button')),
+    );
+    expect(clipboard.copied.last, 'first-output\n');
+    expect(
+      backend.selectionRequests.map((request) => request['start_row']),
+      containsAll(<Object?>[1, 3]),
+    );
+  });
+
   testWidgets('shell hook exit codes map to failed and interrupted blocks', (
     tester,
   ) async {
@@ -1936,6 +2068,67 @@ void main() {
     expect(
       backend.resizeCalls.map((call) => call['sessionId']),
       containsAll(<String>['session-1', 'session-2']),
+    );
+  });
+
+  testWidgets('closing pane and tab prunes retired terminal focus nodes', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    expect(
+      debugTerminalFocusNodeCount(
+        tester.element(find.byType(IanvsTerminalShell)),
+      ),
+      1,
+    );
+
+    await _tapHeaderControl(
+      tester,
+      find.byKey(const Key('terminal-split-right-button')),
+    );
+    expect(
+      debugTerminalFocusNodeCount(
+        tester.element(find.byType(IanvsTerminalShell)),
+      ),
+      2,
+    );
+
+    await _tapHeaderControl(
+      tester,
+      find.byKey(const Key('terminal-close-pane-button')),
+    );
+    expect(
+      debugTerminalFocusNodeCount(
+        tester.element(find.byType(IanvsTerminalShell)),
+      ),
+      1,
+    );
+
+    await _tapHeaderControl(
+      tester,
+      find.byKey(const Key('terminal-new-tab-button')),
+    );
+    expect(
+      debugTerminalFocusNodeCount(
+        tester.element(find.byType(IanvsTerminalShell)),
+      ),
+      2,
+    );
+
+    final closeSecondTab = tester.widget<IconButton>(
+      find.byKey(const Key('terminal-close-tab-Local 2')),
+    );
+    closeSecondTab.onPressed!();
+    await tester.pump();
+
+    expect(
+      debugTerminalFocusNodeCount(
+        tester.element(find.byType(IanvsTerminalShell)),
+      ),
+      1,
     );
   });
 
@@ -2542,10 +2735,13 @@ class _FakePtySessionBackend implements PtySessionBackend {
   _FakePtySessionBackend({
     this.failuresBeforeSuccess = 0,
     this.selectedText = '',
+    this.selectionTextResolver,
   });
 
   int failuresBeforeSuccess;
   final String selectedText;
+  final String? Function(String sessionId, Map<String, Object?> request)?
+  selectionTextResolver;
   int _createCount = 0;
   int? exitOnNextPoll;
   final Map<String, int> exitOnNextPollBySession = <String, int>{};
@@ -2557,6 +2753,7 @@ class _FakePtySessionBackend implements PtySessionBackend {
   final List<Map<String, Object?>> resizeCalls = <Map<String, Object?>>[];
   final List<String> searchedQueries = <String>[];
   final List<int> scrollToOffsets = <int>[];
+  final List<Map<String, Object?>> selectionRequests = <Map<String, Object?>>[];
   final Map<String, List<String>> writesBySession = <String, List<String>>{};
   final Queue<Map<String, Object?>> _queuedFrames =
       Queue<Map<String, Object?>>();
@@ -2659,7 +2856,11 @@ class _FakePtySessionBackend implements PtySessionBackend {
   }
 
   @override
-  String? selectionText(String sessionId, String requestJson) => selectedText;
+  String? selectionText(String sessionId, String requestJson) {
+    final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
+    selectionRequests.add(request);
+    return selectionTextResolver?.call(sessionId, request) ?? selectedText;
+  }
 
   @override
   String? takeFrameDiffJson(String sessionId) {

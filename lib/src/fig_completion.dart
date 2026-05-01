@@ -374,6 +374,56 @@ class FigCompletionResult {
   final int replaceEnd;
 }
 
+class _FigCompletionResolution {
+  const _FigCompletionResolution({
+    required this.node,
+    this.optionArg,
+    this.positionalArg,
+  });
+
+  final FigCompletionCommand node;
+  final FigCompletionArg? optionArg;
+  final FigCompletionArg? positionalArg;
+}
+
+class _FigCompletionArgCursor {
+  const _FigCompletionArgCursor(this.args, [this.index = 0]);
+
+  final List<FigCompletionArg> args;
+  final int index;
+
+  FigCompletionArg? get currentArg {
+    if (args.isEmpty) {
+      return null;
+    }
+    if (index < args.length) {
+      return args[index];
+    }
+    final last = args.last;
+    return last.isVariadic ? last : null;
+  }
+
+  _FigCompletionArgCursor consumeToken() {
+    final arg = currentArg;
+    if (arg == null || arg.isVariadic) {
+      return this;
+    }
+    return _FigCompletionArgCursor(args, index + 1);
+  }
+}
+
+class _FigCompletionPathQuery {
+  const _FigCompletionPathQuery({
+    required this.directory,
+    required this.suggestionPrefix,
+    required this.leafPrefix,
+  });
+
+  final Directory directory;
+  final String suggestionPrefix;
+  final String leafPrefix;
+}
+
 class FigCompletionEngine {
   FigCompletionEngine({required this.repository});
 
@@ -404,16 +454,23 @@ class FigCompletionEngine {
       );
     }
 
-    final node = _nodeForTokens(spec, tokens, input.activeTokenIndex);
-    final previousToken = input.activeTokenIndex > 0
-        ? tokens[input.activeTokenIndex - 1]
-        : null;
-    final optionArg = previousToken == null
-        ? null
-        : _optionForName(node, previousToken.text)?.args.firstOrNull;
-    final suggestions = optionArg != null
+    final resolution = _resolveCompletionContext(
+      spec,
+      tokens,
+      input.activeTokenIndex,
+    );
+    final optionArg = resolution.optionArg;
+    final useOptionArg =
+        optionArg != null &&
+        !(optionArg.isOptional && activeToken.text.startsWith('-'));
+    final suggestions = useOptionArg
         ? await _argSuggestions(optionArg, activeToken.text, context)
-        : await _nodeSuggestions(node, activeToken.text, context);
+        : await _nodeSuggestions(
+            resolution.node,
+            activeToken.text,
+            context,
+            positionalArg: resolution.positionalArg,
+          );
 
     return FigCompletionResult(
       suggestions: suggestions,
@@ -427,13 +484,17 @@ class FigCompletionEngine {
     FigCompletionResult result,
     FigCompletionSuggestion suggestion,
   ) {
-    final replacement = suggestion.replacement;
+    final rawToken = value.text.substring(result.replaceStart, result.replaceEnd);
+    final replacement = _rewriteAcceptedReplacement(
+      suggestion.replacement,
+      rawToken,
+    );
     final nextText = value.text.replaceRange(
       result.replaceStart,
       result.replaceEnd,
       replacement,
     );
-    final nextOffset = result.replaceStart + replacement.length;
+    final int nextOffset = result.replaceStart + replacement.length;
     return value.copyWith(
       text: nextText,
       selection: TextSelection.collapsed(offset: nextOffset),
@@ -459,26 +520,52 @@ class FigCompletionEngine {
     ], prefix);
   }
 
-  FigCompletionCommand _nodeForTokens(
+  _FigCompletionResolution _resolveCompletionContext(
     FigCompletionSpec spec,
     List<FigCompletionToken> tokens,
     int activeTokenIndex,
   ) {
     FigCompletionCommand node = spec;
+    var positionalArgs = _FigCompletionArgCursor(node.args);
+    _FigCompletionArgCursor? optionArgs;
     for (var index = 1; index < activeTokenIndex; index += 1) {
       final token = tokens[index].text;
+      if (optionArgs != null) {
+        optionArgs = optionArgs.consumeToken();
+        if (optionArgs.currentArg == null) {
+          optionArgs = null;
+        }
+        continue;
+      }
+      final option = _optionForName(node, token);
+      if (option != null) {
+        final optionCursor = _FigCompletionArgCursor(option.args);
+        if (optionCursor.currentArg != null) {
+          optionArgs = optionCursor;
+        }
+        continue;
+      }
       final subcommand = _subcommandForName(node, token);
       if (subcommand != null) {
         node = subcommand;
+        positionalArgs = _FigCompletionArgCursor(node.args);
+        continue;
       }
+      positionalArgs = positionalArgs.consumeToken();
     }
-    return node;
+    return _FigCompletionResolution(
+      node: node,
+      optionArg: optionArgs?.currentArg,
+      positionalArg: positionalArgs.currentArg,
+    );
   }
 
   Future<List<FigCompletionSuggestion>> _nodeSuggestions(
     FigCompletionCommand node,
     String prefix,
-    FigCompletionContext context,
+    FigCompletionContext context, {
+    FigCompletionArg? positionalArg,
+  }
   ) async {
     if (prefix.startsWith('-')) {
       final suggestions = <FigCompletionSuggestion>[];
@@ -503,7 +590,7 @@ class FigCompletionEngine {
     if (subcommands.isNotEmpty) {
       return _matchingSuggestions(subcommands, prefix);
     }
-    final arg = node.args.firstOrNull;
+    final arg = positionalArg;
     if (arg == null) {
       return const <FigCompletionSuggestion>[];
     }
@@ -704,7 +791,7 @@ FigCompletionInput parseFigCompletionInput(TextEditingValue value) {
     if (char == '"' || char == "'") {
       quote = char;
       if (tokenStart < 0) {
-        tokenStart = index + 1;
+        tokenStart = index;
       }
       continue;
     }
@@ -798,22 +885,24 @@ List<FigCompletionSuggestion> _templateSuggestions(
   if (!templates.contains('filepaths') && !templates.contains('folders')) {
     return const <FigCompletionSuggestion>[];
   }
-  final cwd = Directory(context.cwd);
-  if (!cwd.existsSync()) {
+  final query = _resolvePathTemplateQuery(prefix, context.cwd);
+  if (query == null) {
     return const <FigCompletionSuggestion>[];
   }
   final foldersOnly =
       templates.contains('folders') && !templates.contains('filepaths');
   final suggestions = <FigCompletionSuggestion>[];
-  for (final entry in cwd.listSync(followLinks: false)) {
+  for (final entry in query.directory.listSync(followLinks: false)) {
     final isDirectory = entry is Directory;
     if (foldersOnly && !isDirectory) {
       continue;
     }
-    final name = '${_basename(entry.path)}${isDirectory ? '/' : ''}';
-    if (prefix.isNotEmpty && !name.startsWith(prefix)) {
+    final baseName = _basename(entry.path);
+    if (query.leafPrefix.isNotEmpty && !baseName.startsWith(query.leafPrefix)) {
       continue;
     }
+    final name =
+        '${query.suggestionPrefix}$baseName${isDirectory ? '/' : ''}';
     suggestions.add(
       FigCompletionSuggestion(
         name: name,
@@ -868,6 +957,125 @@ Future<List<FigCompletionSuggestion>> _generatorSuggestions(
 
 String _decodeSplitOn(String value) {
   return value.replaceAll(r'\n', '\n').replaceAll(r'\t', '\t');
+}
+
+_FigCompletionPathQuery? _resolvePathTemplateQuery(String prefix, String cwd) {
+  final separator = Platform.pathSeparator;
+  final cwdDirectory = Directory(cwd);
+  if (!cwdDirectory.existsSync()) {
+    return null;
+  }
+
+  if (prefix.isEmpty) {
+    return _FigCompletionPathQuery(
+      directory: cwdDirectory,
+      suggestionPrefix: '',
+      leafPrefix: '',
+    );
+  }
+
+  final hasTrailingSeparator = prefix.endsWith(separator);
+  final slashIndex = hasTrailingSeparator
+      ? prefix.length - 1
+      : prefix.lastIndexOf(separator);
+  final directoryPrefix = slashIndex < 0 ? '' : prefix.substring(0, slashIndex + 1);
+  final leafPrefix = hasTrailingSeparator
+      ? ''
+      : slashIndex < 0
+      ? prefix
+      : prefix.substring(slashIndex + 1);
+  final resolvedDirectory = directoryPrefix.isEmpty
+      ? cwdDirectory
+      : Directory(
+          prefix.startsWith(separator)
+              ? _trimTrailingPathSeparator(directoryPrefix)
+              : _joinPath(cwd, _trimTrailingPathSeparator(directoryPrefix)),
+        );
+  if (!resolvedDirectory.existsSync()) {
+    return null;
+  }
+  return _FigCompletionPathQuery(
+    directory: resolvedDirectory,
+    suggestionPrefix: directoryPrefix,
+    leafPrefix: leafPrefix,
+  );
+}
+
+String _rewriteAcceptedReplacement(String replacement, String rawToken) {
+  final quote = _quoteStyleForRawToken(rawToken);
+  if (quote == "'") {
+    return _singleQuotedReplacement(replacement);
+  }
+  if (quote == '"') {
+    return _doubleQuotedReplacement(replacement);
+  }
+  return _escapeUnquotedReplacement(replacement);
+}
+
+String _quoteStyleForRawToken(String rawToken) {
+  if (rawToken.startsWith("'")) {
+    return "'";
+  }
+  if (rawToken.startsWith('"')) {
+    return '"';
+  }
+  return '';
+}
+
+String _singleQuotedReplacement(String replacement) {
+  return "'${replacement.replaceAll("'", "'\\''")}'";
+}
+
+String _doubleQuotedReplacement(String replacement) {
+  final escaped = replacement
+      .replaceAll(r'\', r'\\')
+      .replaceAll('"', r'\"')
+      .replaceAll(r'$', r'\$')
+      .replaceAll('`', r'\`');
+  return '"$escaped"';
+}
+
+String _escapeUnquotedReplacement(String replacement) {
+  final buffer = StringBuffer();
+  for (var index = 0; index < replacement.length; index += 1) {
+    final char = replacement[index];
+    if (_isWhitespace(char) || _needsShellEscape(char)) {
+      buffer.write(r'\');
+    }
+    buffer.write(char);
+  }
+  return buffer.toString();
+}
+
+bool _needsShellEscape(String char) {
+  return switch (char) {
+    r'\' || '"' || "'" || r'$' || '`' || '&' || '|' || ';' || '<' || '>' ||
+    '(' || ')' || '[' || ']' || '{' || '}' || '*' || '?' || '!' || '~' ||
+    '#' => true,
+    _ => false,
+  };
+}
+
+String _trimTrailingPathSeparator(String path) {
+  final separator = Platform.pathSeparator;
+  if (path == separator) {
+    return path;
+  }
+  var trimmed = path;
+  while (trimmed.length > 1 && trimmed.endsWith(separator)) {
+    trimmed = trimmed.substring(0, trimmed.length - 1);
+  }
+  return trimmed;
+}
+
+String _joinPath(String left, String right) {
+  if (right.isEmpty) {
+    return left;
+  }
+  if (left.endsWith(Platform.pathSeparator)) {
+    return '$left$right';
+  }
+  return '$left${Platform.pathSeparator}$right';
 }
 
 String _basename(String path) {

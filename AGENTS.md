@@ -34,13 +34,13 @@
 ## 技术参考
 
 - Ianvs Terminal 客户端使用 Flutter 开发。
-- Ianvs Terminal 应用 `/Users/robinfai/personal/flutterm` 作为 terminal 实现依赖库。
+- Ianvs Terminal 当前工作树的 path dependency 解析到 `/Users/luobinghui/projects/flutter/flutterm`，并以这份本地 checkout 作为 terminal 实现依赖库。
 - 首选依赖 `flutterm_terminal` 承载 terminal runtime、viewport、输入编码、选区、滚动和基础搜索。
 - `flutterm_pty` 可以作为直接 path dependency，但产品层只允许用于 `NativePtyBackend.load()`；不要绕过 `flutterm_terminal` 重新实现 terminal 能力。
 - 初期可以使用本地 path dependency。是否发布、版本化或搬迁 flutterm，要另写决策文档。
 - 不复制 flutterm 源码，不在 Ianvs Terminal 内做 flutterm 的影子实现。
 - 发现 flutterm 的 bug、限制或缺少能力时，先写到 `FLUTTERM_FEEDBACK.md`，记录复现、期望行为、影响里程碑、候选上游包和当前绕行方式。
-- 只有用户明确要求修改 flutterm 时，才进入 `/Users/robinfai/personal/flutterm` 改代码；否则只在 Ianvs Terminal 里记录需求和影响。
+- 只有用户明确要求修改 flutterm 时，才进入 `/Users/luobinghui/projects/flutter/flutterm` 改代码；否则只在 Ianvs Terminal 里记录需求和影响。
 - 产品命名和面向用户的文案不把 Flutter 当卖点；技术文档要明确 Flutter 是客户端框架。
 - macOS 是首要目标平台。窗口、菜单、快捷键、PTY 打包和桌面交互先按 macOS 打磨。
 - macOS 本地 PTY 需要启动 `/bin/sh` 或用户默认 shell。`macos/Runner/DebugProfile.entitlements` 和 `macos/Runner/Release.entitlements` 不能打开 `com.apple.security.app-sandbox`；修改 entitlements 后必须跑 `test/macos_entitlements_test.dart` 和真实 shell smoke。
@@ -77,4 +77,16 @@
 - `PRODUCT_PLAN.md` 写产品定位、用户、场景和长期方向。
 - `MILESTONES.md` 写当前推进顺序、每个里程碑的完成条件和依赖风险。
 - `FLUTTERM_FEEDBACK.md` 写 Ianvs Terminal 对 flutterm 的 bug 反馈和 feature 需求。
-- 每次开始新里程碑前，先读这三个文件，再决定是否需要补充任务文档。
+- `MANAGER_TASK_BOARD.md` 写 manager-only 多 agent 推进的 lane、triage、watchdog、verification 和 open blockers。
+- 每次开始新里程碑或新一轮 manager-only rollout 前，先读这些文档，再决定是否需要补充任务文档。
+
+## 多 Agent 推进
+
+- 主 agent 只负责推进进度、维护 `MANAGER_TASK_BOARD.md`、分派 scope、监控卡死、收敛问题和安排下一轮路由；默认不直接改业务代码、不亲自做 review。
+- 子 agent 的回报格式固定为：`done`、`blocked`、`needs-manager` 三选一，并附 `涉及文件`、`执行过的检查`、`剩余风险`。
+- 问题标签固定使用：`BASELINE`、`SESSION`、`UI`、`INPUT`、`COMPLETION`、`INTEGRATION`、`UPSTREAM-BLOCKED`。
+- 写集固定分为 `core/session`、`workspace/ui`、`input/command`。一个写入 owner 只负责一组写集，避免交叉改同一批文件。
+- 常态化分组固定为：`Baseline Lane`、`Session/UI Fix Lane`、`Input/Command Fix Lane`，以及 `Fresh Core Review`、`Fresh Workspace Review`、`Fresh Command UX Review`。
+- fresh review 组不复用实施组结论，直接按 `README.md` 与 `MILESTONES.md` 的验收点从头核对已完成功能。
+- watchdog 固定为：子 agent 在 `15 分钟` 或 `8 次工具动作` 内必须产出有效进展；超时后主 agent 先 `interrupt` 索取部分结果，再超时 `10 分钟` 仍无有效进展则关闭并拆成更小 scope 重派。
+- 真实 shell smoke 在当前工作树里默认视为两段式验证：先确认 dylib 导出当前绑定需要的符号；若 native / Dart 侧基线失配，则在 `MANAGER_TASK_BOARD.md` 与 `FLUTTERM_FEEDBACK.md` 记录为 `UPSTREAM-BLOCKED`，不把它误判为 Ianvs Terminal 产品层回归。

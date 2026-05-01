@@ -140,6 +140,10 @@ class TerminalTabsController extends ChangeNotifier {
   final TerminalSessionRestoreController? sessionRestoreController;
 
   final List<TerminalTabController> _tabs = <TerminalTabController>[];
+  final Map<LocalShellSessionController, VoidCallback> _paneRestoreListeners =
+      <LocalShellSessionController, VoidCallback>{};
+  final Map<LocalShellSessionController, String> _paneRestoreCwds =
+      <LocalShellSessionController, String>{};
   int _nextTabId = 0;
   int _nextPaneId = 0;
   int _activeIndex = -1;
@@ -236,8 +240,7 @@ class TerminalTabsController extends ChangeNotifier {
     if (removed == null) {
       return;
     }
-    removed.shellController.removeListener(_handleTabChanged);
-    removed.shellController.dispose();
+    _disposePane(removed);
     _notifyAndScheduleRestoreSave();
   }
 
@@ -259,8 +262,7 @@ class TerminalTabsController extends ChangeNotifier {
     }
     final removed = _tabs.removeAt(index);
     for (final pane in removed.panes) {
-      pane.shellController.removeListener(_handleTabChanged);
-      pane.shellController.dispose();
+      _disposePane(pane);
     }
     if (_activeIndex >= _tabs.length) {
       _activeIndex = _tabs.length - 1;
@@ -273,7 +275,7 @@ class TerminalTabsController extends ChangeNotifier {
   }
 
   void _handleTabChanged() {
-    _notifyAndScheduleRestoreSave();
+    notifyListeners();
   }
 
   void _splitActivePane(TerminalPaneSplitDirection direction) {
@@ -290,6 +292,7 @@ class TerminalTabsController extends ChangeNotifier {
     _nextPaneId = _nextPaneId < paneId ? paneId : _nextPaneId;
     final shellController = _createShellController(launchCwd: launchCwd);
     shellController.addListener(_handleTabChanged);
+    _trackPaneRestoreState(shellController);
     return TerminalPaneLeaf(id: paneId, shellController: shellController);
   }
 
@@ -358,6 +361,36 @@ class TerminalTabsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _trackPaneRestoreState(LocalShellSessionController shellController) {
+    _paneRestoreCwds[shellController] =
+        shellController.completionController.cwd;
+    void listener() {
+      final nextCwd = shellController.completionController.cwd;
+      if (_paneRestoreCwds[shellController] == nextCwd) {
+        return;
+      }
+      _paneRestoreCwds[shellController] = nextCwd;
+      _scheduleRestoreSave();
+    }
+
+    _paneRestoreListeners[shellController] = listener;
+    shellController.completionController.addListener(listener);
+  }
+
+  void _untrackPaneRestoreState(LocalShellSessionController shellController) {
+    final listener = _paneRestoreListeners.remove(shellController);
+    if (listener != null) {
+      shellController.completionController.removeListener(listener);
+    }
+    _paneRestoreCwds.remove(shellController);
+  }
+
+  void _disposePane(TerminalPaneLeaf pane) {
+    pane.shellController.removeListener(_handleTabChanged);
+    _untrackPaneRestoreState(pane.shellController);
+    pane.shellController.dispose();
+  }
+
   void _scheduleRestoreSave() {
     if (_restoreSaveSuspended || _tabs.isEmpty) {
       return;
@@ -417,8 +450,7 @@ class TerminalTabsController extends ChangeNotifier {
     }
     for (final tab in _tabs) {
       for (final pane in tab.panes) {
-        pane.shellController.removeListener(_handleTabChanged);
-        pane.shellController.dispose();
+        _disposePane(pane);
       }
     }
     _tabs.clear();

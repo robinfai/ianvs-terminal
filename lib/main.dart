@@ -23,6 +23,14 @@ void main() {
   runApp(IanvsTerminalApp(sessionRestoreStore: TerminalSessionRestoreStore()));
 }
 
+int debugTerminalFocusNodeCount(Element element) {
+  final shellState =
+      element is StatefulElement && element.state is _IanvsTerminalShellState
+      ? element.state as _IanvsTerminalShellState
+      : element.findAncestorStateOfType<_IanvsTerminalShellState>();
+  return shellState?._terminalFocusNodes.length ?? 0;
+}
+
 class IanvsTerminalApp extends StatelessWidget {
   const IanvsTerminalApp({
     super.key,
@@ -174,6 +182,7 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   }
 
   void _syncActiveTabState() {
+    _pruneTerminalFocusNodes();
     if (_tabsController.tabs.isEmpty) {
       return;
     }
@@ -660,6 +669,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
 
   Object? _openFind() {
     final activeShell = _tabsController.activeShell;
+    if (activeShell.commandHistoryController.isOpen) {
+      activeShell.commandHistoryController.close();
+      _commandHistoryFocusNode.unfocus();
+    }
     activeShell.openFind();
     _findTextController.text = activeShell.findState.query;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -806,6 +819,25 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
             : 'ianvs-terminal-pane-$paneId',
       ),
     );
+  }
+
+  void _pruneTerminalFocusNodes() {
+    final livePaneIds = _tabsController.tabs
+        .expand((tab) => tab.panes.map((pane) => pane.id))
+        .toSet();
+    final retiredPaneIds = _terminalFocusNodes.keys
+        .where((paneId) => !livePaneIds.contains(paneId))
+        .toList(growable: false);
+    for (final paneId in retiredPaneIds) {
+      final focusNode = _terminalFocusNodes.remove(paneId);
+      if (focusNode == null) {
+        continue;
+      }
+      if (focusNode.hasFocus) {
+        focusNode.unfocus();
+      }
+      focusNode.dispose();
+    }
   }
 }
 

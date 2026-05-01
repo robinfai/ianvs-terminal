@@ -74,15 +74,13 @@ void main() {
       final visibleFrames = <String>[];
       final exitCodeCompleter = Completer<int?>();
       final events = runtime.events.listen((event) {
-        switch (event) {
-          case TerminalSessionFrameEvent(:final frame):
-            visibleFrames.add(_visibleText(frame));
-          case TerminalSessionExitEvent(:final exitCode):
-            if (!exitCodeCompleter.isCompleted) {
-              exitCodeCompleter.complete(exitCode);
-            }
-          case TerminalSessionShellHookEvent():
-            break;
+        if (event is TerminalSessionFrameEvent) {
+          visibleFrames.add(_visibleText(event.frame));
+          return;
+        }
+        if (event is TerminalSessionExitEvent &&
+            !exitCodeCompleter.isCompleted) {
+          exitCodeCompleter.complete(event.exitCode);
         }
       });
       addTearDown(events.cancel);

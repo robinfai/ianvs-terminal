@@ -75,7 +75,13 @@ void main() {
       final dir = Directory.systemTemp.createTempSync('ianvs_completion_cwd_');
       addTearDown(() => dir.deleteSync(recursive: true));
       File('${dir.path}/config.json').writeAsStringSync('{}');
+      File('${dir.path}/my file.txt').writeAsStringSync('{}');
       Directory('${dir.path}/src').createSync();
+      File('${dir.path}/src/main.dart').writeAsStringSync('// main');
+      Directory('${dir.path}/src/maps').createSync();
+      Directory('${dir.path}/foo').createSync();
+      final child = Directory('${dir.path}/child')..createSync();
+      File('${dir.path}/bar.txt').writeAsStringSync('bar');
 
       final repository = FigCompletionRepository.memory(
         index: const FigCompletionIndex(
@@ -115,9 +121,12 @@ void main() {
         ),
         context: FigCompletionContext(cwd: dir.path),
       );
-      expect(filepaths.suggestions.single.name, 'config.json');
+      final configSuggestion = filepaths.suggestions.singleWhere(
+        (suggestion) => suggestion.name == 'config.json',
+      );
+      expect(configSuggestion.name, 'config.json');
       expect(
-        filepaths.suggestions.single.source,
+        configSuggestion.source,
         FigCompletionSuggestionSource.template,
       );
 
@@ -135,6 +144,181 @@ void main() {
       expect(
         generated.suggestions.first.source,
         FigCompletionSuggestionSource.generator,
+      );
+
+      final nestedFilepaths = await engine.complete(
+        const TextEditingValue(
+          text: 'demo --config src/ma',
+          selection: TextSelection.collapsed(offset: 20),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(
+        nestedFilepaths.suggestions.map((suggestion) => suggestion.name),
+        <String>['src/main.dart', 'src/maps/'],
+      );
+
+      final dotRelative = await engine.complete(
+        const TextEditingValue(
+          text: 'demo --config ./fo',
+          selection: TextSelection.collapsed(offset: 18),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(dotRelative.suggestions.single.name, './foo/');
+
+      final parentRelative = await engine.complete(
+        const TextEditingValue(
+          text: 'demo --config ../ba',
+          selection: TextSelection.collapsed(offset: 19),
+        ),
+        context: FigCompletionContext(cwd: child.path),
+      );
+      expect(parentRelative.suggestions.single.name, '../bar.txt');
+
+      final absolute = await engine.complete(
+        TextEditingValue(
+          text: 'demo --config ${dir.path}/co',
+          selection: TextSelection.collapsed(
+            offset: 'demo --config ${dir.path}/co'.length,
+          ),
+        ),
+        context: FigCompletionContext(cwd: child.path),
+      );
+      expect(
+        absolute.suggestions.single.name,
+        '${dir.path}/config.json',
+      );
+
+      final foldersOnly = await engine.complete(
+        const TextEditingValue(
+          text: 'demo --folder src/ma',
+          selection: TextSelection.collapsed(offset: 20),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(
+        foldersOnly.suggestions.map((suggestion) => suggestion.name),
+        <String>['src/maps/'],
+      );
+
+      final escapedAcceptanceInput = const TextEditingValue(
+        text: 'demo --config my',
+        selection: TextSelection.collapsed(offset: 16),
+      );
+      final escapedAcceptance = await engine.complete(
+        escapedAcceptanceInput,
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      final escapedSuggestion = escapedAcceptance.suggestions.singleWhere(
+        (suggestion) => suggestion.name == 'my file.txt',
+      );
+      final escapedAccepted = engine.accept(
+        escapedAcceptanceInput,
+        escapedAcceptance,
+        escapedSuggestion,
+      );
+      expect(escapedAccepted.text, r'demo --config my\ file.txt');
+
+      final quotedAcceptanceInput = const TextEditingValue(
+        text: 'demo --config "my',
+        selection: TextSelection.collapsed(offset: 17),
+      );
+      final quotedAcceptance = await engine.complete(
+        quotedAcceptanceInput,
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      final quotedSuggestion = quotedAcceptance.suggestions.singleWhere(
+        (suggestion) => suggestion.name == 'my file.txt',
+      );
+      final quotedAccepted = engine.accept(
+        quotedAcceptanceInput,
+        quotedAcceptance,
+        quotedSuggestion,
+      );
+      expect(quotedAccepted.text, 'demo --config "my file.txt"');
+
+      final pairFirst = await engine.complete(
+        const TextEditingValue(
+          text: 'demo --pair a',
+          selection: TextSelection.collapsed(offset: 13),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(pairFirst.suggestions.single.name, 'alpha');
+
+      final pairSecond = await engine.complete(
+        const TextEditingValue(
+          text: 'demo --pair alpha t',
+          selection: TextSelection.collapsed(offset: 19),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(pairSecond.suggestions.single.name, 'two');
+
+      final variadicOption = await engine.complete(
+        const TextEditingValue(
+          text: 'demo --many red b',
+          selection: TextSelection.collapsed(offset: 17),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(variadicOption.suggestions.single.name, 'blue');
+
+      final optionalOptionSkipped = await engine.complete(
+        const TextEditingValue(
+          text: 'demo --format --',
+          selection: TextSelection.collapsed(offset: 16),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(
+        optionalOptionSkipped.suggestions.map((suggestion) => suggestion.name),
+        contains('--config'),
+      );
+
+      final positionalRequired = await engine.complete(
+        const TextEditingValue(
+          text: 'demo run w',
+          selection: TextSelection.collapsed(offset: 10),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(positionalRequired.suggestions.single.name, 'web');
+
+      final positionalOptional = await engine.complete(
+        const TextEditingValue(
+          text: 'demo run web d',
+          selection: TextSelection.collapsed(offset: 14),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(positionalOptional.suggestions.single.name, 'debug');
+
+      final positionalVariadic = await engine.complete(
+        const TextEditingValue(
+          text: 'demo run web debug ta',
+          selection: TextSelection.collapsed(offset: 21),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(
+        positionalVariadic.suggestions.map((suggestion) => suggestion.name),
+        <String>['tag-a', 'tag-b'],
+      );
+
+      final positionalOptionalSkipped = await engine.complete(
+        const TextEditingValue(
+          text: 'demo run web --',
+          selection: TextSelection.collapsed(offset: 15),
+        ),
+        context: FigCompletionContext(cwd: dir.path),
+      );
+      expect(
+        positionalOptionalSkipped.suggestions.map(
+          (suggestion) => suggestion.name,
+        ),
+        contains('--watch'),
       );
     },
   );
@@ -182,12 +366,31 @@ FigCompletionSpec _demoSpec() {
       FigCompletionCommand(
         names: <String>['run'],
         description: 'Run target',
+        options: <FigCompletionOption>[
+          FigCompletionOption(names: <String>['--watch']),
+        ],
         args: <FigCompletionArg>[
           FigCompletionArg(
             name: 'target',
             suggestions: <FigCompletionSuggestion>[
               FigCompletionSuggestion(name: 'web'),
               FigCompletionSuggestion(name: 'native'),
+            ],
+          ),
+          FigCompletionArg(
+            name: 'mode',
+            isOptional: true,
+            suggestions: <FigCompletionSuggestion>[
+              FigCompletionSuggestion(name: 'debug'),
+              FigCompletionSuggestion(name: 'release'),
+            ],
+          ),
+          FigCompletionArg(
+            name: 'tag',
+            isVariadic: true,
+            suggestions: <FigCompletionSuggestion>[
+              FigCompletionSuggestion(name: 'tag-a'),
+              FigCompletionSuggestion(name: 'tag-b'),
             ],
           ),
         ],
@@ -202,12 +405,63 @@ FigCompletionSpec _demoSpec() {
         ],
       ),
       FigCompletionOption(
+        names: <String>['--folder'],
+        args: <FigCompletionArg>[
+          FigCompletionArg(name: 'dir', templates: <String>['folders']),
+        ],
+      ),
+      FigCompletionOption(
         names: <String>['--generated'],
         args: <FigCompletionArg>[
           FigCompletionArg(
             name: 'value',
             generators: <FigCompletionGenerator>[
               FigCompletionGenerator(script: "printf 'alpha\\nbeta\\n'"),
+            ],
+          ),
+        ],
+      ),
+      FigCompletionOption(
+        names: <String>['--pair'],
+        args: <FigCompletionArg>[
+          FigCompletionArg(
+            name: 'left',
+            suggestions: <FigCompletionSuggestion>[
+              FigCompletionSuggestion(name: 'alpha'),
+              FigCompletionSuggestion(name: 'beta'),
+            ],
+          ),
+          FigCompletionArg(
+            name: 'right',
+            suggestions: <FigCompletionSuggestion>[
+              FigCompletionSuggestion(name: 'one'),
+              FigCompletionSuggestion(name: 'two'),
+            ],
+          ),
+        ],
+      ),
+      FigCompletionOption(
+        names: <String>['--many'],
+        args: <FigCompletionArg>[
+          FigCompletionArg(
+            name: 'item',
+            isVariadic: true,
+            suggestions: <FigCompletionSuggestion>[
+              FigCompletionSuggestion(name: 'blue'),
+              FigCompletionSuggestion(name: 'red'),
+            ],
+          ),
+        ],
+      ),
+      FigCompletionOption(
+        names: <String>['--format'],
+        args: <FigCompletionArg>[
+          FigCompletionArg(
+            name: 'format',
+            isOptional: true,
+            suggestions: <FigCompletionSuggestion>[
+              FigCompletionSuggestion(name: 'json'),
+              FigCompletionSuggestion(name: 'yaml'),
             ],
           ),
         ],

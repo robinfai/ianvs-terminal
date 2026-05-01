@@ -12,6 +12,7 @@ import 'command_history.dart';
 import 'fig_completion.dart';
 import 'modern_input_controller.dart';
 import 'saved_commands.dart';
+import 'shell_hook_pty_backend_adapter.dart';
 import 'terminal_blocks.dart';
 import 'terminal_settings.dart';
 
@@ -102,6 +103,8 @@ class LocalShellSessionController extends ChangeNotifier {
   terminal.TerminalViewportController _viewportController =
       terminal.TerminalViewportController();
   StreamSubscription<terminal.TerminalSessionEvent>? _eventsSubscription;
+  StreamSubscription<ShellHookEvent>? _shellHookSubscription;
+  ShellHookPtyBackendAdapter? _shellHookBackend;
 
   LocalShellStatus _status = LocalShellStatus.starting;
   TerminalFindState _findState = const TerminalFindState();
@@ -155,8 +158,11 @@ class LocalShellSessionController extends ChangeNotifier {
     try {
       final sessionConfig = _sessionConfigFactory();
       completionController.updateCwd(sessionConfig.launch.cwd ?? _defaultCwd());
+      final backend = ShellHookPtyBackendAdapter.wrap(backendFactory());
+      _shellHookBackend = backend;
+      _shellHookSubscription = backend.shellHooks.listen(_handleShellHookEvent);
       final runtime = terminal.TerminalRuntimeController(
-        backend: backendFactory(),
+        backend: backend,
         copyToClipboard: clipboardClient.writeText,
         readClipboard: clipboardClient.readText,
       );
@@ -292,7 +298,7 @@ class LocalShellSessionController extends ChangeNotifier {
     modernInputController.updateDraft(command);
   }
 
-  void _handleShellHookEvent(terminal.TerminalSessionShellHookEvent event) {
+  void _handleShellHookEvent(ShellHookEvent event) {
     switch (event.hook) {
       case 'preexec':
         _startHookBlock(event.payload);
@@ -337,7 +343,7 @@ class LocalShellSessionController extends ChangeNotifier {
     _runningBlock = _RunningShellBlock(
       id: blockId,
       commandText: command,
-      outputStartRow: cursorRow,
+      outputStartRow: cursorRow + 1,
     );
   }
 
@@ -366,15 +372,10 @@ class LocalShellSessionController extends ChangeNotifier {
       return '';
     }
     final frame = _viewportController.frame;
-    var outputStartRow = block.outputStartRow;
-    final commandMatches = runtime.searchText(sessionId, block.commandText);
-    if (commandMatches.isNotEmpty) {
-      outputStartRow = commandMatches.last.row + 1;
-    }
     return runtime.selectionText(
           sessionId,
           terminal.TerminalSelection(
-            startRow: outputStartRow,
+            startRow: block.outputStartRow,
             startCol: 0,
             endRow: 1 << 30,
             endCol: frame.viewportCols,
@@ -448,7 +449,7 @@ class LocalShellSessionController extends ChangeNotifier {
 
     final runtime = _runtime;
     final sessionId = _sessionId;
-    if (canAcceptInput && runtime != null && sessionId != null) {
+    if (runtime != null && sessionId != null) {
       return runtime.searchText(sessionId, query);
     }
 
@@ -489,7 +490,7 @@ class LocalShellSessionController extends ChangeNotifier {
     final match = _findState.matches[activeIndex];
     final runtime = _runtime;
     final sessionId = _sessionId;
-    if (canAcceptInput && runtime != null && sessionId != null) {
+    if (runtime != null && sessionId != null) {
       runtime.scrollViewportTo(sessionId, match.scrollbackOffset);
     }
     selectionController.setSelection(
@@ -509,7 +510,7 @@ class LocalShellSessionController extends ChangeNotifier {
     }
     final runtime = _runtime;
     final sessionId = _sessionId;
-    if (canAcceptInput && runtime != null && sessionId != null) {
+    if (runtime != null && sessionId != null) {
       final nativeSelection = runtime.selectionText(
         sessionId,
         selection,
@@ -526,29 +527,26 @@ class LocalShellSessionController extends ChangeNotifier {
     if (event.sessionId != _sessionId) {
       return;
     }
-    switch (event) {
-      case terminal.TerminalSessionFrameEvent(:final frame):
-        final nextFrame = _frameWithRenderableDirtyRows(frame);
-        _viewportController.updateFrame(nextFrame);
-        modernInputController.updateAutoRawHintFromModes(nextFrame.modes);
-        _requestStartupRepaintIfNeeded();
-        final windowTitle = frame.windowTitle?.trim();
-        if (windowTitle != null &&
-            windowTitle.isNotEmpty &&
-            windowTitle != _windowTitle) {
-          _windowTitle = windowTitle;
-          notifyListeners();
-        }
-        break;
-      case terminal.TerminalSessionShellHookEvent():
-        _handleShellHookEvent(event);
-        break;
-      case terminal.TerminalSessionExitEvent(:final exitCode):
-        _finishRunningBlock(TerminalBlockStatus.unknown);
-        _exitCode = exitCode;
-        _status = LocalShellStatus.exited;
+    if (event is terminal.TerminalSessionFrameEvent) {
+      final frame = event.frame;
+      final nextFrame = _frameWithRenderableDirtyRows(frame);
+      _viewportController.updateFrame(nextFrame);
+      modernInputController.updateAutoRawHintFromModes(nextFrame.modes);
+      _requestStartupRepaintIfNeeded();
+      final windowTitle = frame.windowTitle?.trim();
+      if (windowTitle != null &&
+          windowTitle.isNotEmpty &&
+          windowTitle != _windowTitle) {
+        _windowTitle = windowTitle;
         notifyListeners();
-        break;
+      }
+      return;
+    }
+    if (event is terminal.TerminalSessionExitEvent) {
+      _finishRunningBlock(TerminalBlockStatus.unknown);
+      _exitCode = event.exitCode;
+      _status = LocalShellStatus.exited;
+      notifyListeners();
     }
   }
 
@@ -605,6 +603,8 @@ class LocalShellSessionController extends ChangeNotifier {
     final sessionId = _sessionId;
     _eventsSubscription?.cancel();
     _eventsSubscription = null;
+    _shellHookSubscription?.cancel();
+    _shellHookSubscription = null;
     if (runtime != null && closeSession && sessionId != null) {
       try {
         runtime.closeSession(sessionId);
@@ -615,6 +615,8 @@ class LocalShellSessionController extends ChangeNotifier {
     runtime?.dispose();
     _runtime = null;
     _inputController = null;
+    _shellHookBackend?.dispose();
+    _shellHookBackend = null;
   }
 
   @override

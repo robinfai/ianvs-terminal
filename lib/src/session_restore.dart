@@ -196,9 +196,12 @@ class TerminalSessionRestoreStore {
   int saveCount = 0;
 
   static File defaultSessionRestoreFile() {
-    final home = Platform.environment['HOME'] ?? Directory.current.path;
     return File(
-      '$home/Library/Application Support/Ianvs/ianvs-terminal/session_restore.json',
+      defaultSessionRestoreFilePath(
+        environment: Platform.environment,
+        operatingSystem: Platform.operatingSystem,
+        currentPath: Directory.current.path,
+      ),
     );
   }
 
@@ -335,6 +338,84 @@ double _ratioFromJson(Object? value) {
     return _validRatioOrDefault(value.toDouble());
   }
   return 0.5;
+}
+
+String defaultSessionRestoreFilePath({
+  Map<String, String>? environment,
+  String? operatingSystem,
+  String? currentPath,
+}) {
+  final env = environment ?? Platform.environment;
+  final os = operatingSystem ?? Platform.operatingSystem;
+  final fallbackCurrentPath = currentPath ?? Directory.current.path;
+  final separator = _pathSeparatorFor(os);
+  final baseDirectory = switch (os) {
+    'macos' => _joinPath(
+      _nonEmpty(env['HOME']) ?? fallbackCurrentPath,
+      <String>['Library', 'Application Support', 'Ianvs', 'ianvs-terminal'],
+      separator: separator,
+    ),
+    'windows' => _joinPath(
+      _nonEmpty(env['APPDATA']) ??
+          _nonEmpty(env['USERPROFILE']) ??
+          fallbackCurrentPath,
+      <String>['Ianvs', 'ianvs-terminal'],
+      separator: separator,
+    ),
+    'linux' => _joinPath(
+      _nonEmpty(env['XDG_STATE_HOME']) ??
+          _linuxStateHome(
+            home: _nonEmpty(env['HOME']),
+            currentPath: fallbackCurrentPath,
+          ),
+      <String>['ianvs-terminal'],
+      separator: separator,
+    ),
+    _ => _joinPath(_nonEmpty(env['HOME']) ?? fallbackCurrentPath, <String>[
+      '.ianvs-terminal',
+    ], separator: separator),
+  };
+  return _joinPath(baseDirectory, <String>[
+    'session_restore.json',
+  ], separator: separator);
+}
+
+String _linuxStateHome({required String? home, required String currentPath}) {
+  if (home == null || home.isEmpty) {
+    return currentPath;
+  }
+  return '$home/.local/state';
+}
+
+String _joinPath(
+  String base,
+  List<String> segments, {
+  required String separator,
+}) {
+  final normalizedBase = base.trim();
+  final normalizedSegments = segments
+      .map((segment) => segment.trim())
+      .where((segment) => segment.isNotEmpty)
+      .toList(growable: false);
+  if (normalizedSegments.isEmpty) {
+    return normalizedBase;
+  }
+  final trimmedBase = normalizedBase.endsWith(separator)
+      ? normalizedBase.substring(0, normalizedBase.length - separator.length)
+      : normalizedBase;
+  return <String>[trimmedBase, ...normalizedSegments].join(separator);
+}
+
+String _pathSeparatorFor(String operatingSystem) {
+  return operatingSystem == 'windows' ? '\\' : '/';
+}
+
+String? _nonEmpty(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
+    return null;
+  }
+  return trimmed;
 }
 
 double _validRatioOrDefault(double value) {

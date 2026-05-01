@@ -6,7 +6,7 @@ Ianvs Terminal 是 Ianvs 产品族下的现代终端客户端。它以 terminal 
 
 本项目以 Warp 的 terminal 体验作为功能参考，重点学习 blocks、现代输入编辑、命令搜索、补全、会话管理和启动配置。Warp 只是参考目标，不作为 fork、复刻对象或兼容承诺。
 
-Ianvs Terminal 的 terminal 实现依赖 `/Users/robinfai/personal/flutterm`。产品侧负责窗口、tab、pane、block、命令搜索、启动配置和 Ianvs 安全访问上下文；底层 PTY、终端渲染、输入编码、选区、滚动和基础搜索优先交给 `flutterm_terminal`。如果发现 flutterm 的 bug 或缺少能力，先记录到 `FLUTTERM_FEEDBACK.md`，再决定是否推动上游修改。
+Ianvs Terminal 的 terminal 实现当前通过 path dependency 解析到 `/Users/luobinghui/projects/flutter/flutterm`。产品侧负责窗口、tab、pane、block、命令搜索、启动配置和 Ianvs 安全访问上下文；底层 PTY、终端渲染、输入编码、选区、滚动和基础搜索优先交给 `flutterm_terminal`。如果发现 flutterm 的 bug 或缺少能力，先记录到 `FLUTTERM_FEEDBACK.md`，再决定是否推动上游修改。
 
 客户端开发框架固定为 Flutter。macOS 是首要目标平台，优先完成桌面端窗口、菜单、快捷键、PTY 打包和日常 terminal 体验。Windows 和 Linux 保留桌面适配目标，iOS 和 Android 保留移动端适配目标；跨平台适配要作为架构边界保留，但不抢占 macOS 首版交付。
 

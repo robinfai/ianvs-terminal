@@ -251,6 +251,35 @@ void main() {
     expect(split.direction, TerminalPaneSplitDirection.right);
     expect((split.second as TerminalSessionRestorePaneLeaf).cwd, cwd.path);
   });
+
+  test('shell ui state does not thrash restore saves but cwd changes do', () {
+    final backend = _FakePtySessionBackend();
+    final restoreStore = TerminalSessionRestoreStore.memory();
+    final restoreController = TerminalSessionRestoreController(
+      store: restoreStore,
+      debounceDuration: Duration.zero,
+    );
+    final tabs = _tabs(backend, restoreController: restoreController);
+    final cwd = Directory.systemTemp.createTempSync('ianvs_restore_cwd_ui_');
+    addTearDown(() {
+      tabs.dispose();
+      restoreController.dispose();
+      cwd.deleteSync(recursive: true);
+    });
+
+    tabs.createInitialTab();
+    final initialSaveCount = restoreStore.saveCount;
+
+    tabs.activeShell.openFind();
+    tabs.activeShell.updateFindQuery('missing');
+    tabs.activeShell.commandHistoryController.open();
+
+    expect(restoreStore.saveCount, initialSaveCount);
+
+    tabs.activeShell.completionController.updateCwd(cwd.path);
+
+    expect(restoreStore.saveCount, initialSaveCount + 1);
+  });
 }
 
 TerminalTabsController _tabs(
