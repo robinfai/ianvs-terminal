@@ -77,7 +77,7 @@ Ianvs Terminal 当前工作树的 path dependency 解析到 `/Users/luobinghui/p
 - 复现或触发条件：启动本地 shell 时首帧为空白，随后 prompt 文本通过 delta 帧进入；delta 帧包含 `rows` 但 `dirty_ranges` 为空或没有覆盖这些行。
 - 期望行为：flutterm 发出的 delta 帧中，所有携带的行都应能触发渲染重建；可以由上游保证 `dirty_ranges` 覆盖 `rows`，也可以由 `TerminalViewportController` 或渲染层在消费 delta 帧时补齐。
 - 候选上游位置：`flutterm_terminal` 的 `TerminalViewportController` / `RenderTerminalViewport`，以及 `native/core` 的 frame diff 生成。
-- 当前处理：产品侧绕行。Ianvs Terminal 在接收 `TerminalSessionFrameEvent` 时，会把 delta 帧里实际携带的行合并进 dirty ranges 后再交给显示层。
+- 当前处理：已转上游。flutterm `T-062` 已在 `TerminalViewportState.applyDelta` 中把 delta 帧实际携带的行合并进 dirty ranges，并覆盖“携带行但 dirty ranges 为空”的回归测试；Ianvs Terminal 可在更新 flutterm 依赖并通过真实 shell smoke 后移除产品侧 dirty range 绕行。
 
 ### FT-007：启动期可能出现只有光标位置、没有 prompt 行文本的帧
 
@@ -87,7 +87,7 @@ Ianvs Terminal 当前工作树的 path dependency 解析到 `/Users/luobinghui/p
 - 复现或触发条件：启动本地 shell，初始 prompt 输出与首个 viewport resize / warm-up refresh 交错；native core 可能先给出 cursor col 已更新、当前行为空的 frame。
 - 期望行为：flutterm 在启动期 resize 与 shell 初始输出交错时，仍能保证 prompt 所在行进入 snapshot 或 delta rows；如果只更新 cursor，也应提供可请求全量重绘的公开 API。
 - 候选上游位置：`flutterm_terminal` 的 `TerminalRuntimeController` refresh 策略，`native/core` 的 frame diff / resize damage 生成。
-- 当前处理：产品侧绕行。Ianvs Terminal 在启动期检测到“光标可见且列号大于 0，但当前 cursor 行为空或缺失”时，会对当前 scrollback offset 请求一次 `scrollViewportTo`，利用 native core 的 full repaint 路径恢复 prompt 行。
+- 当前处理：已转上游。flutterm `T-062` 已新增 `TerminalRuntimeController.refreshSession(sessionId)` 和 xterm facade `Terminal.refresh()`，由上游显式请求当前 scrollback offset 的 native full repaint；Ianvs Terminal 可在更新 flutterm 依赖并通过启动 prompt smoke 后改用公开 API，移除产品侧 `scrollViewportTo(currentOffset)` 绕行。
 
 ### FT-008：terminal 内行内 block 分隔需要渲染层扩展点
 
@@ -107,7 +107,7 @@ Ianvs Terminal 当前工作树的 path dependency 解析到 `/Users/luobinghui/p
 - 复现或触发条件：启动 `vim`、`less`、`top` 或某些 REPL 时，terminal 可能进入 alternate screen 或 raw-like 交互；Ianvs Terminal 只能从现有 modes 做部分自动判断，不能覆盖所有程序。
 - 期望行为：flutterm 在 `TerminalFrameModes` 或 runtime event 中公开 `alternate_screen_active` 或通用 raw app hint，让产品层能更可靠地决定是否自动切到 Raw 输入。
 - 候选上游位置：`native/core` frame meta，`flutterm_terminal` 的 `TerminalFrameModes` / `TerminalFrameDiff`。
-- 当前处理：产品侧绕行。M3A 使用 `mouseMode != off`、`applicationCursor`、`applicationKeypad`、`focusTracking` 作为自动 Raw 条件，并提供 `Cmd+Shift+I` 手动 Raw 兜底。
+- 当前处理：已转上游。flutterm `T-062` 已从 native frame modes 透出 `alternate_screen`，Dart 侧解析为 `TerminalFrameModes.alternateScreen`，并增加 native / Dart 回归测试；Ianvs Terminal 可在更新依赖后把 alternate screen 纳入自动 Raw 条件，`Cmd+Shift+I` 仍保留为手动兜底。
 
 ### FT-010：当前 native core debug dylib 与 flutterm_pty 绑定符号不匹配
 
