@@ -868,6 +868,59 @@ void main() {
     expect(backend.scrollToOffsets, contains(9));
   });
 
+  testWidgets('inline block rail shows the active block and dividers', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: _blocksForSession,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('terminal-inline-block-rail')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-inline-active-block-card')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-inline-block-divider-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-inline-active-block-card')),
+        matching: find.textContaining('false'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-1')),
+    );
+    await tester.pump();
+
+    expect(find.text('Block 1/2'), findsOneWidget);
+    expect(backend.scrollToOffsets, contains(2));
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-inline-active-block-card')),
+        matching: find.textContaining('pwd'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('block history panel shows previews and selects blocks', (
     tester,
   ) async {
@@ -995,6 +1048,47 @@ void main() {
     );
     expect(
       find.byKey(const Key('terminal-block-row-session-2-block-1')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('inline block rail follows the active tab', (tester) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: _blocksForSession,
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-2')),
+      findsOneWidget,
+    );
+
+    await _tapHeaderControl(
+      tester,
+      find.byKey(const Key('terminal-new-tab-button')),
+    );
+
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-2-block-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-2')),
+      findsNothing,
+    );
+
+    await _previousTabShortcut(tester);
+
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-2-block-1')),
       findsNothing,
     );
   });
@@ -1179,36 +1273,45 @@ void main() {
     expect(find.text('1/2'), findsOneWidget);
   });
 
-  testWidgets('command history is isolated per tab', (tester) async {
-    final backend = _FakePtySessionBackend();
-    await tester.pumpWidget(
-      IanvsTerminalApp(
-        backendFactory: () => backend,
-        initialBlocksForSession: _blocksForSession,
-      ),
-    );
-    await tester.pump();
+  testWidgets(
+    'command search prioritizes active-tab history and keeps cross-tab results',
+    (tester) async {
+      final backend = _FakePtySessionBackend();
+      await tester.pumpWidget(
+        IanvsTerminalApp(
+          backendFactory: () => backend,
+          initialBlocksForSession: _blocksForSession,
+        ),
+      );
+      await tester.pump();
 
-    await _tapHeaderControl(
-      tester,
-      find.byKey(const Key('terminal-new-tab-button')),
-    );
-    await tester.tap(find.byKey(const Key('terminal-command-history-button')));
-    await tester.pump();
+      await _tapHeaderControl(
+        tester,
+        find.byKey(const Key('terminal-new-tab-button')),
+      );
+      await tester.tap(
+        find.byKey(const Key('terminal-command-history-button')),
+      );
+      await tester.pump();
 
-    expect(find.textContaining('echo second'), findsWidgets);
-    expect(find.textContaining('false'), findsNothing);
+      expect(find.textContaining('echo second'), findsWidgets);
+      expect(find.textContaining('false'), findsWidgets);
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pump();
-    expect(_modernInputText(tester), 'echo second');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(_modernInputText(tester), 'echo second');
 
-    await _previousTabShortcut(tester);
-    await _metaShortcut(tester, LogicalKeyboardKey.keyR);
+      await _previousTabShortcut(tester);
+      await _metaShortcut(tester, LogicalKeyboardKey.keyR);
 
-    expect(find.textContaining('false'), findsWidgets);
-    expect(find.textContaining('echo second'), findsNothing);
-  });
+      expect(find.textContaining('false'), findsWidgets);
+      expect(find.textContaining('echo second'), findsWidgets);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(_modernInputText(tester), 'false');
+    },
+  );
 
   testWidgets('raw mode does not open command history search', (tester) async {
     final backend = _FakePtySessionBackend();
@@ -1305,7 +1408,13 @@ void main() {
   ) async {
     final backend = _FakePtySessionBackend();
     final savedStore = _savedCommandsStore()
-      ..save(const SavedCommandsState(commands: <String>['echo saved']));
+      ..save(
+        const SavedCommandsState(
+          entries: <SavedCommandEntry>[
+            SavedCommandEntry(command: 'echo saved'),
+          ],
+        ),
+      );
     await tester.pumpWidget(
       IanvsTerminalApp(
         backendFactory: () => backend,
@@ -1360,12 +1469,18 @@ void main() {
     expect(find.text('History'), findsOneWidget);
   });
 
-  testWidgets('saved commands are global while history follows active tab', (
+  testWidgets('saved commands and history are global in command search', (
     tester,
   ) async {
     final backend = _FakePtySessionBackend();
     final savedStore = _savedCommandsStore()
-      ..save(const SavedCommandsState(commands: <String>['echo global']));
+      ..save(
+        const SavedCommandsState(
+          entries: <SavedCommandEntry>[
+            SavedCommandEntry(command: 'echo global'),
+          ],
+        ),
+      );
     await tester.pumpWidget(
       IanvsTerminalApp(
         backendFactory: () => backend,
@@ -1383,7 +1498,7 @@ void main() {
 
     expect(find.textContaining('echo global'), findsWidgets);
     expect(find.textContaining('echo second'), findsWidgets);
-    expect(find.textContaining('false'), findsNothing);
+    expect(find.textContaining('false'), findsWidgets);
   });
 
   testWidgets('saved commands reload after rebuilding the app', (tester) async {
@@ -1820,6 +1935,8 @@ void main() {
         'Launch Config',
         'New SSH Session',
         'Session Context',
+        'New Window',
+        'Close Window',
         'New Tab',
         'Close Tab',
         'Restart',
@@ -1890,6 +2007,43 @@ void main() {
     await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const Key('terminal-launch-config-name-field')),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('terminal-launch-config-name-field')),
+      '',
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.byKey(const Key('terminal-launch-config-save-button')),
+          )
+          .onPressed,
+      isNull,
+    );
+    await tester.enterText(
+      find.byKey(const Key('terminal-launch-config-name-field')),
+      'workspace-layout',
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.byKey(const Key('terminal-launch-config-save-button')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('terminal-launch-config-advanced-toggle')),
+    );
+    await tester.tap(
+      find.byKey(const Key('terminal-launch-config-advanced-toggle')),
+    );
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('terminal-launch-config-path-field')),
       file.path,
@@ -1902,8 +2056,24 @@ void main() {
       find.byKey(const Key('terminal-launch-config-startup-field-pane-2')),
       'flutter test',
     );
+    await tester.ensureVisible(
+      find.byKey(const Key('terminal-launch-config-save-button')),
+    );
     await tester.tap(
       find.byKey(const Key('terminal-launch-config-save-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('terminal-launch-config-success-state')),
+      findsOneWidget,
+    );
+    expect(find.textContaining(file.path), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const Key('terminal-launch-config-done-button')),
+    );
+    await tester.tap(
+      find.byKey(const Key('terminal-launch-config-done-button')),
     );
     await tester.pumpAndSettle();
 
@@ -1925,6 +2095,9 @@ void main() {
 
     await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('terminal-launch-config-apply-button')),
+    );
     await tester.tap(
       find.byKey(const Key('terminal-launch-config-apply-button')),
     );
@@ -1936,6 +2109,115 @@ void main() {
     expect(backend.writesBySession['session-3'], contains('pnpm dev\r'));
     expect(backend.writesBySession['session-4'], contains('flutter test\r'));
   });
+
+  testWidgets(
+    'launch config export captures app windows and restores the active window',
+    (tester) async {
+      final backend = _FakePtySessionBackend();
+      final dir = Directory.systemTemp.createTempSync(
+        'ianvs_launch_windows_widget_',
+      );
+      final file = File('${dir.path}/ianvs-terminal.launch.json');
+      addTearDown(() {
+        if (dir.existsSync()) {
+          dir.deleteSync(recursive: true);
+        }
+      });
+      await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('terminal-new-window-button')));
+      await tester.pump();
+      expect(find.text('Window 2'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('terminal-new-ssh-session-button')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('terminal-new-ssh-host-field')),
+        'prod.example.internal',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-new-ssh-project-field')),
+        'window-two-ssh',
+      );
+      await tester.tap(find.byKey(const Key('terminal-new-ssh-open-button')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('terminal-tab-window-two-ssh')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('terminal-launch-config-name-field')),
+        'window-export',
+      );
+      await tester.pump();
+      await tester.ensureVisible(
+        find.byKey(const Key('terminal-launch-config-advanced-toggle')),
+      );
+      await tester.tap(
+        find.byKey(const Key('terminal-launch-config-advanced-toggle')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('terminal-launch-config-path-field')),
+        file.path,
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('terminal-launch-config-save-button')),
+      );
+      await tester.tap(
+        find.byKey(const Key('terminal-launch-config-save-button')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('terminal-launch-config-success-state')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('terminal-launch-config-done-button')),
+      );
+      await tester.tap(
+        find.byKey(const Key('terminal-launch-config-done-button')),
+      );
+      await tester.pumpAndSettle();
+
+      final savedJson =
+          jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      final savedWindows = savedJson['windows'] as List<Object?>;
+      expect(savedJson['activeWindowIndex'], 1);
+      expect(savedWindows, hasLength(2));
+
+      await tester.tap(find.byKey(const Key('terminal-close-window-button')));
+      await tester.pump();
+      expect(find.text('Window 2'), findsNothing);
+      expect(
+        find.byKey(const Key('terminal-tab-window-two-ssh')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('terminal-launch-config-apply-button')),
+      );
+      await tester.tap(
+        find.byKey(const Key('terminal-launch-config-apply-button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Window 1'), findsOneWidget);
+      expect(find.text('Window 2'), findsOneWidget);
+      expect(
+        find.byKey(const Key('terminal-tab-window-two-ssh')),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets(
     'new ssh session launches a local ssh command and restart keeps target',
@@ -2218,30 +2500,36 @@ void main() {
           backendFactory: () => backend,
           sessionRestoreStore: _sessionRestoreStore(
             state: TerminalSessionRestoreState(
-              activeTabIndex: 0,
-              tabs: <TerminalSessionRestoreTab>[
-                TerminalSessionRestoreTab(
-                  fallbackTitle: 'Workspace Alpha',
-                  activePaneId: 1,
-                  rootPane: TerminalSessionRestorePaneSplit(
-                    direction: TerminalPaneSplitDirection.right,
-                    first: TerminalSessionRestorePaneLeaf(
-                      id: 1,
-                      cwd: alpha.path,
+              activeWindowIndex: 0,
+              windows: <TerminalSessionRestoreWindow>[
+                TerminalSessionRestoreWindow(
+                  fallbackTitle: 'Window 1',
+                  activeTabIndex: 0,
+                  tabs: <TerminalSessionRestoreTab>[
+                    TerminalSessionRestoreTab(
+                      fallbackTitle: 'Workspace Alpha',
+                      activePaneId: 1,
+                      rootPane: TerminalSessionRestorePaneSplit(
+                        direction: TerminalPaneSplitDirection.right,
+                        first: TerminalSessionRestorePaneLeaf(
+                          id: 1,
+                          cwd: alpha.path,
+                        ),
+                        second: TerminalSessionRestorePaneLeaf(
+                          id: 2,
+                          cwd: alphaRight.path,
+                        ),
+                      ),
                     ),
-                    second: TerminalSessionRestorePaneLeaf(
-                      id: 2,
-                      cwd: alphaRight.path,
+                    TerminalSessionRestoreTab(
+                      fallbackTitle: 'Workspace Beta',
+                      activePaneId: 3,
+                      rootPane: TerminalSessionRestorePaneLeaf(
+                        id: 3,
+                        cwd: beta.path,
+                      ),
                     ),
-                  ),
-                ),
-                TerminalSessionRestoreTab(
-                  fallbackTitle: 'Workspace Beta',
-                  activePaneId: 3,
-                  rootPane: TerminalSessionRestorePaneLeaf(
-                    id: 3,
-                    cwd: beta.path,
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -2741,6 +3029,51 @@ void main() {
     ]);
   });
 
+  testWidgets('session restore keeps inline block grouping visible', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final restoreStore = _sessionRestoreStore();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: _blocksForSession,
+        sessionRestoreStore: restoreStore,
+        sessionRestoreDebounceDuration: Duration.zero,
+      ),
+    );
+    await tester.pump();
+
+    final savedLeaf =
+        restoreStore.load().tabs.single.rootPane
+            as TerminalSessionRestorePaneLeaf;
+    expect(savedLeaf.blocks, hasLength(2));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        sessionRestoreStore: restoreStore,
+        sessionRestoreDebounceDuration: Duration.zero,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('terminal-inline-block-rail')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-inline-active-block-card')),
+        matching: find.textContaining('false'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('bad session restore file falls back to default shell', (
     tester,
   ) async {
@@ -2767,15 +3100,20 @@ void main() {
     final clipboard = _FakeClipboardClient('echo restored-pane');
     final restoreStore = _sessionRestoreStore(
       state: TerminalSessionRestoreState(
-        tabs: <TerminalSessionRestoreTab>[
-          TerminalSessionRestoreTab(
-            fallbackTitle: 'Local 1',
-            activePaneId: 2,
-            rootPane: TerminalSessionRestorePaneSplit(
-              direction: TerminalPaneSplitDirection.right,
-              first: TerminalSessionRestorePaneLeaf(id: 1, cwd: ''),
-              second: TerminalSessionRestorePaneLeaf(id: 2, cwd: ''),
-            ),
+        windows: <TerminalSessionRestoreWindow>[
+          TerminalSessionRestoreWindow(
+            fallbackTitle: 'Window 1',
+            tabs: <TerminalSessionRestoreTab>[
+              TerminalSessionRestoreTab(
+                fallbackTitle: 'Local 1',
+                activePaneId: 2,
+                rootPane: TerminalSessionRestorePaneSplit(
+                  direction: TerminalPaneSplitDirection.right,
+                  first: TerminalSessionRestorePaneLeaf(id: 1, cwd: ''),
+                  second: TerminalSessionRestorePaneLeaf(id: 2, cwd: ''),
+                ),
+              ),
+            ],
           ),
         ],
       ),

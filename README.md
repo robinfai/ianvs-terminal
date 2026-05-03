@@ -16,7 +16,8 @@ Ianvs Terminal 是 Ianvs 产品族下的现代终端客户端。当前推进 mac
 - M1E 收口 macOS 桌面入口和本地使用验收：菜单、启动 prompt smoke、手工验证说明。
 - M2A 增加 block 能力打底：产品侧 block 模型、header 操作、复制、跳转和重新输入接缝。真实 shell 尚不会自动生成 blocks。
 - M2B 接入真实 zsh 命令 block：flutterm 提供通用 `shell_hook` 事件，Ianvs Terminal 通过 zsh integration 生成 block；非 zsh shell 暂不自动生成 block。
-- M2C 增加 block 历史面板：当前 tab 的 blocks 可见、可选择、可跳转、可复制和可重新输入；暂不做 terminal 内 inline block card 或分隔线。
+- M2C 增加 block 历史面板：当前 tab 的 blocks 可见、可选择、可跳转、可复制和可重新输入。
+- M7C 增加 terminal 主区 block 呈现：active block inline rail、divider 和 restore 后的 block 分组会继续显示；当前仍未把 block 分组直接画进 flutterm scrollback render layer。
 - M3A 增加默认现代输入栏：普通命令先进入底部输入栏，`Enter` 提交，`Shift+Enter` 换行；`Cmd+Shift+I` 切到 Raw 输入，`Cmd+K` 回到现代输入。
 - M3B 增加当前 tab 命令历史搜索：历史来自已完成 blocks，`Cmd+R` 打开，选择后只回填现代输入栏，不自动执行。
 - M3C 增加本地保存命令库：保存命令和当前 tab 历史统一进入命令搜索面板，保存命令全局可见。
@@ -29,6 +30,11 @@ Ianvs Terminal 是 Ianvs 产品族下的现代终端客户端。当前推进 mac
 - M5A 增加 pane 级 session context：支持 `Local / SSH` display metadata、安全上下文显示、audit snapshot 接口，以及 metadata 进入 session restore 和 launch config。
 - M5B 增加 SSH command session：通过 `New SSH Session` 面板以本地 PTY 启动 `ssh` 命令，并把 transport 状态接回 tab、pane、session restore 和 launch config。
 - M6 增加跨平台适配规划：状态目录、默认 cwd / home fallback 收口到 `platform_paths.dart`，平台矩阵写在 `PLATFORM_MATRIX.md`。
+- M7A 增加产品层多窗口 runtime：一个 app 可同时持有多个 window workspace，Header / 菜单支持 `New Window` 和 `Close Window`。
+- M7A 增加 app-level export/import：`Launch Config` 现在保存整个 app 的 windows、tabs、panes、cwd、startup command、session metadata 和 launch profile，并恢复 active window。
+- M7B 将 `Launch Config` 面板升级为 app snapshot 导出流：显示窗口 / tab / pane 摘要、startup command 编辑区和 app-level 主 CTA。
+- M7D 将 `Cmd+R` 与 `Workspace Search` 收口为统一 palette：命令搜索聚合 saved commands 与更宽 history，会话导航可搜索 window / tab / pane / cwd / SSH metadata，并支持 `saved:`、`history:`、`session:`、`ssh:` 前缀。
+- M7E 增加 `test/demo_terminal_session_test.dart` 桌面端 E2E harness：覆盖多窗口、app-level export / apply、成功反馈、workspace palette、session restore 和 SSH restart。
 - 不在本项目实现零信任接入客户端、虚拟网络、流量网关、SSH 网关、AI 网关或管理后台。
 
 ## 设置
@@ -57,7 +63,7 @@ Launch configuration 建议文件名为：
 <workspace>/ianvs-terminal.launch.json
 ```
 
-M4C 当前通过 `Launch Config` 面板手动填写和保存路径；不做系统 file picker、最近文件列表或项目模板目录。
+`Launch Config` 当前会导出整个 app state，而不是单窗口 workspace：包括 windows、tabs、panes、cwd、startup command、pane metadata 和 launch profile。当前仍通过手动路径输入保存；不做系统 file picker、最近文件列表或项目模板目录。
 `Session Context` 面板继续负责编辑 active pane 的 display metadata 和安全上下文；当 pane 已经是 SSH command session 时，host / account 更新会同步到 Restart、session restore 和 launch config。
 M5B 当前只承载本地 `ssh` command session；不提供 SSH 网关、跳板机编排、密钥管理或自定义 remote transport。
 
@@ -115,7 +121,7 @@ FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target
 若符号预检通过但 zsh block、cwd completion 或 pane restore cwd 仍超时，把问题归入 `FT-011`，按 shell-hook / `precmd.pwd` 事件链路处理，不再归因到 `FT-010`。
 M1E 还会重复启动带可控 `PS1` 的真实本地 shell，验证初始 prompt 文本进入 frame，而不是只显示光标。
 M2B 还会用 `/bin/zsh` 验证真实命令 block：`echo ianvs-block` 应生成 succeeded block，`false` 应生成 failed block。
-M2C 会验证 block 历史面板和 Header 始终同步当前 active tab，退出态仍可选择、跳转和复制已有 block。
+M2C / M7C 会验证 block 历史面板、Header 和 terminal 主区 inline rail 始终同步当前 active tab，退出态和 restore 后仍可选择、跳转和复制已有 block。
 M3A 会验证现代输入提交真实 shell 命令，以及 zsh block 仍能从现代输入提交的命令生成。
 M3B 会验证真实 zsh block 可以进入当前 tab 命令历史搜索，选择后回填现代输入栏 draft。
 M3C 会验证真实 zsh block 可以保存为本地命令，并在重新加载保存命令库后搜索和回填。
@@ -123,8 +129,10 @@ M3D 会验证现代输入栏内括号和常用引号的成对插入、选区包�
 M3E 会验证 Fig 风格 specs、路径模板、可转换 generator、zsh cwd 和 PATH root command 补全。
 M4A 会验证一个 tab 内两个真实 shell pane 的独立输出、关闭 pane 后剩余 pane 可用，以及 zsh cwd 继承后的路径补全。
 M4B 会验证两 tab / 两 pane 布局恢复、active pane 恢复，以及恢复后的新 shell 使用保存的 cwd。
-M4C 会验证 `Launch Config` 面板保存当前布局、重新应用 workspace 文件，以及 pane 级 startup command 在新 shell 启动后注入。
+M4C / M7A 会验证 `Launch Config` 面板保存当前 app 布局、重新应用 app-level 文件，以及 pane 级 startup command 在新 shell 启动后注入；当存在多个 window 时，还要恢复 active window。
 M4D 会验证 `Workspace Search` 面板的打开 / 关闭、结果排序、active tab / pane 跳转，以及跳转后焦点和 pane 作用域恢复。
+M7D 会验证统一 palette 的来源标识、query 过滤、命令回填、会话跳转，以及跨 tab / window 搜索后的焦点恢复。
+M7E 会验证 `test/demo_terminal_session_test.dart` 这条高阶入口可重复覆盖多窗口导出 / 应用、workspace palette、session restore 和 SSH restart。
 M5A 会验证 `Session Context` 面板、pane 级会话标签、安全上下文显示、tab title 派生，以及 metadata 在 session restore / launch config 中持久化。
 M5B 还会用本地 `ssh` binary 做 `ssh -V` launch smoke，确认 SSH command session 可以通过现有 PTY / terminal 栈启动。
 
@@ -176,6 +184,8 @@ M2C block 历史面板验证点：
 - 面板里的 Copy command、Copy output、Copy all 和 Reinput 操作只作用于当前 active tab。
 - 切换 tab 后，面板内容立即切换到该 tab 的 blocks。
 - shell 退出后仍可选择、跳转和复制 block，但 Reinput 禁用。
+- terminal 主区会显示 active block inline rail 和 divider；点击 inline chip 也会同步切换 active block 并跳转。
+- session restore 重建 shell 后，已完成 block 的 inline rail / panel 分组继续可见；terminal scrollback 本身仍不会恢复旧输出。
 
 M3A 现代输入验证点：
 
@@ -255,7 +265,7 @@ M4B session restore 验证点：
 M4C launch configuration 验证点：
 
 - Header 和 macOS 菜单都包含 `Launch Config` 入口。
-- 面板支持路径输入、`Save current layout` 和 `Apply file`。
+- 面板支持路径输入、`Save current app` 和 `Apply app config`，并在成功后提示保存或应用结果。
 - 当前工作区导出的 JSON 包含 `activeTabIndex`、tab / pane tree、leaf cwd 和 pane 级 `startupCommand`。
 - 重新应用 launch config 后，tab / pane 布局和 active pane 恢复到文件定义状态。
 - pane 级 startup command 在新 shell 启动和 pane restart 后重新注入。
@@ -269,6 +279,17 @@ M4D workspace search 验证点：
 - `Up / Down` 切换结果，`Enter` 跳转到目标 tab / pane，`Escape` 关闭面板。
 - 跳转后焦点回到目标 pane 的当前有效输入模式，不清空 pane 内的 find、history、completion、blocks 或 modern draft。
 - M4D 不做跨窗口搜索、关闭对象历史、block / command 搜索复用、launch config 文件搜索或 SSH 远程会话搜索。
+
+M7D unified palette 验证点：
+
+- `Cmd+R` 和 `Workspace Search` 共用同一个 palette shell；命令模式显示 `Saved` / `History` 来源，会话模式显示 `Session` 来源。
+- 命令模式会聚合 saved commands 与更宽的 block history；会话模式可搜索 window / tab / pane / cwd / 最近命令 / SSH metadata，并支持 `saved:`、`history:`、`session:`、`ssh:` 前缀。
+- `Enter` 在命令模式只回填现代输入栏，在会话模式会切换到目标 window / tab / pane，并把焦点恢复到目标输入位置。
+
+M7E demo harness 验证点：
+
+- `flutter test test/demo_terminal_session_test.dart` 是桌面端高阶验证入口，不替代现有 widget tests 和 real shell smoke。
+- 首批场景覆盖 app-level export / apply 成功反馈、多窗口 active window 恢复、workspace palette 跳转、split pane session restore，以及 SSH command session restart。
 
 M5A session context 验证点：
 

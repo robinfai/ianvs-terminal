@@ -5,13 +5,14 @@ import 'dart:io';
 import 'platform_paths.dart';
 import 'session_launch.dart';
 import 'session_metadata.dart';
+import 'terminal_blocks.dart';
 import 'terminal_panes.dart';
 
 class TerminalSessionRestoreState {
   const TerminalSessionRestoreState({
-    this.version = 1,
-    this.activeTabIndex = 0,
-    this.tabs = const <TerminalSessionRestoreTab>[],
+    this.version = 3,
+    this.activeWindowIndex = 0,
+    this.windows = const <TerminalSessionRestoreWindow>[],
   });
 
   factory TerminalSessionRestoreState.fromJson(Object? json) {
@@ -19,60 +20,81 @@ class TerminalSessionRestoreState {
     if (map == null) {
       return const TerminalSessionRestoreState();
     }
-    final rawTabs = map['tabs'];
-    if (rawTabs is! List || rawTabs.isEmpty) {
-      return const TerminalSessionRestoreState();
-    }
-    final tabs = <TerminalSessionRestoreTab>[];
-    for (var index = 0; index < rawTabs.length; index += 1) {
-      final tab = TerminalSessionRestoreTab.fromJson(rawTabs[index], index);
-      if (tab != null) {
-        tabs.add(tab);
-      }
-    }
-    if (tabs.isEmpty) {
+    final windows = _restoreWindowsFromJson(map);
+    if (windows.isEmpty) {
       return const TerminalSessionRestoreState();
     }
     return TerminalSessionRestoreState(
-      activeTabIndex: _intInRange(map['activeTabIndex'], 0, tabs.length - 1),
-      tabs: tabs,
+      version: _positiveIntOrDefault(map['version'], 3),
+      activeWindowIndex: _intInRange(
+        map['activeWindowIndex'],
+        0,
+        windows.length - 1,
+      ),
+      windows: windows,
     ).withUniquePaneIds();
   }
 
   final int version;
-  final int activeTabIndex;
-  final List<TerminalSessionRestoreTab> tabs;
+  final int activeWindowIndex;
+  final List<TerminalSessionRestoreWindow> windows;
 
+  bool get hasWindows => windows.isNotEmpty;
   bool get hasTabs => tabs.isNotEmpty;
 
+  TerminalSessionRestoreWindow? get activeWindow {
+    if (windows.isEmpty) {
+      return null;
+    }
+    return windows[activeWindowIndex.clamp(0, windows.length - 1)];
+  }
+
+  int get activeTabIndex => activeWindow?.activeTabIndex ?? 0;
+  List<TerminalSessionRestoreTab> get tabs =>
+      activeWindow?.tabs ?? const <TerminalSessionRestoreTab>[];
+
   TerminalSessionRestoreState withUniquePaneIds() {
-    if (tabs.isEmpty) {
+    if (windows.isEmpty) {
       return this;
     }
     final usedPaneIds = <int>{};
-    final maxPaneId = tabs
+    final maxPaneId = windows
+        .expand((window) => window.tabs)
         .expand((tab) => tab.rootPane.leaves)
         .fold<int>(0, (max, leaf) => leaf.id > max ? leaf.id : max);
     var nextPaneId = maxPaneId + 1;
     var changed = false;
-    final uniqueTabs = <TerminalSessionRestoreTab>[];
+    final uniqueWindows = <TerminalSessionRestoreWindow>[];
 
-    for (final tab in tabs) {
-      final remappedIds = <int, int>{};
-      final acceptedOriginalIds = <int>{};
-      final uniqueRootPane = _paneNodeWithUniqueIds(
-        tab.rootPane,
-        usedPaneIds,
-        acceptedOriginalIds,
-        remappedIds,
-        () => nextPaneId++,
-      );
-      changed = changed || !identical(uniqueRootPane, tab.rootPane);
-      uniqueTabs.add(
-        TerminalSessionRestoreTab(
-          fallbackTitle: tab.fallbackTitle,
-          activePaneId: remappedIds[tab.activePaneId] ?? tab.activePaneId,
-          rootPane: uniqueRootPane,
+    for (final window in windows) {
+      final uniqueTabs = <TerminalSessionRestoreTab>[];
+      var windowChanged = false;
+      for (final tab in window.tabs) {
+        final remappedIds = <int, int>{};
+        final acceptedOriginalIds = <int>{};
+        final uniqueRootPane = _paneNodeWithUniqueIds(
+          tab.rootPane,
+          usedPaneIds,
+          acceptedOriginalIds,
+          remappedIds,
+          () => nextPaneId++,
+        );
+        windowChanged =
+            windowChanged || !identical(uniqueRootPane, tab.rootPane);
+        uniqueTabs.add(
+          TerminalSessionRestoreTab(
+            fallbackTitle: tab.fallbackTitle,
+            activePaneId: remappedIds[tab.activePaneId] ?? tab.activePaneId,
+            rootPane: uniqueRootPane,
+          ),
+        );
+      }
+      changed = changed || windowChanged;
+      uniqueWindows.add(
+        TerminalSessionRestoreWindow(
+          fallbackTitle: window.fallbackTitle,
+          activeTabIndex: window.activeTabIndex,
+          tabs: uniqueTabs,
         ),
       );
     }
@@ -82,14 +104,76 @@ class TerminalSessionRestoreState {
     }
     return TerminalSessionRestoreState(
       version: version,
-      activeTabIndex: activeTabIndex,
-      tabs: uniqueTabs,
+      activeWindowIndex: activeWindowIndex,
+      windows: uniqueWindows,
     );
   }
 
   Map<String, Object?> toJson() {
-    return <String, Object?>{
+    final json = <String, Object?>{
       'version': version,
+      'activeWindowIndex': activeWindowIndex,
+      'windows': windows
+          .map((window) => window.toJson())
+          .toList(growable: false),
+    };
+    if (windows.length == 1) {
+      final window = windows.single;
+      json['activeTabIndex'] = window.activeTabIndex;
+      json['tabs'] = window.tabs
+          .map((tab) => tab.toJson())
+          .toList(growable: false);
+    }
+    return json;
+  }
+}
+
+class TerminalSessionRestoreWindow {
+  const TerminalSessionRestoreWindow({
+    required this.fallbackTitle,
+    this.activeTabIndex = 0,
+    this.tabs = const <TerminalSessionRestoreTab>[],
+  });
+
+  static TerminalSessionRestoreWindow? fromJson(Object? json, int index) {
+    final map = _objectMap(json);
+    if (map == null) {
+      return null;
+    }
+    final rawTabs = map['tabs'];
+    if (rawTabs is! List || rawTabs.isEmpty) {
+      return null;
+    }
+    final tabs = <TerminalSessionRestoreTab>[];
+    for (var tabIndex = 0; tabIndex < rawTabs.length; tabIndex += 1) {
+      final tab = TerminalSessionRestoreTab.fromJson(
+        rawTabs[tabIndex],
+        tabIndex,
+      );
+      if (tab != null) {
+        tabs.add(tab);
+      }
+    }
+    if (tabs.isEmpty) {
+      return null;
+    }
+    return TerminalSessionRestoreWindow(
+      fallbackTitle: _stringOrDefault(
+        map['fallbackTitle'],
+        'Window ${index + 1}',
+      ),
+      activeTabIndex: _intInRange(map['activeTabIndex'], 0, tabs.length - 1),
+      tabs: tabs,
+    );
+  }
+
+  final String fallbackTitle;
+  final int activeTabIndex;
+  final List<TerminalSessionRestoreTab> tabs;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'fallbackTitle': fallbackTitle,
       'activeTabIndex': activeTabIndex,
       'tabs': tabs.map((tab) => tab.toJson()).toList(growable: false),
     };
@@ -165,14 +249,17 @@ class TerminalSessionRestorePaneLeaf extends TerminalSessionRestorePaneNode {
   const TerminalSessionRestorePaneLeaf({
     required this.id,
     required this.cwd,
+    this.blocks = const <TerminalBlock>[],
     this.sessionMetadata = const TerminalSessionMetadata(),
     this.launchProfile = const TerminalSessionLaunchProfile.localShell(),
   });
 
   factory TerminalSessionRestorePaneLeaf.fromJson(Map<String, Object?> map) {
+    final paneId = _positiveIntOrDefault(map['id'], 1);
     return TerminalSessionRestorePaneLeaf(
-      id: _positiveIntOrDefault(map['id'], 1),
+      id: paneId,
       cwd: _stringOrDefault(map['cwd'], ''),
+      blocks: _restoreBlocksFromJson(map['blocks'], paneId: paneId),
       sessionMetadata: TerminalSessionMetadata.fromJson(map['sessionMetadata']),
       launchProfile: TerminalSessionLaunchProfile.fromJson(
         map['launchProfile'],
@@ -182,6 +269,7 @@ class TerminalSessionRestorePaneLeaf extends TerminalSessionRestorePaneNode {
 
   final int id;
   final String cwd;
+  final List<TerminalBlock> blocks;
   final TerminalSessionMetadata sessionMetadata;
   final TerminalSessionLaunchProfile launchProfile;
 
@@ -195,6 +283,10 @@ class TerminalSessionRestorePaneLeaf extends TerminalSessionRestorePaneNode {
       'type': 'leaf',
       'id': id,
       'cwd': cwd,
+      if (blocks.isNotEmpty)
+        'blocks': blocks
+            .map((block) => _restoreBlockToJson(block))
+            .toList(growable: false),
       if (!sessionMetadata.isDefaultLocal)
         'sessionMetadata': sessionMetadata.toJson(),
       if (!launchProfile.isDefaultLocal)
@@ -244,6 +336,39 @@ class TerminalSessionRestorePaneSplit extends TerminalSessionRestorePaneNode {
       'second': second.toJson(),
     };
   }
+}
+
+List<TerminalSessionRestoreWindow> _restoreWindowsFromJson(
+  Map<String, Object?> map,
+) {
+  final rawWindows = map['windows'];
+  if (rawWindows is List && rawWindows.isNotEmpty) {
+    final windows = <TerminalSessionRestoreWindow>[];
+    for (var index = 0; index < rawWindows.length; index += 1) {
+      final window = TerminalSessionRestoreWindow.fromJson(
+        rawWindows[index],
+        index,
+      );
+      if (window != null) {
+        windows.add(window);
+      }
+    }
+    return windows;
+  }
+
+  final rawTabs = map['tabs'];
+  if (rawTabs is! List || rawTabs.isEmpty) {
+    return const <TerminalSessionRestoreWindow>[];
+  }
+  final legacyWindow = TerminalSessionRestoreWindow.fromJson(<String, Object?>{
+    'fallbackTitle': map['fallbackTitle'] ?? 'Window 1',
+    'activeTabIndex': map['activeTabIndex'],
+    'tabs': rawTabs,
+  }, 0);
+  if (legacyWindow == null) {
+    return const <TerminalSessionRestoreWindow>[];
+  }
+  return <TerminalSessionRestoreWindow>[legacyWindow];
 }
 
 class TerminalSessionRestoreStore {
@@ -358,6 +483,24 @@ String _stringOrDefault(Object? value, String fallback) {
   return fallback;
 }
 
+String _stringValueOrDefault(Object? value, String fallback) {
+  if (value is String) {
+    return value;
+  }
+  return fallback;
+}
+
+String? _stringOrNull(Object? value) {
+  if (value is! String) {
+    return null;
+  }
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  return trimmed;
+}
+
 int? _intOrNull(Object? value) {
   if (value is int) {
     return value;
@@ -371,6 +514,14 @@ int? _intOrNull(Object? value) {
 int _positiveIntOrDefault(Object? value, int fallback) {
   final candidate = _intOrNull(value);
   if (candidate == null || candidate <= 0) {
+    return fallback;
+  }
+  return candidate;
+}
+
+int _nonNegativeIntOrDefault(Object? value, int fallback) {
+  final candidate = _intOrNull(value);
+  if (candidate == null || candidate < 0) {
     return fallback;
   }
   return candidate;
@@ -398,6 +549,59 @@ double _ratioFromJson(Object? value) {
   return 0.5;
 }
 
+TerminalBlockStatus _blockStatusFromJson(Object? value) {
+  return switch (value) {
+    'succeeded' => TerminalBlockStatus.succeeded,
+    'failed' => TerminalBlockStatus.failed,
+    'interrupted' => TerminalBlockStatus.interrupted,
+    'unknown' => TerminalBlockStatus.unknown,
+    _ => TerminalBlockStatus.running,
+  };
+}
+
+List<TerminalBlock> _restoreBlocksFromJson(
+  Object? value, {
+  required int paneId,
+}) {
+  if (value is! List) {
+    return const <TerminalBlock>[];
+  }
+  final blocks = <TerminalBlock>[];
+  for (var index = 0; index < value.length; index += 1) {
+    final map = _objectMap(value[index]);
+    if (map == null) {
+      continue;
+    }
+    blocks.add(
+      TerminalBlock(
+        id: _stringOrDefault(map['id'], 'pane-$paneId-block-${index + 1}'),
+        sessionId: _stringOrDefault(map['sessionId'], 'restored-pane-$paneId'),
+        commandText: _stringValueOrDefault(map['commandText'], ''),
+        outputText: _stringValueOrDefault(map['outputText'], ''),
+        status: _blockStatusFromJson(map['status']),
+        scrollbackOffset: _nonNegativeIntOrDefault(map['scrollbackOffset'], 0),
+        recordedAt: _stringOrNull(map['recordedAt']),
+        targetEnvironment: _stringOrNull(map['targetEnvironment']),
+      ),
+    );
+  }
+  return blocks;
+}
+
+Map<String, Object?> _restoreBlockToJson(TerminalBlock block) {
+  return <String, Object?>{
+    'id': block.id,
+    'sessionId': block.sessionId,
+    'commandText': block.commandText,
+    'outputText': block.outputText,
+    'status': block.status.name,
+    'scrollbackOffset': block.scrollbackOffset,
+    if (block.recordedAt != null) 'recordedAt': block.recordedAt,
+    if (block.targetEnvironment != null)
+      'targetEnvironment': block.targetEnvironment,
+  };
+}
+
 TerminalSessionRestorePaneNode _paneNodeWithUniqueIds(
   TerminalSessionRestorePaneNode node,
   Set<int> usedPaneIds,
@@ -418,6 +622,7 @@ TerminalSessionRestorePaneNode _paneNodeWithUniqueIds(
     return TerminalSessionRestorePaneLeaf(
       id: nextId,
       cwd: node.cwd,
+      blocks: node.blocks,
       sessionMetadata: node.sessionMetadata,
       launchProfile: node.launchProfile,
     );

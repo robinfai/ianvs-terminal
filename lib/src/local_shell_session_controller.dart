@@ -58,6 +58,7 @@ class LocalShellSessionController extends ChangeNotifier {
   LocalShellSessionController({
     required this.backendFactory,
     required this.clipboardClient,
+    List<TerminalBlock> initialBlocks = const <TerminalBlock>[],
     TerminalBlockSeedFactory? initialBlocksForSession,
     TerminalSessionConfigFactory? sessionConfigFactory,
     String? initialCwd,
@@ -68,7 +69,8 @@ class LocalShellSessionController extends ChangeNotifier {
     TerminalSessionMetadata sessionMetadata = const TerminalSessionMetadata(),
     TerminalSessionLaunchProfile sessionLaunchProfile =
         const TerminalSessionLaunchProfile.localShell(),
-  }) : _initialBlocksForSession = initialBlocksForSession,
+  }) : _initialBlocks = List<TerminalBlock>.unmodifiable(initialBlocks),
+       _initialBlocksForSession = initialBlocksForSession,
        _sessionConfigFactory = sessionConfigFactory ?? _defaultSessionConfig,
        _initialCwd = _normalizeInitialCwd(initialCwd),
        _startupCommand = _normalizeStartupCommand(startupCommand),
@@ -98,6 +100,7 @@ class LocalShellSessionController extends ChangeNotifier {
 
   final PtyBackendFactory backendFactory;
   final ClipboardClient clipboardClient;
+  final List<TerminalBlock> _initialBlocks;
   final TerminalBlockSeedFactory? _initialBlocksForSession;
   final TerminalSessionConfigFactory _sessionConfigFactory;
   final String _initialCwd;
@@ -223,8 +226,10 @@ class LocalShellSessionController extends ChangeNotifier {
         readClipboard: clipboardClient.readText,
       );
       _status = LocalShellStatus.running;
-      final seedBlocks =
-          _initialBlocksForSession?.call(sessionId) ?? const <TerminalBlock>[];
+      final seedBlocks = _initialBlocks.isNotEmpty
+          ? _initialBlocks
+          : _initialBlocksForSession?.call(sessionId) ??
+                const <TerminalBlock>[];
       for (final block in seedBlocks) {
         blocksController.addBlock(
           block.sessionId == sessionId

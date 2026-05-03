@@ -40,6 +40,32 @@ class TerminalBlock {
   final String? recordedAt;
   final String? targetEnvironment;
 
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is TerminalBlock &&
+            other.id == id &&
+            other.sessionId == sessionId &&
+            other.commandText == commandText &&
+            other.outputText == outputText &&
+            other.status == status &&
+            other.scrollbackOffset == scrollbackOffset &&
+            other.recordedAt == recordedAt &&
+            other.targetEnvironment == targetEnvironment;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    sessionId,
+    commandText,
+    outputText,
+    status,
+    scrollbackOffset,
+    recordedAt,
+    targetEnvironment,
+  );
+
   TerminalBlock copyWith({
     String? id,
     String? sessionId,

@@ -11,6 +11,7 @@ import 'package:ianvs_terminal/src/saved_commands.dart';
 import 'package:ianvs_terminal/src/session_launch.dart';
 import 'package:ianvs_terminal/src/session_metadata.dart';
 import 'package:ianvs_terminal/src/session_restore.dart';
+import 'package:ianvs_terminal/src/terminal_blocks.dart';
 import 'package:ianvs_terminal/src/terminal_panes.dart';
 import 'package:ianvs_terminal/src/terminal_settings.dart';
 import 'package:ianvs_terminal/src/terminal_tabs_controller.dart';
@@ -255,44 +256,51 @@ void main() {
 
     tabs.applyLaunchConfiguration(
       TerminalLaunchConfiguration(
-        activeTabIndex: 1,
-        tabs: <TerminalLaunchConfigurationTab>[
-          TerminalLaunchConfigurationTab(
-            fallbackTitle: 'Workspace A',
-            activePaneId: 2,
-            rootPane: TerminalLaunchConfigurationPaneSplit(
-              direction: TerminalPaneSplitDirection.right,
-              ratio: 0.6,
-              first: TerminalLaunchConfigurationPaneLeaf(
-                id: 1,
-                cwd: cwdOne.path,
-                startupCommand: 'pnpm dev',
-                sessionMetadata: const TerminalSessionMetadata(
-                  kind: TerminalSessionKind.ssh,
-                  host: 'prod.example.internal',
-                  account: 'ops-user',
-                  project: 'payments-api',
-                ),
-                launchProfile: const TerminalSessionLaunchProfile.sshCommand(
-                  host: 'prod.example.internal',
-                  account: 'ops-user',
+        activeWindowIndex: 0,
+        windows: <TerminalLaunchConfigurationWindow>[
+          TerminalLaunchConfigurationWindow(
+            fallbackTitle: 'Window 1',
+            activeTabIndex: 1,
+            tabs: <TerminalLaunchConfigurationTab>[
+              TerminalLaunchConfigurationTab(
+                fallbackTitle: 'Workspace A',
+                activePaneId: 2,
+                rootPane: TerminalLaunchConfigurationPaneSplit(
+                  direction: TerminalPaneSplitDirection.right,
+                  ratio: 0.6,
+                  first: TerminalLaunchConfigurationPaneLeaf(
+                    id: 1,
+                    cwd: cwdOne.path,
+                    startupCommand: 'pnpm dev',
+                    sessionMetadata: const TerminalSessionMetadata(
+                      kind: TerminalSessionKind.ssh,
+                      host: 'prod.example.internal',
+                      account: 'ops-user',
+                      project: 'payments-api',
+                    ),
+                    launchProfile:
+                        const TerminalSessionLaunchProfile.sshCommand(
+                          host: 'prod.example.internal',
+                          account: 'ops-user',
+                        ),
+                  ),
+                  second: TerminalLaunchConfigurationPaneLeaf(
+                    id: 2,
+                    cwd: cwdTwo.path,
+                    startupCommand: 'flutter test',
+                  ),
                 ),
               ),
-              second: TerminalLaunchConfigurationPaneLeaf(
-                id: 2,
-                cwd: cwdTwo.path,
-                startupCommand: 'flutter test',
+              TerminalLaunchConfigurationTab(
+                fallbackTitle: 'Workspace B',
+                activePaneId: 3,
+                rootPane: TerminalLaunchConfigurationPaneLeaf(
+                  id: 3,
+                  cwd: cwdTwo.path,
+                  startupCommand: 'git status',
+                ),
               ),
-            ),
-          ),
-          TerminalLaunchConfigurationTab(
-            fallbackTitle: 'Workspace B',
-            activePaneId: 3,
-            rootPane: TerminalLaunchConfigurationPaneLeaf(
-              id: 3,
-              cwd: cwdTwo.path,
-              startupCommand: 'git status',
-            ),
+            ],
           ),
         ],
       ),
@@ -320,35 +328,47 @@ void main() {
     final restoreController = TerminalSessionRestoreController(
       store: TerminalSessionRestoreStore.memory(
         TerminalSessionRestoreState(
-          activeTabIndex: 1,
-          tabs: <TerminalSessionRestoreTab>[
-            TerminalSessionRestoreTab(
-              fallbackTitle: 'Local 1',
-              activePaneId: 2,
-              rootPane: TerminalSessionRestorePaneSplit(
-                direction: TerminalPaneSplitDirection.right,
-                ratio: 0.7,
-                first: TerminalSessionRestorePaneLeaf(id: 1, cwd: cwdOne.path),
-                second: TerminalSessionRestorePaneLeaf(
-                  id: 2,
-                  cwd: cwdTwo.path,
-                  sessionMetadata: TerminalSessionMetadata(
-                    kind: TerminalSessionKind.ssh,
-                    host: 'prod.example.internal',
-                    account: 'ops-user',
-                    project: 'payments-api',
-                  ),
-                  launchProfile: TerminalSessionLaunchProfile.sshCommand(
-                    host: 'prod.example.internal',
-                    account: 'ops-user',
+          activeWindowIndex: 0,
+          windows: <TerminalSessionRestoreWindow>[
+            TerminalSessionRestoreWindow(
+              fallbackTitle: 'Window 1',
+              activeTabIndex: 1,
+              tabs: <TerminalSessionRestoreTab>[
+                TerminalSessionRestoreTab(
+                  fallbackTitle: 'Local 1',
+                  activePaneId: 2,
+                  rootPane: TerminalSessionRestorePaneSplit(
+                    direction: TerminalPaneSplitDirection.right,
+                    ratio: 0.7,
+                    first: TerminalSessionRestorePaneLeaf(
+                      id: 1,
+                      cwd: cwdOne.path,
+                    ),
+                    second: TerminalSessionRestorePaneLeaf(
+                      id: 2,
+                      cwd: cwdTwo.path,
+                      sessionMetadata: TerminalSessionMetadata(
+                        kind: TerminalSessionKind.ssh,
+                        host: 'prod.example.internal',
+                        account: 'ops-user',
+                        project: 'payments-api',
+                      ),
+                      launchProfile: TerminalSessionLaunchProfile.sshCommand(
+                        host: 'prod.example.internal',
+                        account: 'ops-user',
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            TerminalSessionRestoreTab(
-              fallbackTitle: 'Local 2',
-              activePaneId: 3,
-              rootPane: TerminalSessionRestorePaneLeaf(id: 3, cwd: cwdTwo.path),
+                TerminalSessionRestoreTab(
+                  fallbackTitle: 'Local 2',
+                  activePaneId: 3,
+                  rootPane: TerminalSessionRestorePaneLeaf(
+                    id: 3,
+                    cwd: cwdTwo.path,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -386,21 +406,30 @@ void main() {
     final restoreController = TerminalSessionRestoreController(
       store: TerminalSessionRestoreStore.memory(
         TerminalSessionRestoreState(
-          activeTabIndex: 1,
-          tabs: <TerminalSessionRestoreTab>[
-            TerminalSessionRestoreTab(
-              fallbackTitle: 'Local 1',
-              activePaneId: 2,
-              rootPane: TerminalSessionRestorePaneSplit(
-                direction: TerminalPaneSplitDirection.right,
-                first: const TerminalSessionRestorePaneLeaf(id: 1, cwd: ''),
-                second: const TerminalSessionRestorePaneLeaf(id: 2, cwd: ''),
-              ),
-            ),
-            const TerminalSessionRestoreTab(
-              fallbackTitle: 'Local 2',
-              activePaneId: 2,
-              rootPane: TerminalSessionRestorePaneLeaf(id: 2, cwd: ''),
+          activeWindowIndex: 0,
+          windows: <TerminalSessionRestoreWindow>[
+            TerminalSessionRestoreWindow(
+              fallbackTitle: 'Window 1',
+              activeTabIndex: 1,
+              tabs: <TerminalSessionRestoreTab>[
+                TerminalSessionRestoreTab(
+                  fallbackTitle: 'Local 1',
+                  activePaneId: 2,
+                  rootPane: TerminalSessionRestorePaneSplit(
+                    direction: TerminalPaneSplitDirection.right,
+                    first: const TerminalSessionRestorePaneLeaf(id: 1, cwd: ''),
+                    second: const TerminalSessionRestorePaneLeaf(
+                      id: 2,
+                      cwd: '',
+                    ),
+                  ),
+                ),
+                const TerminalSessionRestoreTab(
+                  fallbackTitle: 'Local 2',
+                  activePaneId: 2,
+                  rootPane: TerminalSessionRestorePaneLeaf(id: 2, cwd: ''),
+                ),
+              ],
             ),
           ],
         ),
@@ -470,14 +499,19 @@ void main() {
     final restoreController = TerminalSessionRestoreController(
       store: TerminalSessionRestoreStore.memory(
         const TerminalSessionRestoreState(
-          tabs: <TerminalSessionRestoreTab>[
-            TerminalSessionRestoreTab(
-              fallbackTitle: 'Local 1',
-              activePaneId: 1,
-              rootPane: TerminalSessionRestorePaneLeaf(
-                id: 1,
-                cwd: '/tmp/ianvs-missing-cwd-does-not-exist',
-              ),
+          windows: <TerminalSessionRestoreWindow>[
+            TerminalSessionRestoreWindow(
+              fallbackTitle: 'Window 1',
+              tabs: <TerminalSessionRestoreTab>[
+                TerminalSessionRestoreTab(
+                  fallbackTitle: 'Local 1',
+                  activePaneId: 1,
+                  rootPane: TerminalSessionRestorePaneLeaf(
+                    id: 1,
+                    cwd: '/tmp/ianvs-missing-cwd-does-not-exist',
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -556,6 +590,39 @@ void main() {
     tabs.activeShell.completionController.updateCwd(cwd.path);
 
     expect(restoreStore.saveCount, initialSaveCount + 1);
+  });
+
+  test('completed blocks are persisted into pane restore state', () {
+    final backend = _FakePtySessionBackend();
+    final restoreStore = TerminalSessionRestoreStore.memory();
+    final restoreController = TerminalSessionRestoreController(
+      store: restoreStore,
+      debounceDuration: Duration.zero,
+    );
+    final tabs = _tabs(backend, restoreController: restoreController);
+    addTearDown(() {
+      tabs.dispose();
+      restoreController.dispose();
+    });
+
+    tabs.createInitialTab();
+    tabs.activeShell.blocksController.addBlock(
+      const TerminalBlock(
+        id: 'session-1-block-1',
+        sessionId: 'session-1',
+        commandText: 'pwd',
+        outputText: '/tmp\n',
+        status: TerminalBlockStatus.succeeded,
+        scrollbackOffset: 2,
+      ),
+    );
+
+    final leaf =
+        restoreStore.load().tabs.single.rootPane
+            as TerminalSessionRestorePaneLeaf;
+    expect(leaf.blocks, hasLength(1));
+    expect(leaf.blocks.single.commandText, 'pwd');
+    expect(leaf.blocks.single.status, TerminalBlockStatus.succeeded);
   });
 }
 

@@ -93,11 +93,11 @@ Ianvs Terminal 当前工作树的 path dependency 解析到 `/Users/luobinghui/p
 
 - 类型：feature
 - 影响里程碑：M2 block 化命令历史，M4 工作区、pane 和启动配置
-- 现象或需求：M2C 先用 Ianvs Terminal 产品侧右侧历史面板展示 blocks，没有在 terminal 内容中绘制 inline block card、分隔线或范围背景。后续如果要把 block 分组直接画进 terminal scrollback，需要 flutterm 能把产品侧 block/range 信息传入渲染层。
+- 现象或需求：Ianvs Terminal 目前已经在产品层补了 terminal 主区 inline block rail、divider 和 restore 后 block 分组，但这些呈现仍是 overlay，不是真正进入 terminal scrollback render layer。后续如果要把 block 分组直接画进 terminal 内容本身，需要 flutterm 能把产品侧 block/range 信息传入渲染层。
 - 复现或触发条件：用户执行多条命令后，希望在 terminal 内容区域内看到命令块边界、状态标记、hover 操作或范围背景，而不是只在右侧面板看到历史列表。
 - 期望行为：flutterm 提供 terminal render-layer 的范围标注扩展点，例如按 scrollback absolute row range 绘制分隔线、背景、状态 gutter 或 overlay action anchor；同时不破坏选择、滚动、搜索和复制行为。
 - 候选上游位置：`flutterm_terminal` 的 `TerminalViewport`、`RenderTerminalViewport`、selection/search/range rendering 模型。
-- 当前处理：观察。M2C 不修改 flutterm 渲染层；产品侧只消费 block 数据并通过右侧面板操作。进入 inline block 体验前再写独立上游任务。
+- 当前处理：观察。`2026-05-03` 的 M7C 先在 Ianvs Terminal 产品层完成 inline rail / divider / restore block grouping，没有修改 flutterm 渲染层；如果后续要把分隔线、范围背景和状态 gutter 真正画进 scrollback，再拆独立上游任务。
 
 ### FT-009：现代输入需要更明确的 Raw 应用状态
 

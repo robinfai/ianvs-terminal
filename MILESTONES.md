@@ -590,6 +590,139 @@ M4 总体完成条件：
 - macOS 状态路径和默认 cwd / home fallback 被适配层隔离；平台相关 UI / 打包边界有文档化盘点。
 - 下一阶段可以单独选择 Windows、Linux、iOS 或 Android 进入实现计划。
 
+## M7：Warp 基本对齐收口
+
+目标：基于 `2026-05-03` 的 `WARP_SOURCE_REAUDIT.md`，把 Ianvs Terminal 从“当前里程碑都已闭环”推进到“与 Warp 对应能力基本对齐”。这一阶段不再只补 launch config MVP，而是把窗口、导出 UI、block 呈现、命令搜索 / 会话导航和桌面端 E2E 一起收口。
+
+参考：
+
+- Warp 源码：`/private/tmp/warp-source-20260503/app/src/launch_configs/`
+- Warp 源码：`/private/tmp/warp-source-20260503/app/src/pane_group/`
+- Warp 源码：`/private/tmp/warp-source-20260503/app/src/terminal/model/`
+- Warp 源码：`/private/tmp/warp-source-20260503/app/src/terminal/input/`
+- Warp 源码：`/private/tmp/warp-source-20260503/app/src/search/command_search/`
+- Warp 源码：`/private/tmp/warp-source-20260503/app/src/search/command_palette/`
+- Warp 源码：`/private/tmp/warp-source-20260503/app/src/integration_testing/`
+- Warp 源码：`/private/tmp/warp-source-20260503/app/src/terminal/ssh/`
+- Warp 文档：`https://docs.warp.dev/terminal/sessions/launch-configurations`
+- Warp 文档：`https://docs.warp.dev/terminal/windows/tab-configs/`
+
+### M7A：多窗口运行时与应用窗口导出
+
+目标：先补 Ianvs Terminal 自身的多窗口运行时，再把 `Launch Config` 从“当前窗口工作区文件”提升为“应用窗口导出文件”，达到 Warp 对应 `active_window_index + windows[]` 的产品级概念。
+
+交付：
+
+- 产品侧新增窗口集合模型，以及 `New Window`、切换 active window、关闭窗口的最小入口。
+- 产品侧 launch config 顶层新增 `activeWindowIndex` 和 `windows[]`，窗口级节点保存 `activeTabIndex`、tabs 和 pane tree。
+- 导出范围从当前 `TerminalTabsController` 扩展到整个应用窗口集合；导入时先恢复窗口，再恢复窗口内 tab / pane / cwd / startup command。
+- `Session Context` metadata 和 `SSH` launch profile 继续进入 pane leaf，不因窗口级扩展而丢失。
+- 导入 / 导出后的 active window、active tab、active pane 都能被恢复。
+
+边界：
+
+- 这一阶段不要求做 Warp 的 notebook / code / workflow / cloud pane 导出。
+- 这一阶段不要求做 iOS / Android 多窗口语义。
+- 这一阶段不把 Ianvs Terminal 变成通用窗口管理器；只导出产品自身窗口状态。
+
+完成条件：
+
+- Unit tests 覆盖新 launch config schema 的 `activeWindowIndex`、`windows[]`、坏 JSON 回退和窗口级 active 恢复。
+- Widget tests 覆盖多窗口创建 / 关闭、app-level `Launch Config` 导出 / 应用、多窗口 active window 恢复，以及窗口内 SSH / startup command 保留。
+- 桌面端 E2E 至少覆盖新建两个窗口、导出、销毁、重新应用、恢复 active window / active pane。
+- `flutter analyze`、`flutter test`、env-backed real shell smoke、`flutter build macos --release` 通过。
+
+### M7B：导出 UI 对齐与截图验收
+
+目标：把 Ianvs 的导出入口和保存界面从当前手填路径 `AlertDialog` 升级成更接近 Warp 文档截图和 `LaunchConfigSaveModal` 的产品层级，并把“截图达到约 80% 一致度”变成显式验收项。
+
+交付：
+
+- 新导出入口和保存界面不再只是手工 JSON 路径表单；要更接近 Warp 文档截图里的“命名输入 + 明确 primary CTA + 成功后可继续验证”的交互节奏。
+- 视觉 benchmark 拆成两层：
+  - Warp legacy `Launch Configurations` 负责 app-level export 语义。
+  - Warp 当前 `Tab Configs` 文档截图负责视觉层级、按钮优先级和保存入口风格。
+- 输出 Ianvs 自身的导出 UI 截图工件，并附一份对照说明，明确与 Warp 文档截图的相似度判断。
+
+边界：
+
+- 这一阶段不复制 Warp 的品牌资产、图标和文案。
+- 这一阶段不强求逐像素一致，只要求达到约 `80%` 的布局层级和信息密度相似度。
+
+完成条件：
+
+- 新导出 UI 截图与 Warp 文档对应截图达到约 `80%` 一致度。
+- Widget 或 golden 级验证至少能稳定覆盖导出入口、命名输入、主按钮状态和保存成功反馈。
+- 现有 `flutter analyze`、`flutter test`、env-backed real shell smoke、`flutter build macos --release` 继续保持绿灯。
+
+### M7C：block 呈现收口
+
+目标：把 block 从“工具栏 + 侧面历史面板”提升到“终端内容本身能感知 block 分组”的层级，达到 Warp 对 blocks 的基本产品感知。
+
+交付：
+
+- 终端内容层加入 active block 呈现和 block divider / separator。
+- block 跳转、复制输出、复制命令与输出继续复用当前 controller，但 UI 不再只依赖右侧历史面板。
+- restore 后的历史 block 保持可见分组，不因为重建 session 而退化成普通滚动文本。
+
+边界：
+
+- 这一阶段不要求复制 Warp 的 AI block、rich content、cloud pane 或 notebook block。
+- 这一阶段不要求把 flutterm 改成 Warp 那套 Rust block model，但产品表现必须达到“命令和输出确实成组”。
+
+完成条件：
+
+- Widget tests 覆盖 active block 呈现、block divider、restore 后 block 分组和多 tab 隔离。
+- real shell smoke 继续覆盖 zsh hooks、failed / interrupted block，以及复制输出 / 跳转不回退。
+- `flutter analyze`、`flutter test`、env-backed real shell smoke、`flutter build macos --release` 通过。
+
+### M7D：命令搜索与会话导航收口
+
+目标：把当前 “saved commands + current-tab history + current-window workspace search” 收口成更接近 Warp palette 的统一搜索体验。
+
+交付：
+
+- 命令搜索支持更宽的来源，而不只限于当前 block 历史和字符串保存命令。
+- 增加会话导航入口，至少能在更宽的 session 范围内搜索 prompt / 最近命令 / 目标上下文。
+- 为后续 workflow-like 保存命令结构预留 schema，不再把保存命令永久限制成纯字符串列表。
+
+边界：
+
+- 这一阶段不要求把 Warp 的 AI queries、skills、repos 全量照搬。
+- 这一阶段不要求接入远端索引或云端搜索。
+
+完成条件：
+
+- Widget tests 覆盖统一 palette 的查询、来源标识、会话跳转和恢复焦点。
+- 至少一条桌面端 E2E 场景覆盖命令搜索与会话导航。
+- `flutter analyze`、`flutter test`、env-backed real shell smoke、`flutter build macos --release` 通过。
+
+### M7E：桌面端端到端验证基线
+
+目标：补齐类似 Warp `integration_testing` 的桌面端场景编排层，让多窗口、pane、launch config、workspace search、SSH 会话这类产品级流程有可复用的 E2E 验证手段。
+
+交付：
+
+- 一层桌面端 E2E harness，封装窗口、tab、pane、launch config、session context、SSH、workspace search 常用动作与断言。
+- 首批场景至少覆盖：
+  - 多窗口创建、关闭、active window 切换
+  - app-level launch config 导出 / 应用
+  - 导出 UI 保存成功反馈
+  - split pane、session restore、workspace search
+  - SSH command session 创建、metadata 更新、restart
+- 继续保留现有 widget tests 和 real shell smoke，不做替代，只在其上增加更高层验证。
+
+边界：
+
+- 这一阶段不要求复制 Warp 全量 integration harness 的模块数量。
+- 这一阶段不把 CI 扩展到 Windows / Linux；先收口 macOS 主线。
+
+完成条件：
+
+- 至少一套桌面端 E2E 入口可在当前工作树重复运行，并能输出清晰失败定位。
+- `Launch Config`、`workspace search`、`SSH command session`、`session restore`、导出 UI 都至少有一条 E2E 场景。
+- 现有 `flutter analyze`、`flutter test`、env-backed real shell smoke、`flutter build macos --release` 继续保持绿灯。
+
 ## 当前推进顺序
 
 1. 先完成 M0，保证依赖边界和项目骨架正确。
@@ -598,3 +731,4 @@ M4 总体完成条件：
 4. M4 处理工作区组织。
 5. M5 再接入 SSH 和 Ianvs 安全上下文。
 6. M6 在 macOS 主线稳定后整理跨平台适配计划。
+7. M7 按 Warp 源码级复审结果收口多窗口运行时、应用窗口导出、导出 UI、block 呈现、命令搜索 / 会话导航和桌面端 E2E。

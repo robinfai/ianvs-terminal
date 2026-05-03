@@ -8,9 +8,9 @@ import 'terminal_panes.dart';
 
 class TerminalLaunchConfiguration {
   const TerminalLaunchConfiguration({
-    this.version = 1,
-    this.activeTabIndex = 0,
-    this.tabs = const <TerminalLaunchConfigurationTab>[],
+    this.version = 2,
+    this.activeWindowIndex = 0,
+    this.windows = const <TerminalLaunchConfigurationWindow>[],
   });
 
   factory TerminalLaunchConfiguration.fromJson(Object? json) {
@@ -18,63 +18,81 @@ class TerminalLaunchConfiguration {
     if (map == null) {
       return const TerminalLaunchConfiguration();
     }
-    final rawTabs = map['tabs'];
-    if (rawTabs is! List || rawTabs.isEmpty) {
-      return const TerminalLaunchConfiguration();
-    }
-    final tabs = <TerminalLaunchConfigurationTab>[];
-    for (var index = 0; index < rawTabs.length; index += 1) {
-      final tab = TerminalLaunchConfigurationTab.fromJson(
-        rawTabs[index],
-        index,
-      );
-      if (tab != null) {
-        tabs.add(tab);
-      }
-    }
-    if (tabs.isEmpty) {
+    final windows = _windowsFromJson(map);
+    if (windows.isEmpty) {
       return const TerminalLaunchConfiguration();
     }
     return TerminalLaunchConfiguration(
-      activeTabIndex: _intInRange(map['activeTabIndex'], 0, tabs.length - 1),
-      tabs: tabs,
+      version: _positiveIntOrDefault(map['version'], 2),
+      activeWindowIndex: _intInRange(
+        map['activeWindowIndex'],
+        0,
+        windows.length - 1,
+      ),
+      windows: windows,
     ).withUniquePaneIds();
   }
 
   final int version;
-  final int activeTabIndex;
-  final List<TerminalLaunchConfigurationTab> tabs;
+  final int activeWindowIndex;
+  final List<TerminalLaunchConfigurationWindow> windows;
 
+  bool get hasWindows => windows.isNotEmpty;
   bool get hasTabs => tabs.isNotEmpty;
 
+  TerminalLaunchConfigurationWindow? get activeWindow {
+    if (windows.isEmpty) {
+      return null;
+    }
+    return windows[activeWindowIndex.clamp(0, windows.length - 1)];
+  }
+
+  int get activeTabIndex => activeWindow?.activeTabIndex ?? 0;
+  List<TerminalLaunchConfigurationTab> get tabs =>
+      activeWindow?.tabs ?? const <TerminalLaunchConfigurationTab>[];
+
   TerminalLaunchConfiguration withUniquePaneIds() {
-    if (tabs.isEmpty) {
+    if (windows.isEmpty) {
       return this;
     }
     final usedPaneIds = <int>{};
-    final maxPaneId = tabs
+    final maxPaneId = windows
+        .expand((window) => window.tabs)
         .expand((tab) => tab.rootPane.leaves)
         .fold<int>(0, (max, leaf) => leaf.id > max ? leaf.id : max);
     var nextPaneId = maxPaneId + 1;
     var changed = false;
-    final uniqueTabs = <TerminalLaunchConfigurationTab>[];
+    final uniqueWindows = <TerminalLaunchConfigurationWindow>[];
 
-    for (final tab in tabs) {
-      final remappedIds = <int, int>{};
-      final acceptedOriginalIds = <int>{};
-      final uniqueRootPane = _paneNodeWithUniqueIds(
-        tab.rootPane,
-        usedPaneIds,
-        acceptedOriginalIds,
-        remappedIds,
-        () => nextPaneId++,
-      );
-      changed = changed || !identical(uniqueRootPane, tab.rootPane);
-      uniqueTabs.add(
-        TerminalLaunchConfigurationTab(
-          fallbackTitle: tab.fallbackTitle,
-          activePaneId: remappedIds[tab.activePaneId] ?? tab.activePaneId,
-          rootPane: uniqueRootPane,
+    for (final window in windows) {
+      final uniqueTabs = <TerminalLaunchConfigurationTab>[];
+      var windowChanged = false;
+      for (final tab in window.tabs) {
+        final remappedIds = <int, int>{};
+        final acceptedOriginalIds = <int>{};
+        final uniqueRootPane = _paneNodeWithUniqueIds(
+          tab.rootPane,
+          usedPaneIds,
+          acceptedOriginalIds,
+          remappedIds,
+          () => nextPaneId++,
+        );
+        windowChanged =
+            windowChanged || !identical(uniqueRootPane, tab.rootPane);
+        uniqueTabs.add(
+          TerminalLaunchConfigurationTab(
+            fallbackTitle: tab.fallbackTitle,
+            activePaneId: remappedIds[tab.activePaneId] ?? tab.activePaneId,
+            rootPane: uniqueRootPane,
+          ),
+        );
+      }
+      changed = changed || windowChanged;
+      uniqueWindows.add(
+        TerminalLaunchConfigurationWindow(
+          fallbackTitle: window.fallbackTitle,
+          activeTabIndex: window.activeTabIndex,
+          tabs: uniqueTabs,
         ),
       );
     }
@@ -84,14 +102,76 @@ class TerminalLaunchConfiguration {
     }
     return TerminalLaunchConfiguration(
       version: version,
-      activeTabIndex: activeTabIndex,
-      tabs: uniqueTabs,
+      activeWindowIndex: activeWindowIndex,
+      windows: uniqueWindows,
     );
   }
 
   Map<String, Object?> toJson() {
-    return <String, Object?>{
+    final json = <String, Object?>{
       'version': version,
+      'activeWindowIndex': activeWindowIndex,
+      'windows': windows
+          .map((window) => window.toJson())
+          .toList(growable: false),
+    };
+    if (windows.length == 1) {
+      final window = windows.single;
+      json['activeTabIndex'] = window.activeTabIndex;
+      json['tabs'] = window.tabs
+          .map((tab) => tab.toJson())
+          .toList(growable: false);
+    }
+    return json;
+  }
+}
+
+class TerminalLaunchConfigurationWindow {
+  const TerminalLaunchConfigurationWindow({
+    required this.fallbackTitle,
+    this.activeTabIndex = 0,
+    this.tabs = const <TerminalLaunchConfigurationTab>[],
+  });
+
+  static TerminalLaunchConfigurationWindow? fromJson(Object? json, int index) {
+    final map = _objectMap(json);
+    if (map == null) {
+      return null;
+    }
+    final rawTabs = map['tabs'];
+    if (rawTabs is! List || rawTabs.isEmpty) {
+      return null;
+    }
+    final tabs = <TerminalLaunchConfigurationTab>[];
+    for (var tabIndex = 0; tabIndex < rawTabs.length; tabIndex += 1) {
+      final tab = TerminalLaunchConfigurationTab.fromJson(
+        rawTabs[tabIndex],
+        tabIndex,
+      );
+      if (tab != null) {
+        tabs.add(tab);
+      }
+    }
+    if (tabs.isEmpty) {
+      return null;
+    }
+    return TerminalLaunchConfigurationWindow(
+      fallbackTitle: _stringOrDefault(
+        map['fallbackTitle'],
+        'Window ${index + 1}',
+      ),
+      activeTabIndex: _intInRange(map['activeTabIndex'], 0, tabs.length - 1),
+      tabs: tabs,
+    );
+  }
+
+  final String fallbackTitle;
+  final int activeTabIndex;
+  final List<TerminalLaunchConfigurationTab> tabs;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'fallbackTitle': fallbackTitle,
       'activeTabIndex': activeTabIndex,
       'tabs': tabs.map((tab) => tab.toJson()).toList(growable: false),
     };
@@ -283,6 +363,23 @@ class TerminalLaunchConfigurationStore {
   }
 }
 
+String defaultLaunchConfigsDirectoryPath({
+  Map<String, String>? environment,
+  String? operatingSystem,
+  String? currentPath,
+}) {
+  final os = operatingSystem ?? Platform.operatingSystem;
+  return joinPlatformPath(
+    defaultTerminalStateDirectoryPath(
+      environment: environment,
+      operatingSystem: os,
+      currentPath: currentPath,
+    ),
+    <String>['launch_configs'],
+    separator: pathSeparatorForOperatingSystem(os),
+  );
+}
+
 String suggestedLaunchConfigPath({
   String? cwd,
   String? currentPath,
@@ -294,6 +391,84 @@ String suggestedLaunchConfigPath({
   return joinPlatformPath(baseDirectory, <String>[
     'ianvs-terminal.launch.json',
   ], separator: separator);
+}
+
+String suggestedNamedLaunchConfigPath({
+  required String name,
+  String? currentPath,
+  String? operatingSystem,
+  Map<String, String>? environment,
+}) {
+  final os = operatingSystem ?? Platform.operatingSystem;
+  final separator = pathSeparatorForOperatingSystem(os);
+  final directory = defaultLaunchConfigsDirectoryPath(
+    environment: environment,
+    operatingSystem: os,
+    currentPath: currentPath,
+  );
+  return joinPlatformPath(directory, <String>[
+    '${sanitizeLaunchConfigFileStem(name)}.json',
+  ], separator: separator);
+}
+
+String sanitizeLaunchConfigFileStem(String name) {
+  final collapsedWhitespace = name.trim().replaceAll(RegExp(r'\s+'), '-');
+  final cleaned = collapsedWhitespace
+      .replaceAll(RegExp(r'[\\/:*?"<>|]+'), '-')
+      .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+      .replaceAll(RegExp(r'-{2,}'), '-')
+      .replaceAll(RegExp(r'^[.-]+|[.-]+$'), '')
+      .toLowerCase();
+  return cleaned.isEmpty ? 'ianvs-terminal-app' : cleaned;
+}
+
+String launchConfigDisplayNameFromPath(String path) {
+  final normalized = path.trim();
+  if (normalized.isEmpty) {
+    return '';
+  }
+  final separatorIndex = normalized.lastIndexOf(RegExp(r'[\\/]'));
+  final fileName = separatorIndex >= 0
+      ? normalized.substring(separatorIndex + 1)
+      : normalized;
+  if (fileName.toLowerCase().endsWith('.json') && fileName.length > 5) {
+    return fileName.substring(0, fileName.length - 5);
+  }
+  return fileName;
+}
+
+List<TerminalLaunchConfigurationWindow> _windowsFromJson(
+  Map<String, Object?> map,
+) {
+  final rawWindows = map['windows'];
+  if (rawWindows is List && rawWindows.isNotEmpty) {
+    final windows = <TerminalLaunchConfigurationWindow>[];
+    for (var index = 0; index < rawWindows.length; index += 1) {
+      final window = TerminalLaunchConfigurationWindow.fromJson(
+        rawWindows[index],
+        index,
+      );
+      if (window != null) {
+        windows.add(window);
+      }
+    }
+    return windows;
+  }
+
+  final rawTabs = map['tabs'];
+  if (rawTabs is! List || rawTabs.isEmpty) {
+    return const <TerminalLaunchConfigurationWindow>[];
+  }
+  final legacyWindow =
+      TerminalLaunchConfigurationWindow.fromJson(<String, Object?>{
+        'fallbackTitle': map['fallbackTitle'] ?? 'Window 1',
+        'activeTabIndex': map['activeTabIndex'],
+        'tabs': rawTabs,
+      }, 0);
+  if (legacyWindow == null) {
+    return const <TerminalLaunchConfigurationWindow>[];
+  }
+  return <TerminalLaunchConfigurationWindow>[legacyWindow];
 }
 
 Map<String, Object?>? _objectMap(Object? value) {

@@ -8,6 +8,7 @@ import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
 import 'src/clipboard_client.dart';
 import 'src/command_history.dart';
+import 'src/command_palette.dart';
 import 'src/fig_completion.dart';
 import 'src/launch_config.dart';
 import 'src/local_shell_session_controller.dart';
@@ -20,7 +21,7 @@ import 'src/session_restore.dart';
 import 'src/terminal_blocks.dart';
 import 'src/terminal_panes.dart';
 import 'src/terminal_settings.dart';
-import 'src/terminal_tabs_controller.dart';
+import 'src/terminal_windows.dart';
 import 'src/workspace_search.dart';
 
 void main() {
@@ -140,14 +141,15 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   late final SavedCommandsController _savedCommandsController;
   late final TerminalLaunchConfigurationStore _launchConfigStore;
   TerminalSessionRestoreController? _sessionRestoreController;
-  late final TerminalTabsController _tabsController;
-  late final WorkspaceSearchController _workspaceSearchController;
+  late final TerminalWindowsController _tabsController;
+  late final CommandPaletteController _commandPaletteController;
   final Map<int, FocusNode> _terminalFocusNodes = <int, FocusNode>{};
   int? _lastActiveTabId;
   int? _lastActivePaneId;
   ModernInputEffectiveMode? _lastInputMode;
   bool? _lastCanAcceptInput;
   String? _lastLaunchConfigPath;
+  CommandPaletteFilter _paletteOpenFilter = CommandPaletteFilter.commands;
 
   @override
   void initState() {
@@ -167,7 +169,7 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
         debounceDuration: widget.sessionRestoreDebounceDuration,
       );
     }
-    _tabsController = TerminalTabsController(
+    _tabsController = TerminalWindowsController(
       backendFactory: widget.backendFactory,
       clipboardClient: widget.clipboardClient,
       settingsController: _settingsController,
@@ -179,21 +181,17 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       initialBlocksForSession: widget.initialBlocksForSession,
       sessionRestoreController: _sessionRestoreController,
     )..addListener(_syncActiveTabState);
-    _workspaceSearchController = WorkspaceSearchController(
-      dependency: _tabsController,
-      entriesBuilder: () => buildWorkspaceSearchResults(_tabsController),
-      jumpToResult: (result) {
-        _tabsController.selectTab(result.tabIndex);
-        _tabsController.selectPane(result.paneId);
-      },
+    _commandPaletteController = CommandPaletteController(
+      windowsController: _tabsController,
+      savedCommandsController: _savedCommandsController,
     );
-    _tabsController.createInitialTab();
+    _tabsController.createInitialWindow();
   }
 
   @override
   void dispose() {
     _tabsController.removeListener(_syncActiveTabState);
-    _workspaceSearchController.dispose();
+    _commandPaletteController.dispose();
     _tabsController.dispose();
     _sessionRestoreController?.dispose();
     _savedCommandsController.dispose();
@@ -239,8 +237,8 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       _lastActiveTabId = activeTab.id;
       _lastActivePaneId = activePane.id;
       _findTextController.text = activeShell.findState.query;
-      _commandHistoryTextController.text =
-          activeShell.commandHistoryController.query;
+      _commandHistoryTextController.text = _commandPaletteController.query;
+      _workspaceSearchTextController.text = _commandPaletteController.query;
     }
     _lastInputMode = inputMode;
     _lastCanAcceptInput = canAcceptInput;
@@ -259,14 +257,21 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       animation: Listenable.merge(<Listenable>[
         _tabsController,
         _settingsController,
-        _workspaceSearchController,
+        _commandPaletteController,
       ]),
       builder: (context, _) {
         final activeShell = _tabsController.activeShell;
         return Shortcuts(
           shortcuts: <ShortcutActivator, Intent>{
+            const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
+                const _NewWindowIntent(),
             const SingleActivator(LogicalKeyboardKey.keyT, meta: true):
                 const _NewTabIntent(),
+            const SingleActivator(
+              LogicalKeyboardKey.keyW,
+              meta: true,
+              shift: true,
+            ): const _CloseWindowIntent(),
             const SingleActivator(LogicalKeyboardKey.keyW, meta: true):
                 const _CloseTabIntent(),
             const SingleActivator(LogicalKeyboardKey.keyD, meta: true):
@@ -319,21 +324,18 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
               meta: true,
               shift: true,
             ): const _ToggleRawInputIntent(),
-            if (activeShell.commandHistoryController.isOpen)
+            if (_commandPaletteController.isOpen)
               const SingleActivator(LogicalKeyboardKey.escape):
                   const _CloseCommandHistoryIntent(),
-            if (activeShell.commandHistoryController.isOpen)
+            if (_commandPaletteController.isOpen)
               const SingleActivator(LogicalKeyboardKey.arrowDown):
                   const _NextCommandHistoryIntent(),
-            if (activeShell.commandHistoryController.isOpen)
+            if (_commandPaletteController.isOpen)
               const SingleActivator(LogicalKeyboardKey.arrowUp):
                   const _PreviousCommandHistoryIntent(),
-            if (activeShell.commandHistoryController.isOpen)
+            if (_commandPaletteController.isOpen)
               const SingleActivator(LogicalKeyboardKey.enter):
                   const _ChooseCommandHistoryIntent(),
-            if (_workspaceSearchController.isOpen)
-              const SingleActivator(LogicalKeyboardKey.escape):
-                  const _CloseWorkspaceSearchIntent(),
             if (activeShell.findState.isOpen)
               const SingleActivator(LogicalKeyboardKey.escape):
                   const _CloseFindIntent(),
@@ -346,9 +348,21 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
           },
           child: Actions(
             actions: <Type, Action<Intent>>{
+              _NewWindowIntent: CallbackAction<_NewWindowIntent>(
+                onInvoke: (_) {
+                  _tabsController.newWindow();
+                  return null;
+                },
+              ),
               _NewTabIntent: CallbackAction<_NewTabIntent>(
                 onInvoke: (_) {
                   _tabsController.newTab();
+                  return null;
+                },
+              ),
+              _CloseWindowIntent: CallbackAction<_CloseWindowIntent>(
+                onInvoke: (_) {
+                  _tabsController.closeActiveWindow();
                   return null;
                 },
               ),
@@ -443,16 +457,14 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
               _NextCommandHistoryIntent:
                   CallbackAction<_NextCommandHistoryIntent>(
                     onInvoke: (_) {
-                      _tabsController.activeShell.commandHistoryController
-                          .goToNext();
+                      _commandPaletteController.goToNext();
                       return null;
                     },
                   ),
               _PreviousCommandHistoryIntent:
                   CallbackAction<_PreviousCommandHistoryIntent>(
                     onInvoke: (_) {
-                      _tabsController.activeShell.commandHistoryController
-                          .goToPrevious();
+                      _commandPaletteController.goToPrevious();
                       return null;
                     },
                   ),
@@ -493,13 +505,19 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
                         onLaunchConfigRequested: _openLaunchConfig,
                         onModernInputRequested: _focusModernInput,
                       ),
-                      if (_workspaceSearchController.isOpen)
-                        _WorkspaceSearchPanel(
-                          controller: _workspaceSearchController,
-                          textController: _workspaceSearchTextController,
-                          focusNode: _workspaceSearchFocusNode,
-                          onClose: _closeWorkspaceSearch,
-                          onChoose: _chooseWorkspaceSearchResult,
+                      if (_commandPaletteController.isOpen)
+                        _CommandPalettePanel(
+                          controller: _commandPaletteController,
+                          textController: _paletteTextControllerForMode(),
+                          focusNode: _paletteFocusNodeForMode(),
+                          mode: _paletteOpenFilter,
+                          chooseEnabled: activeShell.canAcceptInput,
+                          lightTheme:
+                              _settingsController.settings.themePreset ==
+                              TerminalThemePreset.light,
+                          onClose: _closeCommandHistory,
+                          onChoose: _chooseCommandHistoryEntry,
+                          onModernInputRequested: _focusModernInput,
                         ),
                       if (activeShell.findState.isOpen)
                         _FindBar(
@@ -536,6 +554,14 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
             onSelected: _openSettings,
           ),
           PlatformMenuItem(
+            label: 'Command Palette',
+            shortcut: const SingleActivator(
+              LogicalKeyboardKey.keyR,
+              meta: true,
+            ),
+            onSelected: _openCommandHistory,
+          ),
+          PlatformMenuItem(
             label: 'Workspace Search',
             shortcut: const SingleActivator(
               LogicalKeyboardKey.keyO,
@@ -555,6 +581,29 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
           PlatformMenuItem(
             label: 'Session Context',
             onSelected: _openSessionContext,
+          ),
+          PlatformMenuItemGroup(
+            members: <PlatformMenuItem>[
+              PlatformMenuItem(
+                label: 'New Window',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyN,
+                  meta: true,
+                ),
+                onSelected: _tabsController.newWindow,
+              ),
+              PlatformMenuItem(
+                label: 'Close Window',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.keyW,
+                  meta: true,
+                  shift: true,
+                ),
+                onSelected: _tabsController.canCloseActiveWindow
+                    ? _tabsController.closeActiveWindow
+                    : null,
+              ),
+            ],
           ),
           PlatformMenuItemGroup(
             members: <PlatformMenuItem>[
@@ -749,12 +798,11 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
 
   Object? _openFind() {
     final activeShell = _tabsController.activeShell;
-    if (activeShell.commandHistoryController.isOpen) {
-      activeShell.commandHistoryController.close();
+    if (_commandPaletteController.isOpen) {
+      _commandPaletteController.close();
       _commandHistoryFocusNode.unfocus();
+      _workspaceSearchFocusNode.unfocus();
     }
-    _workspaceSearchController.close();
-    _workspaceSearchFocusNode.unfocus();
     activeShell.openFind();
     _findTextController.text = activeShell.findState.query;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -779,95 +827,97 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
         ModernInputEffectiveMode.raw) {
       return null;
     }
-    if (_workspaceSearchController.isOpen) {
-      _workspaceSearchController.close();
-      _workspaceSearchFocusNode.unfocus();
-    }
     if (activeShell.findState.isOpen) {
       activeShell.closeFind();
       _findFocusNode.unfocus();
     }
     activeShell.completionController.close();
-    activeShell.commandHistoryController.open();
-    _commandHistoryTextController.text =
-        activeShell.commandHistoryController.query;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _commandHistoryFocusNode.requestFocus();
-      }
-    });
-    return null;
+    return _openCommandPalette(filter: CommandPaletteFilter.commands);
   }
 
   Object? _closeCommandHistory() {
-    final activeShell = _tabsController.activeShell;
-    activeShell.commandHistoryController.close();
+    _commandPaletteController.close();
     _commandHistoryFocusNode.unfocus();
+    _workspaceSearchFocusNode.unfocus();
     _focusActiveShellInput();
     return null;
   }
 
   Object? _openWorkspaceSearch() {
     final activeShell = _tabsController.activeShell;
-    if (activeShell.commandHistoryController.isOpen) {
-      activeShell.commandHistoryController.close();
-      _commandHistoryFocusNode.unfocus();
-    }
     if (activeShell.findState.isOpen) {
       activeShell.closeFind();
       _findFocusNode.unfocus();
     }
     activeShell.completionController.close();
-    _workspaceSearchController.open();
-    _workspaceSearchTextController.text = _workspaceSearchController.query;
+    return _openCommandPalette(filter: CommandPaletteFilter.session);
+  }
+
+  Object? _openCommandPalette({required CommandPaletteFilter filter}) {
+    _paletteOpenFilter = filter;
+    _commandPaletteController.open(filter: filter);
+    _paletteTextControllerForMode().text = _commandPaletteController.query;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _workspaceSearchFocusNode.requestFocus();
+        _paletteFocusNodeForMode().requestFocus();
       }
     });
     return null;
   }
 
   Object? _closeWorkspaceSearch() {
-    _workspaceSearchController.close();
-    _workspaceSearchFocusNode.unfocus();
-    _focusActiveShellInput();
-    return null;
-  }
-
-  void _chooseWorkspaceSearchResult() {
-    _workspaceSearchController.chooseActiveResult();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _focusActiveShellInput();
-      }
-    });
+    return _closeCommandHistory();
   }
 
   Future<void> _chooseCommandHistoryEntry() async {
+    final entry = _commandPaletteController.activeEntry;
+    if (entry == null) {
+      return;
+    }
+    if (entry.isSessionEntry) {
+      _tabsController.selectWindow(entry.windowIndex);
+      _tabsController.selectTab(entry.tabIndex);
+      _tabsController.selectPane(entry.paneId);
+      _commandPaletteController.close();
+      if (!mounted) {
+        return;
+      }
+      _commandHistoryFocusNode.unfocus();
+      _workspaceSearchFocusNode.unfocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _focusActiveShellInput();
+        }
+      });
+      return;
+    }
     final activeShell = _tabsController.activeShell;
     if (!activeShell.canAcceptInput) {
       return;
     }
-    await activeShell.commandHistoryController.chooseActiveEntry();
+    activeShell.modernInputController.useModernInput();
+    activeShell.modernInputController.updateDraft(entry.commandText);
+    _commandPaletteController.close();
     if (!mounted) {
       return;
     }
     _commandHistoryFocusNode.unfocus();
+    _workspaceSearchFocusNode.unfocus();
     _focusModernInput();
   }
 
   void _saveActiveDraft() {
     final activeShell = _tabsController.activeShell;
-    activeShell.commandHistoryController.saveCommand(
+    _savedCommandsController.addCommand(
       activeShell.modernInputController.state.draft,
     );
   }
 
   Future<void> _openSettings() async {
-    if (_workspaceSearchController.isOpen) {
-      _workspaceSearchController.close();
+    if (_commandPaletteController.isOpen) {
+      _commandPaletteController.close();
       _workspaceSearchFocusNode.unfocus();
+      _commandHistoryFocusNode.unfocus();
     }
     await showDialog<void>(
       context: context,
@@ -886,9 +936,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   }
 
   Future<void> _openSessionContext() async {
-    if (_workspaceSearchController.isOpen) {
-      _workspaceSearchController.close();
+    if (_commandPaletteController.isOpen) {
+      _commandPaletteController.close();
       _workspaceSearchFocusNode.unfocus();
+      _commandHistoryFocusNode.unfocus();
     }
     final activeShell = _tabsController.activeShell;
     final update = await showDialog<_SessionContextUpdate>(
@@ -916,9 +967,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   }
 
   Future<void> _openNewSshSession() async {
-    if (_workspaceSearchController.isOpen) {
-      _workspaceSearchController.close();
+    if (_commandPaletteController.isOpen) {
+      _commandPaletteController.close();
       _workspaceSearchFocusNode.unfocus();
+      _commandHistoryFocusNode.unfocus();
     }
     final request = await showDialog<_NewSshSessionRequest>(
       context: context,
@@ -943,12 +995,12 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   }
 
   Future<void> _openLaunchConfig() async {
-    if (_workspaceSearchController.isOpen) {
-      _workspaceSearchController.close();
+    if (_commandPaletteController.isOpen) {
+      _commandPaletteController.close();
       _workspaceSearchFocusNode.unfocus();
+      _commandHistoryFocusNode.unfocus();
     }
-    final activeCwd = _tabsController.activeShell.completionController.cwd;
-    final selectedPath = await showDialog<String>(
+    final result = await showDialog<_LaunchConfigDialogResult>(
       context: context,
       builder: (context) {
         return _LaunchConfigPanel(
@@ -956,18 +1008,25 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
           store: _launchConfigStore,
           initialPath:
               _lastLaunchConfigPath ??
-              suggestedLaunchConfigPath(
-                cwd: activeCwd,
+              suggestedNamedLaunchConfigPath(
+                name: 'Ianvs Terminal App',
                 currentPath: Directory.current.path,
               ),
         );
       },
     );
-    if (selectedPath != null) {
-      _lastLaunchConfigPath = selectedPath;
+    if (result != null) {
+      _lastLaunchConfigPath = result.path;
     }
     if (!mounted) {
       return;
+    }
+    if (result?.action == _LaunchConfigDialogAction.applied) {
+      final message = 'Applied app config from ${result!.path}';
+      final messenger = ScaffoldMessenger.of(context);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -980,9 +1039,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     final activeShell = _tabsController.activeShell;
     activeShell.commandHistoryController.close();
     activeShell.completionController.close();
-    if (_workspaceSearchController.isOpen) {
-      _workspaceSearchController.close();
+    if (_commandPaletteController.isOpen) {
+      _commandPaletteController.close();
       _workspaceSearchFocusNode.unfocus();
+      _commandHistoryFocusNode.unfocus();
     }
     activeShell.modernInputController.useModernInput();
     _commandHistoryFocusNode.unfocus();
@@ -994,23 +1054,19 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     final activeShell = _tabsController.activeShell;
     activeShell.commandHistoryController.close();
     activeShell.completionController.close();
-    if (_workspaceSearchController.isOpen) {
-      _workspaceSearchController.close();
+    if (_commandPaletteController.isOpen) {
+      _commandPaletteController.close();
       _workspaceSearchFocusNode.unfocus();
+      _commandHistoryFocusNode.unfocus();
     }
-    _commandHistoryFocusNode.unfocus();
     activeShell.modernInputController.toggleManualRaw();
     _focusActiveShellInput();
   }
 
   void _focusActiveShellInput() {
     final activeShell = _tabsController.activeShell;
-    if (_workspaceSearchController.isOpen) {
-      _workspaceSearchFocusNode.requestFocus();
-      return;
-    }
-    if (activeShell.commandHistoryController.isOpen) {
-      _commandHistoryFocusNode.requestFocus();
+    if (_commandPaletteController.isOpen) {
+      _paletteFocusNodeForMode().requestFocus();
       return;
     }
     if (activeShell.findState.isOpen) {
@@ -1026,6 +1082,18 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     } else {
       _focusModernInput();
     }
+  }
+
+  FocusNode _paletteFocusNodeForMode() {
+    return _paletteOpenFilter == CommandPaletteFilter.session
+        ? _workspaceSearchFocusNode
+        : _commandHistoryFocusNode;
+  }
+
+  TextEditingController _paletteTextControllerForMode() {
+    return _paletteOpenFilter == CommandPaletteFilter.session
+        ? _workspaceSearchTextController
+        : _commandHistoryTextController;
   }
 
   void _focusModernInput() {
@@ -1083,7 +1151,7 @@ class _Header extends StatelessWidget {
     required this.onModernInputRequested,
   });
 
-  final TerminalTabsController tabsController;
+  final TerminalWindowsController tabsController;
   final VoidCallback onNewSshSessionRequested;
   final VoidCallback onSearch;
   final VoidCallback onWorkspaceSearchRequested;
@@ -1096,7 +1164,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeShell = tabsController.activeShell;
     return Container(
-      height: 96,
+      height: 110,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: const BoxDecoration(
         color: Color(0xFF171A21),
@@ -1119,7 +1187,26 @@ class _Header extends StatelessWidget {
                 exitCode: activeShell.exitCode,
               ),
               const SizedBox(width: 8),
+              SizedBox(
+                width: 120,
+                child: _WindowStrip(tabsController: tabsController),
+              ),
+              const SizedBox(width: 8),
               Expanded(child: _TabStrip(tabsController: tabsController)),
+              _HeaderActionButton(
+                key: const Key('terminal-new-window-button'),
+                tooltip: 'New window',
+                onPressed: tabsController.newWindow,
+                icon: Icons.open_in_new,
+              ),
+              _HeaderActionButton(
+                key: const Key('terminal-close-window-button'),
+                tooltip: 'Close window',
+                onPressed: tabsController.canCloseActiveWindow
+                    ? tabsController.closeActiveWindow
+                    : null,
+                icon: Icons.web_asset_off_outlined,
+              ),
               _HeaderActionButton(
                 key: const Key('terminal-new-tab-button'),
                 tooltip: 'New tab',
@@ -1131,6 +1218,35 @@ class _Header extends StatelessWidget {
                 tooltip: 'New SSH session',
                 onPressed: onNewSshSessionRequested,
                 icon: Icons.lan_outlined,
+              ),
+              _HeaderActionButton(
+                key: const Key('terminal-settings-button'),
+                tooltip: 'Settings',
+                onPressed: onSettings,
+                icon: Icons.tune,
+              ),
+              _HeaderActionButton(
+                key: const Key('terminal-launch-config-button'),
+                tooltip: 'Launch config',
+                onPressed: onLaunchConfigRequested,
+                icon: Icons.rocket_launch_outlined,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              _HeaderActionButton(
+                key: const Key('terminal-search-button'),
+                tooltip: 'Search',
+                onPressed: onSearch,
+                icon: Icons.search,
+              ),
+              _HeaderActionButton(
+                key: const Key('terminal-workspace-search-button'),
+                tooltip: 'Workspace search',
+                onPressed: onWorkspaceSearchRequested,
+                icon: Icons.travel_explore,
               ),
               _HeaderActionButton(
                 key: const Key('terminal-split-right-button'),
@@ -1153,34 +1269,10 @@ class _Header extends StatelessWidget {
                 icon: Icons.close_fullscreen,
               ),
               _HeaderActionButton(
-                key: const Key('terminal-search-button'),
-                tooltip: 'Search',
-                onPressed: onSearch,
-                icon: Icons.search,
-              ),
-              _HeaderActionButton(
-                key: const Key('terminal-workspace-search-button'),
-                tooltip: 'Workspace search',
-                onPressed: onWorkspaceSearchRequested,
-                icon: Icons.travel_explore,
-              ),
-              _HeaderActionButton(
-                key: const Key('terminal-settings-button'),
-                tooltip: 'Settings',
-                onPressed: onSettings,
-                icon: Icons.tune,
-              ),
-              _HeaderActionButton(
                 key: const Key('terminal-session-context-button'),
                 tooltip: 'Session context',
                 onPressed: onSessionContextRequested,
                 icon: Icons.security,
-              ),
-              _HeaderActionButton(
-                key: const Key('terminal-launch-config-button'),
-                tooltip: 'Launch config',
-                onPressed: onLaunchConfigRequested,
-                icon: Icons.rocket_launch_outlined,
               ),
               _HeaderActionButton(
                 key: const Key('terminal-copy-button'),
@@ -1204,11 +1296,7 @@ class _Header extends StatelessWidget {
                 onPressed: activeShell.canRestart ? activeShell.restart : null,
                 icon: Icons.restart_alt,
               ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
+              const SizedBox(width: 8),
               Expanded(
                 child: _BlockToolbar(
                   controller: activeShell.blocksController,
@@ -1339,6 +1427,352 @@ class _BlockToolbar extends StatelessWidget {
   }
 }
 
+class _InlineBlockRail extends StatelessWidget {
+  const _InlineBlockRail({required this.controller, required this.lightTheme});
+
+  final TerminalBlocksController controller;
+  final bool lightTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeBlock = controller.activeBlock;
+    if (activeBlock == null) {
+      return const SizedBox.shrink();
+    }
+    final background = lightTheme
+        ? const Color(0xFFF8FAFC)
+        : const Color(0xFF0F172A);
+    final borderColor = lightTheme
+        ? const Color(0xFFE2E8F0)
+        : const Color(0xFF273244);
+    return Container(
+      key: const Key('terminal-inline-block-rail'),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _InlineActiveBlockCard(
+            controller: controller,
+            block: activeBlock,
+            lightTheme: lightTheme,
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (
+                  var index = 0;
+                  index < controller.blocks.length;
+                  index += 1
+                ) ...[
+                  if (index > 0)
+                    _InlineBlockDivider(
+                      key: Key('terminal-inline-block-divider-$index'),
+                      lightTheme: lightTheme,
+                    ),
+                  _InlineBlockChip(
+                    key: Key(
+                      'terminal-inline-block-chip-${controller.blocks[index].id}',
+                    ),
+                    index: index,
+                    block: controller.blocks[index],
+                    active: index == controller.activeIndex,
+                    lightTheme: lightTheme,
+                    onTap: () => controller.selectBlockAt(index),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineActiveBlockCard extends StatelessWidget {
+  const _InlineActiveBlockCard({
+    required this.controller,
+    required this.block,
+    required this.lightTheme,
+  });
+
+  final TerminalBlocksController controller;
+  final TerminalBlock block;
+  final bool lightTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final (badgeBackground, badgeBorder, badgeIndicator) =
+        _inlineBlockStatusColors(block.status, lightTheme);
+    final cardBackground = lightTheme
+        ? const Color(0xFFFFFFFF)
+        : const Color(0xFF111827);
+    final textColor = lightTheme
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFE5E7EB);
+    final mutedColor = lightTheme
+        ? const Color(0xFF64748B)
+        : const Color(0xFF94A3B8);
+    final outputPreview = _firstOutputLine(block.outputText);
+    return Container(
+      key: const Key('terminal-inline-active-block-card'),
+      decoration: BoxDecoration(
+        color: cardBackground,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: badgeBorder),
+      ),
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: badgeIndicator,
+              shape: BoxShape.circle,
+              border: Border.all(color: badgeBorder),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: badgeBackground,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: badgeBorder),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        child: Text(
+                          'Active block',
+                          style: TextStyle(
+                            color: badgeIndicator,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${controller.displayIndex} of ${controller.blocks.length}',
+                      style: TextStyle(
+                        color: mutedColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  _singleLinePreview(block.commandText),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (outputPreview.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    outputPreview,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: mutedColor, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineBlockChip extends StatelessWidget {
+  const _InlineBlockChip({
+    super.key,
+    required this.index,
+    required this.block,
+    required this.active,
+    required this.lightTheme,
+    required this.onTap,
+  });
+
+  final int index;
+  final TerminalBlock block;
+  final bool active;
+  final bool lightTheme;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final (badgeBackground, badgeBorder, badgeIndicator) =
+        _inlineBlockStatusColors(block.status, lightTheme);
+    final background = active
+        ? (lightTheme ? const Color(0xFFEFF6FF) : const Color(0xFF172033))
+        : Colors.transparent;
+    final borderColor = active ? badgeBorder : const Color(0x00000000);
+    final textColor = lightTheme
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFE5E7EB);
+    final mutedColor = lightTheme
+        ? const Color(0xFF64748B)
+        : const Color(0xFF94A3B8);
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 118, maxWidth: 172),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: borderColor),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: badgeIndicator,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: badgeBorder),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '#${index + 1}',
+                style: TextStyle(
+                  color: mutedColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _singleLinePreview(block.commandText),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 11,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (active) ...[
+                const SizedBox(width: 8),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: badgeBackground,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: badgeBorder),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    child: Text(
+                      'Active',
+                      style: TextStyle(
+                        color: badgeIndicator,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InlineBlockDivider extends StatelessWidget {
+  const _InlineBlockDivider({super.key, required this.lightTheme});
+
+  final bool lightTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: SizedBox(
+        width: 18,
+        child: Divider(
+          color: lightTheme ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+          thickness: 1,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+(Color background, Color border, Color indicator) _inlineBlockStatusColors(
+  TerminalBlockStatus status,
+  bool lightTheme,
+) {
+  return switch (status) {
+    TerminalBlockStatus.running => (
+      lightTheme ? const Color(0xFFDCFCE7) : const Color(0xFF052E1A),
+      const Color(0xFF166534),
+      lightTheme ? const Color(0xFF166534) : const Color(0xFFBBF7D0),
+    ),
+    TerminalBlockStatus.succeeded => (
+      lightTheme ? const Color(0xFFE0F2FE) : const Color(0xFF0F2A3A),
+      const Color(0xFF0369A1),
+      lightTheme ? const Color(0xFF0369A1) : const Color(0xFFBAE6FD),
+    ),
+    TerminalBlockStatus.failed => (
+      lightTheme ? const Color(0xFFFEE2E2) : const Color(0xFF2A1215),
+      const Color(0xFF991B1B),
+      lightTheme ? const Color(0xFF991B1B) : const Color(0xFFFECACA),
+    ),
+    TerminalBlockStatus.interrupted => (
+      lightTheme ? const Color(0xFFFEF3C7) : const Color(0xFF2A1F13),
+      const Color(0xFF92400E),
+      lightTheme ? const Color(0xFF92400E) : const Color(0xFFFDE68A),
+    ),
+    TerminalBlockStatus.unknown => (
+      lightTheme ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B),
+      const Color(0xFF475569),
+      lightTheme ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+    ),
+  };
+}
+
 class _HeaderActionButton extends StatelessWidget {
   const _HeaderActionButton({
     super.key,
@@ -1368,10 +1802,81 @@ class _HeaderActionButton extends StatelessWidget {
   }
 }
 
+class _WindowStrip extends StatelessWidget {
+  const _WindowStrip({required this.tabsController});
+
+  final TerminalWindowsController tabsController;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < tabsController.windows.length; index += 1)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: _TerminalWindowButton(
+                windowId: tabsController.windows[index].id,
+                title: tabsController.windows[index].title,
+                active: index == tabsController.activeWindowIndex,
+                onSelect: () => tabsController.selectWindow(index),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TerminalWindowButton extends StatelessWidget {
+  const _TerminalWindowButton({
+    required this.windowId,
+    required this.title,
+    required this.active,
+    required this.onSelect,
+  });
+
+  final int windowId;
+  final String title;
+  final bool active;
+  final VoidCallback onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: active ? const Color(0xFF202632) : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(999),
+        side: BorderSide(
+          color: active ? const Color(0xFF4D8DFF) : const Color(0xFF252B36),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: Key('terminal-window-$windowId'),
+        onTap: onSelect,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Text(
+            title,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: active ? const Color(0xFFE5E7EB) : const Color(0xFF94A3B8),
+              fontSize: 11,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TabStrip extends StatelessWidget {
   const _TabStrip({required this.tabsController});
 
-  final TerminalTabsController tabsController;
+  final TerminalWindowsController tabsController;
 
   @override
   Widget build(BuildContext context) {
@@ -1693,6 +2198,500 @@ class _FindBar extends StatelessWidget {
             icon: const Icon(Icons.close, size: 18),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CommandPalettePanel extends StatefulWidget {
+  const _CommandPalettePanel({
+    required this.controller,
+    required this.textController,
+    required this.focusNode,
+    required this.mode,
+    required this.chooseEnabled,
+    required this.lightTheme,
+    required this.onClose,
+    required this.onChoose,
+    required this.onModernInputRequested,
+  });
+
+  final CommandPaletteController controller;
+  final TextEditingController textController;
+  final FocusNode focusNode;
+  final CommandPaletteFilter mode;
+  final bool chooseEnabled;
+  final bool lightTheme;
+  final VoidCallback onClose;
+  final Future<void> Function() onChoose;
+  final VoidCallback onModernInputRequested;
+
+  @override
+  State<_CommandPalettePanel> createState() => _CommandPalettePanelState();
+}
+
+class _CommandPalettePanelState extends State<_CommandPalettePanel> {
+  @override
+  Widget build(BuildContext context) {
+    final matches = widget.controller.matches;
+    final background = widget.lightTheme
+        ? const Color(0xFFF8FAFC)
+        : const Color(0xFF111827);
+    final borderColor = widget.lightTheme
+        ? const Color(0xFFE2E8F0)
+        : const Color(0xFF252B36);
+    final textColor = widget.lightTheme
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFE5E7EB);
+    final mutedColor = widget.lightTheme
+        ? const Color(0xFF64748B)
+        : const Color(0xFF94A3B8);
+    final sessionMode = widget.mode == CommandPaletteFilter.session;
+    final hintText = sessionMode
+        ? 'Search sessions, prompts, and targets'
+        : 'Search commands and sessions';
+    return Container(
+      key: const Key('terminal-command-palette-panel'),
+      height: 280,
+      decoration: BoxDecoration(
+        color: background,
+        border: Border(bottom: BorderSide(color: borderColor)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            key: Key(
+              sessionMode
+                  ? 'terminal-workspace-search-panel'
+                  : 'terminal-command-history-panel',
+            ),
+            height: 0,
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 320,
+                  child: Focus(
+                    onKeyEvent: _handleKey,
+                    child: TextField(
+                      key: Key(
+                        sessionMode
+                            ? 'terminal-workspace-search-field'
+                            : 'terminal-command-history-field',
+                      ),
+                      focusNode: widget.focusNode,
+                      controller: widget.textController,
+                      onChanged: widget.controller.updateQuery,
+                      textInputAction: TextInputAction.search,
+                      style: TextStyle(color: textColor, fontSize: 13),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: hintText,
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 52,
+                  child: Text(
+                    '${widget.controller.displayIndex}/${matches.length}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: mutedColor, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _PaletteFilterChip(
+                  filter: widget.controller.effectiveFilter,
+                  lightTheme: widget.lightTheme,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Use saved:, history:, session:, ssh:',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: mutedColor, fontSize: 12),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Previous palette result',
+                  onPressed: matches.isEmpty
+                      ? null
+                      : widget.controller.goToPrevious,
+                  icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                ),
+                IconButton(
+                  tooltip: 'Next palette result',
+                  onPressed: matches.isEmpty
+                      ? null
+                      : widget.controller.goToNext,
+                  icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                ),
+                IconButton(
+                  tooltip: sessionMode
+                      ? 'Close workspace search'
+                      : 'Close command history',
+                  onPressed: widget.onClose,
+                  icon: const Icon(Icons.close, size: 18),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: borderColor),
+          Expanded(
+            child: matches.isEmpty
+                ? Center(
+                    child: Text(
+                      sessionMode
+                          ? 'No sessions match'
+                          : 'No commands or sessions match',
+                      style: TextStyle(color: mutedColor, fontSize: 12),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    itemCount: matches.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 2),
+                    itemBuilder: (context, index) {
+                      final entry = matches[index];
+                      return _CommandPaletteEntryRow(
+                        key: Key(
+                          entry.isSessionEntry
+                              ? 'terminal-workspace-search-row-${entry.id}'
+                              : 'terminal-command-history-row-${entry.id}',
+                        ),
+                        entry: entry,
+                        active: index == widget.controller.activeIndex,
+                        chooseEnabled: widget.chooseEnabled,
+                        lightTheme: widget.lightTheme,
+                        onSave: () {
+                          widget.controller.saveEntry(entry);
+                        },
+                        onRemove: () {
+                          widget.controller.removeEntry(entry);
+                        },
+                        onTap: entry.isSessionEntry || widget.chooseEnabled
+                            ? () {
+                                widget.controller.selectEntryAt(index);
+                                unawaited(_choose());
+                              }
+                            : null,
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      widget.onClose();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      widget.controller.goToNext();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      widget.controller.goToPrevious();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      final entry = widget.controller.activeEntry;
+      if (entry != null && (entry.isSessionEntry || widget.chooseEnabled)) {
+        unawaited(_choose());
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  Future<void> _choose() async {
+    final entry = widget.controller.activeEntry;
+    await widget.onChoose();
+    if (!mounted) {
+      return;
+    }
+    if (entry?.isCommandEntry ?? false) {
+      widget.onModernInputRequested();
+    }
+  }
+}
+
+class _PaletteFilterChip extends StatelessWidget {
+  const _PaletteFilterChip({required this.filter, required this.lightTheme});
+
+  final CommandPaletteFilter filter;
+  final bool lightTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: lightTheme ? const Color(0xFFEFF6FF) : const Color(0xFF172033),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: lightTheme ? const Color(0xFFBFDBFE) : const Color(0xFF334155),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          filter.label,
+          style: TextStyle(
+            color: lightTheme
+                ? const Color(0xFF1D4ED8)
+                : const Color(0xFFBFDBFE),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CommandPaletteEntryRow extends StatelessWidget {
+  const _CommandPaletteEntryRow({
+    super.key,
+    required this.entry,
+    required this.active,
+    required this.chooseEnabled,
+    required this.lightTheme,
+    required this.onSave,
+    required this.onRemove,
+    required this.onTap,
+  });
+
+  final CommandPaletteEntry entry;
+  final bool active;
+  final bool chooseEnabled;
+  final bool lightTheme;
+  final VoidCallback onSave;
+  final VoidCallback onRemove;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeBackground = lightTheme
+        ? const Color(0xFFEFF6FF)
+        : const Color(0xFF172033);
+    final hoverBackground = lightTheme
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF111827);
+    final textColor = lightTheme
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFE5E7EB);
+    final mutedColor = lightTheme
+        ? const Color(0xFF64748B)
+        : const Color(0xFF94A3B8);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Material(
+        color: active ? activeBackground : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: hoverBackground,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: active ? const Color(0xFF4D8DFF) : Colors.transparent,
+                  width: 3,
+                ),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(9, 8, 10, 8),
+            child: entry.isSessionEntry
+                ? _buildSessionRow(textColor, mutedColor)
+                : _buildCommandRow(textColor, mutedColor),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSessionRow(Color textColor, Color mutedColor) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 82,
+          child: Text(
+            entry.paneLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: mutedColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        const _CommandSourceBadge(source: CommandPaletteEntrySource.session),
+        const SizedBox(width: 6),
+        if (entry.isActivePane)
+          const _WorkspaceActiveBadge(label: 'Active pane')
+        else if (entry.isActiveTab)
+          const _WorkspaceActiveBadge(label: 'Active tab'),
+        if (entry.isActivePane || entry.isActiveTab) const SizedBox(width: 6),
+        _CompactWorkspaceStatusBadge(
+          status: entry.status,
+          exitCode: entry.exitCode,
+        ),
+        if (entry.isSshSession) ...[
+          const SizedBox(width: 6),
+          const _SessionModeBadge(label: 'SSH'),
+        ],
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 2,
+          child: Text(
+            _singleLinePreview(entry.tabTitle),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 3,
+          child: Text(
+            _singleLinePreview(entry.cwd),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: mutedColor, fontSize: 11),
+          ),
+        ),
+        if (entry.lastCommand.isNotEmpty) ...[
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _singleLinePreview(entry.lastCommand),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: mutedColor, fontSize: 11),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCommandRow(Color textColor, Color mutedColor) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 34,
+          child: Text(
+            entry.source == CommandPaletteEntrySource.saved
+                ? 'Save'
+                : entry.windowLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: mutedColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        _CommandSourceBadge(source: entry.source),
+        if (entry.blockStatus != null) ...[
+          const SizedBox(width: 6),
+          _BlockPanelStatus(status: entry.blockStatus!),
+        ],
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 3,
+          child: Text(
+            _singleLinePreview(entry.commandText),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: Text(
+            entry.source == CommandPaletteEntrySource.saved
+                ? _singleLinePreview(entry.savedEntry.cwdHint)
+                : entry.outputPreview,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: mutedColor, fontSize: 11),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: entry.source == CommandPaletteEntrySource.saved
+              ? 'Remove saved command'
+              : 'Save history command',
+          onPressed: entry.source == CommandPaletteEntrySource.saved
+              ? onRemove
+              : onSave,
+          icon: Icon(
+            entry.source == CommandPaletteEntrySource.saved
+                ? Icons.bookmark_remove
+                : Icons.bookmark_add,
+            size: 16,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SessionModeBadge extends StatelessWidget {
+  const _SessionModeBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F2A3A),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0xFF0369A1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFFBAE6FD),
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }
@@ -2263,49 +3262,72 @@ class _TerminalSurface extends StatelessWidget {
             child: AnimatedBuilder(
               animation: shellController.blocksController,
               builder: (context, _) {
+                final lightTheme =
+                    settings.themePreset == TerminalThemePreset.light;
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (context.mounted) {
-                              onViewportLaidOut(
-                                Size(
-                                  constraints.maxWidth,
-                                  constraints.maxHeight,
-                                ),
-                                null,
-                              );
-                            }
-                          });
-                          return terminal.TerminalViewport(
-                            focusNode: focusNode,
-                            controller: shellController.viewportController,
-                            selectionController:
-                                shellController.selectionController,
-                            inputController: inputController,
-                            contentPadding: const EdgeInsets.all(14),
-                            colors: colors,
-                            font: settings.fontConfig,
-                            onMeasuredCellSizeChanged: (measuredCellSize) {
-                              onViewportLaidOut(
-                                Size(
-                                  constraints.maxWidth,
-                                  constraints.maxHeight,
-                                ),
-                                measuredCellSize,
-                              );
-                            },
-                            onScrollLines: (delta) {
-                              shellController.scrollViewport(delta);
-                            },
-                            onScrollToOffset: (offset) {
-                              shellController.scrollViewportTo(offset);
-                            },
-                          );
-                        },
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  if (context.mounted) {
+                                    onViewportLaidOut(
+                                      Size(
+                                        constraints.maxWidth,
+                                        constraints.maxHeight,
+                                      ),
+                                      null,
+                                    );
+                                  }
+                                });
+                                return terminal.TerminalViewport(
+                                  focusNode: focusNode,
+                                  controller:
+                                      shellController.viewportController,
+                                  selectionController:
+                                      shellController.selectionController,
+                                  inputController: inputController,
+                                  contentPadding: const EdgeInsets.all(14),
+                                  colors: colors,
+                                  font: settings.fontConfig,
+                                  onMeasuredCellSizeChanged:
+                                      (measuredCellSize) {
+                                        onViewportLaidOut(
+                                          Size(
+                                            constraints.maxWidth,
+                                            constraints.maxHeight,
+                                          ),
+                                          measuredCellSize,
+                                        );
+                                      },
+                                  onScrollLines: (delta) {
+                                    shellController.scrollViewport(delta);
+                                  },
+                                  onScrollToOffset: (offset) {
+                                    shellController.scrollViewportTo(offset);
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                          if (isActivePane &&
+                              shellController.blocksController.hasBlocks)
+                            Positioned(
+                              top: 12,
+                              left: 18,
+                              right: 18,
+                              child: _InlineBlockRail(
+                                controller: shellController.blocksController,
+                                lightTheme: lightTheme,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     if (isActivePane &&
@@ -2313,8 +3335,7 @@ class _TerminalSurface extends StatelessWidget {
                       _BlockHistoryPanel(
                         controller: shellController.blocksController,
                         reinputEnabled: shellController.canAcceptInput,
-                        lightTheme:
-                            settings.themePreset == TerminalThemePreset.light,
+                        lightTheme: lightTheme,
                         onReinput: onModernInputRequested,
                       ),
                   ],
@@ -2527,9 +3548,7 @@ class _ModernInputBarState extends State<_ModernInputBar> {
                 _HeaderActionButton(
                   key: const Key('terminal-command-history-button'),
                   tooltip: 'Command history',
-                  onPressed: widget.commandHistoryController.entries.isNotEmpty
-                      ? widget.onCommandHistoryRequested
-                      : null,
+                  onPressed: widget.onCommandHistoryRequested,
                   icon: Icons.history,
                 ),
                 _HeaderActionButton(
@@ -3109,19 +4128,35 @@ class _CommandHistoryRow extends StatelessWidget {
 class _CommandSourceBadge extends StatelessWidget {
   const _CommandSourceBadge({required this.source});
 
-  final CommandHistoryEntrySource source;
+  final Object source;
 
   @override
   Widget build(BuildContext context) {
-    final (
-      background,
-      foreground,
-      border,
-    ) = source == CommandHistoryEntrySource.saved
+    final saved = switch (source) {
+      CommandHistoryEntrySource.saved => true,
+      CommandPaletteEntrySource.saved => true,
+      _ => false,
+    };
+    final session = switch (source) {
+      CommandPaletteEntrySource.session => true,
+      _ => false,
+    };
+    final label = switch (source) {
+      CommandHistoryEntrySource source => source.label,
+      CommandPaletteEntrySource source => source.label,
+      _ => '',
+    };
+    final (background, foreground, border) = saved
         ? (
             const Color(0xFF1E1B4B),
             const Color(0xFFC4B5FD),
             const Color(0xFF5B21B6),
+          )
+        : session
+        ? (
+            const Color(0xFF0F2A3A),
+            const Color(0xFFBAE6FD),
+            const Color(0xFF0369A1),
           )
         : (
             const Color(0xFF172554),
@@ -3137,7 +4172,7 @@ class _CommandSourceBadge extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         child: Text(
-          source.label,
+          label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -3508,7 +4543,7 @@ class _LaunchConfigPanel extends StatefulWidget {
     required this.initialPath,
   });
 
-  final TerminalTabsController tabsController;
+  final TerminalWindowsController tabsController;
   final TerminalLaunchConfigurationStore store;
   final String initialPath;
 
@@ -3517,24 +4552,36 @@ class _LaunchConfigPanel extends StatefulWidget {
 }
 
 class _LaunchConfigPanelState extends State<_LaunchConfigPanel> {
+  late final TextEditingController _nameController;
   late final TextEditingController _pathController;
   late final List<_LaunchConfigPaneField> _paneFields;
-  late final Map<int, TextEditingController> _startupControllers;
+  late final Map<String, TextEditingController> _startupControllers;
+  bool _advancedPathExpanded = false;
+  bool _pathCustomized = false;
+  bool _syncingPathFromName = false;
+  _LaunchConfigPanelPhase _phase = _LaunchConfigPanelPhase.compose;
+  String? _savedPath;
   String? _errorText;
 
   @override
   void initState() {
     super.initState();
+    _nameController = TextEditingController(
+      text: launchConfigDisplayNameFromPath(widget.initialPath),
+    )..addListener(_syncSuggestedPathFromName);
     _pathController = TextEditingController(text: widget.initialPath);
     _paneFields = _buildPaneFields();
-    _startupControllers = <int, TextEditingController>{
+    _startupControllers = <String, TextEditingController>{
       for (final field in _paneFields)
-        field.paneId: TextEditingController(text: field.startupCommand),
+        field.fieldId: TextEditingController(text: field.startupCommand),
     };
   }
 
   @override
   void dispose() {
+    _nameController
+      ..removeListener(_syncSuggestedPathFromName)
+      ..dispose();
     _pathController.dispose();
     for (final controller in _startupControllers.values) {
       controller.dispose();
@@ -3545,180 +4592,882 @@ class _LaunchConfigPanelState extends State<_LaunchConfigPanel> {
   List<_LaunchConfigPaneField> _buildPaneFields() {
     final fields = <_LaunchConfigPaneField>[];
     for (
-      var tabIndex = 0;
-      tabIndex < widget.tabsController.tabs.length;
-      tabIndex += 1
+      var windowIndex = 0;
+      windowIndex < widget.tabsController.windows.length;
+      windowIndex += 1
     ) {
-      final tab = widget.tabsController.tabs[tabIndex];
-      for (final pane in tab.panes) {
-        fields.add(
-          _LaunchConfigPaneField(
-            tabLabel: 'Tab ${tabIndex + 1} · ${tab.fallbackTitle}',
-            paneId: pane.id,
-            cwd: pane.shellController.completionController.cwd,
-            startupCommand: pane.shellController.startupCommand ?? '',
-          ),
-        );
+      final window = widget.tabsController.windows[windowIndex];
+      for (
+        var tabIndex = 0;
+        tabIndex < window.tabsController.tabs.length;
+        tabIndex += 1
+      ) {
+        final tab = window.tabsController.tabs[tabIndex];
+        for (final pane in tab.panes) {
+          final metadata = pane.shellController.sessionMetadata;
+          fields.add(
+            _LaunchConfigPaneField(
+              fieldId: widget.tabsController.windows.length == 1
+                  ? 'pane-${pane.id}'
+                  : 'window-${windowIndex + 1}-pane-${pane.id}',
+              windowLabel: 'Window ${windowIndex + 1}',
+              tabLabel: 'Tab ${tabIndex + 1} · ${tab.title}',
+              paneId: pane.id,
+              cwd: pane.shellController.completionController.cwd,
+              startupCommand: pane.shellController.startupCommand ?? '',
+              contextLabel: metadata.compactContextLabel ?? metadata.kind.label,
+              shellController: pane.shellController,
+            ),
+          );
+        }
       }
     }
     return fields;
   }
 
-  Future<void> _saveCurrentLayout() async {
-    final path = _pathController.text.trim();
-    if (path.isEmpty) {
-      setState(() {
-        _errorText = 'Launch config path is required.';
-      });
-      return;
-    }
-    widget.tabsController.updatePaneStartupCommands(_startupCommandsByPaneId());
-    widget.store.save(
-      File(path),
-      widget.tabsController.currentLaunchConfiguration(),
+  int get _windowCount => widget.tabsController.windows.length;
+
+  int get _tabCount => widget.tabsController.windows.fold<int>(
+    0,
+    (count, window) => count + window.tabsController.tabs.length,
+  );
+
+  int get _paneCount => _paneFields.length;
+  bool get _canSave => _nameController.text.trim().isNotEmpty;
+
+  String get _currentPath => _pathController.text.trim();
+
+  String _suggestedPathForCurrentName() {
+    return suggestedNamedLaunchConfigPath(
+      name: _nameController.text,
+      currentPath: Directory.current.path,
     );
-    if (!mounted) {
-      return;
-    }
-    Navigator.of(context).pop(path);
   }
 
-  Future<void> _applyLaunchConfig() async {
-    final path = _pathController.text.trim();
+  void _syncSuggestedPathFromName() {
+    if (_pathCustomized || _syncingPathFromName) {
+      return;
+    }
+    final suggestedPath = _suggestedPathForCurrentName();
+    if (_pathController.text == suggestedPath) {
+      return;
+    }
+    _syncingPathFromName = true;
+    _pathController.value = TextEditingValue(
+      text: suggestedPath,
+      selection: TextSelection.collapsed(offset: suggestedPath.length),
+    );
+    _syncingPathFromName = false;
+  }
+
+  void _updatePathCustomization(String value) {
+    if (_syncingPathFromName) {
+      return;
+    }
+    final customized = value.trim() != _suggestedPathForCurrentName();
+    if (_pathCustomized == customized) {
+      return;
+    }
+    setState(() {
+      _pathCustomized = customized;
+    });
+  }
+
+  void _resetPathToSuggested() {
+    final suggestedPath = _suggestedPathForCurrentName();
+    _syncingPathFromName = true;
+    _pathController.value = TextEditingValue(
+      text: suggestedPath,
+      selection: TextSelection.collapsed(offset: suggestedPath.length),
+    );
+    _syncingPathFromName = false;
+    setState(() {
+      _pathCustomized = false;
+    });
+  }
+
+  Widget _buildAppSnapshotColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Current app snapshot',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Ianvs exports every window, tab, pane, cwd, startup command, and session launch profile.',
+          style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                for (
+                  var windowIndex = 0;
+                  windowIndex < widget.tabsController.windows.length;
+                  windowIndex += 1
+                )
+                  _LaunchConfigWindowCard(
+                    windowLabel: 'Window ${windowIndex + 1}',
+                    active:
+                        windowIndex == widget.tabsController.activeWindowIndex,
+                    tabSummaries: widget
+                        .tabsController
+                        .windows[windowIndex]
+                        .tabsController
+                        .tabs
+                        .asMap()
+                        .entries
+                        .map(
+                          (entry) => _LaunchConfigTabSummary(
+                            label:
+                                'Tab ${entry.key + 1} · ${entry.value.title}',
+                            paneCount: entry.value.panes.length,
+                          ),
+                        )
+                        .toList(growable: false),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStartupCommandsColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Startup commands',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Commands run once after each pane launches or restarts.',
+          style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final field in _paneFields) ...[
+                  Text(
+                    '${field.windowLabel} · ${field.tabLabel} · Pane ${field.paneId}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${field.contextLabel} · ${field.cwd}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: Key(
+                      'terminal-launch-config-startup-field-${field.fieldId}',
+                    ),
+                    controller: _startupControllers[field.fieldId],
+                    minLines: 1,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Startup command',
+                      hintText: 'Optional command to run after launch',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSaveSettingsCard() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF233047)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Save current app snapshot',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Start with a name, then expand the path only if you need a custom location.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              key: const Key('terminal-launch-config-name-field'),
+              controller: _nameController,
+              onChanged: (_) {
+                setState(() {
+                  _errorText = null;
+                });
+              },
+              decoration: const InputDecoration(
+                labelText: 'App snapshot name',
+                hintText: 'payments-prod',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Ianvs will save to',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF94A3B8),
+              ),
+            ),
+            const SizedBox(height: 6),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF1E293B)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                child: SelectableText(
+                  _currentPath,
+                  key: const Key('terminal-launch-config-path-preview'),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFFE5E7EB),
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('terminal-launch-config-advanced-toggle'),
+                onPressed: () {
+                  setState(() {
+                    _advancedPathExpanded = !_advancedPathExpanded;
+                  });
+                },
+                icon: Icon(
+                  _advancedPathExpanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                ),
+                label: Text(
+                  _advancedPathExpanded
+                      ? 'Hide advanced path'
+                      : 'Customize path',
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 160),
+              crossFadeState: _advancedPathExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: const SizedBox.shrink(),
+              secondChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    key: const Key('terminal-launch-config-path-field'),
+                    controller: _pathController,
+                    onChanged: (value) {
+                      setState(() {
+                        _errorText = null;
+                      });
+                      _updatePathCustomization(value);
+                    },
+                    decoration: const InputDecoration(
+                      labelText: 'Advanced config path',
+                      hintText:
+                          '/Users/name/Library/Application Support/Ianvs/ianvs-terminal/launch_configs/app.json',
+                      border: OutlineInputBorder(),
+                      helperText:
+                          'Only change this when you need a custom export location.',
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      key: const Key(
+                        'terminal-launch-config-reset-path-button',
+                      ),
+                      onPressed: _pathCustomized ? _resetPathToSuggested : null,
+                      child: const Text('Reset to suggested path'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuccessState() {
+    final path = _savedPath ?? _currentPath;
+    final fileName = path.split(RegExp(r'[\\/]')).last;
+    return SingleChildScrollView(
+      key: const Key('terminal-launch-config-success-state'),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF111827),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF233047)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Color(0xFF34D399), size: 22),
+                  SizedBox(width: 10),
+                  Text(
+                    'Saved current app',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                fileName,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Ianvs wrote a reusable app snapshot with every window, tab, pane, startup command, and session context. Apply it now or close this panel when you are done checking the path.',
+                style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 20),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF1E293B)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Saved file',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SelectableText(
+                        path,
+                        key: const Key('terminal-launch-config-success-path'),
+                        style: const TextStyle(fontSize: 12, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _LaunchConfigStatCard(
+                    label: 'Windows',
+                    value: '$_windowCount',
+                  ),
+                  _LaunchConfigStatCard(label: 'Tabs', value: '$_tabCount'),
+                  _LaunchConfigStatCard(label: 'Panes', value: '$_paneCount'),
+                ],
+              ),
+              if (_errorText != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  _errorText!,
+                  style: const TextStyle(color: Color(0xFFFCA5A5)),
+                ),
+              ],
+              const SizedBox(height: 24),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(
+                    key: const Key('terminal-launch-config-copy-path-button'),
+                    onPressed: _copySavedPath,
+                    child: const Text('Copy path'),
+                  ),
+                  FilledButton.tonal(
+                    key: const Key(
+                      'terminal-launch-config-success-apply-button',
+                    ),
+                    onPressed: _applySavedLayout,
+                    child: const Text('Apply saved app'),
+                  ),
+                  FilledButton(
+                    key: const Key('terminal-launch-config-done-button'),
+                    onPressed: _closeAfterSave,
+                    child: const Text('Done'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _applyStartupCommands() {
+    for (final field in _paneFields) {
+      field.shellController.updateStartupCommand(
+        _startupControllers[field.fieldId]?.text,
+      );
+    }
+  }
+
+  bool _applyLaunchConfigAtPath(String path) {
     if (path.isEmpty) {
       setState(() {
         _errorText = 'Launch config path is required.';
       });
-      return;
+      return false;
     }
     final file = File(path);
     if (!file.existsSync()) {
       setState(() {
         _errorText = 'Launch config file was not found.';
       });
-      return;
+      return false;
     }
     final configuration = widget.store.load(file);
     if (!configuration.hasTabs) {
       setState(() {
         _errorText = 'Launch config file is invalid or has no tabs.';
       });
-      return;
+      return false;
     }
     widget.tabsController.applyLaunchConfiguration(configuration);
+    return true;
+  }
+
+  Future<void> _saveCurrentLayout() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() {
+        _errorText = 'App snapshot name is required.';
+      });
+      return;
+    }
+    final path = _currentPath.isEmpty
+        ? _suggestedPathForCurrentName()
+        : _currentPath;
+    _applyStartupCommands();
+    widget.store.save(
+      File(path),
+      widget.tabsController.currentLaunchConfiguration(),
+    );
+    setState(() {
+      _savedPath = path;
+      _phase = _LaunchConfigPanelPhase.success;
+      _errorText = null;
+    });
+  }
+
+  Future<void> _applyLaunchConfig() async {
+    final path = _currentPath.isEmpty
+        ? _suggestedPathForCurrentName()
+        : _currentPath;
+    if (_applyLaunchConfigAtPath(path) && mounted) {
+      Navigator.of(context).pop(
+        _LaunchConfigDialogResult(
+          action: _LaunchConfigDialogAction.applied,
+          path: path,
+        ),
+      );
+    }
+  }
+
+  Future<void> _applySavedLayout() async {
+    final path = _savedPath ?? _currentPath;
+    if (_applyLaunchConfigAtPath(path) && mounted) {
+      Navigator.of(context).pop(
+        _LaunchConfigDialogResult(
+          action: _LaunchConfigDialogAction.applied,
+          path: path,
+        ),
+      );
+    }
+  }
+
+  Future<void> _copySavedPath() async {
+    final path = _savedPath ?? _currentPath;
+    await Clipboard.setData(ClipboardData(text: path));
     if (!mounted) {
       return;
     }
-    Navigator.of(context).pop(path);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Copied config path')));
   }
 
-  Map<int, String?> _startupCommandsByPaneId() {
-    return <int, String?>{
-      for (final field in _paneFields)
-        field.paneId: _startupControllers[field.paneId]?.text,
-    };
+  void _closeAfterSave() {
+    final path = _savedPath ?? _currentPath;
+    Navigator.of(context).pop(
+      _LaunchConfigDialogResult(
+        action: _LaunchConfigDialogAction.saved,
+        path: path,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    final title = _phase == _LaunchConfigPanelPhase.success
+        ? 'App snapshot saved'
+        : 'Save or reapply the current app state';
+    final subtitle = _phase == _LaunchConfigPanelPhase.success
+        ? 'Use the saved file path below to verify, copy, or immediately reapply this app export.'
+        : 'Use one file to capture windows, tabs, panes, startup commands, and session context across the whole app.';
+    return Dialog(
       key: const Key('terminal-launch-config-panel'),
-      title: const Text('Launch Config'),
-      content: SizedBox(
-        width: 560,
-        child: SingleChildScrollView(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      backgroundColor: const Color(0xFF0F172A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 860, maxHeight: 680),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                key: const Key('terminal-launch-config-path-field'),
-                controller: _pathController,
-                decoration: const InputDecoration(
-                  labelText: 'Config path',
-                  hintText: '/path/to/ianvs-terminal.launch.json',
-                ),
-              ),
-              const SizedBox(height: 16),
               const Text(
-                'Startup commands run once after pane launch and restart.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                'Export Ianvs App',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                  color: Color(0xFF93C5FD),
+                ),
               ),
-              const SizedBox(height: 12),
-              for (final field in _paneFields) ...[
-                Text(
-                  '${field.tabLabel} · Pane ${field.paneId}',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 18),
+              if (_phase == _LaunchConfigPanelPhase.compose) ...[
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildSaveSettingsCard(),
+                        const SizedBox(height: 18),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            _LaunchConfigStatCard(
+                              label: 'Windows',
+                              value: '$_windowCount',
+                            ),
+                            _LaunchConfigStatCard(
+                              label: 'Tabs',
+                              value: '$_tabCount',
+                            ),
+                            _LaunchConfigStatCard(
+                              label: 'Panes',
+                              value: '$_paneCount',
+                            ),
+                            _LaunchConfigStatCard(
+                              label: 'Active window',
+                              value:
+                                  'Window ${widget.tabsController.activeWindowIndex + 1}',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          height: 360,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final wide = constraints.maxWidth >= 720;
+                              final snapshot = DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF111827),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: const Color(0xFF233047),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: _buildAppSnapshotColumn(),
+                                ),
+                              );
+                              final commands = DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF111827),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: const Color(0xFF233047),
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: _buildStartupCommandsColumn(),
+                                ),
+                              );
+                              if (!wide) {
+                                return Column(
+                                  children: [
+                                    Expanded(child: snapshot),
+                                    const SizedBox(height: 12),
+                                    Expanded(child: commands),
+                                  ],
+                                );
+                              }
+                              return Row(
+                                children: [
+                                  Expanded(child: snapshot),
+                                  const SizedBox(width: 16),
+                                  Expanded(child: commands),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                        if (_errorText != null) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            _errorText!,
+                            style: const TextStyle(color: Color(0xFFFCA5A5)),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              child: const Text('Cancel'),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.tonal(
+                              key: const Key(
+                                'terminal-launch-config-apply-button',
+                              ),
+                              onPressed: _applyLaunchConfig,
+                              child: const Text('Apply app config'),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton(
+                              key: const Key(
+                                'terminal-launch-config-save-button',
+                              ),
+                              onPressed: _canSave ? _saveCurrentLayout : null,
+                              child: const Text('Save current app'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  field.cwd,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF94A3B8),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  key: Key(
-                    'terminal-launch-config-startup-field-pane-${field.paneId}',
-                  ),
-                  controller: _startupControllers[field.paneId],
-                  minLines: 1,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Startup command',
-                    hintText: 'Optional command to run after launch',
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              if (_errorText != null)
-                Text(
-                  _errorText!,
-                  style: const TextStyle(color: Color(0xFFFCA5A5)),
-                ),
+              ] else
+                Expanded(child: _buildSuccessState()),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          key: const Key('terminal-launch-config-apply-button'),
-          onPressed: _applyLaunchConfig,
-          child: const Text('Apply file'),
-        ),
-        FilledButton(
-          key: const Key('terminal-launch-config-save-button'),
-          onPressed: _saveCurrentLayout,
-          child: const Text('Save current layout'),
-        ),
-      ],
     );
   }
 }
 
+enum _LaunchConfigPanelPhase { compose, success }
+
+enum _LaunchConfigDialogAction { saved, applied }
+
+class _LaunchConfigDialogResult {
+  const _LaunchConfigDialogResult({required this.action, required this.path});
+
+  final _LaunchConfigDialogAction action;
+  final String path;
+}
+
 class _LaunchConfigPaneField {
   const _LaunchConfigPaneField({
+    required this.fieldId,
+    required this.windowLabel,
     required this.tabLabel,
     required this.paneId,
     required this.cwd,
     required this.startupCommand,
+    required this.contextLabel,
+    required this.shellController,
   });
 
+  final String fieldId;
+  final String windowLabel;
   final String tabLabel;
   final int paneId;
   final String cwd;
   final String startupCommand;
+  final String contextLabel;
+  final LocalShellSessionController shellController;
+}
+
+class _LaunchConfigStatCard extends StatelessWidget {
+  const _LaunchConfigStatCard({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF233047)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LaunchConfigTabSummary {
+  const _LaunchConfigTabSummary({required this.label, required this.paneCount});
+
+  final String label;
+  final int paneCount;
+}
+
+class _LaunchConfigWindowCard extends StatelessWidget {
+  const _LaunchConfigWindowCard({
+    required this.windowLabel,
+    required this.active,
+    required this.tabSummaries,
+  });
+
+  final String windowLabel;
+  final bool active;
+  final List<_LaunchConfigTabSummary> tabSummaries;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: active ? const Color(0xFF172554) : const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: active ? const Color(0xFF4D8DFF) : const Color(0xFF233047),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                windowLabel,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const Spacer(),
+              if (active)
+                const Text(
+                  'Active',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF93C5FD),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final summary in tabSummaries) ...[
+            Text(
+              summary.label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${summary.paneCount} pane${summary.paneCount == 1 ? '' : 's'}',
+              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+            ),
+            if (!identical(summary, tabSummaries.last))
+              const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _SessionContextUpdate {
@@ -4407,8 +6156,16 @@ class _ToggleRawInputIntent extends Intent {
   const _ToggleRawInputIntent();
 }
 
+class _NewWindowIntent extends Intent {
+  const _NewWindowIntent();
+}
+
 class _NewTabIntent extends Intent {
   const _NewTabIntent();
+}
+
+class _CloseWindowIntent extends Intent {
+  const _CloseWindowIntent();
 }
 
 class _CloseTabIntent extends Intent {

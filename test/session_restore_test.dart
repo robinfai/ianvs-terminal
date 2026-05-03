@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/src/session_launch.dart';
 import 'package:ianvs_terminal/src/session_metadata.dart';
 import 'package:ianvs_terminal/src/session_restore.dart';
+import 'package:ianvs_terminal/src/terminal_blocks.dart';
 import 'package:ianvs_terminal/src/terminal_panes.dart';
 
 void main() {
@@ -35,37 +36,46 @@ void main() {
       file: File('${dir.path}/session_restore.json'),
     );
     final state = TerminalSessionRestoreState(
-      activeTabIndex: 1,
-      tabs: <TerminalSessionRestoreTab>[
-        TerminalSessionRestoreTab(
-          fallbackTitle: 'Local 1',
-          activePaneId: 2,
-          rootPane: TerminalSessionRestorePaneSplit(
-            direction: TerminalPaneSplitDirection.right,
-            ratio: 0.65,
-            first: const TerminalSessionRestorePaneLeaf(
-              id: 1,
-              cwd: '/tmp/one',
-              sessionMetadata: TerminalSessionMetadata(
-                kind: TerminalSessionKind.ssh,
-                host: 'prod.example.internal',
-                environment: 'prod',
-              ),
-              launchProfile: TerminalSessionLaunchProfile.sshCommand(
-                host: 'prod.example.internal',
-                account: 'ops-user',
+      activeWindowIndex: 0,
+      windows: <TerminalSessionRestoreWindow>[
+        TerminalSessionRestoreWindow(
+          fallbackTitle: 'Window 1',
+          activeTabIndex: 1,
+          tabs: <TerminalSessionRestoreTab>[
+            TerminalSessionRestoreTab(
+              fallbackTitle: 'Local 1',
+              activePaneId: 2,
+              rootPane: TerminalSessionRestorePaneSplit(
+                direction: TerminalPaneSplitDirection.right,
+                ratio: 0.65,
+                first: const TerminalSessionRestorePaneLeaf(
+                  id: 1,
+                  cwd: '/tmp/one',
+                  sessionMetadata: TerminalSessionMetadata(
+                    kind: TerminalSessionKind.ssh,
+                    host: 'prod.example.internal',
+                    environment: 'prod',
+                  ),
+                  launchProfile: TerminalSessionLaunchProfile.sshCommand(
+                    host: 'prod.example.internal',
+                    account: 'ops-user',
+                  ),
+                ),
+                second: const TerminalSessionRestorePaneLeaf(
+                  id: 2,
+                  cwd: '/tmp/two',
+                ),
               ),
             ),
-            second: const TerminalSessionRestorePaneLeaf(
-              id: 2,
-              cwd: '/tmp/two',
+            const TerminalSessionRestoreTab(
+              fallbackTitle: 'Local 2',
+              activePaneId: 3,
+              rootPane: TerminalSessionRestorePaneLeaf(
+                id: 3,
+                cwd: '/tmp/three',
+              ),
             ),
-          ),
-        ),
-        const TerminalSessionRestoreTab(
-          fallbackTitle: 'Local 2',
-          activePaneId: 3,
-          rootPane: TerminalSessionRestorePaneLeaf(id: 3, cwd: '/tmp/three'),
+          ],
         ),
       ],
     );
@@ -93,6 +103,96 @@ void main() {
       isTrue,
     );
     expect((split.second as TerminalSessionRestorePaneLeaf).cwd, '/tmp/two');
+  });
+
+  test('store saves and reloads app windows with active window index', () {
+    final dir = Directory.systemTemp.createTempSync('ianvs_restore_windows_');
+    addTearDown(() {
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+    });
+    final store = TerminalSessionRestoreStore(
+      file: File('${dir.path}/session_restore.json'),
+    );
+    final state = TerminalSessionRestoreState(
+      activeWindowIndex: 1,
+      windows: <TerminalSessionRestoreWindow>[
+        const TerminalSessionRestoreWindow(
+          fallbackTitle: 'Window 1',
+          activeTabIndex: 0,
+          tabs: <TerminalSessionRestoreTab>[
+            TerminalSessionRestoreTab(
+              fallbackTitle: 'Local 1',
+              activePaneId: 1,
+              rootPane: TerminalSessionRestorePaneLeaf(id: 1, cwd: '/tmp/one'),
+            ),
+          ],
+        ),
+        const TerminalSessionRestoreWindow(
+          fallbackTitle: 'Window 2',
+          activeTabIndex: 0,
+          tabs: <TerminalSessionRestoreTab>[
+            TerminalSessionRestoreTab(
+              fallbackTitle: 'SSH Prod',
+              activePaneId: 2,
+              rootPane: TerminalSessionRestorePaneLeaf(id: 2, cwd: '/tmp/two'),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    store.save(state);
+    final reloaded = store.load();
+
+    expect(reloaded.activeWindowIndex, 1);
+    expect(reloaded.windows, hasLength(2));
+    expect(reloaded.windows.last.fallbackTitle, 'Window 2');
+    expect(reloaded.windows.last.tabs.single.fallbackTitle, 'SSH Prod');
+  });
+
+  test('pane restore leaf preserves completed block history', () {
+    final parsed = TerminalSessionRestoreState.fromJson(<String, Object?>{
+      'windows': <Object?>[
+        <String, Object?>{
+          'tabs': <Object?>[
+            <String, Object?>{
+              'activePaneId': 1,
+              'rootPane': <String, Object?>{
+                'type': 'leaf',
+                'id': 1,
+                'cwd': '/tmp/blocks',
+                'blocks': <Object?>[
+                  <String, Object?>{
+                    'id': 'block-1',
+                    'sessionId': 'session-1',
+                    'commandText': 'pwd',
+                    'outputText': '/tmp/blocks\n',
+                    'status': 'succeeded',
+                    'scrollbackOffset': 3,
+                    'recordedAt': '2026-05-03T00:00:00.000Z',
+                  },
+                  <String, Object?>{
+                    'id': 'block-2',
+                    'commandText': 'false',
+                    'status': 'failed',
+                    'scrollbackOffset': 9,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    final leaf = parsed.tabs.single.rootPane as TerminalSessionRestorePaneLeaf;
+    expect(leaf.blocks, hasLength(2));
+    expect(leaf.blocks.first.status, TerminalBlockStatus.succeeded);
+    expect(leaf.blocks.first.outputText, '/tmp/blocks\n');
+    expect(leaf.blocks.last.status, TerminalBlockStatus.failed);
+    expect(leaf.toJson()['blocks'], isA<List<Object?>>());
   });
 
   test('bad json empty tabs and invalid fields fall back safely', () {
@@ -247,11 +347,16 @@ void main() {
 
 TerminalSessionRestoreState _stateWithCwd(String cwd) {
   return TerminalSessionRestoreState(
-    tabs: <TerminalSessionRestoreTab>[
-      TerminalSessionRestoreTab(
-        fallbackTitle: 'Local 1',
-        activePaneId: 1,
-        rootPane: TerminalSessionRestorePaneLeaf(id: 1, cwd: cwd),
+    windows: <TerminalSessionRestoreWindow>[
+      TerminalSessionRestoreWindow(
+        fallbackTitle: 'Window 1',
+        tabs: <TerminalSessionRestoreTab>[
+          TerminalSessionRestoreTab(
+            fallbackTitle: 'Local 1',
+            activePaneId: 1,
+            rootPane: TerminalSessionRestorePaneLeaf(id: 1, cwd: cwd),
+          ),
+        ],
       ),
     ],
   );

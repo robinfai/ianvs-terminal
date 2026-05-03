@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -36,46 +37,52 @@ void main() {
       const store = TerminalLaunchConfigurationStore();
       final file = File('${dir.path}/ianvs-terminal.launch.json');
       final configuration = TerminalLaunchConfiguration(
-        activeTabIndex: 1,
-        tabs: <TerminalLaunchConfigurationTab>[
-          TerminalLaunchConfigurationTab(
-            fallbackTitle: 'Local 1',
-            activePaneId: 2,
-            rootPane: TerminalLaunchConfigurationPaneSplit(
-              direction: TerminalPaneSplitDirection.right,
-              ratio: 0.65,
-              first: const TerminalLaunchConfigurationPaneLeaf(
-                id: 1,
-                cwd: '/tmp/one',
-                startupCommand: 'pnpm dev',
-                sessionMetadata: TerminalSessionMetadata(
-                  kind: TerminalSessionKind.ssh,
-                  host: 'prod.example.internal',
-                  project: 'payments-api',
-                  safetyContext: TerminalSafetyContext(
-                    identity: 'robin.oncall',
+        activeWindowIndex: 0,
+        windows: <TerminalLaunchConfigurationWindow>[
+          TerminalLaunchConfigurationWindow(
+            fallbackTitle: 'Window 1',
+            activeTabIndex: 1,
+            tabs: <TerminalLaunchConfigurationTab>[
+              TerminalLaunchConfigurationTab(
+                fallbackTitle: 'Local 1',
+                activePaneId: 2,
+                rootPane: TerminalLaunchConfigurationPaneSplit(
+                  direction: TerminalPaneSplitDirection.right,
+                  ratio: 0.65,
+                  first: const TerminalLaunchConfigurationPaneLeaf(
+                    id: 1,
+                    cwd: '/tmp/one',
+                    startupCommand: 'pnpm dev',
+                    sessionMetadata: TerminalSessionMetadata(
+                      kind: TerminalSessionKind.ssh,
+                      host: 'prod.example.internal',
+                      project: 'payments-api',
+                      safetyContext: TerminalSafetyContext(
+                        identity: 'robin.oncall',
+                      ),
+                    ),
+                    launchProfile: TerminalSessionLaunchProfile.sshCommand(
+                      host: 'prod.example.internal',
+                      account: 'ops-user',
+                    ),
+                  ),
+                  second: const TerminalLaunchConfigurationPaneLeaf(
+                    id: 2,
+                    cwd: '/tmp/two',
+                    startupCommand: 'flutter test',
                   ),
                 ),
-                launchProfile: TerminalSessionLaunchProfile.sshCommand(
-                  host: 'prod.example.internal',
-                  account: 'ops-user',
+              ),
+              const TerminalLaunchConfigurationTab(
+                fallbackTitle: 'Local 2',
+                activePaneId: 3,
+                rootPane: TerminalLaunchConfigurationPaneLeaf(
+                  id: 3,
+                  cwd: '/tmp/three',
+                  startupCommand: '',
                 ),
               ),
-              second: const TerminalLaunchConfigurationPaneLeaf(
-                id: 2,
-                cwd: '/tmp/two',
-                startupCommand: 'flutter test',
-              ),
-            ),
-          ),
-          const TerminalLaunchConfigurationTab(
-            fallbackTitle: 'Local 2',
-            activePaneId: 3,
-            rootPane: TerminalLaunchConfigurationPaneLeaf(
-              id: 3,
-              cwd: '/tmp/three',
-              startupCommand: '',
-            ),
+            ],
           ),
         ],
       );
@@ -120,6 +127,64 @@ void main() {
       );
     },
   );
+
+  test('store saves and reloads app windows with active window index', () {
+    final dir = Directory.systemTemp.createTempSync('ianvs_launch_windows_');
+    addTearDown(() {
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+    });
+    const store = TerminalLaunchConfigurationStore();
+    final file = File('${dir.path}/ianvs-terminal.launch.json');
+    final configuration = TerminalLaunchConfiguration(
+      activeWindowIndex: 1,
+      windows: <TerminalLaunchConfigurationWindow>[
+        const TerminalLaunchConfigurationWindow(
+          fallbackTitle: 'Window 1',
+          activeTabIndex: 0,
+          tabs: <TerminalLaunchConfigurationTab>[
+            TerminalLaunchConfigurationTab(
+              fallbackTitle: 'Local 1',
+              activePaneId: 1,
+              rootPane: TerminalLaunchConfigurationPaneLeaf(
+                id: 1,
+                cwd: '/tmp/one',
+              ),
+            ),
+          ],
+        ),
+        const TerminalLaunchConfigurationWindow(
+          fallbackTitle: 'Window 2',
+          activeTabIndex: 0,
+          tabs: <TerminalLaunchConfigurationTab>[
+            TerminalLaunchConfigurationTab(
+              fallbackTitle: 'SSH Prod',
+              activePaneId: 2,
+              rootPane: TerminalLaunchConfigurationPaneLeaf(
+                id: 2,
+                cwd: '/tmp/two',
+                startupCommand: 'ssh prod.example.internal',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    store.save(file, configuration);
+    final savedJson =
+        jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+    final savedWindows = savedJson['windows'] as List<Object?>;
+    final reloaded = store.load(file);
+
+    expect(savedJson['activeWindowIndex'], 1);
+    expect(savedWindows, hasLength(2));
+    expect(reloaded.activeWindowIndex, 1);
+    expect(reloaded.windows, hasLength(2));
+    expect(reloaded.windows.last.fallbackTitle, 'Window 2');
+    expect(reloaded.windows.last.tabs.single.fallbackTitle, 'SSH Prod');
+  });
 
   test('bad json empty tabs and invalid fields fall back safely', () {
     final dir = Directory.systemTemp.createTempSync('ianvs_launch_bad_');
@@ -226,6 +291,41 @@ void main() {
         operatingSystem: 'windows',
       ),
       r'C:\Users\Robin\workspace\ianvs-terminal.launch.json',
+    );
+  });
+
+  test('named launch config path defaults into app state directory', () {
+    expect(
+      suggestedNamedLaunchConfigPath(
+        name: 'Payments API Prod',
+        currentPath: '/workspace/demo',
+        operatingSystem: 'macos',
+        environment: const <String, String>{'HOME': '/Users/robin'},
+      ),
+      '/Users/robin/Library/Application Support/Ianvs/ianvs-terminal/launch_configs/payments-api-prod.json',
+    );
+  });
+
+  test('launch config file stem sanitizes invalid characters and fallback', () {
+    expect(
+      sanitizeLaunchConfigFileStem('Payments API / Prod'),
+      'payments-api-prod',
+    );
+    expect(sanitizeLaunchConfigFileStem('  '), 'ianvs-terminal-app');
+  });
+
+  test('display name is derived from json path basename', () {
+    expect(
+      launchConfigDisplayNameFromPath(
+        '/Users/robin/Library/Application Support/Ianvs/ianvs-terminal/launch_configs/payments-api-prod.json',
+      ),
+      'payments-api-prod',
+    );
+    expect(
+      launchConfigDisplayNameFromPath(
+        r'C:\Users\Robin\ianvs-terminal\launch_configs\prod.json',
+      ),
+      'prod',
     );
   });
 }

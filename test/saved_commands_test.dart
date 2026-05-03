@@ -29,10 +29,17 @@ void main() {
   test('store saves and reloads commands with versioned json', () {
     final store = SavedCommandsStore(file: savedCommandsFile);
 
-    store.save(const SavedCommandsState(commands: <String>['echo one', 'pwd']));
+    store.save(
+      const SavedCommandsState(
+        entries: <SavedCommandEntry>[
+          SavedCommandEntry(command: 'echo one'),
+          SavedCommandEntry(command: 'pwd'),
+        ],
+      ),
+    );
 
     expect(store.load().commands, <String>['echo one', 'pwd']);
-    expect(savedCommandsFile.readAsStringSync(), contains('"version": 1'));
+    expect(savedCommandsFile.readAsStringSync(), contains('"version": 2'));
   });
 
   test('store falls back to empty commands for malformed json', () {
