@@ -27,7 +27,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Ianvs Terminal'), findsOneWidget);
-    expect(find.text('Local shell'), findsOneWidget);
+    expect(find.text('Local shell'), findsWidgets);
     expect(find.text('Running'), findsOneWidget);
     expect(find.textContaining('session-1'), findsOneWidget);
   });
@@ -1816,6 +1816,10 @@ void main() {
       containsAll(<String>[
         'Terminal',
         'Settings',
+        'Workspace Search',
+        'Launch Config',
+        'New SSH Session',
+        'Session Context',
         'New Tab',
         'Close Tab',
         'Restart',
@@ -1865,6 +1869,420 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('terminal-settings-panel')), findsOneWidget);
   });
+
+  testWidgets('launch config panel saves and reapplies workspace files', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final dir = Directory.systemTemp.createTempSync('ianvs_launch_widget_');
+    final file = File('${dir.path}/ianvs-terminal.launch.json');
+    addTearDown(() {
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+    });
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('terminal-split-right-button')));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-launch-config-path-field')),
+      file.path,
+    );
+    await tester.enterText(
+      find.byKey(const Key('terminal-launch-config-startup-field-pane-1')),
+      'pnpm dev',
+    );
+    await tester.enterText(
+      find.byKey(const Key('terminal-launch-config-startup-field-pane-2')),
+      'flutter test',
+    );
+    await tester.tap(
+      find.byKey(const Key('terminal-launch-config-save-button')),
+    );
+    await tester.pumpAndSettle();
+
+    final savedJson =
+        jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+    final savedTabs = savedJson['tabs'] as List<Object?>;
+    final rootPane =
+        (savedTabs.single as Map<String, Object?>)['rootPane']
+            as Map<String, Object?>;
+    expect(rootPane['type'], 'split');
+    final savedFirst = rootPane['first'] as Map<String, Object?>;
+    final savedSecond = rootPane['second'] as Map<String, Object?>;
+    expect(savedFirst['startupCommand'], 'pnpm dev');
+    expect(savedSecond['startupCommand'], 'flutter test');
+
+    await tester.tap(find.byTooltip('Close pane'));
+    await tester.pump();
+    expect(find.byKey(const Key('terminal-pane-2')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('terminal-launch-config-apply-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-2')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-active-2')), findsOneWidget);
+    expect(backend.writesBySession['session-3'], contains('pnpm dev\r'));
+    expect(backend.writesBySession['session-4'], contains('flutter test\r'));
+  });
+
+  testWidgets(
+    'new ssh session launches a local ssh command and restart keeps target',
+    (tester) async {
+      final backend = _FakePtySessionBackend();
+      await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+      await tester.pump();
+
+      await tester.tap(
+        find.byKey(const Key('terminal-new-ssh-session-button')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('terminal-new-ssh-session-panel')),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-new-ssh-host-field')),
+        'prod.example.internal',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-new-ssh-account-field')),
+        'ops-user',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-new-ssh-environment-field')),
+        'prod-use1',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-new-ssh-project-field')),
+        'payments-api',
+      );
+      await tester.tap(find.byKey(const Key('terminal-new-ssh-open-button')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('terminal-tab-payments-api')),
+        findsOneWidget,
+      );
+      expect(find.text('SSH command'), findsOneWidget);
+      final launch =
+          backend.createdSessionConfigs.last['launch'] as Map<String, Object?>;
+      expect(launch['program'] as String, endsWith('ssh'));
+      expect((launch['args'] as List<Object?>).cast<String>(), <String>[
+        'ops-user@prod.example.internal',
+      ]);
+
+      await tester.tap(
+        find.byKey(const Key('terminal-session-context-button')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Current transport: SSH command via local PTY.'),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-session-host-field')),
+        'staging.example.internal',
+      );
+      await tester.tap(
+        find.byKey(const Key('terminal-session-context-apply-button')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Restart'));
+      await tester.pump();
+      final restartedLaunch =
+          backend.createdSessionConfigs.last['launch'] as Map<String, Object?>;
+      expect(restartedLaunch['program'] as String, endsWith('ssh'));
+      expect(
+        (restartedLaunch['args'] as List<Object?>).cast<String>(),
+        <String>['ops-user@staging.example.internal'],
+      );
+    },
+  );
+
+  testWidgets('new ssh session rejects option-like host input', (tester) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('terminal-new-ssh-session-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('terminal-new-ssh-host-field')),
+      '-oProxyCommand=bad',
+    );
+    await tester.tap(find.byKey(const Key('terminal-new-ssh-open-button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Host must be a hostname or address, not ssh options.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-new-ssh-session-panel')),
+      findsOneWidget,
+    );
+    expect(backend.createdSessionConfigs.length, 1);
+  });
+
+  testWidgets(
+    'session context panel updates active pane labels and safety context',
+    (tester) async {
+      await tester.pumpWidget(
+        IanvsTerminalApp(backendFactory: () => _FakePtySessionBackend()),
+      );
+      await tester.pump();
+
+      await tester.tap(
+        find.byKey(const Key('terminal-session-context-button')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('terminal-session-context-panel')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('terminal-session-kind-ssh')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('terminal-session-host-field')),
+        'prod.example.internal',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-session-account-field')),
+        'ops-user',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-session-environment-field')),
+        'prod-use1',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-session-project-field')),
+        'payments-api',
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('terminal-session-identity-field')),
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-session-identity-field')),
+        'robin.oncall',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-session-auth-source-field')),
+        'Ianvs Access',
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-session-valid-until-field')),
+        '2026-05-03T18:00:00Z',
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('terminal-session-context-apply-button')),
+      );
+      await tester.tap(
+        find.byKey(const Key('terminal-session-context-apply-button')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('SSH session'), findsWidgets);
+      expect(find.text('Metadata only'), findsOneWidget);
+      expect(find.text('Host prod.example.internal'), findsOneWidget);
+      expect(find.text('Account ops-user'), findsOneWidget);
+      expect(find.text('Env prod-use1'), findsOneWidget);
+      expect(find.text('Project payments-api'), findsOneWidget);
+      expect(find.text('Identity robin.oncall'), findsOneWidget);
+      expect(find.text('Source Ianvs Access'), findsOneWidget);
+      expect(find.text('Valid until 2026-05-03T18:00:00Z'), findsOneWidget);
+      expect(
+        find.byKey(const Key('terminal-tab-payments-api')),
+        findsOneWidget,
+      );
+
+      _selectPlatformMenuItem(tester, 'Session Context');
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('terminal-session-context-panel')),
+        findsOneWidget,
+      );
+      final hostField = tester.widget<TextField>(
+        find.byKey(const Key('terminal-session-host-field')),
+      );
+      expect(hostField.controller?.text, 'prod.example.internal');
+      await tester.tap(
+        find.byKey(const Key('terminal-session-context-close-button')),
+      );
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('session context rejects option-like ssh metadata host', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      IanvsTerminalApp(backendFactory: () => _FakePtySessionBackend()),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('terminal-session-context-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('terminal-session-kind-ssh')));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('terminal-session-host-field')),
+      '-V',
+    );
+    await tester.tap(
+      find.byKey(const Key('terminal-session-context-apply-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Host must be a hostname or address, not ssh options.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-session-context-panel')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('workspace search opens from header menu and shortcut', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      IanvsTerminalApp(backendFactory: () => _FakePtySessionBackend()),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('terminal-workspace-search-button')));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('terminal-workspace-search-panel')),
+      findsOneWidget,
+    );
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'ianvs-workspace-search',
+    );
+
+    await tester.tap(find.byTooltip('Close workspace search'));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('terminal-workspace-search-panel')),
+      findsNothing,
+    );
+
+    _selectPlatformMenuItem(tester, 'Workspace Search');
+    await tester.pump();
+    expect(
+      find.byKey(const Key('terminal-workspace-search-panel')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Close workspace search'));
+    await tester.pump();
+    await _metaShiftShortcut(tester, LogicalKeyboardKey.keyO);
+    expect(
+      find.byKey(const Key('terminal-workspace-search-panel')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'workspace search keyboard jump selects target and restores focus',
+    (tester) async {
+      final backend = _FakePtySessionBackend();
+      final alpha = Directory.systemTemp.createTempSync('ianvs_ws_alpha_');
+      final alphaRight = Directory.systemTemp.createTempSync(
+        'ianvs_ws_alpha_right_',
+      );
+      final beta = Directory.systemTemp.createTempSync('ianvs_ws_beta_');
+      addTearDown(() {
+        alpha.deleteSync(recursive: true);
+        alphaRight.deleteSync(recursive: true);
+        beta.deleteSync(recursive: true);
+      });
+      await tester.pumpWidget(
+        IanvsTerminalApp(
+          backendFactory: () => backend,
+          sessionRestoreStore: _sessionRestoreStore(
+            state: TerminalSessionRestoreState(
+              activeTabIndex: 0,
+              tabs: <TerminalSessionRestoreTab>[
+                TerminalSessionRestoreTab(
+                  fallbackTitle: 'Workspace Alpha',
+                  activePaneId: 1,
+                  rootPane: TerminalSessionRestorePaneSplit(
+                    direction: TerminalPaneSplitDirection.right,
+                    first: TerminalSessionRestorePaneLeaf(
+                      id: 1,
+                      cwd: alpha.path,
+                    ),
+                    second: TerminalSessionRestorePaneLeaf(
+                      id: 2,
+                      cwd: alphaRight.path,
+                    ),
+                  ),
+                ),
+                TerminalSessionRestoreTab(
+                  fallbackTitle: 'Workspace Beta',
+                  activePaneId: 3,
+                  rootPane: TerminalSessionRestorePaneLeaf(
+                    id: 3,
+                    cwd: beta.path,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await _metaShiftShortcut(tester, LogicalKeyboardKey.keyO);
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        'ianvs-workspace-search',
+      );
+      expect(find.text('1/3'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(find.text('3/3'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('terminal-workspace-search-panel')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('terminal-pane-active-3')), findsOneWidget);
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        'ianvs-modern-input',
+      );
+
+      await _tapHeaderControl(
+        tester,
+        find.byKey(const Key('terminal-restart-button')),
+      );
+      expect(backend.closedSessionIds, contains('session-3'));
+    },
+  );
 
   testWidgets('platform menu split pane actions follow pane state', (
     tester,

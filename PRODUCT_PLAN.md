@@ -126,3 +126,4 @@ Ianvs Terminal 的 terminal 实现当前通过 path dependency 解析到 `/Users
 
 - [MILESTONES.md](MILESTONES.md)：当前里程碑顺序和完成条件。
 - [FLUTTERM_FEEDBACK.md](FLUTTERM_FEEDBACK.md)：Ianvs Terminal 对 flutterm 的反馈入口。
+- [PLATFORM_MATRIX.md](PLATFORM_MATRIX.md)：M6 跨平台适配矩阵、adapter inventory 和下一候选平台。

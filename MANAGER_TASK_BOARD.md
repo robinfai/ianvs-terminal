@@ -43,6 +43,7 @@ This board is the single source of truth for the manager-only multi-agent rollou
 - `2026-05-01`: `pubspec.yaml` currently points to `/Users/luobinghui/projects/flutter/flutterm`, so local verification must use that dependency tree as the source of truth.
 - `2026-05-02`: the current debug `libflutterm_core.dylib` now exports `flutterm_session_search_json` and `flutterm_session_selection_text` after rebuilding `/Users/luobinghui/projects/flutter/flutterm`.
 - `2026-05-02`: `FT-011` is fixed in `/Users/luobinghui/projects/flutter/flutterm` by parsing DCS shell hooks in native/core; real shell smoke now passes with `+15`.
+- `2026-05-02`: `M4C` scope is now documented in `MILESTONES.md` and `README.md`; product tree lands launch configuration MVP with workspace file save/apply and pane startup commands.
 
 ## Triage Queue
 
@@ -70,7 +71,9 @@ This board is the single source of truth for the manager-only multi-agent rollou
 ## Verification Summary
 
 - `flutter analyze`: passed
-- `flutter test`: passed
+- `flutter test`: passed; full suite green with `145` tests and `15` smoke skips when `FLUTTERM_CORE_LIB` is unset
+- `flutter test test/launch_config_test.dart test/terminal_panes_controller_test.dart test/widget_test.dart`: passed
+- `flutter build macos`: passed
 - `flutter test test/session_restore_test.dart test/terminal_panes_controller_test.dart test/fig_completion_test.dart`: passed
 - `flutter test test/widget_test.dart --plain-name "duplicate command blocks keep distinct output ranges"`: passed
 - `FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart`: passed, `+15`
@@ -107,6 +110,11 @@ Started on `2026-05-02`.
 | Session/UI Recheck | Wegener | `core/session`, `workspace/ui` | `done` | none | Targeted tests passed | No findings |
 | Input/Command Recheck | Boole | `input/command` | `done` | none | `flutter analyze` and input/command/widget test set passed | No findings |
 | Fresh Command UX Closure Review | Carson | `input/command` | `done` | none | `flutter analyze`, input/command test set, Fig converter `npm test`, and real shell smoke passed | No findings; closed watchdog gap from the interrupted fresh review |
+| M4C Launch Config MVP | manager | `workspace/ui`, `core/session`, `planning/docs` | `done` | none | `flutter analyze`, `flutter test`, `flutter build macos`, launch-config/controller/widget tests, and env-backed real shell smoke passed | Queue fresh launch-config review when the next manager-only round opens; start `M4D` implementation planning |
+| M4D Workspace Search And Jump | manager | `workspace/ui`, `core/session`, `planning/docs` | `done` | none | `flutter analyze`, `flutter test`, `flutter build macos`, workspace-search/widget tests, and env-backed real shell smoke passed | Queue fresh workspace-search review when the next manager-only round opens; start `M5A` implementation planning |
+| M5A Session Metadata And Safety Context | manager | `workspace/ui`, `core/session`, `planning/docs` | `done` | none | `flutter analyze`, `flutter test`, `flutter build macos`, session-metadata/restore/launch/widget tests, and env-backed real shell smoke passed | Queue fresh session-context review when the next manager-only round opens; start `M5B` implementation planning |
+| M5B SSH Command Session Launch MVP | manager | `workspace/ui`, `core/session`, `planning/docs` | `done` | none | `flutter analyze`, `flutter test`, `flutter build macos --release`, session-launch/restore/widget tests, and env-backed real shell smoke passed | Queue fresh SSH command-session review when the next manager-only round opens; start `M6` planning |
+| M6 Cross-Platform Readiness Planning | manager | `planning/docs`, `core/session` | `done` | none | `test/platform_paths_test.dart`, platform doc review, `flutter analyze`, `flutter test`, and env-backed real shell smoke passed | No further milestone is defined; choose a platform spike from `PLATFORM_MATRIX.md` |
 
 ### Round 2 Rules
 
@@ -119,8 +127,10 @@ Started on `2026-05-02`.
 
 | order | milestone | recommendation | prerequisites | verification gate |
 | --- | --- | --- | --- | --- |
-| 1 | `M4C: Launch Configuration MVP` | Start next | Keep `flutter analyze` and `flutter test` green; document exact M4C scope before implementation | Unit/controller/widget tests for local config read/write, bad JSON fallback, tab/pane/cwd/startup command restore |
-| 2 | `M4D: Workspace Search And Jump` | Start after M4C | Existing tab/pane/title/cwd state remains stable | Tests for search ranking, active tab/pane jump, closed object filtering, keyboard/panel interaction |
-| 3 | `M5A: SSH Session Metadata And Safety Context` | Start after M4C, preferably M4D | Keep SSH/Ianvs scope to terminal session metadata and display only | Tests for session metadata, labels, safety context display, local session non-regression |
+| 1 | `M4C: Launch Configuration MVP` | Closed on `2026-05-02` | Keep docs and board aligned with the landed save/apply semantics and pane startup-command behavior | `test/launch_config_test.dart`, `test/terminal_panes_controller_test.dart`, `test/widget_test.dart`, `flutter analyze`, full `flutter test`, `flutter build macos`, and env-backed real shell smoke green |
+| 2 | `M4D: Workspace Search And Jump` | Closed on `2026-05-02` | Keep docs and board aligned with the landed search ranking, jump semantics, and focus-restore behavior | `test/workspace_search_test.dart`, `test/widget_test.dart`, `flutter analyze`, full `flutter test`, `flutter build macos`, and env-backed real shell smoke green |
+| 3 | `M5A: SSH Session Metadata And Safety Context` | Closed on `2026-05-03` | Keep docs and board aligned with the landed pane metadata, safety-context display, restore/launch persistence, and audit snapshot interface | `test/session_metadata_test.dart`, `test/session_restore_test.dart`, `test/launch_config_test.dart`, `test/terminal_panes_controller_test.dart`, `test/widget_test.dart`, `flutter analyze`, full `flutter test`, `flutter build macos`, and env-backed real shell smoke green |
+| 4 | `M5B: SSH Command Session Launch MVP` | Closed on `2026-05-03` | Keep docs and board aligned with the landed local `ssh` launch flow, transport badges, restart target sync, and restore / launch-config recreation | `test/session_launch_test.dart`, `test/session_restore_test.dart`, `test/launch_config_test.dart`, `test/terminal_panes_controller_test.dart`, `test/widget_test.dart`, `flutter analyze`, full `flutter test`, `flutter build macos --release`, and env-backed real shell smoke green |
+| 5 | `M6: Cross-Platform Readiness Planning` | Closed on `2026-05-03` | Keep docs and board aligned with `PLATFORM_MATRIX.md`, `platform_paths.dart`, and the new cross-platform flutterm risk inventory | `test/platform_paths_test.dart`, `flutter analyze`, full `flutter test`, env-backed real shell smoke, and docs review green |
 
-`FT-011` is closed for the current local baseline. Real shell smoke is back as a hard gate for future rounds. Next recommended milestone remains `M4C: Launch Configuration MVP`, followed by `M4D` and then `M5A`.
+`FT-011` is closed for the current local baseline. Real shell smoke is back as a hard gate for future rounds. All defined milestones through `M6` are now closed; next work starts by selecting a concrete platform spike from `PLATFORM_MATRIX.md`.

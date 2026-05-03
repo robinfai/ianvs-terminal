@@ -9,15 +9,19 @@ import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 import 'src/clipboard_client.dart';
 import 'src/command_history.dart';
 import 'src/fig_completion.dart';
+import 'src/launch_config.dart';
 import 'src/local_shell_session_controller.dart';
 import 'src/modern_input_controller.dart';
 import 'src/modern_input_editing.dart';
 import 'src/saved_commands.dart';
+import 'src/session_launch.dart';
+import 'src/session_metadata.dart';
 import 'src/session_restore.dart';
 import 'src/terminal_blocks.dart';
 import 'src/terminal_panes.dart';
 import 'src/terminal_settings.dart';
 import 'src/terminal_tabs_controller.dart';
+import 'src/workspace_search.dart';
 
 void main() {
   runApp(IanvsTerminalApp(sessionRestoreStore: TerminalSessionRestoreStore()));
@@ -39,6 +43,7 @@ class IanvsTerminalApp extends StatelessWidget {
     this.settingsStore,
     this.savedCommandsStore,
     this.sessionRestoreStore,
+    this.launchConfigStore,
     this.sessionRestoreDebounceDuration = const Duration(milliseconds: 250),
     this.completionRepository,
     this.completionEnvironment,
@@ -50,6 +55,7 @@ class IanvsTerminalApp extends StatelessWidget {
   final TerminalSettingsStore? settingsStore;
   final SavedCommandsStore? savedCommandsStore;
   final TerminalSessionRestoreStore? sessionRestoreStore;
+  final TerminalLaunchConfigurationStore? launchConfigStore;
   final Duration sessionRestoreDebounceDuration;
   final FigCompletionRepository? completionRepository;
   final Map<String, String>? completionEnvironment;
@@ -74,6 +80,7 @@ class IanvsTerminalApp extends StatelessWidget {
         settingsStore: settingsStore,
         savedCommandsStore: savedCommandsStore,
         sessionRestoreStore: sessionRestoreStore,
+        launchConfigStore: launchConfigStore,
         sessionRestoreDebounceDuration: sessionRestoreDebounceDuration,
         completionRepository: completionRepository,
         completionEnvironment: completionEnvironment,
@@ -91,6 +98,7 @@ class IanvsTerminalShell extends StatefulWidget {
     this.settingsStore,
     this.savedCommandsStore,
     this.sessionRestoreStore,
+    this.launchConfigStore,
     this.sessionRestoreDebounceDuration = const Duration(milliseconds: 250),
     this.completionRepository,
     this.completionEnvironment,
@@ -102,6 +110,7 @@ class IanvsTerminalShell extends StatefulWidget {
   final TerminalSettingsStore? settingsStore;
   final SavedCommandsStore? savedCommandsStore;
   final TerminalSessionRestoreStore? sessionRestoreStore;
+  final TerminalLaunchConfigurationStore? launchConfigStore;
   final Duration sessionRestoreDebounceDuration;
   final FigCompletionRepository? completionRepository;
   final Map<String, String>? completionEnvironment;
@@ -116,21 +125,29 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   final FocusNode _commandHistoryFocusNode = FocusNode(
     debugLabel: 'ianvs-command-history',
   );
+  final FocusNode _workspaceSearchFocusNode = FocusNode(
+    debugLabel: 'ianvs-workspace-search',
+  );
   final FocusNode _modernInputFocusNode = FocusNode(
     debugLabel: 'ianvs-modern-input',
   );
   final TextEditingController _findTextController = TextEditingController();
   final TextEditingController _commandHistoryTextController =
       TextEditingController();
+  final TextEditingController _workspaceSearchTextController =
+      TextEditingController();
   late final TerminalSettingsController _settingsController;
   late final SavedCommandsController _savedCommandsController;
+  late final TerminalLaunchConfigurationStore _launchConfigStore;
   TerminalSessionRestoreController? _sessionRestoreController;
   late final TerminalTabsController _tabsController;
+  late final WorkspaceSearchController _workspaceSearchController;
   final Map<int, FocusNode> _terminalFocusNodes = <int, FocusNode>{};
   int? _lastActiveTabId;
   int? _lastActivePaneId;
   ModernInputEffectiveMode? _lastInputMode;
   bool? _lastCanAcceptInput;
+  String? _lastLaunchConfigPath;
 
   @override
   void initState() {
@@ -138,6 +155,8 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     _settingsController = TerminalSettingsController(
       store: widget.settingsStore ?? TerminalSettingsStore(),
     );
+    _launchConfigStore =
+        widget.launchConfigStore ?? const TerminalLaunchConfigurationStore();
     _savedCommandsController = SavedCommandsController(
       store: widget.savedCommandsStore ?? SavedCommandsStore(),
     );
@@ -160,19 +179,30 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       initialBlocksForSession: widget.initialBlocksForSession,
       sessionRestoreController: _sessionRestoreController,
     )..addListener(_syncActiveTabState);
+    _workspaceSearchController = WorkspaceSearchController(
+      dependency: _tabsController,
+      entriesBuilder: () => buildWorkspaceSearchResults(_tabsController),
+      jumpToResult: (result) {
+        _tabsController.selectTab(result.tabIndex);
+        _tabsController.selectPane(result.paneId);
+      },
+    );
     _tabsController.createInitialTab();
   }
 
   @override
   void dispose() {
     _tabsController.removeListener(_syncActiveTabState);
+    _workspaceSearchController.dispose();
     _tabsController.dispose();
     _sessionRestoreController?.dispose();
     _savedCommandsController.dispose();
     _settingsController.dispose();
+    _workspaceSearchTextController.dispose();
     _commandHistoryTextController.dispose();
     _findTextController.dispose();
     _modernInputFocusNode.dispose();
+    _workspaceSearchFocusNode.dispose();
     _commandHistoryFocusNode.dispose();
     _findFocusNode.dispose();
     for (final focusNode in _terminalFocusNodes.values) {
@@ -229,6 +259,7 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       animation: Listenable.merge(<Listenable>[
         _tabsController,
         _settingsController,
+        _workspaceSearchController,
       ]),
       builder: (context, _) {
         final activeShell = _tabsController.activeShell;
@@ -279,6 +310,11 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
             const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
                 const _OpenCommandHistoryIntent(),
             const SingleActivator(
+              LogicalKeyboardKey.keyO,
+              meta: true,
+              shift: true,
+            ): const _OpenWorkspaceSearchIntent(),
+            const SingleActivator(
               LogicalKeyboardKey.keyI,
               meta: true,
               shift: true,
@@ -295,6 +331,9 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
             if (activeShell.commandHistoryController.isOpen)
               const SingleActivator(LogicalKeyboardKey.enter):
                   const _ChooseCommandHistoryIntent(),
+            if (_workspaceSearchController.isOpen)
+              const SingleActivator(LogicalKeyboardKey.escape):
+                  const _CloseWorkspaceSearchIntent(),
             if (activeShell.findState.isOpen)
               const SingleActivator(LogicalKeyboardKey.escape):
                   const _CloseFindIntent(),
@@ -380,6 +419,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
                   CallbackAction<_OpenCommandHistoryIntent>(
                     onInvoke: (_) => _openCommandHistory(),
                   ),
+              _OpenWorkspaceSearchIntent:
+                  CallbackAction<_OpenWorkspaceSearchIntent>(
+                    onInvoke: (_) => _openWorkspaceSearch(),
+                  ),
               _ToggleRawInputIntent: CallbackAction<_ToggleRawInputIntent>(
                 onInvoke: (_) {
                   _toggleRawInput();
@@ -392,6 +435,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
               _CloseCommandHistoryIntent:
                   CallbackAction<_CloseCommandHistoryIntent>(
                     onInvoke: (_) => _closeCommandHistory(),
+                  ),
+              _CloseWorkspaceSearchIntent:
+                  CallbackAction<_CloseWorkspaceSearchIntent>(
+                    onInvoke: (_) => _closeWorkspaceSearch(),
                   ),
               _NextCommandHistoryIntent:
                   CallbackAction<_NextCommandHistoryIntent>(
@@ -438,10 +485,22 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
                     children: [
                       _Header(
                         tabsController: _tabsController,
+                        onNewSshSessionRequested: _openNewSshSession,
                         onSearch: _openFind,
+                        onWorkspaceSearchRequested: _openWorkspaceSearch,
                         onSettings: _openSettings,
+                        onSessionContextRequested: _openSessionContext,
+                        onLaunchConfigRequested: _openLaunchConfig,
                         onModernInputRequested: _focusModernInput,
                       ),
+                      if (_workspaceSearchController.isOpen)
+                        _WorkspaceSearchPanel(
+                          controller: _workspaceSearchController,
+                          textController: _workspaceSearchTextController,
+                          focusNode: _workspaceSearchFocusNode,
+                          onClose: _closeWorkspaceSearch,
+                          onChoose: _chooseWorkspaceSearchResult,
+                        ),
                       if (activeShell.findState.isOpen)
                         _FindBar(
                           controller: activeShell,
@@ -475,6 +534,27 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
               meta: true,
             ),
             onSelected: _openSettings,
+          ),
+          PlatformMenuItem(
+            label: 'Workspace Search',
+            shortcut: const SingleActivator(
+              LogicalKeyboardKey.keyO,
+              meta: true,
+              shift: true,
+            ),
+            onSelected: _openWorkspaceSearch,
+          ),
+          PlatformMenuItem(
+            label: 'Launch Config',
+            onSelected: _openLaunchConfig,
+          ),
+          PlatformMenuItem(
+            label: 'New SSH Session',
+            onSelected: _openNewSshSession,
+          ),
+          PlatformMenuItem(
+            label: 'Session Context',
+            onSelected: _openSessionContext,
           ),
           PlatformMenuItemGroup(
             members: <PlatformMenuItem>[
@@ -673,6 +753,8 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       activeShell.commandHistoryController.close();
       _commandHistoryFocusNode.unfocus();
     }
+    _workspaceSearchController.close();
+    _workspaceSearchFocusNode.unfocus();
     activeShell.openFind();
     _findTextController.text = activeShell.findState.query;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -696,6 +778,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     if (activeShell.modernInputController.state.effectiveMode ==
         ModernInputEffectiveMode.raw) {
       return null;
+    }
+    if (_workspaceSearchController.isOpen) {
+      _workspaceSearchController.close();
+      _workspaceSearchFocusNode.unfocus();
     }
     if (activeShell.findState.isOpen) {
       activeShell.closeFind();
@@ -721,6 +807,43 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     return null;
   }
 
+  Object? _openWorkspaceSearch() {
+    final activeShell = _tabsController.activeShell;
+    if (activeShell.commandHistoryController.isOpen) {
+      activeShell.commandHistoryController.close();
+      _commandHistoryFocusNode.unfocus();
+    }
+    if (activeShell.findState.isOpen) {
+      activeShell.closeFind();
+      _findFocusNode.unfocus();
+    }
+    activeShell.completionController.close();
+    _workspaceSearchController.open();
+    _workspaceSearchTextController.text = _workspaceSearchController.query;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _workspaceSearchFocusNode.requestFocus();
+      }
+    });
+    return null;
+  }
+
+  Object? _closeWorkspaceSearch() {
+    _workspaceSearchController.close();
+    _workspaceSearchFocusNode.unfocus();
+    _focusActiveShellInput();
+    return null;
+  }
+
+  void _chooseWorkspaceSearchResult() {
+    _workspaceSearchController.chooseActiveResult();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusActiveShellInput();
+      }
+    });
+  }
+
   Future<void> _chooseCommandHistoryEntry() async {
     final activeShell = _tabsController.activeShell;
     if (!activeShell.canAcceptInput) {
@@ -742,6 +865,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   }
 
   Future<void> _openSettings() async {
+    if (_workspaceSearchController.isOpen) {
+      _workspaceSearchController.close();
+      _workspaceSearchFocusNode.unfocus();
+    }
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -758,10 +885,105 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     });
   }
 
+  Future<void> _openSessionContext() async {
+    if (_workspaceSearchController.isOpen) {
+      _workspaceSearchController.close();
+      _workspaceSearchFocusNode.unfocus();
+    }
+    final activeShell = _tabsController.activeShell;
+    final update = await showDialog<_SessionContextUpdate>(
+      context: context,
+      builder: (context) {
+        return _SessionContextPanel(
+          initialMetadata: activeShell.sessionMetadata,
+          initialLaunchProfile: activeShell.sessionLaunchProfile,
+          auditEntryCount: activeShell.buildAuditSnapshot().entries.length,
+        );
+      },
+    );
+    if (update != null) {
+      activeShell.updateSessionMetadata(update.metadata);
+      activeShell.updateSessionLaunchProfile(update.launchProfile);
+    }
+    if (!mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusActiveShellInput();
+      }
+    });
+  }
+
+  Future<void> _openNewSshSession() async {
+    if (_workspaceSearchController.isOpen) {
+      _workspaceSearchController.close();
+      _workspaceSearchFocusNode.unfocus();
+    }
+    final request = await showDialog<_NewSshSessionRequest>(
+      context: context,
+      builder: (context) => const _NewSshSessionPanel(),
+    );
+    if (request != null) {
+      _tabsController.newSshTab(
+        host: request.host,
+        account: request.account,
+        environment: request.environment,
+        project: request.project,
+      );
+    }
+    if (!mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusActiveShellInput();
+      }
+    });
+  }
+
+  Future<void> _openLaunchConfig() async {
+    if (_workspaceSearchController.isOpen) {
+      _workspaceSearchController.close();
+      _workspaceSearchFocusNode.unfocus();
+    }
+    final activeCwd = _tabsController.activeShell.completionController.cwd;
+    final selectedPath = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return _LaunchConfigPanel(
+          tabsController: _tabsController,
+          store: _launchConfigStore,
+          initialPath:
+              _lastLaunchConfigPath ??
+              suggestedLaunchConfigPath(
+                cwd: activeCwd,
+                currentPath: Directory.current.path,
+              ),
+        );
+      },
+    );
+    if (selectedPath != null) {
+      _lastLaunchConfigPath = selectedPath;
+    }
+    if (!mounted) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusActiveShellInput();
+      }
+    });
+  }
+
   void _openModernInput() {
     final activeShell = _tabsController.activeShell;
     activeShell.commandHistoryController.close();
     activeShell.completionController.close();
+    if (_workspaceSearchController.isOpen) {
+      _workspaceSearchController.close();
+      _workspaceSearchFocusNode.unfocus();
+    }
     activeShell.modernInputController.useModernInput();
     _commandHistoryFocusNode.unfocus();
     _findFocusNode.unfocus();
@@ -772,6 +994,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     final activeShell = _tabsController.activeShell;
     activeShell.commandHistoryController.close();
     activeShell.completionController.close();
+    if (_workspaceSearchController.isOpen) {
+      _workspaceSearchController.close();
+      _workspaceSearchFocusNode.unfocus();
+    }
     _commandHistoryFocusNode.unfocus();
     activeShell.modernInputController.toggleManualRaw();
     _focusActiveShellInput();
@@ -779,6 +1005,10 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
 
   void _focusActiveShellInput() {
     final activeShell = _tabsController.activeShell;
+    if (_workspaceSearchController.isOpen) {
+      _workspaceSearchFocusNode.requestFocus();
+      return;
+    }
     if (activeShell.commandHistoryController.isOpen) {
       _commandHistoryFocusNode.requestFocus();
       return;
@@ -844,14 +1074,22 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
 class _Header extends StatelessWidget {
   const _Header({
     required this.tabsController,
+    required this.onNewSshSessionRequested,
     required this.onSearch,
+    required this.onWorkspaceSearchRequested,
     required this.onSettings,
+    required this.onSessionContextRequested,
+    required this.onLaunchConfigRequested,
     required this.onModernInputRequested,
   });
 
   final TerminalTabsController tabsController;
+  final VoidCallback onNewSshSessionRequested;
   final VoidCallback onSearch;
+  final VoidCallback onWorkspaceSearchRequested;
   final VoidCallback onSettings;
+  final VoidCallback onSessionContextRequested;
+  final VoidCallback onLaunchConfigRequested;
   final VoidCallback onModernInputRequested;
 
   @override
@@ -874,7 +1112,7 @@ class _Header extends StatelessWidget {
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
               ),
               const SizedBox(width: 8),
-              const _SessionBadge(label: 'Local shell'),
+              _SessionBadge(label: activeShell.sessionMetadata.kind.label),
               const SizedBox(width: 6),
               _StatusBadge(
                 status: activeShell.status,
@@ -887,6 +1125,12 @@ class _Header extends StatelessWidget {
                 tooltip: 'New tab',
                 onPressed: tabsController.newTab,
                 icon: Icons.add,
+              ),
+              _HeaderActionButton(
+                key: const Key('terminal-new-ssh-session-button'),
+                tooltip: 'New SSH session',
+                onPressed: onNewSshSessionRequested,
+                icon: Icons.lan_outlined,
               ),
               _HeaderActionButton(
                 key: const Key('terminal-split-right-button'),
@@ -915,10 +1159,28 @@ class _Header extends StatelessWidget {
                 icon: Icons.search,
               ),
               _HeaderActionButton(
+                key: const Key('terminal-workspace-search-button'),
+                tooltip: 'Workspace search',
+                onPressed: onWorkspaceSearchRequested,
+                icon: Icons.travel_explore,
+              ),
+              _HeaderActionButton(
                 key: const Key('terminal-settings-button'),
                 tooltip: 'Settings',
                 onPressed: onSettings,
                 icon: Icons.tune,
+              ),
+              _HeaderActionButton(
+                key: const Key('terminal-session-context-button'),
+                tooltip: 'Session context',
+                onPressed: onSessionContextRequested,
+                icon: Icons.security,
+              ),
+              _HeaderActionButton(
+                key: const Key('terminal-launch-config-button'),
+                tooltip: 'Launch config',
+                onPressed: onLaunchConfigRequested,
+                icon: Icons.rocket_launch_outlined,
               ),
               _HeaderActionButton(
                 key: const Key('terminal-copy-button'),
@@ -1095,13 +1357,13 @@ class _HeaderActionButton extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onPressed,
       style: IconButton.styleFrom(
-        fixedSize: const Size.square(28),
-        minimumSize: const Size.square(28),
-        maximumSize: const Size.square(28),
+        fixedSize: const Size.square(22),
+        minimumSize: const Size.square(22),
+        maximumSize: const Size.square(22),
         padding: EdgeInsets.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
-      icon: Icon(icon, size: icon == Icons.restart_alt ? 19 : 17),
+      icon: Icon(icon, size: icon == Icons.restart_alt ? 16 : 14),
     );
   }
 }
@@ -1436,8 +1698,260 @@ class _FindBar extends StatelessWidget {
   }
 }
 
-class _SessionBadge extends StatelessWidget {
-  const _SessionBadge({required this.label});
+class _WorkspaceSearchPanel extends StatefulWidget {
+  const _WorkspaceSearchPanel({
+    required this.controller,
+    required this.textController,
+    required this.focusNode,
+    required this.onClose,
+    required this.onChoose,
+  });
+
+  final WorkspaceSearchController controller;
+  final TextEditingController textController;
+  final FocusNode focusNode;
+  final VoidCallback onClose;
+  final VoidCallback onChoose;
+
+  @override
+  State<_WorkspaceSearchPanel> createState() => _WorkspaceSearchPanelState();
+}
+
+class _WorkspaceSearchPanelState extends State<_WorkspaceSearchPanel> {
+  @override
+  Widget build(BuildContext context) {
+    final matches = widget.controller.matches;
+    return Container(
+      key: const Key('terminal-workspace-search-panel'),
+      height: 250,
+      decoration: const BoxDecoration(
+        color: Color(0xFF111827),
+        border: Border(bottom: BorderSide(color: Color(0xFF252B36))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 10, 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 300,
+                  child: Focus(
+                    onKeyEvent: _handleKey,
+                    child: TextField(
+                      key: const Key('terminal-workspace-search-field'),
+                      focusNode: widget.focusNode,
+                      controller: widget.textController,
+                      onChanged: widget.controller.updateQuery,
+                      textInputAction: TextInputAction.search,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        hintText: 'Search tabs and panes',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 52,
+                  child: Text(
+                    '${widget.controller.displayIndex}/${matches.length}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFFCBD5E1),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Enter to jump',
+                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Previous workspace result',
+                  onPressed: matches.isEmpty
+                      ? null
+                      : widget.controller.goToPrevious,
+                  icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                ),
+                IconButton(
+                  tooltip: 'Next workspace result',
+                  onPressed: matches.isEmpty
+                      ? null
+                      : widget.controller.goToNext,
+                  icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                ),
+                IconButton(
+                  tooltip: 'Close workspace search',
+                  onPressed: widget.onClose,
+                  icon: const Icon(Icons.close, size: 18),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFF252B36)),
+          Expanded(
+            child: matches.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No open tabs or panes match',
+                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    itemCount: matches.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 2),
+                    itemBuilder: (context, index) {
+                      final result = matches[index];
+                      return _WorkspaceSearchRow(
+                        key: Key('terminal-workspace-search-row-${result.id}'),
+                        result: result,
+                        active: index == widget.controller.activeIndex,
+                        onTap: () {
+                          widget.controller.selectResultAt(index);
+                          widget.onChoose();
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      widget.onClose();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      widget.controller.goToNext();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      widget.controller.goToPrevious();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      widget.onChoose();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+}
+
+class _WorkspaceSearchRow extends StatelessWidget {
+  const _WorkspaceSearchRow({
+    super.key,
+    required this.result,
+    required this.active,
+    required this.onTap,
+  });
+
+  final WorkspaceSearchResult result;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeBackground = const Color(0xFF172033);
+    final hoverBackground = const Color(0xFF111827);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Material(
+        color: active ? activeBackground : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          hoverColor: hoverBackground,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: active ? const Color(0xFF4D8DFF) : Colors.transparent,
+                  width: 3,
+                ),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(9, 8, 10, 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 82,
+                  child: Text(
+                    result.paneLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (result.isActivePane)
+                  const _WorkspaceActiveBadge(label: 'Active pane')
+                else if (result.isActiveTab)
+                  const _WorkspaceActiveBadge(label: 'Active tab'),
+                if (result.isActivePane || result.isActiveTab)
+                  const SizedBox(width: 6),
+                _CompactWorkspaceStatusBadge(
+                  status: result.status,
+                  exitCode: result.exitCode,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    _singleLinePreview(result.tabTitle),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFE5E7EB),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    _singleLinePreview(result.cwd),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkspaceActiveBadge extends StatelessWidget {
+  const _WorkspaceActiveBadge({required this.label});
 
   final String label;
 
@@ -1445,14 +1959,196 @@ class _SessionBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFF202632),
+        color: const Color(0xFF0F2A3A),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0xFF0369A1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFFBAE6FD),
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactWorkspaceStatusBadge extends StatelessWidget {
+  const _CompactWorkspaceStatusBadge({
+    required this.status,
+    required this.exitCode,
+  });
+
+  final LocalShellStatus status;
+  final int? exitCode;
+
+  @override
+  Widget build(BuildContext context) {
+    final (background, foreground, border) = switch (status) {
+      LocalShellStatus.starting => (
+        const Color(0xFF1E293B),
+        const Color(0xFFCBD5E1),
+        const Color(0xFF334155),
+      ),
+      LocalShellStatus.running => (
+        const Color(0xFF052E1A),
+        const Color(0xFFBBF7D0),
+        const Color(0xFF166534),
+      ),
+      LocalShellStatus.exited => (
+        const Color(0xFF2A1F13),
+        const Color(0xFFFDE68A),
+        const Color(0xFF92400E),
+      ),
+      LocalShellStatus.failed => (
+        const Color(0xFF2A1215),
+        const Color(0xFFFECACA),
+        const Color(0xFF991B1B),
+      ),
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Text(
+          workspaceSearchStatusLabel(status, exitCode).toUpperCase(),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: foreground,
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionBadge extends StatelessWidget {
+  const _SessionBadge({
+    required this.label,
+    this.backgroundColor = const Color(0xFF202632),
+    this.borderColor = const Color(0xFF303848),
+    this.foregroundColor = const Color(0xFFE2E8F0),
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color foregroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF303848)),
+        border: Border.all(color: borderColor),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        child: Text(label, style: const TextStyle(fontSize: 11)),
+        child: Text(
+          label,
+          style: TextStyle(fontSize: 11, color: foregroundColor),
+        ),
       ),
+    );
+  }
+}
+
+class _PaneSessionContextHeader extends StatelessWidget {
+  const _PaneSessionContextHeader({
+    required this.sessionLabel,
+    required this.metadata,
+    required this.launchProfile,
+  });
+
+  final String sessionLabel;
+  final TerminalSessionMetadata metadata;
+  final TerminalSessionLaunchProfile launchProfile;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          key: const Key('terminal-session-context-strip'),
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _SessionBadge(
+              label: sessionLabel,
+              backgroundColor: const Color(0xFF111827),
+              borderColor: const Color(0xFF374151),
+              foregroundColor: const Color(0xFFCBD5E1),
+            ),
+            _SessionBadge(
+              label: metadata.kind.label,
+              backgroundColor: metadata.isSsh
+                  ? const Color(0xFF1E293B)
+                  : const Color(0xFF202632),
+              borderColor: metadata.isSsh
+                  ? const Color(0xFF3B82F6)
+                  : const Color(0xFF303848),
+              foregroundColor: metadata.isSsh
+                  ? const Color(0xFFBFDBFE)
+                  : const Color(0xFFE2E8F0),
+            ),
+            if (_transportBadgeLabel(
+                  metadata: metadata,
+                  launchProfile: launchProfile,
+                )
+                case final transportLabel?)
+              _SessionBadge(
+                label: transportLabel,
+                backgroundColor: launchProfile.isSshCommand
+                    ? const Color(0xFF0F2A3A)
+                    : const Color(0xFF2A1F13),
+                borderColor: launchProfile.isSshCommand
+                    ? const Color(0xFF0369A1)
+                    : const Color(0xFF92400E),
+                foregroundColor: launchProfile.isSshCommand
+                    ? const Color(0xFFBAE6FD)
+                    : const Color(0xFFFDE68A),
+              ),
+            for (final label in metadata.targetBadges)
+              _SessionBadge(
+                label: label,
+                backgroundColor: const Color(0xFF172033),
+                borderColor: const Color(0xFF334155),
+                foregroundColor: const Color(0xFFCBD5E1),
+              ),
+          ],
+        ),
+        if (metadata.safetyContext.badges.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            key: const Key('terminal-session-safety-strip'),
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final label in metadata.safetyContext.badges)
+                _SessionBadge(
+                  label: label,
+                  backgroundColor: const Color(0xFF0F2A3A),
+                  borderColor: const Color(0xFF0369A1),
+                  foregroundColor: const Color(0xFFBAE6FD),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1550,9 +2246,6 @@ class _TerminalSurface extends StatelessWidget {
         ModernInputEffectiveMode.raw;
     focusNode.canRequestFocus = inputEnabled && rawInputActive && isActivePane;
     final colors = settings.themePreset.viewportColors;
-    final labelColor = settings.themePreset == TerminalThemePreset.light
-        ? const Color(0xFF475569)
-        : const Color(0xFF94A3B8);
     return DecoratedBox(
       decoration: BoxDecoration(color: colors.canvasBackground),
       child: Column(
@@ -1560,9 +2253,10 @@ class _TerminalSurface extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
-            child: Text(
-              sessionLabel,
-              style: TextStyle(color: labelColor, fontSize: 12),
+            child: _PaneSessionContextHeader(
+              sessionLabel: sessionLabel,
+              metadata: shellController.sessionMetadata,
+              launchProfile: shellController.sessionLaunchProfile,
             ),
           ),
           Expanded(
@@ -2807,6 +3501,656 @@ String _firstOutputLine(String text) {
   return _singleLinePreview(trimmed.split('\n').first);
 }
 
+class _LaunchConfigPanel extends StatefulWidget {
+  const _LaunchConfigPanel({
+    required this.tabsController,
+    required this.store,
+    required this.initialPath,
+  });
+
+  final TerminalTabsController tabsController;
+  final TerminalLaunchConfigurationStore store;
+  final String initialPath;
+
+  @override
+  State<_LaunchConfigPanel> createState() => _LaunchConfigPanelState();
+}
+
+class _LaunchConfigPanelState extends State<_LaunchConfigPanel> {
+  late final TextEditingController _pathController;
+  late final List<_LaunchConfigPaneField> _paneFields;
+  late final Map<int, TextEditingController> _startupControllers;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _pathController = TextEditingController(text: widget.initialPath);
+    _paneFields = _buildPaneFields();
+    _startupControllers = <int, TextEditingController>{
+      for (final field in _paneFields)
+        field.paneId: TextEditingController(text: field.startupCommand),
+    };
+  }
+
+  @override
+  void dispose() {
+    _pathController.dispose();
+    for (final controller in _startupControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  List<_LaunchConfigPaneField> _buildPaneFields() {
+    final fields = <_LaunchConfigPaneField>[];
+    for (
+      var tabIndex = 0;
+      tabIndex < widget.tabsController.tabs.length;
+      tabIndex += 1
+    ) {
+      final tab = widget.tabsController.tabs[tabIndex];
+      for (final pane in tab.panes) {
+        fields.add(
+          _LaunchConfigPaneField(
+            tabLabel: 'Tab ${tabIndex + 1} · ${tab.fallbackTitle}',
+            paneId: pane.id,
+            cwd: pane.shellController.completionController.cwd,
+            startupCommand: pane.shellController.startupCommand ?? '',
+          ),
+        );
+      }
+    }
+    return fields;
+  }
+
+  Future<void> _saveCurrentLayout() async {
+    final path = _pathController.text.trim();
+    if (path.isEmpty) {
+      setState(() {
+        _errorText = 'Launch config path is required.';
+      });
+      return;
+    }
+    widget.tabsController.updatePaneStartupCommands(_startupCommandsByPaneId());
+    widget.store.save(
+      File(path),
+      widget.tabsController.currentLaunchConfiguration(),
+    );
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(path);
+  }
+
+  Future<void> _applyLaunchConfig() async {
+    final path = _pathController.text.trim();
+    if (path.isEmpty) {
+      setState(() {
+        _errorText = 'Launch config path is required.';
+      });
+      return;
+    }
+    final file = File(path);
+    if (!file.existsSync()) {
+      setState(() {
+        _errorText = 'Launch config file was not found.';
+      });
+      return;
+    }
+    final configuration = widget.store.load(file);
+    if (!configuration.hasTabs) {
+      setState(() {
+        _errorText = 'Launch config file is invalid or has no tabs.';
+      });
+      return;
+    }
+    widget.tabsController.applyLaunchConfiguration(configuration);
+    if (!mounted) {
+      return;
+    }
+    Navigator.of(context).pop(path);
+  }
+
+  Map<int, String?> _startupCommandsByPaneId() {
+    return <int, String?>{
+      for (final field in _paneFields)
+        field.paneId: _startupControllers[field.paneId]?.text,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      key: const Key('terminal-launch-config-panel'),
+      title: const Text('Launch Config'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                key: const Key('terminal-launch-config-path-field'),
+                controller: _pathController,
+                decoration: const InputDecoration(
+                  labelText: 'Config path',
+                  hintText: '/path/to/ianvs-terminal.launch.json',
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Startup commands run once after pane launch and restart.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 12),
+              for (final field in _paneFields) ...[
+                Text(
+                  '${field.tabLabel} · Pane ${field.paneId}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  field.cwd,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: Key(
+                    'terminal-launch-config-startup-field-pane-${field.paneId}',
+                  ),
+                  controller: _startupControllers[field.paneId],
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Startup command',
+                    hintText: 'Optional command to run after launch',
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (_errorText != null)
+                Text(
+                  _errorText!,
+                  style: const TextStyle(color: Color(0xFFFCA5A5)),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('terminal-launch-config-apply-button'),
+          onPressed: _applyLaunchConfig,
+          child: const Text('Apply file'),
+        ),
+        FilledButton(
+          key: const Key('terminal-launch-config-save-button'),
+          onPressed: _saveCurrentLayout,
+          child: const Text('Save current layout'),
+        ),
+      ],
+    );
+  }
+}
+
+class _LaunchConfigPaneField {
+  const _LaunchConfigPaneField({
+    required this.tabLabel,
+    required this.paneId,
+    required this.cwd,
+    required this.startupCommand,
+  });
+
+  final String tabLabel;
+  final int paneId;
+  final String cwd;
+  final String startupCommand;
+}
+
+class _SessionContextUpdate {
+  const _SessionContextUpdate({
+    required this.metadata,
+    required this.launchProfile,
+  });
+
+  final TerminalSessionMetadata metadata;
+  final TerminalSessionLaunchProfile launchProfile;
+}
+
+class _NewSshSessionRequest {
+  const _NewSshSessionRequest({
+    required this.host,
+    required this.account,
+    required this.environment,
+    required this.project,
+  });
+
+  final String host;
+  final String account;
+  final String environment;
+  final String project;
+}
+
+class _SessionContextPanel extends StatefulWidget {
+  const _SessionContextPanel({
+    required this.initialMetadata,
+    required this.initialLaunchProfile,
+    required this.auditEntryCount,
+  });
+
+  final TerminalSessionMetadata initialMetadata;
+  final TerminalSessionLaunchProfile initialLaunchProfile;
+  final int auditEntryCount;
+
+  @override
+  State<_SessionContextPanel> createState() => _SessionContextPanelState();
+}
+
+class _SessionContextPanelState extends State<_SessionContextPanel> {
+  late TerminalSessionKind _kind;
+  late final TextEditingController _hostController;
+  late final TextEditingController _accountController;
+  late final TextEditingController _environmentController;
+  late final TextEditingController _projectController;
+  late final TextEditingController _identityController;
+  late final TextEditingController _sourceController;
+  late final TextEditingController _validUntilController;
+  String? _errorText;
+
+  bool get _transportLockedToSshCommand =>
+      widget.initialLaunchProfile.isSshCommand;
+
+  @override
+  void initState() {
+    super.initState();
+    final metadata = widget.initialMetadata;
+    _kind = metadata.kind;
+    _hostController = TextEditingController(text: metadata.host);
+    _accountController = TextEditingController(text: metadata.account);
+    _environmentController = TextEditingController(text: metadata.environment);
+    _projectController = TextEditingController(text: metadata.project);
+    _identityController = TextEditingController(
+      text: metadata.safetyContext.identity,
+    );
+    _sourceController = TextEditingController(
+      text: metadata.safetyContext.authorizationSource,
+    );
+    _validUntilController = TextEditingController(
+      text: metadata.safetyContext.validUntil,
+    );
+  }
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _accountController.dispose();
+    _environmentController.dispose();
+    _projectController.dispose();
+    _identityController.dispose();
+    _sourceController.dispose();
+    _validUntilController.dispose();
+    super.dispose();
+  }
+
+  TerminalSessionMetadata _buildMetadata() {
+    return TerminalSessionMetadata(
+      kind: _transportLockedToSshCommand ? TerminalSessionKind.ssh : _kind,
+      host: _hostController.text,
+      account: _accountController.text,
+      environment: _environmentController.text,
+      project: _projectController.text,
+      safetyContext: TerminalSafetyContext(
+        identity: _identityController.text,
+        authorizationSource: _sourceController.text,
+        validUntil: _validUntilController.text,
+      ),
+    );
+  }
+
+  TerminalSessionLaunchProfile _buildLaunchProfile() {
+    if (_transportLockedToSshCommand) {
+      return TerminalSessionLaunchProfile.sshCommand(
+        host: _hostController.text.trim(),
+        account: _accountController.text.trim(),
+      );
+    }
+    return const TerminalSessionLaunchProfile.localShell();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auditLabel = widget.auditEntryCount == 1
+        ? '1 completed block'
+        : '${widget.auditEntryCount} completed blocks';
+    final currentTransportLabel = _transportLockedToSshCommand
+        ? 'SSH command via local PTY'
+        : (_kind == TerminalSessionKind.ssh
+              ? 'Metadata only on top of a local shell'
+              : 'Local shell');
+    return AlertDialog(
+      key: const Key('terminal-session-context-panel'),
+      title: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Session Context',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+          ),
+          IconButton(
+            key: const Key('terminal-session-context-close-button'),
+            tooltip: 'Close session context',
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close, size: 18),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Current transport: $currentTransportLabel.',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFFBFDBFE),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _transportLockedToSshCommand
+                    ? 'This pane already launches a local `ssh` command. Host and account changes here will affect restart, restore, and launch config recreation.'
+                    : 'This panel edits display metadata and safety context for the active pane. Use `New SSH Session` when you need a real local `ssh` command session.',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Session Type',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(
+                    key: const Key('terminal-session-kind-local'),
+                    label: const Text('Local'),
+                    selected: _kind == TerminalSessionKind.local,
+                    onSelected: _transportLockedToSshCommand
+                        ? null
+                        : (_) {
+                            setState(() {
+                              _kind = TerminalSessionKind.local;
+                            });
+                          },
+                  ),
+                  ChoiceChip(
+                    key: const Key('terminal-session-kind-ssh'),
+                    label: const Text('SSH'),
+                    selected: _kind == TerminalSessionKind.ssh,
+                    onSelected: (_) {
+                      setState(() {
+                        _kind = TerminalSessionKind.ssh;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                key: const Key('terminal-session-host-field'),
+                controller: _hostController,
+                decoration: const InputDecoration(
+                  labelText: 'Host',
+                  hintText: 'prod.example.internal',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('terminal-session-account-field'),
+                controller: _accountController,
+                decoration: const InputDecoration(
+                  labelText: 'Account',
+                  hintText: 'ops-user',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('terminal-session-environment-field'),
+                controller: _environmentController,
+                decoration: const InputDecoration(
+                  labelText: 'Environment',
+                  hintText: 'prod-us-east-1',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('terminal-session-project-field'),
+                controller: _projectController,
+                decoration: const InputDecoration(
+                  labelText: 'Project',
+                  hintText: 'payments-api',
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Safety Context',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                key: const Key('terminal-session-identity-field'),
+                controller: _identityController,
+                decoration: const InputDecoration(
+                  labelText: 'Identity',
+                  hintText: 'robin.oncall',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('terminal-session-auth-source-field'),
+                controller: _sourceController,
+                decoration: const InputDecoration(
+                  labelText: 'Authorization source',
+                  hintText: 'Ianvs Access / Okta',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('terminal-session-valid-until-field'),
+                controller: _validUntilController,
+                decoration: const InputDecoration(
+                  labelText: 'Valid until',
+                  hintText: '2026-05-03T18:00:00Z',
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Audit snapshot ready: $auditLabel.',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+              if (_errorText != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _errorText!,
+                  style: const TextStyle(color: Color(0xFFFCA5A5)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('terminal-session-context-apply-button'),
+          onPressed: () {
+            final metadata = _buildMetadata();
+            if (metadata.kind == TerminalSessionKind.ssh) {
+              final hostError = sshHostValidationError(metadata.host);
+              if (hostError != null) {
+                setState(() {
+                  _errorText = hostError;
+                });
+                return;
+              }
+            }
+            Navigator.of(context).pop(
+              _SessionContextUpdate(
+                metadata: metadata,
+                launchProfile: _buildLaunchProfile(),
+              ),
+            );
+          },
+          child: const Text('Apply'),
+        ),
+      ],
+    );
+  }
+}
+
+class _NewSshSessionPanel extends StatefulWidget {
+  const _NewSshSessionPanel();
+
+  @override
+  State<_NewSshSessionPanel> createState() => _NewSshSessionPanelState();
+}
+
+class _NewSshSessionPanelState extends State<_NewSshSessionPanel> {
+  final TextEditingController _hostController = TextEditingController();
+  final TextEditingController _accountController = TextEditingController();
+  final TextEditingController _environmentController = TextEditingController();
+  final TextEditingController _projectController = TextEditingController();
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _hostController.dispose();
+    _accountController.dispose();
+    _environmentController.dispose();
+    _projectController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final host = _hostController.text.trim();
+    final hostError = sshHostValidationError(host);
+    if (hostError != null) {
+      setState(() {
+        _errorText = hostError;
+      });
+      return;
+    }
+    Navigator.of(context).pop(
+      _NewSshSessionRequest(
+        host: host,
+        account: _accountController.text.trim(),
+        environment: _environmentController.text.trim(),
+        project: _projectController.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      key: const Key('terminal-new-ssh-session-panel'),
+      title: const Text(
+        'New SSH Session',
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+      ),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Launch a new tab that runs the local `ssh` command through the existing PTY runtime. This is not an Ianvs gateway or zero-trust client.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                key: const Key('terminal-new-ssh-host-field'),
+                controller: _hostController,
+                decoration: const InputDecoration(
+                  labelText: 'Host',
+                  hintText: 'prod.example.internal',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('terminal-new-ssh-account-field'),
+                controller: _accountController,
+                decoration: const InputDecoration(
+                  labelText: 'Account',
+                  hintText: 'ops-user',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('terminal-new-ssh-environment-field'),
+                controller: _environmentController,
+                decoration: const InputDecoration(
+                  labelText: 'Environment',
+                  hintText: 'prod-use1',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('terminal-new-ssh-project-field'),
+                controller: _projectController,
+                decoration: const InputDecoration(
+                  labelText: 'Project',
+                  hintText: 'payments-api',
+                ),
+              ),
+              if (_errorText != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _errorText!,
+                  style: const TextStyle(color: Color(0xFFFCA5A5)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('terminal-new-ssh-open-button'),
+          onPressed: _submit,
+          child: const Text('Open SSH tab'),
+        ),
+      ],
+    );
+  }
+}
+
 class _SettingsPanel extends StatefulWidget {
   const _SettingsPanel({required this.controller});
 
@@ -3026,6 +4370,19 @@ String _sessionLabel(String sessionId) {
   return 'session-$sessionId';
 }
 
+String? _transportBadgeLabel({
+  required TerminalSessionMetadata metadata,
+  required TerminalSessionLaunchProfile launchProfile,
+}) {
+  if (launchProfile.isSshCommand) {
+    return 'SSH command';
+  }
+  if (metadata.isSsh) {
+    return 'Metadata only';
+  }
+  return null;
+}
+
 class _OpenFindIntent extends Intent {
   const _OpenFindIntent();
 }
@@ -3040,6 +4397,10 @@ class _OpenModernInputIntent extends Intent {
 
 class _OpenCommandHistoryIntent extends Intent {
   const _OpenCommandHistoryIntent();
+}
+
+class _OpenWorkspaceSearchIntent extends Intent {
+  const _OpenWorkspaceSearchIntent();
 }
 
 class _ToggleRawInputIntent extends Intent {
@@ -3088,6 +4449,10 @@ class _CloseFindIntent extends Intent {
 
 class _CloseCommandHistoryIntent extends Intent {
   const _CloseCommandHistoryIntent();
+}
+
+class _CloseWorkspaceSearchIntent extends Intent {
+  const _CloseWorkspaceSearchIntent();
 }
 
 class _NextCommandHistoryIntent extends Intent {

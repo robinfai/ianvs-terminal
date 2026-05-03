@@ -740,6 +740,37 @@ void main() {
     skip: skipReason,
     timeout: const Timeout(Duration(seconds: 12)),
   );
+
+  test(
+    'ssh command session can launch local ssh binary and report version',
+    () async {
+      final controller = LocalShellSessionController(
+        backendFactory: NativePtyBackend.load,
+        clipboardClient: _SmokeClipboardClient(''),
+        sessionConfigFactory: () => _smokeSessionConfig().copyWith(
+          launch: _smokeSessionConfig().launch.copyWith(
+            program: '/usr/bin/ssh',
+            args: const <String>['-V'],
+          ),
+        ),
+      );
+      addTearDown(controller.dispose);
+
+      controller.start();
+      controller.resizeSession(const Size(960, 540), 1);
+
+      final visibleText = await _waitForControllerText(
+        controller: controller,
+        needle: 'OpenSSH',
+      );
+      final exitCode = await _waitForControllerExit(controller: controller);
+
+      expect(visibleText, contains('OpenSSH'));
+      expect(exitCode, 0);
+    },
+    skip: skipReason,
+    timeout: const Timeout(Duration(seconds: 12)),
+  );
 }
 
 TerminalSessionConfig _smokeSessionConfig() {
@@ -785,7 +816,7 @@ TerminalSessionConfig _zshIntegratedSessionConfigForHome({
         env: <String, String>{'HOME': home.path, 'TERM': 'xterm-256color'},
       ),
     ),
-    applicationSupportDirectory: supportDir,
+    stateDirectory: supportDir,
     environment: <String, String>{'HOME': home.path},
   );
 }
@@ -885,6 +916,22 @@ Future<String> _waitForControllerText({
   }
 
   fail('Timed out waiting for "$needle" in terminal frame:\n$visibleText');
+}
+
+Future<int?> _waitForControllerExit({
+  required LocalShellSessionController controller,
+}) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 8));
+  while (DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    if (controller.status == LocalShellStatus.exited) {
+      return controller.exitCode;
+    }
+  }
+
+  fail(
+    'Timed out waiting for controller exit; status was ${controller.status}',
+  );
 }
 
 Future<List<TerminalBlock>> _waitForBlocks({

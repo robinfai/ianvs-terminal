@@ -27,6 +27,8 @@ class TerminalBlock {
     required this.outputText,
     required this.status,
     required this.scrollbackOffset,
+    this.recordedAt,
+    this.targetEnvironment,
   });
 
   final String id;
@@ -35,6 +37,8 @@ class TerminalBlock {
   final String outputText;
   final TerminalBlockStatus status;
   final int scrollbackOffset;
+  final String? recordedAt;
+  final String? targetEnvironment;
 
   TerminalBlock copyWith({
     String? id,
@@ -43,6 +47,8 @@ class TerminalBlock {
     String? outputText,
     TerminalBlockStatus? status,
     int? scrollbackOffset,
+    String? recordedAt,
+    String? targetEnvironment,
   }) {
     return TerminalBlock(
       id: id ?? this.id,
@@ -51,6 +57,8 @@ class TerminalBlock {
       outputText: outputText ?? this.outputText,
       status: status ?? this.status,
       scrollbackOffset: scrollbackOffset ?? this.scrollbackOffset,
+      recordedAt: recordedAt ?? this.recordedAt,
+      targetEnvironment: targetEnvironment ?? this.targetEnvironment,
     );
   }
 }
@@ -123,8 +131,20 @@ class TerminalBlocksController extends ChangeNotifier {
     _updateBlock(id, (block) => block.copyWith(outputText: outputText));
   }
 
-  void finishBlock(String id, {required TerminalBlockStatus status}) {
-    _updateBlock(id, (block) => block.copyWith(status: status));
+  void finishBlock(
+    String id, {
+    required TerminalBlockStatus status,
+    String? recordedAt,
+    String? targetEnvironment,
+  }) {
+    _updateBlock(
+      id,
+      (block) => block.copyWith(
+        status: status,
+        recordedAt: recordedAt,
+        targetEnvironment: targetEnvironment,
+      ),
+    );
   }
 
   void goToPreviousBlock() {

@@ -129,6 +129,16 @@ Ianvs Terminal 当前工作树的 path dependency 解析到 `/Users/luobinghui/p
 - 候选上游位置：`native/core` 控制序列解析，`flutterm_pty` 的 `PtyEvent` 透出，`flutterm_terminal` 的 runtime event 模型。
 - 当前处理：关闭。`2026-05-02` 已在 `/Users/luobinghui/projects/flutter/flutterm` 的 `native/core` 实现 DCS `hook;<hex-json>` 解析，并通过 `TerminalEvent(kind: "shell_hook")` 透出到 `flutterm_pty`。验证通过：`cargo test shell_hook`、`dart test packages/flutterm_pty/test/native_pty_backend_test.dart`、`./tools/build_core.sh`、以及 Ianvs Terminal 真实 shell smoke `+15`。后续若要清理产品侧 `PtySessionBackend` adapter，可在 flutterm_terminal typed runtime event 层另开非阻塞 follow-up。
 
+### FT-012：Windows / Linux PTY 与打包矩阵仍缺真实验证
+
+- 类型：risk
+- 影响里程碑：M6 跨平台适配预留
+- 现象或需求：Ianvs Terminal 已把状态目录、session restore 路径和 shell integration 默认目录抽到 `platform_paths.dart`，但 `NativePtyBackend.load()`、本地 shell、`ssh` binary、shell hook、字体与打包链路仍只在 macOS 主线验证。
+- 复现或触发条件：当前仓库没有 Windows / Linux target 目录、没有对应 release build gate，也没有这些平台上的 real shell smoke。即使路径规则已经在单测里覆盖，也不能把 Windows / Linux 写成“已支持”。
+- 期望行为：flutterm 需要给出可复查的 Windows / Linux PTY、native/core 打包和 shell-hook 验证矩阵，至少说明本地 shell、resize、search、selection text 和 shell-hook 事件在这些平台上的已知状态。
+- 候选上游位置：`flutterm_pty`、`native/core`、`flutterm_terminal` 文档 / example / smoke。
+- 当前处理：观察。`PLATFORM_MATRIX.md` 已把这条风险列为桌面 spike 的首要核验项；进入 Windows 或 Linux 实现前，先确认上游是否已有可复用验证链路。
+
 ## 模板
 
 ```markdown

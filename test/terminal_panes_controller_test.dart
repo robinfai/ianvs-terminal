@@ -6,7 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutterm_pty/flutterm_pty.dart';
 
 import 'package:ianvs_terminal/src/clipboard_client.dart';
+import 'package:ianvs_terminal/src/launch_config.dart';
 import 'package:ianvs_terminal/src/saved_commands.dart';
+import 'package:ianvs_terminal/src/session_launch.dart';
+import 'package:ianvs_terminal/src/session_metadata.dart';
 import 'package:ianvs_terminal/src/session_restore.dart';
 import 'package:ianvs_terminal/src/terminal_panes.dart';
 import 'package:ianvs_terminal/src/terminal_settings.dart';
@@ -25,6 +28,52 @@ void main() {
     expect(tabs.activePane.shellController.sessionId, 'session-1');
     expect(tabs.activeShell.sessionId, 'session-1');
     expect(tabs.canCloseActivePane, isFalse);
+  });
+
+  test('ssh session metadata updates the active tab title', () {
+    final backend = _FakePtySessionBackend();
+    final tabs = _tabs(backend);
+    addTearDown(tabs.dispose);
+
+    tabs.createInitialTab();
+    tabs.activeShell.updateSessionMetadata(
+      const TerminalSessionMetadata(
+        kind: TerminalSessionKind.ssh,
+        host: 'prod.example.internal',
+        account: 'ops-user',
+        project: 'payments-api',
+      ),
+    );
+
+    expect(tabs.activeTab.title, 'payments-api');
+  });
+
+  test('new ssh tab launches local ssh command and split inherits target', () {
+    final backend = _FakePtySessionBackend();
+    final tabs = _tabs(backend);
+    addTearDown(tabs.dispose);
+
+    tabs.newSshTab(
+      host: 'prod.example.internal',
+      account: 'ops-user',
+      environment: 'prod-use1',
+      project: 'payments-api',
+    );
+
+    expect(tabs.activeTab.title, 'payments-api');
+    expect(tabs.activeShell.sessionLaunchProfile.isSshCommand, isTrue);
+    expect(_createdProgramAt(backend, 0), endsWith('ssh'));
+    expect(_createdArgsAt(backend, 0), <String>[
+      'ops-user@prod.example.internal',
+    ]);
+
+    tabs.splitActivePaneRight();
+
+    expect(tabs.activeShell.sessionLaunchProfile.isSshCommand, isTrue);
+    expect(_createdProgramAt(backend, 1), endsWith('ssh'));
+    expect(_createdArgsAt(backend, 1), <String>[
+      'ops-user@prod.example.internal',
+    ]);
   });
 
   test('split right and down create active panes with direction and ratio', () {
@@ -66,6 +115,27 @@ void main() {
     tabs.activeShell.completionController.updateCwd(cwd.path);
     tabs.splitActivePaneRight();
 
+    expect(_createdCwdAt(backend, 1), cwd.path);
+  });
+
+  test('restart relaunches a pane from its current cwd', () {
+    final backend = _FakePtySessionBackend();
+    final tabs = _tabs(backend);
+    final cwd = Directory.systemTemp.createTempSync('ianvs_restart_cwd_');
+    addTearDown(() {
+      tabs.dispose();
+      if (cwd.existsSync()) {
+        cwd.deleteSync(recursive: true);
+      }
+    });
+
+    tabs.createInitialTab();
+    tabs.activeShell.completionController.updateCwd(cwd.path);
+
+    tabs.activeShell.restart();
+
+    expect(backend.closedSessionIds, contains('session-1'));
+    expect(tabs.activeShell.sessionId, 'session-2');
     expect(_createdCwdAt(backend, 1), cwd.path);
   });
 
@@ -137,6 +207,112 @@ void main() {
     expect(tabs.activeShell.sessionId, 'session-4');
   });
 
+  test('current launch config captures pane cwd and startup commands', () {
+    final backend = _FakePtySessionBackend();
+    final tabs = _tabs(backend);
+    final cwd = Directory.systemTemp.createTempSync('ianvs_launch_cwd_');
+    addTearDown(() {
+      tabs.dispose();
+      cwd.deleteSync(recursive: true);
+    });
+
+    tabs.createInitialTab();
+    tabs.activeShell.completionController.updateCwd(cwd.path);
+    tabs.updatePaneStartupCommands(<int, String?>{1: 'pnpm dev'});
+    tabs.splitActivePaneRight();
+    tabs.updatePaneStartupCommands(<int, String?>{2: 'flutter test'});
+
+    final configuration = tabs.currentLaunchConfiguration();
+    final split =
+        configuration.tabs.single.rootPane
+            as TerminalLaunchConfigurationPaneSplit;
+
+    expect(configuration.tabs.single.activePaneId, 2);
+    expect((split.first as TerminalLaunchConfigurationPaneLeaf).cwd, cwd.path);
+    expect(
+      (split.first as TerminalLaunchConfigurationPaneLeaf).startupCommand,
+      'pnpm dev',
+    );
+    expect(
+      (split.second as TerminalLaunchConfigurationPaneLeaf).startupCommand,
+      'flutter test',
+    );
+  });
+
+  test('apply launch config restores tabs panes cwd and startup commands', () {
+    final backend = _FakePtySessionBackend();
+    final cwdOne = Directory.systemTemp.createTempSync('ianvs_launch_one_');
+    final cwdTwo = Directory.systemTemp.createTempSync('ianvs_launch_two_');
+    final tabs = _tabs(backend);
+    addTearDown(() {
+      tabs.dispose();
+      cwdOne.deleteSync(recursive: true);
+      cwdTwo.deleteSync(recursive: true);
+    });
+
+    tabs.createInitialTab();
+    tabs.splitActivePaneRight();
+
+    tabs.applyLaunchConfiguration(
+      TerminalLaunchConfiguration(
+        activeTabIndex: 1,
+        tabs: <TerminalLaunchConfigurationTab>[
+          TerminalLaunchConfigurationTab(
+            fallbackTitle: 'Workspace A',
+            activePaneId: 2,
+            rootPane: TerminalLaunchConfigurationPaneSplit(
+              direction: TerminalPaneSplitDirection.right,
+              ratio: 0.6,
+              first: TerminalLaunchConfigurationPaneLeaf(
+                id: 1,
+                cwd: cwdOne.path,
+                startupCommand: 'pnpm dev',
+                sessionMetadata: const TerminalSessionMetadata(
+                  kind: TerminalSessionKind.ssh,
+                  host: 'prod.example.internal',
+                  account: 'ops-user',
+                  project: 'payments-api',
+                ),
+                launchProfile: const TerminalSessionLaunchProfile.sshCommand(
+                  host: 'prod.example.internal',
+                  account: 'ops-user',
+                ),
+              ),
+              second: TerminalLaunchConfigurationPaneLeaf(
+                id: 2,
+                cwd: cwdTwo.path,
+                startupCommand: 'flutter test',
+              ),
+            ),
+          ),
+          TerminalLaunchConfigurationTab(
+            fallbackTitle: 'Workspace B',
+            activePaneId: 3,
+            rootPane: TerminalLaunchConfigurationPaneLeaf(
+              id: 3,
+              cwd: cwdTwo.path,
+              startupCommand: 'git status',
+            ),
+          ),
+        ],
+      ),
+    );
+
+    expect(tabs.tabs.length, 2);
+    expect(tabs.activeIndex, 1);
+    expect(tabs.activePane.id, 3);
+    expect(_createdCwdAt(backend, 2), cwdOne.path);
+    expect(_createdCwdAt(backend, 3), cwdTwo.path);
+    expect(_createdCwdAt(backend, 4), cwdTwo.path);
+    expect(_createdProgramAt(backend, 2), endsWith('ssh'));
+    expect(_createdArgsAt(backend, 2), <String>[
+      'ops-user@prod.example.internal',
+    ]);
+    expect(backend.writesBySession['session-3'], contains('pnpm dev\r'));
+    expect(backend.writesBySession['session-4'], contains('flutter test\r'));
+    expect(backend.writesBySession['session-5'], contains('git status\r'));
+  });
+
   test('restores tabs pane tree active state and existing cwd', () {
     final backend = _FakePtySessionBackend();
     final cwdOne = Directory.systemTemp.createTempSync('ianvs_restore_cwd_1_');
@@ -153,7 +329,20 @@ void main() {
                 direction: TerminalPaneSplitDirection.right,
                 ratio: 0.7,
                 first: TerminalSessionRestorePaneLeaf(id: 1, cwd: cwdOne.path),
-                second: TerminalSessionRestorePaneLeaf(id: 2, cwd: cwdTwo.path),
+                second: TerminalSessionRestorePaneLeaf(
+                  id: 2,
+                  cwd: cwdTwo.path,
+                  sessionMetadata: TerminalSessionMetadata(
+                    kind: TerminalSessionKind.ssh,
+                    host: 'prod.example.internal',
+                    account: 'ops-user',
+                    project: 'payments-api',
+                  ),
+                  launchProfile: TerminalSessionLaunchProfile.sshCommand(
+                    host: 'prod.example.internal',
+                    account: 'ops-user',
+                  ),
+                ),
               ),
             ),
             TerminalSessionRestoreTab(
@@ -184,7 +373,11 @@ void main() {
     expect(split.direction, TerminalPaneSplitDirection.right);
     expect(split.ratio, 0.7);
     expect(_createdCwdAt(backend, 0), cwdOne.path);
-    expect(_createdCwdAt(backend, 1), cwdTwo.path);
+    expect(_createdCwdAt(backend, 1), isNotNull);
+    expect(_createdProgramAt(backend, 1), endsWith('ssh'));
+    expect(_createdArgsAt(backend, 1), <String>[
+      'ops-user@prod.example.internal',
+    ]);
     expect(_createdCwdAt(backend, 2), cwdTwo.path);
   });
 
@@ -398,6 +591,20 @@ String? _createdCwdAt(_FakePtySessionBackend backend, int index) {
   return (launch as Map<String, Object?>)['cwd'] as String?;
 }
 
+String? _createdProgramAt(_FakePtySessionBackend backend, int index) {
+  final launch = backend.createdSessionConfigs[index]['launch'];
+  return (launch as Map<String, Object?>)['program'] as String?;
+}
+
+List<String> _createdArgsAt(_FakePtySessionBackend backend, int index) {
+  final launch = backend.createdSessionConfigs[index]['launch'];
+  final args = (launch as Map<String, Object?>)['args'] as List<Object?>?;
+  if (args == null) {
+    return const <String>[];
+  }
+  return args.cast<String>();
+}
+
 class _FakeClipboardClient implements ClipboardClient {
   @override
   Future<String> readText() async => '';
@@ -411,6 +618,7 @@ class _FakePtySessionBackend implements PtySessionBackend {
   final List<Map<String, Object?>> createdSessionConfigs =
       <Map<String, Object?>>[];
   final List<String> closedSessionIds = <String>[];
+  final Map<String, List<String>> writesBySession = <String, List<String>>{};
   final Map<String, Queue<PtyEvent>> _queuedEvents =
       <String, Queue<PtyEvent>>{};
 
@@ -471,7 +679,10 @@ class _FakePtySessionBackend implements PtySessionBackend {
   String? takeFrameDiffJson(String sessionId) => jsonEncode(_frameJson());
 
   @override
-  void writeInput(String sessionId, List<int> bytes) {}
+  void writeInput(String sessionId, List<int> bytes) {
+    final text = String.fromCharCodes(bytes);
+    writesBySession.putIfAbsent(sessionId, () => <String>[]).add(text);
+  }
 }
 
 Map<String, Object?> _frameJson() {

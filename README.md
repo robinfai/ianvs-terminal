@@ -24,6 +24,11 @@ Ianvs Terminal 是 Ianvs 产品族下的现代终端客户端。当前推进 mac
 - M3E 增加 Fig specs 转换框架和现代输入补全：Node 只用于构建期转换，运行时用 Dart 解析 JSON、路径模板和可转换 generator。
 - M4A 增加单窗口 split panes：一个 tab 内可拆分多个真实本地 shell pane，Header、菜单和输入区始终作用于 active pane。
 - M4B 增加基础 session restore：自动保存和恢复单窗口内的 tab、pane tree、cwd、active tab 和 active pane；恢复时重新创建真实 shell，不恢复旧进程或输出。
+- M4C 增加 launch configuration MVP：通过 `Launch Config` 面板手动保存和应用 workspace 文件，覆盖 tab、pane、cwd 和 pane 级 startup command。
+- M4D 增加 workspace search：通过 `Workspace Search` 面板在当前窗口内搜索打开中的 tab / pane，并跳转到目标 active pane。
+- M5A 增加 pane 级 session context：支持 `Local / SSH` display metadata、安全上下文显示、audit snapshot 接口，以及 metadata 进入 session restore 和 launch config。
+- M5B 增加 SSH command session：通过 `New SSH Session` 面板以本地 PTY 启动 `ssh` 命令，并把 transport 状态接回 tab、pane、session restore 和 launch config。
+- M6 增加跨平台适配规划：状态目录、默认 cwd / home fallback 收口到 `platform_paths.dart`，平台矩阵写在 `PLATFORM_MATRIX.md`。
 - 不在本项目实现零信任接入客户端、虚拟网络、流量网关、SSH 网关、AI 网关或管理后台。
 
 ## 设置
@@ -46,10 +51,26 @@ Session restore 文件位置固定为：
 ~/Library/Application Support/Ianvs/ianvs-terminal/session_restore.json
 ```
 
+Launch configuration 建议文件名为：
+
+```text
+<workspace>/ianvs-terminal.launch.json
+```
+
+M4C 当前通过 `Launch Config` 面板手动填写和保存路径；不做系统 file picker、最近文件列表或项目模板目录。
+`Session Context` 面板继续负责编辑 active pane 的 display metadata 和安全上下文；当 pane 已经是 SSH command session 时，host / account 更新会同步到 Restart、session restore 和 launch config。
+M5B 当前只承载本地 `ssh` command session；不提供 SSH 网关、跳板机编排、密钥管理或自定义 remote transport。
+
 manager-only 多 agent 推进看板固定写在：
 
 ```text
 MANAGER_TASK_BOARD.md
+```
+
+跨平台适配矩阵、adapter inventory 和下一候选平台固定写在：
+
+```text
+PLATFORM_MATRIX.md
 ```
 
 Fig completion specs 默认资产位置：
@@ -102,6 +123,10 @@ M3D 会验证现代输入栏内括号和常用引号的成对插入、选区包�
 M3E 会验证 Fig 风格 specs、路径模板、可转换 generator、zsh cwd 和 PATH root command 补全。
 M4A 会验证一个 tab 内两个真实 shell pane 的独立输出、关闭 pane 后剩余 pane 可用，以及 zsh cwd 继承后的路径补全。
 M4B 会验证两 tab / 两 pane 布局恢复、active pane 恢复，以及恢复后的新 shell 使用保存的 cwd。
+M4C 会验证 `Launch Config` 面板保存当前布局、重新应用 workspace 文件，以及 pane 级 startup command 在新 shell 启动后注入。
+M4D 会验证 `Workspace Search` 面板的打开 / 关闭、结果排序、active tab / pane 跳转，以及跳转后焦点和 pane 作用域恢复。
+M5A 会验证 `Session Context` 面板、pane 级会话标签、安全上下文显示、tab title 派生，以及 metadata 在 session restore / launch config 中持久化。
+M5B 还会用本地 `ssh` binary 做 `ssh -V` launch smoke，确认 SSH command session 可以通过现有 PTY / terminal 栈启动。
 
 M1C 多 tab 验证点：
 
@@ -226,6 +251,42 @@ M4B session restore 验证点：
 - restore 文件缺失、坏 JSON、空 tabs 或非法 split ratio 时，直接回退为一个默认 tab / 一个默认 pane。
 - 恢复 cwd 不存在时，回退到设置默认 cwd、`$HOME` 或当前目录，并保存回退后的 cwd。
 - M4B 不恢复旧进程、scrollback、blocks、modern draft、selection、find query、history query、completion panel、窗口尺寸或窗口位置。
+
+M4C launch configuration 验证点：
+
+- Header 和 macOS 菜单都包含 `Launch Config` 入口。
+- 面板支持路径输入、`Save current layout` 和 `Apply file`。
+- 当前工作区导出的 JSON 包含 `activeTabIndex`、tab / pane tree、leaf cwd 和 pane 级 `startupCommand`。
+- 重新应用 launch config 后，tab / pane 布局和 active pane 恢复到文件定义状态。
+- pane 级 startup command 在新 shell 启动和 pane restart 后重新注入。
+- M4C 不自动替代 session restore，不做系统 file picker、最近文件列表、项目模板 catalog 或 pane 级环境变量。
+
+M4D workspace search 验证点：
+
+- Header 和 macOS 菜单都包含 `Workspace Search` 入口，快捷键为 `Cmd+Shift+O`。
+- 结果只覆盖当前窗口仍然打开的 tab / pane，显示 tab title、pane 标签、cwd 预览、shell 状态和 active 标记。
+- 排序优先 exact / prefix，再到 substring；同分时 active tab / pane 前置。
+- `Up / Down` 切换结果，`Enter` 跳转到目标 tab / pane，`Escape` 关闭面板。
+- 跳转后焦点回到目标 pane 的当前有效输入模式，不清空 pane 内的 find、history、completion、blocks 或 modern draft。
+- M4D 不做跨窗口搜索、关闭对象历史、block / command 搜索复用、launch config 文件搜索或 SSH 远程会话搜索。
+
+M5A session context 验证点：
+
+- Header 和 macOS 菜单都包含 `Session Context` 入口。
+- 面板支持切换 `Local / SSH`，并编辑 host、account、environment、project、identity、authorization source 和 valid until。
+- active pane 顶部显示 session id、session type、host / account / env / project，以及安全上下文 badges。
+- SSH metadata 存在时，active tab title 优先使用 project、`account@host` 或 host。
+- session metadata 会写入 `session_restore.json` 和 `ianvs-terminal.launch.json` 的 pane leaf；默认本地 session 不额外写 metadata 对象。
+- M5A 不建立真实 SSH transport，不执行 `ssh` 命令，不实现 SSH key / agent / known_hosts 管理，也不实现网关。
+
+M5B SSH command session 验证点：
+
+- Header 和 macOS 菜单都包含 `New SSH Session` 入口。
+- `New SSH Session` 面板最小输入为 host，可选 account、environment 和 project；确认后新 tab 会以本地 PTY 启动 `ssh` 命令。
+- split pane 会继承 active SSH session 的 transport target；真实 SSH transport 显示 `SSH command`，只改 metadata 的 pane 显示 `Metadata only`。
+- `session_restore.json` 和 `ianvs-terminal.launch.json` 的 pane leaf 会同时保留 SSH metadata 和 launch profile，并在恢复时重新启动 `ssh` command session。
+- 对真实 SSH command session 通过 `Session Context` 更新 host / account 后，Restart 会使用最新 target。
+- M5B 不实现 SSH 网关、跳板机、端口转发、SFTP、agent forwarding 或密钥管理 UI。
 
 ## 多 Agent 推进
 

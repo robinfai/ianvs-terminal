@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -11,7 +10,10 @@ import 'clipboard_client.dart';
 import 'command_history.dart';
 import 'fig_completion.dart';
 import 'modern_input_controller.dart';
+import 'platform_paths.dart';
 import 'saved_commands.dart';
+import 'session_launch.dart';
+import 'session_metadata.dart';
 import 'shell_hook_pty_backend_adapter.dart';
 import 'terminal_blocks.dart';
 import 'terminal_settings.dart';
@@ -58,11 +60,20 @@ class LocalShellSessionController extends ChangeNotifier {
     required this.clipboardClient,
     TerminalBlockSeedFactory? initialBlocksForSession,
     TerminalSessionConfigFactory? sessionConfigFactory,
+    String? initialCwd,
+    String? startupCommand,
     SavedCommandsController? savedCommandsController,
     FigCompletionRepository? completionRepository,
     Map<String, String> completionEnvironment = const <String, String>{},
+    TerminalSessionMetadata sessionMetadata = const TerminalSessionMetadata(),
+    TerminalSessionLaunchProfile sessionLaunchProfile =
+        const TerminalSessionLaunchProfile.localShell(),
   }) : _initialBlocksForSession = initialBlocksForSession,
-       _sessionConfigFactory = sessionConfigFactory ?? _defaultSessionConfig {
+       _sessionConfigFactory = sessionConfigFactory ?? _defaultSessionConfig,
+       _initialCwd = _normalizeInitialCwd(initialCwd),
+       _startupCommand = _normalizeStartupCommand(startupCommand),
+       _sessionMetadata = sessionMetadata,
+       _sessionLaunchProfile = sessionLaunchProfile {
     modernInputController = ModernInputController(
       submitCommand: _submitModernCommand,
     )..addListener(notifyListeners);
@@ -80,7 +91,7 @@ class LocalShellSessionController extends ChangeNotifier {
       engine: FigCompletionEngine(
         repository: completionRepository ?? FigCompletionRepository.empty(),
       ),
-      initialCwd: _defaultCwd(),
+      initialCwd: _initialCwd,
       environment: completionEnvironment,
     )..addListener(notifyListeners);
   }
@@ -89,6 +100,10 @@ class LocalShellSessionController extends ChangeNotifier {
   final ClipboardClient clipboardClient;
   final TerminalBlockSeedFactory? _initialBlocksForSession;
   final TerminalSessionConfigFactory _sessionConfigFactory;
+  final String _initialCwd;
+  String? _startupCommand;
+  TerminalSessionMetadata _sessionMetadata;
+  TerminalSessionLaunchProfile _sessionLaunchProfile;
   final terminal.SelectionController selectionController =
       terminal.SelectionController();
   late final ModernInputController modernInputController;
@@ -125,6 +140,10 @@ class LocalShellSessionController extends ChangeNotifier {
   int? get exitCode => _exitCode;
   Object? get startupError => _startupError;
   String? get windowTitle => _windowTitle;
+  String? get startupCommand => _startupCommand;
+  TerminalSessionMetadata get sessionMetadata => _sessionMetadata;
+  TerminalSessionLaunchProfile get sessionLaunchProfile =>
+      _sessionLaunchProfile;
   terminal.TerminalViewportController get viewportController =>
       _viewportController;
   terminal.TerminalInputController? get inputController => _inputController;
@@ -132,6 +151,31 @@ class LocalShellSessionController extends ChangeNotifier {
   bool get canCopy => _inputController != null;
   bool get canPaste => canAcceptInput;
   bool get canRestart => _status != LocalShellStatus.starting;
+
+  void updateStartupCommand(String? value) {
+    final nextCommand = _normalizeStartupCommand(value);
+    if (nextCommand == _startupCommand) {
+      return;
+    }
+    _startupCommand = nextCommand;
+    notifyListeners();
+  }
+
+  void updateSessionMetadata(TerminalSessionMetadata value) {
+    if (value == _sessionMetadata) {
+      return;
+    }
+    _sessionMetadata = value;
+    notifyListeners();
+  }
+
+  void updateSessionLaunchProfile(TerminalSessionLaunchProfile value) {
+    if (value == _sessionLaunchProfile) {
+      return;
+    }
+    _sessionLaunchProfile = value;
+    notifyListeners();
+  }
 
   void start() {
     _disposeRuntime(closeSession: _sessionId != null);
@@ -188,6 +232,7 @@ class LocalShellSessionController extends ChangeNotifier {
               : block.copyWith(sessionId: sessionId),
         );
       }
+      _runStartupCommandIfConfigured();
     } catch (error) {
       _disposeRuntime(closeSession: false);
       _startupError = error;
@@ -276,10 +321,28 @@ class LocalShellSessionController extends ChangeNotifier {
     );
   }
 
+  TerminalSessionAuditSnapshot buildAuditSnapshot({
+    DateTime? exportedAt,
+    TerminalSessionMetadata? metadata,
+  }) {
+    return buildTerminalSessionAuditSnapshot(
+      metadata: metadata ?? _sessionMetadata,
+      blocks: blocksController.blocks,
+      exportedAt: exportedAt,
+    );
+  }
+
   Future<void> _submitModernCommand(String command) async {
+    if (!canAcceptInput) {
+      return;
+    }
+    _sendCommand(command);
+  }
+
+  void _sendCommand(String command) {
     final runtime = _runtime;
     final sessionId = _sessionId;
-    if (!canAcceptInput || runtime == null || sessionId == null) {
+    if (runtime == null || sessionId == null) {
       return;
     }
     runtime.sendInput(
@@ -364,7 +427,12 @@ class LocalShellSessionController extends ChangeNotifier {
     if (outputText.isNotEmpty) {
       blocksController.updateBlockOutput(runningBlock.id, outputText);
     }
-    blocksController.finishBlock(runningBlock.id, status: status);
+    blocksController.finishBlock(
+      runningBlock.id,
+      status: status,
+      recordedAt: DateTime.now().toUtc().toIso8601String(),
+      targetEnvironment: _sessionMetadata.auditTargetEnvironment,
+    );
     _runningBlock = null;
   }
 
@@ -640,6 +708,21 @@ class LocalShellSessionController extends ChangeNotifier {
     }
     super.dispose();
   }
+
+  void _runStartupCommandIfConfigured() {
+    final command = _startupCommand;
+    if (command == null || !canAcceptInput) {
+      return;
+    }
+    _sendCommand(command);
+  }
+}
+
+String? _normalizeStartupCommand(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return null;
+  }
+  return value.trimRight();
 }
 
 terminal.TerminalFrameDiff _frameWithRenderableDirtyRows(
@@ -735,7 +818,15 @@ terminal.TerminalSessionConfig _defaultSessionConfig() {
 }
 
 String _defaultCwd() {
-  return Platform.environment['HOME'] ?? Directory.current.path;
+  return defaultUserHomePath();
+}
+
+String _normalizeInitialCwd(String? value) {
+  final normalized = value?.trim();
+  if (normalized == null || normalized.isEmpty) {
+    return _defaultCwd();
+  }
+  return normalized;
 }
 
 class _RunningShellBlock {

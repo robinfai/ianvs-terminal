@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,33 +6,36 @@ import 'session_launch.dart';
 import 'session_metadata.dart';
 import 'terminal_panes.dart';
 
-class TerminalSessionRestoreState {
-  const TerminalSessionRestoreState({
+class TerminalLaunchConfiguration {
+  const TerminalLaunchConfiguration({
     this.version = 1,
     this.activeTabIndex = 0,
-    this.tabs = const <TerminalSessionRestoreTab>[],
+    this.tabs = const <TerminalLaunchConfigurationTab>[],
   });
 
-  factory TerminalSessionRestoreState.fromJson(Object? json) {
+  factory TerminalLaunchConfiguration.fromJson(Object? json) {
     final map = _objectMap(json);
     if (map == null) {
-      return const TerminalSessionRestoreState();
+      return const TerminalLaunchConfiguration();
     }
     final rawTabs = map['tabs'];
     if (rawTabs is! List || rawTabs.isEmpty) {
-      return const TerminalSessionRestoreState();
+      return const TerminalLaunchConfiguration();
     }
-    final tabs = <TerminalSessionRestoreTab>[];
+    final tabs = <TerminalLaunchConfigurationTab>[];
     for (var index = 0; index < rawTabs.length; index += 1) {
-      final tab = TerminalSessionRestoreTab.fromJson(rawTabs[index], index);
+      final tab = TerminalLaunchConfigurationTab.fromJson(
+        rawTabs[index],
+        index,
+      );
       if (tab != null) {
         tabs.add(tab);
       }
     }
     if (tabs.isEmpty) {
-      return const TerminalSessionRestoreState();
+      return const TerminalLaunchConfiguration();
     }
-    return TerminalSessionRestoreState(
+    return TerminalLaunchConfiguration(
       activeTabIndex: _intInRange(map['activeTabIndex'], 0, tabs.length - 1),
       tabs: tabs,
     ).withUniquePaneIds();
@@ -41,11 +43,11 @@ class TerminalSessionRestoreState {
 
   final int version;
   final int activeTabIndex;
-  final List<TerminalSessionRestoreTab> tabs;
+  final List<TerminalLaunchConfigurationTab> tabs;
 
   bool get hasTabs => tabs.isNotEmpty;
 
-  TerminalSessionRestoreState withUniquePaneIds() {
+  TerminalLaunchConfiguration withUniquePaneIds() {
     if (tabs.isEmpty) {
       return this;
     }
@@ -55,7 +57,7 @@ class TerminalSessionRestoreState {
         .fold<int>(0, (max, leaf) => leaf.id > max ? leaf.id : max);
     var nextPaneId = maxPaneId + 1;
     var changed = false;
-    final uniqueTabs = <TerminalSessionRestoreTab>[];
+    final uniqueTabs = <TerminalLaunchConfigurationTab>[];
 
     for (final tab in tabs) {
       final remappedIds = <int, int>{};
@@ -69,7 +71,7 @@ class TerminalSessionRestoreState {
       );
       changed = changed || !identical(uniqueRootPane, tab.rootPane);
       uniqueTabs.add(
-        TerminalSessionRestoreTab(
+        TerminalLaunchConfigurationTab(
           fallbackTitle: tab.fallbackTitle,
           activePaneId: remappedIds[tab.activePaneId] ?? tab.activePaneId,
           rootPane: uniqueRootPane,
@@ -80,7 +82,7 @@ class TerminalSessionRestoreState {
     if (!changed) {
       return this;
     }
-    return TerminalSessionRestoreState(
+    return TerminalLaunchConfiguration(
       version: version,
       activeTabIndex: activeTabIndex,
       tabs: uniqueTabs,
@@ -96,19 +98,21 @@ class TerminalSessionRestoreState {
   }
 }
 
-class TerminalSessionRestoreTab {
-  const TerminalSessionRestoreTab({
+class TerminalLaunchConfigurationTab {
+  const TerminalLaunchConfigurationTab({
     required this.fallbackTitle,
     required this.activePaneId,
     required this.rootPane,
   });
 
-  static TerminalSessionRestoreTab? fromJson(Object? json, int index) {
+  static TerminalLaunchConfigurationTab? fromJson(Object? json, int index) {
     final map = _objectMap(json);
     if (map == null) {
       return null;
     }
-    final rootPane = TerminalSessionRestorePaneNode.fromJson(map['rootPane']);
+    final rootPane = TerminalLaunchConfigurationPaneNode.fromJson(
+      map['rootPane'],
+    );
     if (rootPane == null) {
       return null;
     }
@@ -119,7 +123,7 @@ class TerminalSessionRestoreTab {
             leaves.any((leaf) => leaf.id == requestedActivePaneId)
         ? requestedActivePaneId
         : leaves.first.id;
-    return TerminalSessionRestoreTab(
+    return TerminalLaunchConfigurationTab(
       fallbackTitle: _stringOrDefault(
         map['fallbackTitle'],
         'Local ${index + 1}',
@@ -131,7 +135,7 @@ class TerminalSessionRestoreTab {
 
   final String fallbackTitle;
   final int activePaneId;
-  final TerminalSessionRestorePaneNode rootPane;
+  final TerminalLaunchConfigurationPaneNode rootPane;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -142,37 +146,42 @@ class TerminalSessionRestoreTab {
   }
 }
 
-abstract class TerminalSessionRestorePaneNode {
-  const TerminalSessionRestorePaneNode();
+abstract class TerminalLaunchConfigurationPaneNode {
+  const TerminalLaunchConfigurationPaneNode();
 
-  static TerminalSessionRestorePaneNode? fromJson(Object? json) {
+  static TerminalLaunchConfigurationPaneNode? fromJson(Object? json) {
     final map = _objectMap(json);
     if (map == null) {
       return null;
     }
     return switch (map['type']) {
-      'leaf' => TerminalSessionRestorePaneLeaf.fromJson(map),
-      'split' => TerminalSessionRestorePaneSplit.fromJson(map),
+      'leaf' => TerminalLaunchConfigurationPaneLeaf.fromJson(map),
+      'split' => TerminalLaunchConfigurationPaneSplit.fromJson(map),
       _ => null,
     };
   }
 
-  List<TerminalSessionRestorePaneLeaf> get leaves;
+  List<TerminalLaunchConfigurationPaneLeaf> get leaves;
   Map<String, Object?> toJson();
 }
 
-class TerminalSessionRestorePaneLeaf extends TerminalSessionRestorePaneNode {
-  const TerminalSessionRestorePaneLeaf({
+class TerminalLaunchConfigurationPaneLeaf
+    extends TerminalLaunchConfigurationPaneNode {
+  const TerminalLaunchConfigurationPaneLeaf({
     required this.id,
     required this.cwd,
+    this.startupCommand = '',
     this.sessionMetadata = const TerminalSessionMetadata(),
     this.launchProfile = const TerminalSessionLaunchProfile.localShell(),
   });
 
-  factory TerminalSessionRestorePaneLeaf.fromJson(Map<String, Object?> map) {
-    return TerminalSessionRestorePaneLeaf(
+  factory TerminalLaunchConfigurationPaneLeaf.fromJson(
+    Map<String, Object?> map,
+  ) {
+    return TerminalLaunchConfigurationPaneLeaf(
       id: _positiveIntOrDefault(map['id'], 1),
       cwd: _stringOrDefault(map['cwd'], ''),
+      startupCommand: _stringOrDefault(map['startupCommand'], ''),
       sessionMetadata: TerminalSessionMetadata.fromJson(map['sessionMetadata']),
       launchProfile: TerminalSessionLaunchProfile.fromJson(
         map['launchProfile'],
@@ -182,12 +191,13 @@ class TerminalSessionRestorePaneLeaf extends TerminalSessionRestorePaneNode {
 
   final int id;
   final String cwd;
+  final String startupCommand;
   final TerminalSessionMetadata sessionMetadata;
   final TerminalSessionLaunchProfile launchProfile;
 
   @override
-  List<TerminalSessionRestorePaneLeaf> get leaves =>
-      <TerminalSessionRestorePaneLeaf>[this];
+  List<TerminalLaunchConfigurationPaneLeaf> get leaves =>
+      <TerminalLaunchConfigurationPaneLeaf>[this];
 
   @override
   Map<String, Object?> toJson() {
@@ -195,6 +205,7 @@ class TerminalSessionRestorePaneLeaf extends TerminalSessionRestorePaneNode {
       'type': 'leaf',
       'id': id,
       'cwd': cwd,
+      'startupCommand': startupCommand,
       if (!sessionMetadata.isDefaultLocal)
         'sessionMetadata': sessionMetadata.toJson(),
       if (!launchProfile.isDefaultLocal)
@@ -203,21 +214,24 @@ class TerminalSessionRestorePaneLeaf extends TerminalSessionRestorePaneNode {
   }
 }
 
-class TerminalSessionRestorePaneSplit extends TerminalSessionRestorePaneNode {
-  TerminalSessionRestorePaneSplit({
+class TerminalLaunchConfigurationPaneSplit
+    extends TerminalLaunchConfigurationPaneNode {
+  TerminalLaunchConfigurationPaneSplit({
     required this.direction,
     required this.first,
     required this.second,
     double ratio = 0.5,
   }) : ratio = _validRatioOrDefault(ratio);
 
-  static TerminalSessionRestorePaneSplit? fromJson(Map<String, Object?> map) {
-    final first = TerminalSessionRestorePaneNode.fromJson(map['first']);
-    final second = TerminalSessionRestorePaneNode.fromJson(map['second']);
+  static TerminalLaunchConfigurationPaneSplit? fromJson(
+    Map<String, Object?> map,
+  ) {
+    final first = TerminalLaunchConfigurationPaneNode.fromJson(map['first']);
+    final second = TerminalLaunchConfigurationPaneNode.fromJson(map['second']);
     if (first == null || second == null) {
       return null;
     }
-    return TerminalSessionRestorePaneSplit(
+    return TerminalLaunchConfigurationPaneSplit(
       direction: _directionFromJson(map['direction']),
       ratio: _ratioFromJson(map['ratio']),
       first: first,
@@ -226,13 +240,13 @@ class TerminalSessionRestorePaneSplit extends TerminalSessionRestorePaneNode {
   }
 
   final TerminalPaneSplitDirection direction;
-  final TerminalSessionRestorePaneNode first;
-  final TerminalSessionRestorePaneNode second;
+  final TerminalLaunchConfigurationPaneNode first;
+  final TerminalLaunchConfigurationPaneNode second;
   final double ratio;
 
   @override
-  List<TerminalSessionRestorePaneLeaf> get leaves =>
-      <TerminalSessionRestorePaneLeaf>[...first.leaves, ...second.leaves];
+  List<TerminalLaunchConfigurationPaneLeaf> get leaves =>
+      <TerminalLaunchConfigurationPaneLeaf>[...first.leaves, ...second.leaves];
 
   @override
   Map<String, Object?> toJson() {
@@ -246,100 +260,40 @@ class TerminalSessionRestorePaneSplit extends TerminalSessionRestorePaneNode {
   }
 }
 
-class TerminalSessionRestoreStore {
-  TerminalSessionRestoreStore({File? file})
-    : file = file ?? defaultSessionRestoreFile(),
-      _memoryState = null;
+class TerminalLaunchConfigurationStore {
+  const TerminalLaunchConfigurationStore();
 
-  TerminalSessionRestoreStore.memory([TerminalSessionRestoreState? state])
-    : file = null,
-      _memoryState = state ?? const TerminalSessionRestoreState();
-
-  final File? file;
-  TerminalSessionRestoreState? _memoryState;
-  int saveCount = 0;
-
-  static File defaultSessionRestoreFile() {
-    return File(defaultSessionRestoreFilePath());
-  }
-
-  TerminalSessionRestoreState load() {
-    final memoryState = _memoryState;
-    if (memoryState != null) {
-      return memoryState;
-    }
-    final target = file;
-    if (target == null || !target.existsSync()) {
-      return const TerminalSessionRestoreState();
+  TerminalLaunchConfiguration load(File file) {
+    if (!file.existsSync()) {
+      return const TerminalLaunchConfiguration();
     }
     try {
-      return TerminalSessionRestoreState.fromJson(
-        jsonDecode(target.readAsStringSync()),
+      return TerminalLaunchConfiguration.fromJson(
+        jsonDecode(file.readAsStringSync()),
       );
     } catch (_) {
-      return const TerminalSessionRestoreState();
+      return const TerminalLaunchConfiguration();
     }
   }
 
-  void save(TerminalSessionRestoreState state) {
-    saveCount += 1;
-    if (_memoryState != null) {
-      _memoryState = state;
-      return;
-    }
-    final target = file;
-    if (target == null) {
-      return;
-    }
-    target.parent.createSync(recursive: true);
+  void save(File file, TerminalLaunchConfiguration configuration) {
+    file.parent.createSync(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
-    target.writeAsStringSync('${encoder.convert(state.toJson())}\n');
+    file.writeAsStringSync('${encoder.convert(configuration.toJson())}\n');
   }
 }
 
-class TerminalSessionRestoreController {
-  TerminalSessionRestoreController({
-    required this.store,
-    this.debounceDuration = const Duration(milliseconds: 250),
-  });
-
-  final TerminalSessionRestoreStore store;
-  final Duration debounceDuration;
-  Timer? _saveTimer;
-  TerminalSessionRestoreState? _pendingState;
-
-  TerminalSessionRestoreState load() => store.load().withUniquePaneIds();
-
-  void saveNow(TerminalSessionRestoreState state) {
-    _saveTimer?.cancel();
-    _saveTimer = null;
-    _pendingState = null;
-    store.save(state);
-  }
-
-  void scheduleSave(TerminalSessionRestoreState state) {
-    if (debounceDuration == Duration.zero) {
-      saveNow(state);
-      return;
-    }
-    _pendingState = state;
-    _saveTimer?.cancel();
-    _saveTimer = Timer(debounceDuration, flush);
-  }
-
-  void flush() {
-    final pendingState = _pendingState;
-    _saveTimer?.cancel();
-    _saveTimer = null;
-    _pendingState = null;
-    if (pendingState != null) {
-      store.save(pendingState);
-    }
-  }
-
-  void dispose() {
-    flush();
-  }
+String suggestedLaunchConfigPath({
+  String? cwd,
+  String? currentPath,
+  String? operatingSystem,
+}) {
+  final os = operatingSystem ?? Platform.operatingSystem;
+  final separator = pathSeparatorForOperatingSystem(os);
+  final baseDirectory = _nonEmpty(cwd) ?? currentPath ?? Directory.current.path;
+  return joinPlatformPath(baseDirectory, <String>[
+    'ianvs-terminal.launch.json',
+  ], separator: separator);
 }
 
 Map<String, Object?>? _objectMap(Object? value) {
@@ -353,7 +307,7 @@ Map<String, Object?>? _objectMap(Object? value) {
 
 String _stringOrDefault(Object? value, String fallback) {
   if (value is String && value.trim().isNotEmpty) {
-    return value.trim();
+    return value.trimRight();
   }
   return fallback;
 }
@@ -398,14 +352,14 @@ double _ratioFromJson(Object? value) {
   return 0.5;
 }
 
-TerminalSessionRestorePaneNode _paneNodeWithUniqueIds(
-  TerminalSessionRestorePaneNode node,
+TerminalLaunchConfigurationPaneNode _paneNodeWithUniqueIds(
+  TerminalLaunchConfigurationPaneNode node,
   Set<int> usedPaneIds,
   Set<int> acceptedOriginalIds,
   Map<int, int> remappedIds,
   int Function() allocatePaneId,
 ) {
-  if (node is TerminalSessionRestorePaneLeaf) {
+  if (node is TerminalLaunchConfigurationPaneLeaf) {
     if (usedPaneIds.add(node.id)) {
       acceptedOriginalIds.add(node.id);
       return node;
@@ -415,15 +369,16 @@ TerminalSessionRestorePaneNode _paneNodeWithUniqueIds(
     if (!acceptedOriginalIds.contains(node.id)) {
       remappedIds[node.id] = nextId;
     }
-    return TerminalSessionRestorePaneLeaf(
+    return TerminalLaunchConfigurationPaneLeaf(
       id: nextId,
       cwd: node.cwd,
+      startupCommand: node.startupCommand,
       sessionMetadata: node.sessionMetadata,
       launchProfile: node.launchProfile,
     );
   }
 
-  final split = node as TerminalSessionRestorePaneSplit;
+  final split = node as TerminalLaunchConfigurationPaneSplit;
   final first = _paneNodeWithUniqueIds(
     split.first,
     usedPaneIds,
@@ -441,7 +396,7 @@ TerminalSessionRestorePaneNode _paneNodeWithUniqueIds(
   if (identical(first, split.first) && identical(second, split.second)) {
     return split;
   }
-  return TerminalSessionRestorePaneSplit(
+  return TerminalLaunchConfigurationPaneSplit(
     direction: split.direction,
     ratio: split.ratio,
     first: first,
@@ -449,16 +404,12 @@ TerminalSessionRestorePaneNode _paneNodeWithUniqueIds(
   );
 }
 
-String defaultSessionRestoreFilePath({
-  Map<String, String>? environment,
-  String? operatingSystem,
-  String? currentPath,
-}) {
-  return defaultTerminalSessionRestoreFilePath(
-    environment: environment,
-    operatingSystem: operatingSystem,
-    currentPath: currentPath,
-  );
+String? _nonEmpty(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
+    return null;
+  }
+  return trimmed;
 }
 
 double _validRatioOrDefault(double value) {

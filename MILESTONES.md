@@ -435,6 +435,50 @@ flutterm 依赖检查：
 - 真实 shell smoke 覆盖两 tab / 两 pane 布局恢复、active pane 恢复，以及恢复后的新 zsh shell 使用保存的 cwd。
 - `flutter analyze`、`flutter test`、真实 shell smoke、`flutter build macos` 通过。
 
+### M4C：Launch Configuration MVP
+
+目标：让当前工作区可以显式保存为 launch configuration 文件，并从该文件重建 tab、pane、cwd 和 pane 级 startup command。
+
+交付：
+
+- 产品侧 `TerminalLaunchConfiguration`、store 和 JSON 文件格式。
+- Header 和 macOS 菜单提供 `Launch Config` 入口；面板支持路径输入、`Save current layout` 和 `Apply file`。
+- 建议文件名为当前 active pane cwd 下的 `ianvs-terminal.launch.json`；当前阶段允许手动修改路径，不做系统 file picker、最近文件列表或项目模板目录。
+- launch config JSON 保存 `version`、`activeTabIndex` 和 `tabs[]`；每个 tab 保存 fallback title、active pane id、pane tree、split direction / ratio，leaf 保存 cwd 和可选 startup command。
+- 面板允许为每个 pane 编辑 startup command；保存时写回 launch config，应用时为每个 pane 创建新 shell，并在 launch / restart 后注入对应 startup command。
+- 应用 launch config 会替换当前窗口内的 tab / pane 布局，并继续复用现有 Header、菜单、现代输入、history、completion 和 block 作用域规则。
+- 继续保留 M4B session restore；session restore 不自动读取 launch config 文件，也不保存 startup command。
+- 暂不做项目模板 catalog、原生文件选择器、最近 launch config 列表、pane 级环境变量、窗口级多工作区或 SSH / Ianvs 远程会话。
+
+完成条件：
+
+- Unit tests 覆盖 launch config store 读写、坏 JSON / 空 tabs 回退、duplicate pane id 去重和建议文件路径。
+- Controller tests 覆盖当前工作区导出 launch config、应用 config 后恢复 tab / pane / cwd / active focus，以及 startup command 注入。
+- Widget tests 覆盖菜单和 Header 打开 `Launch Config` 面板、保存当前布局、重新应用文件，以及 pane 恢复后的 active pane 和 startup command。
+- 真实 shell smoke 继续作为非回归硬门，确认 split pane、cwd、session restore、现代输入、block 和 completion 主线不被 launch config 改动破坏。
+- `flutter analyze`、`flutter test`、真实 shell smoke、`flutter build macos` 通过。
+
+### M4D：Workspace Search And Jump
+
+目标：在当前窗口内快速搜索和跳转到任意打开的 tab / pane，不把它和输出查找、命令历史搜索或 launch config 文件操作混在一起。
+
+交付：
+
+- 产品侧 `WorkspaceSearchController` 和结果模型，输入为当前窗口的打开中 tab / pane 状态。
+- Workspace Search 只搜索当前窗口内“仍然打开”的对象；结果至少覆盖 tab title、pane cwd、pane 序号 / id、shell 状态和 active 标记。
+- Header 和 macOS 菜单提供 `Workspace Search` 入口；支持独立快捷键打开、`Escape` 关闭、`Up / Down` 切换结果、`Enter` 跳转。
+- 结果行显示 tab title、pane 标签、cwd 预览和状态标记；active tab / pane 要有显式标识。
+- 排序优先 exact / prefix 匹配，其次 substring；active tab / pane 在同分时前置；关闭后的 tab / pane 不能残留在结果里。
+- 选择结果后同步切换 active tab 和 active pane，并把焦点交回该 pane 当前有效输入模式；不改变 pane 内的 find、history、completion、blocks 或 modern draft 内容。
+- 暂不做跨窗口搜索、关闭对象历史、block / command 搜索复用、launch config 文件搜索、项目模板选择、SSH 远程会话搜索或 command palette。
+
+完成条件：
+
+- Unit tests 覆盖结果构建、排序、active 权重和关闭对象过滤。
+- Widget tests 覆盖 Header / 菜单 / 快捷键打开面板、键盘导航、点击和回车跳转、关闭面板后焦点恢复，以及跳转后 active pane 操作作用域。
+- 真实 shell smoke 继续作为非回归硬门，确认 tab / pane 切换、cwd、launch config、session restore、completion 和现代输入主线不被 workspace search 改动破坏。
+- `flutter analyze`、`flutter test`、真实 shell smoke、`flutter build macos` 通过。
+
 M4 总体完成条件：
 
 - 一个项目可以保存并重新打开相同的 tab、pane 和目录结构。
@@ -469,6 +513,59 @@ M4 总体完成条件：
 - 安全上下文可见，不依赖用户记忆当前连到哪里。
 - 网关相关能力只通过接口或占位文档表达。
 
+### M5A：Session Metadata And Safety Context
+
+目标：先让 pane 级 terminal session 可以显式标注为 `Local` 或 `SSH`，并把目标标签、安全上下文和审计导出接口稳定放进产品模型；当前阶段不建立真实 SSH transport，也不实现网关。
+
+交付：
+
+- 产品侧 `TerminalSessionMetadata`、`TerminalSafetyContext` 和 audit snapshot 模型。
+- active pane 的 `Session Context` 面板；Header 和 macOS 菜单提供入口。
+- 会话标签显示 session type、主机、账号、环境和项目；安全上下文显示 identity、authorization source 和 valid until。
+- active tab title 在 SSH metadata 存在时优先使用 project / `account@host` / host。
+- session metadata 会进入 `session restore` 和 `launch configuration` 的 pane leaf；本地默认 session 不额外污染现有 JSON。
+- 产品侧预留 audit snapshot 接口，输出已完成 block 的 command、output summary、recorded time 和 target environment。
+
+边界：
+
+- 不创建真实 SSH 连接。
+- 不自动执行 `ssh` 命令。
+- 不实现 SSH key / agent / known_hosts 管理。
+- 不实现网关、零信任控制面或凭证下发。
+- 不做跨窗口远程会话目录、主机收藏夹或批量会话编排。
+
+完成条件：
+
+- Unit tests 覆盖 session metadata 派生标签、preferred title、audit snapshot，以及 restore / launch config 的 metadata 序列化。
+- Widget tests 覆盖 `Session Context` 面板打开、更新 active pane 标签和安全上下文显示，以及 macOS 菜单入口。
+- `flutter analyze`、`flutter test`、真实 shell smoke、`flutter build macos` 通过。
+- 本地 session 主线不回归；session metadata 改动不会破坏 pane restore、launch config、workspace search、block、modern input 和 completion。
+
+### M5B：SSH Command Session Launch MVP
+
+目标：在不引入网关的前提下，把 `M5A` 的 SSH metadata 接到真实可启动的 SSH terminal session，让 Ianvs Terminal 至少能以本地 `ssh` 命令承载远程 shell。
+
+交付：
+
+- 新建 SSH session 的产品入口，最小输入为 host、account 和可选 project / environment。
+- Header 和 macOS 菜单提供 `New SSH Session` 入口；active pane 继续通过 `Session Context` 面板显示 transport / metadata 状态。
+- 产品层把 SSH session 映射到本地 PTY 启动的 `ssh` 命令，而不是自建 remote TTY 协议。
+- SSH session 继续复用现有 tab、pane、block、modern input、history、completion 和 workspace search 作用域。
+- `session restore` 和 `launch configuration` 可以重新创建 SSH command session，并保留 metadata。
+- UI 明确区分“显示 metadata 的 SSH session”和“已实际启动 `ssh` command”的状态。
+
+边界：
+
+- 不实现 SSH 网关、跳板机编排、端口转发、SFTP、agent forwarding 或密钥管理 UI。
+- 不把主机发现、审批、凭证签发或审计存储塞进 terminal。
+- 不修改 flutterm 去实现自定义 remote transport；先复用本地 PTY + `ssh` binary。
+
+完成条件：
+
+- Widget / integration tests 覆盖新建 SSH session、tab / pane 作用域、transport 状态显示、restore / launch config 重建，以及 local session non-regression。
+- 真实 shell smoke 继续为硬门，并补一条本地 `ssh -V` / command launch smoke；它只验证 command session 可启动，不替代远程联机验收。
+- 产品文档明确当前阶段是“本地 `ssh` command session”，不是 Ianvs 网关或零信任客户端。
+
 ## M6：跨平台适配预留
 
 目标：在 macOS 主线稳定后，把 Flutter 客户端的跨平台边界整理成可执行计划。
@@ -478,6 +575,7 @@ M4 总体完成条件：
 - Windows / Linux 桌面端适配评估：窗口、菜单、快捷键、PTY、路径、字体和打包。
 - iOS / Android 移动端适配评估：远程 terminal、SSH / Ianvs 会话、触屏输入、系统剪贴板和安全上下文。
 - 平台能力矩阵，标注 `支持`、`降级`、`不支持` 和 `待验证`。
+- `PLATFORM_MATRIX.md` 明确记录平台矩阵、adapter inventory 和下一候选平台。
 - flutterm 平台能力反馈，必要时补充到 `FLUTTERM_FEEDBACK.md`。
 
 边界：
@@ -489,7 +587,7 @@ M4 总体完成条件：
 完成条件：
 
 - 有明确的平台适配矩阵。
-- macOS 专属实现被适配层隔离。
+- macOS 状态路径和默认 cwd / home fallback 被适配层隔离；平台相关 UI / 打包边界有文档化盘点。
 - 下一阶段可以单独选择 Windows、Linux、iOS 或 Android 进入实现计划。
 
 ## 当前推进顺序

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'platform_paths.dart';
+
 class SavedCommandsState {
   const SavedCommandsState({
     this.version = 1,
@@ -53,10 +55,7 @@ class SavedCommandsStore {
   SavedCommandsState? _memoryState;
 
   static File defaultSavedCommandsFile() {
-    final home = Platform.environment['HOME'] ?? Directory.current.path;
-    return File(
-      '$home/Library/Application Support/Ianvs/ianvs-terminal/saved_commands.json',
-    );
+    return File(defaultSavedCommandsFilePath());
   }
 
   SavedCommandsState load() {

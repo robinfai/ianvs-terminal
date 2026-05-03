@@ -35,7 +35,7 @@ void main() {
           env: <String, String>{'TERM': 'xterm-256color'},
         ),
       ),
-      applicationSupportDirectory: supportDir,
+      stateDirectory: supportDir,
       environment: <String, String>{
         'HOME': supportDir.path,
         'ZDOTDIR': originalZdotdir.path,
@@ -78,7 +78,7 @@ void main() {
           env: <String, String>{'TERM': 'xterm-256color'},
         ),
       ),
-      applicationSupportDirectory: supportDir,
+      stateDirectory: supportDir,
       environment: <String, String>{'HOME': supportDir.path},
     );
 

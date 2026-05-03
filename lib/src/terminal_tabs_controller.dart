@@ -5,8 +5,12 @@ import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
 import 'clipboard_client.dart';
 import 'fig_completion.dart';
+import 'launch_config.dart';
 import 'local_shell_session_controller.dart';
+import 'platform_paths.dart';
 import 'saved_commands.dart';
+import 'session_launch.dart';
+import 'session_metadata.dart';
 import 'session_restore.dart';
 import 'shell_integration.dart';
 import 'terminal_blocks.dart';
@@ -45,6 +49,10 @@ class TerminalTabController {
   bool get canCloseActivePane => paneCount > 1;
 
   String get title {
+    final metadataTitle = activeShell.sessionMetadata.preferredTabTitle;
+    if (metadataTitle != null) {
+      return metadataTitle;
+    }
     final windowTitle = activeShell.windowTitle?.trim();
     if (windowTitle != null && windowTitle.isNotEmpty) {
       return windowTitle;
@@ -144,6 +152,12 @@ class TerminalTabsController extends ChangeNotifier {
       <LocalShellSessionController, VoidCallback>{};
   final Map<LocalShellSessionController, String> _paneRestoreCwds =
       <LocalShellSessionController, String>{};
+  final Map<LocalShellSessionController, TerminalSessionMetadata>
+  _paneRestoreMetadata =
+      <LocalShellSessionController, TerminalSessionMetadata>{};
+  final Map<LocalShellSessionController, TerminalSessionLaunchProfile>
+  _paneRestoreLaunchProfiles =
+      <LocalShellSessionController, TerminalSessionLaunchProfile>{};
   int _nextTabId = 0;
   int _nextPaneId = 0;
   int _activeIndex = -1;
@@ -156,6 +170,16 @@ class TerminalTabsController extends ChangeNotifier {
   LocalShellSessionController get activeShell => activePane.shellController;
   bool get canCloseActiveTab => _tabs.length > 1;
   bool get canCloseActivePane => activeTab.canCloseActivePane;
+
+  TerminalLaunchConfiguration currentLaunchConfiguration() {
+    if (_tabs.isEmpty) {
+      return const TerminalLaunchConfiguration();
+    }
+    return TerminalLaunchConfiguration(
+      activeTabIndex: _activeIndex.clamp(0, _tabs.length - 1),
+      tabs: _tabs.map(_launchConfigurationTabFor).toList(growable: false),
+    );
+  }
 
   void createInitialTab() {
     if (_tabs.isNotEmpty) {
@@ -172,17 +196,34 @@ class TerminalTabsController extends ChangeNotifier {
   }
 
   void newTab() {
-    _nextTabId += 1;
-    final initialPane = _createPane();
-    final tab = TerminalTabController(
-      id: _nextTabId,
-      fallbackTitle: 'Local $_nextTabId',
-      initialPane: initialPane,
+    _newSessionTab(
+      fallbackTitle: 'Local ${_nextTabId + 1}',
+      sessionMetadata: const TerminalSessionMetadata(),
+      launchProfile: const TerminalSessionLaunchProfile.localShell(),
     );
-    _tabs.add(tab);
-    _activeIndex = _tabs.length - 1;
-    initialPane.shellController.start();
-    _notifyAndScheduleRestoreSave();
+  }
+
+  void newSshTab({
+    required String host,
+    String account = '',
+    String environment = '',
+    String project = '',
+  }) {
+    final metadata = TerminalSessionMetadata(
+      kind: TerminalSessionKind.ssh,
+      host: host,
+      account: account,
+      environment: environment,
+      project: project,
+    );
+    _newSessionTab(
+      fallbackTitle: metadata.preferredTabTitle ?? 'SSH ${_nextTabId + 1}',
+      sessionMetadata: metadata,
+      launchProfile: TerminalSessionLaunchProfile.sshCommand(
+        host: host,
+        account: account,
+      ),
+    );
   }
 
   void selectTab(int index) {
@@ -274,49 +315,148 @@ class TerminalTabsController extends ChangeNotifier {
     _notifyAndScheduleRestoreSave();
   }
 
+  void updatePaneStartupCommands(Map<int, String?> commandsByPaneId) {
+    if (commandsByPaneId.isEmpty) {
+      return;
+    }
+    for (final tab in _tabs) {
+      for (final pane in tab.panes) {
+        if (!commandsByPaneId.containsKey(pane.id)) {
+          continue;
+        }
+        pane.shellController.updateStartupCommand(commandsByPaneId[pane.id]);
+      }
+    }
+  }
+
+  void applyLaunchConfiguration(TerminalLaunchConfiguration configuration) {
+    if (!configuration.hasTabs) {
+      return;
+    }
+    _restoreSaveSuspended = true;
+    try {
+      _disposeAllTabs();
+      _nextTabId = 0;
+      _nextPaneId = 0;
+      for (final launchTab in configuration.tabs) {
+        _nextTabId += 1;
+        final rootPane = _createPaneTreeFromLaunchConfiguration(
+          launchTab.rootPane,
+        );
+        final tab = TerminalTabController.restored(
+          id: _nextTabId,
+          fallbackTitle: launchTab.fallbackTitle,
+          rootPane: rootPane,
+          activePaneId: launchTab.activePaneId,
+        );
+        _tabs.add(tab);
+      }
+      _activeIndex = configuration.activeTabIndex.clamp(0, _tabs.length - 1);
+      for (final tab in _tabs) {
+        for (final pane in tab.panes) {
+          pane.shellController.start();
+        }
+      }
+    } finally {
+      _restoreSaveSuspended = false;
+    }
+    _notifyAndScheduleRestoreSave();
+  }
+
   void _handleTabChanged() {
     notifyListeners();
+  }
+
+  void _newSessionTab({
+    required String fallbackTitle,
+    required TerminalSessionMetadata sessionMetadata,
+    required TerminalSessionLaunchProfile launchProfile,
+  }) {
+    _nextTabId += 1;
+    final initialPane = _createPane(
+      sessionMetadata: sessionMetadata,
+      launchProfile: launchProfile,
+    );
+    final tab = TerminalTabController(
+      id: _nextTabId,
+      fallbackTitle: fallbackTitle,
+      initialPane: initialPane,
+    );
+    _tabs.add(tab);
+    _activeIndex = _tabs.length - 1;
+    initialPane.shellController.start();
+    _notifyAndScheduleRestoreSave();
   }
 
   void _splitActivePane(TerminalPaneSplitDirection direction) {
     final newPane = _createPane(
       launchCwd: activeShell.completionController.cwd,
+      sessionMetadata: activeShell.sessionMetadata,
+      launchProfile: activeShell.sessionLaunchProfile,
     );
     activeTab.splitActivePane(direction: direction, newPane: newPane);
     newPane.shellController.start();
     _notifyAndScheduleRestoreSave();
   }
 
-  TerminalPaneLeaf _createPane({int? id, String? launchCwd}) {
+  TerminalPaneLeaf _createPane({
+    int? id,
+    String? launchCwd,
+    String? startupCommand,
+    TerminalSessionMetadata sessionMetadata = const TerminalSessionMetadata(),
+    TerminalSessionLaunchProfile launchProfile =
+        const TerminalSessionLaunchProfile.localShell(),
+  }) {
     final paneId = id ?? _nextPaneId + 1;
     _nextPaneId = _nextPaneId < paneId ? paneId : _nextPaneId;
-    final shellController = _createShellController(launchCwd: launchCwd);
+    final shellController = _createShellController(
+      launchCwd: launchCwd,
+      startupCommand: startupCommand,
+      sessionMetadata: sessionMetadata,
+      launchProfile: launchProfile,
+    );
     shellController.addListener(_handleTabChanged);
     _trackPaneRestoreState(shellController);
     return TerminalPaneLeaf(id: paneId, shellController: shellController);
   }
 
-  LocalShellSessionController _createShellController({String? launchCwd}) {
-    return LocalShellSessionController(
+  LocalShellSessionController _createShellController({
+    String? launchCwd,
+    String? startupCommand,
+    TerminalSessionMetadata sessionMetadata = const TerminalSessionMetadata(),
+    TerminalSessionLaunchProfile launchProfile =
+        const TerminalSessionLaunchProfile.localShell(),
+  }) {
+    late final LocalShellSessionController controller;
+    controller = LocalShellSessionController(
       backendFactory: backendFactory,
       clipboardClient: clipboardClient,
       initialBlocksForSession: initialBlocksForSession,
+      initialCwd: _effectiveRestoreCwd(launchCwd),
+      startupCommand: startupCommand,
+      sessionMetadata: sessionMetadata,
+      sessionLaunchProfile: launchProfile,
       savedCommandsController: savedCommandsController,
       completionRepository: completionRepository,
       completionEnvironment: completionEnvironment,
       sessionConfigFactory: () {
         final baseConfig = settingsController.settings.toSessionConfig();
-        return applyShellIntegration(
-          _sessionConfigWithLaunchCwd(baseConfig, launchCwd),
+        final config = controller.sessionLaunchProfile.applyTo(
+          _sessionConfigWithLaunchCwd(
+            baseConfig,
+            controller.completionController.cwd,
+          ),
         );
+        return applyShellIntegration(config);
       },
     );
+    return controller;
   }
 
   void _restoreTabs(TerminalSessionRestoreState restoreState) {
     _restoreSaveSuspended = true;
     try {
-      _tabs.clear();
+      _disposeAllTabs();
       _nextTabId = 0;
       _nextPaneId = 0;
       for (final restoreTab in restoreState.tabs) {
@@ -345,7 +485,12 @@ class TerminalTabsController extends ChangeNotifier {
     TerminalSessionRestorePaneNode node,
   ) {
     if (node is TerminalSessionRestorePaneLeaf) {
-      return _createPane(id: node.id, launchCwd: node.cwd);
+      return _createPane(
+        id: node.id,
+        launchCwd: node.cwd,
+        sessionMetadata: node.sessionMetadata,
+        launchProfile: node.launchProfile,
+      );
     }
     final split = node as TerminalSessionRestorePaneSplit;
     return TerminalPaneSplit(
@@ -353,6 +498,27 @@ class TerminalTabsController extends ChangeNotifier {
       ratio: split.ratio,
       first: _createPaneTreeFromRestore(split.first),
       second: _createPaneTreeFromRestore(split.second),
+    );
+  }
+
+  TerminalPaneNode _createPaneTreeFromLaunchConfiguration(
+    TerminalLaunchConfigurationPaneNode node,
+  ) {
+    if (node is TerminalLaunchConfigurationPaneLeaf) {
+      return _createPane(
+        id: node.id,
+        launchCwd: node.cwd,
+        startupCommand: node.startupCommand,
+        sessionMetadata: node.sessionMetadata,
+        launchProfile: node.launchProfile,
+      );
+    }
+    final split = node as TerminalLaunchConfigurationPaneSplit;
+    return TerminalPaneSplit(
+      direction: split.direction,
+      ratio: split.ratio,
+      first: _createPaneTreeFromLaunchConfiguration(split.first),
+      second: _createPaneTreeFromLaunchConfiguration(split.second),
     );
   }
 
@@ -364,25 +530,41 @@ class TerminalTabsController extends ChangeNotifier {
   void _trackPaneRestoreState(LocalShellSessionController shellController) {
     _paneRestoreCwds[shellController] =
         shellController.completionController.cwd;
+    _paneRestoreMetadata[shellController] = shellController.sessionMetadata;
+    _paneRestoreLaunchProfiles[shellController] =
+        shellController.sessionLaunchProfile;
     void listener() {
       final nextCwd = shellController.completionController.cwd;
-      if (_paneRestoreCwds[shellController] == nextCwd) {
+      final nextMetadata = shellController.sessionMetadata;
+      final nextLaunchProfile = shellController.sessionLaunchProfile;
+      final cwdUnchanged = _paneRestoreCwds[shellController] == nextCwd;
+      final metadataUnchanged =
+          _paneRestoreMetadata[shellController] == nextMetadata;
+      final launchUnchanged =
+          _paneRestoreLaunchProfiles[shellController] == nextLaunchProfile;
+      if (cwdUnchanged && metadataUnchanged && launchUnchanged) {
         return;
       }
       _paneRestoreCwds[shellController] = nextCwd;
+      _paneRestoreMetadata[shellController] = nextMetadata;
+      _paneRestoreLaunchProfiles[shellController] = nextLaunchProfile;
       _scheduleRestoreSave();
     }
 
     _paneRestoreListeners[shellController] = listener;
     shellController.completionController.addListener(listener);
+    shellController.addListener(listener);
   }
 
   void _untrackPaneRestoreState(LocalShellSessionController shellController) {
     final listener = _paneRestoreListeners.remove(shellController);
     if (listener != null) {
       shellController.completionController.removeListener(listener);
+      shellController.removeListener(listener);
     }
     _paneRestoreCwds.remove(shellController);
+    _paneRestoreMetadata.remove(shellController);
+    _paneRestoreLaunchProfiles.remove(shellController);
   }
 
   void _disposePane(TerminalPaneLeaf pane) {
@@ -423,6 +605,8 @@ class TerminalTabsController extends ChangeNotifier {
         cwd: _effectiveRestoreCwd(
           node.shellController.completionController.cwd,
         ),
+        sessionMetadata: node.shellController.sessionMetadata,
+        launchProfile: node.shellController.sessionLaunchProfile,
       );
     }
     final split = node as TerminalPaneSplit;
@@ -439,7 +623,7 @@ class TerminalTabsController extends ChangeNotifier {
         _existingDirectoryOrNull(
           settingsController.settings.toSessionConfig().launch.cwd,
         ) ??
-        _existingDirectoryOrNull(Platform.environment['HOME']) ??
+        _existingDirectoryOrNull(defaultUserHomePath()) ??
         Directory.current.path;
   }
 
@@ -448,13 +632,51 @@ class TerminalTabsController extends ChangeNotifier {
     if (_tabs.isNotEmpty) {
       sessionRestoreController?.saveNow(currentRestoreState());
     }
+    _disposeAllTabs();
+    super.dispose();
+  }
+
+  TerminalLaunchConfigurationTab _launchConfigurationTabFor(
+    TerminalTabController tab,
+  ) {
+    return TerminalLaunchConfigurationTab(
+      fallbackTitle: tab.fallbackTitle,
+      activePaneId: tab.activePane.id,
+      rootPane: _launchConfigurationPaneNodeFor(tab.rootPane),
+    );
+  }
+
+  TerminalLaunchConfigurationPaneNode _launchConfigurationPaneNodeFor(
+    TerminalPaneNode node,
+  ) {
+    if (node is TerminalPaneLeaf) {
+      return TerminalLaunchConfigurationPaneLeaf(
+        id: node.id,
+        cwd: _effectiveRestoreCwd(
+          node.shellController.completionController.cwd,
+        ),
+        startupCommand: node.shellController.startupCommand ?? '',
+        sessionMetadata: node.shellController.sessionMetadata,
+        launchProfile: node.shellController.sessionLaunchProfile,
+      );
+    }
+    final split = node as TerminalPaneSplit;
+    return TerminalLaunchConfigurationPaneSplit(
+      direction: split.direction,
+      ratio: split.ratio,
+      first: _launchConfigurationPaneNodeFor(split.first),
+      second: _launchConfigurationPaneNodeFor(split.second),
+    );
+  }
+
+  void _disposeAllTabs() {
     for (final tab in _tabs) {
       for (final pane in tab.panes) {
         _disposePane(pane);
       }
     }
     _tabs.clear();
-    super.dispose();
+    _activeIndex = -1;
   }
 }
 

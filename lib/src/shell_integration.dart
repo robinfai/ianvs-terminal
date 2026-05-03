@@ -3,9 +3,11 @@ import 'dart:io';
 
 import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
+import 'platform_paths.dart';
+
 terminal.TerminalSessionConfig applyShellIntegration(
   terminal.TerminalSessionConfig config, {
-  Directory? applicationSupportDirectory,
+  Directory? stateDirectory,
   Map<String, String>? environment,
 }) {
   if (!_isZsh(config.launch.program)) {
@@ -14,11 +16,11 @@ terminal.TerminalSessionConfig applyShellIntegration(
 
   final effectiveEnvironment = environment ?? Platform.environment;
   final supportDirectory =
-      applicationSupportDirectory ?? _defaultApplicationSupportDirectory();
+      stateDirectory ?? Directory(defaultTerminalStateDirectoryPath());
   final zdotdir = Directory('${supportDirectory.path}/shell-integration/zsh');
   zdotdir.createSync(recursive: true);
 
-  final home = effectiveEnvironment['HOME'] ?? Directory.current.path;
+  final home = defaultUserHomePath(environment: effectiveEnvironment);
   final originalZdotdir = _nonEmpty(effectiveEnvironment['ZDOTDIR']) ?? home;
   _writeGeneratedZshFiles(zdotdir);
 
@@ -37,11 +39,6 @@ String encodeShellHookDcs(Map<String, Object?> payload) {
   final json = jsonEncode(payload);
   final hex = utf8.encode(json).map(_hexByte).join();
   return '\x1bPhook;$hex\x1b\\';
-}
-
-Directory _defaultApplicationSupportDirectory() {
-  final home = Platform.environment['HOME'] ?? Directory.current.path;
-  return Directory('$home/Library/Application Support/Ianvs/ianvs-terminal');
 }
 
 bool _isZsh(String program) => _basename(program) == 'zsh';

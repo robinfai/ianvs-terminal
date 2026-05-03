@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ianvs_terminal/src/session_launch.dart';
+import 'package:ianvs_terminal/src/session_metadata.dart';
 import 'package:ianvs_terminal/src/session_restore.dart';
 import 'package:ianvs_terminal/src/terminal_panes.dart';
 
@@ -41,7 +43,19 @@ void main() {
           rootPane: TerminalSessionRestorePaneSplit(
             direction: TerminalPaneSplitDirection.right,
             ratio: 0.65,
-            first: const TerminalSessionRestorePaneLeaf(id: 1, cwd: '/tmp/one'),
+            first: const TerminalSessionRestorePaneLeaf(
+              id: 1,
+              cwd: '/tmp/one',
+              sessionMetadata: TerminalSessionMetadata(
+                kind: TerminalSessionKind.ssh,
+                host: 'prod.example.internal',
+                environment: 'prod',
+              ),
+              launchProfile: TerminalSessionLaunchProfile.sshCommand(
+                host: 'prod.example.internal',
+                account: 'ops-user',
+              ),
+            ),
             second: const TerminalSessionRestorePaneLeaf(
               id: 2,
               cwd: '/tmp/two',
@@ -68,6 +82,16 @@ void main() {
     expect(split.direction, TerminalPaneSplitDirection.right);
     expect(split.ratio, 0.65);
     expect((split.first as TerminalSessionRestorePaneLeaf).cwd, '/tmp/one');
+    expect(
+      (split.first as TerminalSessionRestorePaneLeaf).sessionMetadata.host,
+      'prod.example.internal',
+    );
+    expect(
+      (split.first as TerminalSessionRestorePaneLeaf)
+          .launchProfile
+          .isSshCommand,
+      isTrue,
+    );
     expect((split.second as TerminalSessionRestorePaneLeaf).cwd, '/tmp/two');
   });
 

@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
+import 'platform_paths.dart';
+
 enum TerminalThemePreset {
   dark,
   graphite,
@@ -110,7 +112,7 @@ class TerminalSettings {
     return terminal.TerminalSessionConfig(
       launch: terminal.TerminalLaunchConfig(
         program: defaultShell,
-        cwd: Platform.environment['HOME'],
+        cwd: defaultUserHomePath(),
         env: const <String, String>{'TERM': 'xterm-256color'},
       ),
       display: displayConfig,
@@ -150,10 +152,7 @@ class TerminalSettingsStore {
   final String defaultShell;
 
   static File defaultSettingsFile() {
-    final home = Platform.environment['HOME'] ?? Directory.current.path;
-    return File(
-      '$home/Library/Application Support/Ianvs/ianvs-terminal/settings.json',
-    );
+    return File(defaultTerminalSettingsFilePath());
   }
 
   TerminalSettings load() {
