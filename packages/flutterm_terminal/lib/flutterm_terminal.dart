@@ -7,3 +7,4 @@ export 'src/terminal/terminal_input_controller.dart';
 export 'src/terminal/terminal_models.dart';
 export 'src/terminal/terminal_viewport.dart';
 export 'src/terminal/terminal_viewport_colors.dart';
+export 'src/xterm/terminal_api.dart';

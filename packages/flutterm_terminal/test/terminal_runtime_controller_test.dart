@@ -130,6 +130,7 @@ void main() {
 
       runtimeBackend.setFrame(sessionId, _singleRowSnapshot('fresh'));
       runtime.resizeSession(sessionId, const Size(180, 144), 1);
+      expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'fresh');
       await tester.pump();
 
       expect(runtimeBackend.takeFrameDiffCalls, 2);

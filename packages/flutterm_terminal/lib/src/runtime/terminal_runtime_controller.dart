@@ -34,6 +34,33 @@ final class TerminalSessionExitEvent extends TerminalSessionEvent {
   final int? exitCode;
 }
 
+final class TerminalSessionResizeEvent {
+  const TerminalSessionResizeEvent(
+    this.sessionId, {
+    required this.cols,
+    required this.rows,
+    required this.pixelWidth,
+    required this.pixelHeight,
+    required this.viewportSize,
+    required this.devicePixelRatio,
+  });
+
+  final String sessionId;
+  final int cols;
+  final int rows;
+  final int pixelWidth;
+  final int pixelHeight;
+  final Size viewportSize;
+  final double devicePixelRatio;
+}
+
+final class TerminalSessionInputEvent {
+  const TerminalSessionInputEvent(this.sessionId, this.bytes);
+
+  final String sessionId;
+  final Uint8List bytes;
+}
+
 class TerminalRuntimeController {
   TerminalRuntimeController({
     required PtySessionBackend backend,
@@ -58,6 +85,10 @@ class TerminalRuntimeController {
   final Map<String, List<Timer>> _warmUpTimers = <String, List<Timer>>{};
   final StreamController<TerminalSessionEvent> _events =
       StreamController<TerminalSessionEvent>.broadcast();
+  final StreamController<TerminalSessionInputEvent> _inputEvents =
+      StreamController<TerminalSessionInputEvent>.broadcast();
+  final StreamController<TerminalSessionResizeEvent> _resizeEvents =
+      StreamController<TerminalSessionResizeEvent>.broadcast();
   final Set<String> _activeSessionIds = <String>{};
   final Set<String> _refreshingSessionIds = <String>{};
   final Set<String> _queuedRefreshSessionIds = <String>{};
@@ -66,6 +97,8 @@ class TerminalRuntimeController {
   int _wireSessionSeed = 0;
 
   Stream<TerminalSessionEvent> get events => _events.stream;
+  Stream<TerminalSessionInputEvent> get inputEvents => _inputEvents.stream;
+  Stream<TerminalSessionResizeEvent> get resizeEvents => _resizeEvents.stream;
 
   TerminalViewportController viewportFor(String sessionId) {
     return _viewportControllers.putIfAbsent(
@@ -97,7 +130,9 @@ class TerminalRuntimeController {
   }
 
   void sendInput(String sessionId, Uint8List bytes) {
-    _backend.writeInput(sessionId, bytes);
+    final copiedBytes = Uint8List.fromList(bytes);
+    _inputEvents.add(TerminalSessionInputEvent(sessionId, copiedBytes));
+    _backend.writeInput(sessionId, copiedBytes);
     _refreshSessionIfNeeded(sessionId);
   }
 
@@ -177,6 +212,75 @@ class TerminalRuntimeController {
       pixelHeight: pixelHeight,
     );
     _lastResizeMetrics[sessionId] = nextMetric;
+    _resizeEvents.add(
+      TerminalSessionResizeEvent(
+        sessionId,
+        cols: cols,
+        rows: rows,
+        pixelWidth: pixelWidth,
+        pixelHeight: pixelHeight,
+        viewportSize: viewportSize,
+        devicePixelRatio: devicePixelRatio,
+      ),
+    );
+    if (!enableSessionPolling) {
+      _requestRefreshSession(sessionId, immediate: true);
+    }
+  }
+
+  void resizeSessionCells(
+    String sessionId, {
+    required int cols,
+    required int rows,
+    double devicePixelRatio = 1,
+    Size? cellSize,
+  }) {
+    if (cols <= 0 || rows <= 0 || devicePixelRatio <= 0) {
+      throw RangeError(
+        'Terminal dimensions and devicePixelRatio must be positive.',
+      );
+    }
+    final measuredCellSize = cellSize ?? _cellSizeFor(sessionId);
+    final logicalWidth = cols * measuredCellSize.width;
+    final logicalHeight = rows * measuredCellSize.height;
+    final pixelWidth = math.max(1, (logicalWidth * devicePixelRatio).round());
+    final pixelHeight = math.max(1, (logicalHeight * devicePixelRatio).round());
+    final nextMetric = _SessionResizeMetric(
+      cols: cols,
+      rows: rows,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+      logicalWidth: logicalWidth,
+      logicalHeight: logicalHeight,
+      devicePixelRatio: devicePixelRatio,
+    );
+    final previous = _lastResizeMetrics[sessionId];
+    if (previous != null &&
+        previous.cols == cols &&
+        previous.rows == rows &&
+        previous.pixelWidth == pixelWidth &&
+        previous.pixelHeight == pixelHeight) {
+      return;
+    }
+    _backend.resizeSession(
+      sessionId,
+      cols: cols,
+      rows: rows,
+      pixelWidth: pixelWidth,
+      pixelHeight: pixelHeight,
+    );
+    _lastResizeMetrics[sessionId] = nextMetric;
+    _resizeEvents.add(
+      TerminalSessionResizeEvent(
+        sessionId,
+        cols: cols,
+        rows: rows,
+        pixelWidth: pixelWidth,
+        pixelHeight: pixelHeight,
+        viewportSize: Size(logicalWidth, logicalHeight),
+        devicePixelRatio: devicePixelRatio,
+      ),
+    );
     if (!enableSessionPolling) {
       _requestRefreshSession(sessionId, immediate: true);
     }
@@ -239,7 +343,10 @@ class TerminalRuntimeController {
           skippedQueuedFrames = 0;
         }
 
-        await _processEvents(sessionId, events);
+        final eventProcessing = _processEvents(sessionId, events);
+        if (eventProcessing != null) {
+          await eventProcessing;
+        }
         if (!hasSession(sessionId)) {
           return;
         }
@@ -320,27 +427,58 @@ class TerminalRuntimeController {
     return false;
   }
 
-  Future<void> _processEvents(String sessionId, List<PtyEvent> events) async {
+  Future<void>? _processEvents(String sessionId, List<PtyEvent> events) {
+    Future<void>? pendingAsyncWork;
     for (final event in events) {
       switch (event.kind) {
         case 'exit':
           final exitCode = (event.payload?['code'] as num?)?.toInt();
-          _removeSessionState(sessionId);
-          _events.add(TerminalSessionExitEvent(sessionId, exitCode: exitCode));
-          return;
+          if (pendingAsyncWork == null) {
+            _removeSessionState(sessionId);
+            _events.add(
+              TerminalSessionExitEvent(sessionId, exitCode: exitCode),
+            );
+            return null;
+          }
+          return pendingAsyncWork.then((_) {
+            _removeSessionState(sessionId);
+            _events.add(
+              TerminalSessionExitEvent(sessionId, exitCode: exitCode),
+            );
+          });
         case 'resize':
-          await _handleResizeEvent(sessionId, event.payload);
+          pendingAsyncWork = _chainAsyncEvent(
+            pendingAsyncWork,
+            () => _handleResizeEvent(sessionId, event.payload),
+          );
           break;
         case 'clipboard_copy':
-          await _handleClipboardCopyEvent(event.payload);
+          pendingAsyncWork = _chainAsyncEvent(
+            pendingAsyncWork,
+            () => _handleClipboardCopyEvent(event.payload),
+          );
           break;
         case 'clipboard_paste_request':
-          await _handleClipboardPasteRequestEvent(sessionId, event.payload);
+          pendingAsyncWork = _chainAsyncEvent(
+            pendingAsyncWork,
+            () => _handleClipboardPasteRequestEvent(sessionId, event.payload),
+          );
           break;
         default:
           break;
       }
     }
+    return pendingAsyncWork;
+  }
+
+  Future<void> _chainAsyncEvent(
+    Future<void>? pendingAsyncWork,
+    Future<void> Function() process,
+  ) {
+    if (pendingAsyncWork == null) {
+      return process();
+    }
+    return pendingAsyncWork.then((_) => process());
   }
 
   Future<void> _handleResizeEvent(
@@ -390,6 +528,17 @@ class TerminalRuntimeController {
       logicalWidth: targetWidth,
       logicalHeight: targetHeight,
       devicePixelRatio: metric.devicePixelRatio,
+    );
+    _resizeEvents.add(
+      TerminalSessionResizeEvent(
+        sessionId,
+        cols: cols,
+        rows: rows,
+        pixelWidth: targetPixelWidth,
+        pixelHeight: targetPixelHeight,
+        viewportSize: Size(targetWidth, targetHeight),
+        devicePixelRatio: metric.devicePixelRatio,
+      ),
     );
     if (!enableSessionPolling) {
       _requestRefreshSession(sessionId, immediate: true);
@@ -517,6 +666,8 @@ class TerminalRuntimeController {
       controller.dispose();
     }
     _events.close();
+    _inputEvents.close();
+    _resizeEvents.close();
   }
 }
 
