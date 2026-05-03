@@ -336,6 +336,20 @@ fn mode_switch_profile() -> TerminalProfile {
     )
 }
 
+fn alternate_screen_profile() -> TerminalProfile {
+    local_profile(
+        "alternate-screen",
+        "Alternate Screen",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033[?1049hALTSCREEN'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn vt220_da_profile() -> TerminalProfile {
     local_profile(
         "vt220-da",
@@ -755,6 +769,20 @@ fn session_frame_diff_exposes_application_cursor_and_keypad_modes() {
 
     assert_eq!(parsed["modes"]["application_cursor"].as_bool(), Some(true));
     assert_eq!(parsed["modes"]["application_keypad"].as_bool(), Some(true));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_alternate_screen_mode() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&alternate_screen_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "ALTSCREEN");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["alternate_screen"].as_bool(), Some(true));
 
     session::close_session(session_id).unwrap();
 }

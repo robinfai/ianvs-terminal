@@ -45,6 +45,7 @@ class TerminalStyleRun {
 
 class TerminalFrameModes {
   const TerminalFrameModes({
+    this.alternateScreen = false,
     this.applicationCursor = false,
     this.applicationKeypad = false,
     this.insertMode = false,
@@ -58,6 +59,7 @@ class TerminalFrameModes {
     this.mouseEncoding = 'default',
   });
 
+  final bool alternateScreen;
   final bool applicationCursor;
   final bool applicationKeypad;
   final bool insertMode;
@@ -74,6 +76,7 @@ class TerminalFrameModes {
 
   factory TerminalFrameModes.fromJson(Map<String, Object?> json) {
     return TerminalFrameModes(
+      alternateScreen: json['alternate_screen'] as bool? ?? false,
       applicationCursor: json['application_cursor'] as bool? ?? false,
       applicationKeypad: json['application_keypad'] as bool? ?? false,
       insertMode: json['insert_mode'] as bool? ?? false,
@@ -366,6 +369,11 @@ class TerminalViewportState {
       incomingRows: nextFrame.rows,
       viewportRows: nextFrame.viewportRows,
     );
+    final dirtyRanges = _mergeDirtyRangesWithRows(
+      dirtyRanges: nextFrame.dirtyRanges,
+      rows: nextFrame.rows,
+      viewportRows: nextFrame.viewportRows,
+    );
     final mergedHyperlinks = _mergeHyperlinks(
       currentRanges: _shiftHyperlinks(
         ranges: frame.hyperlinks,
@@ -373,7 +381,7 @@ class TerminalViewportState {
         rowShift: nextFrame.viewportRowShift,
       ),
       incomingRanges: nextFrame.hyperlinks,
-      dirtyRanges: nextFrame.dirtyRanges,
+      dirtyRanges: dirtyRanges,
       viewportRows: nextFrame.viewportRows,
     );
 
@@ -385,7 +393,7 @@ class TerminalViewportState {
         selection: nextFrame.selection,
         viewportRows: nextFrame.viewportRows,
         viewportCols: nextFrame.viewportCols,
-        dirtyRanges: nextFrame.dirtyRanges,
+        dirtyRanges: dirtyRanges,
         scrollbackOffset: nextFrame.scrollbackOffset,
         scrollbackMaxOffset: nextFrame.scrollbackMaxOffset,
         viewportStartRow: nextFrame.viewportStartRow,
@@ -548,6 +556,45 @@ List<TerminalDirtyRange> _fullViewportDirtyRanges(int viewportRows) {
     return const <TerminalDirtyRange>[];
   }
   return <TerminalDirtyRange>[TerminalDirtyRange(start: 0, end: viewportRows)];
+}
+
+List<TerminalDirtyRange> _mergeDirtyRangesWithRows({
+  required List<TerminalDirtyRange> dirtyRanges,
+  required List<TerminalRow> rows,
+  required int viewportRows,
+}) {
+  final dirtyRows = <int>{};
+  for (final range in dirtyRanges) {
+    final start = range.start.clamp(0, viewportRows).toInt();
+    final end = range.end.clamp(start, viewportRows).toInt();
+    for (var row = start; row < end; row += 1) {
+      dirtyRows.add(row);
+    }
+  }
+  for (final row in rows) {
+    if (row.index >= 0 && row.index < viewportRows) {
+      dirtyRows.add(row.index);
+    }
+  }
+  if (dirtyRows.isEmpty) {
+    return const <TerminalDirtyRange>[];
+  }
+
+  final sortedRows = dirtyRows.toList(growable: false)..sort();
+  final ranges = <TerminalDirtyRange>[];
+  var start = sortedRows.first;
+  var end = start + 1;
+  for (final row in sortedRows.skip(1)) {
+    if (row == end) {
+      end += 1;
+      continue;
+    }
+    ranges.add(TerminalDirtyRange(start: start, end: end));
+    start = row;
+    end = row + 1;
+  }
+  ranges.add(TerminalDirtyRange(start: start, end: end));
+  return ranges;
 }
 
 List<TerminalRow> _normalizeViewportRows({

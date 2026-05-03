@@ -44,6 +44,69 @@ void main() {
     },
   );
 
+  test(
+    'terminal viewport controller treats incoming delta rows as dirty ranges',
+    () {
+      final controller = TerminalViewportController();
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [
+            TerminalRow(index: 0, text: 'prompt'),
+            TerminalRow(index: 1, text: 'old link'),
+          ],
+          cursor: TerminalCursor(row: 0, col: 6, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          hyperlinks: [
+            TerminalHyperlinkRange(
+              row: 1,
+              startCol: 0,
+              endCol: 8,
+              uri: 'https://stale.example',
+            ),
+          ],
+        ),
+      );
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 1, text: 'fresh prompt')],
+          cursor: TerminalCursor(row: 1, col: 12, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      final frame = controller.frame;
+      expect(frame.rows.map((row) => row.text).toList(), <String>[
+        'prompt',
+        'fresh prompt',
+      ]);
+      expect(
+        frame.dirtyRanges
+            .map((range) => (range.start, range.end))
+            .toList(growable: false),
+        <(int, int)>[(1, 2)],
+      );
+      expect(frame.hyperlinks, isEmpty);
+    },
+  );
+
+  test('terminal frame modes parse alternate screen hints', () {
+    final modes = TerminalFrameModes.fromJson(const <String, Object?>{
+      'alternate_screen': true,
+    });
+
+    expect(modes.alternateScreen, isTrue);
+  });
+
   testWidgets(
     'terminal runtime controller owns sessions and viewport state without demo imports',
     (tester) async {
@@ -109,6 +172,35 @@ void main() {
       expect(runtimeBackend.pollEventsCalls, 2);
     },
   );
+
+  testWidgets('terminal runtime controller exposes explicit full refresh', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    runtimeBackend.setFrame(sessionId, _singleRowSnapshot('recovered prompt'));
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+
+    expect(runtimeBackend.scrollToCalls, <(String, int)>[(sessionId, 0)]);
+    expect(
+      runtime.viewportFor(sessionId).frame.rows.first.text,
+      'recovered prompt',
+    );
+  });
 
   testWidgets(
     'terminal runtime controller does not keep started-only refreshes in flight',
@@ -814,6 +906,7 @@ class _FakePtyBackend implements PtySessionBackend {
   final List<String> closeCalls = <String>[];
   final List<Uint8List> writeCalls = <Uint8List>[];
   final List<List<Object?>> resizeCalls = <List<Object?>>[];
+  final List<(String, int)> scrollToCalls = <(String, int)>[];
 
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
@@ -903,7 +996,9 @@ class _FakePtyBackend implements PtySessionBackend {
   void scrollViewport(String sessionId, int deltaLines) {}
 
   @override
-  void scrollViewportTo(String sessionId, int offset) {}
+  void scrollViewportTo(String sessionId, int offset) {
+    scrollToCalls.add((sessionId, offset));
+  }
 
   @override
   String? searchTextJson(String sessionId, String query) => '[]';

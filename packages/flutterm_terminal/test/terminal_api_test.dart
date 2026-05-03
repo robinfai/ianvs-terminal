@@ -152,6 +152,10 @@ void main() {
     expect(resizes.map((event) => (event.cols, event.rows)).last, (120, 40));
     expect(backend.resizeCalls.last, <Object?>['1', 120, 40, 1080, 720]);
 
+    terminal.refresh();
+    await tester.pump();
+    expect(backend.scrollToCalls.last, (sessionId, 2));
+
     backend.enqueueEvent(
       sessionId,
       PtyEvent(
@@ -198,6 +202,7 @@ class _FakePtyBackend implements PtySessionBackend {
   final List<String> closeCalls = <String>[];
   final List<Uint8List> writeCalls = <Uint8List>[];
   final List<List<Object?>> resizeCalls = <List<Object?>>[];
+  final List<(String, int)> scrollToCalls = <(String, int)>[];
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
@@ -262,7 +267,9 @@ class _FakePtyBackend implements PtySessionBackend {
   void scrollViewport(String sessionId, int deltaLines) {}
 
   @override
-  void scrollViewportTo(String sessionId, int offset) {}
+  void scrollViewportTo(String sessionId, int offset) {
+    scrollToCalls.add((sessionId, offset));
+  }
 
   @override
   String? searchTextJson(String sessionId, String query) => '[]';

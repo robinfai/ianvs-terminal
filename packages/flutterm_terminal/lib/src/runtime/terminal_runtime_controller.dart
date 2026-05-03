@@ -146,6 +146,18 @@ class TerminalRuntimeController {
     _refreshSessionIfNeeded(sessionId);
   }
 
+  void refreshSession(String sessionId) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
+    final frame = viewportFor(sessionId).frame;
+    final scrollbackOffset = frame.scrollbackOffset
+        .clamp(0, frame.scrollbackMaxOffset)
+        .toInt();
+    _backend.scrollViewportTo(sessionId, scrollbackOffset);
+    _requestRefreshSession(sessionId, immediate: true);
+  }
+
   String? selectionText(
     String sessionId,
     TerminalSelection selection, {

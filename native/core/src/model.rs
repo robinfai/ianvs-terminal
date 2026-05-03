@@ -282,6 +282,8 @@ pub struct TerminalSearchMatch {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerminalFrameModes {
     #[serde(default)]
+    pub alternate_screen: bool,
+    #[serde(default)]
     pub application_cursor: bool,
     #[serde(default)]
     pub application_keypad: bool,

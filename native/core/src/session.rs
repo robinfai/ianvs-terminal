@@ -766,6 +766,7 @@ impl TerminalSession {
 
         let cursor = terminal.cursor();
         let modes = TerminalFrameModes {
+            alternate_screen: alt_screen_active,
             application_cursor: terminal.application_cursor(),
             application_keypad: state.host_protocol.application_keypad,
             insert_mode: terminal.insert_mode(),

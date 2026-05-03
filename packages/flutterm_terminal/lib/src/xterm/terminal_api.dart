@@ -387,6 +387,10 @@ class Terminal implements TerminalDisposable {
     _runtime.scrollViewportTo(_requireSessionId(), line);
   }
 
+  void refresh() {
+    _runtime.refreshSession(_requireSessionId());
+  }
+
   void reset() {
     write('\x1Bc');
   }
