@@ -48,7 +48,10 @@ void main() {
       );
 
       await harness.selectWindow(1);
-      expect(find.byKey(const Key('terminal-tab-window-two-ssh')), findsNothing);
+      expect(
+        find.byKey(const Key('terminal-tab-window-two-ssh')),
+        findsNothing,
+      );
       await harness.selectWindow(2);
       expect(
         find.byKey(const Key('terminal-tab-window-two-ssh')),
@@ -227,7 +230,7 @@ class _DesktopDemoHarness {
   }
 
   Future<void> newWindow() async {
-    await _tapByKey('terminal-new-window-button');
+    await _selectAddMenuAction('new-window');
   }
 
   Future<void> selectWindow(int windowId) async {
@@ -235,19 +238,19 @@ class _DesktopDemoHarness {
   }
 
   Future<void> newTab() async {
-    await _tapByKey('terminal-new-tab-button');
+    await _selectAddMenuAction('new-tab');
   }
 
   Future<void> closeWindow() async {
-    await _tapByKey('terminal-close-window-button');
+    await _selectHeaderOverflowAction('close-window');
   }
 
   Future<void> splitRight() async {
-    await _tapByKey('terminal-split-right-button');
+    await _selectHeaderOverflowAction('split-right');
   }
 
   Future<void> openWorkspaceSearch() async {
-    await _tapByKey('terminal-workspace-search-button');
+    await _selectHeaderOverflowAction('workspace-search');
   }
 
   Future<void> openCommandSearch() async {
@@ -272,7 +275,7 @@ class _DesktopDemoHarness {
   }
 
   Future<void> saveLaunchConfig(String path) async {
-    await _tapByKey('terminal-launch-config-button', settle: true);
+    await _selectAddMenuAction('launch-config', settle: true);
     await _enterText('terminal-launch-config-name-field', 'demo-export');
     await _tapByKey('terminal-launch-config-advanced-toggle', settle: true);
     await _enterText('terminal-launch-config-path-field', path);
@@ -284,7 +287,7 @@ class _DesktopDemoHarness {
   }
 
   Future<void> applyLaunchConfig(String path) async {
-    await _tapByKey('terminal-launch-config-button', settle: true);
+    await _selectAddMenuAction('launch-config', settle: true);
     await _tapByKey('terminal-launch-config-advanced-toggle', settle: true);
     await _enterText('terminal-launch-config-path-field', path);
     await _tapByKey('terminal-launch-config-apply-button', settle: true);
@@ -296,7 +299,7 @@ class _DesktopDemoHarness {
     String environment = '',
     String project = '',
   }) async {
-    await _tapByKey('terminal-new-ssh-session-button', settle: true);
+    await _selectAddMenuAction('new-ssh', settle: true);
     await _enterText('terminal-new-ssh-host-field', host);
     if (account.isNotEmpty) {
       await _enterText('terminal-new-ssh-account-field', account);
@@ -311,14 +314,41 @@ class _DesktopDemoHarness {
   }
 
   Future<void> updateSessionContextHost(String host) async {
-    await _tapByKey('terminal-session-context-button', settle: true);
+    await _selectHeaderOverflowAction('session-context', settle: true);
     await _enterText('terminal-session-host-field', host);
     await _tapByKey('terminal-session-context-apply-button', settle: true);
   }
 
   Future<void> restartActiveSession() async {
-    await tester.tap(find.byTooltip('Restart'));
-    await tester.pump();
+    await _selectHeaderOverflowAction('restart');
+  }
+
+  Future<void> _selectAddMenuAction(
+    String action, {
+    bool settle = false,
+  }) async {
+    final addMenu = find.byKey(const Key('terminal-add-menu-button'));
+    tester.widget<PopupMenuButton<String>>(addMenu).onSelected!(action);
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
+  }
+
+  Future<void> _selectHeaderOverflowAction(
+    String action, {
+    bool settle = false,
+  }) async {
+    final overflowMenu = find.byKey(
+      const Key('terminal-header-overflow-menu-button'),
+    );
+    tester.widget<PopupMenuButton<String>>(overflowMenu).onSelected!(action);
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump();
+    }
   }
 
   Future<void> _tapByKey(String key, {bool settle = false}) async {

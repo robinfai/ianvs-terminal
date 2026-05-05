@@ -19,7 +19,7 @@ Ianvs Terminal 的 terminal 实现当前通过 path dependency 解析到 `/Users
 - [Warp Session Management](https://docs.warp.dev/terminal/sessions)
 - [Warp Launch Configurations](https://docs.warp.dev/terminal/sessions/launch-configurations)
 
-本地功能参考入口：`/Users/robinfai/personal/warp/app/src/terminal/`、`/Users/robinfai/personal/warp/app/src/pane_group/`、`/Users/robinfai/personal/warp/app/src/launch_configs/` 和 `/Users/robinfai/personal/warp/app/src/integration_testing/`。
+本地功能参考入口：`../../warp/app/src/terminal/`、`../../warp/app/src/pane_group/`、`../../warp/app/src/launch_configs/` 和 `../../warp/app/src/integration_testing/`。当前本机 Warp 源码基线是 `../../warp` 的浅克隆，最新复审见 `WARP_SOURCE_REAUDIT.md`。
 
 ## 客户端与平台策略
 

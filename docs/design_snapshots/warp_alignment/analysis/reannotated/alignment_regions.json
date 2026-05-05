@@ -1,0 +1,1649 @@
+{
+  "comparison_count": 10,
+  "comparisons": [
+    {
+      "alignment": [
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.0,
+            1.0,
+            0.0329
+          ],
+          "max_delta": 0.0,
+          "region": "top_chrome",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.0,
+            1.0,
+            0.0329
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.1667,
+            0.0,
+            0.2319,
+            0.0329
+          ],
+          "max_delta": 0.0,
+          "region": "active_tab",
+          "status": "pass",
+          "warp_ratio": [
+            0.1667,
+            0.0,
+            0.2319,
+            0.0329
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.0329,
+            1.0,
+            0.8668
+          ],
+          "max_delta": 0.0,
+          "region": "terminal_viewport",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.0329,
+            1.0,
+            0.8668
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.7219,
+            1.0,
+            0.1778
+          ],
+          "max_delta": 0.0,
+          "region": "visible_scrollback",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.7219,
+            1.0,
+            0.1778
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.8997,
+            1.0,
+            0.0359
+          ],
+          "max_delta": 0.0,
+          "region": "input_context",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.8997,
+            1.0,
+            0.0359
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.9356,
+            1.0,
+            0.0644
+          ],
+          "max_delta": 0.0,
+          "region": "input_editor",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.9356,
+            1.0,
+            0.0644
+          ]
+        }
+      ],
+      "ianvs": {
+        "anchor": "app_frame",
+        "path": "default_terminal_layout.png",
+        "role": "ianvs",
+        "source": "Ianvs golden default_terminal_layout"
+      },
+      "key": "default_terminal_layout",
+      "notes": [
+        "Default state uses the user-supplied 1656 x 2064 display screenshot as the layout source.",
+        "Top chrome, empty viewport, visible scrollback, context chips, and input editor are calibrated 1:1."
+      ],
+      "regions": [
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            0,
+            1656,
+            2064
+          ],
+          "key": "app_frame",
+          "label": "app frame",
+          "warp": [
+            0,
+            0,
+            1656,
+            2064
+          ]
+        },
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            0,
+            1656,
+            68
+          ],
+          "key": "top_chrome",
+          "label": "top chrome",
+          "warp": [
+            0,
+            0,
+            1656,
+            68
+          ]
+        },
+        {
+          "color": "context",
+          "ianvs": [
+            276,
+            0,
+            384,
+            68
+          ],
+          "key": "active_tab",
+          "label": "active tab title",
+          "warp": [
+            276,
+            0,
+            384,
+            68
+          ]
+        },
+        {
+          "color": "block",
+          "ianvs": [
+            0,
+            68,
+            1656,
+            1789
+          ],
+          "key": "terminal_viewport",
+          "label": "terminal viewport",
+          "warp": [
+            0,
+            68,
+            1656,
+            1789
+          ]
+        },
+        {
+          "color": "block",
+          "ianvs": [
+            0,
+            1490,
+            1656,
+            367
+          ],
+          "key": "visible_scrollback",
+          "label": "visible scrollback",
+          "warp": [
+            0,
+            1490,
+            1656,
+            367
+          ]
+        },
+        {
+          "color": "context",
+          "ianvs": [
+            0,
+            1857,
+            1656,
+            74
+          ],
+          "key": "input_context",
+          "label": "input context chips",
+          "warp": [
+            0,
+            1857,
+            1656,
+            74
+          ]
+        },
+        {
+          "color": "input",
+          "ianvs": [
+            0,
+            1931,
+            1656,
+            133
+          ],
+          "key": "input_editor",
+          "label": "input editor",
+          "warp": [
+            0,
+            1931,
+            1656,
+            133
+          ]
+        }
+      ],
+      "title": "Default display view layout",
+      "warp": {
+        "anchor": "app_frame",
+        "path": "default_terminal_layout.png",
+        "role": "warp",
+        "source": "User supplied default display screenshot rects, calibrated in Ianvs"
+      }
+    },
+    {
+      "alignment": [
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.375,
+            1.0,
+            0.4029
+          ],
+          "max_delta": 0.0004,
+          "region": "block_band",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.3754,
+            1.0,
+            0.4032
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0104,
+            0.415,
+            0.9069,
+            0.324
+          ],
+          "max_delta": 0.0003,
+          "region": "command_body",
+          "status": "pass",
+          "warp_ratio": [
+            0.0105,
+            0.4151,
+            0.9069,
+            0.3237
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.909,
+            0.3956,
+            0.0847,
+            0.0534
+          ],
+          "max_delta": 0.0042,
+          "region": "block_actions",
+          "status": "pass",
+          "warp_ratio": [
+            0.9093,
+            0.3962,
+            0.0846,
+            0.0576
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0104,
+            0.7925,
+            0.9104,
+            0.0413
+          ],
+          "max_delta": 0.0039,
+          "region": "input_context",
+          "status": "pass",
+          "warp_ratio": [
+            0.0105,
+            0.7964,
+            0.9103,
+            0.0407
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0111,
+            0.8337,
+            0.9778,
+            0.1663
+          ],
+          "max_delta": 0.0222,
+          "region": "input_editor",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.8371,
+            1.0,
+            0.1629
+          ]
+        }
+      ],
+      "ianvs": {
+        "anchor": "terminal_pane",
+        "path": "block_actions_layout.png",
+        "role": "ianvs",
+        "source": "Ianvs golden block_actions_layout"
+      },
+      "key": "block_actions_layout",
+      "notes": [
+        "Actions must stay attached to the active block instead of moving to global chrome.",
+        "Hover state must not shift block or input geometry."
+      ],
+      "regions": [
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            76,
+            1440,
+            824
+          ],
+          "key": "terminal_pane",
+          "label": "terminal pane",
+          "warp": [
+            501,
+            71,
+            2955,
+            1007
+          ]
+        },
+        {
+          "color": "block",
+          "ianvs": [
+            0,
+            385,
+            1440,
+            332
+          ],
+          "key": "block_band",
+          "label": "active block band",
+          "warp": [
+            501,
+            449,
+            2955,
+            406
+          ]
+        },
+        {
+          "color": "block",
+          "ianvs": [
+            15,
+            418,
+            1306,
+            267
+          ],
+          "key": "command_body",
+          "label": "command/output body",
+          "warp": [
+            532,
+            489,
+            2680,
+            326
+          ]
+        },
+        {
+          "color": "actions",
+          "ianvs": [
+            1309,
+            402,
+            122,
+            44
+          ],
+          "key": "block_actions",
+          "label": "inline actions",
+          "warp": [
+            3188,
+            470,
+            250,
+            58
+          ]
+        },
+        {
+          "color": "context",
+          "ianvs": [
+            15,
+            729,
+            1311,
+            34
+          ],
+          "key": "input_context",
+          "label": "input context chips",
+          "warp": [
+            532,
+            873,
+            2690,
+            41
+          ]
+        },
+        {
+          "color": "input",
+          "ianvs": [
+            16,
+            763,
+            1408,
+            137
+          ],
+          "key": "input_editor",
+          "label": "input editor",
+          "warp": [
+            501,
+            914,
+            2955,
+            164
+          ]
+        }
+      ],
+      "title": "Block hover actions layout",
+      "warp": {
+        "anchor": "terminal_pane",
+        "path": "warp_interaction/02_block_not_hover_click_actions.png",
+        "role": "warp",
+        "source": "Warp manual interaction sample 02_block_not_hover_click_actions"
+      }
+    },
+    {
+      "alignment": [
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.375,
+            1.0,
+            0.4029
+          ],
+          "max_delta": 0.0004,
+          "region": "block_band",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.3754,
+            1.0,
+            0.4032
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0104,
+            0.415,
+            0.9069,
+            0.324
+          ],
+          "max_delta": 0.0003,
+          "region": "command_body",
+          "status": "pass",
+          "warp_ratio": [
+            0.0105,
+            0.4151,
+            0.9069,
+            0.3237
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.909,
+            0.3956,
+            0.0847,
+            0.0534
+          ],
+          "max_delta": 0.0042,
+          "region": "block_actions",
+          "status": "pass",
+          "warp_ratio": [
+            0.9093,
+            0.3962,
+            0.0846,
+            0.0576
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.7791,
+            1.0,
+            0.0595
+          ],
+          "max_delta": 0.0009,
+          "region": "detection_strip",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.7786,
+            1.0,
+            0.0586
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.8374,
+            1.0,
+            0.1626
+          ],
+          "max_delta": 0.0002,
+          "region": "input_editor",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.8371,
+            1.0,
+            0.1629
+          ]
+        }
+      ],
+      "ianvs": {
+        "anchor": "terminal_pane",
+        "path": "completion_input_layout.png",
+        "role": "ianvs",
+        "source": "Ianvs golden completion_input_layout"
+      },
+      "key": "completion_input_layout",
+      "notes": [
+        "Alignment excludes Warp sidebar/app chrome and compares active terminal pane-local ratios.",
+        "Detection strip and input editor should hand off cleanly below the active block band."
+      ],
+      "regions": [
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            76,
+            1440,
+            824
+          ],
+          "key": "terminal_pane",
+          "label": "terminal pane",
+          "warp": [
+            501,
+            71,
+            2955,
+            1007
+          ]
+        },
+        {
+          "color": "block",
+          "ianvs": [
+            0,
+            385,
+            1440,
+            332
+          ],
+          "key": "block_band",
+          "label": "active block band",
+          "warp": [
+            501,
+            449,
+            2955,
+            406
+          ]
+        },
+        {
+          "color": "block",
+          "ianvs": [
+            15,
+            418,
+            1306,
+            267
+          ],
+          "key": "command_body",
+          "label": "command/output body",
+          "warp": [
+            532,
+            489,
+            2680,
+            326
+          ]
+        },
+        {
+          "color": "actions",
+          "ianvs": [
+            1309,
+            402,
+            122,
+            44
+          ],
+          "key": "block_actions",
+          "label": "block actions",
+          "warp": [
+            3188,
+            470,
+            250,
+            58
+          ]
+        },
+        {
+          "color": "input",
+          "ianvs": [
+            0,
+            718,
+            1440,
+            49
+          ],
+          "key": "detection_strip",
+          "label": "command detection strip",
+          "warp": [
+            501,
+            855,
+            2955,
+            59
+          ]
+        },
+        {
+          "color": "input",
+          "ianvs": [
+            0,
+            766,
+            1440,
+            134
+          ],
+          "key": "input_editor",
+          "label": "input editor system",
+          "warp": [
+            501,
+            914,
+            2955,
+            164
+          ]
+        }
+      ],
+      "title": "Completion input pane-local layout",
+      "warp": {
+        "anchor": "terminal_pane",
+        "path": "warp_interaction/04_completion_input.png",
+        "role": "warp",
+        "source": "Warp manual interaction sample 04_completion_input"
+      }
+    },
+    {
+      "alignment": [
+        {
+          "ianvs_ratio": [
+            0.3139,
+            0.2178,
+            0.3715,
+            0.5422
+          ],
+          "max_delta": 0.0005,
+          "region": "palette_shell",
+          "status": "pass",
+          "warp_ratio": [
+            0.3142,
+            0.218,
+            0.3715,
+            0.5417
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.3229,
+            0.3244,
+            0.0847,
+            0.2522
+          ],
+          "max_delta": 0.0008,
+          "region": "source_rail",
+          "status": "pass",
+          "warp_ratio": [
+            0.3226,
+            0.3247,
+            0.0839,
+            0.2523
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.3139,
+            0.5767,
+            0.3715,
+            0.1822
+          ],
+          "max_delta": 0.0005,
+          "region": "results_list",
+          "status": "pass",
+          "warp_ratio": [
+            0.3142,
+            0.577,
+            0.3715,
+            0.1827
+          ]
+        }
+      ],
+      "ianvs": {
+        "anchor": "comparison_frame",
+        "path": "blocks_command_palette.png",
+        "role": "ianvs",
+        "source": "Ianvs golden blocks_command_palette"
+      },
+      "key": "blocks_command_palette",
+      "notes": [
+        "Palette placement and source rail are compared against Warp command search.",
+        "Block rail remains visible behind the palette to keep terminal context."
+      ],
+      "regions": [
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            0,
+            1440,
+            900
+          ],
+          "key": "comparison_frame",
+          "label": "comparison frame",
+          "warp": [
+            0,
+            0,
+            3456,
+            1078
+          ]
+        },
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            76,
+            1440,
+            824
+          ],
+          "key": "terminal_pane",
+          "label": "terminal pane",
+          "warp": [
+            501,
+            71,
+            2955,
+            1007
+          ]
+        },
+        {
+          "color": "palette",
+          "ianvs": [
+            452,
+            196,
+            535,
+            488
+          ],
+          "key": "palette_shell",
+          "label": "palette shell",
+          "warp": [
+            1086,
+            235,
+            1284,
+            584
+          ]
+        },
+        {
+          "color": "palette",
+          "ianvs": [
+            465,
+            292,
+            122,
+            227
+          ],
+          "key": "source_rail",
+          "label": "source rail",
+          "warp": [
+            1115,
+            350,
+            290,
+            272
+          ]
+        },
+        {
+          "color": "palette",
+          "ianvs": [
+            452,
+            519,
+            535,
+            164
+          ],
+          "key": "results_list",
+          "label": "results list",
+          "warp": [
+            1086,
+            622,
+            1284,
+            197
+          ]
+        },
+        {
+          "color": "input",
+          "ianvs": [
+            16,
+            763,
+            1408,
+            137
+          ],
+          "key": "input_editor",
+          "label": "input editor",
+          "warp": [
+            501,
+            914,
+            2955,
+            164
+          ]
+        }
+      ],
+      "title": "Blocks plus command palette layout",
+      "warp": {
+        "anchor": "comparison_frame",
+        "path": "warp_interaction/03_command_search.png",
+        "role": "warp",
+        "source": "Warp manual interaction sample 03_command_search"
+      }
+    },
+    {
+      "alignment": [
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.0,
+            0.5,
+            1.0
+          ],
+          "max_delta": 0.0002,
+          "region": "left_pane",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.0,
+            0.4998,
+            1.0
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.5,
+            0.0,
+            0.5,
+            1.0
+          ],
+          "max_delta": 0.0002,
+          "region": "right_pane",
+          "status": "pass",
+          "warp_ratio": [
+            0.4998,
+            0.0,
+            0.5002,
+            1.0
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0,
+            -0.0194,
+            1.0,
+            0.0413
+          ],
+          "max_delta": 0.0204,
+          "region": "pane_header",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.001,
+            1.0,
+            0.0397
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.5,
+            -0.0194,
+            0.0069,
+            0.0413
+          ],
+          "max_delta": 0.0204,
+          "region": "active_marker",
+          "status": "pass",
+          "warp_ratio": [
+            0.4998,
+            0.001,
+            0.0068,
+            0.0397
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.0,
+            0.8337,
+            1.0,
+            0.1663
+          ],
+          "max_delta": 0.0034,
+          "region": "input_editor",
+          "status": "pass",
+          "warp_ratio": [
+            0.0,
+            0.8371,
+            1.0,
+            0.1629
+          ]
+        }
+      ],
+      "ianvs": {
+        "anchor": "terminal_area",
+        "path": "split_pane_layout.png",
+        "role": "ianvs",
+        "source": "Ianvs golden split_pane_layout"
+      },
+      "key": "split_pane_layout",
+      "notes": [
+        "Each pane keeps local header, active marker, context chips, and input editor.",
+        "Move-to-tab is covered by behavior tests; drag-to-tab remains a later enhancement."
+      ],
+      "regions": [
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            0,
+            1440,
+            900
+          ],
+          "key": "comparison_frame",
+          "label": "comparison frame",
+          "warp": [
+            0,
+            0,
+            3456,
+            1078
+          ]
+        },
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            76,
+            1440,
+            824
+          ],
+          "key": "terminal_area",
+          "label": "terminal area",
+          "warp": [
+            501,
+            71,
+            2955,
+            1007
+          ]
+        },
+        {
+          "color": "pane",
+          "ianvs": [
+            0,
+            76,
+            720,
+            824
+          ],
+          "key": "left_pane",
+          "label": "left pane",
+          "warp": [
+            501,
+            71,
+            1477,
+            1007
+          ]
+        },
+        {
+          "color": "pane",
+          "ianvs": [
+            720,
+            76,
+            720,
+            824
+          ],
+          "key": "right_pane",
+          "label": "right pane",
+          "warp": [
+            1978,
+            71,
+            1478,
+            1007
+          ]
+        },
+        {
+          "color": "pane",
+          "ianvs": [
+            0,
+            60,
+            1440,
+            34
+          ],
+          "key": "pane_header",
+          "label": "pane headers",
+          "warp": [
+            501,
+            72,
+            2955,
+            40
+          ]
+        },
+        {
+          "color": "actions",
+          "ianvs": [
+            720,
+            60,
+            10,
+            34
+          ],
+          "key": "active_marker",
+          "label": "active pane marker",
+          "warp": [
+            1978,
+            72,
+            20,
+            40
+          ]
+        },
+        {
+          "color": "input",
+          "ianvs": [
+            0,
+            763,
+            1440,
+            137
+          ],
+          "key": "input_editor",
+          "label": "per-pane input editors",
+          "warp": [
+            501,
+            914,
+            2955,
+            164
+          ]
+        }
+      ],
+      "title": "Split pane local controls layout",
+      "warp": {
+        "anchor": "terminal_area",
+        "path": "warp_interaction/05_split_pane.png",
+        "role": "warp",
+        "source": "Warp manual interaction sample 05_split_pane"
+      }
+    },
+    {
+      "alignment": [
+        {
+          "ianvs_ratio": [
+            0.3139,
+            0.2178,
+            0.3715,
+            0.5422
+          ],
+          "max_delta": 0.0005,
+          "region": "palette_shell",
+          "status": "pass",
+          "warp_ratio": [
+            0.3142,
+            0.218,
+            0.3715,
+            0.5417
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.3229,
+            0.3244,
+            0.0847,
+            0.2522
+          ],
+          "max_delta": 0.0008,
+          "region": "source_rail",
+          "status": "pass",
+          "warp_ratio": [
+            0.3226,
+            0.3247,
+            0.0839,
+            0.2523
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.3139,
+            0.5767,
+            0.3715,
+            0.1822
+          ],
+          "max_delta": 0.0005,
+          "region": "results_list",
+          "status": "pass",
+          "warp_ratio": [
+            0.3142,
+            0.577,
+            0.3715,
+            0.1827
+          ]
+        }
+      ],
+      "ianvs": {
+        "anchor": "comparison_frame",
+        "path": "split_session_palette.png",
+        "role": "ianvs",
+        "source": "Ianvs golden split_session_palette"
+      },
+      "key": "split_session_palette",
+      "notes": [
+        "Session navigation uses the same command palette shell and source rail.",
+        "Ianvs keeps split pane context visible underneath the palette."
+      ],
+      "regions": [
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            0,
+            1440,
+            900
+          ],
+          "key": "comparison_frame",
+          "label": "comparison frame",
+          "warp": [
+            0,
+            0,
+            3456,
+            1078
+          ]
+        },
+        {
+          "color": "anchor",
+          "ianvs": [
+            0,
+            76,
+            1440,
+            824
+          ],
+          "key": "terminal_pane",
+          "label": "terminal pane",
+          "warp": [
+            501,
+            71,
+            2955,
+            1007
+          ]
+        },
+        {
+          "color": "palette",
+          "ianvs": [
+            452,
+            196,
+            535,
+            488
+          ],
+          "key": "palette_shell",
+          "label": "palette shell",
+          "warp": [
+            1086,
+            235,
+            1284,
+            584
+          ]
+        },
+        {
+          "color": "palette",
+          "ianvs": [
+            465,
+            292,
+            122,
+            227
+          ],
+          "key": "source_rail",
+          "label": "source rail",
+          "warp": [
+            1115,
+            350,
+            290,
+            272
+          ]
+        },
+        {
+          "color": "palette",
+          "ianvs": [
+            452,
+            519,
+            535,
+            164
+          ],
+          "key": "results_list",
+          "label": "results list",
+          "warp": [
+            1086,
+            622,
+            1284,
+            197
+          ]
+        },
+        {
+          "color": "pane",
+          "ianvs": [
+            720,
+            76,
+            4,
+            824
+          ],
+          "key": "split_divider",
+          "label": "split divider",
+          "warp": [
+            1978,
+            71,
+            4,
+            1007
+          ]
+        }
+      ],
+      "title": "Split pane plus session palette layout",
+      "warp": {
+        "anchor": "comparison_frame",
+        "path": "warp_interaction/03_command_search.png",
+        "role": "warp",
+        "source": "Warp manual interaction sample 03_command_search"
+      }
+    },
+    {
+      "alignment": [
+        {
+          "ianvs_ratio": [
+            0.035,
+            0.0536,
+            0.9301,
+            0.3237
+          ],
+          "max_delta": 0.0199,
+          "region": "creation_group",
+          "status": "pass",
+          "warp_ratio": [
+            0.0333,
+            0.0337,
+            0.9333,
+            0.3191
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.035,
+            0.3929,
+            0.9301,
+            0.3683
+          ],
+          "max_delta": 0.0134,
+          "region": "config_group",
+          "status": "pass",
+          "warp_ratio": [
+            0.0333,
+            0.3794,
+            0.9333,
+            0.3723
+          ]
+        },
+        {
+          "ianvs_ratio": [
+            0.035,
+            0.7701,
+            0.9301,
+            0.183
+          ],
+          "max_delta": 0.012,
+          "region": "shell_group",
+          "status": "pass",
+          "warp_ratio": [
+            0.0333,
+            0.7695,
+            0.9333,
+            0.195
+          ]
+        }
+      ],
+      "ianvs": {
+        "anchor": "menu_surface",
+        "path": "add_menu_layout.png",
+        "role": "ianvs",
+        "source": "Ianvs golden add_menu_layout"
+      },
+      "key": "add_menu_layout",
+      "notes": [
+        "New tab/window/SSH, saved configs, save current tab/app, and shell selector converge into one plus menu.",
+        "Ianvs does not copy Warp agent/cloud entries."
+      ],
+      "regions": [
+        {
+          "color": "menu",
+          "ianvs": [
+            420,
+            60,
+            572,
+            448
+          ],
+          "key": "menu_surface",
+          "label": "add menu surface",
+          "warp": [
+            590,
+            86,
+            600,
+            564
+          ]
+        },
+        {
+          "color": "menu",
+          "ianvs": [
+            440,
+            84,
+            532,
+            145
+          ],
+          "key": "creation_group",
+          "label": "creation actions",
+          "warp": [
+            610,
+            105,
+            560,
+            180
+          ]
+        },
+        {
+          "color": "launch",
+          "ianvs": [
+            440,
+            236,
+            532,
+            165
+          ],
+          "key": "config_group",
+          "label": "config actions",
+          "warp": [
+            610,
+            300,
+            560,
+            210
+          ]
+        },
+        {
+          "color": "context",
+          "ianvs": [
+            440,
+            405,
+            532,
+            82
+          ],
+          "key": "shell_group",
+          "label": "shell selector",
+          "warp": [
+            610,
+            520,
+            560,
+            110
+          ]
+        }
+      ],
+      "title": "Add menu entry hierarchy",
+      "warp": {
+        "anchor": "menu_surface",
+        "path": "warp_interaction/06_tab_or_launch_config_entry.png",
+        "role": "warp",
+        "source": "Warp manual interaction sample 06_tab_or_launch_config_entry"
+      }
+    },
+    {
+      "alignment": [],
+      "ianvs": {
+        "anchor": "dialog",
+        "path": "saved_config_sidecar.png",
+        "role": "ianvs",
+        "source": "Ianvs golden saved_config_sidecar"
+      },
+      "key": "saved_config_sidecar",
+      "notes": [
+        "Saved configs are discoverable from the add menu and show a sidecar with apply/edit/remove/default actions.",
+        "Scope labels distinguish app config from tab config."
+      ],
+      "regions": [
+        {
+          "color": "menu",
+          "ianvs": null,
+          "key": "menu_surface",
+          "label": "Warp saved config entry",
+          "warp": [
+            590,
+            86,
+            600,
+            564
+          ]
+        },
+        {
+          "color": "menu",
+          "ianvs": [
+            310,
+            170,
+            820,
+            560
+          ],
+          "key": "dialog",
+          "label": "saved configs dialog",
+          "warp": null
+        },
+        {
+          "color": "menu",
+          "ianvs": [
+            342,
+            230,
+            300,
+            470
+          ],
+          "key": "config_list",
+          "label": "config list",
+          "warp": null
+        },
+        {
+          "color": "launch",
+          "ianvs": [
+            626,
+            210,
+            504,
+            490
+          ],
+          "key": "sidecar",
+          "label": "sidecar actions",
+          "warp": null
+        },
+        {
+          "color": "actions",
+          "ianvs": [
+            670,
+            560,
+            410,
+            90
+          ],
+          "key": "primary_cta",
+          "label": "apply/default actions",
+          "warp": null
+        }
+      ],
+      "title": "Saved config discovery sidecar",
+      "warp": {
+        "anchor": "menu_surface",
+        "path": "warp_interaction/06_tab_or_launch_config_entry.png",
+        "role": "warp",
+        "source": "Warp manual interaction sample 06_tab_or_launch_config_entry and Tab Configs docs"
+      }
+    },
+    {
+      "alignment": [],
+      "ianvs": {
+        "anchor": "dialog",
+        "path": "launch_config_compose.png",
+        "role": "ianvs",
+        "source": "Ianvs golden launch_config_compose"
+      },
+      "key": "launch_config_compose",
+      "notes": [
+        "Docs/source reference is semantic because no local Warp screenshot is stored for the save modal.",
+        "Compose state is name-first, with scope explainer, path preview, advanced path, and primary save CTA."
+      ],
+      "regions": [
+        {
+          "color": "launch",
+          "ianvs": [
+            50,
+            25,
+            860,
+            650
+          ],
+          "key": "dialog",
+          "label": "launch config dialog",
+          "warp": null
+        },
+        {
+          "color": "context",
+          "ianvs": [
+            74,
+            96,
+            812,
+            106
+          ],
+          "key": "scope_explainer",
+          "label": "scope explainer",
+          "warp": null
+        },
+        {
+          "color": "input",
+          "ianvs": [
+            92,
+            210,
+            776,
+            56
+          ],
+          "key": "name_field",
+          "label": "name field",
+          "warp": null
+        },
+        {
+          "color": "context",
+          "ianvs": [
+            92,
+            323,
+            776,
+            42
+          ],
+          "key": "path_preview",
+          "label": "path preview",
+          "warp": null
+        },
+        {
+          "color": "input",
+          "ianvs": [
+            92,
+            416,
+            776,
+            56
+          ],
+          "key": "advanced_path",
+          "label": "advanced path field",
+          "warp": null
+        },
+        {
+          "color": "actions",
+          "ianvs": [
+            690,
+            573,
+            178,
+            44
+          ],
+          "key": "primary_cta",
+          "label": "save CTA",
+          "warp": null
+        }
+      ],
+      "title": "Launch config compose modal",
+      "warp": {
+        "anchor": null,
+        "path": null,
+        "role": "warp",
+        "source": "Warp Tab Configs docs plus launch_configs/save_modal.rs"
+      }
+    },
+    {
+      "alignment": [],
+      "ianvs": {
+        "anchor": "dialog",
+        "path": "launch_config_success.png",
+        "role": "ianvs",
+        "source": "Ianvs golden launch_config_success"
+      },
+      "key": "launch_config_success",
+      "notes": [
+        "Success state stays open so the saved file can be verified or reapplied.",
+        "Ianvs uses Apply saved app, Copy path, and Done instead of Warp-specific file opening copy."
+      ],
+      "regions": [
+        {
+          "color": "launch",
+          "ianvs": [
+            50,
+            25,
+            860,
+            650
+          ],
+          "key": "dialog",
+          "label": "launch config dialog",
+          "warp": null
+        },
+        {
+          "color": "launch",
+          "ianvs": [
+            74,
+            172,
+            812,
+            220
+          ],
+          "key": "success_state",
+          "label": "success state",
+          "warp": null
+        },
+        {
+          "color": "context",
+          "ianvs": [
+            92,
+            417,
+            776,
+            48
+          ],
+          "key": "success_path",
+          "label": "saved path",
+          "warp": null
+        },
+        {
+          "color": "actions",
+          "ianvs": [
+            548,
+            573,
+            320,
+            44
+          ],
+          "key": "action_row",
+          "label": "success actions",
+          "warp": null
+        }
+      ],
+      "title": "Launch config success modal",
+      "warp": {
+        "anchor": null,
+        "path": null,
+        "role": "warp",
+        "source": "Warp launch_configs/save_modal.rs success state"
+      }
+    }
+  ],
+  "schema": 1,
+  "scope": "Warp/Ianvs terminal layout comparison annotations",
+  "tolerance": 0.05
+}

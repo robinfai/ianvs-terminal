@@ -290,6 +290,9 @@ M7E demo harness 验证点：
 
 - `flutter test test/demo_terminal_session_test.dart` 是桌面端高阶验证入口，不替代现有 widget tests 和 real shell smoke。
 - 首批场景覆盖 app-level export / apply 成功反馈、多窗口 active window 恢复、workspace palette 跳转、split pane session restore，以及 SSH command session restart。
+- M7E 截图验收与 demo harness 一起运行：
+  `flutter test test/demo_terminal_session_test.dart test/launch_config_golden_test.dart test/warp_alignment_golden_test.dart`。
+- 截图输出路径固定在 `docs/design_snapshots/warp_alignment/`；golden 失败时由 Flutter golden diff 输出具体差异。
 
 M5A session context 验证点：
 

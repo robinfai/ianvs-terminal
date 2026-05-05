@@ -6,9 +6,22 @@ import 'session_launch.dart';
 import 'session_metadata.dart';
 import 'terminal_panes.dart';
 
+enum TerminalLaunchConfigurationScope {
+  app,
+  tab;
+
+  static TerminalLaunchConfigurationScope fromJson(Object? value) {
+    return switch (value) {
+      'tab' => TerminalLaunchConfigurationScope.tab,
+      _ => TerminalLaunchConfigurationScope.app,
+    };
+  }
+}
+
 class TerminalLaunchConfiguration {
   const TerminalLaunchConfiguration({
     this.version = 2,
+    this.scope = TerminalLaunchConfigurationScope.app,
     this.activeWindowIndex = 0,
     this.windows = const <TerminalLaunchConfigurationWindow>[],
   });
@@ -24,6 +37,7 @@ class TerminalLaunchConfiguration {
     }
     return TerminalLaunchConfiguration(
       version: _positiveIntOrDefault(map['version'], 2),
+      scope: TerminalLaunchConfigurationScope.fromJson(map['scope']),
       activeWindowIndex: _intInRange(
         map['activeWindowIndex'],
         0,
@@ -34,6 +48,7 @@ class TerminalLaunchConfiguration {
   }
 
   final int version;
+  final TerminalLaunchConfigurationScope scope;
   final int activeWindowIndex;
   final List<TerminalLaunchConfigurationWindow> windows;
 
@@ -102,6 +117,7 @@ class TerminalLaunchConfiguration {
     }
     return TerminalLaunchConfiguration(
       version: version,
+      scope: scope,
       activeWindowIndex: activeWindowIndex,
       windows: uniqueWindows,
     );
@@ -110,6 +126,7 @@ class TerminalLaunchConfiguration {
   Map<String, Object?> toJson() {
     final json = <String, Object?>{
       'version': version,
+      'scope': scope.name,
       'activeWindowIndex': activeWindowIndex,
       'windows': windows
           .map((window) => window.toJson())
@@ -340,8 +357,53 @@ class TerminalLaunchConfigurationPaneSplit
   }
 }
 
+class TerminalSavedLaunchConfiguration {
+  const TerminalSavedLaunchConfiguration({
+    required this.file,
+    required this.configuration,
+    this.modifiedAt,
+  });
+
+  final File file;
+  final TerminalLaunchConfiguration configuration;
+  final DateTime? modifiedAt;
+
+  String get path => file.path;
+  String get name => launchConfigDisplayNameFromPath(path);
+  int get windowCount => configuration.windows.length;
+  int get tabCount => configuration.windows.fold<int>(
+    0,
+    (count, window) => count + window.tabs.length,
+  );
+  int get paneCount => configuration.windows
+      .expand((window) => window.tabs)
+      .fold<int>(0, (count, tab) => count + tab.rootPane.leaves.length);
+  String get scopeLabel =>
+      configuration.scope == TerminalLaunchConfigurationScope.tab
+      ? 'Tab'
+      : 'App';
+  String get activeWindowLabel => windowCount == 0
+      ? 'None'
+      : 'Window ${configuration.activeWindowIndex + 1}';
+}
+
 class TerminalLaunchConfigurationStore {
-  const TerminalLaunchConfigurationStore();
+  const TerminalLaunchConfigurationStore({this.directory});
+
+  final Directory? directory;
+
+  Directory defaultDirectory() {
+    return directory ?? Directory(defaultLaunchConfigsDirectoryPath());
+  }
+
+  String suggestedNamedPath(String name) {
+    final targetDirectory = defaultDirectory();
+    return joinPlatformPath(
+      targetDirectory.path,
+      <String>['${sanitizeLaunchConfigFileStem(name)}.json'],
+      separator: pathSeparatorForOperatingSystem(Platform.operatingSystem),
+    );
+  }
 
   TerminalLaunchConfiguration load(File file) {
     if (!file.existsSync()) {
@@ -360,6 +422,52 @@ class TerminalLaunchConfigurationStore {
     file.parent.createSync(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
     file.writeAsStringSync('${encoder.convert(configuration.toJson())}\n');
+  }
+
+  List<TerminalSavedLaunchConfiguration> listSaved() {
+    final targetDirectory = defaultDirectory();
+    if (!targetDirectory.existsSync()) {
+      return const <TerminalSavedLaunchConfiguration>[];
+    }
+    final entries = <TerminalSavedLaunchConfiguration>[];
+    for (final entity in targetDirectory.listSync()) {
+      if (entity is! File || !entity.path.toLowerCase().endsWith('.json')) {
+        continue;
+      }
+      final configuration = load(entity);
+      if (!configuration.hasTabs) {
+        continue;
+      }
+      DateTime? modifiedAt;
+      try {
+        modifiedAt = entity.lastModifiedSync();
+      } catch (_) {
+        modifiedAt = null;
+      }
+      entries.add(
+        TerminalSavedLaunchConfiguration(
+          file: entity,
+          configuration: configuration,
+          modifiedAt: modifiedAt,
+        ),
+      );
+    }
+    entries.sort((left, right) {
+      final modifiedComparison = (right.modifiedAt ?? DateTime(0)).compareTo(
+        left.modifiedAt ?? DateTime(0),
+      );
+      if (modifiedComparison != 0) {
+        return modifiedComparison;
+      }
+      return left.name.compareTo(right.name);
+    });
+    return entries;
+  }
+
+  void remove(File file) {
+    if (file.existsSync()) {
+      file.deleteSync();
+    }
   }
 }
 

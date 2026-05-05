@@ -42,6 +42,47 @@ void main() {
     expect(savedCommandsFile.readAsStringSync(), contains('"version": 2'));
   });
 
+  test('store migrates legacy commands list into entry schema', () {
+    savedCommandsFile.parent.createSync(recursive: true);
+    savedCommandsFile.writeAsStringSync(
+      '{"commands":[" echo one ","pwd","echo one",""]}',
+    );
+    final state = SavedCommandsStore(file: savedCommandsFile).load();
+
+    expect(state.version, 2);
+    expect(state.commands, <String>['echo one', 'pwd']);
+    expect(state.entries, hasLength(2));
+    expect(state.entries.first.command, 'echo one');
+    expect(state.entries.first.createdAt, isNotEmpty);
+  });
+
+  test('store preserves saved command entry metadata', () {
+    savedCommandsFile.parent.createSync(recursive: true);
+    savedCommandsFile.writeAsStringSync('''
+{
+  "version": 2,
+  "entries": [
+    {
+      "command": "kubectl get pods",
+      "title": "Pods",
+      "tags": ["k8s", "prod", "k8s"],
+      "cwdHint": "~/work/payments",
+      "targetKind": "ssh",
+      "createdAt": "2026-05-04T09:00:00Z"
+    }
+  ]
+}
+''');
+    final state = SavedCommandsStore(file: savedCommandsFile).load();
+
+    expect(state.commands, <String>['kubectl get pods']);
+    expect(state.entries.single.title, 'Pods');
+    expect(state.entries.single.tags, <String>['k8s', 'prod']);
+    expect(state.entries.single.cwdHint, '~/work/payments');
+    expect(state.entries.single.targetKind, 'ssh');
+    expect(state.entries.single.createdAt, '2026-05-04T09:00:00Z');
+  });
+
   test('store falls back to empty commands for malformed json', () {
     savedCommandsFile.parent.createSync(recursive: true);
     savedCommandsFile.writeAsStringSync('{ bad json');

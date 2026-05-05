@@ -1,0 +1,98 @@
+{
+  "key": "default_display_view",
+  "title": "Default display view reference",
+  "source": "User supplied default display screenshot",
+  "image_size": [1656, 2064],
+  "regions": [
+    {
+      "key": "app_frame",
+      "label": "app frame",
+      "rect": [0, 0, 1656, 2064]
+    },
+    {
+      "key": "top_chrome",
+      "label": "top chrome",
+      "rect": [0, 0, 1656, 68]
+    },
+    {
+      "key": "left_chrome_group",
+      "label": "window and navigation controls",
+      "rect": [0, 0, 276, 68]
+    },
+    {
+      "key": "active_tab",
+      "label": "active tab title",
+      "rect": [276, 0, 384, 68]
+    },
+    {
+      "key": "add_tab_control",
+      "label": "add tab control",
+      "rect": [660, 0, 90, 68]
+    },
+    {
+      "key": "top_status_cluster",
+      "label": "top status cluster",
+      "rect": [1420, 18, 92, 32]
+    },
+    {
+      "key": "profile_control",
+      "label": "profile control",
+      "rect": [1586, 16, 42, 42]
+    },
+    {
+      "key": "terminal_viewport",
+      "label": "terminal viewport",
+      "rect": [0, 68, 1656, 1789]
+    },
+    {
+      "key": "visible_scrollback",
+      "label": "visible scrollback",
+      "rect": [0, 1490, 1656, 367]
+    },
+    {
+      "key": "first_block",
+      "label": "first visible block",
+      "rect": [0, 1490, 1656, 207]
+    },
+    {
+      "key": "second_block",
+      "label": "second visible block",
+      "rect": [0, 1697, 1656, 160]
+    },
+    {
+      "key": "input_context",
+      "label": "input context chips",
+      "rect": [0, 1857, 1656, 74]
+    },
+    {
+      "key": "cwd_chip",
+      "label": "cwd chip",
+      "rect": [32, 1878, 425, 39]
+    },
+    {
+      "key": "git_chip",
+      "label": "git branch chip",
+      "rect": [469, 1878, 365, 39]
+    },
+    {
+      "key": "change_chip",
+      "label": "change summary chip",
+      "rect": [854, 1878, 174, 39]
+    },
+    {
+      "key": "input_editor",
+      "label": "input editor",
+      "rect": [0, 1931, 1656, 133]
+    },
+    {
+      "key": "input_command_line",
+      "label": "input command line",
+      "rect": [32, 1958, 170, 34]
+    },
+    {
+      "key": "input_hint_line",
+      "label": "input hint line",
+      "rect": [32, 2018, 380, 32]
+    }
+  ]
+}

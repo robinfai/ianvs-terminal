@@ -46,11 +46,8 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.byKey(const Key('terminal-new-window-button')));
-      await tester.pump();
-      await tester.tap(
-        find.byKey(const Key('terminal-new-ssh-session-button')),
-      );
+      await _selectAddMenuAction(tester, 'new-window');
+      await _selectAddMenuAction(tester, 'new-ssh');
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('terminal-new-ssh-host-field')),
@@ -63,7 +60,7 @@ void main() {
       await tester.tap(find.byKey(const Key('terminal-new-ssh-open-button')));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+      await _selectAddMenuAction(tester, 'launch-config');
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('terminal-launch-config-name-field')),
@@ -83,11 +80,13 @@ void main() {
       await tester.pumpAndSettle();
 
       await expectLater(
-        find.byKey(const Key('terminal-launch-config-panel')),
+        find.byKey(const Key('terminal-launch-config-dialog')),
         matchesGoldenFile(
           '../docs/design_snapshots/warp_alignment/launch_config_compose.png',
         ),
       );
+      _expectLaunchConfigPanelPixelContract(tester);
+      _expectLaunchConfigComposePixelContract(tester);
 
       await tester.ensureVisible(
         find.byKey(const Key('terminal-launch-config-save-button')),
@@ -98,14 +97,167 @@ void main() {
       await tester.pumpAndSettle();
 
       await expectLater(
-        find.byKey(const Key('terminal-launch-config-panel')),
+        find.byKey(const Key('terminal-launch-config-dialog')),
         matchesGoldenFile(
           '../docs/design_snapshots/warp_alignment/launch_config_success.png',
         ),
       );
+      _expectLaunchConfigPanelPixelContract(tester);
+      _expectLaunchConfigSuccessPixelContract(tester);
     },
     skip: !Platform.isMacOS,
   );
+}
+
+void _expectLaunchConfigPanelPixelContract(WidgetTester tester) {
+  const size = Size(960, 700);
+  final panel = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-dialog')),
+  );
+  _expectRatioWithinFivePercent(
+    'launch config panel center x',
+    panel.center.dx / size.width,
+    0.5,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config panel center y',
+    panel.center.dy / size.height,
+    0.5,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config panel width',
+    panel.width / size.width,
+    860 / 960,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config panel height',
+    panel.height / size.height,
+    650 / 700,
+  );
+}
+
+void _expectLaunchConfigComposePixelContract(WidgetTester tester) {
+  final panel = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-dialog')),
+  );
+  final nameField = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-name-field')),
+  );
+  final scopeExplainer = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-scope-explainer')),
+  );
+  final pathPreview = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-path-preview')),
+  );
+  final advancedToggle = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-advanced-toggle')),
+  );
+  final pathField = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-path-field')),
+  );
+
+  _expectRatioWithinFivePercent(
+    'launch config compose name top',
+    (nameField.top - panel.top) / panel.height,
+    185 / 650,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config compose name width',
+    nameField.width / panel.width,
+    776 / 860,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config compose path preview top',
+    (pathPreview.top - panel.top) / panel.height,
+    298 / 650,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config compose scope top',
+    (scopeExplainer.top - panel.top) / panel.height,
+    71 / 650,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config compose scope height',
+    scopeExplainer.height / panel.height,
+    106 / 650,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config compose advanced toggle top',
+    (advancedToggle.top - panel.top) / panel.height,
+    340 / 650,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config compose path field top',
+    (pathField.top - panel.top) / panel.height,
+    391 / 650,
+  );
+}
+
+void _expectLaunchConfigSuccessPixelContract(WidgetTester tester) {
+  final panel = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-dialog')),
+  );
+  final successState = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-success-state')),
+  );
+  final successPath = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-success-path')),
+  );
+  final applyButton = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-success-apply-button')),
+  );
+  final doneButton = tester.getRect(
+    find.byKey(const Key('terminal-launch-config-done-button')),
+  );
+
+  _expectRatioWithinFivePercent(
+    'launch config success state top',
+    (successState.top - panel.top) / panel.height,
+    147 / 650,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config success state width',
+    successState.width / panel.width,
+    812 / 860,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config success path top',
+    (successPath.top - panel.top) / panel.height,
+    392 / 650,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config success actions top',
+    (doneButton.top - panel.top) / panel.height,
+    548 / 650,
+  );
+  _expectRatioWithinFivePercent(
+    'launch config success primary action gap',
+    (doneButton.left - applyButton.right) / panel.width,
+    8 / 860,
+  );
+}
+
+void _expectRatioWithinFivePercent(
+  String label,
+  double actual,
+  double expected,
+) {
+  final delta = (actual - expected).abs();
+  expect(
+    delta,
+    lessThanOrEqualTo(0.05),
+    reason:
+        '$label expected ${expected.toStringAsFixed(4)}, '
+        'actual ${actual.toStringAsFixed(4)}, '
+        'delta ${delta.toStringAsFixed(4)}',
+  );
+}
+
+Future<void> _selectAddMenuAction(WidgetTester tester, String action) async {
+  final addMenu = find.byKey(const Key('terminal-add-menu-button'));
+  tester.widget<PopupMenuButton<String>>(addMenu).onSelected!(action);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 200));
 }
 
 TerminalSettingsStore _goldenSettingsStore() {

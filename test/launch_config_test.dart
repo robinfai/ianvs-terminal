@@ -128,6 +128,53 @@ void main() {
     },
   );
 
+  test('store lists and removes saved configs from injected directory', () {
+    final dir = Directory.systemTemp.createTempSync('ianvs_launch_list_');
+    addTearDown(() {
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+    });
+    final store = TerminalLaunchConfigurationStore(directory: dir);
+    final validFile = File('${dir.path}/payments-prod.json');
+    final invalidFile = File('${dir.path}/invalid.json');
+    final ignoredFile = File('${dir.path}/notes.txt');
+    final configuration = TerminalLaunchConfiguration(
+      activeWindowIndex: 0,
+      windows: <TerminalLaunchConfigurationWindow>[
+        TerminalLaunchConfigurationWindow(
+          fallbackTitle: 'Window 1',
+          tabs: const <TerminalLaunchConfigurationTab>[
+            TerminalLaunchConfigurationTab(
+              fallbackTitle: 'Local 1',
+              activePaneId: 1,
+              rootPane: TerminalLaunchConfigurationPaneLeaf(id: 1, cwd: ''),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    store.save(validFile, configuration);
+    invalidFile.writeAsStringSync('not json');
+    ignoredFile.writeAsStringSync('ignore');
+
+    final saved = store.listSaved();
+    expect(saved, hasLength(1));
+    expect(saved.single.name, 'payments-prod');
+    expect(saved.single.windowCount, 1);
+    expect(saved.single.tabCount, 1);
+    expect(saved.single.paneCount, 1);
+    expect(
+      store.suggestedNamedPath('Payments Prod'),
+      endsWith('payments-prod.json'),
+    );
+
+    store.remove(validFile);
+    expect(validFile.existsSync(), isFalse);
+    expect(store.listSaved(), isEmpty);
+  });
+
   test('store saves and reloads app windows with active window index', () {
     final dir = Directory.systemTemp.createTempSync('ianvs_launch_windows_');
     addTearDown(() {
@@ -303,6 +350,42 @@ void main() {
         environment: const <String, String>{'HOME': '/Users/robin'},
       ),
       '/Users/robin/Library/Application Support/Ianvs/ianvs-terminal/launch_configs/payments-api-prod.json',
+    );
+  });
+
+  test('launch config scope serializes and defaults safely', () {
+    const tabConfig = TerminalLaunchConfiguration(
+      scope: TerminalLaunchConfigurationScope.tab,
+      windows: <TerminalLaunchConfigurationWindow>[
+        TerminalLaunchConfigurationWindow(
+          fallbackTitle: 'Window 1',
+          tabs: <TerminalLaunchConfigurationTab>[
+            TerminalLaunchConfigurationTab(
+              fallbackTitle: 'Local 1',
+              activePaneId: 1,
+              rootPane: TerminalLaunchConfigurationPaneLeaf(id: 1, cwd: ''),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    expect(tabConfig.toJson()['scope'], 'tab');
+    expect(
+      TerminalLaunchConfiguration.fromJson(tabConfig.toJson()).scope,
+      TerminalLaunchConfigurationScope.tab,
+    );
+    expect(
+      TerminalLaunchConfiguration.fromJson(<String, Object?>{
+        'scope': 'unknown',
+        'tabs': <Object?>[
+          <String, Object?>{
+            'activePaneId': 1,
+            'rootPane': <String, Object?>{'type': 'leaf', 'id': 1},
+          },
+        ],
+      }).scope,
+      TerminalLaunchConfigurationScope.app,
     );
   });
 

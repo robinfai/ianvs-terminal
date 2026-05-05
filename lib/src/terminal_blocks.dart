@@ -102,11 +102,13 @@ class TerminalBlocksController extends ChangeNotifier {
 
   final List<TerminalBlock> _blocks = <TerminalBlock>[];
   int _activeIndex = -1;
+  bool _historyPanelOpen = false;
 
   List<TerminalBlock> get blocks => List.unmodifiable(_blocks);
   bool get hasBlocks => _blocks.isNotEmpty;
   int get activeIndex => _activeIndex;
   int get displayIndex => hasBlocks ? _activeIndex + 1 : 0;
+  bool get historyPanelOpen => _historyPanelOpen;
   TerminalBlock? get activeBlock {
     if (_activeIndex < 0 || _activeIndex >= _blocks.length) {
       return null;
@@ -122,6 +124,14 @@ class TerminalBlocksController extends ChangeNotifier {
   bool get canCopyActiveCommandAndOutput =>
       canCopyActiveCommand || canCopyActiveOutput;
   bool get canReinputActiveCommand => canCopyActiveCommand;
+
+  void toggleHistoryPanel() {
+    if (_blocks.isEmpty) {
+      return;
+    }
+    _historyPanelOpen = !_historyPanelOpen;
+    notifyListeners();
+  }
 
   TerminalBlock startBlock({
     required String id,
@@ -253,6 +263,7 @@ class TerminalBlocksController extends ChangeNotifier {
     }
     _blocks.clear();
     _activeIndex = -1;
+    _historyPanelOpen = false;
     notifyListeners();
   }
 

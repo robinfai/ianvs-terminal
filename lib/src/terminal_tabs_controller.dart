@@ -85,18 +85,23 @@ class TerminalTabController {
   }
 
   TerminalPaneLeaf? closeActivePane() {
-    if (!canCloseActivePane) {
+    return detachPane(_activePaneId);
+  }
+
+  TerminalPaneLeaf? detachPane(int paneId) {
+    if (paneCount <= 1 || !_rootPane.containsPane(paneId)) {
       return null;
     }
     final currentLeaves = panes;
-    final activeIndex = currentLeaves.indexWhere(
-      (pane) => pane.id == _activePaneId,
-    );
+    final activeIndex = currentLeaves.indexWhere((pane) => pane.id == paneId);
+    if (activeIndex < 0) {
+      return null;
+    }
     final nextActiveIndex = activeIndex >= currentLeaves.length - 1
         ? activeIndex - 1
         : activeIndex + 1;
     final nextActivePaneId = currentLeaves[nextActiveIndex].id;
-    final result = _removePane(_rootPane, _activePaneId);
+    final result = _removePane(_rootPane, paneId);
     if (result == null) {
       return null;
     }
@@ -174,12 +179,39 @@ class TerminalTabsController extends ChangeNotifier {
   LocalShellSessionController get activeShell => activePane.shellController;
   bool get canCloseActiveTab => _tabs.length > 1;
   bool get canCloseActivePane => activeTab.canCloseActivePane;
+  bool get canMoveActivePaneToNewTab => activeTab.canCloseActivePane;
 
   TerminalLaunchConfiguration currentLaunchConfiguration() {
     return TerminalLaunchConfiguration(
+      scope: TerminalLaunchConfigurationScope.app,
       activeWindowIndex: 0,
       windows: <TerminalLaunchConfigurationWindow>[
         currentLaunchConfigurationWindow(),
+      ],
+    );
+  }
+
+  TerminalLaunchConfiguration currentTabLaunchConfiguration({
+    int? tabIndex,
+    String fallbackWindowTitle = 'Window 1',
+  }) {
+    final index = tabIndex ?? _activeIndex;
+    if (index < 0 || index >= _tabs.length) {
+      return const TerminalLaunchConfiguration(
+        scope: TerminalLaunchConfigurationScope.tab,
+      );
+    }
+    return TerminalLaunchConfiguration(
+      scope: TerminalLaunchConfigurationScope.tab,
+      activeWindowIndex: 0,
+      windows: <TerminalLaunchConfigurationWindow>[
+        TerminalLaunchConfigurationWindow(
+          fallbackTitle: fallbackWindowTitle,
+          activeTabIndex: 0,
+          tabs: <TerminalLaunchConfigurationTab>[
+            _launchConfigurationTabFor(_tabs[index]),
+          ],
+        ),
       ],
     );
   }
@@ -299,6 +331,26 @@ class TerminalTabsController extends ChangeNotifier {
     }
     _disposePane(removed);
     _notifyAndScheduleRestoreSave();
+  }
+
+  bool moveActivePaneToNewTab() {
+    if (!canMoveActivePaneToNewTab) {
+      return false;
+    }
+    final movedPane = activeTab.detachPane(activePane.id);
+    if (movedPane == null) {
+      return false;
+    }
+    _nextTabId += 1;
+    final tab = TerminalTabController(
+      id: _nextTabId,
+      fallbackTitle: 'Local $_nextTabId',
+      initialPane: movedPane,
+    );
+    _tabs.add(tab);
+    _activeIndex = _tabs.length - 1;
+    _notifyAndScheduleRestoreSave();
+    return true;
   }
 
   void updatePaneSplitRatio(TerminalPaneSplit split, double ratio) {

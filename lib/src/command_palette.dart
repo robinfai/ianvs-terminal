@@ -1,34 +1,54 @@
 import 'package:flutter/foundation.dart';
 
+import 'launch_config.dart';
 import 'local_shell_session_controller.dart';
 import 'saved_commands.dart';
 import 'session_metadata.dart';
 import 'terminal_blocks.dart';
 import 'terminal_windows.dart';
 
-enum CommandPaletteEntrySource { saved, history, session }
+enum CommandPaletteEntrySource {
+  workflow,
+  saved,
+  history,
+  session,
+  launchConfig,
+}
 
 extension CommandPaletteEntrySourceLabel on CommandPaletteEntrySource {
   String get label {
     return switch (this) {
+      CommandPaletteEntrySource.workflow => 'Workflow',
       CommandPaletteEntrySource.saved => 'Saved',
       CommandPaletteEntrySource.history => 'History',
       CommandPaletteEntrySource.session => 'Session',
+      CommandPaletteEntrySource.launchConfig => 'Launch',
     };
   }
 }
 
-enum CommandPaletteFilter { all, commands, saved, history, session, ssh }
+enum CommandPaletteFilter {
+  all,
+  commands,
+  workflow,
+  saved,
+  history,
+  session,
+  ssh,
+  launchConfig,
+}
 
 extension CommandPaletteFilterLabel on CommandPaletteFilter {
   String get label {
     return switch (this) {
       CommandPaletteFilter.all => 'All',
       CommandPaletteFilter.commands => 'Commands',
+      CommandPaletteFilter.workflow => 'Workflow',
       CommandPaletteFilter.saved => 'Saved',
       CommandPaletteFilter.history => 'History',
       CommandPaletteFilter.session => 'Session',
       CommandPaletteFilter.ssh => 'SSH',
+      CommandPaletteFilter.launchConfig => 'Launch',
     };
   }
 }
@@ -60,6 +80,7 @@ class CommandPaletteEntry {
     this.isActiveTab = false,
     this.isActivePane = false,
     this.savedEntry = const SavedCommandEntry(command: ''),
+    this.launchConfig,
   });
 
   final String id;
@@ -87,12 +108,86 @@ class CommandPaletteEntry {
   final bool isActiveTab;
   final bool isActivePane;
   final SavedCommandEntry savedEntry;
+  final TerminalSavedLaunchConfiguration? launchConfig;
 
-  bool get isCommandEntry => source != CommandPaletteEntrySource.session;
+  bool get isCommandEntry =>
+      source == CommandPaletteEntrySource.workflow ||
+      source == CommandPaletteEntrySource.saved ||
+      source == CommandPaletteEntrySource.history;
   bool get isSessionEntry => source == CommandPaletteEntrySource.session;
+  bool get isSavedCommandEntry =>
+      source == CommandPaletteEntrySource.workflow ||
+      source == CommandPaletteEntrySource.saved;
+  bool get isLaunchConfigEntry =>
+      source == CommandPaletteEntrySource.launchConfig;
   bool get isSshSession => isSessionEntry && metadata.isSsh;
 
   String get paneLabel => 'Pane ${paneOrdinal + 1} · #$paneId';
+  String get recencyLabel => _formatPaletteRecordedAt(recordedAt);
+
+  String get targetLabel {
+    final badges = metadata.targetBadges;
+    if (badges.isNotEmpty) {
+      return badges.join(' · ');
+    }
+    if (metadata.host.isNotEmpty) {
+      return metadata.host;
+    }
+    if (savedEntry.targetKind.isNotEmpty) {
+      return savedEntry.targetKind;
+    }
+    return '';
+  }
+
+  String get promptPreview {
+    final cwdLabel = _basename(cwd.isNotEmpty ? cwd : savedEntry.cwdHint);
+    final target = targetLabel.isEmpty ? metadata.kind.label : targetLabel;
+    return _joinPaletteDetails(<String>[target, cwdLabel], separator: ' ');
+  }
+
+  String get commandDetailLabel {
+    final status = blockStatus?.label ?? '${source.label} command';
+    final cwdDetail = cwd.isNotEmpty
+        ? 'CWD $cwd'
+        : savedEntry.cwdHint.isNotEmpty
+        ? 'CWD ${savedEntry.cwdHint}'
+        : '';
+    return _joinPaletteDetails(<String>[
+      status,
+      cwdDetail,
+      if (targetLabel.isNotEmpty) 'Target $targetLabel',
+      if (recencyLabel.isNotEmpty) 'Completed $recencyLabel',
+      if (outputPreview.isNotEmpty) 'Output ${_firstOutputLine(outputPreview)}',
+    ]);
+  }
+
+  String get launchConfigDetailLabel {
+    final config = launchConfig;
+    if (config == null) {
+      return '';
+    }
+    return _joinPaletteDetails(<String>[
+      '${config.scopeLabel} config',
+      '${config.windowCount} windows',
+      '${config.tabCount} tabs',
+      '${config.paneCount} panes',
+      if (recencyLabel.isNotEmpty) 'Updated $recencyLabel',
+      config.path,
+    ]);
+  }
+
+  String get sessionDetailLabel {
+    final commandState = lastCommand.isNotEmpty
+        ? 'Last $lastCommand'
+        : statusLabel;
+    return _joinPaletteDetails(<String>[
+      if (promptPreview.isNotEmpty) 'Prompt $promptPreview',
+      if (cwd.isNotEmpty) 'CWD $cwd',
+      if (targetLabel.isNotEmpty) 'Target $targetLabel',
+      commandState,
+      if (recencyLabel.isNotEmpty) 'Recent $recencyLabel',
+    ]);
+  }
 
   String get statusLabel {
     return switch (status) {
@@ -105,12 +200,51 @@ class CommandPaletteEntry {
   }
 }
 
+String _joinPaletteDetails(
+  Iterable<String> values, {
+  String separator = ' · ',
+}) {
+  return values
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .join(separator);
+}
+
+String _basename(String path) {
+  final normalized = path.trim();
+  if (normalized.isEmpty) {
+    return '';
+  }
+  final segments = normalized
+      .split('/')
+      .where((segment) => segment.isNotEmpty)
+      .toList(growable: false);
+  return segments.isEmpty ? normalized : segments.last;
+}
+
+String _formatPaletteRecordedAt(String recordedAt) {
+  final trimmed = recordedAt.trim();
+  if (trimmed.isEmpty) {
+    return '';
+  }
+  final parsed = DateTime.tryParse(trimmed);
+  if (parsed == null) {
+    return trimmed;
+  }
+  final local = parsed.toLocal();
+  String twoDigits(int value) => value.toString().padLeft(2, '0');
+  return '${local.year}-${twoDigits(local.month)}-${twoDigits(local.day)} '
+      '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+}
+
 class CommandPaletteController extends ChangeNotifier {
   CommandPaletteController({
     required TerminalWindowsController windowsController,
     required SavedCommandsController savedCommandsController,
+    TerminalLaunchConfigurationStore? launchConfigStore,
   }) : _windowsController = windowsController,
-       _savedCommandsController = savedCommandsController {
+       _savedCommandsController = savedCommandsController,
+       _launchConfigStore = launchConfigStore {
     _windowsController.addListener(_handleDependencyChanged);
     _savedCommandsController.addListener(_handleDependencyChanged);
     _rebuildEntries(notify: false);
@@ -118,6 +252,7 @@ class CommandPaletteController extends ChangeNotifier {
 
   final TerminalWindowsController _windowsController;
   final SavedCommandsController _savedCommandsController;
+  final TerminalLaunchConfigurationStore? _launchConfigStore;
 
   final List<CommandPaletteEntry> _entries = <CommandPaletteEntry>[];
   List<CommandPaletteEntry> _matches = <CommandPaletteEntry>[];
@@ -135,8 +270,7 @@ class CommandPaletteController extends ChangeNotifier {
   int get displayIndex => _matches.isEmpty ? 0 : _activeIndex + 1;
   bool get canSaveActiveEntry =>
       activeEntry?.source == CommandPaletteEntrySource.history;
-  bool get canRemoveActiveEntry =>
-      activeEntry?.source == CommandPaletteEntrySource.saved;
+  bool get canRemoveActiveEntry => activeEntry?.isSavedCommandEntry ?? false;
 
   CommandPaletteEntry? get activeEntry {
     if (_activeIndex < 0 || _activeIndex >= _matches.length) {
@@ -152,6 +286,7 @@ class CommandPaletteController extends ChangeNotifier {
 
   void open({CommandPaletteFilter filter = CommandPaletteFilter.all}) {
     _baseFilter = filter;
+    _rebuildEntries(notify: false);
     if (_isOpen) {
       _applyFilter(resetActive: true);
       notifyListeners();
@@ -180,6 +315,23 @@ class CommandPaletteController extends ChangeNotifier {
     _query = value;
     _applyFilter(resetActive: true);
     notifyListeners();
+  }
+
+  void updateFilter(CommandPaletteFilter filter) {
+    final hasPrefixOverride = _prefixedFilter(_query) != null;
+    if (_baseFilter == filter && !hasPrefixOverride) {
+      return;
+    }
+    _baseFilter = filter;
+    if (hasPrefixOverride) {
+      _query = '';
+    }
+    _applyFilter(resetActive: true);
+    notifyListeners();
+  }
+
+  int countForFilter(CommandPaletteFilter filter) {
+    return _entries.where((entry) => _matchesFilter(entry, filter)).length;
   }
 
   void goToNext() {
@@ -223,14 +375,14 @@ class CommandPaletteController extends ChangeNotifier {
 
   bool removeActiveEntry() {
     final entry = activeEntry;
-    if (entry == null || entry.source != CommandPaletteEntrySource.saved) {
+    if (entry == null || !entry.isSavedCommandEntry) {
       return false;
     }
     return removeEntry(entry);
   }
 
   bool removeEntry(CommandPaletteEntry entry) {
-    if (entry.source != CommandPaletteEntrySource.saved) {
+    if (!entry.isSavedCommandEntry) {
       return false;
     }
     return _savedCommandsController.removeCommand(entry.commandText);
@@ -250,6 +402,7 @@ class CommandPaletteController extends ChangeNotifier {
         buildCommandPaletteEntries(
           windowsController: _windowsController,
           savedCommandsController: _savedCommandsController,
+          launchConfigStore: _launchConfigStore,
         ),
       );
     _applyFilter(resetActive: true);
@@ -348,6 +501,7 @@ class CommandPaletteController extends ChangeNotifier {
 List<CommandPaletteEntry> buildCommandPaletteEntries({
   required TerminalWindowsController windowsController,
   required SavedCommandsController savedCommandsController,
+  TerminalLaunchConfigurationStore? launchConfigStore,
 }) {
   final entries = <CommandPaletteEntry>[];
   final savedCommands = savedCommandsController.entries;
@@ -357,8 +511,8 @@ List<CommandPaletteEntry> buildCommandPaletteEntries({
     final saved = savedCommands[savedIndex];
     entries.add(
       CommandPaletteEntry(
-        id: 'saved-$savedIndex-${saved.command}',
-        source: CommandPaletteEntrySource.saved,
+        id: 'workflow-$savedIndex-${saved.command}',
+        source: CommandPaletteEntrySource.workflow,
         title: saved.title.isEmpty ? saved.command : saved.title,
         commandText: saved.command,
         recordedAt: saved.createdAt,
@@ -369,6 +523,35 @@ List<CommandPaletteEntry> buildCommandPaletteEntries({
           saved.cwdHint,
           saved.targetKind,
           ...saved.tags,
+        ],
+      ),
+    );
+  }
+
+  final savedLaunchConfigs =
+      launchConfigStore?.listSaved() ??
+      const <TerminalSavedLaunchConfiguration>[];
+  for (
+    var configIndex = 0;
+    configIndex < savedLaunchConfigs.length;
+    configIndex += 1
+  ) {
+    final savedConfig = savedLaunchConfigs[configIndex];
+    entries.add(
+      CommandPaletteEntry(
+        id: 'launch-config-$configIndex-${savedConfig.path}',
+        source: CommandPaletteEntrySource.launchConfig,
+        title: savedConfig.name,
+        recordedAt: savedConfig.modifiedAt?.toUtc().toIso8601String() ?? '',
+        launchConfig: savedConfig,
+        searchFields: <String>[
+          savedConfig.name,
+          savedConfig.path,
+          savedConfig.scopeLabel,
+          '${savedConfig.windowCount} windows',
+          '${savedConfig.tabCount} tabs',
+          '${savedConfig.paneCount} panes',
+          ..._launchConfigSearchFields(savedConfig.configuration),
         ],
       ),
     );
@@ -541,12 +724,14 @@ bool _matchesFilter(CommandPaletteEntry entry, CommandPaletteFilter filter) {
   return switch (filter) {
     CommandPaletteFilter.all => true,
     CommandPaletteFilter.commands => entry.isCommandEntry,
-    CommandPaletteFilter.saved =>
-      entry.source == CommandPaletteEntrySource.saved,
+    CommandPaletteFilter.workflow =>
+      entry.source == CommandPaletteEntrySource.workflow,
+    CommandPaletteFilter.saved => entry.isSavedCommandEntry,
     CommandPaletteFilter.history =>
       entry.source == CommandPaletteEntrySource.history,
     CommandPaletteFilter.session => entry.isSessionEntry,
     CommandPaletteFilter.ssh => entry.isSshSession,
+    CommandPaletteFilter.launchConfig => entry.isLaunchConfigEntry,
   };
 }
 
@@ -574,9 +759,11 @@ CommandPaletteFilter? _prefixedFilter(String query) {
 
 CommandPaletteFilter? _filterFromPrefix(String prefix) {
   return switch (prefix) {
+    'workflow' || 'workflows' => CommandPaletteFilter.workflow,
     'saved' => CommandPaletteFilter.saved,
     'history' => CommandPaletteFilter.history,
     'session' => CommandPaletteFilter.session,
+    'launch' || 'config' || 'configs' => CommandPaletteFilter.launchConfig,
     'ssh' => CommandPaletteFilter.ssh,
     _ => null,
   };
@@ -612,9 +799,11 @@ int _sourceWeight(CommandPaletteEntry entry, CommandPaletteFilter filter) {
     return 0;
   }
   return switch (entry.source) {
+    CommandPaletteEntrySource.workflow => 0,
     CommandPaletteEntrySource.saved => 0,
     CommandPaletteEntrySource.history => 1,
     CommandPaletteEntrySource.session => 2,
+    CommandPaletteEntrySource.launchConfig => 3,
   };
 }
 
@@ -687,6 +876,30 @@ String _firstOutputLine(String output) {
     }
   }
   return '';
+}
+
+List<String> _launchConfigSearchFields(
+  TerminalLaunchConfiguration configuration,
+) {
+  final fields = <String>[];
+  for (final window in configuration.windows) {
+    fields.add(window.fallbackTitle);
+    for (final tab in window.tabs) {
+      fields.add(tab.fallbackTitle);
+      for (final pane in tab.rootPane.leaves) {
+        fields
+          ..add(pane.cwd)
+          ..add(pane.startupCommand)
+          ..add(pane.sessionMetadata.kind.label)
+          ..add(pane.sessionMetadata.host)
+          ..add(pane.sessionMetadata.account)
+          ..add(pane.sessionMetadata.environment)
+          ..add(pane.sessionMetadata.project)
+          ..add(pane.launchProfile.kind.name);
+      }
+    }
+  }
+  return fields;
 }
 
 enum _PaletteMatchRank { exact, prefix, substring, unfiltered }

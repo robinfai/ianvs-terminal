@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1588" height="760" viewBox="0 0 1588 760">
+<style>
+        .bg { fill: #0f172a; }
+        .title { font: 700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #f8fafc; }
+        .side-title { font: 700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #e2e8f0; }
+        .source { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #94a3b8; }
+        .note { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #cbd5e1; }
+        .label { font: 700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; paint-order: stroke; stroke: #020617; stroke-width: 3px; }
+        .region { fill: transparent; stroke-width: 2.5px; vector-effect: non-scaling-stroke; }
+        .missing { fill: #111827; stroke: #475569; stroke-width: 2px; }
+        .missing-text { font: 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #cbd5e1; }
+        </style>
+<rect width="1588" height="760" class="bg"/>
+<text x="24" y="34" class="title">Launch config compose modal</text>
+<text x="24" y="58" class="note">- Docs/source reference is semantic because no local Warp screenshot is stored for the save modal.</text>
+<text x="24" y="76" class="note">- Compose state is name-first, with scope explainer, path preview, advanced path, and primary save CTA.</text>
+<text x="24.0" y="80.0" class="side-title">Warp reference</text>
+<text x="24.0" y="98.0" class="source">Warp Tab Configs docs plus launch_configs/save_modal.rs</text>
+<rect x="24.0" y="114.0" width="760.0" height="500.0" rx="8" class="missing"/>
+<text x="48.0" y="168.0" class="missing-text">No local Warp image.</text>
+<text x="48.0" y="200.0" class="missing-text">Reference is docs/source semantics.</text>
+<text x="812.0" y="80.0" class="side-title">Ianvs current</text>
+<text x="812.0" y="98.0" class="source">Ianvs golden launch_config_compose</text>
+<image x="812.0" y="114.0" width="685.7" height="500.0" href="../../launch_config_compose.png"/>
+<rect x="847.7" y="131.9" width="614.3" height="464.3" class="region" stroke="#f97316"/>
+<text x="852.7" y="146.9" class="label" fill="#f97316">launch config dialog</text>
+<rect x="864.9" y="182.6" width="580.0" height="75.7" class="region" stroke="#64748b"/>
+<text x="869.9" y="197.6" class="label" fill="#64748b">scope explainer</text>
+<rect x="877.7" y="264.0" width="554.3" height="40.0" class="region" stroke="#f59e0b"/>
+<text x="882.7" y="279.0" class="label" fill="#f59e0b">name field</text>
+<rect x="877.7" y="344.7" width="554.3" height="30.0" class="region" stroke="#64748b"/>
+<text x="882.7" y="359.7" class="label" fill="#64748b">path preview</text>
+<rect x="877.7" y="411.1" width="554.3" height="40.0" class="region" stroke="#f59e0b"/>
+<text x="882.7" y="426.1" class="label" fill="#f59e0b">advanced path field</text>
+<rect x="1304.9" y="523.3" width="127.1" height="31.4" class="region" stroke="#ef4444"/>
+<text x="1309.9" y="538.3" class="label" fill="#ef4444">save CTA</text>
+<text x="24" y="638" class="side-title">Alignment deltas</text>
+<text x="24" y="660" class="note">No local Warp raster anchor; checked by semantic/source mapping and Ianvs golden contract.</text>
+</svg>

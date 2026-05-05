@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1588" height="760" viewBox="0 0 1588 760">
+<style>
+        .bg { fill: #0f172a; }
+        .title { font: 700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #f8fafc; }
+        .side-title { font: 700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #e2e8f0; }
+        .source { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #94a3b8; }
+        .note { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #cbd5e1; }
+        .label { font: 700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; paint-order: stroke; stroke: #020617; stroke-width: 3px; }
+        .region { fill: transparent; stroke-width: 2.5px; vector-effect: non-scaling-stroke; }
+        .missing { fill: #111827; stroke: #475569; stroke-width: 2px; }
+        .missing-text { font: 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #cbd5e1; }
+        </style>
+<rect width="1588" height="760" class="bg"/>
+<text x="24" y="34" class="title">Split pane local controls layout</text>
+<text x="24" y="58" class="note">- Each pane keeps local header, active marker, context chips, and input editor.</text>
+<text x="24" y="76" class="note">- Move-to-tab is covered by behavior tests; drag-to-tab remains a later enhancement.</text>
+<text x="24.0" y="80.0" class="side-title">Warp reference</text>
+<text x="24.0" y="98.0" class="source">Warp manual interaction sample 05_split_pane</text>
+<image x="24.0" y="114.0" width="760.0" height="474.6" href="../../warp_interaction/05_split_pane.png"/>
+<rect x="24.0" y="114.0" width="760.0" height="237.1" class="region" stroke="#38bdf8"/>
+<text x="29.0" y="129.0" class="label" fill="#38bdf8">comparison frame</text>
+<rect x="134.2" y="129.6" width="649.8" height="221.4" class="region" stroke="#38bdf8"/>
+<text x="139.2" y="144.6" class="label" fill="#38bdf8">terminal area</text>
+<rect x="134.2" y="129.6" width="324.8" height="221.4" class="region" stroke="#14b8a6"/>
+<text x="139.2" y="144.6" class="label" fill="#14b8a6">left pane</text>
+<rect x="459.0" y="129.6" width="325.0" height="221.4" class="region" stroke="#14b8a6"/>
+<text x="464.0" y="144.6" class="label" fill="#14b8a6">right pane</text>
+<rect x="134.2" y="129.8" width="649.8" height="8.8" class="region" stroke="#14b8a6"/>
+<text x="139.2" y="144.8" class="label" fill="#14b8a6">pane headers</text>
+<rect x="459.0" y="129.8" width="4.4" height="8.8" class="region" stroke="#ef4444"/>
+<text x="464.0" y="144.8" class="label" fill="#ef4444">active pane marker</text>
+<rect x="134.2" y="315.0" width="649.8" height="36.1" class="region" stroke="#f59e0b"/>
+<text x="139.2" y="330.0" class="label" fill="#f59e0b">per-pane input editors</text>
+<text x="812.0" y="80.0" class="side-title">Ianvs current</text>
+<text x="812.0" y="98.0" class="source">Ianvs golden split_pane_layout</text>
+<image x="812.0" y="114.0" width="760.0" height="475.0" href="../../split_pane_layout.png"/>
+<rect x="812.0" y="114.0" width="760.0" height="475.0" class="region" stroke="#38bdf8"/>
+<text x="817.0" y="129.0" class="label" fill="#38bdf8">comparison frame</text>
+<rect x="812.0" y="154.1" width="760.0" height="434.9" class="region" stroke="#38bdf8"/>
+<text x="817.0" y="169.1" class="label" fill="#38bdf8">terminal area</text>
+<rect x="812.0" y="154.1" width="380.0" height="434.9" class="region" stroke="#14b8a6"/>
+<text x="817.0" y="169.1" class="label" fill="#14b8a6">left pane</text>
+<rect x="1192.0" y="154.1" width="380.0" height="434.9" class="region" stroke="#14b8a6"/>
+<text x="1197.0" y="169.1" class="label" fill="#14b8a6">right pane</text>
+<rect x="812.0" y="145.7" width="760.0" height="17.9" class="region" stroke="#14b8a6"/>
+<text x="817.0" y="160.7" class="label" fill="#14b8a6">pane headers</text>
+<rect x="1192.0" y="145.7" width="5.3" height="17.9" class="region" stroke="#ef4444"/>
+<text x="1197.0" y="160.7" class="label" fill="#ef4444">active pane marker</text>
+<rect x="812.0" y="516.7" width="760.0" height="72.3" class="region" stroke="#f59e0b"/>
+<text x="817.0" y="531.7" class="label" fill="#f59e0b">per-pane input editors</text>
+<text x="24" y="638" class="side-title">Alignment deltas</text>
+<text x="24" y="660" class="note">left_pane: max_delta=0.0002 status=pass</text>
+<text x="24" y="676" class="note">right_pane: max_delta=0.0002 status=pass</text>
+<text x="24" y="692" class="note">pane_header: max_delta=0.0204 status=pass</text>
+<text x="24" y="708" class="note">active_marker: max_delta=0.0204 status=pass</text>
+<text x="24" y="724" class="note">input_editor: max_delta=0.0034 status=pass</text>
+</svg>

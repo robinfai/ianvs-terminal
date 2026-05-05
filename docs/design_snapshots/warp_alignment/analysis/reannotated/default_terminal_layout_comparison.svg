@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1588" height="760" viewBox="0 0 1588 760">
+<style>
+        .bg { fill: #0f172a; }
+        .title { font: 700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #f8fafc; }
+        .side-title { font: 700 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #e2e8f0; }
+        .source { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #94a3b8; }
+        .note { font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #cbd5e1; }
+        .label { font: 700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; paint-order: stroke; stroke: #020617; stroke-width: 3px; }
+        .region { fill: transparent; stroke-width: 2.5px; vector-effect: non-scaling-stroke; }
+        .missing { fill: #111827; stroke: #475569; stroke-width: 2px; }
+        .missing-text { font: 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #cbd5e1; }
+        </style>
+<rect width="1588" height="760" class="bg"/>
+<text x="24" y="34" class="title">Default display view layout</text>
+<text x="24" y="58" class="note">- Default state uses the user-supplied 1656 x 2064 display screenshot as the layout source.</text>
+<text x="24" y="76" class="note">- Top chrome, empty viewport, visible scrollback, context chips, and input editor are calibrated 1:1.</text>
+<text x="24.0" y="80.0" class="side-title">Warp reference</text>
+<text x="24.0" y="98.0" class="source">User supplied default display screenshot rects, calibrated in Ianvs</text>
+<image x="24.0" y="114.0" width="401.2" height="500.0" href="../../default_terminal_layout.png"/>
+<rect x="24.0" y="114.0" width="401.2" height="500.0" class="region" stroke="#38bdf8"/>
+<text x="29.0" y="129.0" class="label" fill="#38bdf8">app frame</text>
+<rect x="24.0" y="114.0" width="401.2" height="16.5" class="region" stroke="#38bdf8"/>
+<text x="29.0" y="129.0" class="label" fill="#38bdf8">top chrome</text>
+<rect x="90.9" y="114.0" width="93.0" height="16.5" class="region" stroke="#64748b"/>
+<text x="95.9" y="129.0" class="label" fill="#64748b">active tab title</text>
+<rect x="24.0" y="130.5" width="401.2" height="433.4" class="region" stroke="#22c55e"/>
+<text x="29.0" y="145.5" class="label" fill="#22c55e">terminal viewport</text>
+<rect x="24.0" y="474.9" width="401.2" height="88.9" class="region" stroke="#22c55e"/>
+<text x="29.0" y="489.9" class="label" fill="#22c55e">visible scrollback</text>
+<rect x="24.0" y="563.9" width="401.2" height="17.9" class="region" stroke="#64748b"/>
+<text x="29.0" y="578.9" class="label" fill="#64748b">input context chips</text>
+<rect x="24.0" y="581.8" width="401.2" height="32.2" class="region" stroke="#f59e0b"/>
+<text x="29.0" y="596.8" class="label" fill="#f59e0b">input editor</text>
+<text x="812.0" y="80.0" class="side-title">Ianvs current</text>
+<text x="812.0" y="98.0" class="source">Ianvs golden default_terminal_layout</text>
+<image x="812.0" y="114.0" width="401.2" height="500.0" href="../../default_terminal_layout.png"/>
+<rect x="812.0" y="114.0" width="401.2" height="500.0" class="region" stroke="#38bdf8"/>
+<text x="817.0" y="129.0" class="label" fill="#38bdf8">app frame</text>
+<rect x="812.0" y="114.0" width="401.2" height="16.5" class="region" stroke="#38bdf8"/>
+<text x="817.0" y="129.0" class="label" fill="#38bdf8">top chrome</text>
+<rect x="878.9" y="114.0" width="93.0" height="16.5" class="region" stroke="#64748b"/>
+<text x="883.9" y="129.0" class="label" fill="#64748b">active tab title</text>
+<rect x="812.0" y="130.5" width="401.2" height="433.4" class="region" stroke="#22c55e"/>
+<text x="817.0" y="145.5" class="label" fill="#22c55e">terminal viewport</text>
+<rect x="812.0" y="474.9" width="401.2" height="88.9" class="region" stroke="#22c55e"/>
+<text x="817.0" y="489.9" class="label" fill="#22c55e">visible scrollback</text>
+<rect x="812.0" y="563.9" width="401.2" height="17.9" class="region" stroke="#64748b"/>
+<text x="817.0" y="578.9" class="label" fill="#64748b">input context chips</text>
+<rect x="812.0" y="581.8" width="401.2" height="32.2" class="region" stroke="#f59e0b"/>
+<text x="817.0" y="596.8" class="label" fill="#f59e0b">input editor</text>
+<text x="24" y="638" class="side-title">Alignment deltas</text>
+<text x="24" y="660" class="note">top_chrome: max_delta=0.0 status=pass</text>
+<text x="24" y="676" class="note">active_tab: max_delta=0.0 status=pass</text>
+<text x="24" y="692" class="note">terminal_viewport: max_delta=0.0 status=pass</text>
+<text x="24" y="708" class="note">visible_scrollback: max_delta=0.0 status=pass</text>
+<text x="24" y="724" class="note">input_context: max_delta=0.0 status=pass</text>
+<text x="24" y="740" class="note">input_editor: max_delta=0.0 status=pass</text>
+</svg>

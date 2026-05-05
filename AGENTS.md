@@ -50,7 +50,7 @@
 
 ## 功能参考
 
-`/Users/robinfai/personal/warp` 只作为 terminal 功能标杆，重点参考：
+`../../warp` 只作为 terminal 功能标杆，重点参考：
 
 - blocks：命令和输出成组。
 - 现代输入编辑：多行输入、软换行、括号补全、复制粘贴。
@@ -64,13 +64,13 @@
 
 本地代码阅读优先入口：
 
-- terminal 主体：`/Users/robinfai/personal/warp/app/src/terminal/`
-- block 模型：`/Users/robinfai/personal/warp/app/src/terminal/model/block.rs` 和 `model/blocks.rs`
-- 输入区：`/Users/robinfai/personal/warp/app/src/terminal/input/`
-- 命令搜索：`/Users/robinfai/personal/warp/app/src/search/command_search/` 和 `search/command_palette/`
-- pane 与会话组织：`/Users/robinfai/personal/warp/app/src/pane_group/`
-- 启动配置：`/Users/robinfai/personal/warp/app/src/launch_configs/`
-- 对应验收参考：`/Users/robinfai/personal/warp/app/src/integration_testing/`
+- terminal 主体：`../../warp/app/src/terminal/`
+- block 模型：`../../warp/app/src/terminal/model/block.rs` 和 `model/blocks.rs`
+- 输入区：`../../warp/app/src/terminal/input/`
+- 命令搜索：`../../warp/app/src/search/command_search/` 和 `search/command_palette/`
+- pane 与会话组织：`../../warp/app/src/pane_group/`
+- 启动配置：`../../warp/app/src/launch_configs/`
+- 对应验收参考：`../../warp/app/src/integration_testing/`
 
 ## 产品推进文档
 

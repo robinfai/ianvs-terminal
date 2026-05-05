@@ -68,6 +68,8 @@ class TerminalWindowsController extends ChangeNotifier {
   bool get canCloseActiveWindow => _windows.length > 1;
   bool get canCloseActiveTab => activeTabsController.canCloseActiveTab;
   bool get canCloseActivePane => activeTabsController.canCloseActivePane;
+  bool get canMoveActivePaneToNewTab =>
+      activeTabsController.canMoveActivePaneToNewTab;
 
   void createInitialWindow() {
     if (_windows.isNotEmpty) {
@@ -173,6 +175,8 @@ class TerminalWindowsController extends ChangeNotifier {
   void nextPane() => activeTabsController.nextPane();
   void previousPane() => activeTabsController.previousPane();
   void closeActivePane() => activeTabsController.closeActivePane();
+  bool moveActivePaneToNewTab() =>
+      activeTabsController.moveActivePaneToNewTab();
   void updatePaneSplitRatio(TerminalPaneSplit split, double ratio) =>
       activeTabsController.updatePaneSplitRatio(split, ratio);
   void closeActiveTab() => activeTabsController.closeActiveTab();
@@ -182,12 +186,18 @@ class TerminalWindowsController extends ChangeNotifier {
     activeTabsController.updatePaneStartupCommands(commandsByPaneId);
   }
 
-  TerminalLaunchConfiguration currentLaunchConfiguration() {
+  TerminalLaunchConfiguration currentLaunchConfiguration({
+    int? activeWindowIndex,
+  }) {
     if (_windows.isEmpty) {
       return const TerminalLaunchConfiguration();
     }
+    final targetActiveWindowIndex = (activeWindowIndex ?? _activeWindowIndex)
+        .clamp(0, _windows.length - 1)
+        .toInt();
     return TerminalLaunchConfiguration(
-      activeWindowIndex: _activeWindowIndex.clamp(0, _windows.length - 1),
+      scope: TerminalLaunchConfigurationScope.app,
+      activeWindowIndex: targetActiveWindowIndex,
       windows: _windows
           .map(
             (window) => window.tabsController.currentLaunchConfigurationWindow(
@@ -195,6 +205,22 @@ class TerminalWindowsController extends ChangeNotifier {
             ),
           )
           .toList(growable: false),
+    );
+  }
+
+  TerminalLaunchConfiguration currentTabLaunchConfiguration({
+    required int windowIndex,
+    required int tabIndex,
+  }) {
+    if (windowIndex < 0 || windowIndex >= _windows.length) {
+      return const TerminalLaunchConfiguration(
+        scope: TerminalLaunchConfigurationScope.tab,
+      );
+    }
+    final window = _windows[windowIndex];
+    return window.tabsController.currentTabLaunchConfiguration(
+      tabIndex: tabIndex,
+      fallbackWindowTitle: window.title,
     );
   }
 

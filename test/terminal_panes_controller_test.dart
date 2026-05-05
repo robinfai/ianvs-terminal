@@ -119,6 +119,26 @@ void main() {
     expect(_createdCwdAt(backend, 1), cwd.path);
   });
 
+  test('active pane can move into a new tab without restarting session', () {
+    final backend = _FakePtySessionBackend();
+    final tabs = _tabs(backend);
+    addTearDown(tabs.dispose);
+
+    tabs.createInitialTab();
+    tabs.splitActivePaneRight();
+    final movedSessionId = tabs.activeShell.sessionId;
+
+    final moved = tabs.moveActivePaneToNewTab();
+
+    expect(moved, isTrue);
+    expect(tabs.tabs, hasLength(2));
+    expect(tabs.activeIndex, 1);
+    expect(tabs.tabs.first.paneCount, 1);
+    expect(tabs.activeTab.paneCount, 1);
+    expect(tabs.activeShell.sessionId, movedSessionId);
+    expect(backend.createdSessionConfigs, hasLength(2));
+  });
+
   test('restart relaunches a pane from its current cwd', () {
     final backend = _FakePtySessionBackend();
     final tabs = _tabs(backend);

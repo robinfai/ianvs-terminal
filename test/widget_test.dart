@@ -11,6 +11,7 @@ import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 import 'package:ianvs_terminal/main.dart';
 import 'package:ianvs_terminal/src/clipboard_client.dart';
 import 'package:ianvs_terminal/src/fig_completion.dart';
+import 'package:ianvs_terminal/src/launch_config.dart';
 import 'package:ianvs_terminal/src/saved_commands.dart';
 import 'package:ianvs_terminal/src/session_restore.dart';
 import 'package:ianvs_terminal/src/terminal_blocks.dart';
@@ -30,6 +31,17 @@ void main() {
     expect(find.text('Local shell'), findsWidgets);
     expect(find.text('Running'), findsOneWidget);
     expect(find.textContaining('session-1'), findsOneWidget);
+    expect(tester.getSize(find.byKey(const Key('terminal-header'))).height, 76);
+    expect(find.byKey(const Key('terminal-add-menu-button')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-header-overflow-menu-button')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('terminal-new-tab-button')), findsNothing);
+    expect(
+      find.byKey(const Key('terminal-launch-config-button')),
+      findsNothing,
+    );
   });
 
   testWidgets('shell exit keeps the terminal surface and shows restart state', (
@@ -44,7 +56,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('Exited 7'), findsOneWidget);
-    expect(find.byTooltip('Restart'), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-header-overflow-menu-button')),
+      findsOneWidget,
+    );
     expect(find.textContaining('session-1'), findsOneWidget);
   });
 
@@ -58,8 +73,7 @@ void main() {
     backend.exitOnNextPoll = 0;
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump();
-    await tester.tap(find.byTooltip('Restart'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'restart');
 
     expect(backend.closedSessionIds, contains('session-1'));
     expect(find.text('Running'), findsOneWidget);
@@ -95,8 +109,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byTooltip('Paste'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'paste');
 
     expect(_modernInputText(tester), 'echo pasted');
     expect(backend.writes, isEmpty);
@@ -129,8 +142,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byTooltip('Paste'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'paste');
 
     expect(_modernInputText(tester), 'echo Ianvs');
     expect(_modernInputValue(tester).selection.baseOffset, 10);
@@ -143,9 +155,21 @@ void main() {
     await tester.pump();
 
     expect(
+      find.byKey(const Key('terminal-modern-input-editor')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-modern-input-toolbar')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const Key('terminal-modern-input-field')),
       findsOneWidget,
     );
+    final inputField = tester.widget<TextField>(
+      find.byKey(const Key('terminal-modern-input-field')),
+    );
+    expect(inputField.decoration?.border, InputBorder.none);
     expect(
       FocusManager.instance.primaryFocus?.debugLabel,
       'ianvs-modern-input',
@@ -163,6 +187,63 @@ void main() {
 
     expect(backend.writesBySession['session-1'], contains('echo ianvs\r'));
     expect(_modernInputText(tester), isEmpty);
+  });
+
+  testWidgets('modern input editor shortcuts update draft and search', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: _blocksForSession,
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'kubectl get pods',
+    );
+    await tester.pump();
+    await _altShortcut(tester, LogicalKeyboardKey.backspace);
+    await tester.pump();
+    expect(_modernInputText(tester), 'kubectl get ');
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'echo clear',
+    );
+    await tester.pump();
+    await _controlShortcut(tester, LogicalKeyboardKey.keyU);
+    await tester.pump();
+    expect(_modernInputText(tester), isEmpty);
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'select buffer',
+    );
+    await tester.pump();
+    await _metaShortcut(tester, LogicalKeyboardKey.keyA);
+    await tester.pump();
+    expect(_modernInputValue(tester).selection.baseOffset, 0);
+    expect(_modernInputValue(tester).selection.extentOffset, 13);
+
+    await _controlShortcut(tester, LogicalKeyboardKey.keyR);
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('terminal-inline-menu-shell-command-palette')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-command-history-panel')),
+      findsOneWidget,
+    );
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'ianvs-command-history',
+    );
   });
 
   testWidgets('shift-enter inserts newline before modern submit', (
@@ -378,10 +459,27 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('terminal-completion-panel')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-inline-menu-shell-completion')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-completion-source-badge-Spec')),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(const Key('terminal-completion-active-badge---config')),
+      findsOneWidget,
+    );
     expect(find.text('--config'), findsOneWidget);
     expect(find.text('--verbose'), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    expect(
+      find.byKey(const Key('terminal-completion-active-badge---verbose')),
+      findsOneWidget,
+    );
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
 
@@ -491,8 +589,7 @@ void main() {
     expect(find.textContaining('Raw input active'), findsOneWidget);
     expect(FocusManager.instance.primaryFocus?.debugLabel, 'ianvs-terminal');
 
-    await tester.tap(find.byTooltip('Paste'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'paste');
     expect(backend.writesBySession['session-1'], contains('echo raw'));
 
     await _metaShortcut(tester, LogicalKeyboardKey.keyK);
@@ -592,8 +689,7 @@ void main() {
     expect(exitedField.enabled, isFalse);
     expect(_modernInputText(tester), 'pending');
 
-    await tester.tap(find.byTooltip('Restart'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'restart');
 
     expect(_modernInputText(tester), isEmpty);
     expect(
@@ -614,8 +710,7 @@ void main() {
     await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
     await tester.pump();
 
-    await tester.tap(find.byTooltip('Search'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'search');
 
     expect(find.byKey(const Key('terminal-find-field')), findsOneWidget);
 
@@ -662,6 +757,10 @@ void main() {
 
     await _metaShortcut(tester, LogicalKeyboardKey.keyR);
     expect(
+      find.byKey(const Key('terminal-inline-menu-shell-command-palette')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const Key('terminal-command-history-panel')),
       findsOneWidget,
     );
@@ -688,8 +787,7 @@ void main() {
 
     await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
     await tester.pump();
-    await tester.tap(find.byTooltip('Search'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'search');
     await tester.enterText(
       find.byKey(const Key('terminal-find-field')),
       'ianvs',
@@ -726,16 +824,14 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.byTooltip('Search'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'search');
     await tester.enterText(
       find.byKey(const Key('terminal-find-field')),
       'ianvs',
     );
     await tester.pump();
 
-    await tester.tap(find.byTooltip('Copy'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'copy');
 
     expect(clipboard.copied, contains('ianvs'));
   });
@@ -760,13 +856,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump();
 
-    final pasteButton = tester.widget<IconButton>(
-      find.widgetWithIcon(IconButton, Icons.content_paste),
-    );
-    expect(pasteButton.onPressed, isNull);
+    expect(_headerOverflowMenuItem(tester, 'paste').enabled, isFalse);
 
-    await tester.tap(find.byTooltip('Search'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'search');
     await tester.enterText(
       find.byKey(const Key('terminal-find-field')),
       'ianvs',
@@ -776,8 +868,7 @@ void main() {
     expect(find.text('1/1'), findsOneWidget);
     expect(backend.searchedQueries, contains('ianvs'));
 
-    await tester.tap(find.byTooltip('Copy'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'copy');
 
     expect(clipboard.copied, contains('ianvs'));
   });
@@ -788,8 +879,7 @@ void main() {
     final backend = _FakePtySessionBackend();
     await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
     await tester.pump();
-    await tester.tap(find.byTooltip('Search'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'search');
     await tester.enterText(
       find.byKey(const Key('terminal-find-field')),
       'missing',
@@ -814,6 +904,16 @@ void main() {
 
     expect(find.text('Block 0/0'), findsOneWidget);
     expect(find.byKey(const Key('terminal-block-panel')), findsNothing);
+    expect(
+      tester
+          .widget<terminal.TerminalViewport>(
+            find.byType(terminal.TerminalViewport),
+          )
+          .contentPadding
+          .top,
+      14,
+    );
+    expect(find.byKey(const Key('terminal-block-status-rail')), findsNothing);
     expect(
       _headerIconButton(
         tester,
@@ -882,7 +982,133 @@ void main() {
 
     expect(find.byKey(const Key('terminal-inline-block-rail')), findsOneWidget);
     expect(
+      find.byKey(const Key('terminal-input-context-strip')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-input-context-chip-target')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-input-context-chip-cwd')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-input-context-chip-status')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-input-context-chip-last-command')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-input-command-detection-strip')),
+      findsNothing,
+    );
+    expect(
+      tester
+          .widget<terminal.TerminalViewport>(
+            find.byType(terminal.TerminalViewport),
+          )
+          .contentPadding
+          .top,
+      greaterThan(144),
+    );
+    expect(
+      tester
+          .widget<terminal.TerminalViewport>(
+            find.byType(terminal.TerminalViewport),
+          )
+          .contentPadding
+          .left,
+      132,
+    );
+    expect(find.byKey(const Key('terminal-block-status-rail')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-block-status-marker-session-1-block-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-block-status-marker-session-1-block-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-block-status-divider-1')),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'git status --short',
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('terminal-input-command-detection-strip')),
+      findsOneWidget,
+    );
+    expect(find.text('Autodetected shell command'), findsOneWidget);
+    expect(find.byKey(const Key('terminal-input-context-strip')), findsNothing);
+    final inlineActions = tester
+        .widget<PopupMenuButton<String>>(
+          find.byKey(const Key('terminal-inline-block-actions-button')),
+        )
+        .itemBuilder(
+          tester.element(
+            find.byKey(const Key('terminal-inline-block-actions-button')),
+          ),
+        )
+        .whereType<PopupMenuItem<String>>()
+        .toList(growable: false);
+    expect(
+      inlineActions.map((item) => item.value),
+      containsAll(<String>[
+        'copy-command',
+        'copy-output',
+        'copy-all',
+        'reinput',
+        'bookmark',
+      ]),
+    );
+    expect(
+      inlineActions.singleWhere((item) => item.value == 'bookmark').enabled,
+      isFalse,
+    );
+    expect(
       find.byKey(const Key('terminal-inline-active-block-card')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-sticky-block-command-header')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-inline-block-context-strip')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-2')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-inline-active-block-card')),
+        matching: find.textContaining('false'),
+      ),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      '',
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('terminal-inline-block-context-strip')),
       findsOneWidget,
     );
     expect(
@@ -904,6 +1130,12 @@ void main() {
       ),
       findsOneWidget,
     );
+
+    await tester.tap(
+      find.byKey(const Key('terminal-sticky-block-command-header')),
+    );
+    await tester.pump();
+    expect(backend.scrollToOffsets, contains(9));
 
     await tester.tap(
       find.byKey(const Key('terminal-inline-block-chip-session-1-block-1')),
@@ -933,6 +1165,8 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.byKey(const Key('terminal-block-panel')), findsNothing);
+    await _openBlockHistoryPanel(tester);
     expect(find.byKey(const Key('terminal-block-panel')), findsOneWidget);
     expect(
       find.byKey(const Key('terminal-block-row-session-1-block-1')),
@@ -965,6 +1199,7 @@ void main() {
     );
     await tester.pump();
 
+    await _openBlockHistoryPanel(tester);
     await tester.tap(
       find.byKey(const Key('terminal-block-row-session-1-block-1')),
     );
@@ -996,6 +1231,7 @@ void main() {
       find.byKey(const Key('terminal-new-tab-button')),
     );
     expect(find.text('Block 1/1'), findsOneWidget);
+    await _openBlockHistoryPanel(tester);
 
     await _tapHeaderControl(
       tester,
@@ -1021,6 +1257,7 @@ void main() {
     );
     await tester.pump();
 
+    await _openBlockHistoryPanel(tester);
     expect(
       find.byKey(const Key('terminal-block-row-session-1-block-2')),
       findsOneWidget,
@@ -1031,6 +1268,8 @@ void main() {
       find.byKey(const Key('terminal-new-tab-button')),
     );
 
+    expect(find.byKey(const Key('terminal-block-panel')), findsNothing);
+    await _openBlockHistoryPanel(tester);
     expect(
       find.byKey(const Key('terminal-block-row-session-2-block-1')),
       findsOneWidget,
@@ -1111,6 +1350,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump();
 
+    await _openBlockHistoryPanel(tester);
     await tester.tap(
       find.byKey(const Key('terminal-block-row-session-1-block-1')),
     );
@@ -1146,28 +1386,16 @@ void main() {
       tester,
       find.byKey(const Key('terminal-new-tab-button')),
     );
-    await _tapHeaderControl(
-      tester,
-      find.byKey(const Key('terminal-block-copy-command-button')),
-    );
-    await _tapHeaderControl(
-      tester,
-      find.byKey(const Key('terminal-block-reinput-button')),
-    );
+    await _selectInlineBlockAction(tester, 'copy-command');
+    await _selectInlineBlockAction(tester, 'reinput');
 
     expect(clipboard.copied, contains('echo second'));
     expect(_modernInputText(tester), 'echo second');
     expect(backend.writesBySession['session-2'], isNull);
 
     await _previousTabShortcut(tester);
-    await _tapHeaderControl(
-      tester,
-      find.byKey(const Key('terminal-block-copy-command-button')),
-    );
-    await _tapHeaderControl(
-      tester,
-      find.byKey(const Key('terminal-block-reinput-button')),
-    );
+    await _selectInlineBlockAction(tester, 'copy-command');
+    await _selectInlineBlockAction(tester, 'reinput');
 
     expect(clipboard.copied, contains('false'));
     expect(_modernInputText(tester), 'false');
@@ -1325,6 +1553,7 @@ void main() {
 
     await _metaShiftShortcut(tester, LogicalKeyboardKey.keyI);
     await _metaShortcut(tester, LogicalKeyboardKey.keyR);
+    await _controlShortcut(tester, LogicalKeyboardKey.keyR);
 
     expect(find.textContaining('Raw input active'), findsOneWidget);
     expect(
@@ -1399,7 +1628,7 @@ void main() {
 
     await _metaShortcut(tester, LogicalKeyboardKey.keyR);
 
-    expect(find.text('Saved'), findsOneWidget);
+    expect(find.text('Workflow'), findsOneWidget);
     expect(find.textContaining('echo saved'), findsWidgets);
   });
 
@@ -1426,10 +1655,12 @@ void main() {
 
     await _metaShortcut(tester, LogicalKeyboardKey.keyR);
 
-    expect(find.text('Saved'), findsOneWidget);
+    expect(find.text('Workflow'), findsOneWidget);
     expect(find.text('History'), findsWidgets);
     expect(find.textContaining('echo saved'), findsWidgets);
     expect(find.textContaining('false'), findsWidgets);
+    expect(find.textContaining('Output /tmp'), findsWidgets);
+    expect(find.textContaining('Completed 2026-05-04'), findsWidgets);
   });
 
   testWidgets('history row can be saved and saved row can be removed', (
@@ -1459,7 +1690,7 @@ void main() {
     await tester.pump();
 
     expect(savedStore.load().commands, <String>['pwd']);
-    expect(find.text('Saved'), findsOneWidget);
+    expect(find.text('Workflow'), findsOneWidget);
     expect(find.text('History'), findsNothing);
 
     await tester.tap(find.byTooltip('Remove saved command'));
@@ -1532,7 +1763,7 @@ void main() {
 
     await _metaShortcut(tester, LogicalKeyboardKey.keyR);
 
-    expect(find.text('Saved'), findsOneWidget);
+    expect(find.text('Workflow'), findsOneWidget);
     expect(find.textContaining('echo persisted'), findsWidgets);
   });
 
@@ -1933,6 +2164,7 @@ void main() {
         'Settings',
         'Workspace Search',
         'Launch Config',
+        'Saved Launch Configs',
         'New SSH Session',
         'Session Context',
         'New Window',
@@ -2001,12 +2233,17 @@ void main() {
     await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('terminal-split-right-button')));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'split-right');
 
-    await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+    await _selectAddMenuAction(tester, 'launch-config');
     await tester.pumpAndSettle();
 
+    expect(
+      find.byKey(const Key('terminal-launch-config-scope-explainer')),
+      findsOneWidget,
+    );
+    expect(find.text('App config'), findsOneWidget);
+    expect(find.text('Tab config'), findsOneWidget);
     expect(
       find.byKey(const Key('terminal-launch-config-name-field')),
       findsOneWidget,
@@ -2089,11 +2326,10 @@ void main() {
     expect(savedFirst['startupCommand'], 'pnpm dev');
     expect(savedSecond['startupCommand'], 'flutter test');
 
-    await tester.tap(find.byTooltip('Close pane'));
-    await tester.pump();
+    await _selectHeaderOverflowAction(tester, 'close-pane');
     expect(find.byKey(const Key('terminal-pane-2')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+    await _selectAddMenuAction(tester, 'launch-config');
     await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('terminal-launch-config-apply-button')),
@@ -2126,13 +2362,10 @@ void main() {
       await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
       await tester.pump();
 
-      await tester.tap(find.byKey(const Key('terminal-new-window-button')));
-      await tester.pump();
+      await _selectAddMenuAction(tester, 'new-window');
       expect(find.text('Window 2'), findsOneWidget);
 
-      await tester.tap(
-        find.byKey(const Key('terminal-new-ssh-session-button')),
-      );
+      await _selectAddMenuAction(tester, 'new-ssh');
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('terminal-new-ssh-host-field')),
@@ -2149,7 +2382,7 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+      await _selectAddMenuAction(tester, 'launch-config');
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('terminal-launch-config-name-field')),
@@ -2192,15 +2425,14 @@ void main() {
       expect(savedJson['activeWindowIndex'], 1);
       expect(savedWindows, hasLength(2));
 
-      await tester.tap(find.byKey(const Key('terminal-close-window-button')));
-      await tester.pump();
+      await _selectHeaderOverflowAction(tester, 'close-window');
       expect(find.text('Window 2'), findsNothing);
       expect(
         find.byKey(const Key('terminal-tab-window-two-ssh')),
         findsNothing,
       );
 
-      await tester.tap(find.byKey(const Key('terminal-launch-config-button')));
+      await _selectAddMenuAction(tester, 'launch-config');
       await tester.pumpAndSettle();
       await tester.ensureVisible(
         find.byKey(const Key('terminal-launch-config-apply-button')),
@@ -2219,6 +2451,322 @@ void main() {
     },
   );
 
+  testWidgets('saved launch config panel applies and removes saved configs', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final dir = Directory.systemTemp.createTempSync(
+      'ianvs_saved_launch_widget_',
+    );
+    final store = TerminalLaunchConfigurationStore(directory: dir);
+    addTearDown(() {
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+    });
+    await tester.pumpWidget(
+      IanvsTerminalApp(backendFactory: () => backend, launchConfigStore: store),
+    );
+    await tester.pump();
+
+    await _selectHeaderOverflowAction(tester, 'split-right');
+    await _selectAddMenuAction(tester, 'launch-config');
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('terminal-launch-config-name-field')),
+      'saved-layout',
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('terminal-launch-config-save-button')),
+    );
+    await tester.tap(
+      find.byKey(const Key('terminal-launch-config-save-button')),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('terminal-launch-config-done-button')),
+    );
+    await tester.tap(
+      find.byKey(const Key('terminal-launch-config-done-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(store.listSaved(), hasLength(1));
+    await _selectHeaderOverflowAction(tester, 'close-pane');
+    expect(find.byKey(const Key('terminal-pane-2')), findsNothing);
+
+    await _selectAddMenuAction(tester, 'saved-configs');
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('terminal-saved-launch-configs-panel')),
+      findsOneWidget,
+    );
+    expect(find.text('saved-layout'), findsWidgets);
+    expect(
+      find.byKey(const Key('terminal-saved-launch-config-sidecar')),
+      findsOneWidget,
+    );
+    expect(find.text('App config'), findsWidgets);
+    expect(
+      find.byKey(const Key('terminal-saved-launch-config-scope-copy')),
+      findsOneWidget,
+    );
+
+    final makeDefaultButton = find.byKey(
+      const Key('terminal-saved-launch-config-default-button'),
+    );
+    await tester.ensureVisible(makeDefaultButton);
+    await tester.tap(makeDefaultButton);
+    await tester.pump();
+    expect(find.text('Default'), findsWidgets);
+
+    final applyButton = find.byKey(
+      const Key('terminal-saved-launch-config-apply-button'),
+    );
+    await tester.ensureVisible(applyButton);
+    await tester.tap(applyButton);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('terminal-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-2')), findsOneWidget);
+
+    await _selectAddMenuAction(tester, 'saved-configs');
+    await tester.pumpAndSettle();
+    final removeButton = find.byKey(
+      const Key('terminal-saved-launch-config-remove-button'),
+    );
+    await tester.ensureVisible(removeButton);
+    await tester.tap(removeButton);
+    await tester.pumpAndSettle();
+    expect(find.text('No saved configs'), findsOneWidget);
+    expect(store.listSaved(), isEmpty);
+  });
+
+  testWidgets('command palette applies saved launch config source', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final dir = Directory.systemTemp.createTempSync(
+      'ianvs_palette_launch_widget_',
+    );
+    final store = TerminalLaunchConfigurationStore(directory: dir);
+    addTearDown(() {
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+    });
+    store.save(
+      File('${dir.path}/palette-layout.json'),
+      TerminalLaunchConfiguration(
+        windows: <TerminalLaunchConfigurationWindow>[
+          TerminalLaunchConfigurationWindow(
+            fallbackTitle: 'Palette Window',
+            tabs: <TerminalLaunchConfigurationTab>[
+              TerminalLaunchConfigurationTab(
+                fallbackTitle: 'Palette Tab',
+                activePaneId: 2,
+                rootPane: TerminalLaunchConfigurationPaneSplit(
+                  direction: TerminalPaneSplitDirection.right,
+                  first: const TerminalLaunchConfigurationPaneLeaf(
+                    id: 1,
+                    cwd: '/tmp/left',
+                  ),
+                  second: const TerminalLaunchConfigurationPaneLeaf(
+                    id: 2,
+                    cwd: '/tmp/right',
+                    startupCommand: 'echo restored',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      IanvsTerminalApp(backendFactory: () => backend, launchConfigStore: store),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('terminal-pane-2')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('terminal-command-history-button')));
+    await tester.pump();
+    expect(
+      find.byKey(const Key('terminal-command-palette-source-rail')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const Key('terminal-command-palette-source-filter-Launch')),
+    );
+    await tester.pump();
+
+    expect(find.text('palette-layout'), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-command-palette-filter-Launch')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-command-history-field')),
+      'launch:palette',
+    );
+    await tester.pump();
+
+    expect(find.text('palette-layout'), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-command-palette-filter-Launch')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('App config'), findsWidgets);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-2')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-active-2')), findsOneWidget);
+  });
+
+  testWidgets('tab and window context actions save scoped launch configs', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final dir = Directory.systemTemp.createTempSync(
+      'ianvs_context_launch_widget_',
+    );
+    final store = TerminalLaunchConfigurationStore(directory: dir);
+    addTearDown(() {
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+    });
+    await tester.pumpWidget(
+      IanvsTerminalApp(backendFactory: () => backend, launchConfigStore: store),
+    );
+    await tester.pump();
+
+    await _selectHeaderOverflowAction(tester, 'split-right');
+    await _selectAddMenuAction(tester, 'save-tab-config');
+    await tester.pumpAndSettle();
+
+    var saved = store.listSaved();
+    expect(saved, hasLength(1));
+    expect(
+      saved.single.configuration.scope,
+      TerminalLaunchConfigurationScope.tab,
+    );
+    expect(saved.single.windowCount, 1);
+    expect(saved.single.tabCount, 1);
+    expect(saved.single.paneCount, 2);
+
+    await _selectAddMenuAction(tester, 'new-window');
+    await _selectAddMenuAction(tester, 'save-app-config');
+    await tester.pumpAndSettle();
+
+    saved = store.listSaved();
+    expect(saved, hasLength(2));
+    final appConfig = saved
+        .map((entry) => entry.configuration)
+        .singleWhere(
+          (configuration) =>
+              configuration.scope == TerminalLaunchConfigurationScope.app,
+        );
+    expect(appConfig.windows, hasLength(2));
+    expect(appConfig.activeWindowIndex, 1);
+  });
+
+  testWidgets('add menu exposes creation and launch config actions', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final dir = Directory.systemTemp.createTempSync('ianvs_add_menu_widget_');
+    final store = TerminalLaunchConfigurationStore(directory: dir);
+    addTearDown(() {
+      if (dir.existsSync()) {
+        dir.deleteSync(recursive: true);
+      }
+    });
+    await tester.pumpWidget(
+      IanvsTerminalApp(backendFactory: () => backend, launchConfigStore: store),
+    );
+    await tester.pump();
+
+    final addMenu = find.byKey(const Key('terminal-add-menu-button'));
+    final popup = tester.widget<PopupMenuButton<String>>(addMenu);
+    final values = popup
+        .itemBuilder(tester.element(addMenu))
+        .whereType<PopupMenuItem<String>>()
+        .map((item) => item.value)
+        .toList(growable: false);
+    expect(
+      values,
+      containsAll(<String>[
+        'new-tab',
+        'new-window',
+        'new-ssh',
+        'saved-configs',
+        'save-tab-config',
+        'save-app-config',
+        'launch-config',
+      ]),
+    );
+    final overflowMenu = find.byKey(
+      const Key('terminal-header-overflow-menu-button'),
+    );
+    final overflowValues = tester
+        .widget<PopupMenuButton<String>>(overflowMenu)
+        .itemBuilder(tester.element(overflowMenu))
+        .whereType<PopupMenuItem<String>>()
+        .map((item) => item.value)
+        .toList(growable: false);
+    expect(
+      overflowValues,
+      containsAll(<String>[
+        'search',
+        'workspace-search',
+        'settings',
+        'close-window',
+        'split-right',
+        'split-down',
+        'close-pane',
+        'session-context',
+        'copy',
+        'paste',
+        'restart',
+      ]),
+    );
+
+    popup.onSelected!('new-tab');
+    await tester.pump();
+    expect(find.byKey(const Key('terminal-tab-Local 2')), findsOneWidget);
+
+    popup.onSelected!('save-tab-config');
+    await tester.pumpAndSettle();
+    var saved = store.listSaved();
+    expect(
+      saved.single.configuration.scope,
+      TerminalLaunchConfigurationScope.tab,
+    );
+
+    popup.onSelected!('save-app-config');
+    await tester.pumpAndSettle();
+    saved = store.listSaved();
+    expect(
+      saved.map((entry) => entry.configuration.scope),
+      contains(TerminalLaunchConfigurationScope.app),
+    );
+
+    popup.onSelected!('saved-configs');
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('terminal-saved-launch-configs-panel')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Tab config'), findsWidgets);
+    expect(find.textContaining('App config'), findsWidgets);
+  });
+
   testWidgets(
     'new ssh session launches a local ssh command and restart keeps target',
     (tester) async {
@@ -2226,9 +2774,7 @@ void main() {
       await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
       await tester.pump();
 
-      await tester.tap(
-        find.byKey(const Key('terminal-new-ssh-session-button')),
-      );
+      await _selectAddMenuAction(tester, 'new-ssh');
       await tester.pumpAndSettle();
       expect(
         find.byKey(const Key('terminal-new-ssh-session-panel')),
@@ -2265,9 +2811,7 @@ void main() {
         'ops-user@prod.example.internal',
       ]);
 
-      await tester.tap(
-        find.byKey(const Key('terminal-session-context-button')),
-      );
+      await _selectHeaderOverflowAction(tester, 'session-context');
       await tester.pumpAndSettle();
       expect(
         find.text('Current transport: SSH command via local PTY.'),
@@ -2282,8 +2826,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Restart'));
-      await tester.pump();
+      await _selectHeaderOverflowAction(tester, 'restart');
       final restartedLaunch =
           backend.createdSessionConfigs.last['launch'] as Map<String, Object?>;
       expect(restartedLaunch['program'] as String, endsWith('ssh'));
@@ -2299,7 +2842,7 @@ void main() {
     await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('terminal-new-ssh-session-button')));
+    await _selectAddMenuAction(tester, 'new-ssh');
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('terminal-new-ssh-host-field')),
@@ -2327,9 +2870,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(
-        find.byKey(const Key('terminal-session-context-button')),
-      );
+      await _selectHeaderOverflowAction(tester, 'session-context');
       await tester.pumpAndSettle();
       expect(
         find.byKey(const Key('terminal-session-context-panel')),
@@ -2416,7 +2957,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('terminal-session-context-button')));
+    await _selectHeaderOverflowAction(tester, 'session-context');
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('terminal-session-kind-ssh')));
     await tester.pump();
@@ -2447,7 +2988,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('terminal-workspace-search-button')));
+    await _selectHeaderOverflowAction(tester, 'workspace-search');
     await tester.pump();
     expect(
       find.byKey(const Key('terminal-workspace-search-panel')),
@@ -2818,7 +3359,70 @@ void main() {
 
     expect(find.byKey(const Key('terminal-pane-1')), findsOneWidget);
     expect(find.byKey(const Key('terminal-pane-2')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-header-1')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-header-2')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-pane-context-chips-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-pane-context-chip-1-target')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-pane-context-chip-1-cwd')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-pane-context-chip-2-status')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('terminal-pane-menu-1')), findsOneWidget);
+    final paneMenu = tester.widget<PopupMenuButton<String>>(
+      find.byKey(const Key('terminal-pane-menu-1')),
+    );
+    final paneMenuValues = paneMenu
+        .itemBuilder(
+          tester.element(find.byKey(const Key('terminal-pane-menu-1'))),
+        )
+        .whereType<PopupMenuItem<String>>()
+        .map((item) => item.value)
+        .toList(growable: false);
+    expect(
+      paneMenuValues,
+      containsAll(<String>[
+        'focus',
+        'split-right',
+        'split-down',
+        'move-to-new-tab',
+        'session-context',
+        'copy',
+        'paste',
+        'restart',
+        'close',
+      ]),
+    );
+    expect(
+      find.byKey(const Key('terminal-pane-drag-handle-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-pane-drag-handle-2')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('terminal-pane-active-2')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-pane-active-marker-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-inactive-input-context-strip-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-inactive-modern-input-bar-1')),
+      findsOneWidget,
+    );
     expect(find.textContaining('session-1'), findsOneWidget);
     expect(find.textContaining('session-2'), findsOneWidget);
 
@@ -2832,6 +3436,10 @@ void main() {
     await tester.tap(find.byKey(const Key('terminal-pane-1')));
     await tester.pump();
     expect(find.byKey(const Key('terminal-pane-active-1')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-inactive-modern-input-bar-2')),
+      findsOneWidget,
+    );
     expect(_modernInputText(tester), isEmpty);
 
     await _tapHeaderControl(
@@ -2841,6 +3449,63 @@ void main() {
     expect(_modernInputText(tester), 'echo pane-one');
     expect(backend.writesBySession['session-1'], isNull);
     expect(backend.writesBySession['session-2'], isNull);
+  });
+
+  testWidgets('pane local header actions split and close selected panes', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    await _selectHeaderOverflowAction(tester, 'split-right');
+    await tester.tap(find.byKey(const Key('terminal-pane-menu-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('terminal-pane-menu-split-down-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-pane-3')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-active-3')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-pane-active-marker-3')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('terminal-pane-menu-3')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('terminal-pane-menu-close-3')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-pane-3')), findsNothing);
+    expect(find.byKey(const Key('terminal-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-2')), findsOneWidget);
+  });
+
+  testWidgets('pane menu can move a split pane into a new tab', (tester) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    await _selectHeaderOverflowAction(tester, 'split-right');
+    await tester.tap(find.byKey(const Key('terminal-pane-menu-2')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('terminal-pane-menu-move-to-new-tab-2')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-tab-Local 1')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-tab-Local 2')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-1')), findsNothing);
+    expect(find.byKey(const Key('terminal-pane-2')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-active-2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('terminal-tab-Local 1')));
+    await tester.pump();
+
+    expect(find.byKey(const Key('terminal-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-pane-2')), findsNothing);
+    expect(backend.createdSessionConfigs, hasLength(2));
   });
 
   testWidgets('pane keyboard shortcuts split switch and close panes', (
@@ -3197,6 +3862,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('terminal-settings-panel')), findsOneWidget);
+    expect(
+      find.byKey(const Key('settings-session-defaults-section')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('settings-startup-shell-field')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('settings-cwd-policy-split')), findsOneWidget);
+    expect(find.byKey(const Key('settings-cwd-policy-tab')), findsOneWidget);
+    expect(find.byKey(const Key('settings-cwd-policy-window')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('settings-close-button')));
     await tester.pumpAndSettle();
@@ -3223,7 +3899,7 @@ void main() {
     final beforeCellHeight = _renderViewport(tester).debugCellSize.height;
     final beforeResizeCount = backend.resizeCalls.length;
 
-    await tester.tap(find.byKey(const Key('terminal-settings-button')));
+    await _selectHeaderOverflowAction(tester, 'settings');
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('settings-font-size-increase')));
     await tester.pumpAndSettle();
@@ -3255,7 +3931,7 @@ void main() {
 
     expect(_createdProgramAt(backend, 0), '/bin/zsh');
 
-    await tester.tap(find.byKey(const Key('terminal-settings-button')));
+    await _selectHeaderOverflowAction(tester, 'settings');
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('settings-shell-field')),
@@ -3291,7 +3967,7 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('terminal-settings-button')));
+    await _selectHeaderOverflowAction(tester, 'settings');
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('settings-shell-field')), '');
     await tester.tap(find.byKey(const Key('settings-shell-apply')));
@@ -3311,9 +3987,130 @@ void main() {
 }
 
 Future<void> _tapHeaderControl(WidgetTester tester, Finder finder) async {
+  if (!tester.any(finder)) {
+    final addAction = _addMenuActionForFinder(finder);
+    if (addAction != null) {
+      await _selectAddMenuAction(tester, addAction);
+      return;
+    }
+    final overflowAction = _headerOverflowActionForFinder(finder);
+    if (overflowAction != null) {
+      await _selectHeaderOverflowAction(tester, overflowAction);
+      return;
+    }
+  }
   await tester.tap(finder, warnIfMissed: false);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 200));
+}
+
+Future<void> _openBlockHistoryPanel(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('terminal-block-overview-button')));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 200));
+}
+
+Future<void> _selectAddMenuAction(WidgetTester tester, String action) async {
+  final addMenu = find.byKey(const Key('terminal-add-menu-button'));
+  tester.widget<PopupMenuButton<String>>(addMenu).onSelected!(action);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 200));
+}
+
+Future<void> _selectHeaderOverflowAction(
+  WidgetTester tester,
+  String action,
+) async {
+  final overflowMenu = find.byKey(
+    const Key('terminal-header-overflow-menu-button'),
+  );
+  tester.widget<PopupMenuButton<String>>(overflowMenu).onSelected!(action);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 200));
+}
+
+PopupMenuItem<String> _headerOverflowMenuItem(
+  WidgetTester tester,
+  String action,
+) {
+  final overflowMenu = find.byKey(
+    const Key('terminal-header-overflow-menu-button'),
+  );
+  final popup = tester.widget<PopupMenuButton<String>>(overflowMenu);
+  return popup
+      .itemBuilder(tester.element(overflowMenu))
+      .whereType<PopupMenuItem<String>>()
+      .singleWhere((item) => item.value == action);
+}
+
+Future<void> _selectInlineBlockAction(
+  WidgetTester tester,
+  String action,
+) async {
+  final actionsMenu = find.byKey(
+    const Key('terminal-inline-block-actions-button'),
+  );
+  tester.widget<PopupMenuButton<String>>(actionsMenu).onSelected!(action);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 200));
+}
+
+String? _addMenuActionForFinder(Finder finder) {
+  final description = finder.toString();
+  if (description.contains('terminal-new-tab-button')) {
+    return 'new-tab';
+  }
+  if (description.contains('terminal-new-window-button')) {
+    return 'new-window';
+  }
+  if (description.contains('terminal-new-ssh-session-button')) {
+    return 'new-ssh';
+  }
+  if (description.contains('terminal-saved-launch-configs-button')) {
+    return 'saved-configs';
+  }
+  if (description.contains('terminal-launch-config-button')) {
+    return 'launch-config';
+  }
+  return null;
+}
+
+String? _headerOverflowActionForFinder(Finder finder) {
+  final description = finder.toString();
+  if (description.contains('terminal-search-button')) {
+    return 'search';
+  }
+  if (description.contains('terminal-workspace-search-button')) {
+    return 'workspace-search';
+  }
+  if (description.contains('terminal-settings-button')) {
+    return 'settings';
+  }
+  if (description.contains('terminal-close-window-button')) {
+    return 'close-window';
+  }
+  if (description.contains('terminal-split-right-button')) {
+    return 'split-right';
+  }
+  if (description.contains('terminal-split-down-button')) {
+    return 'split-down';
+  }
+  if (description.contains('terminal-close-pane-button')) {
+    return 'close-pane';
+  }
+  if (description.contains('terminal-session-context-button')) {
+    return 'session-context';
+  }
+  if (description.contains('terminal-copy-button')) {
+    return 'copy';
+  }
+  if (description.contains('terminal-paste-button')) {
+    return 'paste';
+  }
+  if (description.contains('terminal-restart-button')) {
+    return 'restart';
+  }
+  return null;
 }
 
 Future<void> _previousTabShortcut(WidgetTester tester) async {
@@ -3338,6 +4135,23 @@ Future<void> _metaShortcut(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
   await tester.sendKeyEvent(key);
   await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+  await tester.pump();
+}
+
+Future<void> _controlShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key,
+) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyEvent(key);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+  await tester.pump();
+}
+
+Future<void> _altShortcut(WidgetTester tester, LogicalKeyboardKey key) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+  await tester.sendKeyEvent(key);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
   await tester.pump();
 }
 
@@ -3504,6 +4318,7 @@ List<TerminalBlock> _blocksForSession(String sessionId) {
         outputText: '/tmp\n',
         status: TerminalBlockStatus.succeeded,
         scrollbackOffset: 2,
+        recordedAt: '2026-05-04T09:00:00Z',
       ),
       TerminalBlock(
         id: 'session-1-block-2',
@@ -3512,6 +4327,7 @@ List<TerminalBlock> _blocksForSession(String sessionId) {
         outputText: '',
         status: TerminalBlockStatus.failed,
         scrollbackOffset: 9,
+        recordedAt: '2026-05-04T09:01:00Z',
       ),
     ],
     'session-2' => const <TerminalBlock>[
@@ -3522,6 +4338,7 @@ List<TerminalBlock> _blocksForSession(String sessionId) {
         outputText: 'second\n',
         status: TerminalBlockStatus.succeeded,
         scrollbackOffset: 4,
+        recordedAt: '2026-05-04T09:02:00Z',
       ),
     ],
     _ => const <TerminalBlock>[],

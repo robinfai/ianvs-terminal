@@ -7,6 +7,7 @@ import 'package:flutterm_pty/flutterm_pty.dart';
 
 import 'package:ianvs_terminal/src/clipboard_client.dart';
 import 'package:ianvs_terminal/src/command_palette.dart';
+import 'package:ianvs_terminal/src/launch_config.dart';
 import 'package:ianvs_terminal/src/saved_commands.dart';
 import 'package:ianvs_terminal/src/terminal_blocks.dart';
 import 'package:ianvs_terminal/src/terminal_settings.dart';
@@ -36,6 +37,7 @@ void main() {
         outputText: '/tmp/alpha\n',
         status: TerminalBlockStatus.succeeded,
         scrollbackOffset: 2,
+        recordedAt: '2026-05-04T09:15:00Z',
       ),
     );
     windows.newWindow();
@@ -53,7 +55,9 @@ void main() {
     );
 
     expect(
-      entries.where((entry) => entry.source == CommandPaletteEntrySource.saved),
+      entries.where(
+        (entry) => entry.source == CommandPaletteEntrySource.workflow,
+      ),
       hasLength(1),
     );
     expect(
@@ -77,6 +81,25 @@ void main() {
       ),
       isTrue,
     );
+    final history = entries.singleWhere(
+      (entry) => entry.source == CommandPaletteEntrySource.history,
+    );
+    expect(history.commandDetailLabel, contains('Succeeded'));
+    expect(history.commandDetailLabel, contains(alpha.path));
+    expect(history.commandDetailLabel, contains('2026-05-04'));
+    expect(history.commandDetailLabel, contains('Output /tmp/alpha'));
+
+    final prodSession = entries.singleWhere(
+      (entry) =>
+          entry.source == CommandPaletteEntrySource.session &&
+          entry.metadata.host == 'prod.example.internal',
+    );
+    expect(prodSession.sessionDetailLabel, contains('Prompt'));
+    expect(
+      prodSession.sessionDetailLabel,
+      contains('Target Host prod.example.internal'),
+    );
+    expect(prodSession.sessionDetailLabel, contains('Running'));
   });
 
   test(
@@ -85,9 +108,37 @@ void main() {
       final backend = _FakePtySessionBackend();
       final saved = SavedCommandsController.memory();
       final windows = _windows(backend, savedCommandsController: saved);
+      final launchConfigDir = Directory.systemTemp.createTempSync(
+        'ianvs_palette_launch_configs_',
+      );
+      final launchConfigStore = TerminalLaunchConfigurationStore(
+        directory: launchConfigDir,
+      );
+      launchConfigStore.save(
+        File('${launchConfigDir.path}/daily-stack.json'),
+        const TerminalLaunchConfiguration(
+          windows: <TerminalLaunchConfigurationWindow>[
+            TerminalLaunchConfigurationWindow(
+              fallbackTitle: 'Ops Window',
+              tabs: <TerminalLaunchConfigurationTab>[
+                TerminalLaunchConfigurationTab(
+                  fallbackTitle: 'Deploy',
+                  activePaneId: 1,
+                  rootPane: TerminalLaunchConfigurationPaneLeaf(
+                    id: 1,
+                    cwd: '/tmp/payments',
+                    startupCommand: 'kubectl get pods',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
       addTearDown(() {
         windows.dispose();
         saved.dispose();
+        launchConfigDir.deleteSync(recursive: true);
       });
 
       windows.createInitialWindow();
@@ -99,6 +150,7 @@ void main() {
           outputText: 'history\n',
           status: TerminalBlockStatus.succeeded,
           scrollbackOffset: 3,
+          recordedAt: '2026-05-04T10:30:00Z',
         ),
       );
       windows.newWindow();
@@ -112,10 +164,16 @@ void main() {
       final controller = CommandPaletteController(
         windowsController: windows,
         savedCommandsController: saved,
+        launchConfigStore: launchConfigStore,
       );
       addTearDown(controller.dispose);
 
       controller.open(filter: CommandPaletteFilter.commands);
+      expect(controller.countForFilter(CommandPaletteFilter.workflow), 0);
+      expect(controller.countForFilter(CommandPaletteFilter.history), 1);
+      expect(controller.countForFilter(CommandPaletteFilter.session), 3);
+      expect(controller.countForFilter(CommandPaletteFilter.ssh), 1);
+      expect(controller.countForFilter(CommandPaletteFilter.launchConfig), 1);
       controller.updateQuery('history');
       expect(
         controller.matches.single.source,
@@ -125,11 +183,36 @@ void main() {
       expect(saved.commands, <String>['echo history']);
 
       controller.updateQuery('saved:echo');
-      expect(controller.matches.single.source, CommandPaletteEntrySource.saved);
+      expect(
+        controller.matches.single.source,
+        CommandPaletteEntrySource.workflow,
+      );
       expect(controller.removeActiveEntry(), isTrue);
       expect(saved.commands, isEmpty);
 
+      controller.updateQuery('workflow:echo');
+      expect(controller.matches, isEmpty);
+
       controller.open(filter: CommandPaletteFilter.all);
+      controller.updateQuery('launch:daily');
+      expect(
+        controller.matches.single.source,
+        CommandPaletteEntrySource.launchConfig,
+      );
+      expect(
+        controller.matches.single.launchConfigDetailLabel,
+        contains('App config'),
+      );
+      expect(
+        controller.matches.single.launchConfigDetailLabel,
+        contains('1 panes'),
+      );
+
+      controller.updateFilter(CommandPaletteFilter.session);
+      expect(controller.query, isEmpty);
+      expect(controller.effectiveFilter, CommandPaletteFilter.session);
+      expect(controller.matches.every((entry) => entry.isSessionEntry), isTrue);
+
       controller.updateQuery('session:prod');
       expect(
         controller.matches.single.source,

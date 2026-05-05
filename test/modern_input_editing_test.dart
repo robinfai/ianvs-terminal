@@ -75,4 +75,30 @@ void main() {
     expect(applyModernInputPairInsertion(value, '`'), isNull);
     expect(applyModernInputPairBackspace(value), isNull);
   });
+
+  test('editor shortcuts clear select and delete command text', () {
+    final cleared = applyModernInputClearLine(
+      const TextEditingValue(
+        text: 'echo one\necho two',
+        selection: TextSelection.collapsed(offset: 14),
+      ),
+    );
+    expect(cleared.text, 'echo one\ntwo');
+    expect(cleared.selection.baseOffset, 9);
+
+    final selected = applyModernInputSelectBuffer(
+      const TextEditingValue(text: 'echo all'),
+    );
+    expect(selected.selection.baseOffset, 0);
+    expect(selected.selection.extentOffset, 8);
+
+    final deleted = applyModernInputDeletePreviousWord(
+      const TextEditingValue(
+        text: 'kubectl get pods',
+        selection: TextSelection.collapsed(offset: 16),
+      ),
+    );
+    expect(deleted.text, 'kubectl get ');
+    expect(deleted.selection.baseOffset, 12);
+  });
 }

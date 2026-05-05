@@ -1,211 +1,166 @@
-# Warp 源码级全量复审
+# Warp 源码与交互对比复审
 
-日期：`2026-05-03`
+日期：`2026-05-04`
 
-Warp 参考基线：
+## 基线
 
-- 仓库：`https://github.com/warpdotdev/Warp.git`
-- commit：`a5fde8f`
-- 本机 checkout：`/private/tmp/warp-source-20260503`
+- Warp 仓库：`https://github.com/warpdotdev/Warp.git`
+- 本机浅克隆：`../../warp`
+- 当前 ref：`master@23eedf4`
+- commit 时间：`2026-05-03T23:50:56-07:00`
+- clone 形态：`--depth 1 --single-branch --filter=blob:none --sparse`
+- sparse 目录：
+  - `../../warp/app/src/terminal/`
+  - `../../warp/app/src/terminal/model/`
+  - `../../warp/app/src/terminal/input/`
+  - `../../warp/app/src/search/command_search/`
+  - `../../warp/app/src/search/command_palette/`
+  - `../../warp/app/src/pane_group/`
+  - `../../warp/app/src/launch_configs/`
+  - `../../warp/app/src/integration_testing/`
 
-Warp 文档基线：
+本轮 Computer Use 对 `dev.warp.Warp-Stable` 被插件安全策略拒绝，后续交互截图由用户手动完成；这些截图只作为本机交互观察证据，不复制 Warp 素材到产品 UI。
 
-- Legacy 语义参考：[Launch Configurations](https://docs.warp.dev/terminal/sessions/launch-configurations)
-- 当前截图 UI 参考：[Tab Configs](https://docs.warp.dev/terminal/windows/tab-configs/)
+## 交互截图观察
 
-说明：
+截图目录：`docs/design_snapshots/warp_alignment/warp_interaction/`
 
-- 当前沙箱不允许创建 `/Users/robinfai`，所以这轮源码级对比实际使用 `/private/tmp/warp-source-20260503`，没有落到 `AGENTS.md` 里写的 `/Users/robinfai/personal/warp`。
-- Warp 官方文档在 `2026-04-30` 已把 `Launch Configurations` 标记为 legacy，并把日常保存入口转向 `Tab Configs`。但 Ianvs 当前要补的是“应用窗口导出”，对应的语义仍更接近 Warp 源码里的 `launch_configs/save_modal.rs` 和 `launch_config.rs`。
-- 因为你新增了“应用导出截图与 Warp 文档截图 UI 一致性达到 80% 水准”的要求，所以本文把 benchmark 拆成两层：
-  - 语义 benchmark：Warp `LaunchConfig::from_snapshot` 的 app-level snapshot。
-  - 视觉 benchmark：Warp 当前官方文档 `Tab Configs` 截图的入口、层级和主按钮风格，再结合本地 `LaunchConfigSaveModal` 源码。
+- `01_terminal_blocks.png`：Warp 在 terminal 内容区内直接按 command/output 形成 block，顶部保留 prompt/cwd/git 状态，底部 input editor 和上下文 chip 与当前 session 强绑定。
+- `02_block_not_hover_click_actions.png`：block 被选中或 hover 后，右侧出现 inline actions；动作靠近 block 本体，而不是远离 terminal 的全局工具栏。
+- `03_command_search.png`：command/search palette 是统一入口，零状态直接暴露 workflows、prompts、notebooks、environment variables、files、sessions、launch configurations、conversations 等类别。
+- `04_completion_input.png`：输入 `git pull` 时，Warp 能识别 shell command，并允许用快捷键覆盖自动检测；补全/输入状态与 active block 区域之间有清晰分隔。
+- `05_split_pane.png`：split pane 后，每个 pane 都保留独立 header、关闭/更多菜单、底部 cwd/git/context chips 和 agent/terminal prompt 区；active pane 视觉边界明确。
+- `06_tab_or_launch_config_entry.png`：顶部 `+` 菜单把 new terminal tab、agent tab、cloud agent tab、shell selector 和 launch configs 入口集中在一起。
 
-## 总结
+## 源码级对比
 
-- Ianvs 当前 `M0 -> M6` 按原里程碑定义仍可保持 `done`，已有 widget / smoke / build 验证不需要回滚。
-- 但如果目标提高到“功能基本对齐 Warp”，当前仓库还不能宣称已经达到。
-- 这轮全量复审后，必须计入的缺口共有五组：
-  - `M7A` 多窗口运行时与应用窗口导出
-  - `M7B` 导出 UI 对齐与截图验收
-  - `M7C` block 呈现层与终端内分组
-  - `M7D` 命令搜索与会话导航范围
-  - `M7E` 桌面端端到端验证基线
-- 另有一组次级差距需要记录但不阻塞当前 M7 主线：
-  - 会话设置面仍明显窄于 Warp，尤其是 `new session shell`、`startup shell`、`working directory per source`。
+### Launch Config
 
-## 逐段复审
+Warp：
 
-### M0 到 M1：本地终端基线
+- `../../warp/app/src/launch_configs/launch_config.rs:15` 顶层 `LaunchConfig` 是 `name + active_window_index + windows[]`。
+- `../../warp/app/src/launch_configs/launch_config.rs:23` 的 `from_snapshot` 从 app state 生成窗口级 snapshot，并跳过 quake window。
+- `../../warp/app/src/launch_configs/launch_config.rs:92` 的 pane template 保留 `cwd`、`commands`、focus、pane mode 和 shell override。
+- `../../warp/app/src/launch_configs/save_modal.rs:96` 的保存 modal 有 `NotSaved -> Success/Failure` 生命周期，`save_modal.rs:261` 直接把当前 app state 保存成 launch config。
 
-Ianvs 证据：
+Ianvs：
 
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:21) 已覆盖 flutterm-backed shell surface 启动。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:605) 已覆盖查找与结果跳转。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:1803) 已覆盖平台菜单。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:2341) 已覆盖多 tab 基础行为。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:2847) 已覆盖设置面板。
-- [real_shell_smoke_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/real_shell_smoke_test.dart:24) 到 [real_shell_smoke_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/real_shell_smoke_test.dart:208) 已覆盖真实 shell、退出码、查找复制、多 tab、多 pane。
+- `lib/src/terminal_windows.dart:28` 已有 `TerminalWindowsController`，包含 window collection、active window、new/close/select window。
+- `lib/src/terminal_windows.dart:185` 已能导出 app-level `TerminalLaunchConfiguration`，`terminal_windows.dart:223` 已能 apply `windows[]`。
+- `lib/src/launch_config.dart:21` 已升级为 `version = 2`、`scope`、`activeWindowIndex`、`windows[]`，并在单窗口时保留 legacy `tabs` 字段。
 
-结果：
+结论：Ianvs 的 app-level launch config 语义已经跟上 Warp 主要结构；后续优化集中在 `+` 菜单里的发现入口、tab config 日常保存路径、以及保存后验证体验的稳定 golden。
 
-- `基本满足 Ianvs 当前基线目标`。
-- 这部分不需要重开。
-- 但它仍是“单窗口产品壳”。Ianvs 当前没有 `New Window` 行为，也没有窗口级控制器，所以后续 app-level export 不能只当作 launch-config schema 扩展。
+### Blocks
 
-### M2：block 能力
+Warp：
 
-Warp 证据：
+- `../../warp/app/src/terminal/model/block.rs:286` 的 `Block` 是 terminal model 内部对象，持有 prompt/output grid、cwd、session、timestamps、prompt snapshot、filter query 等。
+- `../../warp/app/src/terminal/model/block.rs:617` 的 `BlockState` 区分 before/executing/done/background/static。
+- `../../warp/app/src/terminal/model/block.rs:644` 的 `BlockMetadata` 把 session 和 cwd 绑定进 block。
+- `../../warp/app/src/terminal/model/blocks.rs:135` 的 `BlockHeightItem` 支持 restored separator、inline banner、subshell separator 和 rich content。
+- `../../warp/app/src/terminal/model/blocks.rs:239` 的 `BlockList` 是 terminal scroll/render 模型的一部分。
 
-- [block.rs](/private/tmp/warp-source-20260503/app/src/terminal/model/block.rs:286) 的 `Block` 直接持有 prompt、command、output、cwd、session_id、banner、prompt snapshot、filter query 等状态。
-- [block.rs](/private/tmp/warp-source-20260503/app/src/terminal/model/block.rs:617) 的 `BlockState` 区分 `BeforeExecution`、`Executing`、`DoneWithExecution`、`Background`、`Static` 等多种生命周期。
-- [block.rs](/private/tmp/warp-source-20260503/app/src/terminal/model/block.rs:644) 的 `BlockMetadata` 把 session 和 cwd 绑定进 block 模型。
-- [blocks.rs](/private/tmp/warp-source-20260503/app/src/terminal/model/blocks.rs:135) 的 `BlockHeightItem` 直接支持 restored separator、inline banner、subshell separator、rich content。
-- [blocks.rs](/private/tmp/warp-source-20260503/app/src/terminal/model/blocks.rs:239) 的 `BlockList` 是终端滚动与渲染模型的一部分，不是额外的侧边 controller。
+Ianvs：
 
-Ianvs 证据：
+- `lib/src/terminal_blocks.dart:22` 的 `TerminalBlock` 仍是产品层记录，字段主要是 command/output/status/scrollback offset。
+- 当前 UI 已有 inline rail、active block card、status rail、sticky command header、右侧历史 panel 和默认布局截图 gate，但 block 还不是 flutterm scrollback 原生 row-range。
 
-- [terminal_blocks.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_blocks.dart:22) 的 `TerminalBlock` 目前只保留 `id`、`sessionId`、`commandText`、`outputText`、`status`、`scrollbackOffset`、`recordedAt`、`targetEnvironment`。
-- [terminal_blocks.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_blocks.dart:66) 的 `TerminalBlocksController` 主要负责跳转、复制和 reinput。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:871) 到 [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:1037) 覆盖的是 block history panel 和 toolbar 行为。
+优化点：
 
-结果：
+- 下一步应把 block divider、status gutter、sticky command header 的底层扩展继续沉到 flutterm，Ianvs 侧只消费 row range 和 metadata。
+- 保留现有 side panel 作为导航/历史入口，但主体验应向 terminal-native block 分组迁移。
 
-- `不满足 Warp 基本对齐要求`。
-- Ianvs 已有 block 事件和 block 历史面板，但还不是 Warp 那种“终端内容本身按 block 组织”的产品层级。
-- 后续整改不能只补更多 block 字段，必须补终端内分组、分隔和 active block 呈现。
+### Input / Completion
 
-### M3：现代输入、命令搜索和补全
+Warp：
 
-Warp 证据：
+- 本机截图显示底部 input editor 与 cwd/git/context chips 绑定，输入时有 shell command autodetect 和覆盖提示。
+- `../../warp/app/src/terminal/input/common.rs:263` 和 `common.rs:289` 说明 workflow enum / dynamic workflow menus 可以直接附着在输入区。
 
-- [terminal.rs](/private/tmp/warp-source-20260503/app/src/terminal/input/terminal.rs:173) 到 [terminal.rs](/private/tmp/warp-source-20260503/app/src/terminal/input/terminal.rs:290) 的 terminal input 已把 `slash commands`、`prompts`、`conversation`、`skills`、`inline history`、`repos` 放进统一输入菜单。
-- [command_search/mod.rs](/private/tmp/warp-source-20260503/app/src/search/command_search/mod.rs:1) 到 [command_search/mod.rs](/private/tmp/warp-source-20260503/app/src/search/command_search/mod.rs:10) 同时挂了 `history`、`projects`、`workflows` 等来源。
-- [navigation/search.rs](/private/tmp/warp-source-20260503/app/src/search/command_palette/navigation/search.rs:89) 到 [navigation/search.rs](/private/tmp/warp-source-20260503/app/src/search/command_palette/navigation/search.rs:230) 的 session navigation 会把 prompt、最近命令和 hint text 一起做 fuzzy search。
+Ianvs：
 
-Ianvs 证据：
+- 现有 `_ModernInputBar` 已从普通表单收口为 editor 容器，并通过 inline shell 承载 completion / history / palette。
+- 默认布局在 editor 上方新增 `_InputContextStrip`，把 target、cwd、status、last command 放在 input-adjacent 区域，避免默认画面只在顶部 chrome 表达 session context。
+- `lib/src/saved_commands.dart:9` 已有 `SavedCommandEntry` schema，可以继续扩展成 workflow-like saved command。
 
-- [command_history.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/command_history.dart:38) 到 [command_history.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/command_history.dart:253) 的命令搜索只合并当前 block 历史和本地 saved commands。
-- [saved_commands.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/saved_commands.dart:8) 到 [saved_commands.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/saved_commands.dart:149) 的保存命令库当前只是字符串列表，不带 workflow 结构。
-- [workspace_search.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/workspace_search.dart:6) 到 [workspace_search.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/workspace_search.dart:217) 只搜索当前窗口里已经打开的 tab/pane。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:1110) 到 [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:1303) 已证明 Ianvs 当前命令搜索是“当前 tab 历史 + saved commands”的 MVP。
+优化点：
 
-结果：
+- completion 要补更明确的候选列表、来源标签和选择态，避免只停留在 inline hint。
+- 输入区可以增加 command type/autodetect 状态，但不要引入 Warp 的 AI/agent 文案作为产品默认路径。
 
-- `部分满足`。
-- 现代输入、raw 切换、括号补全和 Fig specs completion 的 MVP 已经有了，但“命令搜索”和“会话导航”范围还明显窄于 Warp。
-- 这里的整改重点不该是继续打磨单个补全规则，而是把搜索源和导航对象做成更完整的 palette。
+### Command Search / Session Navigation
 
-### M4：pane、restore、workspace、launch config
+Warp：
 
-Warp 证据：
+- `../../warp/app/src/search/command_palette/data_sources.rs:27` 的 `DataSourceStore` 聚合 actions、sessions、Warp Drive、launch configs、new sessions、conversations、repos 和 files。
+- `../../warp/app/src/search/command_palette/data_sources.rs:89` 开始按 query filter 注册 launch configs / sessions / workflows / env vars / files 等来源。
+- `../../warp/app/src/search/command_palette/navigation/search.rs:89` 会用 session prompt、last/running command 和 hint text 做 fuzzy search。
+- `../../warp/app/src/search/command_search/view.rs:66` 的默认占位就是搜索 history、workflows 等更宽来源。
 
-- [launch_config.rs](/private/tmp/warp-source-20260503/app/src/launch_configs/launch_config.rs:15) 到 [launch_config.rs](/private/tmp/warp-source-20260503/app/src/launch_configs/launch_config.rs:40) 的 `LaunchConfig` 顶层直接是 `active_window_index + windows[]`。
-- [launch_config.rs](/private/tmp/warp-source-20260503/app/src/launch_configs/launch_config.rs:92) 到 [launch_config.rs](/private/tmp/warp-source-20260503/app/src/launch_configs/launch_config.rs:140) 的 pane template 还支持 per-pane commands、shell override 和 pane mode。
-- [save_modal.rs](/private/tmp/warp-source-20260503/app/src/launch_configs/save_modal.rs:94) 到 [save_modal.rs](/private/tmp/warp-source-20260503/app/src/launch_configs/save_modal.rs:265) 的 `LaunchConfigSaveModal` 直接从当前 app state 做 snapshot。
-- [integration_testing/mod.rs](/private/tmp/warp-source-20260503/app/src/integration_testing/mod.rs:20) 到 [integration_testing/mod.rs](/private/tmp/warp-source-20260503/app/src/integration_testing/mod.rs:38) 已把 `launch_configs`、`navigation_palette`、`pane_group`、`window`、`workspace` 独立成模块。
+Ianvs：
 
-Ianvs 证据：
+- `lib/src/command_palette.dart:21` 已有 workflow/history/session/ssh/launch filter 与 source count。
+- `_CommandPalettePanel` 已在 input-adjacent inline shell 中显示 source rail，让 Workflow、History、Sessions、SSH、Launch 的可用数量和点击筛选成为截图可见入口。
+- session detail 已包含 prompt-ish context、cwd、target、last command、recency。
 
-- [terminal_tabs_controller.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_tabs_controller.dart:174) 到 [terminal_tabs_controller.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_tabs_controller.dart:181) 的 `currentLaunchConfiguration()` 只导出当前 `TerminalTabsController` 的 tabs。
-- [terminal_tabs_controller.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_tabs_controller.dart:332) 到 [terminal_tabs_controller.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_tabs_controller.dart:364) 的 `applyLaunchConfiguration()` 只恢复单窗口 tabs/panes。
-- [launch_config.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/launch_config.dart:9) 到 [launch_config.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/launch_config.dart:95) 顶层只有 `activeTabIndex` 和 `tabs`。
-- [main.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/main.dart:3520) 到 [main.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/main.dart:3703) 当前 `Launch Config` UI 仍是手填路径的 `AlertDialog`。
-- [main.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/main.dart:523) 到 [main.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/main.dart:667) 平台菜单没有 `New Window` 或窗口级管理入口。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:1873) 只验证单窗口 workspace file 的保存 / 回放。
+优化点：
 
-结果：
+- session search 的 prompt fidelity 还受 shell metadata 限制，后续应消费更完整的 prompt snapshot 或 flutterm shell hook metadata。
+- Files、prompts、notebooks、conversations 等 Warp 类别不属于当前 Ianvs Terminal 本地能力，本轮不伪装为已支持 source。
 
-- `pane / restore 基础可用，但 launch config 与窗口层明显不足`。
-- 这里至少有三层缺口：
-  - 没有多窗口运行时。
-  - 没有 app-level export/import。
-  - 当前导出 UI 与 Warp 文档 / 源码的交互层级差距很大。
+### Pane / Session
 
-### M5：SSH 会话与会话设置
+Warp：
 
-Warp 证据：
+- `05_split_pane.png` 显示每个 pane 都有独立 header、close/overflow、pane-local context chips 和 input。
+- `../../warp/app/src/pane_group/mod.rs:2372` 附近已把 pane 内 terminal sessions 作为 pane group 可遍历对象。
 
-- [ssh/mod.rs](/private/tmp/warp-source-20260503/app/src/terminal/ssh/mod.rs:1) 到 [ssh/mod.rs](/private/tmp/warp-source-20260503/app/src/terminal/ssh/mod.rs:10) 表明 Warp 的 SSH 已经进入更重的 remote-native 模块。
-- [new_session_shell.rs](/private/tmp/warp-source-20260503/app/src/terminal/session_settings/new_session_shell.rs:23) 定义了 `NewSessionShell`。
-- [startup_shell.rs](/private/tmp/warp-source-20260503/app/src/terminal/session_settings/startup_shell.rs:13) 定义了 `StartupShell`。
-- [working_directory_config.rs](/private/tmp/warp-source-20260503/app/src/terminal/session_settings/working_directory_config.rs:112) 开始定义按 `SplitPane / Tab / Window` 区分的工作目录策略。
+Ianvs：
 
-Ianvs 证据：
+- Ianvs 已有 pane local header、active marker、split/close/focus、drag handle 承载点、pane-local context chips 和 pane menu。
+- pane menu 已支持把当前 split pane 移到新 tab，复用原 session，不重启 PTY。
+- 缺口主要是完整 drag gesture 到 tab bar，以及更完整的 prompt/git 状态密度。
 
-- [session_launch.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/session_launch.dart:9) 到 [session_launch.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/session_launch.dart:78) 当前 SSH launch 只是把 program 改写成 `ssh` 并传 `authority`。
-- [terminal_tabs_controller.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_tabs_controller.dart:206) 到 [terminal_tabs_controller.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_tabs_controller.dart:227) 当前只支持新建本地 `ssh` command tab。
-- [terminal_settings.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_settings.dart:57) 到 [terminal_settings.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/lib/src/terminal_settings.dart:215) 目前设置面只覆盖字体、字号、主题和一个 `defaultShell`。
+优化点：
 
-结果：
+- 后续若继续追 Warp split pane 操作，应补完整 drag/drop gesture，而不是把 pane 操作回流到全局 header。
+- 每个 pane 底部的 cwd/git/session context 应保持独立，split 后不能只显示 active pane 的上下文。
 
-- `SSH 当前口径可接受，但设置面明显更窄`。
-- remote-native SSH、warpify、网关或远端文件能力不计入 Ianvs Terminal 当前必做范围。
-- 但会话设置 breadth 仍应记为次级差距，否则后续多窗口和导出能力会持续受限于“所有 session 共享一个 default shell”的简单模型。
+### Settings / Verification
 
-### M6：验证体系
+Warp：
 
-Warp 证据：
+- `../../warp/app/src/terminal/session_settings/new_session_shell.rs:23` 定义 new session shell。
+- `../../warp/app/src/terminal/session_settings/startup_shell.rs:13` 定义 startup shell。
+- `../../warp/app/src/terminal/session_settings/working_directory_config.rs:112` 支持 split/tab/window 分 source 的 cwd policy。
+- `../../warp/app/src/integration_testing/mod.rs:5` 拆出 terminal、pane_group、launch_configs、navigation_palette、window、workspace 等 app-level harness。
 
-- [integration_testing/mod.rs](/private/tmp/warp-source-20260503/app/src/integration_testing/mod.rs:5) 到 [integration_testing/mod.rs](/private/tmp/warp-source-20260503/app/src/integration_testing/mod.rs:38) 直接拆出 `terminal`、`pane_group`、`launch_configs`、`navigation_palette`、`window`、`workspace` 等 app-level harness。
+Ianvs：
 
-Ianvs 证据：
+- Settings 已预留 session defaults，但行为接入仍浅。
+- `test/demo_terminal_session_test.dart` 已开始作为桌面端 E2E harness，配合 launch config / warp alignment golden 和 `5%` 归一化像素 contract 形成基础验收。
 
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:1459) 已覆盖 shell hook block 流。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:1873) 已覆盖 launch config MVP。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:2160) 已覆盖 workspace search。
-- [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:2513) 与 [widget_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/widget_test.dart:2685) 已覆盖 pane 和 restore。
-- [real_shell_smoke_test.dart](/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/test/real_shell_smoke_test.dart:317) 之后还覆盖了 restore、prompt、zsh blocks、completion、SSH smoke。
+优化点：
 
-结果：
+- 把 Settings 预留项接入实际 new tab / split / new window 行为，尤其是 cwd policy。
+- 继续维护 manual Warp screenshot checklist，因为当前 Computer Use 不能直接控制 Warp；Ianvs 自身 UI 则继续用 Flutter golden 和 demo harness 验证。
 
-- `现有验证很有价值，但方法层不对齐`。
-- Ianvs 现在的问题不是“没有测试”，而是“没有可复用的桌面端 app-level E2E harness”。
-- 只靠 widget + real-shell smoke，后续多窗口 / app-export / UI benchmark 会越来越难维护。
+## 改进优化点汇总
 
-## 必须进入整改的待办
+| 分组 | 当前结论 | 下一步 |
+| --- | --- | --- |
+| blocks | Ianvs 已有可见 block rail / card / panel，但不是 terminal-native block list。 | 推动 flutterm row-range divider / gutter / sticky header 扩展，产品侧只消费结构化 block metadata。 |
+| 输入 / 补全 | 输入区已 editor 化，并在默认布局显示 input-adjacent context chips；`04_completion_input.png` 已改为 terminal pane-local contract，覆盖 block band、command/output body、actions、detection strip 和 input editor。 | 更深 prompt/git fidelity 依赖 shell metadata；completion candidate 下拉若有新的 Warp 基准图再补 dedicated rect contract。 |
+| 命令搜索 | 已覆盖 workflow/history/session/ssh/launch，并在 palette 里显示 source rail 计数筛选；source rail 和 results top 已加入 5% rect contract。 | 后续补 session prompt snapshot fidelity；不伪装 Files / prompts / notebooks 等非当前产品能力。 |
+| pane / session | split pane 视觉承载、pane-local menu、context chips、每 pane 底部输入区和 move-to-tab 行为已到位。 | 后续补完整 drag gesture 到 tab bar 和更高密度 prompt/git context。 |
+| launch config | app-level schema 已对齐，UI 已有 name-first/save-success；compose / success 的 panel 与内部关键控件已有 5% rect contract。 | 把 `+` 菜单和 saved config discovery 继续固化为主入口，补 tab config 日常保存流。 |
+| 桌面验证 | Ianvs 有 widget/real shell/golden/demo harness；default / completion / split 等 dedicated golden 已补齐；default block/input、completion input pane-local、command palette、session palette、add menu、split pane、saved config sidecar 已有 `5%` pixel contract；Computer Use 不能控制 Warp。 | 保留手动 Warp 截图清单；Ianvs 自身继续用 demo harness + golden + pixel contract 防退化。 |
 
-### M7A：多窗口运行时与应用窗口导出
+## 复核命令
 
-- 先补产品侧窗口集合模型和窗口创建 / 激活 / 关闭入口，再谈 app-level export。
-- launch config 顶层从 `activeTabIndex + tabs[]` 升级为 `activeWindowIndex + windows[]`。
-- 导出 / 导入要覆盖窗口内 tab、pane、cwd、startup command、session metadata、launch profile。
-
-### M7B：导出 UI 对齐与截图验收
-
-- 当前 Ianvs 是手填路径的 `AlertDialog`，与 Warp 文档截图和 `LaunchConfigSaveModal` 交互层级差距过大。
-- UI benchmark 采用：
-  - 语义：Warp legacy `Launch Configurations` 的 app snapshot 流程。
-  - 视觉：Warp 当前 `Tab Configs` 文档截图的入口、层级、命名输入和主按钮风格。
-- 验收新增一条硬条件：Ianvs 导出 UI 截图与 Warp 文档对应截图达到约 `80%` 一致度，重点看布局层级、主 CTA、信息密度和保存成功反馈；不要求品牌素材或文案逐字复制。
-
-### M7C：block 呈现收口
-
-- 把 block 从“旁路历史面板”提升到“终端内可感知的内容分组”。
-- 至少补齐 active block 呈现、block divider / separator、复制输出定位与 restore 后的 block 可视一致性。
-- 不要求复制 Warp 的 AI block、rich content 或 cloud pane，但必须达到“命令和输出确实按 block 组织”的产品感知。
-
-### M7D：命令搜索与会话导航收口
-
-- 把当前 “saved + current-tab history” 扩成更像 palette 的统一搜索入口。
-- 至少补齐：
-  - 会话导航
-  - 更宽的 workspace / project 维度搜索
-  - 可继续扩展到 workflow-like 保存命令结构的 schema
-- 这一阶段不要求把 Warp 的 AI queries、repos、skills 全搬进来。
-
-### M7E：桌面端端到端验证基线
-
-- 建立桌面端 E2E harness，统一封装 window、tab、pane、launch config、session context、SSH、workspace search 动作与断言。
-- 首批必须覆盖：
-  - 新建两个窗口并切换 active window
-  - app-level export / destroy / re-apply
-  - 导出 UI 成功反馈
-  - pane / restore / workspace search
-  - SSH command session 创建、metadata 更新、restart
-
-## 次级差距
-
-- 会话设置 breadth 仍明显窄于 Warp。
-- 当前先记为 `secondary backlog`，不阻塞 M7A 到 M7E 的先后顺序。
-- 等 app-level export 与 E2E 基线收口后，再决定是否单独立项做 `new session shell`、`startup shell`、`working directory per source`。
+```bash
+git -C ../../warp rev-parse --short HEAD
+git -C ../../warp sparse-checkout list
+rg "old Warp absolute path patterns" *.md docs AGENTS.md
+```

@@ -16,7 +16,7 @@
 - 复用 flutterm example 的 macOS Xcode 脚本，构建、复制并签名 `libflutterm_core.dylib`。
 - 关闭 macOS App Sandbox，允许 flutterm native core 创建本地 PTY shell。
 - 建立产品文档、里程碑文档和 flutterm 反馈文档。
-- 明确 `/Users/robinfai/personal/warp` 只作为功能参考。
+- 明确 `../../warp` 只作为功能参考。
 
 完成条件：
 
@@ -592,18 +592,19 @@ M4 总体完成条件：
 
 ## M7：Warp 基本对齐收口
 
-目标：基于 `2026-05-03` 的 `WARP_SOURCE_REAUDIT.md`，把 Ianvs Terminal 从“当前里程碑都已闭环”推进到“与 Warp 对应能力基本对齐”。这一阶段不再只补 launch config MVP，而是把窗口、导出 UI、block 呈现、命令搜索 / 会话导航和桌面端 E2E 一起收口。
+目标：基于 `2026-05-04` 的 `WARP_SOURCE_REAUDIT.md`，把 Ianvs Terminal 从“当前里程碑都已闭环”推进到“与 Warp 对应能力基本对齐”。这一阶段不再只补 launch config MVP，而是把窗口、导出 UI、block 呈现、命令搜索 / 会话导航和桌面端 E2E 一起收口。
 
 参考：
 
-- Warp 源码：`/private/tmp/warp-source-20260503/app/src/launch_configs/`
-- Warp 源码：`/private/tmp/warp-source-20260503/app/src/pane_group/`
-- Warp 源码：`/private/tmp/warp-source-20260503/app/src/terminal/model/`
-- Warp 源码：`/private/tmp/warp-source-20260503/app/src/terminal/input/`
-- Warp 源码：`/private/tmp/warp-source-20260503/app/src/search/command_search/`
-- Warp 源码：`/private/tmp/warp-source-20260503/app/src/search/command_palette/`
-- Warp 源码：`/private/tmp/warp-source-20260503/app/src/integration_testing/`
-- Warp 源码：`/private/tmp/warp-source-20260503/app/src/terminal/ssh/`
+- Warp 源码基线：`../../warp`，`warpdotdev/Warp@23eedf4`
+- Warp 源码：`../../warp/app/src/launch_configs/`
+- Warp 源码：`../../warp/app/src/pane_group/`
+- Warp 源码：`../../warp/app/src/terminal/model/`
+- Warp 源码：`../../warp/app/src/terminal/input/`
+- Warp 源码：`../../warp/app/src/search/command_search/`
+- Warp 源码：`../../warp/app/src/search/command_palette/`
+- Warp 源码：`../../warp/app/src/integration_testing/`
+- Warp 源码：`../../warp/app/src/terminal/ssh/`
 - Warp 文档：`https://docs.warp.dev/terminal/sessions/launch-configurations`
 - Warp 文档：`https://docs.warp.dev/terminal/windows/tab-configs/`
 
