@@ -122,7 +122,7 @@ COMPARISONS: tuple[Comparison, ...] = (
             Region("command_body", "command/output body", "block", rect(532, 489, 2680, 326), rect(15, 418, 1306, 267)),
             Region("block_actions", "inline actions", "actions", rect(3188, 470, 250, 58), rect(1309, 402, 122, 44)),
             Region("input_context", "input context chips", "context", rect(532, 873, 2690, 41), rect(15, 729, 1311, 34)),
-            Region("input_editor", "input editor", "input", rect(501, 914, 2955, 164), rect(16, 763, 1408, 137)),
+            Region("input_editor", "input editor", "input", rect(501, 914, 2955, 164), rect(0, 766, 1440, 134)),
         ),
     ),
     Comparison(
@@ -202,11 +202,11 @@ COMPARISONS: tuple[Comparison, ...] = (
         ),
         regions=(
             Region("comparison_frame", "comparison frame", "anchor", rect(0, 0, 3456, 1078), rect(0, 0, 1440, 900)),
-            Region("terminal_area", "terminal area", "anchor", rect(501, 71, 2955, 1007), rect(0, 76, 1440, 824)),
-            Region("left_pane", "left pane", "pane", rect(501, 71, 1477, 1007), rect(0, 76, 720, 824)),
-            Region("right_pane", "right pane", "pane", rect(1978, 71, 1478, 1007), rect(720, 76, 720, 824)),
-            Region("pane_header", "pane headers", "pane", rect(501, 72, 2955, 40), rect(0, 60, 1440, 34)),
-            Region("active_marker", "active pane marker", "actions", rect(1978, 72, 20, 40), rect(720, 60, 10, 34)),
+            Region("terminal_area", "terminal area", "anchor", rect(501, 71, 2955, 1007), rect(0, 58, 1440, 842)),
+            Region("left_pane", "left pane", "pane", rect(501, 71, 1477, 1007), rect(0, 58, 720, 842)),
+            Region("right_pane", "right pane", "pane", rect(1978, 71, 1478, 1007), rect(720, 58, 720, 842)),
+            Region("pane_header", "pane headers", "pane", rect(501, 72, 2955, 40), rect(0, 60, 1440, 30)),
+            Region("active_marker", "active pane marker", "actions", rect(1978, 72, 20, 40), rect(720, 60, 4, 30)),
             Region("input_editor", "per-pane input editors", "input", rect(501, 914, 2955, 164), rect(0, 763, 1440, 137)),
         ),
     ),
@@ -259,9 +259,9 @@ COMPARISONS: tuple[Comparison, ...] = (
         ),
         regions=(
             Region("menu_surface", "add menu surface", "menu", rect(590, 86, 600, 564), rect(420, 60, 572, 448)),
-            Region("creation_group", "creation actions", "menu", rect(610, 105, 560, 180), rect(440, 84, 532, 145)),
-            Region("config_group", "config actions", "launch", rect(610, 300, 560, 210), rect(440, 236, 532, 165)),
-            Region("shell_group", "shell selector", "context", rect(610, 520, 560, 110), rect(440, 405, 532, 82)),
+            Region("creation_group", "creation actions", "menu", rect(610, 105, 560, 180), rect(439, 75, 534, 143)),
+            Region("config_group", "config actions", "launch", rect(610, 300, 560, 210), rect(439, 230, 534, 167)),
+            Region("shell_group", "shell selector", "context", rect(610, 520, 560, 110), rect(439, 405, 534, 87)),
         ),
     ),
     Comparison(
@@ -409,7 +409,7 @@ def alignment_rows(comparison: Comparison) -> list[dict[str, object]]:
             {
                 "region": region.key,
                 "max_delta": round(delta, 4),
-                "status": "pass" if delta <= 0.05 else "review",
+                "status": "pass" if delta <= 0.01 else "review",
                 "warp_ratio": [round(value, 4) for value in warp_ratio],
                 "ianvs_ratio": [round(value, 4) for value in ianvs_ratio],
             }
@@ -566,7 +566,7 @@ def comparison_manifest() -> dict[str, object]:
     return {
         "schema": 1,
         "scope": "Warp/Ianvs terminal layout comparison annotations",
-        "tolerance": 0.05,
+        "tolerance": 0.01,
         "comparison_count": len(COMPARISONS),
         "comparisons": specs,
     }

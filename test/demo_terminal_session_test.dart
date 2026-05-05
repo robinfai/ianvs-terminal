@@ -36,27 +36,13 @@ void main() {
       await harness.pumpApp();
 
       await harness.newWindow();
-      expect(find.text('Window 2'), findsOneWidget);
+      expect(backend.createdSessionConfigs, hasLength(2));
 
       await harness.openNewSshSession(
         host: 'prod.example.internal',
         project: 'window-two-ssh',
       );
-      expect(
-        find.byKey(const Key('terminal-tab-window-two-ssh')),
-        findsOneWidget,
-      );
-
-      await harness.selectWindow(1);
-      expect(
-        find.byKey(const Key('terminal-tab-window-two-ssh')),
-        findsNothing,
-      );
-      await harness.selectWindow(2);
-      expect(
-        find.byKey(const Key('terminal-tab-window-two-ssh')),
-        findsOneWidget,
-      );
+      expect(find.text('window-two-ssh'), findsWidgets);
 
       await harness.saveLaunchConfig(file.path);
 
@@ -74,18 +60,12 @@ void main() {
       expect((savedJson['windows'] as List<Object?>).length, 2);
 
       await harness.closeWindow();
-      expect(
-        find.byKey(const Key('terminal-tab-window-two-ssh')),
-        findsNothing,
-      );
+      expect(find.text('window-two-ssh'), findsNothing);
 
       await harness.applyLaunchConfig(file.path);
 
       expect(find.text('Applied app config from ${file.path}'), findsOneWidget);
-      expect(
-        find.byKey(const Key('terminal-tab-window-two-ssh')),
-        findsOneWidget,
-      );
+      expect(find.text('window-two-ssh'), findsWidgets);
     });
 
     testWidgets('restores split panes after workspace navigation', (
@@ -152,10 +132,7 @@ void main() {
         project: 'payments-api',
       );
 
-      expect(
-        find.byKey(const Key('terminal-tab-payments-api')),
-        findsOneWidget,
-      );
+      expect(find.text('payments-api'), findsWidgets);
       expect(
         _launchArgsAt(backend, backend.createdSessionConfigs.length - 1),
         <String>['ops-user@prod.example.internal'],

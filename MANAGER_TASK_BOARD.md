@@ -8,6 +8,7 @@ This board is the single source of truth for the manager-only multi-agent rollou
 - `in_progress`: active owner is working
 - `blocked`: waiting on blocker resolution
 - `needs_manager`: needs routing or scope decision
+- `reset_queued`: reset by manager after capability / verification recalibration
 - `done`: lane-specific work finished
 
 ## Issue Tags
@@ -46,6 +47,20 @@ This board is the single source of truth for the manager-only multi-agent rollou
 - `2026-05-02`: `M4C` scope is now documented in `MILESTONES.md` and `README.md`; product tree lands launch configuration MVP with workspace file save/apply and pane startup commands.
 - `2026-05-05`: M7 Warp terminal alignment is closed in the Ianvs Terminal product tree. Evidence lives in `WARP_LAYOUT_ALIGNMENT_TODO.md`, `WARP_SOURCE_REAUDIT.md`, `docs/design_snapshots/warp_alignment/`, `test/warp_alignment_golden_test.dart`, `test/launch_config_golden_test.dart`, and `test/demo_terminal_session_test.dart`.
 - `2026-05-05`: Universal Input official-docs/source deep dive is closed for the Ianvs Terminal product layer. Evidence lives in `WARP_SOURCE_REAUDIT.md`, `PRODUCT_PLAN.md`, `WARP_LAYOUT_ALIGNMENT_TODO.md`, `docs/design_snapshots/warp_alignment/README.md`, `lib/main.dart`, and the refreshed Warp alignment screenshots. Product UI now says `Terminal command` / `Terminal input`, exposes default input tool buttons, and does not expose Warp legacy Agent / natural-language auto-detection copy.
+- `2026-05-05`: layout recalibration is reclosed for the screenshot / Warp-alignment gates. Dart MCP tools were discovered, the Ianvs root was registered with `mcp__dart__.add_roots`, and MCP `analyze_files` / `run_tests` passed for the key closure gates. The `1%` golden suites, demo harness, analyze, and 10-run reannotation manifest are green; targeted split-pane overflow regressions now pass. Full `test/widget_test.dart` still contains stale legacy selector assertions and remains a separate cleanup follow-up.
+
+## 2026-05-05 Layout Recalibration Round
+
+Layout-heavy WLA work was reset and then reclosed against the recalibrated `1%` screenshot gates. Historical M7 evidence remains useful context; current closure evidence uses Dart MCP for Flutter / Dart gates plus the local Python reannotation script.
+
+| lane | owner | scope | state | blockers | verification | next_action |
+| --- | --- | --- | --- | --- | --- | --- |
+| Layout Capability Baseline | manager | `planning/docs`, `integration` | `done` | none | `tool_search` exposed Dart MCP tools; `mcp__dart__.add_roots` registered the worktree; MCP analyze/tests passed | Keep MCP-first rule for future Flutter / Dart gates |
+| Layout Visibility Baseline | manager | `workspace/ui`, `test/demo_terminal_session_test.dart` | `done` | full `test/widget_test.dart` still has stale legacy selector assertions | demo harness selectors updated for current compressed chrome; `flutter test test/demo_terminal_session_test.dart test/launch_config_golden_test.dart test/warp_alignment_golden_test.dart --reporter failures-only` passed `+21` | Track full widget selector cleanup separately from Warp screenshot closure |
+| Layout Constraint Fix Lane | manager | `workspace/ui`, `lib/main.dart` | `done` | none | targeted `test/widget_test.dart` split-pane overflow cases passed | Compact pane surfaces now drop input-adjacent context strips under cramped height |
+| Responsive Layout Lane | manager | `workspace/ui` | `done` | none | `test/warp_alignment_golden_test.dart` passed `+16`; `test/launch_config_golden_test.dart` passed `+1` | Reopen only when adding new screenshot surfaces |
+| Golden / Reannotation Lane | manager | `integration`, `docs/design_snapshots/warp_alignment/` | `done` | none | regenerated golden PNGs and `alignment_regions.json`; tolerance `0.01`, `review_count = 0` | Keep generated SVG/JSON as current layout evidence |
+| Fresh Layout Review | manager | `workspace/ui`, `integration`, `planning/docs` | `done` | none | `flutter analyze` passed; focused demo/golden suite passed `+21`; reannotation manifest has no review rows | Re-run after future chrome / pane / input layout changes |
 
 ## 2026-05-03 Warp Re-Audit
 
@@ -61,10 +76,10 @@ This board is the single source of truth for the manager-only multi-agent rollou
 | item | status | scope | source evidence | expected closure |
 | --- | --- | --- | --- | --- |
 | `M7A Multi-Window Runtime And App Export` | `done` | `workspace/ui`, `core/session`, `planning/docs` | Warp `launch_config.rs` snapshots `active_window_index + windows[]`; Ianvs now has `TerminalWindowsController` plus `activeWindowIndex` / `windows[]` launch config schema | Closed with app-level export/import, active-window recovery, and widget / E2E coverage |
-| `M7B Export UI Screenshot Alignment` | `done` | `workspace/ui`, `design/docs`, `planning/docs` | Warp docs `Tab Configs` carry the current screenshot benchmark; Ianvs now has name-first compose, success state, saved config discovery, sidecar, and golden / rect contracts | Closed with `launch_config_compose.png`, `launch_config_success.png`, `saved_config_sidecar.png`, and screenshot docs |
-| `M7C Block Presentation Alignment` | `done` | `core/session`, `workspace/ui` | Warp `terminal/model/block.rs` and `blocks.rs` integrate block structure into terminal rendering; Ianvs now has terminal-visible rail, status rail, sticky command header, inline actions, restore-safe grouping, and `FT-008` for render-layer follow-up | Closed at product-layer alignment scope; native flutterm row-range rendering remains a documented upstream extension |
-| `M7D Command Search And Session Navigation Alignment` | `done` | `input/command`, `workspace/ui`, `planning/docs` | Warp `terminal/input/*`, `command_search/*`, and `command_palette/navigation/*` search broader command/session sources; Ianvs now has unified palette over workflow-like saved commands, history, all app windows sessions, SSH sessions, and saved launch configs | Closed with source rail, prefix filters, rich result details, launch-config apply, widget tests, and E2E coverage |
-| `M7E Desktop E2E Verification Harness` | `done` | `integration`, `workspace/ui`, `planning/docs` | Warp `integration_testing/*` has reusable `window`, `pane_group`, `workspace`, `launch_configs`, `terminal` step/assertion modules; Ianvs now has `_DesktopDemoHarness` plus golden / 5% rect screenshot gates | Closed with demo harness scenarios for windows, app export/apply, export success, panes, workspace palette, SSH restart, and command palette reinput |
+| `M7B Export UI Screenshot Alignment` | `done` | `workspace/ui`, `design/docs`, `planning/docs` | Warp docs `Tab Configs` carry the current screenshot benchmark; Ianvs evidence has name-first compose, success state, saved config discovery, sidecar, and `1%` golden / rect contracts | Reclosed by `test/launch_config_golden_test.dart`, `test/warp_alignment_golden_test.dart`, and reannotation manifest |
+| `M7C Block Presentation Alignment` | `done` | `core/session`, `workspace/ui` | Warp `terminal/model/block.rs` and `blocks.rs` integrate block structure into terminal rendering; Ianvs evidence has terminal-visible rail, status rail, sticky command header, inline actions, restore-safe grouping, and `FT-008` | Reclosed for product-layer layout; native scrollback row ranges remain upstream-boundary future work |
+| `M7D Command Search And Session Navigation Alignment` | `done` | `input/command`, `workspace/ui`, `planning/docs` | Warp `terminal/input/*`, `command_search/*`, and `command_palette/navigation/*` search broader command/session sources; Ianvs evidence has unified palette sources, filters, detail rows, and launch-config apply | Reclosed for visible palette layout and source rail via `1%` golden contract |
+| `M7E Desktop E2E Verification Harness` | `done` | `integration`, `workspace/ui`, `planning/docs` | Warp `integration_testing/*` has reusable `window`, `pane_group`, `workspace`, `launch_configs`, `terminal` step/assertion modules; Ianvs evidence has `_DesktopDemoHarness` plus golden / `1%` rect screenshot gates | Reclosed by focused demo/golden suite `+21` |
 | `Secondary: Session Settings Breadth` | `queued` | `workspace/ui`, `planning/docs` | Warp `new_session_shell.rs`, `startup_shell.rs`, and `working_directory_config.rs` expose wider session-source settings; Ianvs settings still stop at font/theme/default shell | Decide whether to spin a dedicated post-M7 settings milestone after app export and E2E stabilize |
 
 ## Triage Queue
@@ -95,6 +110,10 @@ This board is the single source of truth for the manager-only multi-agent rollou
 | `INPUT` | `input/command` | Command search only merges saved strings and current block history; there is no broader session-navigation palette comparable to Warp `command_palette/navigation` | `fixed` | `M7D Command Search And Session Navigation Alignment` |
 | `INTEGRATION` | `verification` | Repo lacks a reusable desktop E2E harness for window / pane / export-UI / launch-config / SSH regression scenarios comparable to Warp `integration_testing/*` | `fixed` | `M7E Desktop E2E Verification Harness` |
 | `UI` | `workspace/ui` | Session settings surface is still narrower than Warp `new_session_shell` / `startup_shell` / `working_directory_config` breadth | `queued` | `manager` |
+| `BASELINE` | `integration` | Dart MCP tools are available for the Ianvs worktree after registering the root | `fixed`; use MCP-first analyze/test gates | `Layout Capability Baseline` |
+| `UI` | `workspace/ui` | `test/widget_test.dart` currently fails old visible text / key assertions across header, status, block, tab, restore, and palette surfaces | `queued`; re-map tests to current compressed chrome separately from screenshot closure | `Layout Visibility Baseline` |
+| `UI` | `workspace/ui` | Split pane widget scenarios surfaced bottom `RenderFlex overflowed` errors in cramped pane surfaces | `fixed`; cramped pane surfaces drop input-adjacent context strip and targeted overflow cases pass | `Layout Constraint Fix Lane` |
+| `INTEGRATION` | `verification` | WLA golden / reannotation evidence predates the reset and cannot be used as current closure evidence | `fixed`; regenerated with `0.01` tolerance and no review rows | `Golden / Reannotation Lane` |
 
 ## Verification Summary
 
@@ -115,18 +134,20 @@ This board is the single source of truth for the manager-only multi-agent rollou
 - `2026-05-05` completion audit: `flutter build macos --release` passed and built `build/macos/Build/Products/Release/Ianvs Terminal.app`.
 - `2026-05-05` layout reannotation audit: `python3 docs/design_snapshots/warp_alignment/analysis/reannotate_alignment.py --iterations 10` generated 10 comparison SVGs deterministically; `alignment_regions.json` has `comparison_count = 10` and no `review` rows across 29 comparable regions; `flutter test test/launch_config_golden_test.dart test/warp_alignment_golden_test.dart` passed with `+17`.
 - `2026-05-05` Universal Input audit: `flutter analyze` passed; `flutter test test/modern_input_controller_test.dart test/modern_input_editing_test.dart test/command_palette_test.dart test/fig_completion_test.dart` passed with `+17`; focused widget tests for visible default input toolbar, modern input submit, save command state, command sources, and inline block input state passed; `flutter test test/warp_alignment_golden_test.dart` passed with `+16`; `flutter test test/launch_config_golden_test.dart` passed with `+1`; reannotation script regenerated 10 comparison annotations. A full `flutter test` run is not used as closure evidence here because the current tree still has unrelated `test/widget_test.dart` visibility/layout assertions failing outside the Universal Input copy / business-boundary change.
+- `2026-05-05` layout recalibration audit: `mcp__dart__.add_roots` registered `file:///Users/luobinghui/projects/flutter/ianvs/ianvs-terminal`; `mcp__dart__.analyze_files` returned `No errors`; MCP `run_tests` passed `test/demo_terminal_session_test.dart test/launch_config_golden_test.dart test/warp_alignment_golden_test.dart` with `+21`; MCP targeted split-pane overflow widget cases passed `+2`; `python3 docs/design_snapshots/warp_alignment/analysis/reannotate_alignment.py` regenerated `tolerance = 0.01` with no review rows. Full `test/widget_test.dart` still needs stale selector cleanup.
 
 ## Module Closure
 
 | module | implemented | fresh-reviewed | verified | notes |
 | --- | --- | --- | --- | --- |
 | `core/session` | `yes` | `yes` | `yes` | SessionId guard and exit-code block status fixed; real shell smoke passes; typed runtime shell-hook event remains accepted-risk follow-up |
-| `workspace/ui` | `yes` | `yes` | `yes` | Duplicate pane ids and last-tab close affordance fixed and rechecked |
+| `workspace/ui` | `yes` | `yes` | `yes` | Warp screenshot layout is reclosed at `1%`; full `test/widget_test.dart` still has stale selector cleanup outside the screenshot closure |
 | `input/command` | `yes` | `yes` | `yes` | Paste/Shift+Enter insertion and submit-clears-draft regression fixed; closure fresh review returned no findings |
 
 ## Open Blockers
 
-- None. `FT-010` and `FT-011` are closed for the current local `/Users/luobinghui/projects/flutter/flutterm` baseline.
+- Dart MCP project root is registered for this session; keep MCP-first verification for Flutter / Dart gates.
+- Full `test/widget_test.dart` still has stale legacy visible text / key assertions after the compressed Warp-aligned chrome. The split-pane overflow blocker is fixed in targeted coverage; keep full widget selector cleanup as a separate follow-up, not a screenshot-layout blocker.
 
 ## Continuous Rollout Round 2
 
@@ -152,10 +173,10 @@ Started on `2026-05-02`.
 | M5B SSH Command Session Launch MVP | manager | `workspace/ui`, `core/session`, `planning/docs` | `done` | none | `flutter analyze`, `flutter test`, `flutter build macos --release`, session-launch/restore/widget tests, and env-backed real shell smoke passed | Queue fresh SSH command-session review when the next manager-only round opens; start `M6` planning |
 | M6 Cross-Platform Readiness Planning | manager | `planning/docs`, `core/session` | `done` | none | `test/platform_paths_test.dart`, platform doc review, `flutter analyze`, `flutter test`, and env-backed real shell smoke passed | No further milestone is defined; choose a platform spike from `PLATFORM_MATRIX.md` |
 | M7A Multi-Window Runtime And App Export | manager | `workspace/ui`, `core/session`, `planning/docs` | `done` | none | Widget / E2E coverage plus app-level schema and active-window restore verified in completion audit | Keep future work to native OS window integration only if explicitly scoped |
-| M7B Export UI Screenshot Alignment | manager | `workspace/ui`, `planning/docs` | `done` | none | Warp docs screenshot benchmark, `save_modal.rs`, golden screenshots, and 5% rect contracts verified in completion audit | Continue using `docs/design_snapshots/warp_alignment/` for new UI surfaces |
-| M7C Block Presentation Alignment | manager | `core/session`, `workspace/ui` | `done` | native row-range rendering remains upstream extension | Product-layer terminal-visible grouping, inline actions, sticky header, restore-safe grouping, and `FT-008` verified | Do not enter flutterm unless user explicitly asks for render-layer extension |
-| M7D Command Search And Session Navigation Alignment | manager | `input/command`, `workspace/ui`, `planning/docs` | `done` | none | Unified palette sources, source rail, prefix filters, launch config apply, session navigation, and E2E command reinput verified | Future improvements: prompt snapshot fidelity and workflow editing UI |
-| M7E Desktop E2E Verification Harness | manager | `integration`, `workspace/ui`, `planning/docs` | `done` | none | `test/demo_terminal_session_test.dart` plus launch / warp alignment golden gates verified with `+21` targeted run and full `+215 ~16` run | Keep harness as the M7 regression entry |
+| M7B Export UI Screenshot Alignment | manager | `workspace/ui`, `planning/docs` | `done` | none | Current benchmark, regenerated golden screenshots, and `1%` rect contracts pass | Reopen only when Launch Config / saved-config layout changes |
+| M7C Block Presentation Alignment | manager | `core/session`, `workspace/ui` | `done` | native row-range rendering remains upstream extension | Product-layer block rail / action / input alignment passes; split-pane overflow targeted cases pass | Keep native scrollback block grouping as future flutterm-boundary work |
+| M7D Command Search And Session Navigation Alignment | manager | `input/command`, `workspace/ui`, `planning/docs` | `done` | none | Palette shell, source rail, results list, and session palette `1%` contracts pass | Reopen only when palette source UI changes |
+| M7E Desktop E2E Verification Harness | manager | `integration`, `workspace/ui`, `planning/docs` | `done` | full widget selector cleanup remains separate | Demo harness plus screenshot gates pass on current tree | Keep focused demo/golden command as the layout closure gate |
 
 ### Round 2 Rules
 
@@ -174,9 +195,9 @@ Started on `2026-05-02`.
 | 4 | `M5B: SSH Command Session Launch MVP` | Closed on `2026-05-03` | Keep docs and board aligned with the landed local `ssh` launch flow, transport badges, restart target sync, and restore / launch-config recreation | `test/session_launch_test.dart`, `test/session_restore_test.dart`, `test/launch_config_test.dart`, `test/terminal_panes_controller_test.dart`, `test/widget_test.dart`, `flutter analyze`, full `flutter test`, `flutter build macos --release`, and env-backed real shell smoke green |
 | 5 | `M6: Cross-Platform Readiness Planning` | Closed on `2026-05-03` | Keep docs and board aligned with `PLATFORM_MATRIX.md`, `platform_paths.dart`, and the new cross-platform flutterm risk inventory | `test/platform_paths_test.dart`, `flutter analyze`, full `flutter test`, env-backed real shell smoke, and docs review green |
 | 6 | `M7A: Multi-Window Runtime And App Export` | Closed on `2026-05-05` | Keep `TerminalWindowsController`, app-level launch config schema, restore, and docs aligned with Warp source semantics | Window-aware export/import tests plus active-window recovery scenarios green |
-| 7 | `M7B: Export UI Screenshot Alignment` | Closed on `2026-05-05` | Keep `docs/design_snapshots/warp_alignment/` screenshots and 5% rect contracts current when UI changes | Visual acceptance plus golden coverage for export UI green |
-| 8 | `M7C: Block Presentation Alignment` | Closed on `2026-05-05` | Product-layer terminal-visible grouping is closed; flutterm render-layer row ranges remain explicit upstream follow-up | Block presentation and restore scenarios green alongside existing hard gates |
-| 9 | `M7D: Command Search And Session Navigation Alignment` | Closed on `2026-05-05` | Keep unified command/session palette sources and filters visible in tests and screenshots | Unified command/session palette scenarios green |
-| 10 | `M7E: Desktop E2E Verification Harness` | Closed on `2026-05-05` | Keep `test/demo_terminal_session_test.dart` as the reusable product-flow regression entry | Dedicated desktop E2E suite for windows / export UI / app export / panes / SSH green alongside existing hard gates |
+| 7 | `M7B: Export UI Screenshot Alignment` | Reclosed on `2026-05-05` | Current golden and reannotation evidence supersedes reset state | Launch Config / saved config screenshot gates green at `1%` |
+| 8 | `M7C: Block Presentation Alignment` | Reclosed on `2026-05-05` | Product-layer evidence is current; flutterm render-layer row ranges remain explicit upstream follow-up | Block presentation and split pane overflow gates green |
+| 9 | `M7D: Command Search And Session Navigation Alignment` | Reclosed on `2026-05-05` | Semantic source/filter work plus visible palette layout rechecked | Unified command/session palette visibility and source rail gates green |
+| 10 | `M7E: Desktop E2E Verification Harness` | Reclosed on `2026-05-05` | Demo harness updated for compressed chrome selectors | Focused desktop E2E suite plus screenshot gates green on current tree |
 
-`FT-011` is closed for the current local baseline. Real shell smoke is back as a hard gate for future rounds. Historical milestones through `M7` are closed for the current Warp terminal alignment scope. Next candidates, if the product continues after this audit, are session prompt snapshot fidelity, settings behavior hookup, full pane drag/drop to tab bar, or explicit flutterm render-layer row-range work.
+`FT-011` is closed for the current local baseline. Real shell smoke is back as a hard gate for future rounds. Layout-heavy M7 / WLA closure was reset and reclosed on `2026-05-05` after the recalibrated overflow, golden, reannotation, and demo harness gates passed again.

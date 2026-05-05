@@ -1358,7 +1358,7 @@ class _Header extends StatelessWidget {
     final activeTitle = tabsController.activeTab.title;
     return Container(
       key: const Key('terminal-header'),
-      height: 68,
+      height: 58,
       decoration: const BoxDecoration(
         color: Color(0xFF252929),
         border: Border(bottom: BorderSide(color: Color(0xFF3A3E3F))),
@@ -1805,7 +1805,7 @@ class _HeaderAddMenu extends StatelessWidget {
       key: const Key('terminal-add-menu-button'),
       padding: EdgeInsets.zero,
       position: PopupMenuPosition.under,
-      constraints: const BoxConstraints(minWidth: 540, maxWidth: 600),
+      constraints: const BoxConstraints(minWidth: 572, maxWidth: 600),
       itemBuilder: (context) => const <PopupMenuEntry<String>>[
         PopupMenuItem<String>(
           key: Key('terminal-add-menu-new-tab'),
@@ -2097,7 +2097,7 @@ class _InlineBlockRail extends StatelessWidget {
               onReinput: onReinput,
             ),
             if (!expandedActiveBlock) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 50),
               SingleChildScrollView(
                 key: const Key('terminal-inline-block-context-strip'),
                 scrollDirection: Axis.horizontal,
@@ -2463,6 +2463,44 @@ class _InlineActiveBlockCardState extends State<_InlineActiveBlockCard> {
     final commandPreview = widget.expandedBody
         ? widget.block.commandText.trimRight()
         : _singleLinePreview(widget.block.commandText);
+    final commandOutputBody = ConstrainedBox(
+      key: const Key('terminal-inline-active-block-command-output-body'),
+      constraints: widget.expandedBody
+          ? const BoxConstraints(minHeight: 273)
+          : const BoxConstraints(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            commandPreview,
+            key: const Key('terminal-inline-active-block-command-body'),
+            maxLines: widget.expandedBody ? 3 : 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 13,
+              height: widget.expandedBody ? 1.32 : null,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (widget.expandedBody && outputText.isNotEmpty) ...[
+            _ExpandedInlineBlockOutput(
+              outputText: outputText,
+              mutedColor: mutedColor,
+              textColor: textColor,
+            ),
+          ] else if (outputPreview.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              outputPreview,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: mutedColor, fontSize: 11),
+            ),
+          ],
+        ],
+      ),
+    );
     return MouseRegion(
       onEnter: (_) => _setHovered(true),
       onExit: (_) {
@@ -2490,126 +2528,119 @@ class _InlineActiveBlockCardState extends State<_InlineActiveBlockCard> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: cardBorder),
           ),
-          padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                margin: const EdgeInsets.only(top: 4),
-                decoration: BoxDecoration(
-                  color: badgeIndicator,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: badgeBorder),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: badgeBackground,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: badgeBorder),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            child: Text(
-                              'Active block',
-                              style: TextStyle(
-                                color: badgeIndicator,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '${widget.controller.displayIndex} of ${widget.controller.blocks.length}',
-                          style: TextStyle(
-                            color: mutedColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        _HeaderActionButton(
-                          key: const Key('terminal-block-overview-button'),
-                          tooltip: widget.controller.historyPanelOpen
-                              ? 'Hide block overview'
-                              : 'Show block overview',
-                          onPressed: widget.controller.hasBlocks
-                              ? widget.controller.toggleHistoryPanel
-                              : null,
-                          icon: widget.controller.historyPanelOpen
-                              ? Icons.view_sidebar
-                              : Icons.view_sidebar_outlined,
-                        ),
-                        const SizedBox(width: 6),
-                        _InlineBlockActionsMenu(
+          padding: widget.expandedBody
+              ? const EdgeInsets.fromLTRB(3, 9, 10, 9)
+              : const EdgeInsets.fromLTRB(10, 9, 10, 9),
+          child: widget.expandedBody
+              ? SizedBox(
+                  height: 280,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: 0,
+                        top: 15,
+                        right: 95,
+                        child: commandOutputBody,
+                      ),
+                      Positioned(
+                        top: -1,
+                        right: -2,
+                        child: _InlineBlockActionsMenu(
                           controller: widget.controller,
                           reinputEnabled: widget.reinputEnabled,
                           onReinput: widget.onReinput,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 7),
-                    ConstrainedBox(
-                      key: const Key(
-                        'terminal-inline-active-block-command-output-body',
                       ),
-                      constraints: widget.expandedBody
-                          ? const BoxConstraints(minHeight: 230)
-                          : const BoxConstraints(),
+                    ],
+                  ),
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      margin: const EdgeInsets.only(top: 4),
+                      decoration: BoxDecoration(
+                        color: badgeIndicator,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: badgeBorder),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text(
-                            commandPreview,
-                            key: const Key(
-                              'terminal-inline-active-block-command-body',
-                            ),
-                            maxLines: widget.expandedBody ? 3 : 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 13,
-                              height: widget.expandedBody ? 1.32 : null,
-                              fontWeight: FontWeight.w700,
-                            ),
+                          Row(
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: badgeBackground,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: badgeBorder),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  child: Text(
+                                    'Active block',
+                                    style: TextStyle(
+                                      color: badgeIndicator,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${widget.controller.displayIndex} of ${widget.controller.blocks.length}',
+                                style: TextStyle(
+                                  color: mutedColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              _HeaderActionButton(
+                                key: const Key(
+                                  'terminal-block-overview-button',
+                                ),
+                                tooltip: widget.controller.historyPanelOpen
+                                    ? 'Hide block overview'
+                                    : 'Show block overview',
+                                onPressed: widget.controller.hasBlocks
+                                    ? widget.controller.toggleHistoryPanel
+                                    : null,
+                                icon: widget.controller.historyPanelOpen
+                                    ? Icons.view_sidebar
+                                    : Icons.view_sidebar_outlined,
+                              ),
+                              const SizedBox(width: 6),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: 10,
+                                  right: 30,
+                                ),
+                                child: _InlineBlockActionsMenu(
+                                  controller: widget.controller,
+                                  reinputEnabled: widget.reinputEnabled,
+                                  onReinput: widget.onReinput,
+                                ),
+                              ),
+                            ],
                           ),
-                          if (widget.expandedBody && outputText.isNotEmpty) ...[
-                            _ExpandedInlineBlockOutput(
-                              outputText: outputText,
-                              mutedColor: mutedColor,
-                              textColor: textColor,
-                            ),
-                          ] else if (outputPreview.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              outputPreview,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: mutedColor, fontSize: 11),
-                            ),
-                          ],
+                          const SizedBox(height: 7),
+                          commandOutputBody,
                         ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -3364,117 +3395,130 @@ class _PaneLocalHeader extends StatelessWidget {
       height: 30,
       decoration: BoxDecoration(
         color: active ? const Color(0xFF172033) : const Color(0xFF111827),
-        border: const Border(bottom: BorderSide(color: Color(0xFF252B36))),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 380;
-          return Row(
-            children: [
-              SizedBox(
-                key: active ? Key('terminal-pane-active-marker-$paneId') : null,
-                width: 4,
-                height: double.infinity,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: active
-                        ? const Color(0xFF4D8DFF)
-                        : Colors.transparent,
-                  ),
-                ),
-              ),
-              MouseRegion(
-                cursor: SystemMouseCursors.move,
-                child: Tooltip(
-                  message: 'Pane drag handle',
-                  child: SizedBox(
-                    key: Key('terminal-pane-drag-handle-$paneId'),
-                    width: 18,
-                    height: double.infinity,
-                    child: const Icon(
-                      Icons.drag_indicator,
-                      size: 13,
-                      color: Color(0xFF64748B),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 380;
+              return Row(
+                children: [
+                  SizedBox(
+                    key: active
+                        ? Key('terminal-pane-active-marker-$paneId')
+                        : null,
+                    width: 4,
+                    height: 30,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: active
+                            ? const Color(0xFF4D8DFF)
+                            : Colors.transparent,
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                sessionLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              if (compact)
-                const Spacer()
-              else ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      key: Key('terminal-pane-context-chips-$paneId'),
-                      children: [
-                        for (
-                          var index = 0;
-                          index < contextChips.length;
-                          index += 1
-                        ) ...[
-                          if (index > 0) const SizedBox(width: 6),
-                          _PaneContextChip(
-                            paneId: paneId,
-                            data: contextChips[index],
-                          ),
-                        ],
-                      ],
+                  MouseRegion(
+                    cursor: SystemMouseCursors.move,
+                    child: Tooltip(
+                      message: 'Pane drag handle',
+                      child: SizedBox(
+                        key: Key('terminal-pane-drag-handle-$paneId'),
+                        width: 18,
+                        height: double.infinity,
+                        child: const Icon(
+                          Icons.drag_indicator,
+                          size: 13,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
-              _PaneHeaderButton(
-                key: Key('terminal-pane-split-right-$paneId'),
-                tooltip: 'Split pane right',
-                icon: Icons.vertical_split,
-                onPressed: onSplitRight,
-              ),
-              _PaneHeaderButton(
-                key: Key('terminal-pane-split-down-$paneId'),
-                tooltip: 'Split pane down',
-                icon: Icons.horizontal_split,
-                onPressed: onSplitDown,
-              ),
-              _PaneHeaderButton(
-                key: Key('terminal-pane-close-$paneId'),
-                tooltip: 'Close this pane',
-                icon: Icons.close,
-                onPressed: canClose ? onClose : null,
-              ),
-              _PaneHeaderMenu(
-                paneId: paneId,
-                canClose: canClose,
-                canMoveToNewTab: canMoveToNewTab,
-                canCopy: canCopy,
-                canPaste: canPaste,
-                canRestart: canRestart,
-                onFocus: onFocus,
-                onSplitRight: onSplitRight,
-                onSplitDown: onSplitDown,
-                onMoveToNewTab: onMoveToNewTab,
-                onSessionContext: onSessionContext,
-                onCopy: onCopy,
-                onPaste: onPaste,
-                onRestart: onRestart,
-                onClose: onClose,
-              ),
-              const SizedBox(width: 4),
-            ],
-          );
-        },
+                  const SizedBox(width: 4),
+                  Text(
+                    sessionLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (compact)
+                    const Spacer()
+                  else ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          key: Key('terminal-pane-context-chips-$paneId'),
+                          children: [
+                            for (
+                              var index = 0;
+                              index < contextChips.length;
+                              index += 1
+                            ) ...[
+                              if (index > 0) const SizedBox(width: 6),
+                              _PaneContextChip(
+                                paneId: paneId,
+                                data: contextChips[index],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  _PaneHeaderButton(
+                    key: Key('terminal-pane-split-right-$paneId'),
+                    tooltip: 'Split pane right',
+                    icon: Icons.vertical_split,
+                    onPressed: onSplitRight,
+                  ),
+                  _PaneHeaderButton(
+                    key: Key('terminal-pane-split-down-$paneId'),
+                    tooltip: 'Split pane down',
+                    icon: Icons.horizontal_split,
+                    onPressed: onSplitDown,
+                  ),
+                  _PaneHeaderButton(
+                    key: Key('terminal-pane-close-$paneId'),
+                    tooltip: 'Close this pane',
+                    icon: Icons.close,
+                    onPressed: canClose ? onClose : null,
+                  ),
+                  _PaneHeaderMenu(
+                    paneId: paneId,
+                    canClose: canClose,
+                    canMoveToNewTab: canMoveToNewTab,
+                    canCopy: canCopy,
+                    canPaste: canPaste,
+                    canRestart: canRestart,
+                    onFocus: onFocus,
+                    onSplitRight: onSplitRight,
+                    onSplitDown: onSplitDown,
+                    onMoveToNewTab: onMoveToNewTab,
+                    onSessionContext: onSessionContext,
+                    onCopy: onCopy,
+                    onPaste: onPaste,
+                    onRestart: onRestart,
+                    onClose: onClose,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              );
+            },
+          ),
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 1,
+            child: ColoredBox(color: Color(0xFF252B36)),
+          ),
+        ],
       ),
     );
   }
@@ -3923,148 +3967,151 @@ class _CommandPalettePanelState extends State<_CommandPalettePanel> {
     final hintText = sessionMode
         ? 'Search sessions, commands, and targets'
         : 'Search commands and sessions';
-    return _InlineMenuShell(
-      shellKey: const Key('terminal-inline-menu-shell-command-palette'),
-      aliasKeys: <Key>[
-        const Key('terminal-command-palette-panel'),
-        Key(
-          sessionMode
-              ? 'terminal-workspace-search-panel'
-              : 'terminal-command-history-panel',
-        ),
-      ],
-      lightTheme: widget.lightTheme,
-      maxHeight: 500,
-      maxWidth: 600,
-      alignment: Alignment.topCenter,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      header: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 10, 9),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  flex: 4,
-                  child: Focus(
-                    onKeyEvent: _handleKey,
-                    child: TextField(
-                      key: Key(
-                        sessionMode
-                            ? 'terminal-workspace-search-field'
-                            : 'terminal-command-history-field',
-                      ),
-                      focusNode: widget.focusNode,
-                      controller: widget.textController,
-                      onChanged: widget.controller.updateQuery,
-                      textInputAction: TextInputAction.search,
-                      style: TextStyle(color: textColor, fontSize: 13),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        hintText: hintText,
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+    return Transform.translate(
+      offset: const Offset(0, -32),
+      child: _InlineMenuShell(
+        shellKey: const Key('terminal-inline-menu-shell-command-palette'),
+        aliasKeys: <Key>[
+          const Key('terminal-command-palette-panel'),
+          Key(
+            sessionMode
+                ? 'terminal-workspace-search-panel'
+                : 'terminal-command-history-panel',
+          ),
+        ],
+        lightTheme: widget.lightTheme,
+        maxHeight: 488,
+        maxWidth: 535,
+        alignment: Alignment.topCenter,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        header: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 9),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Focus(
+                      onKeyEvent: _handleKey,
+                      child: TextField(
+                        key: Key(
+                          sessionMode
+                              ? 'terminal-workspace-search-field'
+                              : 'terminal-command-history-field',
+                        ),
+                        focusNode: widget.focusNode,
+                        controller: widget.textController,
+                        onChanged: widget.controller.updateQuery,
+                        textInputAction: TextInputAction.search,
+                        style: TextStyle(color: textColor, fontSize: 13),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: hintText,
+                          border: const OutlineInputBorder(),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 52,
-                  child: Text(
-                    '${widget.controller.displayIndex}/${matches.length}',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: mutedColor, fontSize: 12),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    width: 52,
+                    child: Text(
+                      '${widget.controller.displayIndex}/${matches.length}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: mutedColor, fontSize: 12),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                _PaletteFilterChip(
-                  filter: widget.controller.effectiveFilter,
-                  lightTheme: widget.lightTheme,
-                ),
-                const SizedBox(width: 8),
-                _HeaderActionButton(
-                  tooltip: 'Previous palette result',
-                  onPressed: matches.isEmpty
-                      ? null
-                      : widget.controller.goToPrevious,
-                  icon: Icons.keyboard_arrow_up,
-                ),
-                _HeaderActionButton(
-                  tooltip: 'Next palette result',
-                  onPressed: matches.isEmpty
-                      ? null
-                      : widget.controller.goToNext,
-                  icon: Icons.keyboard_arrow_down,
-                ),
-                _HeaderActionButton(
-                  tooltip: sessionMode
-                      ? 'Close workspace search'
-                      : 'Close command history',
-                  onPressed: widget.onClose,
-                  icon: Icons.close,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _PaletteSourceRail(
-              controller: widget.controller,
-              lightTheme: widget.lightTheme,
-              onSelected: _selectFilter,
-            ),
-          ],
-        ),
-      ),
-      body: matches.isEmpty
-          ? Center(
-              child: Text(
-                sessionMode
-                    ? 'No sessions match'
-                    : 'No commands or sessions match',
-                style: TextStyle(color: mutedColor, fontSize: 12),
+                  const SizedBox(width: 8),
+                  _PaletteFilterChip(
+                    filter: widget.controller.effectiveFilter,
+                    lightTheme: widget.lightTheme,
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderActionButton(
+                    tooltip: 'Previous palette result',
+                    onPressed: matches.isEmpty
+                        ? null
+                        : widget.controller.goToPrevious,
+                    icon: Icons.keyboard_arrow_up,
+                  ),
+                  _HeaderActionButton(
+                    tooltip: 'Next palette result',
+                    onPressed: matches.isEmpty
+                        ? null
+                        : widget.controller.goToNext,
+                    icon: Icons.keyboard_arrow_down,
+                  ),
+                  _HeaderActionButton(
+                    tooltip: sessionMode
+                        ? 'Close workspace search'
+                        : 'Close command history',
+                    onPressed: widget.onClose,
+                    icon: Icons.close,
+                  ),
+                ],
               ),
-            )
-          : ListView.separated(
-              key: const Key('terminal-command-palette-results-list'),
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              itemCount: matches.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 2),
-              itemBuilder: (context, index) {
-                final entry = matches[index];
-                return _CommandPaletteEntryRow(
-                  key: Key(
-                    entry.isSessionEntry
-                        ? 'terminal-workspace-search-row-${entry.id}'
-                        : entry.isLaunchConfigEntry
-                        ? 'terminal-launch-config-palette-row-${entry.id}'
-                        : 'terminal-command-history-row-${entry.id}',
-                  ),
-                  entry: entry,
-                  active: index == widget.controller.activeIndex,
-                  chooseEnabled: widget.chooseEnabled,
-                  lightTheme: widget.lightTheme,
-                  onSave: () {
-                    widget.controller.saveEntry(entry);
-                  },
-                  onRemove: () {
-                    widget.controller.removeEntry(entry);
-                  },
-                  onTap:
-                      entry.isSessionEntry ||
-                          entry.isLaunchConfigEntry ||
-                          widget.chooseEnabled
-                      ? () {
-                          widget.controller.selectEntryAt(index);
-                          unawaited(_choose());
-                        }
-                      : null,
-                );
-              },
-            ),
+              const SizedBox(height: 50),
+              _PaletteSourceRail(
+                controller: widget.controller,
+                lightTheme: widget.lightTheme,
+                onSelected: _selectFilter,
+              ),
+            ],
+          ),
+        ),
+        body: matches.isEmpty
+            ? Center(
+                child: Text(
+                  sessionMode
+                      ? 'No sessions match'
+                      : 'No commands or sessions match',
+                  style: TextStyle(color: mutedColor, fontSize: 12),
+                ),
+              )
+            : ListView.separated(
+                key: const Key('terminal-command-palette-results-list'),
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                itemCount: matches.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 2),
+                itemBuilder: (context, index) {
+                  final entry = matches[index];
+                  return _CommandPaletteEntryRow(
+                    key: Key(
+                      entry.isSessionEntry
+                          ? 'terminal-workspace-search-row-${entry.id}'
+                          : entry.isLaunchConfigEntry
+                          ? 'terminal-launch-config-palette-row-${entry.id}'
+                          : 'terminal-command-history-row-${entry.id}',
+                    ),
+                    entry: entry,
+                    active: index == widget.controller.activeIndex,
+                    chooseEnabled: widget.chooseEnabled,
+                    lightTheme: widget.lightTheme,
+                    onSave: () {
+                      widget.controller.saveEntry(entry);
+                    },
+                    onRemove: () {
+                      widget.controller.removeEntry(entry);
+                    },
+                    onTap:
+                        entry.isSessionEntry ||
+                            entry.isLaunchConfigEntry ||
+                            widget.chooseEnabled
+                        ? () {
+                            widget.controller.selectEntryAt(index);
+                            unawaited(_choose());
+                          }
+                        : null,
+                  );
+                },
+              ),
+      ),
     );
   }
 
@@ -5152,7 +5199,7 @@ class _TerminalSurface extends StatelessWidget {
   );
   static const double _inlineBlockRailLeftPadding = 132;
   static const double _inlineBlockRailDefaultReservedHeight = 132;
-  static const double _inlineBlockRailExpandedReservedHeight = 320;
+  static const double _inlineBlockRailExpandedReservedHeight = 340;
 
   static double _inlineBlockRailReservedHeightFor(bool blockFirst) {
     return blockFirst
@@ -5165,7 +5212,7 @@ class _TerminalSurface extends StatelessWidget {
     required bool blockFirst,
   }) {
     if (blockFirst) {
-      final top = viewportHeight - _inlineBlockRailExpandedReservedHeight;
+      final top = viewportHeight - _inlineBlockRailExpandedReservedHeight - 2;
       return top < 136 ? 136 : top;
     }
     final scaledTop = viewportHeight * (blockFirst ? 0.417 : 0.51);
@@ -5174,8 +5221,8 @@ class _TerminalSurface extends StatelessWidget {
         viewportHeight -
         _inlineBlockRailReservedHeightFor(blockFirst) -
         bottomGuard;
-    final boundedTop = scaledTop > (blockFirst ? 264 : 340)
-        ? (blockFirst ? 264.0 : 340.0)
+    final boundedTop = scaledTop > (blockFirst ? 264 : 318)
+        ? (blockFirst ? 264.0 : 318.0)
         : scaledTop;
     final minTop = viewportHeight >= 360 ? (blockFirst ? 136.0 : 112.0) : 12.0;
     final effectiveMaxTop = maxTop < minTop ? minTop : maxTop;
@@ -5214,244 +5261,262 @@ class _TerminalSurface extends StatelessWidget {
         decoration: BoxDecoration(color: colors.canvasBackground),
         child: Stack(
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (showSessionContextHeader)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
-                    child: _PaneSessionContextHeader(
-                      sessionLabel: sessionLabel,
-                      metadata: shellController.sessionMetadata,
-                      launchProfile: shellController.sessionLaunchProfile,
-                    ),
-                  ),
-                Expanded(
-                  child: AnimatedBuilder(
-                    animation: Listenable.merge(<Listenable>[
-                      shellController.blocksController,
-                      shellController.modernInputController,
-                    ]),
-                    builder: (context, _) {
-                      final lightTheme =
-                          settings.themePreset == TerminalThemePreset.light;
-                      final inputState =
-                          shellController.modernInputController.state;
-                      final draftPreview = _singleLinePreview(inputState.draft);
-                      final showInlineBlockRail =
-                          isActivePane &&
-                          shellController.blocksController.hasBlocks;
-                      final completionBlockFirst =
-                          showInlineBlockRail &&
-                          inputState.effectiveMode ==
-                              ModernInputEffectiveMode.modern &&
-                          draftPreview.isNotEmpty;
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          final showBlockHistoryPanel =
+            LayoutBuilder(
+              builder: (context, surfaceConstraints) {
+                final compactSurface = surfaceConstraints.maxHeight < 320;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (showSessionContextHeader)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
+                        child: _PaneSessionContextHeader(
+                          sessionLabel: sessionLabel,
+                          metadata: shellController.sessionMetadata,
+                          launchProfile: shellController.sessionLaunchProfile,
+                        ),
+                      ),
+                    Expanded(
+                      child: AnimatedBuilder(
+                        animation: Listenable.merge(<Listenable>[
+                          shellController.blocksController,
+                          shellController.modernInputController,
+                        ]),
+                        builder: (context, _) {
+                          final lightTheme =
+                              settings.themePreset == TerminalThemePreset.light;
+                          final inputState =
+                              shellController.modernInputController.state;
+                          final draftPreview = _singleLinePreview(
+                            inputState.draft,
+                          );
+                          final showInlineBlockRail =
+                              isActivePane &&
+                              shellController.blocksController.hasBlocks;
+                          final completionBlockFirst =
                               showInlineBlockRail &&
-                              shellController
-                                  .blocksController
-                                  .historyPanelOpen &&
-                              constraints.maxWidth >= 720 &&
-                              constraints.maxHeight >= 180;
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: Stack(
-                                  children: [
-                                    Positioned.fill(
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          WidgetsBinding.instance
-                                              .addPostFrameCallback((_) {
-                                                if (context.mounted) {
-                                                  onViewportLaidOut(
-                                                    Size(
-                                                      constraints.maxWidth,
-                                                      constraints.maxHeight,
-                                                    ),
-                                                    null,
+                              inputState.effectiveMode ==
+                                  ModernInputEffectiveMode.modern &&
+                              draftPreview.isNotEmpty;
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              final showBlockHistoryPanel =
+                                  showInlineBlockRail &&
+                                  shellController
+                                      .blocksController
+                                      .historyPanelOpen &&
+                                  constraints.maxWidth >= 720 &&
+                                  constraints.maxHeight >= 180;
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: Stack(
+                                      children: [
+                                        Positioned.fill(
+                                          child: LayoutBuilder(
+                                            builder: (context, constraints) {
+                                              WidgetsBinding.instance
+                                                  .addPostFrameCallback((_) {
+                                                    if (context.mounted) {
+                                                      onViewportLaidOut(
+                                                        Size(
+                                                          constraints.maxWidth,
+                                                          constraints.maxHeight,
+                                                        ),
+                                                        null,
+                                                      );
+                                                    }
+                                                  });
+                                              final blockRailContentPadding =
+                                                  _viewportPaddingForInlineBlockRail(
+                                                    constraints.maxHeight,
+                                                    blockFirst:
+                                                        completionBlockFirst,
                                                   );
-                                                }
-                                              });
-                                          final blockRailContentPadding =
-                                              _viewportPaddingForInlineBlockRail(
-                                                constraints.maxHeight,
-                                                blockFirst:
-                                                    completionBlockFirst,
-                                              );
-                                          return Opacity(
-                                            key: completionBlockFirst
-                                                ? const Key(
-                                                    'terminal-default-viewport-muted-for-completion',
-                                                  )
-                                                : const Key(
-                                                    'terminal-default-viewport-visible',
-                                                  ),
-                                            opacity: completionBlockFirst
-                                                ? 0
-                                                : 1,
-                                            child: terminal.TerminalViewport(
-                                              focusNode: focusNode,
-                                              controller: shellController
-                                                  .viewportController,
-                                              selectionController:
-                                                  shellController
-                                                      .selectionController,
-                                              inputController: inputController,
-                                              contentPadding:
-                                                  showInlineBlockRail
-                                                  ? blockRailContentPadding
-                                                  : _viewportPadding,
-                                              colors: colors,
-                                              font: settings.fontConfig,
-                                              onMeasuredCellSizeChanged:
-                                                  (measuredCellSize) {
-                                                    onViewportLaidOut(
-                                                      Size(
-                                                        constraints.maxWidth,
-                                                        constraints.maxHeight,
+                                              return Opacity(
+                                                key: completionBlockFirst
+                                                    ? const Key(
+                                                        'terminal-default-viewport-muted-for-completion',
+                                                      )
+                                                    : const Key(
+                                                        'terminal-default-viewport-visible',
                                                       ),
-                                                      measuredCellSize,
-                                                    );
+                                                opacity: completionBlockFirst
+                                                    ? 0
+                                                    : 1,
+                                                child: terminal.TerminalViewport(
+                                                  focusNode: focusNode,
+                                                  controller: shellController
+                                                      .viewportController,
+                                                  selectionController:
+                                                      shellController
+                                                          .selectionController,
+                                                  inputController:
+                                                      inputController,
+                                                  contentPadding:
+                                                      showInlineBlockRail
+                                                      ? blockRailContentPadding
+                                                      : _viewportPadding,
+                                                  colors: colors,
+                                                  font: settings.fontConfig,
+                                                  onMeasuredCellSizeChanged:
+                                                      (measuredCellSize) {
+                                                        onViewportLaidOut(
+                                                          Size(
+                                                            constraints
+                                                                .maxWidth,
+                                                            constraints
+                                                                .maxHeight,
+                                                          ),
+                                                          measuredCellSize,
+                                                        );
+                                                      },
+                                                  onScrollLines: (delta) {
+                                                    shellController
+                                                        .scrollViewport(delta);
                                                   },
-                                              onScrollLines: (delta) {
-                                                shellController.scrollViewport(
-                                                  delta,
-                                                );
-                                              },
-                                              onScrollToOffset: (offset) {
-                                                shellController
-                                                    .scrollViewportTo(offset);
-                                              },
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                    if (showInlineBlockRail)
-                                      Positioned(
-                                        top: _inlineBlockRailTopForHeight(
-                                          constraints.maxHeight,
-                                          blockFirst: completionBlockFirst,
+                                                  onScrollToOffset: (offset) {
+                                                    shellController
+                                                        .scrollViewportTo(
+                                                          offset,
+                                                        );
+                                                  },
+                                                ),
+                                              );
+                                            },
+                                          ),
                                         ),
-                                        left: completionBlockFirst ? 0 : 18,
-                                        right: completionBlockFirst ? 0 : 18,
-                                        child: _InlineBlockRail(
-                                          controller:
-                                              shellController.blocksController,
-                                          reinputEnabled:
-                                              shellController.canAcceptInput,
-                                          lightTheme: lightTheme,
-                                          expandedActiveBlock:
-                                              completionBlockFirst,
-                                          minHeight: completionBlockFirst
-                                              ? _inlineBlockRailReservedHeightFor(
-                                                  true,
-                                                )
-                                              : null,
-                                          onReinput: onModernInputRequested,
-                                        ),
-                                      ),
-                                    if (showInlineBlockRail)
-                                      Positioned(
-                                        key: const Key(
-                                          'terminal-block-status-rail-slot',
-                                        ),
-                                        top:
-                                            _inlineBlockRailTopForHeight(
+                                        if (showInlineBlockRail)
+                                          Positioned(
+                                            top: _inlineBlockRailTopForHeight(
                                               constraints.maxHeight,
                                               blockFirst: completionBlockFirst,
-                                            ) +
-                                            _inlineBlockRailReservedHeightFor(
-                                              completionBlockFirst,
                                             ),
-                                        left: 12,
-                                        bottom: 14,
-                                        width: 108,
-                                        child: _ViewportBlockStatusRail(
-                                          controller:
-                                              shellController.blocksController,
-                                          lightTheme: lightTheme,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              if (showBlockHistoryPanel)
-                                _BlockHistoryPanel(
-                                  controller: shellController.blocksController,
-                                  reinputEnabled:
-                                      shellController.canAcceptInput,
-                                  lightTheme: lightTheme,
-                                  onReinput: onModernInputRequested,
-                                ),
-                            ],
+                                            left: completionBlockFirst ? 0 : 15,
+                                            right: completionBlockFirst ? 0 : 3,
+                                            child: _InlineBlockRail(
+                                              controller: shellController
+                                                  .blocksController,
+                                              reinputEnabled: shellController
+                                                  .canAcceptInput,
+                                              lightTheme: lightTheme,
+                                              expandedActiveBlock:
+                                                  completionBlockFirst,
+                                              minHeight: completionBlockFirst
+                                                  ? _inlineBlockRailReservedHeightFor(
+                                                      true,
+                                                    )
+                                                  : null,
+                                              onReinput: onModernInputRequested,
+                                            ),
+                                          ),
+                                        if (showInlineBlockRail)
+                                          Positioned(
+                                            key: const Key(
+                                              'terminal-block-status-rail-slot',
+                                            ),
+                                            top:
+                                                _inlineBlockRailTopForHeight(
+                                                  constraints.maxHeight,
+                                                  blockFirst:
+                                                      completionBlockFirst,
+                                                ) +
+                                                _inlineBlockRailReservedHeightFor(
+                                                  completionBlockFirst,
+                                                ),
+                                            left: 12,
+                                            bottom: completionBlockFirst
+                                                ? 14
+                                                : 46,
+                                            width: 108,
+                                            child: _ViewportBlockStatusRail(
+                                              controller: shellController
+                                                  .blocksController,
+                                              lightTheme: lightTheme,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (showBlockHistoryPanel)
+                                    _BlockHistoryPanel(
+                                      controller:
+                                          shellController.blocksController,
+                                      reinputEnabled:
+                                          shellController.canAcceptInput,
+                                      lightTheme: lightTheme,
+                                      onReinput: onModernInputRequested,
+                                    ),
+                                ],
+                              );
+                            },
                           );
                         },
-                      );
-                    },
-                  ),
-                ),
-                if (isActivePane &&
-                    shellController.commandHistoryController.isOpen)
-                  _CommandHistoryPanel(
-                    controller: shellController.commandHistoryController,
-                    textController: commandHistoryTextController,
-                    focusNode: commandHistoryFocusNode,
-                    chooseEnabled: inputEnabled,
-                    lightTheme:
-                        settings.themePreset == TerminalThemePreset.light,
-                    onClose: onCommandHistoryClosed,
-                    onChoose: onCommandHistorySelected,
-                    onModernInputRequested: onModernInputRequested,
-                  ),
-                if (isActivePane && shellController.completionController.isOpen)
-                  _CompletionPanel(
-                    controller: shellController.completionController,
-                    lightTheme:
-                        settings.themePreset == TerminalThemePreset.light,
-                  ),
-                if (isActivePane)
-                  _InputAdjacentContextStrip(
-                    shellController: shellController,
-                    lightTheme:
-                        settings.themePreset == TerminalThemePreset.light,
-                    compactCommandDetection:
-                        shellController.blocksController.hasBlocks,
-                  )
-                else
-                  _InactiveInputContextStrip(
-                    paneId: paneId,
-                    shellController: shellController,
-                    lightTheme:
-                        settings.themePreset == TerminalThemePreset.light,
-                    compact: shellController.blocksController.hasBlocks,
-                  ),
-                if (isActivePane)
-                  _ModernInputBar(
-                    controller: shellController.modernInputController,
-                    completionController: shellController.completionController,
-                    commandHistoryController:
-                        shellController.commandHistoryController,
-                    focusNode: modernInputFocusNode,
-                    enabled: inputEnabled,
-                    settings: settings,
-                    compactWhenCommandDraft:
-                        shellController.blocksController.hasBlocks,
-                    onModernInputRequested: onModernInputRequested,
-                    onRawInputRequested: onRawInputRequested,
-                    onCommandHistoryRequested: onCommandHistoryRequested,
-                    onSaveCommandRequested: onSaveCommandRequested,
-                  )
-                else
-                  _InactiveModernInputBarPreview(
-                    paneId: paneId,
-                    settings: settings,
-                  ),
-              ],
+                      ),
+                    ),
+                    if (isActivePane &&
+                        shellController.commandHistoryController.isOpen)
+                      _CommandHistoryPanel(
+                        controller: shellController.commandHistoryController,
+                        textController: commandHistoryTextController,
+                        focusNode: commandHistoryFocusNode,
+                        chooseEnabled: inputEnabled,
+                        lightTheme:
+                            settings.themePreset == TerminalThemePreset.light,
+                        onClose: onCommandHistoryClosed,
+                        onChoose: onCommandHistorySelected,
+                        onModernInputRequested: onModernInputRequested,
+                      ),
+                    if (isActivePane &&
+                        shellController.completionController.isOpen)
+                      _CompletionPanel(
+                        controller: shellController.completionController,
+                        lightTheme:
+                            settings.themePreset == TerminalThemePreset.light,
+                      ),
+                    if (!compactSurface)
+                      if (isActivePane)
+                        _InputAdjacentContextStrip(
+                          shellController: shellController,
+                          lightTheme:
+                              settings.themePreset == TerminalThemePreset.light,
+                          compactCommandDetection:
+                              shellController.blocksController.hasBlocks,
+                        )
+                      else
+                        _InactiveInputContextStrip(
+                          paneId: paneId,
+                          shellController: shellController,
+                          lightTheme:
+                              settings.themePreset == TerminalThemePreset.light,
+                          compact: shellController.blocksController.hasBlocks,
+                        ),
+                    if (isActivePane)
+                      _ModernInputBar(
+                        controller: shellController.modernInputController,
+                        completionController:
+                            shellController.completionController,
+                        commandHistoryController:
+                            shellController.commandHistoryController,
+                        focusNode: modernInputFocusNode,
+                        enabled: inputEnabled,
+                        settings: settings,
+                        compactWhenCommandDraft:
+                            shellController.blocksController.hasBlocks,
+                        onModernInputRequested: onModernInputRequested,
+                        onRawInputRequested: onRawInputRequested,
+                        onCommandHistoryRequested: onCommandHistoryRequested,
+                        onSaveCommandRequested: onSaveCommandRequested,
+                      )
+                    else
+                      _InactiveModernInputBarPreview(
+                        paneId: paneId,
+                        settings: settings,
+                      ),
+                  ],
+                );
+              },
             ),
             if (isActivePane && commandPaletteController.isOpen)
               Positioned(
@@ -5544,7 +5609,7 @@ class _InputCommandDetectionStrip extends StatelessWidget {
         : const Color(0xFF60A5FA);
     return Container(
       key: const Key('terminal-input-command-detection-strip'),
-      constraints: BoxConstraints(minHeight: compact ? 47 : 48),
+      constraints: BoxConstraints(minHeight: compact ? 49 : 48),
       decoration: BoxDecoration(
         color: background,
         border: Border(top: BorderSide(color: borderColor)),
@@ -6125,7 +6190,7 @@ class _ModernInputBarState extends State<_ModernInputBar> {
     return Container(
       key: const Key('terminal-modern-input-bar'),
       alignment: compact ? Alignment.topCenter : null,
-      constraints: BoxConstraints(minHeight: compact ? 130 : 112),
+      constraints: BoxConstraints(minHeight: compact ? 137 : 112),
       decoration: BoxDecoration(
         color: compact ? colors.canvasBackground : background,
         border: Border(top: BorderSide(color: borderColor)),
@@ -7549,7 +7614,7 @@ class _SavedLaunchConfigsPanelState extends State<_SavedLaunchConfigsPanel> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           SizedBox(
-                            width: 280,
+                            width: 260,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 color: const Color(0xFF111827),
@@ -8250,7 +8315,7 @@ class _LaunchConfigPanelState extends State<_LaunchConfigPanel> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 25),
             const Text(
               'Ianvs will save to',
               style: TextStyle(
@@ -8282,7 +8347,7 @@ class _LaunchConfigPanelState extends State<_LaunchConfigPanel> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 15),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(

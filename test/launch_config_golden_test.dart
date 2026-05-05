@@ -114,22 +114,22 @@ void _expectLaunchConfigPanelPixelContract(WidgetTester tester) {
   final panel = tester.getRect(
     find.byKey(const Key('terminal-launch-config-dialog')),
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config panel center x',
     panel.center.dx / size.width,
     0.5,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config panel center y',
     panel.center.dy / size.height,
     0.5,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config panel width',
     panel.width / size.width,
     860 / 960,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config panel height',
     panel.height / size.height,
     650 / 700,
@@ -156,37 +156,37 @@ void _expectLaunchConfigComposePixelContract(WidgetTester tester) {
     find.byKey(const Key('terminal-launch-config-path-field')),
   );
 
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config compose name top',
     (nameField.top - panel.top) / panel.height,
     185 / 650,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config compose name width',
     nameField.width / panel.width,
     776 / 860,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config compose path preview top',
     (pathPreview.top - panel.top) / panel.height,
     298 / 650,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config compose scope top',
     (scopeExplainer.top - panel.top) / panel.height,
     71 / 650,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config compose scope height',
     scopeExplainer.height / panel.height,
     106 / 650,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config compose advanced toggle top',
     (advancedToggle.top - panel.top) / panel.height,
     340 / 650,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config compose path field top',
     (pathField.top - panel.top) / panel.height,
     391 / 650,
@@ -210,34 +210,34 @@ void _expectLaunchConfigSuccessPixelContract(WidgetTester tester) {
     find.byKey(const Key('terminal-launch-config-done-button')),
   );
 
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config success state top',
     (successState.top - panel.top) / panel.height,
     147 / 650,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config success state width',
     successState.width / panel.width,
     812 / 860,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config success path top',
     (successPath.top - panel.top) / panel.height,
     392 / 650,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config success actions top',
     (doneButton.top - panel.top) / panel.height,
     548 / 650,
   );
-  _expectRatioWithinFivePercent(
+  _expectRatioWithinOnePercent(
     'launch config success primary action gap',
     (doneButton.left - applyButton.right) / panel.width,
     8 / 860,
   );
 }
 
-void _expectRatioWithinFivePercent(
+void _expectRatioWithinOnePercent(
   String label,
   double actual,
   double expected,
@@ -245,7 +245,7 @@ void _expectRatioWithinFivePercent(
   final delta = (actual - expected).abs();
   expect(
     delta,
-    lessThanOrEqualTo(0.05),
+    lessThanOrEqualTo(0.01),
     reason:
         '$label expected ${expected.toStringAsFixed(4)}, '
         'actual ${actual.toStringAsFixed(4)}, '

@@ -303,7 +303,7 @@ void main() {
     );
   }, skip: !Platform.isMacOS);
 
-  testWidgets('default layout matches the 5 percent pixel contract', (
+  testWidgets('default layout matches the 1 percent pixel contract', (
     tester,
   ) async {
     if (!Platform.isMacOS) {
@@ -327,7 +327,7 @@ void main() {
       find.byKey(const Key('terminal-input-command-detection-strip')),
       findsNothing,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default header height',
       tester.getRect(find.byKey(const Key('terminal-header'))).height /
           size.height,
@@ -349,52 +349,52 @@ void main() {
     final inputContext = tester.getRect(
       find.byKey(const Key('terminal-input-context-strip')),
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default block rail left within terminal area',
       blockRail.left / size.width,
       (532 - 501) / (3456 - 501),
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default block rail width within terminal area',
       blockRail.width / size.width,
       (3451 - 532) / (3456 - 501),
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default block rail top',
       blockRail.top / size.height,
       449 / 1078,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default block output band height',
       blockBand.height / size.height,
       373 / 1078,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default block actions top offset',
       (blockActions.top - blockRail.top) / size.height,
       (486 - 449) / 1078,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default block actions right gap',
       (blockRail.right - blockActions.right) / blockRail.width,
       (3456 - 3343) / (3456 - 501),
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default input context top',
       inputContext.top / size.height,
       873 / 1078,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default input context height',
       inputContext.height / size.height,
       41 / 1078,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default input top',
       inputBar.top / size.height,
       914 / 1078,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'default input height',
       inputBar.height / size.height,
       164 / 1078,
@@ -477,77 +477,77 @@ void main() {
       final inputEditorTarget = _alignmentAnnotations
           .region('completion_input_layout', 'input_editor')
           .requiredWarpRatio;
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion block band left',
         _paneLocalLeft(activePane, blockBand),
         blockBandTarget.left,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion block band top',
         _paneLocalTop(activePane, blockBand),
         blockBandTarget.top,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion block band width',
         _paneLocalWidth(activePane, blockBand),
         blockBandTarget.width,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion block band height',
         _paneLocalHeight(activePane, blockBand),
         blockBandTarget.height,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion command output body left',
         _paneLocalLeft(activePane, commandOutputBody),
         commandBodyTarget.left,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion command output body top',
         _paneLocalTop(activePane, commandOutputBody),
         commandBodyTarget.top,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion command output body width',
         _paneLocalWidth(activePane, commandOutputBody),
         commandBodyTarget.width,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion command output body height',
         _paneLocalHeight(activePane, commandOutputBody),
         commandBodyTarget.height,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion block actions right gap',
         _paneLocalRightGap(activePane, blockActions),
         blockActionsTarget.rightGap,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion block actions top',
         _paneLocalTop(activePane, blockActions),
         blockActionsTarget.top,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion detection top',
         _paneLocalTop(activePane, detectionStrip),
         detectionTarget.top,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion detection height',
         _paneLocalHeight(activePane, detectionStrip),
         detectionTarget.height,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion input system top',
         _paneLocalTop(activePane, inputSystem),
         inputEditorTarget.top,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion input system height',
         _paneLocalHeight(activePane, inputSystem),
         inputEditorTarget.height,
       );
-      _expectPaneLocalRatioWithinFivePercent(
+      _expectPaneLocalRatioWithinOnePercent(
         'completion input editor top',
         _paneLocalTop(activePane, inputEditor),
         inputEditorTarget.top,
@@ -568,7 +568,7 @@ void main() {
   );
 
   testWidgets(
-    'command palette matches the 5 percent pixel contract',
+    'command palette matches the 1 percent pixel contract',
     (tester) async {
       if (!Platform.isMacOS) {
         return;
@@ -623,37 +623,37 @@ void main() {
       final resultsTarget = _alignmentAnnotations
           .region('blocks_command_palette', 'results_list')
           .requiredWarpRatio;
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'command palette left',
         palette.left / size.width,
         paletteTarget.left,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'command palette top',
         palette.top / size.height,
         paletteTarget.top,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'command palette width',
         palette.width / size.width,
         paletteTarget.width,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'command palette height',
         palette.height / size.height,
         paletteTarget.height,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'command palette source rail top',
         sourceRail.top / size.height,
         sourceRailTarget.top,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'command palette source rail height',
         sourceRail.height / size.height,
         sourceRailTarget.height,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'command palette results top',
         resultsList.top / size.height,
         resultsTarget.top,
@@ -663,7 +663,7 @@ void main() {
   );
 
   testWidgets(
-    'session palette matches the 5 percent pixel contract',
+    'session palette matches the 1 percent pixel contract',
     (tester) async {
       if (!Platform.isMacOS) {
         return;
@@ -717,37 +717,37 @@ void main() {
       final resultsTarget = _alignmentAnnotations
           .region('split_session_palette', 'results_list')
           .requiredWarpRatio;
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'session palette left',
         palette.left / size.width,
         paletteTarget.left,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'session palette top',
         palette.top / size.height,
         paletteTarget.top,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'session palette width',
         palette.width / size.width,
         paletteTarget.width,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'session palette height',
         palette.height / size.height,
         paletteTarget.height,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'session palette source rail top',
         sourceRail.top / size.height,
         sourceRailTarget.top,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'session palette source rail height',
         sourceRail.height / size.height,
         sourceRailTarget.height,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'session palette results top',
         resultsList.top / size.height,
         resultsTarget.top,
@@ -756,7 +756,7 @@ void main() {
     skip: !Platform.isMacOS,
   );
 
-  testWidgets('add menu matches the 5 percent pixel contract', (tester) async {
+  testWidgets('add menu matches the 1 percent pixel contract', (tester) async {
     if (!Platform.isMacOS) {
       return;
     }
@@ -791,17 +791,17 @@ void main() {
       Key('terminal-add-menu-bash-shell'),
       Key('terminal-add-menu-fish-shell'),
     ]);
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'add menu top is under the add button',
       (menuRect.top - addButton.bottom) / size.height,
       0,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'add menu width',
       menuRect.width / size.width,
       600 / 1510,
     );
-    _expectRatioWithinFivePercent(
+    _expectRatioWithinOnePercent(
       'add menu height',
       menuRect.height / size.height,
       564 / 1132,
@@ -809,7 +809,7 @@ void main() {
   }, skip: !Platform.isMacOS);
 
   testWidgets(
-    'split pane layout matches the 5 percent pixel contract',
+    'split pane layout matches the 1 percent pixel contract',
     (tester) async {
       if (!Platform.isMacOS) {
         return;
@@ -857,57 +857,57 @@ void main() {
       final inactiveInputContext = tester.getRect(
         find.byKey(const Key('terminal-inactive-input-context-strip-1')),
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split divider x',
         secondPane.left / size.width,
         (1978 - 501) / (3456 - 501),
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split first pane width',
         firstPane.width / size.width,
         (1978 - 501) / (3456 - 501),
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split second pane width',
         secondPane.width / size.width,
         (3456 - 1978) / (3456 - 501),
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split first pane header top',
         firstHeader.top / size.height,
         72 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split first pane header height',
         firstHeader.height / size.height,
         40 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split second pane header top',
         secondHeader.top / size.height,
         72 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split active marker height share',
         activeMarker.height / secondHeader.height,
         1,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split active input context top',
         activeInputContext.top / size.height,
         873 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split inactive input context top',
         inactiveInputContext.top / size.height,
         873 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split active input top',
         activeInputBar.top / size.height,
         914 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'split inactive input top',
         inactiveInputBar.top / size.height,
         914 / 1078,
@@ -917,7 +917,7 @@ void main() {
   );
 
   testWidgets(
-    'saved config sidecar matches the 5 percent pixel contract',
+    'saved config sidecar matches the 1 percent pixel contract',
     (tester) async {
       if (!Platform.isMacOS) {
         return;
@@ -964,17 +964,17 @@ void main() {
       final sidecarTarget = _alignmentAnnotations
           .region('saved_config_sidecar', 'sidecar')
           .requiredIanvsRect;
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'saved config dialog width',
         dialog.width / size.width,
         dialogTarget.width / size.width,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'saved config dialog height',
         dialog.height / size.height,
         dialogTarget.height / size.height,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'saved config sidecar width share',
         sidecar.width / dialog.width,
         sidecarTarget.width / dialogTarget.width,
@@ -984,7 +984,7 @@ void main() {
   );
 
   testWidgets(
-    'block actions hover matches the 5 percent pixel contract',
+    'block actions hover matches the 1 percent pixel contract',
     (tester) async {
       if (!Platform.isMacOS) {
         return;
@@ -1041,37 +1041,37 @@ void main() {
       expect(blockCard, blockCardBefore);
       expect(inputContext, inputContextBefore);
       expect(inputBar, inputBarBefore);
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'block actions rail top',
         blockRail.top / size.height,
         449 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'block actions output band height',
         blockBand.height / size.height,
         373 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'block actions card top offset',
         (blockCard.top - blockRail.top) / size.height,
         10 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'block actions button top offset',
         (blockActions.top - blockRail.top) / size.height,
         (486 - 449) / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'block actions button right gap',
         (blockRail.right - blockActions.right) / blockRail.width,
         (3456 - 3343) / (3456 - 501),
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'block actions input context top',
         inputContext.top / size.height,
         873 / 1078,
       );
-      _expectRatioWithinFivePercent(
+      _expectRatioWithinOnePercent(
         'block actions input top',
         inputBar.top / size.height,
         914 / 1078,
@@ -1112,20 +1112,20 @@ Future<void> _hoverInlineActiveBlock(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 120));
 }
 
-void _expectRatioWithinFivePercent(
+void _expectRatioWithinOnePercent(
   String label,
   double actual,
   double expected,
 ) {
-  _expectRatioWithinTolerance(label, actual, expected, 0.05);
+  _expectRatioWithinTolerance(label, actual, expected, 0.01);
 }
 
-void _expectPaneLocalRatioWithinFivePercent(
+void _expectPaneLocalRatioWithinOnePercent(
   String label,
   double actual,
   double expected,
 ) {
-  _expectRatioWithinTolerance('$label pane-local', actual, expected, 0.05);
+  _expectRatioWithinTolerance('$label pane-local', actual, expected, 0.01);
 }
 
 void _expectRatioWithinTolerance(
