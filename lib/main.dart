@@ -146,7 +146,6 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   final Map<int, FocusNode> _terminalFocusNodes = <int, FocusNode>{};
   int? _lastActiveTabId;
   int? _lastActivePaneId;
-  ModernInputEffectiveMode? _lastInputMode;
   bool? _lastCanAcceptInput;
   String? _lastLaunchConfigPath;
   CommandPaletteFilter _paletteOpenFilter = CommandPaletteFilter.commands;
@@ -231,9 +230,17 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     }
     final activeTargetChanged =
         _lastActiveTabId != activeTab.id || _lastActivePaneId != activePane.id;
-    final inputMode = activeShell.modernInputController.state.effectiveMode;
-    final inputModeChanged = _lastInputMode != inputMode;
     final inputAvailabilityChanged = _lastCanAcceptInput != canAcceptInput;
+    if (
+      canAcceptInput &&
+      activeShell.isViewedBlockCompleted &&
+      activeShell.modernInputController.state.effectiveMode !=
+          ModernInputEffectiveMode.modern
+    ) {
+      activeShell.modernInputController.useModernInput();
+      activeShell.modernInputController.clearAutoRawHint();
+    }
+
     if (activeTargetChanged) {
       _lastActiveTabId = activeTab.id;
       _lastActivePaneId = activePane.id;
@@ -241,9 +248,8 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       _commandHistoryTextController.text = _commandPaletteController.query;
       _workspaceSearchTextController.text = _commandPaletteController.query;
     }
-    _lastInputMode = inputMode;
     _lastCanAcceptInput = canAcceptInput;
-    if (activeTargetChanged || inputModeChanged || inputAvailabilityChanged) {
+    if (activeTargetChanged || inputAvailabilityChanged) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _focusActiveShellInput();
@@ -831,12 +837,26 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     if (inputController == null || sessionId == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final terminalInputEnabled =
+        shellController.canAcceptInput && shellController.isViewedBlockRunning;
+    if (!terminalInputEnabled &&
+        shellController.canAcceptInput &&
+        shellController.modernInputController.state.effectiveMode !=
+            ModernInputEffectiveMode.modern) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && shellController.isViewedBlockCompleted) {
+          shellController.modernInputController.useModernInput();
+          shellController.modernInputController.clearAutoRawHint();
+        }
+      });
+    }
 
     return _TerminalSurface(
       key: ValueKey(shellController),
       paneId: pane.id,
       shellController: shellController,
       inputController: inputController,
+      terminalInputEnabled: terminalInputEnabled,
       focusNode: _terminalFocusNodeForPane(pane.id),
       modernInputFocusNode: _modernInputFocusNode,
       commandHistoryFocusNode: _commandHistoryFocusNode,
@@ -848,10 +868,11 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       sessionLabel: _sessionLabel(sessionId),
       showSessionContextHeader: _tabsController.activeTab.paneCount > 1,
       inputEnabled: shellController.canAcceptInput,
+      rawInputEnabled: shellController.canUseRawTerminalForViewedBlock,
       isActivePane: isActivePane,
       settings: _settingsController.settings,
       onModernInputRequested: _focusModernInput,
-      onRawInputRequested: _focusTerminalInput,
+      onRawInputRequested: _activateRawInput,
       onCommandHistoryRequested: _openCommandHistory,
       onCommandHistoryClosed: _closeCommandHistory,
       onCommandHistorySelected: _chooseCommandHistoryEntry,
@@ -1245,8 +1266,44 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
       _workspaceSearchFocusNode.unfocus();
       _commandHistoryFocusNode.unfocus();
     }
-    activeShell.modernInputController.toggleManualRaw();
-    _focusActiveShellInput();
+    if (!activeShell.canAcceptInput) {
+      return;
+    }
+    if (activeShell.modernInputController.state.effectiveMode ==
+            ModernInputEffectiveMode.raw &&
+        activeShell.isViewedBlockRunning) {
+      activeShell.modernInputController.useModernInput();
+      activeShell.modernInputController.clearAutoRawHint();
+      _focusModernInput();
+      return;
+    }
+    _activateRawInput();
+  }
+
+  void _activateRawInput() {
+    final activeShell = _tabsController.activeShell;
+    activeShell.commandHistoryController.close();
+    activeShell.completionController.close();
+    if (_commandPaletteController.isOpen) {
+      _commandPaletteController.close();
+      _workspaceSearchFocusNode.unfocus();
+      _commandHistoryFocusNode.unfocus();
+    }
+    if (!activeShell.canAcceptInput) {
+      return;
+    }
+    if (activeShell.prepareForRawTerminalInteraction()) {
+      activeShell.modernInputController.enableManualRaw();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _focusTerminalInput();
+        }
+      });
+      return;
+    }
+    activeShell.modernInputController.useModernInput();
+    activeShell.modernInputController.clearAutoRawHint();
+    _focusModernInput();
   }
 
   void _focusActiveShellInput() {
@@ -1264,7 +1321,11 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
     }
     if (activeShell.modernInputController.state.effectiveMode ==
         ModernInputEffectiveMode.raw) {
-      _focusTerminalInput();
+      if (activeShell.isViewedBlockRunning) {
+        _focusTerminalInput();
+      } else {
+        _focusModernInput();
+      }
     } else {
       _focusModernInput();
     }
@@ -1289,7 +1350,8 @@ class _IanvsTerminalShellState extends State<IanvsTerminalShell> {
   }
 
   void _focusTerminalInput() {
-    if (_tabsController.activeShell.canAcceptInput) {
+    if (_tabsController.activeShell.canAcceptInput &&
+        _tabsController.activeShell.isViewedBlockRunning) {
       _terminalFocusNodeForPane(_tabsController.activePane.id).requestFocus();
     }
   }
@@ -2130,162 +2192,6 @@ class _InlineBlockRail extends StatelessWidget {
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ViewportBlockStatusRail extends StatelessWidget {
-  const _ViewportBlockStatusRail({
-    required this.controller,
-    required this.lightTheme,
-  });
-
-  final TerminalBlocksController controller;
-  final bool lightTheme;
-
-  @override
-  Widget build(BuildContext context) {
-    final background = lightTheme
-        ? const Color(0xEEF8FAFC)
-        : const Color(0xEE0B1120);
-    final borderColor = lightTheme
-        ? const Color(0xFFE2E8F0)
-        : const Color(0xFF273244);
-    return DecoratedBox(
-      key: const Key('terminal-block-status-rail'),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: borderColor),
-      ),
-      child: ListView.separated(
-        padding: const EdgeInsets.all(6),
-        itemCount: controller.blocks.length,
-        separatorBuilder: (context, index) => _ViewportBlockDivider(
-          key: Key('terminal-block-status-divider-${index + 1}'),
-          lightTheme: lightTheme,
-        ),
-        itemBuilder: (context, index) {
-          final block = controller.blocks[index];
-          return _ViewportBlockStatusMarker(
-            key: Key('terminal-block-status-marker-${block.id}'),
-            block: block,
-            index: index,
-            active: index == controller.activeIndex,
-            lightTheme: lightTheme,
-            onTap: () => controller.selectBlockAt(index),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ViewportBlockStatusMarker extends StatelessWidget {
-  const _ViewportBlockStatusMarker({
-    super.key,
-    required this.block,
-    required this.index,
-    required this.active,
-    required this.lightTheme,
-    required this.onTap,
-  });
-
-  final TerminalBlock block;
-  final int index;
-  final bool active;
-  final bool lightTheme;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final (statusBackground, statusBorder, statusIndicator) =
-        _inlineBlockStatusColors(block.status, lightTheme);
-    final textColor = lightTheme
-        ? const Color(0xFF0F172A)
-        : const Color(0xFFE5E7EB);
-    final mutedColor = lightTheme
-        ? const Color(0xFF64748B)
-        : const Color(0xFF94A3B8);
-    return Tooltip(
-      message: _singleLinePreview(block.commandText),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: active ? statusBackground : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: active ? statusBorder : const Color(0x00000000),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(5, 6, 5, 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 4,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: statusIndicator,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${index + 1} ${block.status.label}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: statusIndicator,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _singleLinePreview(block.commandText),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: active ? textColor : mutedColor,
-                          fontSize: 10,
-                          fontWeight: active
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ViewportBlockDivider extends StatelessWidget {
-  const _ViewportBlockDivider({super.key, required this.lightTheme});
-
-  final bool lightTheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 1,
-        height: 12,
-        color: lightTheme ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
       ),
     );
   }
@@ -5144,6 +5050,7 @@ class _TerminalSurface extends StatelessWidget {
     required this.paneId,
     required this.shellController,
     required this.inputController,
+    required this.terminalInputEnabled,
     required this.focusNode,
     required this.modernInputFocusNode,
     required this.commandHistoryFocusNode,
@@ -5155,6 +5062,7 @@ class _TerminalSurface extends StatelessWidget {
     required this.sessionLabel,
     required this.showSessionContextHeader,
     required this.inputEnabled,
+    required this.rawInputEnabled,
     required this.isActivePane,
     required this.settings,
     required this.onModernInputRequested,
@@ -5169,6 +5077,7 @@ class _TerminalSurface extends StatelessWidget {
   final int paneId;
   final LocalShellSessionController shellController;
   final terminal.TerminalInputController inputController;
+  final bool terminalInputEnabled;
   final FocusNode focusNode;
   final FocusNode modernInputFocusNode;
   final FocusNode commandHistoryFocusNode;
@@ -5180,6 +5089,7 @@ class _TerminalSurface extends StatelessWidget {
   final String sessionLabel;
   final bool showSessionContextHeader;
   final bool inputEnabled;
+  final bool rawInputEnabled;
   final bool isActivePane;
   final TerminalSettings settings;
   final VoidCallback onModernInputRequested;
@@ -5253,7 +5163,14 @@ class _TerminalSurface extends StatelessWidget {
     final rawInputActive =
         shellController.modernInputController.state.effectiveMode ==
         ModernInputEffectiveMode.raw;
-    focusNode.canRequestFocus = inputEnabled && rawInputActive && isActivePane;
+    focusNode.canRequestFocus =
+        inputEnabled &&
+        terminalInputEnabled &&
+        rawInputActive &&
+        isActivePane;
+    final effectiveInputController = terminalInputEnabled
+        ? inputController
+        : _ReadOnlyTerminalInputController(delegate: inputController);
     final colors = settings.themePreset.viewportColors;
     return KeyedSubtree(
       key: Key('terminal-pane-surface-$paneId'),
@@ -5281,23 +5198,21 @@ class _TerminalSurface extends StatelessWidget {
                         animation: Listenable.merge(<Listenable>[
                           shellController.blocksController,
                           shellController.modernInputController,
+                          shellController.completionController,
                         ]),
                         builder: (context, _) {
                           final lightTheme =
                               settings.themePreset == TerminalThemePreset.light;
                           final inputState =
                               shellController.modernInputController.state;
-                          final draftPreview = _singleLinePreview(
-                            inputState.draft,
-                          );
                           final showInlineBlockRail =
                               isActivePane &&
                               shellController.blocksController.hasBlocks;
                           final completionBlockFirst =
                               showInlineBlockRail &&
+                              shellController.completionController.isOpen &&
                               inputState.effectiveMode ==
-                                  ModernInputEffectiveMode.modern &&
-                              draftPreview.isNotEmpty;
+                                  ModernInputEffectiveMode.modern;
                           return LayoutBuilder(
                             builder: (context, constraints) {
                               final showBlockHistoryPanel =
@@ -5353,7 +5268,7 @@ class _TerminalSurface extends StatelessWidget {
                                                       shellController
                                                           .selectionController,
                                                   inputController:
-                                                      inputController,
+                                                      effectiveInputController,
                                                   contentPadding:
                                                       showInlineBlockRail
                                                       ? blockRailContentPadding
@@ -5409,31 +5324,6 @@ class _TerminalSurface extends StatelessWidget {
                                                     )
                                                   : null,
                                               onReinput: onModernInputRequested,
-                                            ),
-                                          ),
-                                        if (showInlineBlockRail)
-                                          Positioned(
-                                            key: const Key(
-                                              'terminal-block-status-rail-slot',
-                                            ),
-                                            top:
-                                                _inlineBlockRailTopForHeight(
-                                                  constraints.maxHeight,
-                                                  blockFirst:
-                                                      completionBlockFirst,
-                                                ) +
-                                                _inlineBlockRailReservedHeightFor(
-                                                  completionBlockFirst,
-                                                ),
-                                            left: 12,
-                                            bottom: completionBlockFirst
-                                                ? 14
-                                                : 46,
-                                            width: 108,
-                                            child: _ViewportBlockStatusRail(
-                                              controller: shellController
-                                                  .blocksController,
-                                              lightTheme: lightTheme,
                                             ),
                                           ),
                                       ],
@@ -5501,6 +5391,7 @@ class _TerminalSurface extends StatelessWidget {
                             shellController.commandHistoryController,
                         focusNode: modernInputFocusNode,
                         enabled: inputEnabled,
+                        rawInputEnabled: rawInputEnabled,
                         settings: settings,
                         compactWhenCommandDraft:
                             shellController.blocksController.hasBlocks,
@@ -5556,11 +5447,15 @@ class _InputAdjacentContextStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: shellController.modernInputController,
+      animation: Listenable.merge(<Listenable>[
+        shellController.modernInputController,
+        shellController.completionController,
+      ]),
       builder: (context, _) {
         final inputState = shellController.modernInputController.state;
         final draftPreview = _singleLinePreview(inputState.draft);
         if (compactCommandDetection &&
+            shellController.completionController.isOpen &&
             inputState.effectiveMode == ModernInputEffectiveMode.modern &&
             draftPreview.isNotEmpty) {
           return _InputCommandDetectionStrip(
@@ -5949,6 +5844,41 @@ class _InactiveModernInputBarPreview extends StatelessWidget {
   }
 }
 
+class _ReadOnlyTerminalInputController extends terminal.TerminalInputController {
+  _ReadOnlyTerminalInputController({
+    required terminal.TerminalInputController delegate,
+  })  : _delegate = delegate,
+        super(
+          sessionId: delegate.sessionId,
+          runtime: delegate.runtime,
+          readFrame: delegate.readFrame,
+          readSelection: delegate.readSelection,
+          readClipboard: delegate.readClipboard,
+          copySelection: (_) => delegate.copySelection(),
+        );
+
+  final terminal.TerminalInputController _delegate;
+
+  @override
+  KeyEventResult handle(KeyEvent event) => KeyEventResult.ignored;
+
+  @override
+  void sendFocusReport({required bool focused}) {}
+
+  @override
+  void sendMouseReport({
+    required terminal.TerminalFrameModes modes,
+    required int row,
+    required int col,
+    required int button,
+    required bool pressed,
+    int modifiers = 0,
+  }) {}
+
+  @override
+  Future<void> copySelection() => _delegate.copySelection();
+}
+
 class _DisabledInputPreviewIcon extends StatelessWidget {
   const _DisabledInputPreviewIcon({required this.icon});
 
@@ -5971,6 +5901,7 @@ class _ModernInputBar extends StatefulWidget {
     required this.commandHistoryController,
     required this.focusNode,
     required this.enabled,
+    required this.rawInputEnabled,
     required this.settings,
     required this.compactWhenCommandDraft,
     required this.onModernInputRequested,
@@ -5984,6 +5915,7 @@ class _ModernInputBar extends StatefulWidget {
   final CommandHistoryController commandHistoryController;
   final FocusNode focusNode;
   final bool enabled;
+  final bool rawInputEnabled;
   final TerminalSettings settings;
   final bool compactWhenCommandDraft;
   final VoidCallback onModernInputRequested;
@@ -6006,6 +5938,7 @@ class _ModernInputBarState extends State<_ModernInputBar> {
     );
     _textController.addListener(_syncToController);
     widget.controller.addListener(_syncFromController);
+    widget.completionController.addListener(_handleCompletionChange);
   }
 
   @override
@@ -6016,11 +5949,20 @@ class _ModernInputBarState extends State<_ModernInputBar> {
       widget.controller.addListener(_syncFromController);
       _syncFromController();
     }
+    if (!identical(
+      oldWidget.completionController,
+      widget.completionController,
+    )) {
+      oldWidget.completionController.removeListener(_handleCompletionChange);
+      widget.completionController.addListener(_handleCompletionChange);
+      _handleCompletionChange();
+    }
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_syncFromController);
+    widget.completionController.removeListener(_handleCompletionChange);
     _textController.removeListener(_syncToController);
     _textController.dispose();
     super.dispose();
@@ -6037,6 +5979,12 @@ class _ModernInputBarState extends State<_ModernInputBar> {
   void _syncToController() {
     widget.controller.updateEditingValue(_textController.value);
     setState(() {});
+  }
+
+  void _handleCompletionChange() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -6058,135 +6006,11 @@ class _ModernInputBarState extends State<_ModernInputBar> {
         : const Color(0xFF94A3B8);
     final compact =
         widget.compactWhenCommandDraft &&
+        widget.completionController.isOpen &&
         state.effectiveMode == ModernInputEffectiveMode.modern &&
         _singleLinePreview(_textController.text).isNotEmpty;
-    if (state.effectiveMode == ModernInputEffectiveMode.modern && !compact) {
-      return Container(
-        key: const Key('terminal-modern-input-bar'),
-        height: 133,
-        decoration: BoxDecoration(
-          color: colors.canvasBackground,
-          border: Border(top: BorderSide(color: borderColor)),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              key: const Key('terminal-modern-input-editor'),
-              left: 32,
-              right: 260,
-              top: 22,
-              bottom: 12,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    height: 38,
-                    child: Focus(
-                      onKeyEvent: _handleInputKey,
-                      child: TextField(
-                        key: const Key('terminal-modern-input-field'),
-                        focusNode: widget.focusNode,
-                        controller: _textController,
-                        enabled: widget.enabled,
-                        minLines: 1,
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: textColor,
-                          fontFamily: widget.settings.fontConfig.family,
-                          fontSize: 22,
-                          height: 1.2,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        cursorColor: colors.cursor,
-                        onChanged: _handleTextChanged,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          hintText: widget.enabled ? '' : 'Shell unavailable',
-                          hintStyle: TextStyle(color: mutedColor),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'Terminal input',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: mutedColor.withValues(alpha: 0.72),
-                      fontFamily: widget.settings.fontConfig.family,
-                      fontSize: 18,
-                      height: 1.2,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              right: 24,
-              top: 22,
-              child: DecoratedBox(
-                key: const Key('terminal-modern-input-toolbar'),
-                decoration: BoxDecoration(
-                  color: background,
-                  borderRadius: BorderRadius.circular(7),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 3,
-                    vertical: 3,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _HeaderActionButton(
-                        key: const Key('terminal-modern-submit-button'),
-                        tooltip: 'Submit command',
-                        onPressed: widget.enabled && widget.controller.canSubmit
-                            ? () => unawaited(widget.controller.submit())
-                            : null,
-                        icon: Icons.send,
-                      ),
-                      _HeaderActionButton(
-                        key: const Key('terminal-command-history-button'),
-                        tooltip: 'Command history',
-                        onPressed: widget.enabled
-                            ? widget.onCommandHistoryRequested
-                            : null,
-                        icon: Icons.history,
-                      ),
-                      _HeaderActionButton(
-                        key: const Key('terminal-save-command-button'),
-                        tooltip: 'Save command',
-                        onPressed: widget.controller.canSubmit
-                            ? widget.onSaveCommandRequested
-                            : null,
-                        icon: Icons.bookmark_add,
-                      ),
-                      _HeaderActionButton(
-                        key: const Key('terminal-raw-input-button'),
-                        tooltip: 'Use raw terminal input',
-                        onPressed: widget.enabled
-                            ? widget.onRawInputRequested
-                            : null,
-                        icon: Icons.keyboard,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+    final inputLineCount = _textController.text.split('\n').length;
+    final inputMaxLines = inputLineCount < 1 ? 1 : (inputLineCount > 4 ? 4 : inputLineCount);
     return Container(
       key: const Key('terminal-modern-input-bar'),
       alignment: compact ? Alignment.topCenter : null,
@@ -6236,7 +6060,7 @@ class _ModernInputBarState extends State<_ModernInputBar> {
                           controller: _textController,
                           enabled: widget.enabled,
                           minLines: 1,
-                          maxLines: 4,
+                          maxLines: inputMaxLines,
                           style: TextStyle(
                             color: textColor,
                             fontFamily: widget.settings.fontConfig.family,
@@ -6310,12 +6134,8 @@ class _ModernInputBarState extends State<_ModernInputBar> {
                               _HeaderActionButton(
                                 key: const Key('terminal-raw-toggle-button'),
                                 tooltip: 'Use raw terminal input',
-                                onPressed: widget.enabled
-                                    ? () {
-                                        widget.completionController.close();
-                                        widget.controller.toggleManualRaw();
-                                        widget.onRawInputRequested();
-                                      }
+                                onPressed: widget.rawInputEnabled
+                                    ? widget.onRawInputRequested
                                     : null,
                                 icon: Icons.keyboard,
                               ),
@@ -6381,8 +6201,9 @@ class _ModernInputBarState extends State<_ModernInputBar> {
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.escape) {
-      widget.controller.enableManualRaw();
-      widget.onRawInputRequested();
+      if (widget.rawInputEnabled) {
+        widget.onRawInputRequested();
+      }
       return KeyEventResult.handled;
     }
     if (event.logicalKey == LogicalKeyboardKey.tab) {
@@ -6405,17 +6226,30 @@ class _ModernInputBarState extends State<_ModernInputBar> {
         return KeyEventResult.handled;
       }
       final pairInput = _modernInputPairTextFor(event);
-      if (pairInput == null) {
+      if (pairInput != null) {
+        final edited = applyModernInputPairInsertion(
+          _textController.value,
+          pairInput,
+        );
+        if (edited == null) {
+          return KeyEventResult.ignored;
+        }
+        _applyModernInputEdit(edited);
+        return KeyEventResult.handled;
+      }
+      final shiftedSymbol = _modernInputShiftedSymbolTextFor(event);
+      if (shiftedSymbol == null) {
         return KeyEventResult.ignored;
       }
-      final edited = applyModernInputPairInsertion(
+      final pairedSymbolEdit = applyModernInputPairInsertion(
         _textController.value,
-        pairInput,
+        shiftedSymbol,
       );
-      if (edited == null) {
-        return KeyEventResult.ignored;
+      if (pairedSymbolEdit != null) {
+        _applyModernInputEdit(pairedSymbolEdit);
+      } else {
+        _insertPlainText(shiftedSymbol);
       }
-      _applyModernInputEdit(edited);
       return KeyEventResult.handled;
     }
     if (HardwareKeyboard.instance.isShiftPressed) {
@@ -6432,6 +6266,23 @@ class _ModernInputBarState extends State<_ModernInputBar> {
   void _applyModernInputEdit(TextEditingValue value) {
     _textController.value = value;
     widget.controller.updateEditingValue(value);
+  }
+
+  void _insertPlainText(String text) {
+    final value = _textController.value;
+    final selection = value.selection.isValid
+        ? value.selection
+        : TextSelection.collapsed(offset: value.text.length);
+    final start = selection.start.clamp(0, value.text.length);
+    final end = selection.end.clamp(0, value.text.length);
+    final nextText = value.text.replaceRange(start, end, text);
+    _applyModernInputEdit(
+      value.copyWith(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: start + text.length),
+        composing: TextRange.empty,
+      ),
+    );
   }
 
   void _handleTextChanged(String value) {
@@ -6517,7 +6368,89 @@ class _ModernInputBarState extends State<_ModernInputBar> {
     }
     return null;
   }
+
+  String? _modernInputShiftedSymbolTextFor(KeyDownEvent event) {
+    final character = event.character;
+    if (character != null &&
+        character.length == 1 &&
+        _manualShiftedSymbolCharacters.contains(character)) {
+      return character;
+    }
+    if (!HardwareKeyboard.instance.isShiftPressed) {
+      return null;
+    }
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.backquote:
+        return '~';
+      case LogicalKeyboardKey.digit1:
+        return '!';
+      case LogicalKeyboardKey.digit2:
+        return '@';
+      case LogicalKeyboardKey.digit3:
+        return '#';
+      case LogicalKeyboardKey.digit4:
+        return r'$';
+      case LogicalKeyboardKey.digit5:
+        return '%';
+      case LogicalKeyboardKey.digit6:
+        return '^';
+      case LogicalKeyboardKey.digit7:
+        return '&';
+      case LogicalKeyboardKey.digit8:
+        return '*';
+      case LogicalKeyboardKey.digit9:
+        return '(';
+      case LogicalKeyboardKey.digit0:
+        return ')';
+      case LogicalKeyboardKey.minus:
+        return '_';
+      case LogicalKeyboardKey.equal:
+        return '+';
+      case LogicalKeyboardKey.bracketLeft:
+        return '{';
+      case LogicalKeyboardKey.bracketRight:
+        return '}';
+      case LogicalKeyboardKey.backslash:
+        return '|';
+      case LogicalKeyboardKey.semicolon:
+        return ':';
+      case LogicalKeyboardKey.quote:
+      case LogicalKeyboardKey.quoteSingle:
+        return '"';
+      case LogicalKeyboardKey.comma:
+        return '<';
+      case LogicalKeyboardKey.period:
+        return '>';
+      case LogicalKeyboardKey.slash:
+        return '?';
+    }
+    return null;
+  }
 }
+
+const Set<String> _manualShiftedSymbolCharacters = <String>{
+  '~',
+  '!',
+  '@',
+  '#',
+  r'$',
+  '%',
+  '^',
+  '&',
+  '*',
+  '(',
+  ')',
+  '_',
+  '+',
+  '{',
+  '}',
+  '|',
+  ':',
+  '"',
+  '<',
+  '>',
+  '?',
+};
 
 class _CompletionPanel extends StatelessWidget {
   const _CompletionPanel({required this.controller, required this.lightTheme});

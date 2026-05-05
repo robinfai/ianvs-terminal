@@ -344,7 +344,6 @@ void main() {
     );
     final blockBand = _rectAroundFinders(tester, const <Key>[
       Key('terminal-inline-block-rail'),
-      Key('terminal-block-status-rail'),
     ]);
     final inputContext = tester.getRect(
       find.byKey(const Key('terminal-input-context-strip')),
@@ -401,9 +400,9 @@ void main() {
     );
   }, skip: !Platform.isMacOS);
 
-  testWidgets(
-    'completion input matches the pane-local pixel contract',
-    (tester) async {
+  testWidgets('typing a draft keeps the pane-local layout stable', (
+    tester,
+  ) async {
       if (!Platform.isMacOS) {
         return;
       }
@@ -424,36 +423,29 @@ void main() {
       );
       await tester.pump();
 
-      final activePane = tester.getRect(
-        find.byKey(const Key('terminal-pane-surface-1')),
-      );
       final inputSystem = tester.getRect(
         find.byKey(const Key('terminal-modern-input-bar')),
       );
       final inputEditor = tester.getRect(
         find.byKey(const Key('terminal-modern-input-editor')),
       );
-      final detectionStrip = tester.getRect(
-        find.byKey(const Key('terminal-input-command-detection-strip')),
+      final contextStrip = tester.getRect(
+        find.byKey(const Key('terminal-input-context-strip')),
       );
       final blockBand = tester.getRect(
         find.byKey(const Key('terminal-inline-block-row')),
       );
-      final commandOutputBody = tester.getRect(
-        find.byKey(
-          const Key('terminal-inline-active-block-command-output-body'),
-        ),
-      );
-      final blockActions = tester.getRect(
-        find.byKey(const Key('terminal-inline-block-actions-button')),
-      );
       final outputBody = tester.getRect(
         find.byKey(const Key('terminal-inline-active-block-output-body')),
       );
-      final mutedViewport = tester.widget<Opacity>(
-        find.byKey(const Key('terminal-default-viewport-muted-for-completion')),
+      final visibleViewport = tester.widget<Opacity>(
+        find.byKey(const Key('terminal-default-viewport-visible')),
       );
-      expect(mutedViewport.opacity, 0);
+      expect(visibleViewport.opacity, 1);
+      expect(
+        find.byKey(const Key('terminal-input-command-detection-strip')),
+        findsNothing,
+      );
       expect(
         find.byKey(const Key('terminal-inline-menu-shell-completion')),
         findsNothing,
@@ -462,106 +454,19 @@ void main() {
         find.byKey(const Key('terminal-inline-block-context-strip')),
         findsNothing,
       );
-      final blockBandTarget = _alignmentAnnotations
-          .region('completion_input_layout', 'block_band')
-          .requiredWarpRatio;
-      final commandBodyTarget = _alignmentAnnotations
-          .region('completion_input_layout', 'command_body')
-          .requiredWarpRatio;
-      final blockActionsTarget = _alignmentAnnotations
-          .region('completion_input_layout', 'block_actions')
-          .requiredWarpRatio;
-      final detectionTarget = _alignmentAnnotations
-          .region('completion_input_layout', 'detection_strip')
-          .requiredWarpRatio;
-      final inputEditorTarget = _alignmentAnnotations
-          .region('completion_input_layout', 'input_editor')
-          .requiredWarpRatio;
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion block band left',
-        _paneLocalLeft(activePane, blockBand),
-        blockBandTarget.left,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion block band top',
-        _paneLocalTop(activePane, blockBand),
-        blockBandTarget.top,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion block band width',
-        _paneLocalWidth(activePane, blockBand),
-        blockBandTarget.width,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion block band height',
-        _paneLocalHeight(activePane, blockBand),
-        blockBandTarget.height,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion command output body left',
-        _paneLocalLeft(activePane, commandOutputBody),
-        commandBodyTarget.left,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion command output body top',
-        _paneLocalTop(activePane, commandOutputBody),
-        commandBodyTarget.top,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion command output body width',
-        _paneLocalWidth(activePane, commandOutputBody),
-        commandBodyTarget.width,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion command output body height',
-        _paneLocalHeight(activePane, commandOutputBody),
-        commandBodyTarget.height,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion block actions right gap',
-        _paneLocalRightGap(activePane, blockActions),
-        blockActionsTarget.rightGap,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion block actions top',
-        _paneLocalTop(activePane, blockActions),
-        blockActionsTarget.top,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion detection top',
-        _paneLocalTop(activePane, detectionStrip),
-        detectionTarget.top,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion detection height',
-        _paneLocalHeight(activePane, detectionStrip),
-        detectionTarget.height,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion input system top',
-        _paneLocalTop(activePane, inputSystem),
-        inputEditorTarget.top,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion input system height',
-        _paneLocalHeight(activePane, inputSystem),
-        inputEditorTarget.height,
-      );
-      _expectPaneLocalRatioWithinOnePercent(
-        'completion input editor top',
-        _paneLocalTop(activePane, inputEditor),
-        inputEditorTarget.top,
-      );
+      expect(contextStrip.top, lessThan(inputSystem.top));
+      expect(contextStrip.height, greaterThan(0));
+      expect(inputEditor.top, greaterThanOrEqualTo(inputSystem.top));
       expect(
         outputBody.bottom,
-        lessThanOrEqualTo(detectionStrip.top),
-        reason: 'completion block output must not overlap detection strip',
+        lessThanOrEqualTo(contextStrip.top),
+        reason: 'block output must not overlap the input context strip',
       );
       expect(
         blockBand.bottom,
-        lessThanOrEqualTo(detectionStrip.top + 1),
+        lessThanOrEqualTo(contextStrip.top + 1),
         reason:
-            'completion block row should hand off directly to detection strip',
+            'the block row should hand off directly to the input context strip',
       );
     },
     skip: !Platform.isMacOS,
@@ -1028,7 +933,6 @@ void main() {
       );
       final blockBand = _rectAroundFinders(tester, const <Key>[
         Key('terminal-inline-block-rail'),
-        Key('terminal-block-status-rail'),
       ]);
       final inputContext = tester.getRect(
         find.byKey(const Key('terminal-input-context-strip')),

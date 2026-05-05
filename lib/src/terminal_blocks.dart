@@ -19,6 +19,16 @@ extension TerminalBlockStatusLabel on TerminalBlockStatus {
   }
 }
 
+extension TerminalBlockStatusKind on TerminalBlockStatus {
+  bool get isRunning => this == TerminalBlockStatus.running;
+  bool get isCompleted => this != TerminalBlockStatus.running;
+}
+
+extension TerminalBlockKind on TerminalBlock {
+  bool get isRunning => status.isRunning;
+  bool get isCompleted => status.isCompleted;
+}
+
 class TerminalBlock {
   const TerminalBlock({
     required this.id,
@@ -109,6 +119,16 @@ class TerminalBlocksController extends ChangeNotifier {
   int get activeIndex => _activeIndex;
   int get displayIndex => hasBlocks ? _activeIndex + 1 : 0;
   bool get historyPanelOpen => _historyPanelOpen;
+  int get runningBlockIndex =>
+      _blocks.lastIndexWhere((block) => block.isRunning);
+  bool get hasRunningBlock => runningBlockIndex >= 0;
+  TerminalBlock? get latestRunningBlock {
+    final index = runningBlockIndex;
+    if (index < 0) {
+      return null;
+    }
+    return _blocks[index];
+  }
   TerminalBlock? get activeBlock {
     if (_activeIndex < 0 || _activeIndex >= _blocks.length) {
       return null;
@@ -216,6 +236,20 @@ class TerminalBlocksController extends ChangeNotifier {
     _activeIndex = index;
     _jumpToActiveBlock();
     notifyListeners();
+  }
+
+  bool selectLatestRunningBlock() {
+    final index = runningBlockIndex;
+    if (index < 0) {
+      return false;
+    }
+    if (_activeIndex == index) {
+      return true;
+    }
+    _activeIndex = index;
+    _jumpToActiveBlock();
+    notifyListeners();
+    return true;
   }
 
   Future<void> copyActiveCommand() async {

@@ -295,6 +295,45 @@ void main() {
     );
   });
 
+  testWidgets('modern input keeps focus while auto-expanding for multiline', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('terminal-modern-input-field')));
+    await tester.pump();
+    var field = tester.widget<TextField>(
+      find.byKey(const Key('terminal-modern-input-field')),
+    );
+    expect(field.focusNode?.hasFocus, isTrue);
+    expect(field.maxLines, 1);
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'echo one',
+    );
+    await tester.pump();
+    field = tester.widget<TextField>(
+      find.byKey(const Key('terminal-modern-input-field')),
+    );
+    expect(field.maxLines, 1);
+    expect(field.focusNode?.hasFocus, isTrue);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+
+    expect(_modernInputText(tester), 'echo one\n');
+    field = tester.widget<TextField>(
+      find.byKey(const Key('terminal-modern-input-field')),
+    );
+    expect(field.maxLines, 2);
+    expect(field.focusNode?.hasFocus, isTrue);
+  });
+
   testWidgets('shift-enter inserts newline at the active selection', (
     tester,
   ) async {
@@ -356,6 +395,84 @@ void main() {
     );
     await tester.pump();
 
+    expect(_modernInputText(tester), '""');
+    expect(_modernInputValue(tester).selection.baseOffset, 1);
+  });
+
+  testWidgets('modern input inserts shifted symbol keys consistently', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    await _sendShiftCharacterKey(
+      tester,
+      LogicalKeyboardKey.minus,
+      PhysicalKeyboardKey.minus,
+      '_',
+    );
+    await tester.pump();
+    expect(_modernInputText(tester), '_');
+
+    await _sendShiftCharacterKey(
+      tester,
+      LogicalKeyboardKey.equal,
+      PhysicalKeyboardKey.equal,
+      '+',
+    );
+    await tester.pump();
+    expect(_modernInputText(tester), '_+');
+
+    await _sendShiftCharacterKey(
+      tester,
+      LogicalKeyboardKey.backslash,
+      PhysicalKeyboardKey.backslash,
+      '|',
+    );
+    await tester.pump();
+    expect(_modernInputText(tester), '_+|');
+
+    await _sendShiftCharacterKey(
+      tester,
+      LogicalKeyboardKey.slash,
+      PhysicalKeyboardKey.slash,
+      '?',
+    );
+    await tester.pump();
+    expect(_modernInputText(tester), '_+|?');
+  });
+
+  testWidgets('modern input keeps shifted pair symbols auto-completed', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(IanvsTerminalApp(backendFactory: () => backend));
+    await tester.pump();
+
+    await _sendShiftCharacterKey(
+      tester,
+      LogicalKeyboardKey.bracketLeft,
+      PhysicalKeyboardKey.bracketLeft,
+      '{',
+    );
+    await tester.pump();
+    expect(_modernInputText(tester), '{}');
+    expect(_modernInputValue(tester).selection.baseOffset, 1);
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      '',
+    );
+    await tester.pump();
+
+    await _sendShiftCharacterKey(
+      tester,
+      LogicalKeyboardKey.quote,
+      PhysicalKeyboardKey.quote,
+      '"',
+    );
+    await tester.pump();
     expect(_modernInputText(tester), '""');
     expect(_modernInputValue(tester).selection.baseOffset, 1);
   });
@@ -619,6 +736,258 @@ void main() {
     );
   });
 
+  testWidgets('running block writes raw key input to terminal stdin', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: (String sessionId) {
+          if (sessionId != 'session-1') {
+            return const <TerminalBlock>[];
+          }
+          return const <TerminalBlock>[
+            TerminalBlock(
+              id: 'session-1-block-1',
+              sessionId: 'session-1',
+              commandText: 'sleep 1',
+              outputText: '',
+              status: TerminalBlockStatus.running,
+              scrollbackOffset: 0,
+              recordedAt: '2026-05-04T09:00:00Z',
+            ),
+          ];
+        },
+      ),
+    );
+    await tester.pump();
+
+    await _metaShiftShortcut(tester, LogicalKeyboardKey.keyI);
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'ianvs-terminal',
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    final terminalWrites = backend.writesBySession['session-1'];
+    expect(terminalWrites, isNotNull);
+    expect(terminalWrites, isNotEmpty);
+  });
+
+  testWidgets(
+    'completed block submit switches to running block before PTY write',
+    (tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: (String sessionId) {
+          if (sessionId != 'session-1') {
+            return const <TerminalBlock>[];
+          }
+          return const <TerminalBlock>[
+            TerminalBlock(
+              id: 'session-1-block-1',
+              sessionId: 'session-1',
+              commandText: 'pwd',
+              outputText: '/tmp\n',
+              status: TerminalBlockStatus.succeeded,
+              scrollbackOffset: 2,
+              recordedAt: '2026-05-04T09:00:00Z',
+            ),
+            TerminalBlock(
+              id: 'session-1-block-2',
+              sessionId: 'session-1',
+              commandText: 'sleep 1',
+              outputText: '',
+              status: TerminalBlockStatus.running,
+              scrollbackOffset: 9,
+              recordedAt: '2026-05-04T09:01:00Z',
+            ),
+          ];
+        },
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-1')),
+    );
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'echo rerouted',
+    );
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(backend.writesBySession['session-1'], contains('echo rerouted\r'));
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-inline-active-block-card')),
+        matching: find.textContaining('sleep 1'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'completed block with no running block submits without changing selection',
+    (tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: (String sessionId) {
+          if (sessionId != 'session-1') {
+            return const <TerminalBlock>[];
+          }
+          return const <TerminalBlock>[
+            TerminalBlock(
+              id: 'session-1-block-1',
+              sessionId: 'session-1',
+              commandText: 'pwd',
+              outputText: '/tmp\n',
+              status: TerminalBlockStatus.succeeded,
+              scrollbackOffset: 2,
+              recordedAt: '2026-05-04T09:00:00Z',
+            ),
+          ];
+        },
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'echo local-completed',
+    );
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(
+      backend.writesBySession['session-1'],
+      contains('echo local-completed\r'),
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-inline-active-block-card')),
+        matching: find.textContaining('pwd'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'completed block raw entry switches to running block and routes paste to PTY',
+    (tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final clipboard = _FakeClipboardClient('echo complete');
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        clipboardClient: clipboard,
+        initialBlocksForSession: (String sessionId) {
+          if (sessionId != 'session-1') {
+            return const <TerminalBlock>[];
+          }
+          return const <TerminalBlock>[
+            TerminalBlock(
+              id: 'session-1-block-1',
+              sessionId: 'session-1',
+              commandText: 'pwd',
+              outputText: '/tmp\n',
+              status: TerminalBlockStatus.succeeded,
+              scrollbackOffset: 2,
+              recordedAt: '2026-05-04T09:00:00Z',
+            ),
+            TerminalBlock(
+              id: 'session-1-block-2',
+              sessionId: 'session-1',
+              commandText: 'sleep 1',
+              outputText: '',
+              status: TerminalBlockStatus.running,
+              scrollbackOffset: 9,
+              recordedAt: '2026-05-04T09:01:00Z',
+            ),
+          ];
+        },
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const Key('terminal-inline-block-chip-session-1-block-1')),
+    );
+    await tester.pump();
+    await _metaShiftShortcut(tester, LogicalKeyboardKey.keyI);
+
+    expect(find.textContaining('Raw input active'), findsOneWidget);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'ianvs-terminal');
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-inline-active-block-card')),
+        matching: find.textContaining('sleep 1'),
+      ),
+      findsOneWidget,
+    );
+
+    await _selectHeaderOverflowAction(tester, 'paste');
+    expect(backend.writesBySession['session-1'], contains('echo complete'));
+  });
+
+  testWidgets(
+    'completed block with no running block keeps raw entry in modern input',
+    (tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    final clipboard = _FakeClipboardClient('echo complete');
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        clipboardClient: clipboard,
+        initialBlocksForSession: (String sessionId) {
+          if (sessionId != 'session-1') {
+            return const <TerminalBlock>[];
+          }
+          return const <TerminalBlock>[
+            TerminalBlock(
+              id: 'session-1-block-1',
+              sessionId: 'session-1',
+              commandText: 'pwd',
+              outputText: '/tmp\n',
+              status: TerminalBlockStatus.succeeded,
+              scrollbackOffset: 2,
+              recordedAt: '2026-05-04T09:00:00Z',
+            ),
+          ];
+        },
+      ),
+    );
+    await tester.pump();
+
+    await _metaShiftShortcut(tester, LogicalKeyboardKey.keyI);
+    expect(find.textContaining('Raw input active'), findsNothing);
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'ianvs-modern-input',
+    );
+
+    await _selectHeaderOverflowAction(tester, 'paste');
+    expect(_modernInputText(tester), contains('echo complete'));
+    expect(backend.writesBySession['session-1'], isNull);
+  });
+
   testWidgets(
     'frame modes trigger automatic raw hint and clear back to modern',
     (tester) async {
@@ -648,6 +1017,46 @@ void main() {
       );
     },
   );
+
+  testWidgets('completed block keeps modern focus during auto-raw mode changes', (
+    tester,
+  ) async {
+    final backend = _FakePtySessionBackend();
+    await tester.pumpWidget(
+      IanvsTerminalApp(
+        backendFactory: () => backend,
+        initialBlocksForSession: _blocksForSession,
+      ),
+    );
+    await tester.pump();
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-modern-input-field')),
+      'pwd',
+    );
+    await tester.pump();
+
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'ianvs-modern-input',
+    );
+
+    backend.enqueueFrame(
+      _frameJson(modes: const <String, Object?>{'application_cursor': true}),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('terminal-modern-input-field')),
+      findsOneWidget,
+    );
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'ianvs-modern-input',
+    );
+    expect(find.textContaining('Auto raw'), findsNothing);
+  });
 
   testWidgets('modern input draft and raw mode are isolated per tab', (
     tester,
@@ -929,7 +1338,6 @@ void main() {
           .top,
       14,
     );
-    expect(find.byKey(const Key('terminal-block-status-rail')), findsNothing);
     expect(
       _headerIconButton(
         tester,
@@ -1040,11 +1448,6 @@ void main() {
           .left,
       132,
     );
-    expect(find.byKey(const Key('terminal-block-status-rail')), findsOneWidget);
-    expect(
-      find.byKey(const Key('terminal-block-status-marker-session-1-block-1')),
-      findsOneWidget,
-    );
     await tester.enterText(
       find.byKey(const Key('terminal-modern-input-field')),
       'git status --short',
@@ -1053,11 +1456,14 @@ void main() {
 
     expect(
       find.byKey(const Key('terminal-input-command-detection-strip')),
+      findsNothing,
+    );
+    expect(find.text('Terminal command'), findsNothing);
+    expect(find.textContaining('Autodetected'), findsNothing);
+    expect(
+      find.byKey(const Key('terminal-input-context-strip')),
       findsOneWidget,
     );
-    expect(find.text('Terminal command'), findsOneWidget);
-    expect(find.textContaining('Autodetected'), findsNothing);
-    expect(find.byKey(const Key('terminal-input-context-strip')), findsNothing);
     final inlineActions = tester
         .widget<PopupMenuButton<String>>(
           find.byKey(const Key('terminal-inline-block-actions-button')),
@@ -4175,6 +4581,21 @@ Future<void> _sendCharacterKey(
     physicalKey: physicalKey,
     character: character,
   );
+}
+
+Future<void> _sendShiftCharacterKey(
+  WidgetTester tester,
+  LogicalKeyboardKey logicalKey,
+  PhysicalKeyboardKey physicalKey,
+  String character,
+) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+  await tester.sendKeyEvent(
+    logicalKey,
+    physicalKey: physicalKey,
+    character: character,
+  );
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
 }
 
 Future<void> _metaShiftShortcut(

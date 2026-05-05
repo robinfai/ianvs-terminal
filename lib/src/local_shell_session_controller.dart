@@ -154,6 +154,15 @@ class LocalShellSessionController extends ChangeNotifier {
   bool get canCopy => _inputController != null;
   bool get canPaste => canAcceptInput;
   bool get canRestart => _status != LocalShellStatus.starting;
+  bool get isViewedBlockRunning {
+    final viewedBlock = blocksController.activeBlock;
+    return viewedBlock == null || viewedBlock.isRunning;
+  }
+  bool get isViewedBlockCompleted => !isViewedBlockRunning;
+  bool get canUseRawTerminalForViewedBlock =>
+      canAcceptInput &&
+      (isViewedBlockRunning || blocksController.hasRunningBlock);
+  bool get canWriteToPtyFromViewedBlock => canAcceptInput;
 
   void updateStartupCommand(String? value) {
     final nextCommand = _normalizeStartupCommand(value);
@@ -316,6 +325,12 @@ class LocalShellSessionController extends ChangeNotifier {
       modernInputController.insertText(text);
       return;
     }
+    if (!_prepareForRawTerminalInteraction()) {
+      modernInputController.useModernInput();
+      modernInputController.clearAutoRawHint();
+      modernInputController.insertText(text);
+      return;
+    }
     runtime.sendInput(
       sessionId,
       terminal.TerminalInputController.clipboardPasteBytesFor(
@@ -338,7 +353,7 @@ class LocalShellSessionController extends ChangeNotifier {
   }
 
   Future<void> _submitModernCommand(String command) async {
-    if (!canAcceptInput) {
+    if (!canWriteToPtyFromViewedBlock || !_prepareForPtyWrite()) {
       return;
     }
     _sendCommand(command);
@@ -364,6 +379,33 @@ class LocalShellSessionController extends ChangeNotifier {
     }
     modernInputController.useModernInput();
     modernInputController.updateDraft(command);
+  }
+
+  bool prepareForRawTerminalInteraction() {
+    return _prepareForRawTerminalInteraction();
+  }
+
+  bool _prepareForPtyWrite() {
+    if (!canAcceptInput) {
+      return false;
+    }
+    if (isViewedBlockRunning) {
+      return true;
+    }
+    if (blocksController.hasRunningBlock) {
+      return blocksController.selectLatestRunningBlock();
+    }
+    return true;
+  }
+
+  bool _prepareForRawTerminalInteraction() {
+    if (!canAcceptInput) {
+      return false;
+    }
+    if (isViewedBlockRunning) {
+      return true;
+    }
+    return blocksController.selectLatestRunningBlock();
   }
 
   void _handleShellHookEvent(ShellHookEvent event) {

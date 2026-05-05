@@ -98,6 +98,13 @@ class ModernInputController extends ChangeNotifier {
     _setState(_state.copyWith(manualRaw: false));
   }
 
+  void clearAutoRawHint() {
+    if (!_state.autoRawHint) {
+      return;
+    }
+    _setState(_state.copyWith(autoRawHint: false));
+  }
+
   void updateAutoRawHintFromModes(terminal.TerminalFrameModes modes) {
     final nextHint =
         modes.mouseMode != 'off' ||
