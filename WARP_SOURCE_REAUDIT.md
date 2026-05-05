@@ -21,6 +21,36 @@
 
 本轮 Computer Use 对 `dev.warp.Warp-Stable` 被插件安全策略拒绝，后续交互截图由用户手动完成；这些截图只作为本机交互观察证据，不复制 Warp 素材到产品 UI。
 
+## 2026-05-05 Universal Input 深挖复核
+
+复核输入：
+
+- Warp 官方文档 `Universal Input (Legacy)` / `Classic Input`：该入口当前重定向到 Classic Input，并说明 Warp 默认输入已改用 Terminal and Agent modes；legacy 输入相关能力由 shell prompt、现代文本编辑、command entry、自然语言进入 Agent Mode 和本地 auto-detection 组成。
+- Warp 官方文档 `Modern Text Editing`：确认 terminal 输入编辑重点是软换行、copy on select、括号 / 引号 / 方括号自动补全。
+- Warp 官方文档 `Command Search`：确认搜索面板是跨 terminal inputs、saved commands、workflows 和历史的复用入口，并支持前缀过滤。
+- Warp 官方文档 `Session Navigation`：确认 session palette 按 prompt、当前命令、最近命令和状态搜索，并按最近 focus 排序。
+- Warp 源码 `../../warp/app/src/terminal/input/universal.rs`：legacy Universal Developer Input 把 prompt/context chips、input box、button bar、attachment chips、workflow info、suggestion overlays 和 AI toolbelt 收在同一个 input stack。
+- Warp 源码 `../../warp/app/src/terminal/input/terminal.rs`：当前 terminal input 仍复用 prompt render helper、input box、inline slash/prompts/conversation/history/repos menu 和 suggestion overlays。
+- Warp 源码 `../../warp/app/src/terminal/input/common.rs`：input-adjacent overlays 覆盖 history、completion、workflow enum、AI context、slash commands、conversation、prompts、skills、repos 等多类入口。
+- Warp 源码 `../../warp/app/src/search/data_source.rs`：universal search 的 `QueryFilter` 包含 history、workflows、prompts、notebooks、actions、sessions、conversations、launch configurations、drive、env vars、files、blocks、repos 等来源。
+- Warp 源码 `../../warp/app/src/search/command_palette/navigation/search.rs`：session navigation 的搜索串由 `[prompt] [command] [hint text]` 组成，command 可以是 running / last run command 或 AI block prompt。
+
+Ianvs 业务结论：
+
+- Ianvs Terminal 是 terminal-only 产品，不实现 AI 网关、Agent Mode、自然语言自动检测、conversation、notebook、prompt、voice、image attachment 或 model picker。因此 Universal Input 的 Agent / Auto-detection / toolbelt 语义只作为边界参考，不能出现在默认产品文案或可见 source 中。
+- Ianvs 保留可对齐的 terminal-local 子集：现代输入 editor、软换行、括号 / 引号补全、Raw 输入切换、input-adjacent target / cwd / status / last command chips、可见的 input tool buttons、completion panel、command history / saved commands、session navigation 和 launch config source。
+- Ianvs 的命令草稿并没有在自然语言和 shell command 之间做模型检测；所有现代输入提交都进入 shell。因此 UI 应表达为 `Terminal command` / `Terminal input`，不能写成 `Autodetected shell command` 或 `/agent conversation`。
+- Ianvs command palette 继续只展示当前产品真实支持的 `Workflow`（本地 saved command schema）、`History`、`Sessions`、`SSH`、`Launch` 来源；不显示 Warp 的 Files / prompts / notebooks / conversations / AI history 类别。
+- 后续如果要继续追 Universal Input 体验，优先补 terminal-local 能力：cwd chip 可导航、git/runtime context chip、workflow-like saved command 编辑、session prompt snapshot fidelity、shell-native completion metadata。不要以 Warp AI / cloud source 作为 Ianvs Terminal 的默认业务路径。
+
+已执行调整：
+
+- `lib/main.dart` 中草稿态输入提示从 `Autodetected shell command` 改为 `Terminal command`。
+- `lib/main.dart` 中空输入态的 `/agent conversation` 文案改为 `Terminal input`。
+- `lib/main.dart` 中默认空输入态的 Submit / History / Save / Raw toolbar 改为可见；空草稿时 Save 继续禁用，保持和 compact 输入态一致。
+- `test/widget_test.dart` 增加断言，防止 `/agent` 和 `Autodetected` 文案重新进入输入 UI。
+- `PRODUCT_PLAN.md` 的参考链接改为 `Warp Universal Input (Legacy)`，避免把 legacy 页面误写成当前默认 Warp 输入形态。
+
 ## 交互截图观察
 
 截图目录：`docs/design_snapshots/warp_alignment/warp_interaction/`
@@ -28,7 +58,7 @@
 - `01_terminal_blocks.png`：Warp 在 terminal 内容区内直接按 command/output 形成 block，顶部保留 prompt/cwd/git 状态，底部 input editor 和上下文 chip 与当前 session 强绑定。
 - `02_block_not_hover_click_actions.png`：block 被选中或 hover 后，右侧出现 inline actions；动作靠近 block 本体，而不是远离 terminal 的全局工具栏。
 - `03_command_search.png`：command/search palette 是统一入口，零状态直接暴露 workflows、prompts、notebooks、environment variables、files、sessions、launch configurations、conversations 等类别。
-- `04_completion_input.png`：输入 `git pull` 时，Warp 能识别 shell command，并允许用快捷键覆盖自动检测；补全/输入状态与 active block 区域之间有清晰分隔。
+- `04_completion_input.png`：输入 `git pull` 时，Warp 能识别 shell command，并允许用快捷键覆盖自动检测；补全/输入状态与 active block 区域之间有清晰分隔。Ianvs 只保留 terminal command 状态，不暴露自然语言 / Agent 自动检测。
 - `05_split_pane.png`：split pane 后，每个 pane 都保留独立 header、关闭/更多菜单、底部 cwd/git/context chips 和 agent/terminal prompt 区；active pane 视觉边界明确。
 - `06_tab_or_launch_config_entry.png`：顶部 `+` 菜单把 new terminal tab、agent tab、cloud agent tab、shell selector 和 launch configs 入口集中在一起。
 
@@ -75,19 +105,19 @@ Ianvs：
 
 Warp：
 
-- 本机截图显示底部 input editor 与 cwd/git/context chips 绑定，输入时有 shell command autodetect 和覆盖提示。
+- 本机截图显示底部 input editor 与 cwd/git/context chips 绑定，输入时有 shell command 状态和覆盖提示；其中自然语言 / Agent 自动检测属于 Warp legacy Universal Input 语义，不进入 Ianvs 默认业务路径。
 - `../../warp/app/src/terminal/input/common.rs:263` 和 `common.rs:289` 说明 workflow enum / dynamic workflow menus 可以直接附着在输入区。
 
 Ianvs：
 
-- 现有 `_ModernInputBar` 已从普通表单收口为 editor 容器，并通过 inline shell 承载 completion / history / palette。
+- 现有 `_ModernInputBar` 已从普通表单收口为 editor 容器，默认空输入态也显示 Submit / History / Save / Raw 工具按钮，并通过 inline shell 承载 completion / history / palette。
 - 默认布局在 editor 上方新增 `_InputContextStrip`，把 target、cwd、status、last command 放在 input-adjacent 区域，避免默认画面只在顶部 chrome 表达 session context。
 - `lib/src/saved_commands.dart:9` 已有 `SavedCommandEntry` schema，可以继续扩展成 workflow-like saved command。
 
 优化点：
 
 - completion 要补更明确的候选列表、来源标签和选择态，避免只停留在 inline hint。
-- 输入区可以增加 command type/autodetect 状态，但不要引入 Warp 的 AI/agent 文案作为产品默认路径。
+- 输入区可以保留 terminal command 状态，但不要宣称自然语言自动检测，也不要引入 Warp 的 AI/agent 文案作为产品默认路径。
 
 ### Command Search / Session Navigation
 

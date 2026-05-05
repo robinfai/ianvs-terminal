@@ -13,7 +13,7 @@ Ianvs Terminal 的 terminal 实现当前通过 path dependency 解析到 `/Users
 参考资料：
 
 - [Warp Blocks](https://docs.warp.dev/terminal/blocks)
-- [Warp Universal Input](https://docs.warp.dev/terminal)
+- [Warp Universal Input (Legacy)](https://docs.warp.dev/terminal/universal-input)
 - [Warp Modern Text Editing](https://docs.warp.dev/terminal/editor)
 - [Warp Completions](https://docs.warp.dev/terminal/command-completions/completions)
 - [Warp Session Management](https://docs.warp.dev/terminal/sessions)

@@ -45,6 +45,7 @@ This board is the single source of truth for the manager-only multi-agent rollou
 - `2026-05-02`: `FT-011` is fixed in `/Users/luobinghui/projects/flutter/flutterm` by parsing DCS shell hooks in native/core; real shell smoke now passes with `+16`.
 - `2026-05-02`: `M4C` scope is now documented in `MILESTONES.md` and `README.md`; product tree lands launch configuration MVP with workspace file save/apply and pane startup commands.
 - `2026-05-05`: M7 Warp terminal alignment is closed in the Ianvs Terminal product tree. Evidence lives in `WARP_LAYOUT_ALIGNMENT_TODO.md`, `WARP_SOURCE_REAUDIT.md`, `docs/design_snapshots/warp_alignment/`, `test/warp_alignment_golden_test.dart`, `test/launch_config_golden_test.dart`, and `test/demo_terminal_session_test.dart`.
+- `2026-05-05`: Universal Input official-docs/source deep dive is closed for the Ianvs Terminal product layer. Evidence lives in `WARP_SOURCE_REAUDIT.md`, `PRODUCT_PLAN.md`, `WARP_LAYOUT_ALIGNMENT_TODO.md`, `docs/design_snapshots/warp_alignment/README.md`, `lib/main.dart`, and the refreshed Warp alignment screenshots. Product UI now says `Terminal command` / `Terminal input`, exposes default input tool buttons, and does not expose Warp legacy Agent / natural-language auto-detection copy.
 
 ## 2026-05-03 Warp Re-Audit
 
@@ -113,6 +114,7 @@ This board is the single source of truth for the manager-only multi-agent rollou
 - `2026-05-05` completion audit: `FLUTTERM_CORE_LIB=/Users/luobinghui/projects/flutter/flutterm/native/core/target/debug/libflutterm_core.dylib flutter test test/real_shell_smoke_test.dart` passed with `+16`.
 - `2026-05-05` completion audit: `flutter build macos --release` passed and built `build/macos/Build/Products/Release/Ianvs Terminal.app`.
 - `2026-05-05` layout reannotation audit: `python3 docs/design_snapshots/warp_alignment/analysis/reannotate_alignment.py --iterations 10` generated 10 comparison SVGs deterministically; `alignment_regions.json` has `comparison_count = 10` and no `review` rows across 29 comparable regions; `flutter test test/launch_config_golden_test.dart test/warp_alignment_golden_test.dart` passed with `+17`.
+- `2026-05-05` Universal Input audit: `flutter analyze` passed; `flutter test test/modern_input_controller_test.dart test/modern_input_editing_test.dart test/command_palette_test.dart test/fig_completion_test.dart` passed with `+17`; focused widget tests for visible default input toolbar, modern input submit, save command state, command sources, and inline block input state passed; `flutter test test/warp_alignment_golden_test.dart` passed with `+16`; `flutter test test/launch_config_golden_test.dart` passed with `+1`; reannotation script regenerated 10 comparison annotations. A full `flutter test` run is not used as closure evidence here because the current tree still has unrelated `test/widget_test.dart` visibility/layout assertions failing outside the Universal Input copy / business-boundary change.
 
 ## Module Closure
 

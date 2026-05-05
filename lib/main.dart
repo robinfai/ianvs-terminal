@@ -3921,7 +3921,7 @@ class _CommandPalettePanelState extends State<_CommandPalettePanel> {
         : const Color(0xFF94A3B8);
     final sessionMode = widget.mode == CommandPaletteFilter.session;
     final hintText = sessionMode
-        ? 'Search sessions, prompts, and targets'
+        ? 'Search sessions, commands, and targets'
         : 'Search commands and sessions';
     return _InlineMenuShell(
       shellKey: const Key('terminal-inline-menu-shell-command-palette'),
@@ -5555,7 +5555,7 @@ class _InputCommandDetectionStrip extends StatelessWidget {
           Icon(Icons.terminal, size: compact ? 14 : 16, color: accent),
           SizedBox(width: compact ? 8 : 9),
           Text(
-            'Autodetected shell command',
+            'Terminal command',
             key: const Key('terminal-input-command-detection-label'),
             style: TextStyle(
               color: foreground,
@@ -6049,7 +6049,7 @@ class _ModernInputBarState extends State<_ModernInputBar> {
                   ),
                   const Spacer(),
                   Text(
-                    '⌘↩ new /agent conversation',
+                    'Terminal input',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -6066,52 +6066,54 @@ class _ModernInputBarState extends State<_ModernInputBar> {
             Positioned(
               right: 24,
               top: 22,
-              child: Opacity(
-                opacity: 0,
-                child: DecoratedBox(
-                  key: const Key('terminal-modern-input-toolbar'),
-                  decoration: BoxDecoration(
-                    color: background,
-                    borderRadius: BorderRadius.circular(7),
-                    border: Border.all(color: borderColor),
+              child: DecoratedBox(
+                key: const Key('terminal-modern-input-toolbar'),
+                decoration: BoxDecoration(
+                  color: background,
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 3,
+                    vertical: 3,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 3,
-                      vertical: 3,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _HeaderActionButton(
-                          key: const Key('terminal-modern-submit-button'),
-                          tooltip: 'Submit command',
-                          onPressed:
-                              widget.enabled && widget.controller.canSubmit
-                              ? () => unawaited(widget.controller.submit())
-                              : null,
-                          icon: Icons.send,
-                        ),
-                        _HeaderActionButton(
-                          key: const Key('terminal-command-history-button'),
-                          tooltip: 'Command history',
-                          onPressed: widget.onCommandHistoryRequested,
-                          icon: Icons.history,
-                        ),
-                        _HeaderActionButton(
-                          key: const Key('terminal-save-command-button'),
-                          tooltip: 'Save current command',
-                          onPressed: widget.onSaveCommandRequested,
-                          icon: Icons.bookmark_add_outlined,
-                        ),
-                        _HeaderActionButton(
-                          key: const Key('terminal-raw-input-button'),
-                          tooltip: 'Use raw terminal input',
-                          onPressed: widget.onRawInputRequested,
-                          icon: Icons.keyboard,
-                        ),
-                      ],
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _HeaderActionButton(
+                        key: const Key('terminal-modern-submit-button'),
+                        tooltip: 'Submit command',
+                        onPressed: widget.enabled && widget.controller.canSubmit
+                            ? () => unawaited(widget.controller.submit())
+                            : null,
+                        icon: Icons.send,
+                      ),
+                      _HeaderActionButton(
+                        key: const Key('terminal-command-history-button'),
+                        tooltip: 'Command history',
+                        onPressed: widget.enabled
+                            ? widget.onCommandHistoryRequested
+                            : null,
+                        icon: Icons.history,
+                      ),
+                      _HeaderActionButton(
+                        key: const Key('terminal-save-command-button'),
+                        tooltip: 'Save command',
+                        onPressed: widget.controller.canSubmit
+                            ? widget.onSaveCommandRequested
+                            : null,
+                        icon: Icons.bookmark_add,
+                      ),
+                      _HeaderActionButton(
+                        key: const Key('terminal-raw-input-button'),
+                        tooltip: 'Use raw terminal input',
+                        onPressed: widget.enabled
+                            ? widget.onRawInputRequested
+                            : null,
+                        icon: Icons.keyboard,
+                      ),
+                    ],
                   ),
                 ),
               ),

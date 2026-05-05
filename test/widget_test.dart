@@ -163,6 +163,22 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.ancestor(
+        of: find.byKey(const Key('terminal-modern-input-toolbar')),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Opacity && widget.opacity == 0,
+        ),
+      ),
+      findsNothing,
+    );
+    expect(
+      _headerIconButton(
+        tester,
+        const Key('terminal-save-command-button'),
+      ).onPressed,
+      isNull,
+    );
+    expect(
       find.byKey(const Key('terminal-modern-input-field')),
       findsOneWidget,
     );
@@ -1005,6 +1021,7 @@ void main() {
       find.byKey(const Key('terminal-input-command-detection-strip')),
       findsNothing,
     );
+    expect(find.textContaining('/agent'), findsNothing);
     expect(
       tester
           .widget<terminal.TerminalViewport>(
@@ -1028,14 +1045,6 @@ void main() {
       find.byKey(const Key('terminal-block-status-marker-session-1-block-1')),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const Key('terminal-block-status-marker-session-1-block-2')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('terminal-block-status-divider-1')),
-      findsOneWidget,
-    );
     await tester.enterText(
       find.byKey(const Key('terminal-modern-input-field')),
       'git status --short',
@@ -1046,7 +1055,8 @@ void main() {
       find.byKey(const Key('terminal-input-command-detection-strip')),
       findsOneWidget,
     );
-    expect(find.text('Autodetected shell command'), findsOneWidget);
+    expect(find.text('Terminal command'), findsOneWidget);
+    expect(find.textContaining('Autodetected'), findsNothing);
     expect(find.byKey(const Key('terminal-input-context-strip')), findsNothing);
     final inlineActions = tester
         .widget<PopupMenuButton<String>>(
@@ -1142,7 +1152,6 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Block 1/2'), findsOneWidget);
     expect(backend.scrollToOffsets, contains(2));
     expect(
       find.descendant(

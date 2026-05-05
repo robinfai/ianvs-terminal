@@ -84,7 +84,7 @@
 | App chrome / tabs | 顶部 chrome 更轻，tab / `+` 菜单和右键菜单承载主要配置入口；pane 有自己的 header 和 active marker。 | Header 已从 `110px` 压到 `76px`，创建 / 配置入口收进 add menu，搜索 / split / copy / paste / restart / session context / settings 等收进 overflow；window strip 是 in-app 横条；pane 已有 local header / active marker / drag handle。 | P1 chrome 入口已收口，后续主要转向 terminal-native blocks 和 input editor。 |
 | Tab / Launch config | 文档截图强调 `+` 菜单、context menu、saved config sidecar；legacy 源码 modal 是 name-first、save-success-open-file 流程。 | 已有 app-level export、name-first compose、Advanced path、摘要面板、成功态、saved config discovery、sidecar、tab/window strip save action、add menu 入口和 golden 截图。 | M7A 已落地；M7B 的保存流、发现入口、sidecar、context action 和 add menu 收口已处理。 |
 | Blocks | block 是 terminal 内容模型本身，带 divider、状态、selection、sticky header、上下文操作。 | 有 inline rail、viewport reserved padding、左侧 status rail 和右侧 panel，但 block 仍不是 scrollback 内分组。 | 视觉感知有所提升，但还不像 Warp 的 terminal-native blocks。 |
-| Input editor | 输入区像编辑器，支持软换行、inline menu、pinned modes、command search 入口。 | `_ModernInputBar` 已改为 editor 容器 + trailing toolbar；输入草稿存在时显示 `terminal-input-command-detection-strip`，空输入保留 context chips；command/session palette、completion 和 legacy history 共用 input 附近的 inline shell；补齐 `Ctrl-U` / `Cmd-A` / `Opt-Backspace` / `Ctrl-R`。 | P1 输入区和 inline menu 已收口，后续主要是 workflow schema 和高级编辑体验。 |
+| Input editor | 输入区像编辑器，支持软换行、inline menu、pinned modes、command search 入口。 | `_ModernInputBar` 已改为 editor 容器 + 可见 trailing toolbar；输入草稿存在时显示 `terminal-input-command-detection-strip`，空输入保留 context chips；command/session palette、completion 和 legacy history 共用 input 附近的 inline shell；补齐 `Ctrl-U` / `Cmd-A` / `Opt-Backspace` / `Ctrl-R`。 | P1 输入区和 inline menu 已收口，后续主要是 workflow schema 和高级编辑体验。 |
 | Command search / session nav | Command Search 覆盖 terminal inputs、saved commands、workflows、agent history；Session Navigation 能搜 prompt / command / status。 | 已有统一 `CommandPaletteController`，覆盖 workflow-like saved commands / history / all windows session / saved launch configs，支持 `workflow:`、`saved:`、`history:`、`session:`、`ssh:`、`launch:` filter prefix、rich detail、source rail 计数筛选和 input-adjacent inline shell；source rail 与 results list 已有 5% rect contract。 | Warp `workflows` / `launch configurations` 的 Ianvs 信息架构和可见 source 入口已落地；后续重点是 session prompt snapshot fidelity。 |
 | Split panes | pane header 可拖拽、关闭、focus，active pane 有角标；pane 可拖到 tab bar。 | 已有 pane local header、active marker、drag handle、pane-local context chips、每个 pane 的底部输入区、pane overflow menu、pane 级 split / close / focus，并支持从 pane menu 把当前 pane 移到新 tab。 | P1 视觉承载点、pane-local menu、每 pane 输入区和 move-to-tab 行为已到位；完整 drag gesture 可作为后续增强。 |
 | 验证 | Warp 有 integration_testing 的 window、pane、workspace、launch_configs、terminal 等模块。 | Ianvs 已有 widget、real shell smoke、Launch Config / Warp alignment golden，以及 `test/demo_terminal_session_test.dart` 桌面端 E2E harness。 | M7E 高层入口已覆盖多窗口、app export / apply、workspace search、session restore、SSH restart 和 screenshot gates。 |
@@ -114,7 +114,7 @@
 | `WLA-033` | `done` | `terminal-sticky-block-command-header` 固定在 active block rail，显示当前 command preview，点击会滚回 active block 起点 | 真正随 scrollback row range sticky 继续归 `WLA-034` |
 | `WLA-034` | `done` | `FLUTTERM_FEEDBACK.md` 的 `FT-008` 已记录 row range divider / background / status gutter / sticky header 扩展点需求 | 等用户明确要求时再进入 flutterm 工作树 |
 | `WLA-040` | `done` | `_InlineMenuShell` 统一 command palette、completion、legacy history 的 inline menu 外壳；command/session palette 从 header 下移到 active pane input editor 上方；widget test 覆盖 command/completion shell key | 无 |
-| `WLA-041` | `done` | `_ModernInputBar` 改为 `terminal-modern-input-editor` 轻边框 editor，Submit / History / Save / Raw 收进 `terminal-modern-input-toolbar`；widget test 覆盖输入框不再使用 outline border | 无 |
+| `WLA-041` | `done` | `_ModernInputBar` 改为 `terminal-modern-input-editor` 轻边框 editor，Submit / History / Save / Raw 收进可见的 `terminal-modern-input-toolbar`；widget test 覆盖输入框不再使用 outline border，且 toolbar 不再透明隐藏 | 无 |
 | `WLA-042` | `done` | `applyModernInputClearLine`、`applyModernInputSelectBuffer`、`applyModernInputDeletePreviousWord` 和 `_ModernInputBar` 快捷键处理覆盖 `Ctrl-U`、`Cmd-A`、`Opt-Backspace`、`Ctrl-R`；raw 模式测试覆盖不误伤 | 无 |
 | `WLA-043` | `done` | completion panel rows 保留 source badge，并新增 selected semantics、active left rail 与 `terminal-completion-active-badge-*`；widget test 覆盖 source label 和选择态切换 | 无 |
 | `WLA-044` | `done` | `_InputContextStrip` 在底部 editor 上方显示 `terminal-input-context-chip-*`，覆盖 target / cwd / status / last-command；widget + default golden 覆盖 | git branch prompt fidelity 后续依赖更完整 shell metadata |
@@ -216,7 +216,7 @@
 | item | 复核状态 | 证据 | 结论 / 后续 |
 | --- | --- | --- | --- |
 | `WLA-040` | `confirmed` | `_InlineMenuShell` 统一 command/session palette、completion、legacy history；`terminal-inline-menu-shell-command-palette`、`terminal-inline-menu-shell-completion` 有 widget test 覆盖 | 维持 done |
-| `WLA-041` | `confirmed` | `terminal-modern-input-editor` 使用轻量 editor 容器，`terminal-modern-input-toolbar` 收敛 Submit / History / Save / Raw；widget test 断言输入框不再使用 outline border | 维持 done |
+| `WLA-041` | `confirmed` | `terminal-modern-input-editor` 使用轻量 editor 容器，`terminal-modern-input-toolbar` 收敛 Submit / History / Save / Raw；widget test 断言输入框不再使用 outline border，默认空输入态 toolbar 不透明隐藏 | 维持 done |
 | `WLA-042` | `confirmed` | `applyModernInputClearLine`、`applyModernInputSelectBuffer`、`applyModernInputDeletePreviousWord` 和 `_ModernInputBar` 快捷键处理覆盖 `Ctrl-U`、`Cmd-A`、`Opt-Backspace`、`Ctrl-R`；raw mode 测试覆盖不误伤 | 维持 done |
 | `WLA-053` | `confirmed` | `CommandPaletteEntry.commandDetailLabel` / `sessionDetailLabel` 输出 status、cwd、target、last command、output preview、completed / recent time、prompt context；`test/command_palette_test.dart` 和 widget test 覆盖 | 维持 done；workflow source 已另归 `WLA-055` |
 | `WLA-060` | `confirmed` | `terminal-launch-config-scope-explainer`、saved config row / sidecar 的 `App config` / `Tab config` scope copy，widget test 覆盖 app/tab 概念文案 | 维持 done |
@@ -408,7 +408,7 @@
 - [x] `WLA-041` 把 `_ModernInputBar` 从表单视觉改为 editor 视觉。
   - 保留多行和软换行能力，但减少输入框边框厚重感。
   - Submit / History / Save / Raw 放进更紧凑的 trailing toolbar 或 overflow。
-  - 当前实现：`terminal-modern-input-editor` 使用轻量 editor 容器和无 outline 的 `TextField`；`terminal-modern-input-toolbar` 内收敛 Submit / History / Save / Raw 四个 icon action。
+  - 当前实现：`terminal-modern-input-editor` 使用轻量 editor 容器和无 outline 的 `TextField`；`terminal-modern-input-toolbar` 内收敛 Submit / History / Save / Raw 四个 icon action，并且在空输入态可见，空草稿时 Save 禁用。
 - [x] `WLA-042` 补 editor 操作覆盖。
   - 按 Warp 文档补齐至少：`Ctrl-U` 清行、`Cmd-A` 全选 buffer、`Opt-Backspace` 删除词、`Ctrl-R` 打开统一 command search。
   - Raw 模式不受 editor 快捷键误伤。
@@ -419,7 +419,7 @@
   - 当前实现：completion row 使用 source badge、selected semantics、active left rail 和 `terminal-completion-active-badge-*`；widget test 覆盖 source label 和选择态切换。
 - [x] `WLA-044` 在默认布局补 input-adjacent context chips。
   - 底部 editor 上方显示当前 pane 的 target、cwd、status 和最近命令，让默认画面与 Warp `01_terminal_blocks.png` 的 bottom prompt / context 关系更接近。
-  - 当前实现：空输入时 `_InputContextStrip` 在 active pane 的 `_ModernInputBar` 上方渲染 `terminal-input-context-chip-*`；输入草稿存在时切换为 `terminal-input-command-detection-strip`，用于对齐 Warp `04_completion_input.png` 的基础输入识别状态。
+  - 当前实现：空输入时 `_InputContextStrip` 在 active pane 的 `_ModernInputBar` 上方渲染 `terminal-input-context-chip-*`；输入草稿存在时切换为 `terminal-input-command-detection-strip`，显示 terminal-only 的 `Terminal command` 状态，而不是 Warp legacy Universal Input 的自然语言 / Agent 自动检测。
   - 验收：`test/widget_test.dart` 覆盖 chip key；`default_terminal_layout.png` 固化默认布局。
 
 ### P2：统一 Command / Session Palette
