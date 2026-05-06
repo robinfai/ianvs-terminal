@@ -166,7 +166,7 @@ void main() {
   );
 
   testWidgets(
-    'terminal input keeps normal typing for key V without paste shortcut',
+    'terminal input defers plain macOS text keys to system text input',
     (tester) async {
       final bindings = FakePtyBackend();
       final coreClient = testRuntime(bindings);
@@ -198,9 +198,21 @@ void main() {
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
       await tester.pump();
-      expect(bindings.writes, isNotEmpty);
-      expect(bindings.writes.last, utf8.encode('v'));
+
+      expect(bindings.writes, isEmpty);
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'v',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(bindings.writes, hasLength(1));
+      expect(bindings.writes.single, utf8.encode('v'));
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(
@@ -250,6 +262,349 @@ void main() {
       );
       await tester.pump();
     },
+  );
+
+  testWidgets(
+    'terminal input attaches system text input and commits IME-composed Chinese text',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      expect(tester.testTextInput.hasAnyClients, isTrue);
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      expect(bindings.writes, isEmpty);
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '你',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(bindings.writes, hasLength(1));
+      expect(bindings.writes.single, utf8.encode('你'));
+    },
+  );
+
+  testWidgets(
+    'terminal viewport shows composing text during IME composition and hides it after commit',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: viewportController,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('ni'), findsOneWidget);
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '你',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('ni'), findsNothing);
+      expect(bindings.writes.single, utf8.encode('你'));
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps composing text visible across cursor blink frames',
+    (tester) async {
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: viewportController,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('ni'), findsOneWidget);
+
+      await tester.pump(const Duration(milliseconds: 1400));
+
+      expect(find.text('ni'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport anchors composing text to the cursor cell instead of the underline stroke',
+    (tester) async {
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: viewportController,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                cursor: const TerminalProfileCursor(
+                  shape: TerminalCursorShape.underline,
+                  blink: false,
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      final composingTop = tester.getTopLeft(find.text('ni')).dy;
+      expect(composingTop, lessThan(terminalFallbackCellSize.height / 2));
+    },
+  );
+
+  testWidgets(
+    'terminal input leaves arrow keys with active IME composition to macOS text input',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.arrowLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(bindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'terminal input keeps backspace on terminal key path for macOS',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.backspace,
+        platform: 'macos',
+        character: '\b',
+      );
+      await tester.pump();
+
+      expect(bindings.writes, hasLength(1));
+      expect(bindings.writes.single, equals(const [0x7f]));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets('terminal input keyboard copy preserves Unicode selected text', (

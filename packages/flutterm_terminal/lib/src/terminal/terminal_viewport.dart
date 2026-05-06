@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -101,7 +102,8 @@ class TerminalViewport extends StatefulWidget {
 
 enum _LocalSelectionMode { cell, word }
 
-class _TerminalViewportState extends State<TerminalViewport> {
+class _TerminalViewportState extends State<TerminalViewport>
+    with TextInputClient {
   static const Duration _selectionAutoScrollInterval = Duration(
     milliseconds: 50,
   );
@@ -126,6 +128,11 @@ class _TerminalViewportState extends State<TerminalViewport> {
   bool _selectionMovedSincePointerDown = false;
   _LocalSelectionMode _localSelectionMode = _LocalSelectionMode.cell;
   _TerminalWordRange? _wordSelectionAnchor;
+  TextInputConnection? _textInputConnection;
+  TextEditingValue _textInputValue = TextEditingValue.empty;
+  bool _hadImeComposition = false;
+  bool _awaitingSystemTextCommit = false;
+  bool _textInputGeometrySyncScheduled = false;
 
   FocusNode get _focusNode =>
       widget.focusNode ??
@@ -157,6 +164,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
   void dispose() {
     widget.controller.removeListener(_handleFrameUpdate);
     _unbindFocusNodeListener();
+    _closeTextInputConnection(notify: false);
     _cursorBlinkTimer?.cancel();
     _selectionAutoScrollTimer?.cancel();
     _pendingLinkOpenTimer?.cancel();
@@ -179,6 +187,7 @@ class _TerminalViewportState extends State<TerminalViewport> {
     if (!mounted) {
       return;
     }
+    _scheduleTextInputGeometrySync();
     _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
     _scheduleMeasuredCellSizeReport();
@@ -201,8 +210,108 @@ class _TerminalViewportState extends State<TerminalViewport> {
     if (!mounted) {
       return;
     }
+    _syncTextInputConnection();
     _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
+  }
+
+  void _syncTextInputConnection() {
+    if (_focusNode.hasFocus) {
+      _openTextInputConnection();
+      _scheduleTextInputGeometrySync();
+      return;
+    }
+    _closeTextInputConnection();
+  }
+
+  void _openTextInputConnection() {
+    final existingConnection = _textInputConnection;
+    if (existingConnection != null && existingConnection.attached) {
+      existingConnection.show();
+      existingConnection.setEditingState(_textInputValue);
+      return;
+    }
+    final connection = TextInput.attach(
+      this,
+      const TextInputConfiguration(
+        inputType: TextInputType.multiline,
+        inputAction: TextInputAction.newline,
+        autocorrect: false,
+        enableSuggestions: false,
+        enableInteractiveSelection: false,
+        smartDashesType: SmartDashesType.disabled,
+        smartQuotesType: SmartQuotesType.disabled,
+      ),
+    );
+    _textInputConnection = connection;
+    connection.setEditingState(_textInputValue);
+    connection.show();
+  }
+
+  void _closeTextInputConnection({bool notify = true}) {
+    final connection = _textInputConnection;
+    if (connection != null && connection.attached) {
+      connection.close();
+    }
+    _textInputConnection = null;
+    _updateTextInputState(_resetTextInputTracking, notify: notify);
+  }
+
+  void _resetTextInputTracking() {
+    _textInputValue = TextEditingValue.empty;
+    _hadImeComposition = false;
+    _awaitingSystemTextCommit = false;
+  }
+
+  void _clearTextInputState() {
+    _updateTextInputState(_resetTextInputTracking);
+    final connection = _textInputConnection;
+    if (connection != null && connection.attached) {
+      connection.setEditingState(_textInputValue);
+    }
+  }
+
+  void _updateTextInputState(VoidCallback mutate, {bool notify = true}) {
+    if (!notify || !mounted) {
+      mutate();
+      return;
+    }
+    setState(mutate);
+  }
+
+  void _scheduleTextInputGeometrySync() {
+    if (_textInputGeometrySyncScheduled) {
+      return;
+    }
+    _textInputGeometrySyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _textInputGeometrySyncScheduled = false;
+      _syncTextInputGeometry();
+    });
+  }
+
+  void _syncTextInputGeometry() {
+    if (!mounted) {
+      return;
+    }
+    final connection = _textInputConnection;
+    if (connection == null || !connection.attached) {
+      return;
+    }
+    final renderObject = _surfaceKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderTerminalViewport) {
+      return;
+    }
+    connection.setEditableSizeAndTransform(
+      renderObject.size,
+      renderObject.getTransformTo(null),
+    );
+    final caretCellRect = renderObject.debugCaretCellRect;
+    if (caretCellRect == null) {
+      return;
+    }
+    connection.setCaretRect(renderObject.debugCursorRect ?? caretCellRect);
+    connection.setComposingRect(caretCellRect);
   }
 
   void _syncFocusTrackingReport() {
@@ -854,14 +963,110 @@ class _TerminalViewportState extends State<TerminalViewport> {
     );
   }
 
+  KeyEventResult _handleTerminalKeyEvent(KeyEvent event) {
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (_shouldDeferKeyDownToSystemTextInput(event)) {
+      final character = event.character;
+      if (_isDeferredTextCommitCharacter(character)) {
+        _awaitingSystemTextCommit = true;
+      }
+      return KeyEventResult.ignored;
+    }
+    return widget.inputController.handle(event);
+  }
+
+  bool _shouldDeferKeyDownToSystemTextInput(KeyDownEvent event) {
+    final connection = _textInputConnection;
+    if (defaultTargetPlatform != TargetPlatform.macOS ||
+        connection == null ||
+        !connection.attached) {
+      return false;
+    }
+
+    final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
+    final isControlPressed = HardwareKeyboard.instance.isControlPressed;
+    if (isMetaPressed || isControlPressed) {
+      return false;
+    }
+
+    if (_hasActiveImeComposition(_textInputValue)) {
+      return true;
+    }
+
+    if (HardwareKeyboard.instance.isAltPressed) {
+      return false;
+    }
+
+    final character = event.character;
+    return _isDeferredTextCommitCharacter(character);
+  }
+
+  bool _isDeferredTextCommitCharacter(String? character) {
+    if (character == null || character.isEmpty) {
+      return false;
+    }
+    return character.runes.any(
+      (codePoint) => codePoint >= 0x20 && codePoint != 0x7f,
+    );
+  }
+
+  String? get _composingText {
+    if (!_hasActiveImeComposition(_textInputValue)) {
+      return null;
+    }
+    final composingRange = _textInputValue.composing;
+    final text = composingRange.textInside(_textInputValue.text);
+    return text.isEmpty ? null : text;
+  }
+
+  Widget? _buildComposingOverlay(TerminalViewportColors colors) {
+    final text = _composingText;
+    if (text == null) {
+      return null;
+    }
+    final renderObject = _surfaceKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderTerminalViewport) {
+      return null;
+    }
+    final caretCellRect = renderObject.debugCaretCellRect;
+    if (caretCellRect == null) {
+      return null;
+    }
+    return Positioned(
+      left: widget.contentPadding.left + caretCellRect.left,
+      top: widget.contentPadding.top + caretCellRect.top,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: colors.canvasBackground),
+          child: Text(
+            text,
+            maxLines: 1,
+            style: TextStyle(
+              fontFamily: widget.font.family,
+              fontFamilyFallback: widget.font.fallback,
+              fontSize: widget.font.size,
+              height: widget.font.lineHeight,
+              color: colors.foreground,
+              decoration: TextDecoration.underline,
+              decorationColor: colors.foreground,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _scheduleMeasuredCellSizeReport();
+    _scheduleTextInputGeometrySync();
     final colors = _resolvedColors(context);
     return Focus(
       autofocus: true,
       focusNode: _focusNode,
-      onKeyEvent: (_, event) => widget.inputController.handle(event),
+      onKeyEvent: (_, event) => _handleTerminalKeyEvent(event),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _focusNode.requestFocus(),
@@ -936,6 +1141,8 @@ class _TerminalViewportState extends State<TerminalViewport> {
                               onScrollToOffset: widget.onScrollToOffset,
                             ),
                           ),
+                        if (_buildComposingOverlay(colors) case final overlay?)
+                          overlay,
                       ],
                     ),
                   );
@@ -946,6 +1153,69 @@ class _TerminalViewportState extends State<TerminalViewport> {
         ),
       ),
     );
+  }
+
+  @override
+  TextEditingValue? get currentTextEditingValue => _textInputValue;
+
+  @override
+  AutofillScope? get currentAutofillScope => null;
+
+  @override
+  void updateEditingValue(TextEditingValue value) {
+    final hasActiveComposition = _hasActiveImeComposition(value);
+    _updateTextInputState(() {
+      _textInputValue = value;
+      if (hasActiveComposition) {
+        _hadImeComposition = true;
+      }
+    });
+    if (hasActiveComposition) {
+      _scheduleTextInputGeometrySync();
+      return;
+    }
+    final text = value.text;
+    if (text.isNotEmpty && _shouldForwardCommittedText(text)) {
+      widget.inputController.sendText(text);
+    }
+    _clearTextInputState();
+  }
+
+  @override
+  void performAction(TextInputAction action) {}
+
+  @override
+  void performPrivateCommand(String action, Map<String, dynamic> data) {}
+
+  @override
+  void updateFloatingCursor(RawFloatingCursorPoint point) {}
+
+  @override
+  void showAutocorrectionPromptRect(int start, int end) {}
+
+  @override
+  void connectionClosed() {
+    _textInputConnection = null;
+    _updateTextInputState(_resetTextInputTracking);
+    if (_focusNode.hasFocus) {
+      _openTextInputConnection();
+      _scheduleTextInputGeometrySync();
+    }
+  }
+
+  bool _hasActiveImeComposition(TextEditingValue value) {
+    return value.composing.isValid && !value.composing.isCollapsed;
+  }
+
+  bool _shouldForwardCommittedText(String text) {
+    return _hadImeComposition ||
+        _awaitingSystemTextCommit ||
+        _containsNonAscii(text) ||
+        text.runes.length > 1;
+  }
+
+  bool _containsNonAscii(String text) {
+    return text.runes.any((codePoint) => codePoint > 0x7f);
   }
 }
 

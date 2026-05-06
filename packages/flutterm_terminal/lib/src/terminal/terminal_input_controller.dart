@@ -29,6 +29,13 @@ class TerminalInputController {
 
   Future<void> copySelection() => _copySelection();
 
+  void sendText(String text) {
+    if (text.isEmpty) {
+      return;
+    }
+    runtime.sendInput(sessionId, Uint8List.fromList(utf8.encode(text)));
+  }
+
   KeyEventResult handle(KeyEvent event) {
     if (event is! KeyDownEvent) {
       return KeyEventResult.ignored;

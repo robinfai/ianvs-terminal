@@ -391,6 +391,21 @@ class RenderTerminalViewport extends RenderBox {
       );
 
   Rect? get debugCursorRect => _debugCursorRect;
+  Rect? get debugCaretCellRect {
+    final frame = _controller.frame;
+    final cursor = frame.cursor;
+    if (!cursor.visible ||
+        frame.viewportRows <= 0 ||
+        frame.viewportCols <= 0 ||
+        cursor.row < 0 ||
+        cursor.col < 0 ||
+        cursor.row >= frame.viewportRows ||
+        cursor.col >= frame.viewportCols) {
+      return null;
+    }
+    return _cursorBlockRect(cursor);
+  }
+
   TerminalViewportColors get debugColors => _colors;
 
   void _invalidateVisualCaches() {
