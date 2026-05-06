@@ -78,6 +78,8 @@
 
 ## Phase 4: Linux / Windows Integration
 
+前置验证门槛见 `docs/tasks/T-065-phase4-windows-linux-validation-gate.md`。
+
 目标：
 
 - 在尽量不改 Flutter 业务层的前提下接入更多桌面平台

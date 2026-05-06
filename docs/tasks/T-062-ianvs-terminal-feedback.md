@@ -4,8 +4,8 @@
 
 Process actionable feedback from
 `/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/FLUTTERM_FEEDBACK.md`
-by fixing upstream terminal gaps that affect Ianvs Terminal readiness and by
-recording remaining validation risks.
+by fixing the selected upstream terminal gaps that affect Ianvs Terminal
+readiness and by recording explicit follow-up owners for the remaining items.
 
 ## Scope
 
@@ -15,15 +15,21 @@ recording remaining validation risks.
   native full repaint for the current scrollback offset.
 - Fix `FT-009` by exposing alternate-screen state in native frame modes and in
   Dart `TerminalFrameModes`.
-- Keep closed/product-side-only items (`FT-001`, `FT-002`, `FT-003`, `FT-008`,
-  `FT-010`, `FT-011`) out of this implementation pass.
+- Record follow-up handoffs for `FT-001` (`T-063`), `FT-004` (`T-059`),
+  `FT-008` (`T-064`), and `FT-012` (`T-065`) without expanding this
+  implementation pass.
 - Preserve existing xterm-style facade and low-level runtime APIs.
 
 ## Non-goals
 
-- Do not add inline block rendering extensions for `FT-008`.
-- Do not claim Windows / Linux support is complete for `FT-012`.
-- Do not re-run the full manual compatibility matrix for `FT-004`.
+- Do not finish the typed shell-hook runtime surface, bash / fish contract, or
+  broader command lifecycle follow-up from `FT-001`; that belongs to `T-063`.
+- Do not add inline block rendering extensions for `FT-008`; that design
+  follow-up belongs to `T-064`.
+- Do not claim Windows / Linux support is complete for `FT-012`; that
+  validation gate belongs to `T-065`.
+- Do not re-run the full manual compatibility matrix for `FT-004`; the local
+  manual matrix follow-up remains in `T-059`.
 - Do not solve old native/core baseline history from `FT-005`; only verify the
   current tree.
 
@@ -72,13 +78,18 @@ cargo test --manifest-path native/core/Cargo.toml
 
 - The automated checks above pass.
 - Current flutterm task documentation records how `FT-006`, `FT-007`, and
-  `FT-009` were handled.
+  `FT-009` were handled, and where `FT-001`, `FT-004`, `FT-008`, and `FT-012`
+  continue.
 - Remaining feedback risks are explicitly left as follow-ups instead of being
   marked complete without evidence.
 
 ## Risks / Follow-ups
 
-- `FT-004` and `FT-012` still require platform/manual matrix evidence before
-  Ianvs Terminal can claim broader compatibility.
-- `FT-008` needs a separate render-layer range annotation design before inline
-  terminal blocks are implemented.
+- `FT-001` still needs a typed runtime shell-hook surface and a multi-shell
+  contract in `T-063`.
+- `FT-004` still depends on `T-059` producing non-blocked local manual matrix
+  evidence.
+- `FT-008` still needs the render-layer row-range annotation design in `T-064`
+  before inline terminal blocks are implemented.
+- `FT-012` still needs the Phase 4 Windows / Linux validation gate in `T-065`
+  before broader platform claims are made.
