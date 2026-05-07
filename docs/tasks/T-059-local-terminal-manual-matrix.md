@@ -126,6 +126,18 @@ flutter run -d macos
 - `T-067`: VT220 wrap-around fidelity regression
 - `T-068`: trackpad momentum and return-to-bottom scrollback behavior
 
+### Follow-up Resolution
+
+- `T-066`: complete on 2026-05-07
+  - macOS app shortcut modifier 已收窄到 `Meta`
+  - VT220 `Ctrl+T` 和普通 shell `Ctrl+V` 手工复验通过
+- `T-067`: complete on 2026-05-07
+  - VT220 wrap-around 自动化回归已补齐
+  - `vttest` wrap-around 页面在 80 列下人工复验通过
+- `T-068`: complete on 2026-05-07
+  - trackpad momentum / return-to-bottom 自动化回归已补齐
+  - 真实 trackpad 人工复验通过
+
 ## Done When
 
 - 四条矩阵 lane 已拿到真实人工结果；若 host/tooling 不满足，只能回退到 `T-054` 类 unblock 任务，不能用全 `blocked` 结果直接关闭

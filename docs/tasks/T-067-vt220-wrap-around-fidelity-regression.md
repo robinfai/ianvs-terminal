@@ -53,6 +53,18 @@ flutter test test/terminal/render_terminal_viewport_test.dart
 3. 确认顶部 3 条 `*` 行连续、等宽、无空行。
 4. 再复验 VT220 terminal reports，确认 DA 响应没有顺手回归。
 
+## Result
+
+- Status: complete
+- Completed on: 2026-05-07
+- Automated verification:
+  - `cargo fmt --check`
+  - `cargo test`
+  - `flutter test test/terminal/render_terminal_viewport_test.dart`
+- Manual QA:
+  - `vttest` wrap-around 页面在 80 列下显示 3 条连续、等宽、无空行的 `*` 行
+  - VT220 terminal reports 未回归
+
 ## Done When
 
 - VT220 wrap-around 失败已有最小自动化回归。

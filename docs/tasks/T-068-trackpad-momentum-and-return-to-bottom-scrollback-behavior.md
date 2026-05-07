@@ -48,6 +48,19 @@ flutter test test/terminal/render_terminal_viewport_test.dart
 4. 验证 scrollbar thumb drag 仍正常。
 5. 从中段快速向下滚动，确认 viewport 能自然回到底部 prompt。
 
+## Result
+
+- Status: complete
+- Completed on: 2026-05-07
+- Automated verification:
+  - `flutter test test/terminal/render_terminal_viewport_test.dart`
+- Manual QA:
+  - 普通上下滚动：pass
+  - 惯性滚动：pass
+  - scrollbar thumb drag：pass
+  - return-to-bottom：pass
+  - 该人工项在另一台真实 trackpad 机器上完成
+
 ## Done When
 
 - `PointerPanZoom` 的 momentum continuation 已落地且有自动化护栏。

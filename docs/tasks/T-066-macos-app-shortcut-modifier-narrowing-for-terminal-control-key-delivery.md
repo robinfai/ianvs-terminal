@@ -57,6 +57,20 @@ flutter test integration_test/flutterm_smoke_test.dart
 4. 在普通 shell 里确认 `Ctrl+V` 不再走 app/session paste shortcut，而是继续交给 terminal。
 5. 如有非 macOS 验证环境，补验 `Ctrl+T` / `Ctrl+Shift+P` 仍保持 app-scoped shortcut。
 
+## Result
+
+- Status: complete
+- Completed on: 2026-05-07
+- Automated verification:
+  - `flutter analyze`
+  - `flutter test test/widget_test.dart`
+  - `flutter test test/shell/shell_screen_phase2b_test.dart`
+  - `flutter test test/terminal_input_controller_test.dart`
+- Manual QA:
+  - macOS `Cmd+T` / `Cmd+Shift+P` 路径保持正常
+  - VT220 `Ctrl+T` 不再开新 tab
+  - 普通 shell `Ctrl+V` 不再走 app/session paste shortcut
+
 ## Done When
 
 - macOS 下 app shortcut modifier 已收窄到 `Meta`。
