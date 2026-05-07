@@ -1166,6 +1166,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (caretCellRect == null) {
       return null;
     }
+    final composingForeground = _composingForegroundColor(colors);
     return Positioned(
       left: widget.contentPadding.left + caretCellRect.left,
       top: widget.contentPadding.top + caretCellRect.top,
@@ -1180,13 +1181,20 @@ class _TerminalViewportState extends State<TerminalViewport>
               fontFamilyFallback: widget.font.fallback,
               fontSize: widget.font.size,
               height: widget.font.lineHeight,
-              color: colors.foreground,
+              color: composingForeground,
               decoration: TextDecoration.underline,
-              decorationColor: colors.foreground,
+              decorationColor: composingForeground,
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Color _composingForegroundColor(TerminalViewportColors colors) {
+    return Color.alphaBlend(
+      colors.foreground.withAlpha(0x99),
+      colors.canvasBackground,
     );
   }
 

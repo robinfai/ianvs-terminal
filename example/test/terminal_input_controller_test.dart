@@ -8,6 +8,7 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/terminal/selection_controller.dart';
 import 'package:app/features/terminal/terminal_input_controller.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
+import 'package:app/features/terminal/terminal_viewport_colors.dart';
 
 import 'support/fake_pty_backend.dart';
 import 'support/test_runtime.dart';
@@ -495,6 +496,67 @@ void main() {
 
       expect(find.text('ni'), findsNothing);
       expect(bindings.writes.single, utf8.encode('你'));
+    },
+  );
+
+  testWidgets(
+    'terminal viewport renders composing text in a muted color instead of the main foreground',
+    (tester) async {
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      const colors = TerminalViewportColors.dark;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: viewportController,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                colors: colors,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      final textWidget = tester.widget<Text>(find.text('ni'));
+      expect(textWidget.style?.color, isNotNull);
+      expect(textWidget.style!.color, isNot(colors.foreground));
+      expect(textWidget.style!.decorationColor, isNot(colors.foreground));
     },
   );
 
