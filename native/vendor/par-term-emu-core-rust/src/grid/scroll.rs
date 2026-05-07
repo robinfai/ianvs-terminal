@@ -5,6 +5,51 @@ use crate::grid::Grid;
 use std::time::Instant;
 
 impl Grid {
+    fn push_rows_to_scrollback(&mut self, start_row: usize, line_count: usize) {
+        if self.max_scrollback == 0 || line_count == 0 {
+            return;
+        }
+
+        self.total_lines_scrolled += line_count;
+        if self.scrollback_lines >= self.max_scrollback {
+            let floor = self
+                .total_lines_scrolled
+                .saturating_sub(self.max_scrollback);
+            self.evict_zones(floor);
+        }
+
+        let scrollback_started_at = Instant::now();
+        for row in start_row..start_row.saturating_add(line_count) {
+            let Some(src_range) = self.physical_row_range(row) else {
+                continue;
+            };
+            let is_wrapped = self.wrapped.get(row).copied().unwrap_or(false);
+
+            if self.scrollback_lines < self.max_scrollback {
+                self.scrollback_cells
+                    .extend_from_slice(&self.cells[src_range]);
+                self.scrollback_wrapped.push(is_wrapped);
+                self.scrollback_lines += 1;
+            } else {
+                let write_idx = self.scrollback_start;
+                let dst_start = write_idx * self.cols;
+                let dst_end = dst_start + self.cols;
+
+                self.scrollback_cells[dst_start..dst_end].clone_from_slice(&self.cells[src_range]);
+                self.scrollback_wrapped[write_idx] = is_wrapped;
+                self.scrollback_start = (self.scrollback_start + 1) % self.max_scrollback;
+            }
+        }
+        self.scroll_debug_stats.scrollback_push_lines = self
+            .scroll_debug_stats
+            .scrollback_push_lines
+            .saturating_add(line_count as u64);
+        self.scroll_debug_stats.scrollback_push_micros = self
+            .scroll_debug_stats
+            .scrollback_push_micros
+            .saturating_add(scrollback_started_at.elapsed().as_micros().max(1) as u64);
+    }
+
     /// Scroll up by n lines
     pub fn scroll_up(&mut self, n: usize) {
         let n = n.min(self.rows);
@@ -17,49 +62,7 @@ impl Grid {
         self.scroll_debug_stats.scroll_rows =
             self.scroll_debug_stats.scroll_rows.saturating_add(n as u64);
 
-        if self.max_scrollback > 0 {
-            self.total_lines_scrolled += n;
-            if self.scrollback_lines >= self.max_scrollback {
-                let floor = self
-                    .total_lines_scrolled
-                    .saturating_sub(self.max_scrollback);
-                self.evict_zones(floor);
-            }
-        }
-
-        if self.max_scrollback > 0 {
-            let scrollback_started_at = Instant::now();
-            for i in 0..n {
-                let Some(src_range) = self.physical_row_range(i) else {
-                    continue;
-                };
-                let is_wrapped = self.wrapped.get(i).copied().unwrap_or(false);
-
-                if self.scrollback_lines < self.max_scrollback {
-                    self.scrollback_cells
-                        .extend_from_slice(&self.cells[src_range]);
-                    self.scrollback_wrapped.push(is_wrapped);
-                    self.scrollback_lines += 1;
-                } else {
-                    let write_idx = self.scrollback_start;
-                    let dst_start = write_idx * self.cols;
-                    let dst_end = dst_start + self.cols;
-
-                    self.scrollback_cells[dst_start..dst_end]
-                        .clone_from_slice(&self.cells[src_range]);
-                    self.scrollback_wrapped[write_idx] = is_wrapped;
-                    self.scrollback_start = (self.scrollback_start + 1) % self.max_scrollback;
-                }
-            }
-            self.scroll_debug_stats.scrollback_push_lines = self
-                .scroll_debug_stats
-                .scrollback_push_lines
-                .saturating_add(n as u64);
-            self.scroll_debug_stats.scrollback_push_micros = self
-                .scroll_debug_stats
-                .scrollback_push_micros
-                .saturating_add(scrollback_started_at.elapsed().as_micros().max(1) as u64);
-        }
+        self.push_rows_to_scrollback(0, n);
 
         self.screen_row_start = (self.screen_row_start + n) % self.rows;
         if n <= self.wrapped.len() {
@@ -137,6 +140,11 @@ impl Grid {
         let started_at = Instant::now();
         self.scroll_debug_stats.scroll_rows =
             self.scroll_debug_stats.scroll_rows.saturating_add(n as u64);
+
+        if top == 0 {
+            self.push_rows_to_scrollback(0, n);
+        }
+
         self.normalize_screen_rows();
 
         if n >= region_size {

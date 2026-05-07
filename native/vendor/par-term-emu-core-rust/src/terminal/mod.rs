@@ -354,6 +354,8 @@ pub struct Terminal {
     pub(crate) mouse_mode: MouseMode,
     /// Mouse encoding format
     pub(crate) mouse_encoding: MouseEncoding,
+    /// Alternate scroll mode (DECSET 1007)
+    pub(crate) alternate_scroll: bool,
     /// Focus tracking enabled
     pub(crate) focus_tracking: bool,
     /// Bracketed paste mode
@@ -719,6 +721,7 @@ impl Terminal {
             title: String::new(),
             mouse_mode: MouseMode::Off,
             mouse_encoding: MouseEncoding::Default,
+            alternate_scroll: false,
             focus_tracking: false,
             bracketed_paste: false,
             synchronized_updates: false,
@@ -1249,6 +1252,14 @@ impl Terminal {
                         false,
                     ));
             }
+            if self.alternate_scroll {
+                self.alternate_scroll = false;
+                self.terminal_events
+                    .push(crate::terminal::TerminalEvent::ModeChanged(
+                        "alternate_scroll".to_string(),
+                        false,
+                    ));
+            }
             // Notify about alt screen exit
             self.terminal_events
                 .push(crate::terminal::TerminalEvent::ModeChanged(
@@ -1402,6 +1413,16 @@ impl Terminal {
     /// Set mouse encoding
     pub fn set_mouse_encoding(&mut self, encoding: MouseEncoding) {
         self.mouse_encoding = encoding;
+    }
+
+    /// Check if alternate scroll is enabled
+    pub fn alternate_scroll(&self) -> bool {
+        self.alternate_scroll
+    }
+
+    /// Set alternate scroll
+    pub fn set_alternate_scroll(&mut self, enabled: bool) {
+        self.alternate_scroll = enabled;
     }
 
     /// Check if focus tracking is enabled

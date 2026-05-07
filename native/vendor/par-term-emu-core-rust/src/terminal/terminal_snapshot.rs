@@ -105,6 +105,8 @@ pub struct TerminalSnapshot {
     pub mouse_mode: MouseMode,
     /// Mouse encoding format
     pub mouse_encoding: MouseEncoding,
+    /// Alternate scroll mode
+    pub alternate_scroll: bool,
     /// Whether left/right margins are enabled (DECLRMM)
     pub use_lr_margins: bool,
     /// Left margin column (0-indexed)
@@ -205,6 +207,7 @@ impl Terminal {
             focus_tracking: self.focus_tracking,
             mouse_mode: self.mouse_mode,
             mouse_encoding: self.mouse_encoding,
+            alternate_scroll: self.alternate_scroll,
             use_lr_margins: self.use_lr_margins,
             left_margin: self.left_margin,
             right_margin: self.right_margin,
@@ -249,6 +252,7 @@ impl Terminal {
         self.focus_tracking = snap.focus_tracking;
         self.mouse_mode = snap.mouse_mode;
         self.mouse_encoding = snap.mouse_encoding;
+        self.alternate_scroll = snap.alternate_scroll;
         self.use_lr_margins = snap.use_lr_margins;
         self.left_margin = snap.left_margin;
         self.right_margin = snap.right_margin;
@@ -320,6 +324,7 @@ mod tests {
             focus_tracking: false,
             mouse_mode: MouseMode::Off,
             mouse_encoding: MouseEncoding::Default,
+            alternate_scroll: false,
             use_lr_margins: false,
             left_margin: 0,
             right_margin: cols.saturating_sub(1),

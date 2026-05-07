@@ -408,6 +408,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (rawDeltaLines == 0) {
       return;
     }
+    if (_terminalAlternateScrollEnabled) {
+      _sendAlternateScroll(rawDeltaLines);
+      return;
+    }
     _applyRawScrollLines(rawDeltaLines);
   }
 
@@ -442,14 +446,15 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _handlePanZoomUpdate(PointerPanZoomUpdateEvent event) {
     _cancelScrollMomentumTimer();
     if (_terminalMouseEnabled) {
-      _sendMouseWheel(
-        event.panDelta.dy,
-        globalPosition: event.position,
-      );
+      _sendMouseWheel(event.panDelta.dy, globalPosition: event.position);
       return;
     }
     final rawDeltaLines = _rawScrollLinesForDelta(event.panDelta.dy);
     if (rawDeltaLines == 0) {
+      return;
+    }
+    if (_terminalAlternateScrollEnabled) {
+      _sendAlternateScroll(rawDeltaLines);
       return;
     }
     final currentTimeStamp = event.timeStamp;
@@ -469,7 +474,7 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   void _handlePanZoomEnd(PointerPanZoomEndEvent event) {
     _lastPanZoomUpdateTimeStamp = event.timeStamp;
-    if (_terminalMouseEnabled) {
+    if (_terminalMouseEnabled || _terminalAlternateScrollEnabled) {
       _resetPendingScroll();
       return;
     }
@@ -512,8 +517,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     final frameAfterScroll = widget.controller.frame;
     final hitUpperEdge =
         velocity > 0 &&
-        frameBeforeScroll.scrollbackOffset >= frameBeforeScroll.scrollbackMaxOffset &&
-        frameAfterScroll.scrollbackOffset >= frameAfterScroll.scrollbackMaxOffset;
+        frameBeforeScroll.scrollbackOffset >=
+            frameBeforeScroll.scrollbackMaxOffset &&
+        frameAfterScroll.scrollbackOffset >=
+            frameAfterScroll.scrollbackMaxOffset;
     final hitLowerEdge =
         velocity < 0 &&
         frameBeforeScroll.scrollbackOffset <= 0 &&
@@ -541,6 +548,13 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   bool get _terminalMouseEnabled =>
       widget.controller.frame.modes.mouseMode != 'off';
+
+  bool get _terminalAlternateScrollEnabled {
+    final modes = widget.controller.frame.modes;
+    return modes.alternateScreen &&
+        modes.alternateScroll &&
+        modes.mouseMode == 'off';
+  }
 
   bool get _usesOptionBlockSelection =>
       widget.optionDragMode == TerminalOptionDragMode.blockSelection &&
@@ -816,6 +830,25 @@ class _TerminalViewportState extends State<TerminalViewport>
       button: deltaY < 0 ? 64 : 65,
       pressed: true,
       modifiers: _mouseModifiers(),
+    );
+  }
+
+  void _sendAlternateScroll(double rawDeltaLines) {
+    if (rawDeltaLines == 0) {
+      return;
+    }
+    _pendingScrollLines += rawDeltaLines;
+    final stepCount = _pendingScrollLines.round();
+    if (stepCount == 0) {
+      return;
+    }
+    _pendingScrollLines -= stepCount;
+    final modes = widget.controller.frame.modes;
+    final upSequence = modes.applicationCursor ? '\x1BOA' : '\x1B[A';
+    final downSequence = modes.applicationCursor ? '\x1BOB' : '\x1B[B';
+    final sequence = stepCount > 0 ? upSequence : downSequence;
+    widget.inputController.sendText(
+      List<String>.filled(stepCount.abs(), sequence).join(),
     );
   }
 

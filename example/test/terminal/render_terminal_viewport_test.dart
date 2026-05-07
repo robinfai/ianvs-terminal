@@ -153,6 +153,66 @@ void main() {
     },
   );
 
+  testWidgets('terminal viewport sends arrow keys for alternate scroll mode', (
+    tester,
+  ) async {
+    final bindings = FakePtyBackend();
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'hello')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 10,
+          modes: TerminalFrameModes(
+            alternateScreen: true,
+            alternateScroll: true,
+          ),
+        ),
+      );
+    final selectionController = SelectionController();
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: testRuntime(bindings),
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+    final scrollLines = <int>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: scrollLines.add,
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final center = tester.getCenter(find.byType(TerminalViewport));
+    await tester.sendEventToBinding(
+      PointerScrollEvent(position: center, scrollDelta: const Offset(0, 40)),
+    );
+    await tester.pump();
+
+    expect(scrollLines, isEmpty);
+    expect(bindings.writes, hasLength(1));
+    expect(ascii.decode(bindings.writes.single), '\x1B[B\x1B[B');
+  });
+
   testWidgets(
     'terminal viewport only rebuilds dirty row visuals for delta frames',
     (tester) async {
@@ -555,86 +615,85 @@ void main() {
     },
   );
 
-  testWidgets(
-    'terminal viewport continues trackpad momentum after pan end',
-    (tester) async {
-      final controller = TerminalViewportController()
-        ..updateFrame(
-          _scrollbackFrame(
-            viewportStartRow: 20,
-            scrollbackOffset: 0,
-            scrollbackMaxOffset: 20,
-          ),
-        );
-
-      final selectionController = SelectionController();
-      final inputController = TerminalInputController(
-        sessionId: '1',
-        runtime: testRuntime(FakePtyBackend()),
-        readFrame: () => controller.frame,
-        readSelection: () => '',
-        copySelection: (_) async {},
-        readClipboard: () async => '',
-      );
-      final scrollLines = <int>[];
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SizedBox(
-              width: 400,
-              height: 200,
-              child: TerminalViewport(
-                controller: controller,
-                selectionController: selectionController,
-                inputController: inputController,
-                onScrollLines: (delta) {
-                  scrollLines.add(delta);
-                  final frame = controller.frame;
-                  final nextOffset = (frame.scrollbackOffset + delta)
-                      .clamp(0, frame.scrollbackMaxOffset)
-                      .toInt();
-                  controller.updateFrame(
-                    _scrollbackFrame(
-                      viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
-                      scrollbackOffset: nextOffset,
-                      scrollbackMaxOffset: frame.scrollbackMaxOffset,
-                      viewportRows: frame.viewportRows,
-                    ),
-                  );
-                },
-                onScrollToOffset: (_) {},
-              ),
-            ),
-          ),
+  testWidgets('terminal viewport continues trackpad momentum after pan end', (
+    tester,
+  ) async {
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        _scrollbackFrame(
+          viewportStartRow: 20,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 20,
         ),
       );
 
-      final center = tester.getCenter(find.byType(TerminalViewport));
-      final trackpad = TestPointer(1, PointerDeviceKind.trackpad);
-      await tester.sendEventToBinding(trackpad.panZoomStart(center));
-      await tester.pump();
-      await tester.sendEventToBinding(
-        trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
-      );
-      await tester.pump(const Duration(milliseconds: 16));
-      await tester.sendEventToBinding(
-        trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
-      );
-      await tester.pump();
+    final selectionController = SelectionController();
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: testRuntime(FakePtyBackend()),
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+    final scrollLines = <int>[];
 
-      final scrollCountBeforeEnd = scrollLines.length;
-      final offsetBeforeEnd = controller.frame.scrollbackOffset;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (delta) {
+                scrollLines.add(delta);
+                final frame = controller.frame;
+                final nextOffset = (frame.scrollbackOffset + delta)
+                    .clamp(0, frame.scrollbackMaxOffset)
+                    .toInt();
+                controller.updateFrame(
+                  _scrollbackFrame(
+                    viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
+                    scrollbackOffset: nextOffset,
+                    scrollbackMaxOffset: frame.scrollbackMaxOffset,
+                    viewportRows: frame.viewportRows,
+                  ),
+                );
+              },
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
 
-      await tester.sendEventToBinding(trackpad.panZoomEnd());
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 160));
+    final center = tester.getCenter(find.byType(TerminalViewport));
+    final trackpad = TestPointer(1, PointerDeviceKind.trackpad);
+    await tester.sendEventToBinding(trackpad.panZoomStart(center));
+    await tester.pump();
+    await tester.sendEventToBinding(
+      trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.sendEventToBinding(
+      trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
+    );
+    await tester.pump();
 
-      expect(scrollCountBeforeEnd, greaterThan(0));
-      expect(scrollLines.length, greaterThan(scrollCountBeforeEnd));
-      expect(controller.frame.scrollbackOffset, greaterThan(offsetBeforeEnd));
-    },
-  );
+    final scrollCountBeforeEnd = scrollLines.length;
+    final offsetBeforeEnd = controller.frame.scrollbackOffset;
+
+    await tester.sendEventToBinding(trackpad.panZoomEnd());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 160));
+
+    expect(scrollCountBeforeEnd, greaterThan(0));
+    expect(scrollLines.length, greaterThan(scrollCountBeforeEnd));
+    expect(controller.frame.scrollbackOffset, greaterThan(offsetBeforeEnd));
+  });
 
   testWidgets(
     'terminal viewport momentum can carry scrollback back to bottom after a downward flick',

@@ -300,6 +300,8 @@ pub struct TerminalFrameModes {
     #[serde(default)]
     pub focus_tracking: bool,
     #[serde(default)]
+    pub alternate_scroll: bool,
+    #[serde(default)]
     pub char_protected: bool,
     #[serde(default = "default_mouse_mode")]
     pub mouse_mode: String,

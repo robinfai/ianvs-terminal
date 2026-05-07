@@ -207,6 +207,28 @@ fn limited_scrollback_profile() -> TerminalProfile {
     )
 }
 
+fn top_anchored_partial_scrollback_profile() -> TerminalProfile {
+    local_profile(
+        "top-anchored-partial-scrollback",
+        "Top Anchored Partial Scrollback",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+sys.stdout.write('\x1b[1;13r')
+for row in range(1, 14):
+    sys.stdout.write(f'\x1b[{row};1Hrow{row:02d}')
+sys.stdout.write('\x1b[1;1H\x1b[2S')
+sys.stdout.flush()
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn wrapped_selection_profile() -> TerminalProfile {
     local_profile(
         "wrapped-selection",
@@ -344,6 +366,20 @@ fn alternate_screen_profile() -> TerminalProfile {
         vec![
             "-lc".to_string(),
             "printf '\\033[?1049hALTSCREEN'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn alternate_scroll_profile() -> TerminalProfile {
+    local_profile(
+        "alternate-scroll",
+        "Alternate Scroll",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033[?1049h\\033[?1007hALTSCROLL'".to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -624,6 +660,27 @@ fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
 }
 
 #[test]
+fn session_top_anchored_partial_scroll_region_contributes_to_scrollback() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&top_anchored_partial_scrollback_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "row03");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert!(parsed["scrollback_max_offset"].as_u64().unwrap_or(0) > 0);
+
+    session::scroll_to_session(session_id, usize::MAX).unwrap();
+    let scrolled = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected scrolled frame diff");
+    assert!(scrolled.contains("row01"));
+    assert!(scrolled.contains("row02"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_uses_profile_scrollback_limit_for_spawn_and_resize_rebuild() {
     let session_id =
         session::create_session(&serde_json::to_string(&limited_scrollback_profile()).unwrap())
@@ -805,6 +862,21 @@ fn session_frame_diff_exposes_alternate_screen_mode() {
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
 
     assert_eq!(parsed["modes"]["alternate_screen"].as_bool(), Some(true));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exposes_alternate_scroll_mode() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&alternate_scroll_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "ALTSCROLL");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["alternate_screen"].as_bool(), Some(true));
+    assert_eq!(parsed["modes"]["alternate_scroll"].as_bool(), Some(true));
 
     session::close_session(session_id).unwrap();
 }

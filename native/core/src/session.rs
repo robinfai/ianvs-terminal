@@ -778,6 +778,8 @@ impl TerminalSession {
                 && terminal.bracketed_paste(),
             focus_tracking: self.emulation == TerminalEmulation::Xterm256
                 && terminal.focus_tracking(),
+            alternate_scroll: self.emulation == TerminalEmulation::Xterm256
+                && terminal.alternate_scroll(),
             char_protected: false,
             mouse_mode: if self.emulation == TerminalEmulation::Xterm256 {
                 mouse_mode_name(terminal.mouse_mode()).to_string()

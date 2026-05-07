@@ -46,6 +46,7 @@ class TerminalStyleRun {
 class TerminalFrameModes {
   const TerminalFrameModes({
     this.alternateScreen = false,
+    this.alternateScroll = false,
     this.applicationCursor = false,
     this.applicationKeypad = false,
     this.insertMode = false,
@@ -60,6 +61,7 @@ class TerminalFrameModes {
   });
 
   final bool alternateScreen;
+  final bool alternateScroll;
   final bool applicationCursor;
   final bool applicationKeypad;
   final bool insertMode;
@@ -77,6 +79,7 @@ class TerminalFrameModes {
   factory TerminalFrameModes.fromJson(Map<String, Object?> json) {
     return TerminalFrameModes(
       alternateScreen: json['alternate_screen'] as bool? ?? false,
+      alternateScroll: json['alternate_scroll'] as bool? ?? false,
       applicationCursor: json['application_cursor'] as bool? ?? false,
       applicationKeypad: json['application_keypad'] as bool? ?? false,
       insertMode: json['insert_mode'] as bool? ?? false,

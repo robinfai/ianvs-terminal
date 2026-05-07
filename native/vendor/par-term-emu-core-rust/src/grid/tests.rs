@@ -252,6 +252,27 @@ fn scroll_region_up_preserves_outside_rows_wrapped_and_damage() {
 }
 
 #[test]
+fn top_anchored_partial_scroll_region_pushes_scrollback() {
+    let mut grid = Grid::new(4, 6, 8);
+    for row in 0..6 {
+        grid.set(0, row, Cell::new((b'A' + row as u8) as char));
+    }
+
+    assert!(grid.scroll_region_up(2, 0, 3));
+
+    assert_eq!(grid.scrollback_len(), 2);
+    assert_eq!(grid.total_lines_scrolled(), 2);
+    assert_eq!(grid.scrollback_line(0).unwrap()[0].c, 'A');
+    assert_eq!(grid.scrollback_line(1).unwrap()[0].c, 'B');
+    assert_eq!(grid.get(0, 0).unwrap().c, 'C');
+    assert_eq!(grid.get(0, 1).unwrap().c, 'D');
+    assert_eq!(grid.get(0, 2).unwrap().c, ' ');
+    assert_eq!(grid.get(0, 3).unwrap().c, ' ');
+    assert_eq!(grid.get(0, 4).unwrap().c, 'E');
+    assert_eq!(grid.get(0, 5).unwrap().c, 'F');
+}
+
+#[test]
 fn test_scroll_region_down() {
     let mut grid = Grid::new(80, 10, 1000);
     for i in 0..10 {
