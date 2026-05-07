@@ -59,6 +59,112 @@ void main() {
       );
       await tester.pump();
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'terminal input on macOS sends Control+V to the session instead of pasting clipboard text',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      var clipboardReads = 0;
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async {
+          clipboardReads += 1;
+          return 'ignored';
+        },
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+      await tester.pump();
+
+      expect(clipboardReads, 0);
+      expect(bindings.writes, isNotEmpty);
+      expect(bindings.writes.last, equals(const [0x16]));
+
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'terminal input on macOS sends Control+T to the session',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final coreClient = testRuntime(bindings);
+      final viewportController = TerminalViewportController();
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: coreClient,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => 'ignored',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyT, platform: 'macos');
+      await tester.pump();
+
+      expect(bindings.writes, isNotEmpty);
+      expect(bindings.writes.last, equals(const [0x14]));
+
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(
@@ -262,6 +368,7 @@ void main() {
       );
       await tester.pump();
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(

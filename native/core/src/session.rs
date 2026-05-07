@@ -40,6 +40,7 @@ enum CallbackEvent {
 struct CachedRowState {
     text: String,
     wrapped: bool,
+    continues_from_previous: bool,
     style_signature: u64,
     hyperlink_signature: u64,
 }
@@ -1092,6 +1093,7 @@ struct ExtractedRow {
 
 struct ExtractedVisibleRow {
     row: TerminalRow,
+    continues_from_previous: bool,
     hyperlinks: Vec<TerminalHyperlinkRange>,
 }
 
@@ -1127,6 +1129,7 @@ fn cached_row_state_for(entry: &ExtractedVisibleRow) -> CachedRowState {
     CachedRowState {
         text: entry.row.text.clone(),
         wrapped: entry.row.wrapped,
+        continues_from_previous: entry.continues_from_previous,
         style_signature: style_signature(&entry.row.style_runs),
         hyperlink_signature: hyperlink_signature(&entry.hyperlinks),
     }
@@ -1140,6 +1143,8 @@ fn extract_viewport_row(
 ) -> ExtractedVisibleRow {
     let absolute_visible_index = viewport_start_row.saturating_add(viewport_row);
     let (cells, wrapped) = row_cells_for_visible_index(terminal, absolute_visible_index);
+    let continues_from_previous = absolute_visible_index > 0
+        && row_cells_for_visible_index(terminal, absolute_visible_index - 1).1;
     let extracted = extract_row(cells, wrapped);
     let hyperlinks = if emulation == TerminalEmulation::Xterm256 {
         extract_hyperlinks_for_row(terminal, cells, viewport_row)
@@ -1154,6 +1159,7 @@ fn extract_viewport_row(
             wrapped: extracted.wrapped,
             style_runs: extracted.style_runs,
         },
+        continues_from_previous,
         hyperlinks,
     }
 }

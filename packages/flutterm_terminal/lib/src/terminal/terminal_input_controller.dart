@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -44,6 +45,10 @@ class TerminalInputController {
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;
     final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final usesAppModifier = _platformAppModifierPressed(
+      isMetaPressed: isMetaPressed,
+      isControlPressed: isControlPressed,
+    );
 
     if (isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyC) {
       unawaited(_copySelection());
@@ -57,20 +62,18 @@ class TerminalInputController {
       return KeyEventResult.handled;
     }
 
-    if (event.logicalKey == LogicalKeyboardKey.keyV &&
-        (isMetaPressed || isControlPressed)) {
+    if (event.logicalKey == LogicalKeyboardKey.keyV && usesAppModifier) {
       unawaited(_pasteClipboard());
       return KeyEventResult.handled;
     }
 
-    if ((isMetaPressed || isControlPressed) &&
+    if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyP) {
       return KeyEventResult.ignored;
     }
 
-    if (event.logicalKey == LogicalKeyboardKey.keyT &&
-        (isMetaPressed || isControlPressed)) {
+    if (event.logicalKey == LogicalKeyboardKey.keyT && usesAppModifier) {
       return KeyEventResult.ignored;
     }
 
@@ -195,6 +198,14 @@ class TerminalInputController {
       if (modified != null) {
         return modified;
       }
+    }
+
+    final controlLetterBytes = _controlLetterBytesFor(event.logicalKey);
+    if (controlLetterBytes != null &&
+        HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isMetaPressed &&
+        !HardwareKeyboard.instance.isAltPressed) {
+      return controlLetterBytes;
     }
 
     if (HardwareKeyboard.instance.isAltPressed) {
@@ -393,6 +404,54 @@ List<int>? _characterBytesFor(
     return ascii.encode('\r');
   }
   return utf8.encode(character);
+}
+
+bool _platformUsesMetaAppModifier() {
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.macOS || TargetPlatform.iOS => true,
+    _ => false,
+  };
+}
+
+bool _platformAppModifierPressed({
+  required bool isMetaPressed,
+  required bool isControlPressed,
+}) {
+  if (_platformUsesMetaAppModifier()) {
+    return isMetaPressed && !isControlPressed;
+  }
+  return isControlPressed && !isMetaPressed;
+}
+
+List<int>? _controlLetterBytesFor(LogicalKeyboardKey key) {
+  return switch (key) {
+    LogicalKeyboardKey.keyA => const <int>[0x01],
+    LogicalKeyboardKey.keyB => const <int>[0x02],
+    LogicalKeyboardKey.keyD => const <int>[0x04],
+    LogicalKeyboardKey.keyE => const <int>[0x05],
+    LogicalKeyboardKey.keyF => const <int>[0x06],
+    LogicalKeyboardKey.keyG => const <int>[0x07],
+    LogicalKeyboardKey.keyH => const <int>[0x08],
+    LogicalKeyboardKey.keyI => const <int>[0x09],
+    LogicalKeyboardKey.keyJ => const <int>[0x0A],
+    LogicalKeyboardKey.keyK => const <int>[0x0B],
+    LogicalKeyboardKey.keyL => const <int>[0x0C],
+    LogicalKeyboardKey.keyM => const <int>[0x0D],
+    LogicalKeyboardKey.keyN => const <int>[0x0E],
+    LogicalKeyboardKey.keyO => const <int>[0x0F],
+    LogicalKeyboardKey.keyP => const <int>[0x10],
+    LogicalKeyboardKey.keyQ => const <int>[0x11],
+    LogicalKeyboardKey.keyR => const <int>[0x12],
+    LogicalKeyboardKey.keyS => const <int>[0x13],
+    LogicalKeyboardKey.keyT => const <int>[0x14],
+    LogicalKeyboardKey.keyU => const <int>[0x15],
+    LogicalKeyboardKey.keyV => const <int>[0x16],
+    LogicalKeyboardKey.keyW => const <int>[0x17],
+    LogicalKeyboardKey.keyX => const <int>[0x18],
+    LogicalKeyboardKey.keyY => const <int>[0x19],
+    LogicalKeyboardKey.keyZ => const <int>[0x1A],
+    _ => null,
+  };
 }
 
 int? _xtermKeyboardModifier() {

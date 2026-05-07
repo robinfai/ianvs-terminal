@@ -191,9 +191,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;
     final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
-    final usesAppModifier = isMetaPressed || isControlPressed;
+    final usesAppModifier =
+        _usesMetaShortcuts
+            ? isMetaPressed && !isControlPressed
+            : isControlPressed && !isMetaPressed;
 
-    if (isMetaPressed && !isControlPressed && !isShiftPressed) {
+    if (usesAppModifier && !isShiftPressed) {
       final platformAction = switch (event.logicalKey) {
         LogicalKeyboardKey.keyQ => _ShellShortcutAction.requestQuitConfirmation,
         LogicalKeyboardKey.keyW => _ShellShortcutAction.closeActiveTab,

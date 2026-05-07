@@ -418,6 +418,86 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport repaints consecutive full-width wrapped rows without leaving a shorter middle row',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            frameKind: TerminalFrameKind.snapshot,
+            rows: [
+              TerminalRow(index: 0, text: '*****'),
+              TerminalRow(index: 1, text: '***'),
+              TerminalRow(index: 2, text: '*****'),
+            ],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 4,
+            viewportCols: 5,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: SelectionController(),
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      expect(_resolvedRowText(renderObject, 0), '*****');
+      expect(_resolvedRowText(renderObject, 1), '***');
+      expect(_resolvedRowText(renderObject, 2), '*****');
+      final middleBuildsBefore = renderObject.debugRowPictureBuildsForRow(1);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [
+            TerminalRow(index: 0, text: '*****', wrapped: true),
+            TerminalRow(index: 1, text: '*****', wrapped: true),
+            TerminalRow(index: 2, text: '*****'),
+          ],
+          cursor: TerminalCursor(row: 2, col: 5, visible: true),
+          viewportRows: 4,
+          viewportCols: 5,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      await tester.pump();
+
+      expect(_resolvedRowText(renderObject, 0), '*****');
+      expect(_resolvedRowText(renderObject, 1), '*****');
+      expect(_resolvedRowText(renderObject, 2), '*****');
+      expect(
+        renderObject.debugRowPictureBuildsForRow(1),
+        greaterThan(middleBuildsBefore),
+      );
+      expect(renderObject.debugLastRebuiltRowIndexes, <int>[0, 1, 2]);
+    },
+  );
+
+  testWidgets(
     'terminal viewport translates trackpad pan updates into positive scrollback deltas',
     (tester) async {
       final controller = TerminalViewportController()
@@ -472,6 +552,170 @@ void main() {
 
       expect(scrollLines, isNotEmpty);
       expect(scrollLines.single, isPositive);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport continues trackpad momentum after pan end',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _scrollbackFrame(
+            viewportStartRow: 20,
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 20,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (delta) {
+                  scrollLines.add(delta);
+                  final frame = controller.frame;
+                  final nextOffset = (frame.scrollbackOffset + delta)
+                      .clamp(0, frame.scrollbackMaxOffset)
+                      .toInt();
+                  controller.updateFrame(
+                    _scrollbackFrame(
+                      viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
+                      scrollbackOffset: nextOffset,
+                      scrollbackMaxOffset: frame.scrollbackMaxOffset,
+                      viewportRows: frame.viewportRows,
+                    ),
+                  );
+                },
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(TerminalViewport));
+      final trackpad = TestPointer(1, PointerDeviceKind.trackpad);
+      await tester.sendEventToBinding(trackpad.panZoomStart(center));
+      await tester.pump();
+      await tester.sendEventToBinding(
+        trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.sendEventToBinding(
+        trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
+      );
+      await tester.pump();
+
+      final scrollCountBeforeEnd = scrollLines.length;
+      final offsetBeforeEnd = controller.frame.scrollbackOffset;
+
+      await tester.sendEventToBinding(trackpad.panZoomEnd());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 160));
+
+      expect(scrollCountBeforeEnd, greaterThan(0));
+      expect(scrollLines.length, greaterThan(scrollCountBeforeEnd));
+      expect(controller.frame.scrollbackOffset, greaterThan(offsetBeforeEnd));
+    },
+  );
+
+  testWidgets(
+    'terminal viewport momentum can carry scrollback back to bottom after a downward flick',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          _scrollbackFrame(
+            viewportStartRow: 10,
+            scrollbackOffset: 10,
+            scrollbackMaxOffset: 20,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (delta) {
+                  scrollLines.add(delta);
+                  final frame = controller.frame;
+                  final nextOffset = (frame.scrollbackOffset + delta)
+                      .clamp(0, frame.scrollbackMaxOffset)
+                      .toInt();
+                  controller.updateFrame(
+                    _scrollbackFrame(
+                      viewportStartRow: frame.scrollbackMaxOffset - nextOffset,
+                      scrollbackOffset: nextOffset,
+                      scrollbackMaxOffset: frame.scrollbackMaxOffset,
+                      viewportRows: frame.viewportRows,
+                    ),
+                  );
+                },
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(TerminalViewport));
+      final trackpad = TestPointer(1, PointerDeviceKind.trackpad);
+      await tester.sendEventToBinding(trackpad.panZoomStart(center));
+      await tester.pump();
+      await tester.sendEventToBinding(
+        trackpad.panZoomUpdate(center, pan: const Offset(0, 24)),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.sendEventToBinding(
+        trackpad.panZoomUpdate(center, pan: const Offset(0, 24)),
+      );
+      await tester.pump();
+
+      final scrollCountBeforeEnd = scrollLines.length;
+      final offsetBeforeEnd = controller.frame.scrollbackOffset;
+
+      await tester.sendEventToBinding(trackpad.panZoomEnd());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 220));
+
+      expect(scrollCountBeforeEnd, greaterThan(0));
+      expect(offsetBeforeEnd, greaterThan(0));
+      expect(scrollLines.length, greaterThan(scrollCountBeforeEnd));
+      expect(scrollLines.where((delta) => delta.isNegative), isNotEmpty);
+      expect(controller.frame.scrollbackOffset, 0);
     },
   );
 

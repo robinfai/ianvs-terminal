@@ -27,13 +27,18 @@
 - 还没有自动化性能回归检查
 - 还没有跨平台验证
 - 还没有 SSH 兼容性验证
-- `T-055` 已于 `2026-04-22` 按 override `forced-closed`，所以 repo 仍缺当前人工验证的 terminal 手工兼容性矩阵（VT220 `vttest`、powerline / ANSI prompt、真实 trackpad scrollback、字体度量 / DPI resize）；新的 local-only 跟进入口是 `docs/tasks/T-059-local-terminal-manual-matrix.md`
+- local-only terminal 手工矩阵已于 `2026-05-06` 在 `T-059` 实际执行，但当前仍有未修复的真实失败项，不能把这轮结果当成“全部通过”
 
 ## 当前环境相关风险
 
-- 当前最佳已知证据只说明：`BINGHUILUO-MC6` 是 `unsuitable local host`。`command -v vttest`、`flutter doctor -v`、`flutter devices`、`integration_test/flutterm_smoke_test.dart` 均已有 `pass` 证据，但 `flutter run -d macos` 仍打印 `Failed to foreground app; open returned 1`，而且没有完成真实前台键盘交互确认。
-- `osascript -e 'tell application "System Events" to get UI elements enabled'` 仍返回 `false`，同时当前 repo 也没有真实 trackpad 与替代字体度量 / DPI 条件的手工结果。因此，VT220、powerline / ANSI prompt、真实 trackpad scrollback、字体度量 / DPI resize 这四条矩阵 lane 目前仍是未执行的已知风险，不是已通过的产品证据。
-- 如果未来确实需要补这组人工证据，应执行 `T-059` 或继续新开 focused task，而不是重新激活已经 `forced-closed` 的 `T-055` live handoff。
+- `flutter test integration_test/flutterm_smoke_test.dart` 当前可以通过，但运行时仍会打印 `Failed to foreground app; open returned 1`。这说明 smoke 已覆盖基本启动链路，但 foreground 行为仍不够干净。
+- `osascript -e 'tell application "System Events" to get UI elements enabled'` 仍返回 `false`。当前这不再阻止 `T-059` 的人工矩阵结论成立，但它仍是本地 GUI 自动化和辅助访问验证的环境风险。
+
+## 当前真实产品缺口
+
+- macOS terminal focus 下，`Ctrl+T` / `Ctrl+V` 会被 app/session shortcut 逻辑抢走，导致 VT220 control-key matrix 失败。
+- VT220 `vttest` wrap-around screen-features 仍失败，连续满宽行渲染不一致。
+- 真实 trackpad 的惯性滚动和 return-to-bottom 行为仍失败。
 
 ## 当前已接受的延期风险
 

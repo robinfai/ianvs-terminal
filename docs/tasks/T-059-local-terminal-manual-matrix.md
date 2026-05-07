@@ -32,11 +32,35 @@
 - host/tooling blocked 单独标记，不算产品失败
 - 任一 `fail` 都拆成 focused task，并回链到本任务
 
-## Verification Commands
+## Preflight Checks
+
+```bash
+command -v vttest
+```
+
+```bash
+cd example
+flutter devices
+```
+
+```bash
+osascript -e 'tell application "System Events" to get UI elements enabled'
+```
 
 ```bash
 cd example
 flutter test integration_test/flutterm_smoke_test.dart
+```
+
+```bash
+cd example
+flutter run -d macos
+```
+
+## Verification Commands
+
+```bash
+cd example
 flutter run -d macos
 ```
 
@@ -49,22 +73,63 @@ flutter run -d macos
 5. 在至少两组字体度量或 DPI 条件下验证 resize 后内容保留与 window-size translation
 6. 记录每个子项的绝对日期、环境、结果和阻塞原因
 
-## Result Template
+## Result
 
-- Date:
-- Host:
-- `integration_test/flutterm_smoke_test.dart`: `pass` / `fail` / `blocked`
-- `flutter run -d macos`: `pass` / `fail` / `blocked`
-- `VT220 vttest`: `pass` / `fail` / `blocked`
-- `powerline / ANSI prompt fidelity`: `pass` / `fail` / `blocked`
-- `trackpad scrollback`: `pass` / `fail` / `blocked`
-- `font-metric / DPI resize`: `pass` / `fail` / `blocked`
-- Split tasks:
+### Manual Matrix Result
+
+- Date: 2026-05-06
+- Host: macOS 26.3.1 (darwin-arm64)
+- Branch/HEAD: `codex/hyper-first-shell / d2bb7b6`
+- `vttest`: available at `/opt/homebrew/bin/vttest`
+- Accessibility/UI scripting: `osascript -e 'tell application "System Events" to get UI elements enabled'` returned `false`
+- `integration_test/flutterm_smoke_test.dart`: `pass`
+- `flutter run -d macos`: `pass`
+- Manual input path (`y`, `Backspace`, `pwd`, `echo hello`, `ls`): `pass`
+
+### Matrix Verdicts
+
+- `VT220 vttest`: `fail`
+- `powerline / ANSI prompt fidelity`: `pass`
+- `trackpad scrollback`: `fail`
+- `font-metric / DPI resize`: `pass`
+
+### Evidence
+
+- `flutter test integration_test/flutterm_smoke_test.dart` passed on macOS, though the run still printed `Failed to foreground app; open returned 1`.
+- `flutter run -d macos` launched successfully and the app came to the foreground.
+- `VT220` terminal reports passed:
+  - Primary DA returned `VT200 family`
+  - Secondary DA returned `Pp=1 (VT220)`
+- `VT220` keyboard was mixed:
+  - Cursor Keys passed
+  - Control Keys failed because `Ctrl+T` opened a new tab instead of reaching the terminal, and `Ctrl+V` behavior was abnormal in the `vttest` control-key screen
+- `VT220` screen features failed:
+  - Wrap-around test expected 3 equal-width `*` rows
+  - Observed the second row shorter than the first and third
+- Prompt fidelity looked normal during ordinary shell usage.
+- Trackpad behavior was mixed:
+  - Ordinary vertical scrolling passed
+  - Scrollbar thumb drag passed
+  - Inertial scrolling failed because releasing fingers produced no continued motion
+  - Return-to-bottom failed because the viewport stayed in mid-scrollback instead of returning to the prompt
+- Resize coverage passed:
+  - Clean default shell tab resize passed
+  - Large-font resize passed
+  - Alternate font-family resize passed
+  - Cross-screen DPI move plus resize passed
+  - The `%` seen during narrow-width testing was traced to `zsh` `PROMPT_EOL_MARK`, not a renderer artifact
+  - A narrow-width extra blank line reproduced in `zsh -f` but not in `bash --noprofile --norc`, so current evidence does not support a generic viewport resize bug
+
+### Split Tasks
+
+- `T-066`: macOS app shortcut modifier narrowing for terminal control-key delivery
+- `T-067`: VT220 wrap-around fidelity regression
+- `T-068`: trackpad momentum and return-to-bottom scrollback behavior
 
 ## Done When
 
-- 所有矩阵项都有结果
-- 失败项都已拆成 focused task
+- 四条矩阵 lane 已拿到真实人工结果；若 host/tooling 不满足，只能回退到 `T-054` 类 unblock 任务，不能用全 `blocked` 结果直接关闭
+- 失败项都已拆成 focused task，并从本任务显式回链
 - `docs/TESTING.md` / `docs/KNOWN_ISSUES.md` 与结果一致
 
 ## Risks / Follow-ups

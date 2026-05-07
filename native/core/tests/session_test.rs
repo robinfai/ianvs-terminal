@@ -433,6 +433,21 @@ fn vt220_clipboard_paste_request_profile() -> TerminalProfile {
     )
 }
 
+fn vt220_wraparound_repaint_profile() -> TerminalProfile {
+    local_profile(
+        "vt220-wraparound-repaint",
+        "VT220 Wraparound Repaint",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; sys.stdout.write("\x1b[2J\x1b[H*****\n***\n*****"); sys.stdout.flush(); time.sleep(0.35); sys.stdout.write("\x1b[H***************"); sys.stdout.flush()'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Vt220,
+    )
+}
+
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     for _ in 0..20 {
         if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
@@ -536,6 +551,13 @@ fn frame_row_with_text<'a>(frame: &'a serde_json::Value, needle: &str) -> &'a se
                 .find(|row| row["text"].as_str().unwrap_or_default().contains(needle))
         })
         .expect("expected matching frame row")
+}
+
+fn frame_row_at_index<'a>(frame: &'a serde_json::Value, index: u64) -> &'a serde_json::Value {
+    frame["rows"]
+        .as_array()
+        .and_then(|rows| rows.iter().find(|row| row["index"].as_u64() == Some(index)))
+        .expect("expected matching frame row index")
 }
 
 #[test]
@@ -1228,6 +1250,101 @@ fn vt220_sessions_do_not_emit_clipboard_paste_requests_from_osc_52_queries() {
     .unwrap();
 
     assert_event_kind_never_arrives(session_id, "clipboard_paste_request");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_wraparound_repaint_keeps_full_width_rows_dirty_and_complete() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&vt220_wraparound_repaint_profile()).unwrap(),
+    )
+    .unwrap();
+    session::resize_session(session_id, 5, 4, 0, 0).unwrap();
+
+    let mut first_phase_history = Vec::new();
+    let mut saw_first_phase = false;
+    for _ in 0..20 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            first_phase_history.push(frame.clone());
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            saw_first_phase = parsed["rows"].as_array().is_some_and(|rows| {
+                rows.iter()
+                    .find(|row| row["index"].as_u64() == Some(1))
+                    .and_then(|row| row["text"].as_str())
+                    == Some("***  ")
+            });
+            if saw_first_phase {
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    assert!(
+        saw_first_phase,
+        "timed out waiting for initial shorter middle row: {}",
+        first_phase_history.join("\n---\n")
+    );
+
+    let mut second_phase_history = Vec::new();
+    let mut second = None;
+    for _ in 0..20 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            second_phase_history.push(frame.clone());
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            let has_full_rows = parsed["rows"].as_array().is_some_and(|rows| {
+                rows.iter()
+                    .find(|row| row["index"].as_u64() == Some(0))
+                    .and_then(|row| row["text"].as_str())
+                    == Some("*****")
+                    && rows
+                        .iter()
+                        .find(|row| row["index"].as_u64() == Some(1))
+                        .and_then(|row| row["text"].as_str())
+                        == Some("*****")
+                    && rows
+                        .iter()
+                        .find(|row| row["index"].as_u64() == Some(2))
+                        .and_then(|row| row["text"].as_str())
+                        == Some("*****")
+            });
+            if has_full_rows {
+                second = Some(frame);
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    let second = second.unwrap_or_else(|| {
+        panic!(
+            "timed out waiting for full-width wrap repaint: {}",
+            second_phase_history.join("\n---\n")
+        )
+    });
+
+    let second_parsed: serde_json::Value = serde_json::from_str(&second).unwrap();
+    assert_eq!(
+        frame_row_at_index(&second_parsed, 0)["text"].as_str(),
+        Some("*****")
+    );
+    assert_eq!(
+        frame_row_at_index(&second_parsed, 1)["text"].as_str(),
+        Some("*****")
+    );
+    assert_eq!(
+        frame_row_at_index(&second_parsed, 2)["text"].as_str(),
+        Some("*****")
+    );
+    assert_eq!(
+        second_parsed["dirty_ranges"]
+            .as_array()
+            .is_some_and(|ranges| ranges.iter().any(|range| {
+                range["start"].as_u64() == Some(0) && range["end"].as_u64().unwrap_or_default() >= 3
+            })),
+        true,
+        "wrap-around repaint should cover all three rows in at least one dirty range: {}",
+        serde_json::to_string_pretty(&second_parsed).unwrap()
+    );
 
     session::close_session(session_id).unwrap();
 }

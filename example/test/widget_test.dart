@@ -77,6 +77,25 @@ Future<void> _sendMetaShortcut(
   await tester.pump();
 }
 
+Future<void> _sendControlShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key, {
+  required String platform,
+}) async {
+  await tester.sendKeyDownEvent(
+    LogicalKeyboardKey.controlLeft,
+    platform: platform,
+  );
+  await tester.sendKeyDownEvent(key, platform: platform);
+  await tester.pumpAndSettle();
+  await tester.sendKeyUpEvent(key, platform: platform);
+  await tester.sendKeyUpEvent(
+    LogicalKeyboardKey.controlLeft,
+    platform: platform,
+  );
+  await tester.pump();
+}
+
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
   expect(
     tester.getSemantics(find.bySemanticsLabel('shell-tab-$sessionId')),
@@ -238,7 +257,7 @@ void main() {
 
     expect(find.text('Top actions'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('command-t opens another tab without opening the command menu', (
     tester,
@@ -268,7 +287,66 @@ void main() {
     expect(find.text('Top actions'), findsNothing);
     expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+
+  testWidgets(
+    'control-t on macOS stays in terminal input instead of opening a new tab',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendControlShortcut(
+        tester,
+        LogicalKeyboardKey.keyT,
+        platform: 'macos',
+      );
+
+      expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, equals(const [0x14]));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'control-t on non-macOS still opens another tab',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+
+      await _sendControlShortcut(
+        tester,
+        LogicalKeyboardKey.keyT,
+        platform: 'linux',
+      );
+
+      expect(find.text('Top actions'), findsNothing);
+      expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+  );
 
   testWidgets('command-number activates the matching tab without input leak', (
     tester,
@@ -292,7 +370,7 @@ void main() {
 
     _expectSelectedTab(tester, '1');
     expect(fakeBindings.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('command-q requests quit confirmation without leaking input', (
     tester,
@@ -331,7 +409,7 @@ void main() {
       contains('requestQuitConfirmation'),
     );
     expect(fakeBindings.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('command-w closes the active tab without leaking input', (
     tester,
@@ -354,7 +432,7 @@ void main() {
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
     expect(fakeBindings.writes, isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('command-comma opens defaults and returns keyboard to terminal', (
     tester,
@@ -380,12 +458,15 @@ void main() {
     await tester.tap(find.byTooltip('Close defaults'));
     await tester.pumpAndSettle();
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
-    await tester.pump();
+    await _sendControlShortcut(
+      tester,
+      LogicalKeyboardKey.keyT,
+      platform: 'macos',
+    );
 
     expect(fakeBindings.writes, isNotEmpty);
-    expect(fakeBindings.writes.last, utf8.encode('v'));
-  });
+    expect(fakeBindings.writes.last, equals(const [0x14]));
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 
   testWidgets('closing the last tab can recover from the empty state', (
     tester,

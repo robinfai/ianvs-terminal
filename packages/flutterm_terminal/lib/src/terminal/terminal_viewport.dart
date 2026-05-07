@@ -107,14 +107,21 @@ class _TerminalViewportState extends State<TerminalViewport>
   static const Duration _selectionAutoScrollInterval = Duration(
     milliseconds: 50,
   );
+  static const Duration _scrollMomentumInterval = Duration(milliseconds: 16);
+  static const double _scrollMomentumDecayPerTick = 0.95;
+  static const double _scrollMomentumStartThresholdLinesPerSecond = 24.0;
+  static const double _scrollMomentumStopThresholdLinesPerSecond = 2.0;
   Timer? _cursorBlinkTimer;
   Timer? _selectionAutoScrollTimer;
+  Timer? _scrollMomentumTimer;
   Timer? _pendingLinkOpenTimer;
   bool _cursorVisible = true;
   FocusNode? _ownedFocusNode;
   FocusNode? _listenedFocusNode;
   final GlobalKey _surfaceKey = GlobalKey();
   double _pendingScrollLines = 0.0;
+  double _scrollMomentumLinesPerSecond = 0.0;
+  Duration? _lastPanZoomUpdateTimeStamp;
   Size? _lastReportedCellSize;
   int? _activeMouseButton;
   bool? _lastReportedFocusTrackingFocus;
@@ -167,6 +174,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _closeTextInputConnection(notify: false);
     _cursorBlinkTimer?.cancel();
     _selectionAutoScrollTimer?.cancel();
+    _scrollMomentumTimer?.cancel();
     _pendingLinkOpenTimer?.cancel();
     _ownedFocusNode?.dispose();
     super.dispose();
@@ -396,17 +404,139 @@ class _TerminalViewportState extends State<TerminalViewport>
       _sendMouseWheel(deltaY);
       return;
     }
-    final lineHeight = _lineHeight;
-    if (lineHeight <= 0) {
+    final rawDeltaLines = _rawScrollLinesForDelta(deltaY);
+    if (rawDeltaLines == 0) {
       return;
     }
-    _pendingScrollLines += -deltaY / lineHeight;
+    _applyRawScrollLines(rawDeltaLines);
+  }
+
+  double _rawScrollLinesForDelta(double deltaY) {
+    final lineHeight = _lineHeight;
+    if (lineHeight <= 0) {
+      return 0;
+    }
+    return -deltaY / lineHeight;
+  }
+
+  bool _applyRawScrollLines(double rawDeltaLines) {
+    if (rawDeltaLines == 0) {
+      return false;
+    }
+    _pendingScrollLines += rawDeltaLines;
     final deltaLines = _pendingScrollLines.round();
     if (deltaLines == 0) {
-      return;
+      return true;
     }
     _pendingScrollLines -= deltaLines;
     widget.onScrollLines(deltaLines);
+    return true;
+  }
+
+  void _handlePanZoomStart(PointerPanZoomStartEvent event) {
+    _stopScrollMomentum();
+    _resetPendingScroll();
+    _lastPanZoomUpdateTimeStamp = event.timeStamp;
+  }
+
+  void _handlePanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    _cancelScrollMomentumTimer();
+    if (_terminalMouseEnabled) {
+      _sendMouseWheel(
+        event.panDelta.dy,
+        globalPosition: event.position,
+      );
+      return;
+    }
+    final rawDeltaLines = _rawScrollLinesForDelta(event.panDelta.dy);
+    if (rawDeltaLines == 0) {
+      return;
+    }
+    final currentTimeStamp = event.timeStamp;
+    final previousTimeStamp = _lastPanZoomUpdateTimeStamp;
+    final deltaTime = previousTimeStamp == null
+        ? Duration.zero
+        : currentTimeStamp - previousTimeStamp;
+    final effectiveDeltaTime = deltaTime > Duration.zero
+        ? deltaTime
+        : _scrollMomentumInterval;
+    _scrollMomentumLinesPerSecond =
+        rawDeltaLines /
+        (effectiveDeltaTime.inMicroseconds / Duration.microsecondsPerSecond);
+    _lastPanZoomUpdateTimeStamp = currentTimeStamp;
+    _applyRawScrollLines(rawDeltaLines);
+  }
+
+  void _handlePanZoomEnd(PointerPanZoomEndEvent event) {
+    _lastPanZoomUpdateTimeStamp = event.timeStamp;
+    if (_terminalMouseEnabled) {
+      _resetPendingScroll();
+      return;
+    }
+    _startScrollMomentumIfNeeded();
+  }
+
+  void _startScrollMomentumIfNeeded() {
+    if (_terminalMouseEnabled ||
+        _scrollMomentumLinesPerSecond.abs() <
+            _scrollMomentumStartThresholdLinesPerSecond) {
+      _stopScrollMomentum(resetPendingScroll: false);
+      return;
+    }
+    _scrollMomentumTimer ??= Timer.periodic(
+      _scrollMomentumInterval,
+      (_) => _handleScrollMomentumTick(),
+    );
+  }
+
+  void _handleScrollMomentumTick() {
+    if (!mounted || _terminalMouseEnabled) {
+      _stopScrollMomentum();
+      return;
+    }
+    final velocity = _scrollMomentumLinesPerSecond;
+    if (velocity.abs() < _scrollMomentumStopThresholdLinesPerSecond) {
+      _stopScrollMomentum(resetPendingScroll: false);
+      return;
+    }
+    final frameBeforeScroll = widget.controller.frame;
+    final rawDeltaLines =
+        velocity *
+        (_scrollMomentumInterval.inMicroseconds /
+            Duration.microsecondsPerSecond);
+    final didScroll = _applyRawScrollLines(rawDeltaLines);
+    if (!didScroll) {
+      _stopScrollMomentum();
+      return;
+    }
+    final frameAfterScroll = widget.controller.frame;
+    final hitUpperEdge =
+        velocity > 0 &&
+        frameBeforeScroll.scrollbackOffset >= frameBeforeScroll.scrollbackMaxOffset &&
+        frameAfterScroll.scrollbackOffset >= frameAfterScroll.scrollbackMaxOffset;
+    final hitLowerEdge =
+        velocity < 0 &&
+        frameBeforeScroll.scrollbackOffset <= 0 &&
+        frameAfterScroll.scrollbackOffset <= 0;
+    if (hitUpperEdge || hitLowerEdge) {
+      _stopScrollMomentum();
+      return;
+    }
+    _scrollMomentumLinesPerSecond *= _scrollMomentumDecayPerTick;
+  }
+
+  void _stopScrollMomentum({bool resetPendingScroll = true}) {
+    _cancelScrollMomentumTimer();
+    _scrollMomentumLinesPerSecond = 0.0;
+    _lastPanZoomUpdateTimeStamp = null;
+    if (resetPendingScroll) {
+      _pendingScrollLines = 0.0;
+    }
+  }
+
+  void _cancelScrollMomentumTimer() {
+    _scrollMomentumTimer?.cancel();
+    _scrollMomentumTimer = null;
   }
 
   bool get _terminalMouseEnabled =>
@@ -529,6 +659,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    _stopScrollMomentum();
     if (!_terminalMouseEnabled) {
       if (!_isPrimarySelectionButton(event.buttons) ||
           _scrollbarContainsGlobalPosition(event.position) ||
@@ -644,6 +775,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
+    _stopScrollMomentum();
     if (_terminalMouseEnabled) {
       _activeMouseButton = null;
       return;
@@ -1088,18 +1220,9 @@ class _TerminalViewportState extends State<TerminalViewport>
               }
             }
           },
-          onPointerPanZoomStart: (_) => _resetPendingScroll(),
-          onPointerPanZoomUpdate: (event) {
-            if (_terminalMouseEnabled) {
-              _sendMouseWheel(
-                event.panDelta.dy,
-                globalPosition: event.position,
-              );
-            } else {
-              _handleScrollDelta(event.panDelta.dy);
-            }
-          },
-          onPointerPanZoomEnd: (_) => _resetPendingScroll(),
+          onPointerPanZoomStart: _handlePanZoomStart,
+          onPointerPanZoomUpdate: _handlePanZoomUpdate,
+          onPointerPanZoomEnd: _handlePanZoomEnd,
           child: AnimatedBuilder(
             animation: widget.controller,
             builder: (context, _) {
