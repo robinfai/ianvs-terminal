@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
@@ -2149,6 +2151,224 @@ void main() {
   });
 
   testWidgets(
+    'terminal viewport resolves dim foreground as an opaque blend against the effective background',
+    (tester) async {
+      final renderObject = await _pumpThemedTerminalViewport(
+        tester,
+        themeMode: ThemeMode.dark,
+        frame: const TerminalFrameDiff(
+          rows: [
+            TerminalRow(
+              index: 0,
+              text: 'a',
+              styleRuns: [TerminalStyleRun(start: 0, end: 1, dim: true)],
+            ),
+          ],
+          cursor: TerminalCursor(row: 0, col: 1, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      final cell = renderObject.debugResolvedCellsForRow(0).single;
+      final expectedForeground = Color.alphaBlend(
+        const Color(0xFFF8FAFC).withValues(alpha: 0.65),
+        const Color(0xFF050608),
+      );
+
+      expect(cell.foreground.toARGB32(), expectedForeground.toARGB32());
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps the debug1 Codex box right border at the same dim color as the left border',
+    (tester) async {
+      const boundaryKey = Key('debug1-codex-box-boundary');
+      const colors = TerminalViewportColors(
+        canvasBackground: Color(0xFF050608),
+        foreground: Color(0xFFF8FAFC),
+        cursor: Colors.green,
+        selection: Color(0x663B82F6),
+        scrollbarTrack: Color(0x26FFFFFF),
+        scrollbarThumb: Color(0x99FFFFFF),
+      );
+
+      final modelRow = '│ model:     gpt-5.4 xhigh   /model to change │';
+      final modelValueStart = modelRow.indexOf('gpt-5.4 xhigh');
+      final modelValueEnd = modelValueStart + 'gpt-5.4 xhigh'.length;
+      final slashModelStart = modelRow.indexOf('/model');
+      final slashModelEnd = slashModelStart + '/model'.length;
+
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          TerminalFrameDiff(
+            rows: [
+              TerminalRow(
+                index: 0,
+                text: '╭─────────────────────────────────────────────╮',
+                styleRuns: [
+                  TerminalStyleRun(
+                    start: 0,
+                    end: 47,
+                    dim: true,
+                  ),
+                ],
+              ),
+              TerminalRow(
+                index: 1,
+                text: '│ >_ OpenAI Codex (v0.129.0)                  │',
+                styleRuns: [
+                  TerminalStyleRun(start: 0, end: 47, dim: true),
+                  TerminalStyleRun(
+                    start: '│ >_ '.length,
+                    end: '│ >_ OpenAI Codex'.length,
+                    bold: true,
+                  ),
+                ],
+              ),
+              TerminalRow(
+                index: 2,
+                text: '│                                             │',
+                styleRuns: [
+                  TerminalStyleRun(start: 0, end: 47, dim: true),
+                ],
+              ),
+              TerminalRow(
+                index: 3,
+                text: modelRow,
+                styleRuns: [
+                  TerminalStyleRun(start: 0, end: 47, dim: true),
+                  TerminalStyleRun(
+                    start: modelValueStart,
+                    end: modelValueEnd,
+                  ),
+                  TerminalStyleRun(
+                    start: slashModelStart,
+                    end: slashModelEnd,
+                    foreground: const Color(0xFF00CDCD),
+                  ),
+                ],
+              ),
+              TerminalRow(
+                index: 4,
+                text: '│ directory: ~/personal/flutterm              │',
+                styleRuns: [
+                  TerminalStyleRun(start: 0, end: 47, dim: true),
+                  TerminalStyleRun(
+                    start: '│ directory: '.length,
+                    end: '│ directory: ~/personal/flutterm'.length,
+                  ),
+                ],
+              ),
+              TerminalRow(
+                index: 5,
+                text: '╰─────────────────────────────────────────────╯',
+                styleRuns: [
+                  TerminalStyleRun(start: 0, end: 47, dim: true),
+                ],
+              ),
+            ],
+            cursor: const TerminalCursor(row: 3, col: 0, visible: false),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: const [TerminalDirtyRange(start: 0, end: 6)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 900,
+              height: 360,
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: TerminalViewport(
+                  controller: controller,
+                  selectionController: selectionController,
+                  inputController: inputController,
+                  colors: colors,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final image = await _runUiAsync(
+        tester,
+        () => boundary.toImage(pixelRatio: tester.view.devicePixelRatio),
+      );
+
+      try {
+        final leftBorderCell = renderObject.debugResolvedCellsForRow(3).first;
+        final rightBorderCell = renderObject.debugResolvedCellsForRow(3).last;
+        final expectedDim = Color.alphaBlend(
+          const Color(0xFFF8FAFC).withValues(alpha: 0.65),
+          const Color(0xFF050608),
+        ).toARGB32();
+
+        Future<int> sampleCellCenter(TerminalResolvedCell cell) async {
+          final logicalX = cell.placementRect.center.dx;
+          final logicalY = cell.placementRect.center.dy;
+          final x = (logicalX * tester.view.devicePixelRatio)
+              .round()
+              .clamp(0, image.width - 1);
+          final y = (logicalY * tester.view.devicePixelRatio)
+              .round()
+              .clamp(0, image.height - 1);
+          final byteData = await _runUiAsync(
+            tester,
+            () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+          );
+          if (byteData == null) {
+            throw StateError('Failed to read debug1 Codex box image bytes.');
+          }
+          final bytes = byteData.buffer.asUint8List();
+          final pixelOffset = ((y * image.width) + x) * 4;
+          return Color.fromARGB(
+            bytes[pixelOffset + 3],
+            bytes[pixelOffset],
+            bytes[pixelOffset + 1],
+            bytes[pixelOffset + 2],
+          ).toARGB32();
+        }
+
+        final leftPixel = await sampleCellCenter(leftBorderCell);
+        final rightPixel = await sampleCellCenter(rightBorderCell);
+
+        expect(leftPixel, expectedDim);
+        expect(rightPixel, expectedDim);
+        expect(rightPixel, leftPixel);
+      } finally {
+        image.dispose();
+      }
+    },
+  );
+
+  testWidgets(
     'terminal viewport invalidates cached default colors on theme switch',
     (tester) async {
       final controller = TerminalViewportController()
@@ -2537,6 +2757,473 @@ void main() {
       ]);
       expect(cells[0].usesCustomGeometry, isFalse);
       expect(cells[1].usesCustomGeometry, isTrue);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport paints rounded box-drawing corners as smooth in-cell transitions',
+    (tester) async {
+      const boundaryKey = Key('rounded-box-drawing-corners-boundary');
+      const colors = TerminalViewportColors(
+        canvasBackground: Colors.black,
+        foreground: Colors.white,
+        cursor: Colors.green,
+        selection: Color(0x663B82F6),
+        scrollbarTrack: Color(0x26FFFFFF),
+        scrollbarThumb: Color(0x99FFFFFF),
+      );
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '╭╮╰╯')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: false),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: TerminalViewport(
+                  controller: controller,
+                  selectionController: selectionController,
+                  inputController: inputController,
+                  colors: colors,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellWidth = renderObject.debugCellSize.width;
+      final cellHeight = renderObject.debugCellSize.height;
+      final dpr = tester.view.devicePixelRatio;
+      final backgroundArgb = colors.canvasBackground.toARGB32();
+      final image = await _runUiAsync(
+        tester,
+        () => boundary.toImage(pixelRatio: dpr),
+      );
+
+      try {
+        final imageData = await _runUiAsync(
+          tester,
+          () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+        );
+        if (imageData == null) {
+          throw StateError('Failed to read rounded corner image bytes.');
+        }
+        final imageBytes = imageData.buffer.asUint8List();
+
+        int sampleCellPixel(
+          int column, {
+          required double xFactor,
+          required double yFactor,
+        }) {
+          final logicalX = (column * cellWidth) + (cellWidth * xFactor);
+          final logicalY = cellHeight * yFactor;
+          final x = (logicalX * dpr).round().clamp(0, image.width - 1);
+          final y = (logicalY * dpr).round().clamp(0, image.height - 1);
+          final pixelOffset = ((y * image.width) + x) * 4;
+          return Color.fromARGB(
+            imageBytes[pixelOffset + 3],
+            imageBytes[pixelOffset],
+            imageBytes[pixelOffset + 1],
+            imageBytes[pixelOffset + 2],
+          ).toARGB32();
+        }
+
+        Future<void> expectForegroundRegion(
+          int column, {
+          required double left,
+          required double top,
+          required double right,
+          required double bottom,
+        }) async {
+          var hasForeground = false;
+          for (final xFactor in <double>[left, (left + right) / 2, right]) {
+            for (final yFactor in <double>[top, (top + bottom) / 2, bottom]) {
+              if (sampleCellPixel(column, xFactor: xFactor, yFactor: yFactor) !=
+                  backgroundArgb) {
+                hasForeground = true;
+                break;
+              }
+            }
+            if (hasForeground) {
+              break;
+            }
+          }
+          expect(hasForeground, isTrue);
+        }
+
+        void expectBackgroundPixel(
+          int column, {
+          required double xFactor,
+          required double yFactor,
+        }) {
+          expect(
+            sampleCellPixel(column, xFactor: xFactor, yFactor: yFactor),
+            backgroundArgb,
+          );
+        }
+
+        await expectForegroundRegion(
+          0,
+          left: 0.52,
+          top: 0.52,
+          right: 0.92,
+          bottom: 0.92,
+        );
+        expectBackgroundPixel(0, xFactor: 0.12, yFactor: 0.12);
+
+        await expectForegroundRegion(
+          1,
+          left: 0.08,
+          top: 0.52,
+          right: 0.48,
+          bottom: 0.92,
+        );
+        expectBackgroundPixel(1, xFactor: 0.88, yFactor: 0.12);
+
+        await expectForegroundRegion(
+          2,
+          left: 0.52,
+          top: 0.08,
+          right: 0.92,
+          bottom: 0.48,
+        );
+        expectBackgroundPixel(2, xFactor: 0.12, yFactor: 0.88);
+
+        await expectForegroundRegion(
+          3,
+          left: 0.08,
+          top: 0.08,
+          right: 0.48,
+          bottom: 0.48,
+        );
+        expectBackgroundPixel(3, xFactor: 0.88, yFactor: 0.88);
+      } finally {
+        image.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal viewport connects rounded box-drawing corners to adjacent edges without seams',
+    (tester) async {
+      const boundaryKey = Key('rounded-box-drawing-boundary');
+      const colors = TerminalViewportColors(
+        canvasBackground: Colors.black,
+        foreground: Colors.white,
+        cursor: Colors.green,
+        selection: Color(0x663B82F6),
+        scrollbarTrack: Color(0x26FFFFFF),
+        scrollbarThumb: Color(0x99FFFFFF),
+      );
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(index: 0, text: '╭─╮'),
+              TerminalRow(index: 1, text: '│ │'),
+              TerminalRow(index: 2, text: '╰─╯'),
+            ],
+            cursor: TerminalCursor(row: 0, col: 0, visible: false),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: TerminalViewport(
+                  controller: controller,
+                  selectionController: selectionController,
+                  inputController: inputController,
+                  colors: colors,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final cellWidth = renderObject.debugCellSize.width;
+      final cellHeight = renderObject.debugCellSize.height;
+      final dpr = tester.view.devicePixelRatio;
+      final backgroundArgb = colors.canvasBackground.toARGB32();
+      final topRowCells = renderObject.debugResolvedCellsForRow(0);
+      final middleRowCells = renderObject.debugResolvedCellsForRow(1);
+      final bottomRowCells = renderObject.debugResolvedCellsForRow(2);
+
+      expect(topRowCells.map((cell) => cell.text).toList(), ['╭', '─', '╮']);
+      expect(middleRowCells.map((cell) => cell.text).toList(), ['│', ' ', '│']);
+      expect(bottomRowCells.map((cell) => cell.text).toList(), ['╰', '─', '╯']);
+      expect(
+        [
+          ...topRowCells.where((cell) => cell.text.trim().isNotEmpty),
+          ...middleRowCells.where((cell) => cell.text.trim().isNotEmpty),
+          ...bottomRowCells.where((cell) => cell.text.trim().isNotEmpty),
+        ].every((cell) => cell.usesCustomGeometry),
+        isTrue,
+      );
+
+      final image = await _runUiAsync(
+        tester,
+        () => boundary.toImage(pixelRatio: dpr),
+      );
+      try {
+        final imageData = await _runUiAsync(
+          tester,
+          () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+        );
+        if (imageData == null) {
+          throw StateError('Failed to read rounded box drawing image bytes.');
+        }
+        final imageBytes = imageData.buffer.asUint8List();
+
+        int samplePixel({
+          required double logicalX,
+          required double logicalY,
+        }) {
+          final x = (logicalX * dpr).round().clamp(0, image.width - 1);
+          final y = (logicalY * dpr).round().clamp(0, image.height - 1);
+          final pixelOffset = ((y * image.width) + x) * 4;
+          return Color.fromARGB(
+            imageBytes[pixelOffset + 3],
+            imageBytes[pixelOffset],
+            imageBytes[pixelOffset + 1],
+            imageBytes[pixelOffset + 2],
+          ).toARGB32();
+        }
+
+        Future<void> expectForegroundNear({
+          required double logicalX,
+          required double logicalY,
+        }) async {
+          var hasForeground = false;
+          for (final dx in <double>[-0.75, 0, 0.75]) {
+            for (final dy in <double>[-0.75, 0, 0.75]) {
+              if (samplePixel(
+                    logicalX: logicalX + dx,
+                    logicalY: logicalY + dy,
+                  ) !=
+                  backgroundArgb) {
+                hasForeground = true;
+                break;
+              }
+            }
+            if (hasForeground) {
+              break;
+            }
+          }
+          expect(hasForeground, isTrue);
+        }
+
+        void expectBackgroundNear({
+          required double logicalX,
+          required double logicalY,
+        }) {
+          expect(
+            samplePixel(logicalX: logicalX, logicalY: logicalY),
+            backgroundArgb,
+          );
+        }
+
+        final horizontalJoinY = cellHeight * 0.5;
+        final leftJoinX = cellWidth;
+        final rightJoinX = cellWidth * 2;
+        final verticalJoinX = cellWidth * 0.5;
+        final topJoinY = cellHeight;
+        final bottomJoinY = cellHeight * 2;
+
+        await expectForegroundNear(logicalX: leftJoinX, logicalY: horizontalJoinY);
+        await expectForegroundNear(logicalX: rightJoinX, logicalY: horizontalJoinY);
+        await expectForegroundNear(logicalX: verticalJoinX, logicalY: topJoinY);
+        await expectForegroundNear(logicalX: verticalJoinX, logicalY: bottomJoinY);
+
+        expectBackgroundNear(logicalX: cellWidth * 1.5, logicalY: cellHeight * 1.5);
+      } finally {
+        image.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps straight box-drawing seams from growing brighter at cell boundaries',
+    (tester) async {
+      const boundaryKey = Key('box-drawing-seams-boundary');
+      const colors = TerminalViewportColors(
+        canvasBackground: Colors.black,
+        foreground: Colors.white,
+        cursor: Colors.green,
+        selection: Color(0x663B82F6),
+        scrollbarTrack: Color(0x26FFFFFF),
+        scrollbarThumb: Color(0x99FFFFFF),
+      );
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [
+              TerminalRow(index: 0, text: '╭──╮'),
+              TerminalRow(index: 1, text: '│  │'),
+              TerminalRow(index: 2, text: '│  │'),
+              TerminalRow(index: 3, text: '╰──╯'),
+            ],
+            cursor: TerminalCursor(row: 0, col: 0, visible: false),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 4)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 220,
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: TerminalViewport(
+                  controller: controller,
+                  selectionController: selectionController,
+                  inputController: inputController,
+                  colors: colors,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(boundaryKey),
+      );
+      final cellWidth = renderObject.debugCellSize.width;
+      final cellHeight = renderObject.debugCellSize.height;
+      final dpr = tester.view.devicePixelRatio;
+      final backgroundArgb = colors.canvasBackground.toARGB32();
+      final image = await _runUiAsync(
+        tester,
+        () => boundary.toImage(pixelRatio: dpr),
+      );
+
+      try {
+        final imageData = await _runUiAsync(
+          tester,
+          () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+        );
+        if (imageData == null) {
+          throw StateError('Failed to read box drawing seam image bytes.');
+        }
+        final imageBytes = imageData.buffer.asUint8List();
+
+        int samplePixel({
+          required double logicalX,
+          required double logicalY,
+        }) {
+          final x = (logicalX * dpr).round().clamp(0, image.width - 1);
+          final y = (logicalY * dpr).round().clamp(0, image.height - 1);
+          final pixelOffset = ((y * image.width) + x) * 4;
+          return Color.fromARGB(
+            imageBytes[pixelOffset + 3],
+            imageBytes[pixelOffset],
+            imageBytes[pixelOffset + 1],
+            imageBytes[pixelOffset + 2],
+          ).toARGB32();
+        }
+
+        final topLineY = cellHeight * 0.5;
+        final horizontalSeamX = cellWidth * 2;
+        final rightBorderX = cellWidth * 3.5;
+        final verticalSeamY = cellHeight * 2;
+
+        expect(
+          samplePixel(
+            logicalX: horizontalSeamX,
+            logicalY: topLineY - 1,
+          ),
+          backgroundArgb,
+        );
+        expect(
+          samplePixel(
+            logicalX: rightBorderX - (cellWidth * 0.18),
+            logicalY: verticalSeamY,
+          ),
+          backgroundArgb,
+        );
+      } finally {
+        image.dispose();
+      }
     },
   );
 
@@ -3854,6 +4541,14 @@ Future<void> _mouseDoubleClickDrag(
   await tester.pump();
   await gesture.up();
   await tester.pump();
+}
+
+Future<T> _runUiAsync<T>(
+  WidgetTester tester,
+  Future<T> Function() operation,
+) async {
+  final result = await tester.runAsync(operation);
+  return result as T;
 }
 
 double _snapToDevicePixel(double value, double devicePixelRatio) {

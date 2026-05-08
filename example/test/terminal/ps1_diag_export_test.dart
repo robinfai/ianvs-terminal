@@ -22,6 +22,10 @@ const String _configuredOutDir = String.fromEnvironment(
   'PS1_DIAG_OUT_DIR',
   defaultValue: '',
 );
+const String _configuredCodexBoxOutDir = String.fromEnvironment(
+  'CODEX_BOX_DIAG_OUT_DIR',
+  defaultValue: '',
+);
 const String _configuredReference = String.fromEnvironment(
   'PS1_DIAG_REFERENCE',
   defaultValue: '',
@@ -55,6 +59,24 @@ void main() {
         isTrue,
       );
     }
+  });
+
+  testWidgets('codex box diag export writes configured artifacts', (
+    tester,
+  ) async {
+    final directory = _configuredCodexBoxOutDir.isEmpty
+        ? Directory.systemTemp.createTempSync('codex_box_diag_export_')
+        : Directory(_configuredCodexBoxOutDir);
+
+    _configureDiagnosticView(tester);
+    await _exportCodexBoxDiagnostics(tester, outDir: directory);
+
+    expect(
+      File('${directory.path}/codex-box-shell-surface-current.png').existsSync(),
+      isTrue,
+    );
+    expect(File('${directory.path}/codex-box-row-current.png').existsSync(), isTrue);
+    expect(File('${directory.path}/codex-box-metrics.json').existsSync(), isTrue);
   });
 
   testWidgets('ps1 diag export writes png and metrics json', (tester) async {
@@ -314,6 +336,38 @@ Future<void> _exportPs1Diagnostics(
   }
 }
 
+Future<void> _exportCodexBoxDiagnostics(
+  WidgetTester tester, {
+  required Directory outDir,
+}) async {
+  if (!outDir.existsSync()) {
+    outDir.createSync(recursive: true);
+  }
+  _deleteIfExists(File('${outDir.path}/codex-box-row-current.png'));
+  _deleteIfExists(File('${outDir.path}/codex-box-shell-surface-current.png'));
+  _deleteIfExists(File('${outDir.path}/codex-box-metrics.json'));
+
+  final shellExport = await _captureCodexBoxShellExport(tester);
+  try {
+    await _writeImage(
+      tester,
+      shellExport.promptImage,
+      File('${outDir.path}/codex-box-row-current.png'),
+    );
+    await _writeImage(
+      tester,
+      shellExport.shellSurfaceImage,
+      File('${outDir.path}/codex-box-shell-surface-current.png'),
+    );
+    File('${outDir.path}/codex-box-metrics.json').writeAsStringSync(
+      const JsonEncoder.withIndent('  ').convert(shellExport.metrics),
+    );
+  } finally {
+    shellExport.promptImage.dispose();
+    shellExport.shellSurfaceImage.dispose();
+  }
+}
+
 Future<_ShellExport> _captureFixtureShellExport(
   WidgetTester tester, {
   ThemeMode themeMode = ThemeMode.dark,
@@ -322,6 +376,17 @@ Future<_ShellExport> _captureFixtureShellExport(
     tester,
     themeMode: themeMode,
     backend: _FrameSeededBackend(_frameDiffToJson(referenceDemoPs1Frame)),
+  );
+}
+
+Future<_ShellExport> _captureCodexBoxShellExport(
+  WidgetTester tester, {
+  ThemeMode themeMode = ThemeMode.dark,
+}) {
+  return _captureShellExport(
+    tester,
+    themeMode: themeMode,
+    backend: _FrameSeededBackend(_frameDiffToJson(_debug1CodexBoxFrame())),
   );
 }
 
@@ -780,6 +845,81 @@ Future<T> _runUiAsync<T>(
 ) async {
   final result = await tester.runAsync(operation);
   return result as T;
+}
+
+TerminalFrameDiff _debug1CodexBoxFrame() {
+  String padRow(String text) => text.padRight(142, ' ');
+
+  return TerminalFrameDiff(
+    rows: [
+      TerminalRow(
+        index: 0,
+        text: padRow('╭─────────────────────────────────────────────╮'),
+        styleRuns: const [
+          TerminalStyleRun(start: 0, end: 47, dim: true),
+          TerminalStyleRun(start: 47, end: 142),
+        ],
+      ),
+      TerminalRow(
+        index: 1,
+        text: padRow('│ >_ OpenAI Codex (v0.129.0)                  │'),
+        styleRuns: const [
+          TerminalStyleRun(start: 0, end: 5, dim: true),
+          TerminalStyleRun(start: 5, end: 17, bold: true),
+          TerminalStyleRun(start: 17, end: 47, dim: true),
+          TerminalStyleRun(start: 47, end: 142),
+        ],
+      ),
+      TerminalRow(
+        index: 2,
+        text: padRow('│                                             │'),
+        styleRuns: const [
+          TerminalStyleRun(start: 0, end: 47, dim: true),
+          TerminalStyleRun(start: 47, end: 142),
+        ],
+      ),
+      TerminalRow(
+        index: 3,
+        text: padRow('│ model:     gpt-5.4 xhigh   /model to change │'),
+        styleRuns: const [
+          TerminalStyleRun(start: 0, end: 13, dim: true),
+          TerminalStyleRun(start: 13, end: 26),
+          TerminalStyleRun(start: 26, end: 29, dim: true),
+          TerminalStyleRun(
+            start: 29,
+            end: 35,
+            foreground: Color(0xFF008080),
+          ),
+          TerminalStyleRun(start: 35, end: 47, dim: true),
+          TerminalStyleRun(start: 47, end: 142),
+        ],
+      ),
+      TerminalRow(
+        index: 4,
+        text: padRow('│ directory: ~/personal/flutterm              │'),
+        styleRuns: const [
+          TerminalStyleRun(start: 0, end: 13, dim: true),
+          TerminalStyleRun(start: 13, end: 32),
+          TerminalStyleRun(start: 32, end: 47, dim: true),
+          TerminalStyleRun(start: 47, end: 142),
+        ],
+      ),
+      TerminalRow(
+        index: 5,
+        text: padRow('╰─────────────────────────────────────────────╯'),
+        styleRuns: const [
+          TerminalStyleRun(start: 0, end: 47, dim: true),
+          TerminalStyleRun(start: 47, end: 142),
+        ],
+      ),
+    ],
+    cursor: const TerminalCursor(row: 3, col: 47, visible: true),
+    viewportRows: 40,
+    viewportCols: 142,
+    dirtyRanges: const [TerminalDirtyRange(start: 0, end: 6)],
+    scrollbackOffset: 0,
+    scrollbackMaxOffset: 0,
+  );
 }
 
 Map<String, Object?> _frameDiffToJson(TerminalFrameDiff frame) {

@@ -11,13 +11,19 @@ import 'terminal_viewport_colors.dart';
 
 enum TerminalGlyphPlacementPolicy {
   baselineLeft,
+  boxDrawingHorizontal,
+  boxDrawingVertical,
+  boxDrawingTopLeftArc,
+  boxDrawingTopRightArc,
+  boxDrawingBottomLeftArc,
+  boxDrawingBottomRightArc,
   powerlineRightArrow,
   powerlineLeftArrow,
   powerlineLeftCap,
   powerlineRightCap,
 }
 
-enum TerminalGlyphClass { text, nerdIcon, powerlineCustom }
+enum TerminalGlyphClass { text, nerdIcon, boxDrawingCustom, powerlineCustom }
 
 class TerminalResolvedStyle {
   const TerminalResolvedStyle({
@@ -605,7 +611,7 @@ class RenderTerminalViewport extends RenderBox {
       final placement = _placementForCell(cell, rowY);
       final paragraph = cell.paragraph;
       if (cell.usesCustomGeometry) {
-        _paintPowerlineGeometry(pictureCanvas, cell, placement.rect);
+        _paintCustomGeometry(pictureCanvas, cell, placement.rect);
       } else if (paragraph != null) {
         pictureCanvas.save();
         pictureCanvas.translate(
@@ -728,6 +734,12 @@ class RenderTerminalViewport extends RenderBox {
 
   TerminalGlyphPlacementPolicy _placementPolicyForGlyph(String glyph) {
     return switch (glyph) {
+      '─' => TerminalGlyphPlacementPolicy.boxDrawingHorizontal,
+      '│' => TerminalGlyphPlacementPolicy.boxDrawingVertical,
+      '╭' => TerminalGlyphPlacementPolicy.boxDrawingTopLeftArc,
+      '╮' => TerminalGlyphPlacementPolicy.boxDrawingTopRightArc,
+      '╰' => TerminalGlyphPlacementPolicy.boxDrawingBottomLeftArc,
+      '╯' => TerminalGlyphPlacementPolicy.boxDrawingBottomRightArc,
       '' => TerminalGlyphPlacementPolicy.powerlineRightArrow,
       '' => TerminalGlyphPlacementPolicy.powerlineLeftArrow,
       '' => TerminalGlyphPlacementPolicy.powerlineLeftCap,
@@ -744,8 +756,21 @@ class RenderTerminalViewport extends RenderBox {
     String glyph,
     TerminalGlyphPlacementPolicy placementPolicy,
   ) {
-    if (placementPolicy != TerminalGlyphPlacementPolicy.baselineLeft) {
-      return TerminalGlyphClass.powerlineCustom;
+    switch (placementPolicy) {
+      case TerminalGlyphPlacementPolicy.boxDrawingHorizontal:
+      case TerminalGlyphPlacementPolicy.boxDrawingVertical:
+      case TerminalGlyphPlacementPolicy.boxDrawingTopLeftArc:
+      case TerminalGlyphPlacementPolicy.boxDrawingTopRightArc:
+      case TerminalGlyphPlacementPolicy.boxDrawingBottomLeftArc:
+      case TerminalGlyphPlacementPolicy.boxDrawingBottomRightArc:
+        return TerminalGlyphClass.boxDrawingCustom;
+      case TerminalGlyphPlacementPolicy.powerlineRightArrow:
+      case TerminalGlyphPlacementPolicy.powerlineLeftArrow:
+      case TerminalGlyphPlacementPolicy.powerlineLeftCap:
+      case TerminalGlyphPlacementPolicy.powerlineRightCap:
+        return TerminalGlyphClass.powerlineCustom;
+      case TerminalGlyphPlacementPolicy.baselineLeft:
+        break;
     }
     return _isNerdFontGlyph(glyph)
         ? TerminalGlyphClass.nerdIcon
@@ -772,7 +797,10 @@ class RenderTerminalViewport extends RenderBox {
       foreground = swapped;
     }
     if (run.dim) {
-      foreground = foreground.withValues(alpha: foreground.a * 0.65);
+      foreground = Color.alphaBlend(
+        foreground.withValues(alpha: foreground.a * 0.65),
+        background,
+      );
     }
 
     return _ResolvedCellStyle(
@@ -874,6 +902,17 @@ class RenderTerminalViewport extends RenderBox {
 
     if (cell.usesCustomGeometry) {
       final rect = _snapRect(switch (cell.placementPolicy) {
+        TerminalGlyphPlacementPolicy.boxDrawingHorizontal ||
+        TerminalGlyphPlacementPolicy.boxDrawingVertical ||
+        TerminalGlyphPlacementPolicy.boxDrawingTopLeftArc ||
+        TerminalGlyphPlacementPolicy.boxDrawingTopRightArc ||
+        TerminalGlyphPlacementPolicy.boxDrawingBottomLeftArc ||
+        TerminalGlyphPlacementPolicy.boxDrawingBottomRightArc => Rect.fromLTWH(
+          cellLeft,
+          rowY,
+          _cellSize.width,
+          _cellSize.height,
+        ),
         TerminalGlyphPlacementPolicy.powerlineRightArrow => Rect.fromLTWH(
           cellLeft,
           rowY,
@@ -898,11 +937,8 @@ class RenderTerminalViewport extends RenderBox {
           _cellSize.width + capBleed,
           _cellSize.height,
         ),
-        TerminalGlyphPlacementPolicy.baselineLeft => Rect.fromLTWH(
-          cellLeft,
-          rowY,
-          _cellSize.width,
-          _cellSize.height,
+        TerminalGlyphPlacementPolicy.baselineLeft => throw StateError(
+          'baselineLeft glyphs do not use custom geometry',
         ),
       });
 
@@ -920,7 +956,15 @@ class RenderTerminalViewport extends RenderBox {
     final scaledWidth = cell.glyphSize.width;
     final scaledHeight = cell.glyphSize.height;
     final drawOffset = Offset(switch (cell.placementPolicy) {
-      TerminalGlyphPlacementPolicy.baselineLeft => _snapLogicalX(cellLeft),
+      TerminalGlyphPlacementPolicy.baselineLeft ||
+      TerminalGlyphPlacementPolicy.boxDrawingHorizontal ||
+      TerminalGlyphPlacementPolicy.boxDrawingVertical ||
+      TerminalGlyphPlacementPolicy.boxDrawingTopLeftArc ||
+      TerminalGlyphPlacementPolicy.boxDrawingTopRightArc ||
+      TerminalGlyphPlacementPolicy.boxDrawingBottomLeftArc ||
+      TerminalGlyphPlacementPolicy.boxDrawingBottomRightArc => _snapLogicalX(
+        cellLeft,
+      ),
       TerminalGlyphPlacementPolicy.powerlineRightArrow ||
       TerminalGlyphPlacementPolicy.powerlineRightCap => _snapLogicalX(cellLeft),
       TerminalGlyphPlacementPolicy.powerlineLeftArrow ||
@@ -1068,12 +1112,76 @@ class RenderTerminalViewport extends RenderBox {
     );
   }
 
-  void _paintPowerlineGeometry(Canvas canvas, _PaintCell cell, Rect rect) {
-    final paint = Paint()
+  void _paintCustomGeometry(Canvas canvas, _PaintCell cell, Rect rect) {
+    final fillPaint = Paint()
       ..color = cell.foreground
+      ..isAntiAlias = false;
+    final strokePaint = Paint()
+      ..color = cell.foreground
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _boxDrawingStrokeWidth()
+      ..strokeCap = StrokeCap.butt
+      ..strokeJoin = StrokeJoin.round
       ..isAntiAlias = true;
     final capRadius = Radius.circular(rect.height / 2);
+    final midX = _snapLogicalX(rect.center.dx);
+    final midY = _snapLogicalY(rect.center.dy);
+    final halfStroke = strokePaint.strokeWidth / 2;
+    final horizontalRect = _snapRect(
+      Rect.fromLTRB(
+        rect.left,
+        midY - halfStroke,
+        rect.right,
+        midY + halfStroke,
+      ),
+    );
+    final verticalRect = _snapRect(
+      Rect.fromLTRB(
+        midX - halfStroke,
+        rect.top,
+        midX + halfStroke,
+        rect.bottom,
+      ),
+    );
     switch (cell.placementPolicy) {
+      case TerminalGlyphPlacementPolicy.boxDrawingHorizontal:
+        canvas.drawRect(horizontalRect, fillPaint);
+        return;
+      case TerminalGlyphPlacementPolicy.boxDrawingVertical:
+        canvas.drawRect(verticalRect, fillPaint);
+        return;
+      case TerminalGlyphPlacementPolicy.boxDrawingTopLeftArc:
+        canvas.drawPath(
+          Path()
+            ..moveTo(midX, rect.bottom)
+            ..quadraticBezierTo(midX, midY, rect.right, midY),
+          strokePaint,
+        );
+        return;
+      case TerminalGlyphPlacementPolicy.boxDrawingTopRightArc:
+        canvas.drawPath(
+          Path()
+            ..moveTo(rect.left, midY)
+            ..quadraticBezierTo(midX, midY, midX, rect.bottom),
+          strokePaint,
+        );
+        return;
+      case TerminalGlyphPlacementPolicy.boxDrawingBottomLeftArc:
+        canvas.drawPath(
+          Path()
+            ..moveTo(midX, rect.top)
+            ..quadraticBezierTo(midX, midY, rect.right, midY),
+          strokePaint,
+        );
+        return;
+      case TerminalGlyphPlacementPolicy.boxDrawingBottomRightArc:
+        canvas.drawPath(
+          Path()
+            ..moveTo(rect.left, midY)
+            ..quadraticBezierTo(midX, midY, midX, rect.top),
+          strokePaint,
+        );
+        return;
       case TerminalGlyphPlacementPolicy.powerlineRightArrow:
         canvas.drawPath(
           Path()
@@ -1081,7 +1189,7 @@ class RenderTerminalViewport extends RenderBox {
             ..lineTo(rect.right, rect.center.dy)
             ..lineTo(rect.left, rect.bottom)
             ..close(),
-          paint,
+          fillPaint,
         );
         return;
       case TerminalGlyphPlacementPolicy.powerlineLeftArrow:
@@ -1091,7 +1199,7 @@ class RenderTerminalViewport extends RenderBox {
             ..lineTo(rect.left, rect.center.dy)
             ..lineTo(rect.right, rect.bottom)
             ..close(),
-          paint,
+          fillPaint,
         );
         return;
       case TerminalGlyphPlacementPolicy.powerlineLeftCap:
@@ -1101,7 +1209,7 @@ class RenderTerminalViewport extends RenderBox {
             topLeft: capRadius,
             bottomLeft: capRadius,
           ),
-          paint,
+          fillPaint,
         );
         return;
       case TerminalGlyphPlacementPolicy.powerlineRightCap:
@@ -1111,12 +1219,21 @@ class RenderTerminalViewport extends RenderBox {
             topRight: capRadius,
             bottomRight: capRadius,
           ),
-          paint,
+          fillPaint,
         );
         return;
       case TerminalGlyphPlacementPolicy.baselineLeft:
         return;
     }
+  }
+
+  double _boxDrawingStrokeWidth() {
+    final dpr = _devicePixelRatio.isFinite && _devicePixelRatio > 0
+        ? _devicePixelRatio
+        : 1.0;
+    return _snapLogical(
+      math.max(1.0 / dpr, math.min(_cellSize.width, _cellSize.height) * 0.12),
+    );
   }
 
   double _snapLogicalX(double value) => _snapLogical(value);
