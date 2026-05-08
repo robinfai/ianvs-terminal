@@ -38,10 +38,11 @@ class TerminalInputController {
   }
 
   KeyEventResult handle(KeyEvent event) {
-    if (event is! KeyDownEvent) {
+    if (!_isKeyPressEvent(event)) {
       return KeyEventResult.ignored;
     }
 
+    final isRepeated = event is KeyRepeatEvent;
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;
     final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
@@ -51,6 +52,9 @@ class TerminalInputController {
     );
 
     if (isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyC) {
+      if (isRepeated) {
+        return KeyEventResult.handled;
+      }
       unawaited(_copySelection());
       return KeyEventResult.handled;
     }
@@ -63,6 +67,9 @@ class TerminalInputController {
     }
 
     if (event.logicalKey == LogicalKeyboardKey.keyV && usesAppModifier) {
+      if (isRepeated) {
+        return KeyEventResult.handled;
+      }
       unawaited(_pasteClipboard());
       return KeyEventResult.handled;
     }
@@ -70,11 +77,11 @@ class TerminalInputController {
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyP) {
-      return KeyEventResult.ignored;
+      return isRepeated ? KeyEventResult.handled : KeyEventResult.ignored;
     }
 
     if (event.logicalKey == LogicalKeyboardKey.keyT && usesAppModifier) {
-      return KeyEventResult.ignored;
+      return isRepeated ? KeyEventResult.handled : KeyEventResult.ignored;
     }
 
     if (isMetaPressed && !isControlPressed && !isShiftPressed) {
@@ -176,7 +183,7 @@ class TerminalInputController {
   }
 
   static List<int>? keyBytesFor({
-    required KeyDownEvent event,
+    required KeyEvent event,
     required TerminalEmulation emulation,
     required TerminalFrameModes modes,
   }) {
@@ -393,7 +400,7 @@ class TerminalInputController {
 }
 
 List<int>? _characterBytesFor(
-  KeyDownEvent event, {
+  KeyEvent event, {
   required TerminalEmulation emulation,
 }) {
   final character = event.character;
@@ -404,6 +411,10 @@ List<int>? _characterBytesFor(
     return ascii.encode('\r');
   }
   return utf8.encode(character);
+}
+
+bool _isKeyPressEvent(KeyEvent event) {
+  return event is KeyDownEvent || event is KeyRepeatEvent;
 }
 
 bool _platformUsesMetaAppModifier() {
@@ -541,7 +552,7 @@ List<int>? _modifiedKeyBytesFor(
   return ascii.encode('\x1B[$functionCode;$modifier~');
 }
 
-String? _altCharacterFor(KeyDownEvent event) {
+String? _altCharacterFor(KeyEvent event) {
   final label = event.logicalKey.keyLabel;
   if (label.length == 1) {
     return label.toLowerCase();

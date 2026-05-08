@@ -1129,10 +1129,10 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   KeyEventResult _handleTerminalKeyEvent(KeyEvent event) {
-    if (event is! KeyDownEvent) {
+    if (!_isTerminalKeyPressEvent(event)) {
       return KeyEventResult.ignored;
     }
-    if (_shouldDeferKeyDownToSystemTextInput(event)) {
+    if (_shouldDeferKeyPressToSystemTextInput(event)) {
       final character = event.character;
       if (_isDeferredTextCommitCharacter(character)) {
         _awaitingSystemTextCommit = true;
@@ -1142,7 +1142,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     return widget.inputController.handle(event);
   }
 
-  bool _shouldDeferKeyDownToSystemTextInput(KeyDownEvent event) {
+  bool _shouldDeferKeyPressToSystemTextInput(KeyEvent event) {
     final connection = _textInputConnection;
     if (defaultTargetPlatform != TargetPlatform.macOS ||
         connection == null ||
@@ -1381,6 +1381,10 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _containsNonAscii(String text) {
     return text.runes.any((codePoint) => codePoint > 0x7f);
   }
+}
+
+bool _isTerminalKeyPressEvent(KeyEvent event) {
+  return event is KeyDownEvent || event is KeyRepeatEvent;
 }
 
 _TerminalWordRange? _wordRangeAtRelativeCell(
