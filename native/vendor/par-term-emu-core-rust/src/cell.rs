@@ -298,6 +298,17 @@ impl Cell {
         *self = Self::default();
     }
 
+    /// Erase the cell to a blank using the active background color.
+    ///
+    /// Erase operations reset attributes, but xterm-style semantics keep the
+    /// current background color for the resulting blank cell.
+    pub fn erase_with_bg(&mut self, bg: Color) {
+        *self = Self {
+            bg,
+            ..Self::default()
+        };
+    }
+
     /// Get the display width of the character (cached value)
     pub fn width(&self) -> usize {
         self.width as usize

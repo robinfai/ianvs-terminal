@@ -22,13 +22,14 @@ impl Terminal {
                     .unwrap_or(0);
                 let cursor_col = self.cursor.col;
                 let cursor_row = self.cursor.row;
+                let erase_bg = self.bg;
                 match n {
                     0 => self
                         .active_grid_mut()
-                        .clear_screen_below(cursor_col, cursor_row),
+                        .clear_screen_below_with_bg(cursor_col, cursor_row, erase_bg),
                     1 => self
                         .active_grid_mut()
-                        .clear_screen_above(cursor_col, cursor_row),
+                        .clear_screen_above_with_bg(cursor_col, cursor_row, erase_bg),
                     2 => {
                         self.active_grid_mut().clear();
                         self.graphics_store.clear();
@@ -71,14 +72,17 @@ impl Terminal {
                     .unwrap_or(0);
                 let cursor_col = self.cursor.col;
                 let cursor_row = self.cursor.row;
+                let erase_bg = self.bg;
                 match n {
                     0 => self
                         .active_grid_mut()
-                        .clear_line_right(cursor_col, cursor_row),
+                        .clear_line_right_with_bg(cursor_col, cursor_row, erase_bg),
                     1 => self
                         .active_grid_mut()
-                        .clear_line_left(cursor_col, cursor_row),
-                    2 => self.active_grid_mut().clear_row(cursor_row),
+                        .clear_line_left_with_bg(cursor_col, cursor_row, erase_bg),
+                    2 => self
+                        .active_grid_mut()
+                        .clear_row_with_bg(cursor_row, erase_bg),
                     _ => {}
                 }
             }
@@ -93,8 +97,9 @@ impl Terminal {
                 let n = if n == 0 { 1 } else { n };
                 let cursor_col = self.cursor.col;
                 let cursor_row = self.cursor.row;
+                let erase_bg = self.bg;
                 self.active_grid_mut()
-                    .erase_characters(cursor_col, cursor_row, n);
+                    .erase_characters_with_bg(cursor_col, cursor_row, n, erase_bg);
             }
             _ => {}
         }

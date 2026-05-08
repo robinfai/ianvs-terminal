@@ -251,6 +251,19 @@ fn test_sgr_256_colors() {
     assert_eq!(term.bg, Color::from_ansi_code(200));
 }
 
+#[test]
+fn test_el_uses_current_background_color() {
+    let mut term = Terminal::new(10, 1);
+
+    term.process(b"\x1b[48;2;30;30;30mabc\x1b[K");
+
+    for col in 3..10 {
+        let cell = term.active_grid().get(col, 0).expect("expected cell");
+        assert_eq!(cell.c, ' ');
+        assert_eq!(cell.bg, Color::Rgb(30, 30, 30));
+    }
+}
+
 // ========== Mode Tests ==========
 
 #[test]
