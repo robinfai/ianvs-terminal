@@ -37,7 +37,7 @@ flutter run -d macos
 ## Local Terminal Manual Matrix
 
 当前 local-only 的 terminal 人工矩阵结果入口固定是
-`docs/tasks/T-059-local-terminal-manual-matrix.md`。
+[tasks/verification-gates/T-059-local-terminal-manual-matrix.md](tasks/verification-gates/T-059-local-terminal-manual-matrix.md)。
 
 前置检查最小命令：
 

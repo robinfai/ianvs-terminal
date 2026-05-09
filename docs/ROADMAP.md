@@ -78,7 +78,7 @@
 
 ## Phase 4: Linux / Windows Integration
 
-前置验证门槛见 `docs/tasks/T-065-phase4-windows-linux-validation-gate.md`。
+前置验证门槛见 [tasks/verification-gates/T-065-phase4-windows-linux-validation-gate.md](tasks/verification-gates/T-065-phase4-windows-linux-validation-gate.md)。
 
 目标：
 

@@ -46,3 +46,4 @@ flutterm/
 - 仓库边界： [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 测试命令： [docs/TESTING.md](docs/TESTING.md)
 - 文档总览： [docs/README.md](docs/README.md)
+- 任务索引： [docs/tasks/README.md](docs/tasks/README.md)

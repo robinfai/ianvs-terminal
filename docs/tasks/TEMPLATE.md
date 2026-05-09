@@ -1,6 +1,6 @@
 # T-XXX Task Title
 
-在开始实现前，复制这份模板新建一个任务文档，并把 `XXX` 替换成稳定编号。
+在开始实现前，复制这份模板到对应主题目录，并把 `XXX` 替换成稳定编号。
 
 建议文件名格式：
 
@@ -35,6 +35,8 @@
 ## Verification Commands
 
 参考 [../TESTING.md](../TESTING.md)，只选这次真正需要的命令。
+
+如果这份模板已经复制到 `docs/tasks/<topic>/` 子目录，`TESTING.md` 的相对链接应改成 `../../TESTING.md`。
 
 ```bash
 cd example
