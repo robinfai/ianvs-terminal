@@ -4,8 +4,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../terminal/terminal_viewport_colors.dart';
+import '../../ui/app_ui.dart';
 import 'profile_models.dart';
+import 'utils/hex_color_utils.dart';
+import 'widgets/color_picker_palette.dart';
+import 'widgets/color_setting_row.dart';
+import 'widgets/settings_section.dart';
+import 'widgets/toggle_setting_row.dart';
+
+const _hexColorErrorText = 'Use #RRGGBB or leave empty.';
 
 class ProfileEditorDialog extends StatefulWidget {
   const ProfileEditorDialog({super.key, required this.initialValue});
@@ -17,11 +24,24 @@ class ProfileEditorDialog extends StatefulWidget {
 }
 
 class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
+  static const double _controlHeight = 48;
+  static const double _dropdownItemHeight = 48;
+  static const String _foregroundColorFieldKey = 'foreground';
+  static const String _backgroundColorFieldKey = 'background';
+  static const String _cursorColorFieldKey = 'cursor';
+  static const String _selectionColorFieldKey = 'selection';
+
   final _formKey = GlobalKey<FormState>();
   final List<TextEditingController> _argControllers = [];
   final List<_EnvEntryControllers> _envControllers = [];
   final List<TextEditingController> _fallbackControllers = [];
   final _scrollController = ScrollController();
+  final Map<String, String?> _colorErrors = <String, String?>{
+    _foregroundColorFieldKey: null,
+    _backgroundColorFieldKey: null,
+    _cursorColorFieldKey: null,
+    _selectionColorFieldKey: null,
+  };
 
   late final TextEditingController _nameController;
   late final TextEditingController _shellController;
@@ -293,17 +313,6 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     return null;
   }
 
-  String? _colorError(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      return null;
-    }
-    if (!RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(trimmed)) {
-      return 'Use #RRGGBB or leave blank';
-    }
-    return null;
-  }
-
   String? _envKeyError(int index) {
     final trimmed = _envControllers[index].keyController.text.trim();
     if (trimmed.isEmpty) {
@@ -319,24 +328,80 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     return null;
   }
 
-  String? _normalizedOptionalHex(String value) {
+  bool get _hasColorErrors => _colorErrors.values.any((error) => error != null);
+
+  String? _validateOptionalHexColor(String value) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
       return null;
     }
-    return trimmed.toUpperCase();
+    return isValidOptionalHexColor(trimmed) ? null : _hexColorErrorText;
   }
 
-  Color? _previewColorFor(String value) {
-    final trimmed = value.trim();
+  void _handleColorChanged(String fieldKey, String value) {
+    setState(() {
+      if (_didAttemptSave || _colorErrors[fieldKey] != null) {
+        _colorErrors[fieldKey] = _validateOptionalHexColor(value);
+      }
+    });
+  }
+
+  void _normalizeColorField(String fieldKey, TextEditingController controller) {
+    final trimmed = controller.text.trim();
+    String nextText = trimmed;
+    String? nextError;
+    var didChangeText = false;
+
     if (trimmed.isEmpty) {
-      return null;
+      nextText = '';
+      nextError = null;
+    } else {
+      try {
+        nextText = normalizeHexColor(trimmed);
+        nextError = null;
+      } on FormatException {
+        nextError = _hexColorErrorText;
+      }
     }
-    try {
-      return terminalViewportColorFromHex(trimmed);
-    } on FormatException {
-      return null;
+
+    if (controller.text != nextText) {
+      didChangeText = true;
+      controller.value = controller.value.copyWith(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: nextText.length),
+        composing: TextRange.empty,
+      );
     }
+
+    if (_colorErrors[fieldKey] != nextError || didChangeText) {
+      setState(() {
+        _colorErrors[fieldKey] = nextError;
+      });
+    }
+  }
+
+  bool _validateAllColorFields() {
+    _normalizeColorField(_foregroundColorFieldKey, _foregroundColorController);
+    _normalizeColorField(_backgroundColorFieldKey, _backgroundColorController);
+    _normalizeColorField(_cursorColorFieldKey, _cursorColorController);
+    _normalizeColorField(_selectionColorFieldKey, _selectionColorController);
+    return !_hasColorErrors;
+  }
+
+  void _resetColorField(String fieldKey, TextEditingController controller) {
+    controller.clear();
+    setState(() {
+      _colorErrors[fieldKey] = null;
+    });
+  }
+
+  void _applyPickedColor(
+    String fieldKey,
+    TextEditingController controller,
+    String? value,
+  ) {
+    controller.text = value ?? '';
+    _normalizeColorField(fieldKey, controller);
   }
 
   List<String> _nonEmptyEntries(List<TextEditingController> controllers) {
@@ -362,7 +427,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     setState(() {
       _didAttemptSave = true;
     });
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    final colorsValid = _validateAllColorFields();
+    final formValid = _formKey.currentState?.validate() ?? false;
+    if (!colorsValid || !formValid) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           unawaited(_focusFirstInvalidField());
@@ -391,10 +458,18 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           lineHeight: double.parse(_lineHeightController.text.trim()),
         ),
         colors: widget.initialValue.appearance.colors.copyWith(
-          foreground: _normalizedOptionalHex(_foregroundColorController.text),
-          background: _normalizedOptionalHex(_backgroundColorController.text),
-          cursor: _normalizedOptionalHex(_cursorColorController.text),
-          selection: _normalizedOptionalHex(_selectionColorController.text),
+          foreground: _foregroundColorController.text.trim().isEmpty
+              ? null
+              : normalizeHexColor(_foregroundColorController.text),
+          background: _backgroundColorController.text.trim().isEmpty
+              ? null
+              : normalizeHexColor(_backgroundColorController.text),
+          cursor: _cursorColorController.text.trim().isEmpty
+              ? null
+              : normalizeHexColor(_cursorColorController.text),
+          selection: _selectionColorController.text.trim().isEmpty
+              ? null
+              : normalizeHexColor(_selectionColorController.text),
         ),
         cursor: widget.initialValue.appearance.cursor.copyWith(
           shape: _cursorShape,
@@ -432,24 +507,32 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     }
     final discard = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppDialogScaffold(
         key: const Key('profile-editor-discard-dialog'),
-        title: const Text('Discard changes?'),
-        content: const Text(
-          'You have unsaved profile changes. Close the editor and lose them?',
+        title: 'Discard changes?',
+        subtitle:
+            'You have unsaved profile changes. Close the editor and lose them?',
+        body: const SizedBox.shrink(),
+        footer: Wrap(
+          spacing: dialogContext.appTheme.spacing.sm,
+          runSpacing: dialogContext.appTheme.spacing.sm,
+          alignment: WrapAlignment.end,
+          children: [
+            AppActionButton(
+              buttonKey: const Key('profile-editor-discard-cancel'),
+              tone: AppActionTone.secondary,
+              label: 'Keep editing',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            AppActionButton(
+              buttonKey: const Key('profile-editor-discard-confirm'),
+              tone: AppActionTone.danger,
+              icon: Icons.delete_outline,
+              label: 'Discard changes',
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            key: const Key('profile-editor-discard-cancel'),
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Keep editing'),
-          ),
-          FilledButton(
-            key: const Key('profile-editor-discard-confirm'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Discard changes'),
-          ),
-        ],
       ),
     );
     return discard ?? false;
@@ -499,16 +582,16 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         null) {
       return _lineHeightFocusNode;
     }
-    if (_colorError(_foregroundColorController.text) != null) {
+    if (_validateOptionalHexColor(_foregroundColorController.text) != null) {
       return _foregroundColorFocusNode;
     }
-    if (_colorError(_backgroundColorController.text) != null) {
+    if (_validateOptionalHexColor(_backgroundColorController.text) != null) {
       return _backgroundColorFocusNode;
     }
-    if (_colorError(_cursorColorController.text) != null) {
+    if (_validateOptionalHexColor(_cursorColorController.text) != null) {
       return _cursorColorFocusNode;
     }
-    if (_colorError(_selectionColorController.text) != null) {
+    if (_validateOptionalHexColor(_selectionColorController.text) != null) {
       return _selectionColorFocusNode;
     }
     return null;
@@ -516,9 +599,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.appTheme;
     final screenSize = MediaQuery.sizeOf(context);
-    final dialogWidth = math.min(screenSize.width - 48, 720.0);
-    final dialogHeight = math.min(screenSize.height - 48, 760.0);
+    final dialogWidth = math.min(screenSize.width - 32, 900.0);
+    final dialogHeight = math.min(screenSize.height - 32, 860.0);
 
     return PopScope<TerminalProfile?>(
       canPop: _allowClose || !_didEdit,
@@ -528,434 +612,381 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         }
         unawaited(_closeWithResult(null));
       },
-      child: Dialog(
+      child: AppDialogScaffold(
         key: const Key('profile-editor-dialog'),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: SizedBox(
-          width: dialogWidth,
-          height: dialogHeight,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
+        title: 'Edit profile',
+        subtitle:
+            'Changes apply to new sessions only. Existing tabs keep the profile snapshot they started with.',
+        onClose: () => unawaited(_closeWithResult(null)),
+        closeTooltip: 'Close profile editor',
+        width: dialogWidth,
+        height: dialogHeight,
+        expandBody: true,
+        bodyPadding: EdgeInsets.fromLTRB(
+          theme.spacing.xl,
+          theme.spacing.xl,
+          theme.spacing.xl,
+          theme.spacing.lg,
+        ),
+        body: Form(
+          key: _formKey,
+          autovalidateMode: _didAttemptSave
+              ? AutovalidateMode.always
+              : AutovalidateMode.disabled,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            child: Padding(
+              padding: EdgeInsets.only(right: theme.spacing.xl + 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SettingsSection(
+                    title: 'Basic',
+                    description:
+                        'Name the profile and choose which local program it launches.',
+                    children: [
+                      TextFormField(
+                        key: const Key('profile-editor-name'),
+                        controller: _nameController,
+                        focusNode: _nameFocusNode,
+                        decoration: const InputDecoration(labelText: 'Name'),
+                        validator: (value) =>
+                            _requiredFieldError(value ?? '', 'Name'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('profile-editor-shell'),
+                        controller: _shellController,
+                        focusNode: _shellFocusNode,
+                        decoration: const InputDecoration(
+                          labelText: 'Shell / Program',
+                        ),
+                        validator: (value) =>
+                            _requiredFieldError(value ?? '', 'Shell'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('profile-editor-cwd'),
+                        controller: _cwdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Working directory',
+                          helperText:
+                              'Leave empty to use the default working directory.',
+                        ),
+                      ),
+                    ],
+                  ),
+                  SettingsSection(
+                    title: 'Launch',
+                    description:
+                        'Manage launch arguments and environment variables.',
+                    children: [
+                      _buildStringListEditor(
+                        title: 'Arguments',
+                        addKey: const Key('profile-editor-add-arg'),
+                        addLabel: 'Add arg',
+                        emptyLabel: 'No launch arguments',
+                        controllers: _argControllers,
+                        fieldKeyPrefix: 'profile-editor-arg',
+                        onAdd: _addArg,
+                        onRemove: _removeArg,
+                        onMoveUp: (index) => _moveArg(index, index - 1),
+                        onMoveDown: (index) => _moveArg(index, index + 1),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildEnvEditor(),
+                    ],
+                  ),
+                  SettingsSection(
+                    title: 'Terminal',
+                    description:
+                        'Pick terminal emulation and scrollback retention.',
+                    children: [
+                      DropdownButtonFormField<TerminalEmulation>(
+                        key: const Key('profile-editor-emulation'),
+                        initialValue: _terminalEmulation,
+                        isExpanded: true,
+                        iconSize: 18,
+                        itemHeight: _dropdownItemHeight,
+                        menuMaxHeight: 240,
+                        borderRadius: BorderRadius.circular(theme.radius.md),
+                        decoration: InputDecoration(
+                          labelText: 'Emulation',
+                          constraints: const BoxConstraints(
+                            minHeight: _controlHeight,
+                          ),
+                        ),
+                        items: TerminalEmulation.values
+                            .map(
+                              (value) => DropdownMenuItem<TerminalEmulation>(
+                                value: value,
+                                child: Text(terminalEmulationLabel(value)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _didEdit = true;
+                            _terminalEmulation = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('profile-editor-scrollback'),
+                        controller: _scrollbackController,
+                        focusNode: _scrollbackFocusNode,
+                        decoration: const InputDecoration(
+                          labelText: 'Scrollback lines',
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        validator: (value) => _positiveIntegerError(
+                          value ?? '',
+                          'Scrollback lines',
+                        ),
+                      ),
+                    ],
+                  ),
+                  SettingsSection(
+                    title: 'Typography',
+                    description:
+                        'Choose font family, fallback stack, and type sizing.',
+                    children: [
+                      TextFormField(
+                        key: const Key('profile-editor-font-family'),
+                        controller: _fontFamilyController,
+                        focusNode: _fontFamilyFocusNode,
+                        decoration: const InputDecoration(
+                          labelText: 'Font family',
+                        ),
+                        validator: (value) =>
+                            _requiredFieldError(value ?? '', 'Font family'),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildStringListEditor(
+                        title: 'Fallback fonts',
+                        addKey: const Key('profile-editor-add-fallback'),
+                        addLabel: 'Add fallback',
+                        emptyLabel: 'No fallback fonts',
+                        controllers: _fallbackControllers,
+                        fieldKeyPrefix: 'profile-editor-fallback',
+                        onAdd: _addFallback,
+                        onRemove: _removeFallback,
+                        onMoveUp: (index) => _moveFallback(index, index - 1),
+                        onMoveDown: (index) => _moveFallback(index, index + 1),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Edit profile',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
+                          Expanded(
+                            child: TextFormField(
+                              key: const Key('profile-editor-font-size'),
+                              controller: _fontSizeController,
+                              focusNode: _fontSizeFocusNode,
+                              decoration: const InputDecoration(
+                                labelText: 'Font size',
+                              ),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              validator: (value) => _positiveDoubleError(
+                                value ?? '',
+                                'Font size',
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Changes apply to new sessions only. Existing tabs keep the profile snapshot they started with.',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: Theme.of(context).hintColor),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextFormField(
+                              key: const Key('profile-editor-font-line-height'),
+                              controller: _lineHeightController,
+                              focusNode: _lineHeightFocusNode,
+                              decoration: const InputDecoration(
+                                labelText: 'Line height',
+                              ),
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              validator: (value) => _positiveDoubleError(
+                                value ?? '',
+                                'Line height',
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close profile editor',
-                      onPressed: () => unawaited(_closeWithResult(null)),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: Form(
-                  key: _formKey,
-                  autovalidateMode: _didAttemptSave
-                      ? AutovalidateMode.always
-                      : AutovalidateMode.disabled,
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _ProfileEditorSection(
-                          title: 'Basic',
-                          description:
-                              'Name the profile and choose which local program it launches.',
-                          children: [
-                            TextFormField(
-                              key: const Key('profile-editor-name'),
-                              controller: _nameController,
-                              focusNode: _nameFocusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Name',
-                              ),
-                              validator: (value) =>
-                                  _requiredFieldError(value ?? '', 'Name'),
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              key: const Key('profile-editor-shell'),
-                              controller: _shellController,
-                              focusNode: _shellFocusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Shell / Program',
-                              ),
-                              validator: (value) =>
-                                  _requiredFieldError(value ?? '', 'Shell'),
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              key: const Key('profile-editor-cwd'),
-                              controller: _cwdController,
-                              decoration: const InputDecoration(
-                                labelText: 'Working directory',
-                                helperText:
-                                    'Leave empty to use the default working directory.',
-                              ),
-                            ),
-                          ],
-                        ),
-                        _ProfileEditorSection(
-                          title: 'Launch',
-                          description:
-                              'Manage launch arguments and environment variables.',
-                          children: [
-                            _buildStringListEditor(
-                              title: 'Arguments',
-                              addKey: const Key('profile-editor-add-arg'),
-                              addLabel: 'Add arg',
-                              emptyLabel: 'No launch arguments',
-                              controllers: _argControllers,
-                              fieldKeyPrefix: 'profile-editor-arg',
-                              onAdd: _addArg,
-                              onRemove: _removeArg,
-                              onMoveUp: (index) => _moveArg(index, index - 1),
-                              onMoveDown: (index) => _moveArg(index, index + 1),
-                            ),
-                            const SizedBox(height: 16),
-                            _buildEnvEditor(),
-                          ],
-                        ),
-                        _ProfileEditorSection(
-                          title: 'Terminal',
-                          description:
-                              'Pick terminal emulation and scrollback retention.',
-                          children: [
-                            DropdownButtonFormField<TerminalEmulation>(
-                              key: const Key('profile-editor-emulation'),
-                              initialValue: _terminalEmulation,
-                              decoration: const InputDecoration(
-                                labelText: 'Emulation',
-                              ),
-                              items: TerminalEmulation.values
-                                  .map(
-                                    (value) =>
-                                        DropdownMenuItem<TerminalEmulation>(
-                                          value: value,
-                                          child: Text(
-                                            terminalEmulationLabel(value),
-                                          ),
-                                        ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) {
-                                if (value == null) {
-                                  return;
-                                }
-                                setState(() {
-                                  _didEdit = true;
-                                  _terminalEmulation = value;
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              key: const Key('profile-editor-scrollback'),
-                              controller: _scrollbackController,
-                              focusNode: _scrollbackFocusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Scrollback lines',
-                              ),
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                              ],
-                              validator: (value) => _positiveIntegerError(
-                                value ?? '',
-                                'Scrollback lines',
-                              ),
-                            ),
-                          ],
-                        ),
-                        _ProfileEditorSection(
-                          title: 'Appearance',
-                          description:
-                              'Choose font, color overrides, and cursor behavior.',
-                          children: [
-                            TextFormField(
-                              key: const Key('profile-editor-font-family'),
-                              controller: _fontFamilyController,
-                              focusNode: _fontFamilyFocusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Font family',
-                              ),
-                              validator: (value) => _requiredFieldError(
-                                value ?? '',
-                                'Font family',
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            _buildStringListEditor(
-                              title: 'Fallback fonts',
-                              addKey: const Key('profile-editor-add-fallback'),
-                              addLabel: 'Add fallback',
-                              emptyLabel: 'No fallback fonts',
-                              controllers: _fallbackControllers,
-                              fieldKeyPrefix: 'profile-editor-fallback',
-                              onAdd: _addFallback,
-                              onRemove: _removeFallback,
-                              onMoveUp: (index) =>
-                                  _moveFallback(index, index - 1),
-                              onMoveDown: (index) =>
-                                  _moveFallback(index, index + 1),
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    key: const Key('profile-editor-font-size'),
-                                    controller: _fontSizeController,
-                                    focusNode: _fontSizeFocusNode,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Font size',
-                                    ),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    validator: (value) => _positiveDoubleError(
-                                      value ?? '',
-                                      'Font size',
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    key: const Key(
-                                      'profile-editor-font-line-height',
-                                    ),
-                                    controller: _lineHeightController,
-                                    focusNode: _lineHeightFocusNode,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Line height',
-                                    ),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    validator: (value) => _positiveDoubleError(
-                                      value ?? '',
-                                      'Line height',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            _buildColorField(
-                              label: 'Foreground',
-                              controller: _foregroundColorController,
-                              focusNode: _foregroundColorFocusNode,
-                              inputKey: const Key(
-                                'profile-editor-color-foreground',
-                              ),
-                              pickKey: const Key(
-                                'profile-editor-pick-foreground',
-                              ),
-                              resetKey: const Key(
-                                'profile-editor-reset-foreground',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildColorField(
-                              label: 'Background',
-                              controller: _backgroundColorController,
-                              focusNode: _backgroundColorFocusNode,
-                              inputKey: const Key(
-                                'profile-editor-color-background',
-                              ),
-                              pickKey: const Key(
-                                'profile-editor-pick-background',
-                              ),
-                              resetKey: const Key(
-                                'profile-editor-reset-background',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildColorField(
-                              label: 'Cursor color',
-                              controller: _cursorColorController,
-                              focusNode: _cursorColorFocusNode,
-                              inputKey: const Key(
-                                'profile-editor-color-cursor',
-                              ),
-                              pickKey: const Key('profile-editor-pick-cursor'),
-                              resetKey: const Key(
-                                'profile-editor-reset-cursor',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildColorField(
-                              label: 'Selection color',
-                              controller: _selectionColorController,
-                              focusNode: _selectionColorFocusNode,
-                              inputKey: const Key(
-                                'profile-editor-color-selection',
-                              ),
-                              pickKey: const Key(
-                                'profile-editor-pick-selection',
-                              ),
-                              resetKey: const Key(
-                                'profile-editor-reset-selection',
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            DropdownButtonFormField<TerminalCursorShape>(
-                              key: const Key('profile-editor-cursor-shape'),
-                              initialValue: _cursorShape,
-                              decoration: const InputDecoration(
-                                labelText: 'Cursor shape',
-                              ),
-                              items: TerminalCursorShape.values
-                                  .map(
-                                    (value) =>
-                                        DropdownMenuItem<TerminalCursorShape>(
-                                          value: value,
-                                          child: Text(
-                                            terminalCursorShapeLabel(value),
-                                          ),
-                                        ),
-                                  )
-                                  .toList(),
-                              onChanged: (value) {
-                                if (value == null) {
-                                  return;
-                                }
-                                setState(() {
-                                  _didEdit = true;
-                                  _cursorShape = value;
-                                });
-                              },
-                            ),
-                            SwitchListTile.adaptive(
-                              key: const Key('profile-editor-cursor-blink'),
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Blink cursor'),
-                              value: _cursorBlink,
-                              onChanged: (value) {
-                                setState(() {
-                                  _didEdit = true;
-                                  _cursorBlink = value;
-                                });
-                              },
-                            ),
-                          ],
-                        ),
-                        _ProfileEditorSection(
-                          title: 'Interaction',
-                          description:
-                              'Choose selection defaults for newly opened sessions.',
-                          children: [
-                            SwitchListTile.adaptive(
-                              key: const Key('profile-editor-copy-on-select'),
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Copy on select'),
-                              value: _copyOnSelect,
-                              onChanged: (value) {
-                                setState(() {
-                                  _didEdit = true;
-                                  _copyOnSelect = value;
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Option-drag mode',
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 8),
-                            RadioGroup<TerminalOptionDragMode>(
-                              groupValue: _optionDragMode,
-                              onChanged: (value) {
-                                if (value == null) {
-                                  return;
-                                }
-                                setState(() {
-                                  _didEdit = true;
-                                  _optionDragMode = value;
-                                });
-                              },
-                              child: Column(
-                                children: [
-                                  for (final mode
-                                      in TerminalOptionDragMode.values)
-                                    RadioListTile<TerminalOptionDragMode>(
-                                      key: Key(
-                                        'profile-editor-option-drag-${mode.name}',
-                                      ),
-                                      contentPadding: EdgeInsets.zero,
-                                      value: mode,
-                                      title: Text(
-                                        terminalOptionDragModeLabel(mode),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
-                ),
-              ),
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Existing sessions do not hot-update after profile edits.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).hintColor,
+                  SettingsSection(
+                    title: 'Colors',
+                    description:
+                        'Override terminal colors for newly opened sessions.',
+                    children: [
+                      _buildColorField(
+                        fieldKey: _foregroundColorFieldKey,
+                        label: 'Foreground',
+                        controller: _foregroundColorController,
+                        focusNode: _foregroundColorFocusNode,
+                        inputKey: const Key('profile-editor-color-foreground'),
+                        swatchKey: const Key(
+                          'profile-editor-swatch-foreground',
+                        ),
+                        pickKey: const Key('profile-editor-pick-foreground'),
+                        resetKey: const Key('profile-editor-reset-foreground'),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildColorField(
+                        fieldKey: _backgroundColorFieldKey,
+                        label: 'Background',
+                        controller: _backgroundColorController,
+                        focusNode: _backgroundColorFocusNode,
+                        inputKey: const Key('profile-editor-color-background'),
+                        swatchKey: const Key(
+                          'profile-editor-swatch-background',
+                        ),
+                        pickKey: const Key('profile-editor-pick-background'),
+                        resetKey: const Key('profile-editor-reset-background'),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildColorField(
+                        fieldKey: _cursorColorFieldKey,
+                        label: 'Cursor color',
+                        controller: _cursorColorController,
+                        focusNode: _cursorColorFocusNode,
+                        inputKey: const Key('profile-editor-color-cursor'),
+                        swatchKey: const Key('profile-editor-swatch-cursor'),
+                        pickKey: const Key('profile-editor-pick-cursor'),
+                        resetKey: const Key('profile-editor-reset-cursor'),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildColorField(
+                        fieldKey: _selectionColorFieldKey,
+                        label: 'Selection color',
+                        controller: _selectionColorController,
+                        focusNode: _selectionColorFocusNode,
+                        inputKey: const Key('profile-editor-color-selection'),
+                        swatchKey: const Key('profile-editor-swatch-selection'),
+                        pickKey: const Key('profile-editor-pick-selection'),
+                        resetKey: const Key('profile-editor-reset-selection'),
+                      ),
+                    ],
+                  ),
+                  SettingsSection(
+                    title: 'Cursor',
+                    description:
+                        'Adjust cursor shape and animation for new sessions.',
+                    children: [
+                      DropdownButtonFormField<TerminalCursorShape>(
+                        key: const Key('profile-editor-cursor-shape'),
+                        initialValue: _cursorShape,
+                        isExpanded: true,
+                        iconSize: 18,
+                        itemHeight: _dropdownItemHeight,
+                        menuMaxHeight: 240,
+                        borderRadius: BorderRadius.circular(theme.radius.md),
+                        decoration: InputDecoration(
+                          labelText: 'Cursor shape',
+                          constraints: const BoxConstraints(
+                            minHeight: _controlHeight,
+                          ),
+                        ),
+                        items: TerminalCursorShape.values
+                            .map(
+                              (value) => DropdownMenuItem<TerminalCursorShape>(
+                                value: value,
+                                child: Text(terminalCursorShapeLabel(value)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _didEdit = true;
+                            _cursorShape = value;
+                          });
+                        },
+                      ),
+                      ToggleSettingRow(
+                        key: const Key('profile-editor-cursor-blink'),
+                        label: 'Blink cursor',
+                        value: _cursorBlink,
+                        onChanged: (value) {
+                          setState(() {
+                            _didEdit = true;
+                            _cursorBlink = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  SettingsSection(
+                    title: 'Interaction',
+                    description:
+                        'Choose selection defaults for newly opened sessions.',
+                    children: [
+                      ToggleSettingRow(
+                        key: const Key('profile-editor-copy-on-select'),
+                        label: 'Copy on select',
+                        value: _copyOnSelect,
+                        onChanged: (value) {
+                          setState(() {
+                            _didEdit = true;
+                            _copyOnSelect = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Option-drag mode',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    TextButton(
-                      key: const Key('profile-editor-cancel'),
-                      onPressed: () => unawaited(_closeWithResult(null)),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      key: const Key('profile-editor-save'),
-                      onPressed: () => unawaited(_save()),
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
+                      const SizedBox(height: 8),
+                      _buildOptionDragModeField(),
+                    ],
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
+        ),
+        footer: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Existing sessions do not hot-update after profile edits.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+              ),
+            ),
+            SizedBox(width: theme.spacing.lg),
+            AppActionButton(
+              buttonKey: const Key('profile-editor-cancel'),
+              tone: AppActionTone.secondary,
+              label: 'Cancel',
+              onPressed: () => unawaited(_closeWithResult(null)),
+            ),
+            SizedBox(width: theme.spacing.sm),
+            AppActionButton(
+              buttonKey: const Key('profile-editor-save'),
+              icon: Icons.save_outlined,
+              label: 'Save',
+              onPressed: _hasColorErrors ? null : () => unawaited(_save()),
+            ),
+          ],
         ),
       ),
     );
@@ -973,6 +1004,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     required void Function(int index) onMoveUp,
     required void Function(int index) onMoveDown,
   }) {
+    final theme = context.appTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -986,27 +1018,30 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
-            TextButton.icon(
-              key: addKey,
+            AppActionButton(
+              buttonKey: addKey,
+              tone: AppActionTone.ghost,
+              size: AppActionSize.compact,
+              icon: Icons.add,
+              label: addLabel,
+              tooltip: addLabel,
               onPressed: onAdd,
-              icon: const Icon(Icons.add),
-              label: Text(addLabel),
             ),
           ],
         ),
         if (controllers.isEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: EdgeInsets.only(top: theme.spacing.xs + 1),
             child: Text(
               emptyLabel,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).hintColor,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
             ),
           ),
         for (var index = 0; index < controllers.length; index += 1)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: EdgeInsets.only(top: theme.spacing.sm),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1019,26 +1054,26 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  key: Key('$fieldKeyPrefix-$index-up'),
+                SizedBox(width: theme.spacing.sm),
+                _buildListActionButton(
+                  buttonKey: Key('$fieldKeyPrefix-$index-up'),
                   tooltip: 'Move up',
                   onPressed: index == 0 ? null : () => onMoveUp(index),
-                  icon: const Icon(Icons.arrow_upward),
+                  icon: Icons.arrow_upward,
                 ),
-                IconButton(
-                  key: Key('$fieldKeyPrefix-$index-down'),
+                _buildListActionButton(
+                  buttonKey: Key('$fieldKeyPrefix-$index-down'),
                   tooltip: 'Move down',
                   onPressed: index == controllers.length - 1
                       ? null
                       : () => onMoveDown(index),
-                  icon: const Icon(Icons.arrow_downward),
+                  icon: Icons.arrow_downward,
                 ),
-                IconButton(
-                  key: Key('$fieldKeyPrefix-$index-remove'),
+                _buildListActionButton(
+                  buttonKey: Key('$fieldKeyPrefix-$index-remove'),
                   tooltip: 'Remove',
                   onPressed: () => onRemove(index),
-                  icon: const Icon(Icons.delete_outline),
+                  icon: Icons.delete_outline,
                 ),
               ],
             ),
@@ -1048,6 +1083,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   }
 
   Widget _buildEnvEditor() {
+    final theme = context.appTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1061,27 +1097,30 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
-            TextButton.icon(
-              key: const Key('profile-editor-add-env'),
+            AppActionButton(
+              buttonKey: const Key('profile-editor-add-env'),
+              tone: AppActionTone.ghost,
+              size: AppActionSize.compact,
+              icon: Icons.add,
+              label: 'Add variable',
+              tooltip: 'Add variable',
               onPressed: _addEnv,
-              icon: const Icon(Icons.add),
-              label: const Text('Add variable'),
             ),
           ],
         ),
         if (_envControllers.isEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
+            padding: EdgeInsets.only(top: theme.spacing.xs + 1),
             child: Text(
               'No environment variables',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).hintColor,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
             ),
           ),
         for (var index = 0; index < _envControllers.length; index += 1)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: EdgeInsets.only(top: theme.spacing.sm),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1095,7 +1134,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     validator: (_) => _envKeyError(index),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: theme.spacing.md),
                 Expanded(
                   child: TextFormField(
                     key: Key('profile-editor-env-value-$index'),
@@ -1103,12 +1142,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     decoration: const InputDecoration(labelText: 'Value'),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IconButton(
-                  key: Key('profile-editor-env-remove-$index'),
+                SizedBox(width: theme.spacing.sm),
+                _buildListActionButton(
+                  buttonKey: Key('profile-editor-env-remove-$index'),
                   tooltip: 'Remove variable',
                   onPressed: () => _removeEnv(index),
-                  icon: const Icon(Icons.delete_outline),
+                  icon: Icons.delete_outline,
                 ),
               ],
             ),
@@ -1117,120 +1156,104 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
   }
 
+  Widget _buildListActionButton({
+    required Key buttonKey,
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return AppActionButton(
+      buttonKey: buttonKey,
+      tone: AppActionTone.ghost,
+      size: AppActionSize.dense,
+      tooltip: tooltip,
+      icon: icon,
+      onPressed: onPressed,
+    );
+  }
+
   Widget _buildColorField({
+    required String fieldKey,
     required String label,
     required TextEditingController controller,
     required FocusNode focusNode,
     required Key inputKey,
+    required Key swatchKey,
     required Key pickKey,
     required Key resetKey,
   }) {
-    final previewColor = _previewColorFor(controller.text);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: TextFormField(
-            key: inputKey,
-            controller: controller,
-            focusNode: focusNode,
-            decoration: InputDecoration(
-              labelText: label,
-              helperText: 'Use #RRGGBB or leave empty',
-            ),
-            textCapitalization: TextCapitalization.characters,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
-            ],
-            onChanged: (_) => setState(() {}),
-            validator: (value) => _colorError(value ?? ''),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              margin: const EdgeInsets.only(top: 8),
-              decoration: BoxDecoration(
-                color: previewColor ?? Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Theme.of(context).dividerColor),
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              key: pickKey,
-              onPressed: () => unawaited(_pickColor(controller)),
-              child: const Text('Pick'),
-            ),
-            TextButton(
-              key: resetKey,
-              onPressed: () {
-                controller.clear();
-                setState(() {});
-              },
-              child: const Text('Reset'),
-            ),
-          ],
-        ),
-      ],
+    return ColorSettingRow(
+      label: label,
+      controller: controller,
+      focusNode: focusNode,
+      inputKey: inputKey,
+      swatchKey: swatchKey,
+      pickKey: pickKey,
+      resetKey: resetKey,
+      errorText: _colorErrors[fieldKey],
+      onChanged: (value) => _handleColorChanged(fieldKey, value),
+      onBlurNormalize: () => _normalizeColorField(fieldKey, controller),
+      onPick: () => unawaited(_pickColor(fieldKey, controller)),
+      onReset: () => _resetColorField(fieldKey, controller),
     );
   }
 
-  Future<void> _pickColor(TextEditingController controller) async {
-    final initialHex = _colorError(controller.text) == null
-        ? _normalizedOptionalHex(controller.text)
+  Widget _buildOptionDragModeField() {
+    final modes = TerminalOptionDragMode.values;
+    if (modes.length == 1) {
+      return Text(
+        terminalOptionDragModeLabel(modes.single),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: context.appTheme.textSubtle),
+      );
+    }
+
+    return RadioGroup<TerminalOptionDragMode>(
+      groupValue: _optionDragMode,
+      onChanged: (value) {
+        if (value == null) {
+          return;
+        }
+        setState(() {
+          _didEdit = true;
+          _optionDragMode = value;
+        });
+      },
+      child: Column(
+        children: [
+          for (final mode in modes)
+            RadioListTile<TerminalOptionDragMode>(
+              key: Key('profile-editor-option-drag-${mode.name}'),
+              dense: true,
+              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+              contentPadding: EdgeInsets.zero,
+              value: mode,
+              title: Text(terminalOptionDragModeLabel(mode)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickColor(
+    String fieldKey,
+    TextEditingController controller,
+  ) async {
+    final initialHex = _validateOptionalHexColor(controller.text) == null
+        ? controller.text.trim().isEmpty
+              ? null
+              : normalizeHexColor(controller.text)
         : null;
     final result = await showDialog<_ColorPickerResult>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => _ColorPickerDialog(initialHex: initialHex),
     );
     if (result == null || !result.applied) {
       return;
     }
-    controller.text = result.hexValue ?? '';
-    setState(() {});
-  }
-}
-
-class _ProfileEditorSection extends StatelessWidget {
-  const _ProfileEditorSection({
-    required this.title,
-    required this.description,
-    required this.children,
-  });
-
-  final String title;
-  final String description;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            description,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: Theme.of(context).hintColor),
-          ),
-          const SizedBox(height: 16),
-          ...children,
-        ],
-      ),
-    );
+    _applyPickedColor(fieldKey, controller, result.hexValue);
   }
 }
 
@@ -1270,18 +1293,20 @@ class _ColorPickerDialog extends StatefulWidget {
 
 class _ColorPickerDialogState extends State<_ColorPickerDialog> {
   late final TextEditingController _hexController;
-  late Color _workingColor;
+  late HSVColor _workingHsv;
   late bool _inheritsDefault;
   String? _hexError;
 
   @override
   void initState() {
     super.initState();
-    final initialColor = terminalViewportColorFromHex(widget.initialHex);
+    final initialColor = widget.initialHex == null
+        ? null
+        : parseOptionalHexColor(widget.initialHex!);
     _inheritsDefault = widget.initialHex == null;
-    _workingColor = initialColor ?? const Color(0xFFFFFFFF);
+    _workingHsv = HSVColor.fromColor(initialColor ?? Colors.white);
     _hexController = TextEditingController(
-      text: widget.initialHex ?? terminalViewportHexFromColor(_workingColor),
+      text: widget.initialHex ?? hsvColorToHex(_workingHsv),
     );
   }
 
@@ -1291,161 +1316,295 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
     super.dispose();
   }
 
-  void _setChannel({required int red, required int green, required int blue}) {
+  void _setWorkingHsv(HSVColor color) {
+    final normalized = hsvColorToHex(color);
     setState(() {
       _inheritsDefault = false;
-      _workingColor = Color.fromARGB(255, red, green, blue);
-      _hexController.text = terminalViewportHexFromColor(_workingColor);
+      _workingHsv = color.withAlpha(1);
+      _setHexText(normalized);
       _hexError = null;
     });
   }
 
   void _handleHexChanged(String value) {
-    final normalized = value.trim().toUpperCase();
-    if (normalized.isEmpty) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
       setState(() {
         _hexError = null;
       });
       return;
     }
-    if (!RegExp(r'^#[0-9A-F]{6}$').hasMatch(normalized)) {
+
+    try {
+      final normalized = normalizeHexColor(trimmed);
       setState(() {
-        _hexError = 'Use #RRGGBB';
+        _inheritsDefault = false;
+        _workingHsv = hexToHsvColor(normalized);
+        _hexError = null;
+      });
+    } on FormatException {
+      setState(() {
+        _hexError = _hexColorErrorText;
+      });
+    }
+  }
+
+  void _normalizeHexField() {
+    final trimmed = _hexController.text.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _hexError = null;
       });
       return;
     }
-    setState(() {
-      _inheritsDefault = false;
-      _workingColor = terminalViewportColorFromHex(normalized)!;
-      _hexError = null;
-    });
+
+    try {
+      final normalized = normalizeHexColor(trimmed);
+      setState(() {
+        _inheritsDefault = false;
+        _workingHsv = hexToHsvColor(normalized);
+        _setHexText(normalized);
+        _hexError = null;
+      });
+    } on FormatException {
+      setState(() {
+        _hexError = _hexColorErrorText;
+      });
+    }
+  }
+
+  void _setHexText(String value) {
+    if (_hexController.text == value) {
+      return;
+    }
+    _hexController.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final previewHex = terminalViewportHexFromColor(_workingColor);
+    final theme = context.appTheme;
+    final previewColor = _workingHsv.toColor();
+    final previewHex = hsvColorToHex(_workingHsv);
     final applyEnabled =
         _inheritsDefault ||
         (_hexController.text.trim().isNotEmpty && _hexError == null);
-    final red = _colorChannel(_workingColor.r);
-    final green = _colorChannel(_workingColor.g);
-    final blue = _colorChannel(_workingColor.b);
-    return AlertDialog(
+    return AppDialogScaffold(
       key: const Key('color-picker-dialog'),
-      title: const Text('Pick color'),
-      content: SizedBox(
-        width: 360,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      title: 'Pick color',
+      onClose: () {
+        Navigator.of(context).pop(const _ColorPickerResult(applied: false));
+      },
+      height: 472,
+      expandBody: true,
+      constraints: const BoxConstraints(maxWidth: 480),
+      headerPadding: EdgeInsets.fromLTRB(
+        theme.spacing.xl,
+        theme.spacing.lg,
+        theme.spacing.xl,
+        theme.spacing.sm,
+      ),
+      bodyPadding: EdgeInsets.fromLTRB(
+        theme.spacing.xl,
+        theme.spacing.md,
+        theme.spacing.xl,
+        theme.spacing.md,
+      ),
+      footerPadding: EdgeInsets.fromLTRB(
+        theme.spacing.xl,
+        theme.spacing.sm,
+        theme.spacing.xl,
+        theme.spacing.md,
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 440;
+          final previewCard = DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.chrome.withValues(alpha: 0.36),
+              borderRadius: BorderRadius.circular(theme.radius.lg),
+              border: Border.all(color: theme.border),
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(theme.spacing.sm + 1),
+              child: Row(
                 children: [
                   Container(
                     key: const Key('color-picker-preview'),
-                    width: 48,
-                    height: 48,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
-                      color: _inheritsDefault
-                          ? Colors.transparent
-                          : _workingColor,
-                      borderRadius: BorderRadius.circular(10),
+                      color: _inheritsDefault ? theme.chrome : previewColor,
+                      borderRadius: BorderRadius.circular(theme.radius.md),
                       border: Border.all(color: Theme.of(context).dividerColor),
                     ),
+                    child: _inheritsDefault
+                        ? Icon(
+                            Icons.colorize_outlined,
+                            size: 16,
+                            color: theme.textMuted,
+                          )
+                        : null,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: theme.spacing.md),
                   Expanded(
                     child: Text(
                       _inheritsDefault
                           ? 'Inheriting default terminal color'
                           : 'Current color $previewHex',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: theme.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                key: const Key('color-picker-hex'),
-                controller: _hexController,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
-                ],
-                decoration: InputDecoration(
-                  labelText: 'Hex',
-                  helperText: 'Use #RRGGBB',
-                  errorText: _hexError,
-                ),
-                onChanged: _handleHexChanged,
-              ),
-              const SizedBox(height: 12),
-              Text('Red $red'),
-              Slider(
-                key: const Key('color-picker-red'),
-                value: red.toDouble(),
-                max: 255,
-                onChanged: (value) =>
-                    _setChannel(red: value.round(), green: green, blue: blue),
-              ),
-              Text('Green $green'),
-              Slider(
-                key: const Key('color-picker-green'),
-                value: green.toDouble(),
-                max: 255,
-                onChanged: (value) =>
-                    _setChannel(red: red, green: value.round(), blue: blue),
-              ),
-              Text('Blue $blue'),
-              Slider(
-                key: const Key('color-picker-blue'),
-                value: blue.toDouble(),
-                max: 255,
-                onChanged: (value) =>
-                    _setChannel(red: red, green: green, blue: value.round()),
-              ),
+            ),
+          );
+
+          final hexField = TextField(
+            key: const Key('color-picker-hex'),
+            controller: _hexController,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
             ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          key: const Key('color-picker-reset'),
-          onPressed: () {
-            Navigator.of(
-              context,
-            ).pop(const _ColorPickerResult(applied: true, hexValue: null));
-          },
-          child: const Text('Reset to default'),
-        ),
-        TextButton(
-          key: const Key('color-picker-cancel'),
-          onPressed: () {
-            Navigator.of(context).pop(const _ColorPickerResult(applied: false));
-          },
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          key: const Key('color-picker-apply'),
-          onPressed: applyEnabled
-              ? () {
-                  Navigator.of(context).pop(
-                    _ColorPickerResult(
-                      applied: true,
-                      hexValue: _inheritsDefault
-                          ? null
-                          : terminalViewportHexFromColor(_workingColor),
+            decoration: InputDecoration(
+              hintText: '#RRGGBB or empty',
+              errorText: _hexError,
+            ),
+            onChanged: _handleHexChanged,
+            onEditingComplete: _normalizeHexField,
+            onTapOutside: (_) {
+              _normalizeHexField();
+              FocusScope.of(context).unfocus();
+            },
+          );
+
+          return SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (compact) ...[
+                  previewCard,
+                  SizedBox(height: theme.spacing.sm + 1),
+                  Text(
+                    'Hex',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: theme.textPrimary,
+                      fontWeight: FontWeight.w700,
                     ),
-                  );
-                }
-              : null,
-          child: const Text('Apply'),
-        ),
-      ],
+                  ),
+                  SizedBox(height: theme.spacing.xs),
+                  hexField,
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: previewCard),
+                      SizedBox(width: theme.spacing.md),
+                      SizedBox(
+                        width: 156,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Hex',
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(
+                                    color: theme.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            SizedBox(height: theme.spacing.xs),
+                            hexField,
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                SizedBox(height: theme.spacing.md),
+                Text(
+                  'Palette',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: theme.spacing.sm),
+                ColorPickerPalette(
+                  key: const Key('color-picker-palette'),
+                  color: _workingHsv,
+                  aspectRatio: 2.4,
+                  onChanged: _setWorkingHsv,
+                ),
+                SizedBox(height: theme.spacing.sm),
+                Text(
+                  'Hue',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: theme.spacing.xs + 1),
+                HueSlider(
+                  key: const Key('color-picker-hue-slider'),
+                  color: _workingHsv,
+                  onChanged: _setWorkingHsv,
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+      footer: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: theme.spacing.sm,
+        runSpacing: theme.spacing.sm,
+        children: [
+          AppActionButton(
+            buttonKey: const Key('color-picker-reset'),
+            tone: AppActionTone.ghost,
+            label: 'Reset to default',
+            onPressed: () {
+              Navigator.of(
+                context,
+              ).pop(const _ColorPickerResult(applied: true, hexValue: null));
+            },
+          ),
+          AppActionButton(
+            buttonKey: const Key('color-picker-cancel'),
+            tone: AppActionTone.secondary,
+            label: 'Cancel',
+            onPressed: () {
+              Navigator.of(
+                context,
+              ).pop(const _ColorPickerResult(applied: false));
+            },
+          ),
+          AppActionButton(
+            buttonKey: const Key('color-picker-apply'),
+            icon: Icons.check_rounded,
+            label: 'Apply',
+            onPressed: applyEnabled
+                ? () {
+                    Navigator.of(context).pop(
+                      _ColorPickerResult(
+                        applied: true,
+                        hexValue: _inheritsDefault
+                            ? null
+                            : hsvColorToHex(_workingHsv),
+                      ),
+                    );
+                  }
+                : null,
+          ),
+        ],
+      ),
     );
   }
-}
-
-int _colorChannel(double component) {
-  return (component * 255).round().clamp(0, 255);
 }

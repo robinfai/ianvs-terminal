@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
+import '../../ui/app_ui.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../sessions/session_controller.dart';
@@ -14,7 +15,6 @@ import '../terminal/clipboard_bridge.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
-import '../terminal/terminal_viewport_colors.dart';
 import 'defaults_appearance_dialog.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
@@ -66,7 +66,7 @@ class ShellScreen extends ConsumerStatefulWidget {
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _workspaceCueDuration = Duration(milliseconds: 1400);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
-  static const _terminalViewportPadding = EdgeInsets.fromLTRB(20, 14, 24, 18);
+  static const _terminalViewportPadding = EdgeInsets.fromLTRB(16, 10, 18, 14);
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -475,20 +475,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         (profiles.isEmpty ? null : profiles.first);
   }
 
-  TerminalViewportColors _terminalColorsForProfile(
-    TerminalViewportColors baseColors,
+  terminal.TerminalViewportColors _terminalColorsForProfile(
+    BuildContext context,
     TerminalProfile? profile,
   ) {
-    final overrides = profile?.appearance.colors;
-    if (overrides == null) {
-      return baseColors;
-    }
-    return baseColors.copyWith(
-      canvasBackground: terminalViewportColorFromHex(overrides.background),
-      foreground: terminalViewportColorFromHex(overrides.foreground),
-      cursor: terminalViewportColorFromHex(overrides.cursor),
-      selection: terminalViewportColorFromHex(overrides.selection),
-    );
+    return resolveTerminalColors(
+      context,
+      profileAppearance: profile?.appearance,
+    ).viewport;
   }
 
   String _defaultSummary(
@@ -983,11 +977,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final activeFocusNode = activeSessionId == null
         ? null
         : _focusNodeFor(activeSessionId);
-    final palette = _ShellPalette.fromBrightness(Theme.of(context).brightness);
-    final terminalColors = _terminalColorsForProfile(
-      palette.terminalColors,
-      activeProfile,
-    );
+    final palette = context.appTheme;
+    final terminalColors = _terminalColorsForProfile(context, activeProfile);
 
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -1060,9 +1051,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       canRequestFocus: false,
       onKeyEvent: (_, event) => handleShellShortcut(event),
       child: Scaffold(
-        backgroundColor: palette.background,
+        backgroundColor: palette.canvas,
         body: ColoredBox(
-          color: palette.background,
+          color: palette.canvas,
           child: Padding(
             padding: EdgeInsets.only(
               top: defaultTargetPlatform == TargetPlatform.macOS
@@ -1173,9 +1164,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 key: const Key('shell-terminal-surface'),
                                 child: DecoratedBox(
                                   decoration: BoxDecoration(
-                                    color: palette.terminalBackground,
+                                    color: palette.terminalSurface,
                                     border: Border(
-                                      top: BorderSide(color: palette.divider),
+                                      top: BorderSide(color: palette.border),
                                     ),
                                   ),
                                   child: Stack(
@@ -1304,7 +1295,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onShowCommandMenu,
   });
 
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool referenceDemoMode;
@@ -1317,11 +1308,11 @@ class _ShellChromeBar extends StatelessWidget {
     return DecoratedBox(
       key: const Key('shell-chrome-bar'),
       decoration: BoxDecoration(
-        color: palette.chromeBackground,
-        border: Border(bottom: BorderSide(color: palette.divider)),
+        color: palette.chrome,
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
       child: SizedBox(
-        height: 42,
+        height: 40,
         child: Row(
           children: [
             const SizedBox(width: 72),
@@ -1349,15 +1340,15 @@ class _ShellChromeBar extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 constraints: const BoxConstraints.tightFor(
-                  width: 36,
-                  height: 36,
+                  width: 32,
+                  height: 32,
                 ),
-                iconSize: 18,
-                icon: Icon(Icons.tune_rounded, color: palette.subtleText),
+                iconSize: 16,
+                icon: Icon(Icons.tune_rounded, color: palette.textSubtle),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
             ] else
-              const SizedBox(width: 24),
+              const SizedBox(width: 20),
           ],
         ),
       ),
@@ -1373,7 +1364,7 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
     required this.onDismiss,
   });
 
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
   final List<TerminalProfileLoadWarning> warnings;
   final Future<void> Function() onReviewProfiles;
   final VoidCallback onDismiss;
@@ -1383,11 +1374,11 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
     return DecoratedBox(
       key: const Key('shell-configuration-warnings'),
       decoration: BoxDecoration(
-        color: palette.overlayBackground,
-        border: Border(bottom: BorderSide(color: palette.divider)),
+        color: palette.overlay,
+        border: Border(bottom: BorderSide(color: palette.border)),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1395,7 +1386,7 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.warning_amber_rounded, color: palette.accent),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1403,18 +1394,18 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
                       Text(
                         'Some terminal profile values were ignored and reset to safe defaults.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: palette.primaryText,
+                          color: palette.textPrimary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       for (final warning in warnings)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.only(bottom: 3),
                           child: Text(
                             terminalProfileLoadWarningMessage(warning),
                             style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: palette.subtleText),
+                                ?.copyWith(color: palette.textSubtle),
                           ),
                         ),
                     ],
@@ -1425,11 +1416,11 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
                   tooltip: 'Dismiss configuration warnings',
                   onPressed: onDismiss,
                   visualDensity: VisualDensity.compact,
-                  icon: Icon(Icons.close_rounded, color: palette.subtleText),
+                  icon: Icon(Icons.close_rounded, color: palette.textSubtle),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Row(
               children: [
                 FilledButton.tonal(
@@ -1437,7 +1428,7 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
                   onPressed: () => unawaited(onReviewProfiles()),
                   child: const Text('Review Profiles'),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 TextButton(onPressed: onDismiss, child: const Text('Dismiss')),
               ],
             ),
@@ -1456,7 +1447,7 @@ class _ReferenceDemoTabStrip extends StatelessWidget {
     required this.onActivateSession,
   });
 
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final ValueChanged<String> onActivateSession;
@@ -1480,7 +1471,7 @@ class _ReferenceDemoTabStrip extends StatelessWidget {
             SizedBox(
               width: 1,
               height: double.infinity,
-              child: ColoredBox(color: palette.divider),
+              child: ColoredBox(color: palette.border),
             ),
         ],
       ],
@@ -1497,7 +1488,7 @@ class _ReferenceDemoTab extends StatelessWidget {
     required this.onActivate,
   });
 
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
   final TerminalTab tab;
   final int? shortcutIndex;
   final bool isActive;
@@ -1514,7 +1505,7 @@ class _ReferenceDemoTab extends StatelessWidget {
         onPressed: onActivate,
         style: TextButton.styleFrom(
           padding: EdgeInsets.zero,
-          foregroundColor: isActive ? palette.primaryText : palette.mutedText,
+          foregroundColor: isActive ? palette.textPrimary : palette.textMuted,
           shape: const RoundedRectangleBorder(),
         ),
         child: Center(
@@ -1525,16 +1516,16 @@ class _ReferenceDemoTab extends StatelessWidget {
                 Text(
                   '⌘$shortcutIndex',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isActive ? palette.mutedText : palette.subtleText,
+                    color: isActive ? palette.textMuted : palette.textSubtle,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
               ],
               Text(
                 tab.title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: isActive ? palette.primaryText : palette.subtleText,
+                  color: isActive ? palette.textPrimary : palette.textSubtle,
                   fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
                 ),
               ),
@@ -1555,7 +1546,7 @@ class _ShellTabStrip extends StatelessWidget {
     required this.onCloseSession,
   });
 
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final ValueChanged<String> onActivateSession;
@@ -1572,8 +1563,8 @@ class _ShellTabStrip extends StatelessWidget {
         itemCount: tabs.length,
         separatorBuilder: (_, _) => Container(
           width: 1,
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          color: palette.divider,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          color: palette.border,
         ),
         itemBuilder: (context, index) {
           final tab = tabs[index];
@@ -1602,7 +1593,7 @@ class _ShellTabButton extends StatelessWidget {
     required this.onClose,
   });
 
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
   final TerminalTab tab;
   final int? shortcutIndex;
   final bool isActive;
@@ -1618,8 +1609,11 @@ class _ShellTabButton extends StatelessWidget {
       child: TextButton(
         key: Key('shell-tab-${tab.sessionId}'),
         style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          foregroundColor: isActive ? palette.primaryText : palette.mutedText,
+          minimumSize: const Size(0, 30),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+          foregroundColor: isActive ? palette.textPrimary : palette.textMuted,
           shape: const RoundedRectangleBorder(),
         ),
         onPressed: onActivate,
@@ -1627,24 +1621,24 @@ class _ShellTabButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (shortcutIndex != null) ...[
-              Text(
-                '⌘$shortcutIndex',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: isActive ? palette.mutedText : palette.subtleText,
-                  fontWeight: FontWeight.w500,
+                Text(
+                  '⌘$shortcutIndex',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isActive ? palette.textMuted : palette.textSubtle,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-            ],
+                const SizedBox(width: 6),
+              ],
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 140),
               style: Theme.of(context).textTheme.titleSmall!.copyWith(
-                color: isActive ? palette.primaryText : palette.mutedText,
+                color: isActive ? palette.textPrimary : palette.textMuted,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
               ),
               child: Text(tab.title, overflow: TextOverflow.ellipsis),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 4),
             Tooltip(
               message: 'Close ${tab.title}',
               child: GestureDetector(
@@ -1652,10 +1646,10 @@ class _ShellTabButton extends StatelessWidget {
                 onTap: onClose,
                 child: Icon(
                   Icons.close_rounded,
-                  size: 12,
+                  size: 11,
                   color: isActive
-                      ? palette.mutedText
-                      : palette.subtleText.withValues(alpha: 0.72),
+                      ? palette.textMuted
+                      : palette.textSubtle.withValues(alpha: 0.72),
                 ),
               ),
             ),
@@ -1676,7 +1670,7 @@ class _ShellEmptyState extends StatelessWidget {
     required this.onNewTab,
   });
 
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
   final String title;
   final String message;
   final String defaultSummary;
@@ -1686,54 +1680,21 @@ class _ShellEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: palette.terminalBackground,
-        border: Border(top: BorderSide(color: palette.divider)),
+        color: palette.terminalSurface,
+        border: Border(top: BorderSide(color: palette.border)),
       ),
       child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: palette.primaryText,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  message,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: palette.mutedText,
-                    height: 1.45,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  defaultSummary,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: palette.subtleText,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  key: const Key('shell-empty-new-tab'),
-                  onPressed: onNewTab,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: palette.accent,
-                    foregroundColor: Colors.black,
-                  ),
-                  child: const Text('New Tab'),
-                ),
-              ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: AppEmptyState(
+            title: title,
+            message: message,
+            supportingText: defaultSummary,
+            action: AppActionButton(
+              buttonKey: const Key('shell-empty-new-tab'),
+              icon: Icons.add_box_outlined,
+              label: 'New Tab',
+              onPressed: onNewTab,
             ),
           ),
         ),
@@ -1757,7 +1718,7 @@ class _TerminalSearchBar extends StatelessWidget {
   final String query;
   final int matches;
   final int activeIndex;
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
   final ValueChanged<String> onChanged;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -1777,23 +1738,23 @@ class _TerminalSearchBar extends StatelessWidget {
       color: Colors.transparent,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: palette.overlayBackground.withValues(alpha: 0.96),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: palette.divider),
+          color: palette.overlay.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          border: Border.all(color: palette.border),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
         child: SizedBox(
-          width: 320,
-          height: 42,
+          width: 304,
+          height: 38,
           child: Row(
             children: [
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   key: const Key('terminal-search-field'),
@@ -1801,13 +1762,13 @@ class _TerminalSearchBar extends StatelessWidget {
                   onChanged: onChanged,
                   style: Theme.of(
                     context,
-                  ).textTheme.bodyMedium?.copyWith(color: palette.primaryText),
+                  ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
                   decoration: InputDecoration(
                     isDense: true,
                     hintText: 'Search',
                     hintStyle: Theme.of(
                       context,
-                    ).textTheme.bodyMedium?.copyWith(color: palette.subtleText),
+                    ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
                     border: InputBorder.none,
                   ),
                 ),
@@ -1816,8 +1777,8 @@ class _TerminalSearchBar extends StatelessWidget {
                 _counterText,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: matches == 0 && query.isNotEmpty
-                      ? palette.mutedText
-                      : palette.subtleText,
+                      ? palette.textMuted
+                      : palette.textSubtle,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1827,7 +1788,7 @@ class _TerminalSearchBar extends StatelessWidget {
                 onPressed: matches == 0 ? null : onPrevious,
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
-                iconSize: 18,
+                iconSize: 16,
                 icon: const Icon(Icons.keyboard_arrow_up_rounded),
               ),
               IconButton(
@@ -1836,7 +1797,7 @@ class _TerminalSearchBar extends StatelessWidget {
                 onPressed: matches == 0 ? null : onNext,
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
-                iconSize: 18,
+                iconSize: 16,
                 icon: const Icon(Icons.keyboard_arrow_down_rounded),
               ),
               IconButton(
@@ -1845,7 +1806,7 @@ class _TerminalSearchBar extends StatelessWidget {
                 onPressed: onClose,
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
-                iconSize: 18,
+                iconSize: 16,
                 icon: const Icon(Icons.close_rounded),
               ),
             ],
@@ -1860,39 +1821,39 @@ class _ShellWorkspaceCue extends StatelessWidget {
   const _ShellWorkspaceCue({required this.title, required this.palette});
 
   final String title;
-  final _ShellPalette palette;
+  final AppThemeTokens palette;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       key: const Key('shell-workspace-focus-cue'),
       decoration: BoxDecoration(
-        color: palette.overlayBackground.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(12),
+        color: palette.overlay.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(palette.radius.lg),
         border: Border.all(color: palette.accent.withValues(alpha: 0.38)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.keyboard_command_key_rounded,
               color: palette.accent,
-              size: 18,
+              size: 16,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Text(
               title,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: palette.primaryText,
+                color: palette.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1922,17 +1883,17 @@ class _ShellCommandMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _ShellPalette.fromBrightness(Theme.of(context).brightness);
+    final palette = context.appTheme;
 
     Widget sectionLabel(String text) {
       return Padding(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
         child: Align(
           alignment: Alignment.centerLeft,
           child: Text(
             text,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: palette.subtleText,
+              color: palette.textSubtle,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.24,
             ),
@@ -1945,28 +1906,28 @@ class _ShellCommandMenu extends StatelessWidget {
       key: const Key('shell-command-menu-overlay'),
       color: Colors.transparent,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360, maxHeight: 500),
+        constraints: const BoxConstraints(maxWidth: 340, maxHeight: 460),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: palette.overlayBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: palette.divider),
+            color: palette.overlay,
+            borderRadius: BorderRadius.circular(palette.radius.lg),
+            border: Border.all(color: palette.border),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.22),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+              padding: const EdgeInsets.all(6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 2, 4, 2),
+                    padding: const EdgeInsets.fromLTRB(6, 2, 2, 2),
                     child: Row(
                       children: [
                         Expanded(
@@ -1974,7 +1935,7 @@ class _ShellCommandMenu extends StatelessWidget {
                             'Top actions',
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
-                                  color: palette.primaryText,
+                                  color: palette.textPrimary,
                                   fontWeight: FontWeight.w700,
                                 ),
                           ),
@@ -1986,7 +1947,7 @@ class _ShellCommandMenu extends StatelessWidget {
                           splashRadius: 16,
                           icon: Icon(
                             Icons.close_rounded,
-                            color: palette.mutedText,
+                            color: palette.textMuted,
                           ),
                         ),
                       ],
@@ -2025,13 +1986,13 @@ class _ShellCommandMenu extends StatelessWidget {
                   sectionLabel('Session actions'),
                   if (!hasActiveSession)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Text(
                           'Requires an active shell session.',
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: palette.subtleText),
+                              ?.copyWith(color: palette.textSubtle),
                         ),
                       ),
                     ),
@@ -2063,20 +2024,20 @@ class _ShellCommandMenu extends StatelessWidget {
                         Navigator.of(context).pop(_ShellCommandAction.search),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 2),
+                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
                     child: Row(
                       children: [
                         Icon(
                           Icons.keyboard_command_key_rounded,
                           size: 16,
-                          color: palette.subtleText,
+                          color: palette.textSubtle,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             'Open command menu with $launcherShortcutLabel',
                             style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(color: palette.subtleText),
+                                ?.copyWith(color: palette.textSubtle),
                           ),
                         ),
                       ],
@@ -2112,20 +2073,22 @@ class _ShellCommandTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _ShellPalette.fromBrightness(Theme.of(context).brightness);
+    final palette = context.appTheme;
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(palette.radius.lg),
+      ),
       leading: Icon(
         icon,
-        color: enabled ? palette.primaryText : palette.subtleText,
+        color: enabled ? palette.textPrimary : palette.textSubtle,
       ),
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: enabled ? palette.primaryText : palette.subtleText,
+          color: enabled ? palette.textPrimary : palette.textSubtle,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -2133,14 +2096,14 @@ class _ShellCommandTile extends StatelessWidget {
         subtitle,
         style: Theme.of(
           context,
-        ).textTheme.bodySmall?.copyWith(color: palette.subtleText),
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
       ),
       trailing: shortcutLabel == null
           ? null
           : Text(
               shortcutLabel!,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: enabled ? palette.mutedText : palette.subtleText,
+                color: enabled ? palette.textMuted : palette.textSubtle,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -2161,17 +2124,17 @@ class _ProfilesSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _ShellPalette.fromBrightness(Theme.of(context).brightness);
+    final palette = context.appTheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Material(
         key: const Key('profiles-sheet'),
-        color: palette.overlayBackground,
-        borderRadius: BorderRadius.circular(20),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2182,7 +2145,7 @@ class _ProfilesSheet extends StatelessWidget {
                       child: Text(
                         'Profiles',
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: palette.primaryText,
+                          color: palette.textPrimary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -2190,7 +2153,7 @@ class _ProfilesSheet extends StatelessWidget {
                     IconButton(
                       tooltip: 'Close profiles',
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.close_rounded, color: palette.mutedText),
+                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
                     ),
                   ],
                 ),
@@ -2198,15 +2161,15 @@ class _ProfilesSheet extends StatelessWidget {
                   'Open a tab with any saved profile or edit its terminal settings.',
                   style: Theme.of(
                     context,
-                  ).textTheme.bodyMedium?.copyWith(color: palette.subtleText),
+                  ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 Flexible(
                   child: ListView.separated(
                     shrinkWrap: true,
                     itemCount: profiles.length,
                     separatorBuilder: (_, _) =>
-                        Divider(color: palette.divider, height: 1),
+                        Divider(color: palette.border, height: 1),
                     itemBuilder: (context, index) {
                       final profile = profiles[index];
                       final isDefault = profile.id == effectiveDefaultProfileId;
@@ -2221,14 +2184,14 @@ class _ProfilesSheet extends StatelessWidget {
                           profile.name,
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
-                                color: palette.primaryText,
+                                color: palette.textPrimary,
                                 fontWeight: FontWeight.w600,
                               ),
                         ),
                         subtitle: Text(
                           summary,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: palette.subtleText),
+                              ?.copyWith(color: palette.textSubtle),
                         ),
                         trailing: IconButton(
                           tooltip: 'Edit ${profile.name}',
@@ -2237,7 +2200,7 @@ class _ProfilesSheet extends StatelessWidget {
                           ).pop(_EditProfileResult(profile)),
                           icon: Icon(
                             Icons.edit_outlined,
-                            color: palette.mutedText,
+                            color: palette.textMuted,
                           ),
                         ),
                         onTap: () => Navigator.of(
@@ -2260,59 +2223,4 @@ class _ProfilesSheet extends StatelessWidget {
         '${profile.shell} • ${terminalEmulationLabel(profile.terminalEmulation)} • ${profile.scrollbackLines} lines';
     return isDefault ? '$base • Default profile' : base;
   }
-}
-
-class _ShellPalette {
-  const _ShellPalette({
-    required this.background,
-    required this.chromeBackground,
-    required this.overlayBackground,
-    required this.terminalBackground,
-    required this.terminalColors,
-    required this.divider,
-    required this.primaryText,
-    required this.mutedText,
-    required this.subtleText,
-    required this.accent,
-  });
-
-  factory _ShellPalette.fromBrightness(Brightness brightness) {
-    if (brightness == Brightness.light) {
-      return const _ShellPalette(
-        background: Color(0xFFF4F4F4),
-        chromeBackground: Color(0xFFEDEDED),
-        overlayBackground: Color(0xFFFFFFFF),
-        terminalBackground: Color(0xFFEDEDED),
-        terminalColors: TerminalViewportColors.light,
-        divider: Color(0xFFD2D2D2),
-        primaryText: Color(0xFF111111),
-        mutedText: Color(0xFF4A4A4A),
-        subtleText: Color(0xFF747474),
-        accent: Color(0xFFF6C344),
-      );
-    }
-    return const _ShellPalette(
-      background: Color(0xFF17161D),
-      chromeBackground: Color(0xFF17161D),
-      overlayBackground: Color(0xFF201E28),
-      terminalBackground: Color(0xFF17161D),
-      terminalColors: TerminalViewportColors.dark,
-      divider: Color(0xFF2D2938),
-      primaryText: Color(0xFFF1EFF7),
-      mutedText: Color(0xFFC4BED3),
-      subtleText: Color(0xFF918AA3),
-      accent: Color(0xFFF6C344),
-    );
-  }
-
-  final Color background;
-  final Color chromeBackground;
-  final Color overlayBackground;
-  final Color terminalBackground;
-  final TerminalViewportColors terminalColors;
-  final Color divider;
-  final Color primaryText;
-  final Color mutedText;
-  final Color subtleText;
-  final Color accent;
 }

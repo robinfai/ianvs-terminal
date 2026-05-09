@@ -4,6 +4,7 @@ import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
 import 'package:app/features/profiles/profile_editor.dart';
 import 'package:app/features/profiles/profile_models.dart';
+import 'package:app/ui/app_ui.dart';
 
 void main() {
   testWidgets(
@@ -69,8 +70,23 @@ void main() {
             .text,
         '/bin/bash',
       );
+      expect(find.text('Colors'), findsOneWidget);
+      expect(find.text('Cursor'), findsOneWidget);
+      expect(find.text('Interaction'), findsOneWidget);
       expect(find.text('VT220'), findsOneWidget);
       expect(find.text('Beam'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('profile-editor-save'))).height,
+        40,
+      );
+      final shellFieldHeight = tester
+          .getSize(find.byKey(const Key('profile-editor-shell')))
+          .height;
+      expect(shellFieldHeight, greaterThanOrEqualTo(48));
+      expect(
+        tester.getSize(find.byKey(const Key('profile-editor-add-arg'))).height,
+        36,
+      );
 
       await tester.enterText(
         find.byKey(const Key('profile-editor-name')),
@@ -132,6 +148,12 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('profile-editor-emulation')));
       await tester.pumpAndSettle();
+      expect(
+        tester
+            .getSize(find.byKey(const Key('profile-editor-emulation')))
+            .height,
+        closeTo(shellFieldHeight, 2),
+      );
       await tester.tap(find.text('xterm-256color').last);
       await tester.pumpAndSettle();
       await _ensureVisible(
@@ -154,6 +176,12 @@ void main() {
       await _ensureVisible(
         tester,
         find.byKey(const Key('profile-editor-fallback-1-remove')),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const Key('profile-editor-fallback-1-remove')))
+            .height,
+        32,
       );
       await tester.tap(
         find.byKey(const Key('profile-editor-fallback-1-remove')),
@@ -194,8 +222,50 @@ void main() {
         tester,
         find.byKey(const Key('profile-editor-color-foreground')),
       );
+      expect(
+        tester.getSize(
+          find.byKey(const Key('profile-editor-swatch-foreground')),
+        ),
+        const Size(30, 30),
+      );
       await tester.enterText(
         find.byKey(const Key('profile-editor-color-foreground')),
+        '112233',
+      );
+      await tester.tap(
+        find.byKey(const Key('profile-editor-color-background')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .getCenter(find.byKey(const Key('profile-editor-pick-background')))
+            .dy,
+        closeTo(
+          tester
+              .getCenter(
+                find.byKey(const Key('profile-editor-swatch-background')),
+              )
+              .dy,
+          6,
+        ),
+      );
+      final dialogRect = tester.getRect(
+        find.byKey(const Key('profile-editor-dialog')),
+      );
+      final backgroundSwatchRect = tester.getRect(
+        find.byKey(const Key('profile-editor-swatch-background')),
+      );
+      expect(
+        dialogRect.right - backgroundSwatchRect.right,
+        greaterThanOrEqualTo(20),
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.byKey(const Key('profile-editor-color-foreground')),
+            )
+            .controller!
+            .text,
         '#112233',
       );
       await _ensureVisible(
@@ -219,6 +289,13 @@ void main() {
         tester,
         find.byKey(const Key('profile-editor-cursor-shape')),
       );
+      final cursorShapeRect = tester.getRect(
+        find.byKey(const Key('profile-editor-cursor-shape')),
+      );
+      expect(
+        dialogRect.right - cursorShapeRect.right,
+        greaterThanOrEqualTo(20),
+      );
       await tester.tap(find.byKey(const Key('profile-editor-cursor-shape')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Block').last);
@@ -226,6 +303,12 @@ void main() {
       await _ensureVisible(
         tester,
         find.byKey(const Key('profile-editor-cursor-blink')),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const Key('profile-editor-cursor-blink')))
+            .height,
+        lessThanOrEqualTo(40),
       );
       await tester.tap(find.byKey(const Key('profile-editor-cursor-blink')));
       await tester.pump();
@@ -375,7 +458,7 @@ void main() {
     );
     expect(find.text('Font size must be greater than 0'), findsOneWidget);
     expect(find.text('Line height must be greater than 0'), findsOneWidget);
-    expect(find.text('Use #RRGGBB or leave blank'), findsOneWidget);
+    expect(find.text('Use #RRGGBB or leave empty.'), findsOneWidget);
     expect(find.text('Key must be unique'), findsNWidgets(2));
     expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
   });
@@ -422,7 +505,7 @@ void main() {
   });
 
   testWidgets(
-    'profile editor color picker updates and resets the color field',
+    'profile editor color picker uses palette controls and resets the color field',
     (tester) async {
       TerminalProfile? savedProfile;
       await _pumpEditorHarness(
@@ -437,11 +520,28 @@ void main() {
 
       await _ensureVisible(
         tester,
-        find.byKey(const Key('profile-editor-pick-foreground')),
+        find.byKey(const Key('profile-editor-swatch-foreground')),
       );
-      await tester.tap(find.byKey(const Key('profile-editor-pick-foreground')));
+      await tester.tap(
+        find.byKey(const Key('profile-editor-swatch-foreground')),
+      );
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('color-picker-dialog')), findsOneWidget);
+      expect(find.byKey(const Key('color-picker-palette')), findsOneWidget);
+      expect(find.byKey(const Key('color-picker-hue-slider')), findsOneWidget);
+      expect(find.byKey(const Key('color-picker-red')), findsNothing);
+      expect(find.byKey(const Key('color-picker-green')), findsNothing);
+      expect(find.byKey(const Key('color-picker-blue')), findsNothing);
+      expect(
+        tester.getSize(find.byKey(const Key('color-picker-palette'))).height,
+        lessThanOrEqualTo(260),
+      );
+      expect(
+        tester.getRect(find.byKey(const Key('color-picker-hue-slider'))).bottom,
+        lessThan(
+          tester.getRect(find.byKey(const Key('color-picker-apply'))).top,
+        ),
+      );
 
       await tester.enterText(
         find.byKey(const Key('color-picker-hex')),
@@ -461,8 +561,21 @@ void main() {
         '#123456',
       );
 
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-pick-foreground')),
+      );
       await tester.tap(find.byKey(const Key('profile-editor-pick-foreground')));
       await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('color-picker-hex')),
+        '#FFFFFG',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Use #RRGGBB or leave empty.'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('color-picker-apply')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('color-picker-dialog')), findsOneWidget);
       await tester.tap(find.byKey(const Key('color-picker-reset')));
       await tester.pumpAndSettle();
 
@@ -496,6 +609,9 @@ Future<void> _pumpEditorHarness(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      theme: buildFluttermTheme(Brightness.dark),
+      darkTheme: buildFluttermTheme(Brightness.dark),
+      themeMode: ThemeMode.dark,
       home: Builder(
         builder: (context) {
           return Scaffold(

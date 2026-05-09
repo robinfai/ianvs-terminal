@@ -140,7 +140,7 @@ void main() {
       final leftInsetPixel = await _readPixelColor(
         tester,
         shellExport.shellSurfaceImage,
-        x: scale(16),
+        x: scale(12),
         y: scale(28),
       );
       expect(leftInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
@@ -149,14 +149,14 @@ void main() {
         tester,
         shellExport.shellSurfaceImage,
         x: scale(120),
-        y: scale(10),
+        y: scale(8),
       );
       expect(topInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
 
       final outerRightPixel = await _readPixelColor(
         tester,
         shellExport.shellSurfaceImage,
-        x: shellExport.shellSurfaceImage.width - scale(12),
+        x: shellExport.shellSurfaceImage.width - scale(10),
         y: shellExport.shellSurfaceImage.height ~/ 2,
       );
       expect(outerRightPixel.toARGB32(), innerCanvasColor.toARGB32());
@@ -201,7 +201,7 @@ void main() {
       final paddingPixel = await _readPixelColor(
         tester,
         shellExport.shellSurfaceImage,
-        x: scale(16),
+        x: scale(12),
         y: scale(28),
       );
       expect(paddingPixel.toARGB32(), innerCanvasColor.toARGB32());

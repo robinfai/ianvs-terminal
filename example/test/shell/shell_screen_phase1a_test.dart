@@ -52,6 +52,10 @@ void main() {
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
     expect(find.byKey(const Key('shell-terminal-surface')), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
+      40,
+    );
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byType(InputChip), findsNothing);
@@ -91,6 +95,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('New Tab'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('shell-empty-state'))).width,
+        greaterThan(200),
+      );
     },
   );
 

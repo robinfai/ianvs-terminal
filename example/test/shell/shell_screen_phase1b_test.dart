@@ -193,5 +193,5 @@ void main() {
         isSelected: true,
       ),
     );
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
 }

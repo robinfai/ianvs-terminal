@@ -232,6 +232,7 @@ void main() {
       expect(find.text('No configured default'), findsOneWidget);
       expect(find.text('Dark'), findsOneWidget);
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
+      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 40);
 
       await tester.ensureVisible(
         find.byKey(const Key('default-profile-option-ssh')),
@@ -450,7 +451,7 @@ void main() {
     expect(fakeBindings.lastCreatedSessionPayload, isNotNull);
     expect(fakeBindings.lastCreatedSessionPayload!['launch'], {
       'program': '/bin/fish',
-      'args': <String>[],
+      'args': <String>['-l'],
       'env': <String, String>{},
       'cwd': null,
     });
@@ -502,8 +503,12 @@ void main() {
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('defaults-save')));
+    await tester.ensureVisible(
+      find.byKey(const Key('default-theme-option-dark')),
+    );
     await tester.tap(find.byKey(const Key('default-theme-option-dark')));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('defaults-save')));
     await tester.tap(find.byKey(const Key('defaults-save')));
     await tester.pumpAndSettle();
 
