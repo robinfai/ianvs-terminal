@@ -107,6 +107,37 @@ void main() {
     expect(modes.alternateScreen, isTrue);
   });
 
+  test('terminal runtime falls back when JSON requests are unsupported', () {
+    final runtimeBackend = _FakePtyBackend()..returnNullJsonRequests = true;
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    expect(runtime.searchText(sessionId, 'demo'), isEmpty);
+    expect(
+      runtime.selectionText(
+        sessionId,
+        const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 4),
+        block: false,
+      ),
+      'demo',
+    );
+    expect(
+      runtimeBackend.jsonRequests.map((request) => request['kind']),
+      <String>['terminal.search_text', 'terminal.selection_text'],
+    );
+  });
+
   testWidgets(
     'terminal runtime controller owns sessions and viewport state without demo imports',
     (tester) async {
@@ -200,6 +231,58 @@ void main() {
       runtime.viewportFor(sessionId).frame.rows.first.text,
       'recovered prompt',
     );
+  });
+
+  test('terminal runtime owns search and selection JSON request shapes', () {
+    final runtimeBackend = _FakePtyBackend()
+      ..searchResponse = const <Map<String, Object?>>[
+        <String, Object?>{
+          'row': 2,
+          'start_col': 4,
+          'end_col': 9,
+          'text': 'ready',
+          'scrollback_offset': 2,
+        },
+      ]
+      ..selectionResponse = 'selected text';
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.jsonRequests.clear();
+
+    final matches = runtime.searchText(sessionId, 'ready');
+    expect(matches.single.text, 'ready');
+    expect(runtimeBackend.jsonRequests.single, <String, Object?>{
+      'kind': 'terminal.search_text',
+      'query': 'ready',
+    });
+
+    final text = runtime.selectionText(
+      sessionId,
+      const TerminalSelection(startRow: 0, startCol: 1, endRow: 0, endCol: 4),
+      block: true,
+    );
+    expect(text, 'selected text');
+    expect(runtimeBackend.jsonRequests.last, <String, Object?>{
+      'kind': 'terminal.selection_text',
+      'selection': <String, Object?>{
+        'start_row': 0,
+        'start_col': 1,
+        'end_row': 0,
+        'end_col': 4,
+      },
+      'block': true,
+    });
   });
 
   testWidgets(
@@ -899,7 +982,8 @@ void main() {
   );
 }
 
-class _FakePtyBackend implements PtySessionBackend {
+class _FakePtyBackend
+    implements PtySessionBackend, PtySessionJsonRequestBackend {
   String? lastCreateSessionJson;
   int takeFrameDiffCalls = 0;
   int pollEventsCalls = 0;
@@ -907,6 +991,10 @@ class _FakePtyBackend implements PtySessionBackend {
   final List<Uint8List> writeCalls = <Uint8List>[];
   final List<List<Object?>> resizeCalls = <List<Object?>>[];
   final List<(String, int)> scrollToCalls = <(String, int)>[];
+  final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
+  List<Map<String, Object?>> searchResponse = const <Map<String, Object?>>[];
+  String selectionResponse = '';
+  bool returnNullJsonRequests = false;
 
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
@@ -1001,10 +1089,20 @@ class _FakePtyBackend implements PtySessionBackend {
   }
 
   @override
-  String? searchTextJson(String sessionId, String query) => '[]';
-
-  @override
-  String? selectionText(String sessionId, String requestJson) => '';
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
+    jsonRequests.add(request);
+    if (returnNullJsonRequests) {
+      return null;
+    }
+    return switch (request['kind']) {
+      'terminal.search_text' => jsonEncode(searchResponse),
+      'terminal.selection_text' => jsonEncode(<String, Object?>{
+        'text': selectionResponse,
+      }),
+      _ => null,
+    };
+  }
 
   @override
   String? takeFrameDiffJson(String sessionId) {

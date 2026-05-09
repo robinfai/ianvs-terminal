@@ -216,12 +216,6 @@ class _FakePtyBackend implements PtySessionBackend {
 
   @override
   void scrollViewportTo(String sessionId, int offset) {}
-
-  @override
-  String? selectionText(String sessionId, String selectionJson) => null;
-
-  @override
-  String searchTextJson(String sessionId, String query) => '[]';
 }
 
 Map<String, Object?> _singleRowSnapshot() {

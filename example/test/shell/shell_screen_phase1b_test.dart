@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/shell/reference_demo.dart';
 import 'package:app/features/shell/shell_screen.dart';
 
@@ -26,7 +27,9 @@ Future<void> pumpShellScreen(
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
-        referenceDemoModeProvider.overrideWithValue(referenceDemoMode),
+        sessionDemoFixtureProvider.overrideWithValue(
+          referenceDemoMode ? referenceDemoFixture : null,
+        ),
       ],
       child: const MaterialApp(home: ShellScreen()),
     ),

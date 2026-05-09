@@ -2209,13 +2209,7 @@ void main() {
               TerminalRow(
                 index: 0,
                 text: '╭─────────────────────────────────────────────╮',
-                styleRuns: [
-                  TerminalStyleRun(
-                    start: 0,
-                    end: 47,
-                    dim: true,
-                  ),
-                ],
+                styleRuns: [TerminalStyleRun(start: 0, end: 47, dim: true)],
               ),
               TerminalRow(
                 index: 1,
@@ -2232,19 +2226,14 @@ void main() {
               TerminalRow(
                 index: 2,
                 text: '│                                             │',
-                styleRuns: [
-                  TerminalStyleRun(start: 0, end: 47, dim: true),
-                ],
+                styleRuns: [TerminalStyleRun(start: 0, end: 47, dim: true)],
               ),
               TerminalRow(
                 index: 3,
                 text: modelRow,
                 styleRuns: [
                   TerminalStyleRun(start: 0, end: 47, dim: true),
-                  TerminalStyleRun(
-                    start: modelValueStart,
-                    end: modelValueEnd,
-                  ),
+                  TerminalStyleRun(start: modelValueStart, end: modelValueEnd),
                   TerminalStyleRun(
                     start: slashModelStart,
                     end: slashModelEnd,
@@ -2266,9 +2255,7 @@ void main() {
               TerminalRow(
                 index: 5,
                 text: '╰─────────────────────────────────────────────╯',
-                styleRuns: [
-                  TerminalStyleRun(start: 0, end: 47, dim: true),
-                ],
+                styleRuns: [TerminalStyleRun(start: 0, end: 47, dim: true)],
               ),
             ],
             cursor: const TerminalCursor(row: 3, col: 0, visible: false),
@@ -2333,12 +2320,14 @@ void main() {
         Future<int> sampleCellCenter(TerminalResolvedCell cell) async {
           final logicalX = cell.placementRect.center.dx;
           final logicalY = cell.placementRect.center.dy;
-          final x = (logicalX * tester.view.devicePixelRatio)
-              .round()
-              .clamp(0, image.width - 1);
-          final y = (logicalY * tester.view.devicePixelRatio)
-              .round()
-              .clamp(0, image.height - 1);
+          final x = (logicalX * tester.view.devicePixelRatio).round().clamp(
+            0,
+            image.width - 1,
+          );
+          final y = (logicalY * tester.view.devicePixelRatio).round().clamp(
+            0,
+            image.height - 1,
+          );
           final byteData = await _runUiAsync(
             tester,
             () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
@@ -3034,10 +3023,7 @@ void main() {
         }
         final imageBytes = imageData.buffer.asUint8List();
 
-        int samplePixel({
-          required double logicalX,
-          required double logicalY,
-        }) {
+        int samplePixel({required double logicalX, required double logicalY}) {
           final x = (logicalX * dpr).round().clamp(0, image.width - 1);
           final y = (logicalY * dpr).round().clamp(0, image.height - 1);
           final pixelOffset = ((y * image.width) + x) * 4;
@@ -3089,12 +3075,24 @@ void main() {
         final topJoinY = cellHeight;
         final bottomJoinY = cellHeight * 2;
 
-        await expectForegroundNear(logicalX: leftJoinX, logicalY: horizontalJoinY);
-        await expectForegroundNear(logicalX: rightJoinX, logicalY: horizontalJoinY);
+        await expectForegroundNear(
+          logicalX: leftJoinX,
+          logicalY: horizontalJoinY,
+        );
+        await expectForegroundNear(
+          logicalX: rightJoinX,
+          logicalY: horizontalJoinY,
+        );
         await expectForegroundNear(logicalX: verticalJoinX, logicalY: topJoinY);
-        await expectForegroundNear(logicalX: verticalJoinX, logicalY: bottomJoinY);
+        await expectForegroundNear(
+          logicalX: verticalJoinX,
+          logicalY: bottomJoinY,
+        );
 
-        expectBackgroundNear(logicalX: cellWidth * 1.5, logicalY: cellHeight * 1.5);
+        expectBackgroundNear(
+          logicalX: cellWidth * 1.5,
+          logicalY: cellHeight * 1.5,
+        );
       } finally {
         image.dispose();
       }
@@ -3187,10 +3185,7 @@ void main() {
         }
         final imageBytes = imageData.buffer.asUint8List();
 
-        int samplePixel({
-          required double logicalX,
-          required double logicalY,
-        }) {
+        int samplePixel({required double logicalX, required double logicalY}) {
           final x = (logicalX * dpr).round().clamp(0, image.width - 1);
           final y = (logicalY * dpr).round().clamp(0, image.height - 1);
           final pixelOffset = ((y * image.width) + x) * 4;
@@ -3208,10 +3203,7 @@ void main() {
         final verticalSeamY = cellHeight * 2;
 
         expect(
-          samplePixel(
-            logicalX: horizontalSeamX,
-            logicalY: topLineY - 1,
-          ),
+          samplePixel(logicalX: horizontalSeamX, logicalY: topLineY - 1),
           backgroundArgb,
         );
         expect(
@@ -3769,7 +3761,7 @@ void main() {
         scrollbackOffset: 0,
         scrollbackMaxOffset: 0,
       ),
-      cursor: const TerminalProfileCursor(shape: TerminalCursorShape.underline),
+      cursor: const TerminalCursorConfig(shape: TerminalCursorShape.underline),
     );
 
     final cursorRect = renderObject.debugCursorRect!;
@@ -3811,7 +3803,7 @@ void main() {
         scrollbackOffset: 0,
         scrollbackMaxOffset: 0,
       ),
-      font: const TerminalProfileFont(size: 18, lineHeight: 1.8),
+      font: const TerminalFontConfig(size: 18, lineHeight: 1.8),
     );
 
     expect(
@@ -4413,8 +4405,8 @@ Future<RenderTerminalViewport> _pumpThemedTerminalViewport(
   required ThemeMode themeMode,
   required TerminalFrameDiff frame,
   TerminalViewportColors? colors,
-  TerminalProfileFont font = const TerminalProfileFont(),
-  TerminalProfileCursor cursor = const TerminalProfileCursor(),
+  TerminalFontConfig font = const TerminalFontConfig(),
+  TerminalCursorConfig cursor = const TerminalCursorConfig(),
 }) async {
   final controller = TerminalViewportController()..updateFrame(frame);
   await _pumpTerminalViewportWithController(
@@ -4433,8 +4425,8 @@ Future<void> _pumpTerminalViewportWithController(
   required TerminalViewportController controller,
   required ThemeMode themeMode,
   TerminalViewportColors? colors,
-  TerminalProfileFont font = const TerminalProfileFont(),
-  TerminalProfileCursor cursor = const TerminalProfileCursor(),
+  TerminalFontConfig font = const TerminalFontConfig(),
+  TerminalCursorConfig cursor = const TerminalCursorConfig(),
 }) async {
   final selectionController = SelectionController();
   final inputController = TerminalInputController(

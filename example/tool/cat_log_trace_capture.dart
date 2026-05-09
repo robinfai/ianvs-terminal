@@ -58,7 +58,7 @@ Future<void> main(List<String> args) async {
       if (rawFrame != null && rawFrame.isNotEmpty) {
         emptyPollsAfterExit = 0;
         final frameJson = (jsonDecode(rawFrame) as Map).cast<String, Object?>();
-        final rawDebugStats = backend.takeFrameDebugStatsJson(sessionId);
+        final rawDebugStats = backend.takeDiagnosticsJson(sessionId, 'frame');
         final debugStats = rawDebugStats == null || rawDebugStats.isEmpty
             ? const <String, Object?>{}
             : (jsonDecode(rawDebugStats) as Map).cast<String, Object?>();
@@ -107,7 +107,10 @@ Future<void> main(List<String> args) async {
       }
     }
   } finally {
-    final rawSessionDebugStats = backend.takeSessionDebugStatsJson(sessionId);
+    final rawSessionDebugStats = backend.takeDiagnosticsJson(
+      sessionId,
+      'session',
+    );
     if (rawSessionDebugStats != null && rawSessionDebugStats.isNotEmpty) {
       sessionDebugStats = (jsonDecode(rawSessionDebugStats) as Map)
           .cast<String, Object?>();

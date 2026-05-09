@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
-import '../profiles/profile_models.dart';
 import 'selection_controller.dart';
 import 'terminal_input_controller.dart';
 
@@ -20,6 +19,15 @@ export 'package:flutterm_terminal/flutterm_terminal.dart'
         terminalScrollbarTrackKey,
         terminalViewportColorFromHex,
         terminalViewportHexFromColor;
+export 'package:flutterm_terminal/flutterm_terminal_debug.dart'
+    show
+        RenderTerminalViewport,
+        TerminalGlyphClass,
+        TerminalGlyphPlacementPolicy,
+        TerminalResolvedBackgroundSpan,
+        TerminalResolvedCell,
+        TerminalResolvedStyle,
+        TerminalRowTextMetrics;
 
 typedef TerminalViewportController = terminal.TerminalViewportController;
 
@@ -40,11 +48,12 @@ class TerminalViewport extends StatelessWidget {
     this.colors,
     this.backgroundColor,
     this.foregroundColor,
-    this.font = const TerminalProfileFont(),
-    this.cursor = const TerminalProfileCursor(),
+    this.font = const terminal.TerminalFontConfig(),
+    this.cursor = const terminal.TerminalCursorConfig(),
     this.copyOnSelect = false,
-    this.optionDragMode = TerminalOptionDragMode.blockSelection,
+    this.optionDragMode = terminal.TerminalOptionDragMode.blockSelection,
     this.focusNode,
+    this.onHostKeyEvent,
     this.onOpenLink,
   });
 
@@ -58,11 +67,12 @@ class TerminalViewport extends StatelessWidget {
   final terminal.TerminalViewportColors? colors;
   final Color? backgroundColor;
   final Color? foregroundColor;
-  final Object font;
-  final Object cursor;
+  final terminal.TerminalFontConfig font;
+  final terminal.TerminalCursorConfig cursor;
   final bool copyOnSelect;
-  final Object optionDragMode;
+  final terminal.TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
+  final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
   final ValueChanged<String>? onOpenLink;
 
   @override
@@ -78,41 +88,13 @@ class TerminalViewport extends StatelessWidget {
       colors: colors,
       backgroundColor: backgroundColor,
       foregroundColor: foregroundColor,
-      font: _resolveFont(font),
-      cursor: _resolveCursor(cursor),
+      font: font,
+      cursor: cursor,
       copyOnSelect: copyOnSelect,
-      optionDragMode: _resolveDragMode(optionDragMode),
+      optionDragMode: optionDragMode,
       focusNode: focusNode,
+      onHostKeyEvent: onHostKeyEvent,
       onOpenLink: onOpenLink,
     );
   }
-}
-
-terminal.TerminalFontConfig _resolveFont(Object font) {
-  return switch (font) {
-    TerminalProfileFont value => value.toTerminalFontConfig(),
-    terminal.TerminalFontConfig value => value,
-    _ => throw FlutterError('Unsupported terminal font type: ${font.runtimeType}'),
-  };
-}
-
-terminal.TerminalCursorConfig _resolveCursor(Object cursor) {
-  return switch (cursor) {
-    TerminalProfileCursor value => value.toTerminalCursorConfig(),
-    terminal.TerminalCursorConfig value => value,
-    _ =>
-      throw FlutterError('Unsupported terminal cursor type: ${cursor.runtimeType}'),
-  };
-}
-
-terminal.TerminalOptionDragMode _resolveDragMode(Object mode) {
-  return switch (mode) {
-    TerminalOptionDragMode.normalSelection =>
-      terminal.TerminalOptionDragMode.normalSelection,
-    TerminalOptionDragMode.blockSelection =>
-      terminal.TerminalOptionDragMode.blockSelection,
-    terminal.TerminalOptionDragMode value => value,
-    _ =>
-      throw FlutterError('Unsupported terminal drag mode type: ${mode.runtimeType}'),
-  };
 }

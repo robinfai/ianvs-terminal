@@ -76,6 +76,7 @@ class TerminalViewport extends StatefulWidget {
     this.copyOnSelect = false,
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.focusNode,
+    this.onHostKeyEvent,
     this.onOpenLink,
   });
 
@@ -94,6 +95,7 @@ class TerminalViewport extends StatefulWidget {
   final bool copyOnSelect;
   final TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
+  final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
   final ValueChanged<String>? onOpenLink;
 
   @override
@@ -1138,6 +1140,10 @@ class _TerminalViewportState extends State<TerminalViewport>
         _awaitingSystemTextCommit = true;
       }
       return KeyEventResult.ignored;
+    }
+    final hostResult = widget.onHostKeyEvent?.call(event);
+    if (hostResult == KeyEventResult.handled) {
+      return KeyEventResult.handled;
     }
     return widget.inputController.handle(event);
   }

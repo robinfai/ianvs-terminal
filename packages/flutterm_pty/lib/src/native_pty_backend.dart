@@ -26,12 +26,9 @@ typedef _ScrollSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Int32);
 typedef _ScrollSessionDart = int Function(int, int);
 typedef _ScrollToSessionNative = ffi.Int32 Function(ffi.Uint64, ffi.Size);
 typedef _ScrollToSessionDart = int Function(int, int);
-typedef _SearchSessionNative =
+typedef _RequestSessionNative =
     ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>);
-typedef _SearchSessionDart = ffi.Pointer<Utf8> Function(int, ffi.Pointer<Utf8>);
-typedef _SelectionTextSessionNative =
-    ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>);
-typedef _SelectionTextSessionDart =
+typedef _RequestSessionDart =
     ffi.Pointer<Utf8> Function(int, ffi.Pointer<Utf8>);
 typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
@@ -44,6 +41,19 @@ _StringReturningDart? _lookupOptionalStringReturning(
 ) {
   try {
     return library.lookupFunction<_StringReturningNative, _StringReturningDart>(
+      symbolName,
+    );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_RequestSessionDart? _lookupOptionalRequestSession(
+  ffi.DynamicLibrary library,
+  String symbolName,
+) {
+  try {
+    return library.lookupFunction<_RequestSessionNative, _RequestSessionDart>(
       symbolName,
     );
   } on ArgumentError {
@@ -81,18 +91,13 @@ abstract class PtyBindings {
   int sessionWrite(int sessionId, List<int> bytes);
   int sessionScroll(int sessionId, int deltaLines);
   int sessionScrollTo(int sessionId, int offset);
-  String? sessionSearchJson(int sessionId, String query);
-  String? sessionSelectionText(int sessionId, String requestJson);
+  String? sessionRequestJson(int sessionId, String requestJson);
+  String? sessionDiagnosticsJson(int sessionId, String kind);
   String? sessionTakeFrameDiffJson(int sessionId);
   List<PtyEvent> sessionPollEvents(int sessionId);
 }
 
-abstract class PtyDebugBindings {
-  String? sessionTakeFrameDebugStatsJson(int sessionId);
-  String? sessionTakeSessionDebugStatsJson(int sessionId);
-}
-
-class NativePtyBindings implements PtyBindings, PtyDebugBindings {
+class NativePtyBindings implements PtyBindings {
   NativePtyBindings(ffi.DynamicLibrary library)
     : _ping = library.lookupFunction<_PingNative, _PingDart>('flutterm_ping'),
       _createSession = library
@@ -119,15 +124,10 @@ class NativePtyBindings implements PtyBindings, PtyDebugBindings {
           .lookupFunction<_ScrollToSessionNative, _ScrollToSessionDart>(
             'flutterm_session_scroll_to',
           ),
-      _searchSession = library
-          .lookupFunction<_SearchSessionNative, _SearchSessionDart>(
-            'flutterm_session_search_json',
-          ),
-      _selectionTextSession = library
-          .lookupFunction<
-            _SelectionTextSessionNative,
-            _SelectionTextSessionDart
-          >('flutterm_session_selection_text'),
+      _requestSessionJson = _lookupOptionalRequestSession(
+        library,
+        'flutterm_session_request_json',
+      ),
       _takeFrameDiffJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'flutterm_session_take_frame_diff_json',
@@ -155,8 +155,7 @@ class NativePtyBindings implements PtyBindings, PtyDebugBindings {
   final _WriteSessionDart _writeSession;
   final _ScrollSessionDart _scrollSession;
   final _ScrollToSessionDart _scrollToSession;
-  final _SearchSessionDart _searchSession;
-  final _SelectionTextSessionDart _selectionTextSession;
+  final _RequestSessionDart? _requestSessionJson;
   final _StringReturningDart _takeFrameDiffJson;
   final _StringReturningDart? _takeFrameDebugStatsJson;
   final _StringReturningDart? _takeSessionDebugStatsJson;
@@ -214,29 +213,15 @@ class NativePtyBindings implements PtyBindings, PtyDebugBindings {
       _scrollToSession(sessionId, offset);
 
   @override
-  String? sessionSearchJson(int sessionId, String query) {
-    final queryPointer = query.toNativeUtf8();
-    ffi.Pointer<Utf8> resultPointer = ffi.nullptr;
-    try {
-      resultPointer = _searchSession(sessionId, queryPointer);
-      if (resultPointer == ffi.nullptr) {
-        return null;
-      }
-      return resultPointer.toDartString();
-    } finally {
-      malloc.free(queryPointer);
-      if (resultPointer != ffi.nullptr) {
-        _stringFree(resultPointer);
-      }
+  String? sessionRequestJson(int sessionId, String requestJson) {
+    final requestSessionJson = _requestSessionJson;
+    if (requestSessionJson == null) {
+      return null;
     }
-  }
-
-  @override
-  String? sessionSelectionText(int sessionId, String requestJson) {
     final requestPointer = requestJson.toNativeUtf8();
     ffi.Pointer<Utf8> resultPointer = ffi.nullptr;
     try {
-      resultPointer = _selectionTextSession(sessionId, requestPointer);
+      resultPointer = requestSessionJson(sessionId, requestPointer);
       if (resultPointer == ffi.nullptr) {
         return null;
       }
@@ -251,41 +236,24 @@ class NativePtyBindings implements PtyBindings, PtyDebugBindings {
 
   @override
   String? sessionTakeFrameDiffJson(int sessionId) {
-    final resultPointer = _takeFrameDiffJson(sessionId);
-    if (resultPointer == ffi.nullptr) {
-      return null;
-    }
-    try {
-      return resultPointer.toDartString();
-    } finally {
-      _stringFree(resultPointer);
-    }
+    return _callStringReturning(_takeFrameDiffJson, sessionId);
   }
 
   @override
-  String? sessionTakeFrameDebugStatsJson(int sessionId) {
-    final takeFrameDebugStatsJson = _takeFrameDebugStatsJson;
-    if (takeFrameDebugStatsJson == null) {
+  String? sessionDiagnosticsJson(int sessionId, String kind) {
+    final binding = switch (kind) {
+      'frame' => _takeFrameDebugStatsJson,
+      'session' => _takeSessionDebugStatsJson,
+      _ => null,
+    };
+    if (binding == null) {
       return null;
     }
-    final resultPointer = takeFrameDebugStatsJson(sessionId);
-    if (resultPointer == ffi.nullptr) {
-      return null;
-    }
-    try {
-      return resultPointer.toDartString();
-    } finally {
-      _stringFree(resultPointer);
-    }
+    return _callStringReturning(binding, sessionId);
   }
 
-  @override
-  String? sessionTakeSessionDebugStatsJson(int sessionId) {
-    final takeSessionDebugStatsJson = _takeSessionDebugStatsJson;
-    if (takeSessionDebugStatsJson == null) {
-      return null;
-    }
-    final resultPointer = takeSessionDebugStatsJson(sessionId);
+  String? _callStringReturning(_StringReturningDart binding, int sessionId) {
+    final resultPointer = binding(sessionId);
     if (resultPointer == ffi.nullptr) {
       return null;
     }
@@ -331,38 +299,23 @@ abstract class PtySessionBackend {
   void writeInput(String sessionId, List<int> bytes);
   void scrollViewport(String sessionId, int deltaLines);
   void scrollViewportTo(String sessionId, int offset);
-  String? searchTextJson(String sessionId, String query);
-  String? selectionText(String sessionId, String requestJson);
   String? takeFrameDiffJson(String sessionId);
   List<PtyEvent> pollEvents(String sessionId);
 }
 
-abstract class PtySessionDebugBackend {
-  String? takeFrameDebugStatsJson(String sessionId);
-  String? takeSessionDebugStatsJson(String sessionId);
+abstract class PtySessionJsonRequestBackend {
+  String? requestSessionJson(String sessionId, String requestJson);
 }
 
-extension PtySessionBackendDebugExtension on PtySessionBackend {
-  String? takeFrameDebugStatsJson(String sessionId) {
-    final backend = this;
-    if (backend is PtySessionDebugBackend) {
-      final debugBackend = backend as PtySessionDebugBackend;
-      return debugBackend.takeFrameDebugStatsJson(sessionId);
-    }
-    return null;
-  }
-
-  String? takeSessionDebugStatsJson(String sessionId) {
-    final backend = this;
-    if (backend is PtySessionDebugBackend) {
-      final debugBackend = backend as PtySessionDebugBackend;
-      return debugBackend.takeSessionDebugStatsJson(sessionId);
-    }
-    return null;
-  }
+abstract class PtySessionDiagnosticsBackend {
+  String? takeDiagnosticsJson(String sessionId, String kind);
 }
 
-class NativePtyBackend implements PtySessionBackend, PtySessionDebugBackend {
+class NativePtyBackend
+    implements
+        PtySessionBackend,
+        PtySessionJsonRequestBackend,
+        PtySessionDiagnosticsBackend {
   NativePtyBackend(this._bindings);
 
   final PtyBindings _bindings;
@@ -422,13 +375,8 @@ class NativePtyBackend implements PtySessionBackend, PtySessionDebugBackend {
   }
 
   @override
-  String? searchTextJson(String sessionId, String query) {
-    return _bindings.sessionSearchJson(int.parse(sessionId), query);
-  }
-
-  @override
-  String? selectionText(String sessionId, String requestJson) {
-    return _bindings.sessionSelectionText(int.parse(sessionId), requestJson);
+  String? requestSessionJson(String sessionId, String requestJson) {
+    return _bindings.sessionRequestJson(int.parse(sessionId), requestJson);
   }
 
   @override
@@ -437,25 +385,8 @@ class NativePtyBackend implements PtySessionBackend, PtySessionDebugBackend {
   }
 
   @override
-  String? takeFrameDebugStatsJson(String sessionId) {
-    final bindings = _bindings;
-    if (bindings is PtyDebugBindings) {
-      final debugBindings = bindings as PtyDebugBindings;
-      return debugBindings.sessionTakeFrameDebugStatsJson(int.parse(sessionId));
-    }
-    return null;
-  }
-
-  @override
-  String? takeSessionDebugStatsJson(String sessionId) {
-    final bindings = _bindings;
-    if (bindings is PtyDebugBindings) {
-      final debugBindings = bindings as PtyDebugBindings;
-      return debugBindings.sessionTakeSessionDebugStatsJson(
-        int.parse(sessionId),
-      );
-    }
-    return null;
+  String? takeDiagnosticsJson(String sessionId, String kind) {
+    return _bindings.sessionDiagnosticsJson(int.parse(sessionId), kind);
   }
 
   @override

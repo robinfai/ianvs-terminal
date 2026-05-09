@@ -23,8 +23,9 @@ void main() {
     backend.scrollViewport('1', 3);
     backend.scrollViewportTo('1', 4);
     expect(backend.takeFrameDiffJson('1'), '{"rows":[]}');
-    expect(backend.takeFrameDebugStatsJson('1'), isNull);
-    expect(backend.takeSessionDebugStatsJson('1'), isNull);
+    final diagnosticsBackend = backend as PtySessionDiagnosticsBackend;
+    expect(diagnosticsBackend.takeDiagnosticsJson('1', 'frame'), isNull);
+    expect(diagnosticsBackend.takeDiagnosticsJson('1', 'session'), isNull);
     expect(backend.pollEvents('1'), isEmpty);
     backend.closeSession('1');
   });
@@ -36,8 +37,36 @@ void main() {
         _NoopDebugPtyBindings(),
       );
 
-      expect(backend.takeFrameDebugStatsJson('1'), '{"rows_scanned":2}');
-      expect(backend.takeSessionDebugStatsJson('1'), '{"bytes_read":4}');
+      final diagnosticsBackend = backend as PtySessionDiagnosticsBackend;
+      expect(
+        diagnosticsBackend.takeDiagnosticsJson('1', 'frame'),
+        '{"rows_scanned":2}',
+      );
+      expect(
+        diagnosticsBackend.takeDiagnosticsJson('1', 'session'),
+        '{"bytes_read":4}',
+      );
+    },
+  );
+
+  test(
+    'native pty backend forwards generic JSON requests through bindings',
+    () {
+      final bindings = _RequestRecordingPtyBindings();
+      final backend = NativePtyBackend.fromBindings(bindings);
+
+      final requestBackend = backend as PtySessionJsonRequestBackend;
+      final response = requestBackend.requestSessionJson(
+        '7',
+        '{"kind":"opaque.echo","payload":"hello"}',
+      );
+
+      expect(response, '{"ok":true}');
+      expect(bindings.lastSessionId, 7);
+      expect(
+        bindings.lastRequestJson,
+        '{"kind":"opaque.echo","payload":"hello"}',
+      );
     },
   );
 
@@ -109,10 +138,10 @@ class _NoopPtyBindings implements PtyBindings {
   int sessionScrollTo(int sessionId, int offset) => 0;
 
   @override
-  String? sessionSearchJson(int sessionId, String query) => '[]';
+  String? sessionRequestJson(int sessionId, String requestJson) => null;
 
   @override
-  String? sessionSelectionText(int sessionId, String requestJson) => '';
+  String? sessionDiagnosticsJson(int sessionId, String kind) => null;
 
   @override
   String? sessionTakeFrameDiffJson(int sessionId) => '{"rows":[]}';
@@ -121,11 +150,25 @@ class _NoopPtyBindings implements PtyBindings {
   List<PtyEvent> sessionPollEvents(int sessionId) => const [];
 }
 
-class _NoopDebugPtyBindings extends _NoopPtyBindings
-    implements PtyDebugBindings {
+class _NoopDebugPtyBindings extends _NoopPtyBindings {
   @override
-  String? sessionTakeFrameDebugStatsJson(int sessionId) => '{"rows_scanned":2}';
+  String? sessionDiagnosticsJson(int sessionId, String kind) {
+    return switch (kind) {
+      'frame' => '{"rows_scanned":2}',
+      'session' => '{"bytes_read":4}',
+      _ => null,
+    };
+  }
+}
+
+class _RequestRecordingPtyBindings extends _NoopPtyBindings {
+  int? lastSessionId;
+  String? lastRequestJson;
 
   @override
-  String? sessionTakeSessionDebugStatsJson(int sessionId) => '{"bytes_read":4}';
+  String? sessionRequestJson(int sessionId, String requestJson) {
+    lastSessionId = sessionId;
+    lastRequestJson = requestJson;
+    return '{"ok":true}';
+  }
 }

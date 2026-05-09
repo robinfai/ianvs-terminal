@@ -11,5 +11,7 @@ export 'package:flutterm_terminal/flutterm_terminal.dart'
         TerminalFrameDiff,
         TerminalCellPosition,
         TerminalTextCell,
-        TerminalTextCells,
-        TerminalRowTextMetrics;
+        TerminalTextCells;
+
+export 'package:flutterm_terminal/flutterm_terminal_debug.dart'
+    show TerminalRowTextMetrics;

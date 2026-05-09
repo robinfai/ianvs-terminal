@@ -187,14 +187,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   String get _workspaceCueTitle => 'Back in shell';
 
-  _ShellShortcut? _shortcutActionFor(KeyDownEvent event) {
+  _ShellShortcut? _shortcutActionFor(KeyEvent event) {
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;
     final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
-    final usesAppModifier =
-        _usesMetaShortcuts
-            ? isMetaPressed && !isControlPressed
-            : isControlPressed && !isMetaPressed;
+    final usesMetaShortcuts =
+        _usesMetaShortcuts || ref.read(referenceDemoModeProvider);
+    final usesAppModifier = usesMetaShortcuts
+        ? isMetaPressed && !isControlPressed
+        : isControlPressed && !isMetaPressed;
 
     if (usesAppModifier && !isShiftPressed) {
       final platformAction = switch (event.logicalKey) {
@@ -988,67 +989,76 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       activeProfile,
     );
 
+    KeyEventResult handleShellShortcut(KeyEvent event) {
+      if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+        return KeyEventResult.ignored;
+      }
+      final shortcut = _shortcutActionFor(event);
+      if (shortcut == null) {
+        return KeyEventResult.ignored;
+      }
+
+      if (shortcut.action == _ShellShortcutAction.requestQuitConfirmation) {
+        if (event is KeyRepeatEvent) {
+          return KeyEventResult.handled;
+        }
+        unawaited(WindowBridge.requestQuitConfirmation());
+        return KeyEventResult.handled;
+      }
+
+      if (_isCommandMenuOpen || _isDefaultsOpen || _isProfilesOpen) {
+        return KeyEventResult.handled;
+      }
+
+      if (event is KeyRepeatEvent) {
+        return KeyEventResult.handled;
+      }
+
+      switch (shortcut.action) {
+        case _ShellShortcutAction.openLauncher:
+          unawaited(_openCommandMenu(sessionController, sessionState));
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.newTab:
+          if (defaultProfile == null) {
+            return KeyEventResult.handled;
+          }
+          _createSession(
+            sessionController,
+            defaultProfile,
+            returningToWorkspace: activeSessionId == null,
+          );
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.closeActiveTab:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _closeSession(sessionController, sessionState, activeSessionId);
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.openDefaults:
+          unawaited(
+            _openDefaultsAndAppearance(sessionController, sessionState),
+          );
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.requestQuitConfirmation:
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.activateTab:
+          final tabIndex = shortcut.tabIndex;
+          if (tabIndex == null || tabIndex >= sessionState.tabs.length) {
+            return KeyEventResult.handled;
+          }
+          final tab = sessionState.tabs[tabIndex];
+          if (tab.sessionId == activeSessionId) {
+            _focusSession(tab.sessionId);
+            return KeyEventResult.handled;
+          }
+          _activateSession(sessionController, tab.sessionId);
+          return KeyEventResult.handled;
+      }
+    }
+
     return Focus(
       canRequestFocus: false,
-      onKeyEvent: (_, event) {
-        if (event is! KeyDownEvent) {
-          return KeyEventResult.ignored;
-        }
-        final shortcut = _shortcutActionFor(event);
-        if (shortcut == null) {
-          return KeyEventResult.ignored;
-        }
-
-        if (shortcut.action == _ShellShortcutAction.requestQuitConfirmation) {
-          unawaited(WindowBridge.requestQuitConfirmation());
-          return KeyEventResult.handled;
-        }
-
-        if (_isCommandMenuOpen || _isDefaultsOpen || _isProfilesOpen) {
-          return KeyEventResult.handled;
-        }
-
-        switch (shortcut.action) {
-          case _ShellShortcutAction.openLauncher:
-            unawaited(_openCommandMenu(sessionController, sessionState));
-            return KeyEventResult.handled;
-          case _ShellShortcutAction.newTab:
-            if (defaultProfile == null) {
-              return KeyEventResult.handled;
-            }
-            _createSession(
-              sessionController,
-              defaultProfile,
-              returningToWorkspace: activeSessionId == null,
-            );
-            return KeyEventResult.handled;
-          case _ShellShortcutAction.closeActiveTab:
-            if (activeSessionId == null) {
-              return KeyEventResult.handled;
-            }
-            _closeSession(sessionController, sessionState, activeSessionId);
-            return KeyEventResult.handled;
-          case _ShellShortcutAction.openDefaults:
-            unawaited(
-              _openDefaultsAndAppearance(sessionController, sessionState),
-            );
-            return KeyEventResult.handled;
-          case _ShellShortcutAction.requestQuitConfirmation:
-            return KeyEventResult.handled;
-          case _ShellShortcutAction.activateTab:
-            final tabIndex = shortcut.tabIndex;
-            if (tabIndex == null || tabIndex >= sessionState.tabs.length) {
-              return KeyEventResult.handled;
-            }
-            final tab = sessionState.tabs[tabIndex];
-            if (tab.sessionId == activeSessionId) {
-              _focusSession(tab.sessionId);
-              return KeyEventResult.handled;
-            }
-            _activateSession(sessionController, tab.sessionId);
-            return KeyEventResult.handled;
-        }
-      },
+      onKeyEvent: (_, event) => handleShellShortcut(event),
       child: Scaffold(
         backgroundColor: palette.background,
         body: ColoredBox(
@@ -1213,6 +1223,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                               terminal
                                                   .TerminalOptionDragMode
                                                   .blockSelection,
+                                          onHostKeyEvent: handleShellShortcut,
                                           onScrollLines: (delta) {
                                             ref
                                                 .read(

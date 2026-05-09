@@ -653,7 +653,7 @@ void main() {
                 controller: viewportController,
                 selectionController: SelectionController(),
                 inputController: inputController,
-                cursor: const TerminalProfileCursor(
+                cursor: const TerminalCursorConfig(
                   shape: TerminalCursorShape.underline,
                   blink: false,
                 ),

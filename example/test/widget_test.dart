@@ -221,73 +221,121 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('command-shift-p opens the command menu without leaking input', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  testWidgets(
+    'command-shift-p opens the command menu without leaking input',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
 
-    await tester.sendKeyDownEvent(
-      LogicalKeyboardKey.metaLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyDownEvent(
-      LogicalKeyboardKey.shiftLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyP, platform: 'macos');
-    await tester.pumpAndSettle();
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyP, platform: 'macos');
-    await tester.sendKeyUpEvent(
-      LogicalKeyboardKey.shiftLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
-    await tester.pump();
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyP, platform: 'macos');
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyP, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
 
-    expect(find.text('Top actions'), findsOneWidget);
-    expect(fakeBindings.writes, isEmpty);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+      expect(find.text('Top actions'), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-  testWidgets('command-t opens another tab without opening the command menu', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  testWidgets(
+    'command-t opens another tab without opening the command menu',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
 
-    await tester.sendKeyDownEvent(
-      LogicalKeyboardKey.metaLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyT, platform: 'macos');
-    await tester.pumpAndSettle();
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyT, platform: 'macos');
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
-    await tester.pump();
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyT, platform: 'macos');
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyT, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
 
-    expect(find.text('Top actions'), findsNothing);
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
-    expect(fakeBindings.writes, isEmpty);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+      expect(find.text('Top actions'), findsNothing);
+      expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'repeated command-t is swallowed by the shell shortcut handler',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyT, platform: 'macos');
+      await tester.pumpAndSettle();
+      await tester.sendKeyRepeatEvent(
+        LogicalKeyboardKey.keyT,
+        platform: 'macos',
+      );
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyT, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-3'), findsNothing);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets(
     'control-t on macOS stays in terminal input instead of opening a new tab',
@@ -348,125 +396,133 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.linux),
   );
 
-  testWidgets('command-number activates the matching tab without input leak', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  testWidgets(
+    'command-number activates the matching tab without input leak',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _openCommandMenu(tester);
-    await tester.tap(find.text('New tab'));
-    await tester.pumpAndSettle();
-    _expectSelectedTab(tester, '2');
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('New tab'));
+      await tester.pumpAndSettle();
+      _expectSelectedTab(tester, '2');
 
-    await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
 
-    _expectSelectedTab(tester, '1');
-    expect(fakeBindings.writes, isEmpty);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+      _expectSelectedTab(tester, '1');
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-  testWidgets('command-q requests quit confirmation without leaking input', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final windowBridgeCalls = <MethodCall>[];
-    const channel = MethodChannel('app/window_bridge');
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
-      call,
-    ) async {
-      windowBridgeCalls.add(call);
-      return null;
-    });
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        channel,
-        null,
-      ),
-    );
+  testWidgets(
+    'command-q requests quit confirmation without leaking input',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final windowBridgeCalls = <MethodCall>[];
+      const channel = MethodChannel('app/window_bridge');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        windowBridgeCalls.add(call);
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
 
-    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyQ);
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyQ);
 
-    expect(
-      windowBridgeCalls.map((call) => call.method),
-      contains('requestQuitConfirmation'),
-    );
-    expect(fakeBindings.writes, isEmpty);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+      expect(
+        windowBridgeCalls.map((call) => call.method),
+        contains('requestQuitConfirmation'),
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-  testWidgets('command-w closes the active tab without leaking input', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  testWidgets(
+    'command-w closes the active tab without leaking input',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
 
-    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
 
-    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
-    expect(find.byType(TerminalViewport), findsNothing);
-    expect(fakeBindings.writes, isEmpty);
-  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+      expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+      expect(find.byType(TerminalViewport), findsNothing);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-  testWidgets('command-comma opens defaults and returns keyboard to terminal', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  testWidgets(
+    'command-comma opens defaults and returns keyboard to terminal',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
 
-    await _sendMetaShortcut(tester, LogicalKeyboardKey.comma);
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.comma);
 
-    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
-    expect(fakeBindings.writes, isEmpty);
+      expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
 
-    await tester.tap(find.byTooltip('Close defaults'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Close defaults'));
+      await tester.pumpAndSettle();
 
-    await _sendControlShortcut(
-      tester,
-      LogicalKeyboardKey.keyT,
-      platform: 'macos',
-    );
+      await _sendControlShortcut(
+        tester,
+        LogicalKeyboardKey.keyT,
+        platform: 'macos',
+      );
 
-    expect(fakeBindings.writes, isNotEmpty);
-    expect(fakeBindings.writes.last, equals(const [0x14]));
-  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, equals(const [0x14]));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets('closing the last tab can recover from the empty state', (
     tester,

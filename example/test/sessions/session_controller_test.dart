@@ -1,15 +1,17 @@
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
 
 import '../support/fake_pty_backend.dart';
@@ -62,7 +64,8 @@ class _TestAppPreferencesRepository extends AppPreferencesRepository {
   }
 }
 
-class _EventfulPtyBackend implements PtySessionBackend {
+class _EventfulPtyBackend
+    implements PtySessionBackend, PtySessionJsonRequestBackend {
   _EventfulPtyBackend(this._delegate);
 
   final FakePtyBackend _delegate;
@@ -124,16 +127,12 @@ class _EventfulPtyBackend implements PtySessionBackend {
       _delegate.scrollViewportTo(sessionId, offset);
 
   @override
-  String? searchTextJson(String sessionId, String query) =>
-      _delegate.searchTextJson(sessionId, query);
-
-  @override
   void writeInput(String sessionId, List<int> bytes) =>
       _delegate.writeInput(sessionId, bytes);
 
   @override
-  String? selectionText(String sessionId, String requestJson) =>
-      _delegate.selectionText(sessionId, requestJson);
+  String? requestSessionJson(String sessionId, String requestJson) =>
+      _delegate.requestSessionJson(sessionId, requestJson);
 
   @override
   String? takeFrameDiffJson(String sessionId) =>
@@ -224,12 +223,12 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const defaultProfile = TerminalProfile(
+  final defaultProfile = TerminalProfile(
     id: 'default',
     name: 'Local Shell',
     shell: '/bin/zsh',
   );
-  const sshProfile = TerminalProfile(
+  final sshProfile = TerminalProfile(
     id: 'ssh',
     name: 'SSH',
     shell: '/usr/bin/ssh',
@@ -242,7 +241,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -286,7 +285,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -333,7 +332,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -404,7 +403,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -440,9 +439,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: []),
-            ),
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -484,7 +481,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -532,7 +529,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -575,26 +572,22 @@ void main() {
     () async {
       final bindings = _EventfulPtyBackend(FakePtyBackend());
       final coreClient = bindings;
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const channel = MethodChannel('app/window_bridge');
-      MethodCall? resizeCall;
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        if (call.method == 'resizeBy') {
-          resizeCall = call;
-        }
-        return null;
-      });
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      double? windowWidthDelta;
+      double? windowHeightDelta;
 
       final container = ProviderContainer(
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionWindowResizeProvider.overrideWithValue(({
+            required heightDelta,
+            required widthDelta,
+          }) async {
+            windowWidthDelta = widthDelta;
+            windowHeightDelta = heightDelta;
+          }),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: []),
-            ),
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -628,9 +621,8 @@ void main() {
         900,
         540,
       ]);
-      expect(resizeCall, isNotNull);
-      expect((resizeCall!.arguments as Map)['widthDelta'], 260.0);
-      expect((resizeCall!.arguments as Map)['heightDelta'], 60.0);
+      expect(windowWidthDelta, 260.0);
+      expect(windowHeightDelta, 60.0);
     },
   );
 
@@ -639,26 +631,22 @@ void main() {
     () async {
       final bindings = _EventfulPtyBackend(FakePtyBackend());
       final coreClient = bindings;
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      MethodCall? resizeCall;
-      const channel = MethodChannel('app/window_bridge');
-      messenger.setMockMethodCallHandler(channel, (call) async {
-        if (call.method == 'resizeBy') {
-          resizeCall = call;
-        }
-        return null;
-      });
-      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      double? windowWidthDelta;
+      double? windowHeightDelta;
 
       final container = ProviderContainer(
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionWindowResizeProvider.overrideWithValue(({
+            required heightDelta,
+            required widthDelta,
+          }) async {
+            windowWidthDelta = widthDelta;
+            windowHeightDelta = heightDelta;
+          }),
           sessionControllerProvider.overrideWith(_TestSessionController.new),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: []),
-            ),
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -695,37 +683,25 @@ void main() {
         1000,
         600,
       ]);
-      expect(resizeCall, isNotNull);
-      expect((resizeCall!.arguments as Map)['widthDelta'], 360.0);
-      expect((resizeCall!.arguments as Map)['heightDelta'], 120.0);
+      expect(windowWidthDelta, 360.0);
+      expect(windowHeightDelta, 120.0);
     },
   );
 
   test('OSC 52 copy events decode UTF-8 clipboard text', () async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
     final coreClient = bindings;
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     String copied = '';
-    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData') {
-        copied = (call.arguments as Map)['text'] as String;
-      }
-      if (call.method == 'Clipboard.getData') {
-        return <String, dynamic>{'text': ''};
-      }
-      return null;
-    });
-    addTearDown(
-      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
-    );
 
     final container = ProviderContainer(
       overrides: [
         ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionClipboardCopyProvider.overrideWithValue((text) async {
+          copied = text;
+        }),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -759,24 +735,14 @@ void main() {
     final fakeBindings = FakePtyBackend();
     final bindings = _EventfulPtyBackend(fakeBindings);
     final coreClient = bindings;
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.getData') {
-        return <String, dynamic>{'text': '你好, 世界🌟'};
-      }
-      return null;
-    });
-    addTearDown(
-      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
-    );
 
     final container = ProviderContainer(
       overrides: [
         ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionClipboardPasteProvider.overrideWithValue(() async => '你好, 世界🌟'),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
-          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
@@ -812,7 +778,7 @@ void main() {
     () async {
       final coreClient = FakePtyBackend();
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(
         const TerminalAppPreferencesDocument(
@@ -920,7 +886,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(coreClient),
         profileRepositoryProvider.overrideWithValue(
           _TestProfileRepository(
-            const TerminalProfilesDocument(profiles: [defaultProfile]),
+            TerminalProfilesDocument(profiles: [defaultProfile]),
           ),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
@@ -959,7 +925,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: [defaultProfile]),
+              TerminalProfilesDocument(profiles: [defaultProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -1002,7 +968,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: [defaultProfile]),
+              TerminalProfilesDocument(profiles: [defaultProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -1032,7 +998,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: [defaultProfile]),
+              TerminalProfilesDocument(profiles: [defaultProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -1070,7 +1036,7 @@ void main() {
   test('bootstrap prefers app defaults over legacy profile defaults', () async {
     final coreClient = FakePtyBackend();
     final profileRepository = _TestProfileRepository(
-      const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+      TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
     );
     final container = ProviderContainer(
       overrides: [
@@ -1101,7 +1067,7 @@ void main() {
       final coreClient = FakePtyBackend();
       final profileRepository = _TestProfileRepository(
         TerminalProfilesDocument(
-          profiles: const [defaultProfile, sshProfile],
+          profiles: [defaultProfile, sshProfile],
           loadWarnings: const [
             TerminalProfileLoadWarning(
               profileId: 'ssh',
@@ -1136,7 +1102,7 @@ void main() {
         sshProfile.copyWith(
           scrollbackLines: 4096,
           appearance: sshProfile.appearance.copyWith(
-            colors: const TerminalProfileColors(foreground: '#112233'),
+            colors: const terminal.TerminalColorPalette(foreground: '#112233'),
           ),
         ),
       );
@@ -1152,7 +1118,7 @@ void main() {
     () async {
       final coreClient = FakePtyBackend();
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -1190,9 +1156,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                profiles: [defaultProfile, sshProfile],
-              ),
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -1221,7 +1185,7 @@ void main() {
     () async {
       final coreClient = FakePtyBackend();
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -1255,7 +1219,7 @@ void main() {
     () async {
       final coreClient = FakePtyBackend();
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -1302,9 +1266,7 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: []),
-            ),
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -1355,9 +1317,7 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: []),
-            ),
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -1403,9 +1363,7 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: []),
-            ),
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),

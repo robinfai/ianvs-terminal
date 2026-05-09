@@ -9,10 +9,7 @@ import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
-import '../shell/reference_demo.dart';
-import '../shell/shell_acceptance.dart';
-import '../shell/window_bridge.dart';
-import '../terminal/clipboard_bridge.dart';
+import 'session_ports.dart';
 import 'session_state.dart';
 
 final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
@@ -24,17 +21,9 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
 ) {
   final controller = TerminalRuntimeController(
     backend: ref.read(ptySessionBackendProvider),
-    copyToClipboard: ClipboardBridge.copy,
-    readClipboard: ClipboardBridge.paste,
-    resizeWindowBy: ({
-      required double widthDelta,
-      required double heightDelta,
-    }) {
-      return WindowBridge.resizeBy(
-        widthDelta: widthDelta,
-        heightDelta: heightDelta,
-      );
-    },
+    copyToClipboard: ref.read(sessionClipboardCopyProvider),
+    readClipboard: ref.read(sessionClipboardPasteProvider),
+    resizeWindowBy: ref.read(sessionWindowResizeProvider),
     enableSessionPolling: ref.read(sessionPollingEnabledProvider),
     enableWarmUpRefresh: ref.read(driverWarmUpRefreshEnabledProvider),
   );
@@ -64,7 +53,7 @@ final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 
 class SessionController extends Notifier<SessionState> {
-  final Map<String, TerminalViewportController> _referenceDemoViewports =
+  final Map<String, TerminalViewportController> _demoViewports =
       <String, TerminalViewportController>{};
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
@@ -77,12 +66,26 @@ class SessionController extends Notifier<SessionState> {
   TerminalRuntimeController get _runtime =>
       ref.read(terminalRuntimeControllerProvider);
 
+  void _setWindowTitle(String title) {
+    unawaited(ref.read(sessionWindowTitleWriterProvider)(title));
+  }
+
+  void _publishTerminalContent({
+    required bool terminalHasVisibleContent,
+    required String? terminalPreview,
+  }) {
+    ref.read(sessionTerminalContentPublisherProvider)(
+      terminalHasVisibleContent: terminalHasVisibleContent,
+      terminalPreview: terminalPreview,
+    );
+  }
+
   @override
   SessionState build() {
     Future.microtask(_bootstrap);
     ref.onDispose(() {
       _runtimeEventsSubscription?.cancel();
-      for (final controller in _referenceDemoViewports.values) {
+      for (final controller in _demoViewports.values) {
         controller.dispose();
       }
     });
@@ -90,34 +93,48 @@ class SessionController extends Notifier<SessionState> {
   }
 
   TerminalViewportController viewportFor(String sessionId) {
-    if (ref.read(referenceDemoModeProvider)) {
-      return _referenceDemoViewports.putIfAbsent(
-        sessionId,
-        TerminalViewportController.new,
-      );
+    final demoFixture = ref.read(sessionDemoFixtureProvider);
+    if (demoFixture != null) {
+      return _demoViewportFor(sessionId, demoFixture);
     }
     return _runtime.viewportFor(sessionId);
   }
 
+  TerminalViewportController _demoViewportFor(
+    String sessionId,
+    SessionDemoFixture fixture,
+  ) {
+    return _demoViewports.putIfAbsent(sessionId, () {
+      final controller = TerminalViewportController();
+      final frame = fixture.frameFor(sessionId);
+      if (frame != null) {
+        controller.updateFrame(frame);
+      }
+      return controller;
+    });
+  }
+
   Future<void> _bootstrap() async {
-    if (ref.read(referenceDemoModeProvider)) {
-      for (final tab in referenceDemoTabs) {
-        _referenceDemoViewports
+    final demoFixture = ref.read(sessionDemoFixtureProvider);
+    if (demoFixture != null) {
+      for (final tab in demoFixture.tabs) {
+        final frame = demoFixture.frameFor(tab.sessionId);
+        if (frame == null) {
+          continue;
+        }
+        _demoViewports
             .putIfAbsent(tab.sessionId, TerminalViewportController.new)
-            .updateFrame(referenceDemoFrame);
+            .updateFrame(frame);
       }
       state = state.copyWith(
-        profiles: <TerminalProfile>[defaultTerminalProfile()],
-        tabs: referenceDemoTabs,
-        activeSessionId: referenceDemoActiveSessionId,
-        defaultProfileId: defaultTerminalProfile().id,
-        themeMode: TerminalThemeMode.dark,
+        profiles: demoFixture.profiles,
+        tabs: demoFixture.tabs,
+        activeSessionId: demoFixture.activeSessionId,
+        defaultProfileId: demoFixture.defaultProfileId,
+        themeMode: demoFixture.themeMode,
         isReady: true,
       );
-      shellAcceptanceProbe.mergeTerminalContent(
-        terminalHasVisibleContent: true,
-        terminalPreview: referenceDemoFrame.rows.first.text,
-      );
+      _publishDemoContent(demoFixture, demoFixture.activeSessionId);
       return;
     }
 
@@ -167,17 +184,16 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void createSession(TerminalProfile profile) {
-    if (ref.read(referenceDemoModeProvider)) {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
       return;
     }
     _ensureRuntimeSubscription();
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
     final launchProfile = environmentOverrides.isEmpty
         ? profile
-        : profile.copyWith(env: <String, String>{
-            ...profile.env,
-            ...environmentOverrides,
-          });
+        : profile.copyWith(
+            env: <String, String>{...profile.env, ...environmentOverrides},
+          );
     final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
     state = state.copyWith(
       tabs: <TerminalTab>[
@@ -191,27 +207,25 @@ class SessionController extends Notifier<SessionState> {
       ],
       activeSessionId: sessionId,
     );
-    unawaited(WindowBridge.setTitle(launchProfile.name));
+    _setWindowTitle(launchProfile.name);
   }
 
   void activateSession(String sessionId) {
     state = state.copyWith(activeSessionId: sessionId);
     for (final tab in state.tabs) {
       if (tab.sessionId == sessionId) {
-        unawaited(WindowBridge.setTitle(tab.title));
+        _setWindowTitle(tab.title);
         break;
       }
     }
-    if (ref.read(referenceDemoModeProvider)) {
-      shellAcceptanceProbe.mergeTerminalContent(
-        terminalHasVisibleContent: true,
-        terminalPreview: referenceDemoFrame.rows.first.text,
-      );
+    final demoFixture = ref.read(sessionDemoFixtureProvider);
+    if (demoFixture != null) {
+      _publishDemoContent(demoFixture, sessionId);
     }
   }
 
   void closeSession(String sessionId) {
-    if (ref.read(referenceDemoModeProvider)) {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
       _removeSessionState(sessionId);
       return;
     }
@@ -220,7 +234,7 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void resizeActiveSession(Size viewportSize, double devicePixelRatio) {
-    if (ref.read(referenceDemoModeProvider)) {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
       return;
     }
     final sessionId = state.activeSessionId;
@@ -260,10 +274,29 @@ class SessionController extends Notifier<SessionState> {
         break;
       }
     }
-    shellAcceptanceProbe.mergeTerminalContent(
+    _publishTerminalContent(
       terminalHasVisibleContent: preview != null,
       terminalPreview: preview,
     );
+  }
+
+  void _publishDemoContent(SessionDemoFixture fixture, String? sessionId) {
+    final frame = sessionId == null ? null : fixture.frameFor(sessionId);
+    final preview = frame == null ? null : _previewForFrame(frame);
+    _publishTerminalContent(
+      terminalHasVisibleContent: preview != null,
+      terminalPreview: preview,
+    );
+  }
+
+  String? _previewForFrame(TerminalFrameDiff frame) {
+    for (final row in frame.rows) {
+      final text = row.text.trim();
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+    return null;
   }
 
   void _updateTabTitleFromFrame(
@@ -290,7 +323,7 @@ class SessionController extends Notifier<SessionState> {
     nextTabs[tabIndex] = currentTab.copyWith(title: nextTitle);
     state = state.copyWith(tabs: nextTabs);
     if (sessionId == state.activeSessionId) {
-      unawaited(WindowBridge.setTitle(nextTitle));
+      _setWindowTitle(nextTitle);
     }
   }
 
@@ -335,17 +368,16 @@ class SessionController extends Notifier<SessionState> {
       activeSessionId: nextActiveSessionId,
     );
 
-    if (ref.read(referenceDemoModeProvider)) {
+    final demoFixture = ref.read(sessionDemoFixtureProvider);
+    if (demoFixture != null) {
+      _demoViewports.remove(sessionId)?.dispose();
       if (nextTabs.isEmpty) {
-        shellAcceptanceProbe.mergeTerminalContent(
+        _publishTerminalContent(
           terminalHasVisibleContent: false,
           terminalPreview: null,
         );
       } else {
-        shellAcceptanceProbe.mergeTerminalContent(
-          terminalHasVisibleContent: true,
-          terminalPreview: referenceDemoFrame.rows.first.text,
-        );
+        _publishDemoContent(demoFixture, nextActiveSessionId);
       }
       return;
     }
@@ -354,9 +386,9 @@ class SessionController extends Notifier<SessionState> {
       final activeTab = nextTabs.firstWhere(
         (tab) => tab.sessionId == nextActiveSessionId,
       );
-      unawaited(WindowBridge.setTitle(activeTab.title));
+      _setWindowTitle(activeTab.title);
     } else {
-      shellAcceptanceProbe.mergeTerminalContent(
+      _publishTerminalContent(
         terminalHasVisibleContent: false,
         terminalPreview: null,
       );

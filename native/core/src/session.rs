@@ -2073,6 +2073,52 @@ pub fn selection_text_session(session_id: u64, request_json: &str) -> Result<Str
     Ok(STORE.get(session_id)?.selection_text(request))
 }
 
+pub fn request_session_json(
+    session_id: u64,
+    request_json: &str,
+) -> Result<Option<String>, SessionError> {
+    let request: serde_json::Value = serde_json::from_str(request_json)
+        .map_err(|error| SessionError::Serialize(error.to_string()))?;
+    let Some(kind) = request.get("kind").and_then(serde_json::Value::as_str) else {
+        return Ok(None);
+    };
+
+    match kind {
+        "terminal.search_text" => {
+            let query = request
+                .get("query")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            search_session(session_id, query).map(Some)
+        }
+        "terminal.selection_text" => {
+            let Some(selection) = request.get("selection") else {
+                return Ok(None);
+            };
+            let mut selection = selection.clone();
+            let serde_json::Value::Object(selection) = &mut selection else {
+                return Ok(None);
+            };
+            selection.insert(
+                "block".to_string(),
+                serde_json::Value::Bool(
+                    request
+                        .get("block")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false),
+                ),
+            );
+            let request_json = serde_json::to_string(&selection)
+                .map_err(|error| SessionError::Serialize(error.to_string()))?;
+            let text = selection_text_session(session_id, &request_json)?;
+            serde_json::to_string(&serde_json::json!({ "text": text }))
+                .map(Some)
+                .map_err(|error| SessionError::Serialize(error.to_string()))
+        }
+        _ => Ok(None),
+    }
+}
+
 pub fn take_frame_diff(session_id: u64) -> Result<Option<String>, SessionError> {
     let session = STORE.get(session_id)?;
     let Some(diff) = session.take_frame_diff()? else {

@@ -5,7 +5,8 @@ import 'dart:typed_data';
 import 'package:flutterm_terminal/flutterm_terminal.dart';
 import 'package:flutterm_pty/flutterm_pty.dart';
 
-class FakePtyBackend implements PtySessionBackend {
+class FakePtyBackend
+    implements PtySessionBackend, PtySessionJsonRequestBackend {
   int _nextSessionId = 0;
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
@@ -144,7 +145,20 @@ class FakePtyBackend implements PtySessionBackend {
   }
 
   @override
-  String? searchTextJson(String sessionId, String query) {
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map<String, Object?>;
+    return switch (request['kind']) {
+      'terminal.search_text' => _searchTextJson(
+        sessionId,
+        request['query'] as String? ?? '',
+      ),
+      'terminal.selection_text' => _selectionTextJson(sessionId, request),
+      _ => null,
+    };
+  }
+
+  String _searchTextJson(String sessionId, String query) {
     searchCalls.add([_numericSessionId(sessionId), query]);
     final matches =
         _searchMatches[sessionId]?[query] ?? const <Map<String, Object?>>[];
@@ -158,19 +172,27 @@ class FakePtyBackend implements PtySessionBackend {
     );
   }
 
-  @override
-  String? selectionText(String sessionId, String requestJson) {
-    final request = jsonDecode(requestJson) as Map<String, Object?>;
-    selectionTextCalls.add([_numericSessionId(sessionId), request]);
+  String? _selectionTextJson(String sessionId, Map<String, Object?> request) {
+    final selection = request['selection'];
+    if (selection is! Map) {
+      return null;
+    }
+    final nativeRequest = <String, Object?>{
+      ...selection.cast<String, Object?>(),
+      'block': request['block'] == true,
+    };
+    selectionTextCalls.add([_numericSessionId(sessionId), nativeRequest]);
     final frame = _frames[sessionId];
     if (frame == null) {
       return null;
     }
-    return _selectionTextForFrame(
-      TerminalFrameDiff.fromJson(frame),
-      TerminalSelection.fromJson(request),
-      block: request['block'] as bool? ?? false,
-    );
+    return jsonEncode(<String, Object?>{
+      'text': _selectionTextForFrame(
+        TerminalFrameDiff.fromJson(frame),
+        TerminalSelection.fromJson(nativeRequest),
+        block: nativeRequest['block'] as bool? ?? false,
+      ),
+    });
   }
 
   @override

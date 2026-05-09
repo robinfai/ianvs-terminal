@@ -74,16 +74,6 @@ class TerminalInputController {
       return KeyEventResult.handled;
     }
 
-    if (usesAppModifier &&
-        isShiftPressed &&
-        event.logicalKey == LogicalKeyboardKey.keyP) {
-      return isRepeated ? KeyEventResult.handled : KeyEventResult.ignored;
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.keyT && usesAppModifier) {
-      return isRepeated ? KeyEventResult.handled : KeyEventResult.ignored;
-    }
-
     if (isMetaPressed && !isControlPressed && !isShiftPressed) {
       final navigationBytes = switch (event.logicalKey) {
         LogicalKeyboardKey.arrowLeft => ascii.encode('\x1B[H'),

@@ -197,7 +197,8 @@ class _RecordingAddon implements TerminalAddon {
   }
 }
 
-class _FakePtyBackend implements PtySessionBackend {
+class _FakePtyBackend
+    implements PtySessionBackend, PtySessionJsonRequestBackend {
   String? lastCreateSessionJson;
   final List<String> closeCalls = <String>[];
   final List<Uint8List> writeCalls = <Uint8List>[];
@@ -272,10 +273,16 @@ class _FakePtyBackend implements PtySessionBackend {
   }
 
   @override
-  String? searchTextJson(String sessionId, String query) => '[]';
-
-  @override
-  String? selectionText(String sessionId, String requestJson) => 'selected';
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
+    return switch (request['kind']) {
+      'terminal.search_text' => '[]',
+      'terminal.selection_text' => jsonEncode(<String, Object?>{
+        'text': 'selected',
+      }),
+      _ => null,
+    };
+  }
 
   @override
   String? takeFrameDiffJson(String sessionId) {

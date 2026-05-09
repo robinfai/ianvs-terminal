@@ -42,12 +42,12 @@ class _TestAppPreferencesRepository extends AppPreferencesRepository {
 }
 
 void main() {
-  const defaultProfile = TerminalProfile(
+  final defaultProfile = TerminalProfile(
     id: 'default',
     name: 'Local Shell',
     shell: '/bin/zsh',
   );
-  const sshProfile = TerminalProfile(
+  final sshProfile = TerminalProfile(
     id: 'ssh',
     name: 'SSH',
     shell: '/usr/bin/ssh',
@@ -59,9 +59,7 @@ void main() {
         ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
         profileRepositoryProvider.overrideWithValue(
           _TestProfileRepository(
-            const TerminalProfilesDocument(
-              profiles: [defaultProfile, sshProfile],
-            ),
+            TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
           ),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
@@ -93,9 +91,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                profiles: [defaultProfile, sshProfile],
-              ),
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -128,9 +124,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                profiles: [defaultProfile, sshProfile],
-              ),
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -162,9 +156,7 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(
-              const TerminalProfilesDocument(profiles: []),
-            ),
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -189,7 +181,7 @@ void main() {
     'setDefaultProfile writes only app preferences during the compatibility window',
     () async {
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -225,7 +217,7 @@ void main() {
     'saveProfile keeps legacy default ids out of steady-state profile writes',
     () async {
       final profileRepository = _TestProfileRepository(
-        const TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
       final preferencesRepository = _TestAppPreferencesRepository(null);
       final container = ProviderContainer(
@@ -278,9 +270,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                profiles: [defaultProfile, sshProfile],
-              ),
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -315,9 +305,7 @@ void main() {
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              const TerminalProfilesDocument(
-                profiles: [defaultProfile, sshProfile],
-              ),
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(

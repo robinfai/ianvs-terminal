@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'features/sessions/session_controller.dart';
+import 'features/sessions/session_ports.dart';
+import 'features/shell/shell_acceptance.dart';
 import 'features/shell/reference_demo.dart';
 import 'features/shell/shell_screen.dart';
+import 'features/shell/window_bridge.dart';
+import 'features/terminal/clipboard_bridge.dart';
 
 Widget buildFluttermRoot({
   bool enableSessionPolling = true,
@@ -22,7 +26,27 @@ Widget buildFluttermRoot({
       sessionEnvironmentOverridesProvider.overrideWithValue(
         sessionEnvironmentOverrides,
       ),
-      referenceDemoModeProvider.overrideWithValue(enableReferenceDemoMode),
+      sessionClipboardCopyProvider.overrideWithValue(ClipboardBridge.copy),
+      sessionClipboardPasteProvider.overrideWithValue(ClipboardBridge.paste),
+      sessionWindowResizeProvider.overrideWithValue(
+        ({required heightDelta, required widthDelta}) => WindowBridge.resizeBy(
+          widthDelta: widthDelta,
+          heightDelta: heightDelta,
+        ),
+      ),
+      sessionWindowTitleWriterProvider.overrideWithValue(WindowBridge.setTitle),
+      sessionTerminalContentPublisherProvider.overrideWithValue(({
+        required terminalHasVisibleContent,
+        required terminalPreview,
+      }) {
+        shellAcceptanceProbe.mergeTerminalContent(
+          terminalHasVisibleContent: terminalHasVisibleContent,
+          terminalPreview: terminalPreview,
+        );
+      }),
+      sessionDemoFixtureProvider.overrideWithValue(
+        enableReferenceDemoMode ? referenceDemoFixture : null,
+      ),
       shellAnimationsEnabledProvider.overrideWithValue(enableShellAnimations),
     ],
     child: const FluttermApp(),

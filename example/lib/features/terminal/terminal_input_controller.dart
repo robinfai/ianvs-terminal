@@ -29,8 +29,6 @@ class TerminalInputController extends terminal.TerminalInputController {
 
 terminal.TerminalEmulation _resolveEmulation(Object emulation) {
   return switch (emulation) {
-    TerminalEmulation.xterm256 => terminal.TerminalEmulation.xterm256,
-    TerminalEmulation.vt220 => terminal.TerminalEmulation.vt220,
     terminal.TerminalEmulation value => value,
     _ => throw FlutterError(
       'Unsupported terminal emulation type: ${emulation.runtimeType}',

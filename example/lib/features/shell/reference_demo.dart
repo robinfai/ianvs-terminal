@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../preferences/app_preferences_models.dart';
+import '../profiles/profile_models.dart';
+import '../sessions/session_ports.dart';
 import '../sessions/session_state.dart';
 import '../terminal/terminal_painter_models.dart';
 
-final referenceDemoModeProvider = Provider<bool>((ref) => false);
+final referenceDemoModeProvider = Provider<bool>((ref) {
+  return ref.watch(sessionDemoFixtureProvider) != null;
+});
 
 const referenceDemoActiveSessionId = 'demo-2';
 
@@ -19,10 +24,18 @@ final TerminalFrameDiff referenceDemoPs1Frame = _buildReferenceDemoFrame(
 );
 
 final TerminalFrameDiff referenceDemoFrame = _buildReferenceDemoFrame(
-  <_DemoSegment>[
-    ..._referencePromptSegments,
-    ..._referenceCommandTailSegments,
-  ],
+  <_DemoSegment>[..._referencePromptSegments, ..._referenceCommandTailSegments],
+);
+
+final SessionDemoFixture referenceDemoFixture = SessionDemoFixture(
+  profiles: <TerminalProfile>[defaultTerminalProfile()],
+  tabs: referenceDemoTabs,
+  activeSessionId: referenceDemoActiveSessionId,
+  defaultProfileId: defaultTerminalProfile().id,
+  themeMode: TerminalThemeMode.dark,
+  frames: <String, TerminalFrameDiff>{
+    for (final tab in referenceDemoTabs) tab.sessionId: referenceDemoFrame,
+  },
 );
 
 TerminalFrameDiff _buildReferenceDemoFrame(List<_DemoSegment> segments) {
@@ -32,7 +45,8 @@ TerminalFrameDiff _buildReferenceDemoFrame(List<_DemoSegment> segments) {
 
   for (final segment in segments) {
     buffer.write(segment.text);
-    final nextCursor = cursor + TerminalTextCells.fromText(segment.text).cellCount;
+    final nextCursor =
+        cursor + TerminalTextCells.fromText(segment.text).cellCount;
     styleRuns.add(
       TerminalStyleRun(
         start: cursor,

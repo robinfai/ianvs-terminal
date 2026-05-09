@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
 import 'package:app/features/profiles/profile_editor.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -11,37 +12,37 @@ void main() {
       final initialProfile = TerminalProfile.configured(
         id: 'default',
         name: 'Local Shell',
-        launch: const TerminalProfileLaunch(
-          program: '/bin/bash',
-          args: ['-lc', 'printf hello'],
-          env: {'TERM_PROGRAM': 'flutterm'},
-          cwd: '/tmp',
-        ),
-        terminal: const TerminalProfileTerminal(
+        sessionConfig: const terminal.TerminalSessionConfig(
+          launch: terminal.TerminalLaunchConfig(
+            program: '/bin/bash',
+            args: ['-lc', 'printf hello'],
+            env: {'TERM_PROGRAM': 'flutterm'},
+            cwd: '/tmp',
+          ),
           emulation: TerminalEmulation.vt220,
           scrollbackLines: 4096,
-        ),
-        appearance: const TerminalProfileAppearance(
-          font: TerminalProfileFont(
-            family: 'Menlo',
-            fallback: ['Monaco', 'Apple Symbols'],
-            size: 13.5,
-            lineHeight: 1.4,
+          display: terminal.TerminalDisplayConfig(
+            font: terminal.TerminalFontConfig(
+              family: 'Menlo',
+              fallback: ['Monaco', 'Apple Symbols'],
+              size: 13.5,
+              lineHeight: 1.4,
+            ),
+            colors: terminal.TerminalColorPalette(
+              foreground: '#AABBCC',
+              background: '#101112',
+              cursor: '#778899',
+              selection: '#334455',
+            ),
+            cursor: terminal.TerminalCursorConfig(
+              shape: TerminalCursorShape.beam,
+              blink: false,
+            ),
           ),
-          colors: TerminalProfileColors(
-            foreground: '#AABBCC',
-            background: '#101112',
-            cursor: '#778899',
-            selection: '#334455',
+          interaction: terminal.TerminalInteractionConfig(
+            copyOnSelect: true,
+            optionDragMode: TerminalOptionDragMode.normalSelection,
           ),
-          cursor: TerminalProfileCursor(
-            shape: TerminalCursorShape.beam,
-            blink: false,
-          ),
-        ),
-        interaction: const TerminalProfileInteraction(
-          copyOnSelect: true,
-          optionDragMode: TerminalOptionDragMode.normalSelection,
         ),
       );
 
@@ -289,7 +290,7 @@ void main() {
     TerminalProfile? savedProfile;
     await _pumpEditorHarness(
       tester,
-      initialValue: const TerminalProfile(
+      initialValue: TerminalProfile(
         id: 'default',
         name: 'Local Shell',
         shell: '/bin/zsh',
@@ -385,7 +386,7 @@ void main() {
     TerminalProfile? savedProfile;
     await _pumpEditorHarness(
       tester,
-      initialValue: const TerminalProfile(
+      initialValue: TerminalProfile(
         id: 'default',
         name: 'Local Shell',
         shell: '/bin/zsh',
@@ -426,7 +427,7 @@ void main() {
       TerminalProfile? savedProfile;
       await _pumpEditorHarness(
         tester,
-        initialValue: const TerminalProfile(
+        initialValue: TerminalProfile(
           id: 'default',
           name: 'Local Shell',
           shell: '/bin/zsh',

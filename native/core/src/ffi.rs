@@ -128,6 +128,33 @@ pub unsafe extern "C" fn flutterm_session_selection_text(
 }
 
 #[unsafe(no_mangle)]
+/// # Safety
+///
+/// `request_json` must be a valid, NUL-terminated UTF-8 string pointer that
+/// remains alive for the duration of this call.
+pub unsafe extern "C" fn flutterm_session_request_json(
+    session_id: u64,
+    request_json: *const c_char,
+) -> *mut c_char {
+    if request_json.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let request_json = unsafe { CStr::from_ptr(request_json) };
+    match request_json
+        .to_str()
+        .ok()
+        .and_then(|value| session::request_session_json(session_id, value).ok())
+        .flatten()
+    {
+        Some(json) => CString::new(json)
+            .map(CString::into_raw)
+            .unwrap_or(std::ptr::null_mut()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn flutterm_session_take_frame_diff_json(session_id: u64) -> *mut c_char {
     match session::take_frame_diff(session_id).ok().flatten() {
         Some(json) => CString::new(json)

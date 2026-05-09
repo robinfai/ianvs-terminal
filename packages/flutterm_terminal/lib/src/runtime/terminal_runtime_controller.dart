@@ -7,6 +7,7 @@ import 'dart:ui';
 import 'package:flutterm_pty/flutterm_pty.dart';
 
 import '../config/terminal_config.dart';
+import '../terminal/selection_controller.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 
@@ -163,17 +164,47 @@ class TerminalRuntimeController {
     TerminalSelection selection, {
     required bool block,
   }) {
-    return _backend.selectionText(
-      sessionId,
-      jsonEncode(<String, Object?>{...selection.toJson(), 'block': block}),
-    );
+    final backend = _backend;
+    final requestBackend = backend is PtySessionJsonRequestBackend
+        ? backend as PtySessionJsonRequestBackend
+        : null;
+    if (requestBackend != null) {
+      final raw = requestBackend.requestSessionJson(
+        sessionId,
+        jsonEncode(<String, Object?>{
+          'kind': 'terminal.selection_text',
+          'selection': selection.toJson(),
+          'block': block,
+        }),
+      );
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return decoded.cast<String, Object?>()['text'] as String?;
+        }
+      }
+    }
+    return _selectionTextFromViewport(sessionId, selection, block: block);
   }
 
   List<TerminalSearchMatch> searchText(String sessionId, String query) {
     if (query.isEmpty) {
       return const <TerminalSearchMatch>[];
     }
-    final raw = _backend.searchTextJson(sessionId, query);
+    final backend = _backend;
+    final requestBackend = backend is PtySessionJsonRequestBackend
+        ? backend as PtySessionJsonRequestBackend
+        : null;
+    if (requestBackend == null) {
+      return const <TerminalSearchMatch>[];
+    }
+    final raw = requestBackend.requestSessionJson(
+      sessionId,
+      jsonEncode(<String, Object?>{
+        'kind': 'terminal.search_text',
+        'query': query,
+      }),
+    );
     if (raw == null || raw.isEmpty) {
       return const <TerminalSearchMatch>[];
     }
@@ -185,6 +216,23 @@ class TerminalRuntimeController {
           ),
         )
         .toList();
+  }
+
+  String _selectionTextFromViewport(
+    String sessionId,
+    TerminalSelection selection, {
+    required bool block,
+  }) {
+    final controller = SelectionController()
+      ..setSelection(
+        selection,
+        mode: block ? SelectionMode.block : SelectionMode.linear,
+      );
+    try {
+      return controller.textForFrame(viewportFor(sessionId).frame);
+    } finally {
+      controller.dispose();
+    }
   }
 
   void resizeSession(

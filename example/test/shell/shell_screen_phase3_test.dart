@@ -45,11 +45,7 @@ void main() {
         TerminalProfilesDocument(
           profiles: [
             defaultTerminalProfile(),
-            const TerminalProfile(
-              id: 'ssh',
-              name: 'SSH',
-              shell: '/usr/bin/ssh',
-            ),
+            TerminalProfile(id: 'ssh', name: 'SSH', shell: '/usr/bin/ssh'),
           ],
         ),
       );
@@ -163,11 +159,7 @@ void main() {
         TerminalProfilesDocument(
           profiles: [
             defaultTerminalProfile(),
-            const TerminalProfile(
-              id: 'ssh',
-              name: 'SSH',
-              shell: '/usr/bin/ssh',
-            ),
+            TerminalProfile(id: 'ssh', name: 'SSH', shell: '/usr/bin/ssh'),
           ],
         ),
       );
@@ -218,11 +210,7 @@ void main() {
         TerminalProfilesDocument(
           profiles: [
             defaultTerminalProfile(),
-            const TerminalProfile(
-              id: 'ssh',
-              name: 'SSH',
-              shell: '/usr/bin/ssh',
-            ),
+            TerminalProfile(id: 'ssh', name: 'SSH', shell: '/usr/bin/ssh'),
           ],
         ),
       );
@@ -341,7 +329,7 @@ void main() {
     tester,
   ) async {
     final localProfile = defaultTerminalProfile();
-    const sshProfile = TerminalProfile(
+    final sshProfile = TerminalProfile(
       id: 'ssh',
       name: 'SSH',
       shell: '/usr/bin/ssh',
