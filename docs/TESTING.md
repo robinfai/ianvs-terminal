@@ -43,6 +43,21 @@ flutter run -d macos
 当前 local-only 的 terminal 人工矩阵结果入口固定是
 [tasks/verification-gates/T-059-local-terminal-manual-matrix.md](tasks/verification-gates/T-059-local-terminal-manual-matrix.md)。
 
+## vttest-derived 自动化覆盖
+
+可机器断言的 `vttest` 场景不要依赖交互式 `vttest` 菜单本身；把对应 VT 序列收成自动化回归测试：
+
+```bash
+cd native/core
+cargo test --test vttest_regression_test
+cargo test vt220
+
+cd ../../example
+flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport repaints consecutive full-width wrapped rows without leaving a shorter middle row"
+```
+
+这些测试覆盖 VT220/vttest 类 screen-features 的 autowrap、terminal reports、已知 wrap-around 回归，以及 Flutter viewport 对连续满宽 wrapped rows 的重绘。真实 app 前台、macOS shortcut 抢键、trackpad/DPI 这类依赖宿主 GUI 的项仍保留在 `T-059` 人工矩阵。
+
 前置检查最小命令：
 
 ```bash
