@@ -74,6 +74,35 @@ cargo test --manifest-path native/core/Cargo.toml
 - In a real shell, open `vim`, `less`, or another alternate-screen application
   and confirm the consumer observes `alternateScreen == true`.
 
+## Completion Record
+
+- Completed on: `2026-05-10`
+- Status: complete for the flutterm upstream hardening slice.
+- `FT-006`: handled by `TerminalViewportState.applyDelta` merging incoming
+  delta rows into dirty ranges, with regression coverage for row text arriving
+  alongside empty dirty ranges and stale hyperlink clearing.
+- `FT-007`: handled by `TerminalRuntimeController.refreshSession(sessionId)`
+  and xterm facade `Terminal.refresh()`, with runtime-controller and facade
+  tests covering explicit refresh behavior.
+- `FT-009`: handled by native `modes.alternate_screen` frame metadata and Dart
+  `TerminalFrameModes.alternateScreen`, with native and Dart regression tests.
+- Follow-up owners:
+  - `FT-001`: continues in `T-063` for the typed shell-hook runtime event and
+    multi-shell contract.
+  - `FT-004`: local manual matrix evidence lives in `T-059`; resulting focused
+    fixes are `T-066`, `T-067`, and `T-068`.
+  - `FT-008`: continues in `T-064` for row-range annotation design before any
+    render-layer block UI implementation.
+  - `FT-012`: continues in `T-065` as a Windows / Linux validation gate, not a
+    support claim.
+- Verification recorded for closeout:
+  - `cargo test --manifest-path native/core/Cargo.toml alternate_screen`
+  - `cargo test --manifest-path native/core/Cargo.toml shell_hook`
+  - `cd packages/flutterm_terminal && flutter test test/terminal_runtime_controller_test.dart`
+  - `cd packages/flutterm_terminal && flutter test test/terminal_api_test.dart`
+- Ianvs Terminal real shell smoke remains useful consumer-side evidence, but is
+  not a blocking flutterm-side gate for this closeout.
+
 ## Done When
 
 - The automated checks above pass.
