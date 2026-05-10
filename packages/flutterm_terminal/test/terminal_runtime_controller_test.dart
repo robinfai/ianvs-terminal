@@ -233,6 +233,168 @@ void main() {
     );
   });
 
+  testWidgets('terminal runtime controller emits typed shell hook events', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+
+    final shellHooks = <TerminalSessionShellHookEvent>[];
+    final subscription = runtime.events
+        .where((event) => event is TerminalSessionShellHookEvent)
+        .cast<TerminalSessionShellHookEvent>()
+        .listen(shellHooks.add);
+    addTearDown(subscription.cancel);
+
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: sessionId,
+        payload: <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'echo ok',
+          'pwd': '/tmp/project',
+          'shell': 'zsh',
+          'exit_code': 7,
+          'extra': <String, Object?>{'kept': true},
+        },
+      ),
+    );
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    final event = shellHooks.single;
+    expect(event.sessionId, sessionId);
+    expect(event.rawPayload['extra'], <String, Object?>{'kept': true});
+    expect(event.hook, 'command_finished');
+    expect(event.command, 'echo ok');
+    expect(event.cwd, '/tmp/project');
+    expect(event.shell, 'zsh');
+    expect(event.exitCode, 7);
+  });
+
+  testWidgets(
+    'terminal runtime controller passes through unknown shell hooks',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      final shellHooks = <TerminalSessionShellHookEvent>[];
+      final subscription = runtime.events
+          .where((event) => event is TerminalSessionShellHookEvent)
+          .cast<TerminalSessionShellHookEvent>()
+          .listen(shellHooks.add);
+      addTearDown(subscription.cancel);
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'hook': 'custom.future_hook'},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      final event = shellHooks.single;
+      expect(event.hook, 'custom.future_hook');
+      expect(event.command, isNull);
+      expect(event.cwd, isNull);
+      expect(event.shell, isNull);
+      expect(event.exitCode, isNull);
+      expect(event.rawPayload, containsPair('hook', 'custom.future_hook'));
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller emits shell hooks before same-batch exits',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      final events = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(events.add);
+      addTearDown(subscription.cancel);
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'exit_code': 0,
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      final lifecycleEvents = events
+          .where(
+            (event) =>
+                event is TerminalSessionShellHookEvent ||
+                event is TerminalSessionExitEvent,
+          )
+          .toList(growable: false);
+      expect(lifecycleEvents, hasLength(2));
+      expect(lifecycleEvents.first, isA<TerminalSessionShellHookEvent>());
+      expect(lifecycleEvents.last, isA<TerminalSessionExitEvent>());
+    },
+  );
+
   test('terminal runtime owns search and selection JSON request shapes', () {
     final runtimeBackend = _FakePtyBackend()
       ..searchResponse = const <Map<String, Object?>>[

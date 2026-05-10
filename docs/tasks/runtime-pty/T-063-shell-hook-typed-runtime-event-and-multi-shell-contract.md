@@ -89,6 +89,28 @@ flutter test
 4. 在 bash / fish integration 接入后，复跑同样场景，确认 logical hook
    names 不变，只允许字段缺失为 `null`。
 
+## Completion Record
+
+- Completed on: `2026-05-10`
+- Status: complete for the flutterm typed runtime event surface.
+- Implemented `TerminalSessionShellHookEvent` on
+  `TerminalRuntimeController.events`.
+- The event preserves `rawPayload` and exposes convenience fields:
+  `hook`, `command`, `cwd`, `shell`, and `exitCode`.
+- Payload compatibility:
+  - `cwd` reads `cwd` and also the existing zsh payload key `pwd`.
+  - `exitCode` reads `exitCode` and also the existing zsh payload key
+    `exit_code`.
+  - unknown hook names pass through unchanged.
+- Event ordering is covered for the same-batch `shell_hook` then `exit` case.
+- This task does not implement output ownership, command output row ranges,
+  block UI, or bash / fish shell integration; those remain follow-up work.
+- Verification:
+  - `cd native/core && cargo test shell_hook`
+  - `cd packages/flutterm_pty && dart test`
+  - `cd packages/flutterm_terminal && flutter test test/terminal_runtime_controller_test.dart`
+  - `cd packages/flutterm_terminal && flutter test`
+
 ## Done When
 
 - `TerminalRuntimeController.events` 有稳定的

@@ -35,6 +35,30 @@ final class TerminalSessionExitEvent extends TerminalSessionEvent {
   final int? exitCode;
 }
 
+final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
+  TerminalSessionShellHookEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get hook => _stringValue(rawPayload['hook']);
+  String? get command => _stringValue(rawPayload['command']);
+  String? get cwd => _stringValue(rawPayload['cwd'] ?? rawPayload['pwd']);
+  String? get shell => _stringValue(rawPayload['shell']);
+  int? get exitCode =>
+      _intValue(rawPayload['exitCode'] ?? rawPayload['exit_code']);
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+
+  static int? _intValue(Object? value) {
+    return value is num ? value.toInt() : null;
+  }
+}
+
 final class TerminalSessionResizeEvent {
   const TerminalSessionResizeEvent(
     this.sessionId, {
@@ -522,6 +546,11 @@ class TerminalRuntimeController {
           pendingAsyncWork = _chainAsyncEvent(
             pendingAsyncWork,
             () => _handleClipboardPasteRequestEvent(sessionId, event.payload),
+          );
+          break;
+        case 'shell_hook':
+          _events.add(
+            TerminalSessionShellHookEvent(sessionId, rawPayload: event.payload),
           );
           break;
         default:
