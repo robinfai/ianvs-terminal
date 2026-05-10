@@ -50,7 +50,7 @@ flutter analyze
 flutter test test/sessions/session_controller_phase3_test.dart
 flutter test test/sessions/session_controller_test.dart
 flutter test test/profiles/profile_repository_test.dart
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test -d macos integration_test/flutterm_smoke_test.dart
 ```
 
 ## Manual QA
@@ -58,6 +58,24 @@ flutter test integration_test/flutterm_smoke_test.dart
 1. 有 configured default 时，新 tab 继续走 preferences default。
 2. 无 configured default 时，新 tab 走 first-profile fallback，但不再依赖 legacy profile key。
 3. 旧 profile 文档仍带 legacy key 时，应用仍能正常启动且不会把它当当前默认来源。
+
+## Completion Record
+
+- 完成时间：`2026-05-10 CST`
+- 结论：`T-058` 已完成，defaults runtime/read-path 只剩 preferences source-of-truth。
+- 实现状态：
+  - `_legacyDefaultProfileId` 和 bootstrap legacy fallback 已从运行时路径移除。
+  - `TerminalProfilesDocument` 不再暴露或写出 legacy `defaultProfileId` 字段。
+  - 旧磁盘文档里的 legacy `defaultProfileId` key 仍可被安全读取，但会被忽略，且不会参与默认 profile 决策。
+- 验证通过：
+  - `cd example && flutter analyze`
+  - `flutter test test/sessions/session_controller_phase3_test.dart`
+  - `flutter test test/sessions/session_controller_test.dart`
+  - `flutter test test/profiles/profile_repository_test.dart`
+  - `flutter test -d macos integration_test/flutterm_smoke_test.dart`
+- 环境说明：
+  - 当前 host 上不带 `-d macos` 的 integration smoke 可能卡在 Flutter device discovery，因为 Android `adb devices` 路径异常。
+  - 这属于验证环境问题，不是 `T-058` 产品回归。
 
 ## Done When
 
