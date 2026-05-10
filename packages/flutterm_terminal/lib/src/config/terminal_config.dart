@@ -68,6 +68,27 @@ class TerminalLaunchConfig {
   }
 }
 
+class TerminalShellIntegrationConfig {
+  const TerminalShellIntegrationConfig({this.enabled = true});
+
+  final bool enabled;
+
+  TerminalShellIntegrationConfig copyWith({bool? enabled}) {
+    return TerminalShellIntegrationConfig(enabled: enabled ?? this.enabled);
+  }
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{'enabled': enabled};
+  }
+
+  factory TerminalShellIntegrationConfig.fromJson(Object? json) {
+    final map = _asObjectMap(json);
+    return TerminalShellIntegrationConfig(
+      enabled: map?['enabled'] as bool? ?? true,
+    );
+  }
+}
+
 class TerminalFontConfig {
   const TerminalFontConfig({
     this.family = terminalPrimaryFontFamily,
@@ -285,6 +306,7 @@ class TerminalSessionConfig {
     required this.launch,
     this.emulation = TerminalEmulation.xterm256,
     this.scrollbackLines = defaultTerminalScrollbackLines,
+    this.shellIntegration = const TerminalShellIntegrationConfig(),
     this.display = const TerminalDisplayConfig(),
     this.interaction = const TerminalInteractionConfig(),
   });
@@ -292,6 +314,7 @@ class TerminalSessionConfig {
   final TerminalLaunchConfig launch;
   final TerminalEmulation emulation;
   final int scrollbackLines;
+  final TerminalShellIntegrationConfig shellIntegration;
   final TerminalDisplayConfig display;
   final TerminalInteractionConfig interaction;
 
@@ -299,6 +322,7 @@ class TerminalSessionConfig {
     TerminalLaunchConfig? launch,
     TerminalEmulation? emulation,
     int? scrollbackLines,
+    TerminalShellIntegrationConfig? shellIntegration,
     TerminalDisplayConfig? display,
     TerminalInteractionConfig? interaction,
   }) {
@@ -306,6 +330,7 @@ class TerminalSessionConfig {
       launch: launch ?? this.launch,
       emulation: emulation ?? this.emulation,
       scrollbackLines: scrollbackLines ?? this.scrollbackLines,
+      shellIntegration: shellIntegration ?? this.shellIntegration,
       display: display ?? this.display,
       interaction: interaction ?? this.interaction,
     );
@@ -318,6 +343,7 @@ class TerminalSessionConfig {
         'emulation': emulation.name,
         'scrollbackLines': scrollbackLines,
       },
+      'shellIntegration': shellIntegration.toJson(),
       'appearance': display.toJson(),
       'interaction': interaction.toJson(),
     };
@@ -334,6 +360,9 @@ class TerminalSessionConfig {
       ),
       display: TerminalDisplayConfig.fromJson(json['appearance']),
       interaction: TerminalInteractionConfig.fromJson(json['interaction']),
+      shellIntegration: TerminalShellIntegrationConfig.fromJson(
+        json['shellIntegration'],
+      ),
     );
   }
 
@@ -367,6 +396,10 @@ class TerminalSessionConfig {
       ),
       interaction: _interactionConfigFromProfileJson(
         json['interaction'],
+        onWarning: onWarning,
+      ),
+      shellIntegration: _shellIntegrationConfigFromProfileJson(
+        json['shellIntegration'],
         onWarning: onWarning,
       ),
     );
@@ -524,6 +557,21 @@ TerminalInteractionConfig _interactionConfigFromProfileJson(
     optionDragMode: _optionDragModeFromProfileJson(
       interaction?['optionDragMode'],
       path: 'interaction.optionDragMode',
+      onWarning: onWarning,
+    ),
+  );
+}
+
+TerminalShellIntegrationConfig _shellIntegrationConfigFromProfileJson(
+  Object? json, {
+  required TerminalConfigWarningCallback? onWarning,
+}) {
+  final shellIntegration = _asObjectMap(json);
+  return TerminalShellIntegrationConfig(
+    enabled: _boolField(
+      shellIntegration?['enabled'],
+      fallback: true,
+      path: 'shellIntegration.enabled',
       onWarning: onWarning,
     ),
   );

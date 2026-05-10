@@ -504,6 +504,8 @@ impl TerminalSession {
         let scrollback_lines = profile.terminal.scrollback_lines.max(1);
         let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
+        let reader = runtime.reader;
+        let shell_integration_proxy = runtime.shell_integration_proxy;
 
         let mut terminal = Terminal::with_scrollback(
             DEFAULT_COLS as usize,
@@ -544,7 +546,8 @@ impl TerminalSession {
 
         let reader_session = Arc::clone(&session);
         thread::spawn(move || {
-            let mut reader = runtime.reader;
+            let _shell_integration_proxy = shell_integration_proxy;
+            let mut reader = reader;
             let mut buf = [0_u8; 4096];
             loop {
                 match reader.read(&mut buf) {

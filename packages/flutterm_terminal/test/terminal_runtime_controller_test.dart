@@ -170,6 +170,10 @@ void main() {
           'cwd': null,
         },
       );
+      expect(
+        runtimeBackend.lastCreateSessionPayload!['shellIntegration'],
+        <String, Object?>{'enabled': true},
+      );
     },
   );
 

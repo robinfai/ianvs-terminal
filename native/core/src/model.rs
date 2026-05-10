@@ -39,6 +39,22 @@ pub struct TerminalProfileLaunch {
     pub cwd: Option<String>,
 }
 
+fn default_shell_integration_enabled() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalShellIntegration {
+    #[serde(default = "default_shell_integration_enabled")]
+    pub enabled: bool,
+}
+
+impl Default for TerminalShellIntegration {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalProfileTerminal {
     #[serde(default)]
@@ -142,6 +158,8 @@ pub struct TerminalProfile {
     pub launch: TerminalProfileLaunch,
     #[serde(default)]
     pub terminal: TerminalProfileTerminal,
+    #[serde(rename = "shellIntegration", default)]
+    pub shell_integration: TerminalShellIntegration,
     #[serde(default)]
     pub appearance: TerminalProfileAppearance,
     #[serde(default)]
@@ -171,6 +189,7 @@ impl<'de> Deserialize<'de> for TerminalProfile {
             name: wire.name,
             launch,
             terminal,
+            shell_integration: wire.shell_integration.unwrap_or_default(),
             appearance: wire.appearance.unwrap_or_default(),
             interaction: wire.interaction.unwrap_or_default(),
         })
@@ -185,6 +204,9 @@ struct TerminalProfileWire {
     launch: Option<TerminalProfileLaunch>,
     #[serde(default)]
     terminal: Option<TerminalProfileTerminal>,
+    #[serde(default)]
+    #[serde(rename = "shellIntegration", alias = "shell_integration")]
+    shell_integration: Option<TerminalShellIntegration>,
     #[serde(default)]
     appearance: Option<TerminalProfileAppearance>,
     #[serde(default)]

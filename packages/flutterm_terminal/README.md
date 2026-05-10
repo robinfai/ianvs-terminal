@@ -6,6 +6,7 @@
 
 - `TerminalSessionConfig`
 - `TerminalLaunchConfig`
+- `TerminalShellIntegrationConfig`
 - `TerminalDisplayConfig`
 - `TerminalRuntimeController`
 - `TerminalSessionEvent`
@@ -19,9 +20,18 @@
 native `shell_hook` events. The event preserves the raw payload and exposes
 lightweight fields for `hook`, `command`, `cwd`, `shell`, and `exitCode`.
 
-The logical hook names stay shell-agnostic. The zsh baseline is `preexec`,
-`command_finished`, `precmd`, and `precmd.pwd`; bash and fish integrations
-should map to the same names when they are added.
+The logical hook names stay shell-agnostic. zsh, bash, and fish integrations
+emit `preexec`, `command_finished`, `precmd`, and `precmd.pwd`.
+
+`TerminalShellIntegrationConfig.enabled` controls whether eligible sessions may
+inject shell hooks. It defaults to `true`, but unsupported shells, custom shell
+arguments, VT220 emulation, or native proxy setup failures automatically fall
+back to the original shell launch path without emitting shell-hook events.
+
+Bash integration uses a `DEBUG` trap for `preexec` and wraps `PROMPT_COMMAND`
+for completion hooks. If a user already has a `DEBUG` trap, bash integration
+automatically falls back without installing hooks. Bash may also report only the
+first simple command for complex pipelines or compound commands.
 
 ## 不负责
 

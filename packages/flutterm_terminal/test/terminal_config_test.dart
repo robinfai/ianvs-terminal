@@ -27,6 +27,7 @@ void main() {
     expect(config.launch.args, <String>['-l']);
     expect(config.emulation, TerminalEmulation.vt220);
     expect(config.scrollbackLines, defaultTerminalScrollbackLines);
+    expect(config.shellIntegration.enabled, isTrue);
     expect(config.display.font.family, terminalPrimaryFontFamily);
     expect(config.display.font.fallback, <String>['Monaco']);
     expect(config.display.colors.foreground, isNull);
@@ -40,5 +41,35 @@ void main() {
         'appearance.colors.foreground',
       ]),
     );
+  });
+
+  test('terminal session config forwards shell integration settings', () {
+    final config = TerminalSessionConfig.fromJson(<String, Object?>{
+      'launch': <String, Object?>{'program': '/bin/zsh'},
+      'shellIntegration': <String, Object?>{'enabled': false},
+    });
+
+    expect(config.shellIntegration.enabled, isFalse);
+    expect(config.toJson()['shellIntegration'], <String, Object?>{
+      'enabled': false,
+    });
+  });
+
+  test('terminal profile JSON validates shell integration settings', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final config = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'shell': '/bin/zsh',
+        'shellIntegration': <String, Object?>{'enabled': 'yes'},
+      },
+      defaultProgram: '/bin/zsh',
+      onWarning: warnings.add,
+    );
+
+    expect(config.shellIntegration.enabled, isTrue);
+    expect(warnings.map((warning) => warning.path), <String>[
+      'shellIntegration.enabled',
+    ]);
   });
 }

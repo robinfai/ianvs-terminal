@@ -1,12 +1,15 @@
 use flutterm_core::model::{
     TerminalEmulation, TerminalProfile, TerminalProfileAppearance, TerminalProfileInteraction,
-    TerminalProfileLaunch, TerminalProfileTerminal,
+    TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
 };
 use flutterm_core::session;
 use std::collections::BTreeMap;
 use std::ffi::CStr;
+use std::fs;
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
+use tempfile::tempdir;
 
 fn local_profile(
     id: &str,
@@ -41,6 +44,7 @@ fn local_profile_with_scrollback(
             emulation,
             scrollback_lines,
         },
+        shell_integration: TerminalShellIntegration::default(),
         appearance: TerminalProfileAppearance::default(),
         interaction: TerminalProfileInteraction::default(),
     }
@@ -524,6 +528,84 @@ fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
     panic!("timed out waiting for event {kind:?}");
 }
 
+fn wait_for_shell_hook(session_id: u64, hook: &str) -> serde_json::Value {
+    for _ in 0..30 {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        if let Some(event) = parsed.as_array().and_then(|entries| {
+            entries.iter().find(|entry| {
+                entry["kind"] == "shell_hook" && entry["payload"]["hook"].as_str() == Some(hook)
+            })
+        }) {
+            return event.clone();
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    panic!("timed out waiting for shell hook {hook:?}");
+}
+
+fn wait_for_shell_hook_sequence(session_id: u64, hooks: &[&str]) -> Vec<serde_json::Value> {
+    let mut events = Vec::new();
+    for _ in 0..30 {
+        let polled = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&polled).unwrap();
+        if let Some(entries) = parsed.as_array() {
+            for entry in entries {
+                if entry["kind"] != "shell_hook" {
+                    continue;
+                }
+                let Some(next_hook) = hooks.get(events.len()) else {
+                    return events;
+                };
+                if entry["payload"]["hook"].as_str() == Some(next_hook) {
+                    events.push(entry.clone());
+                    if events.len() == hooks.len() {
+                        return events;
+                    }
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    panic!("timed out waiting for shell hooks {hooks:?}");
+}
+
+fn find_shell(name: &str) -> Option<String> {
+    [
+        format!("/bin/{name}"),
+        format!("/usr/bin/{name}"),
+        format!("/opt/homebrew/bin/{name}"),
+        format!("/usr/local/bin/{name}"),
+    ]
+    .into_iter()
+    .find(|path| Path::new(path.as_str()).exists())
+}
+
+fn assert_shell_hook_command_lifecycle(session_id: u64, shell: &str) {
+    session::write_session(session_id, b"echo ok\n").unwrap();
+    let hooks = wait_for_shell_hook_sequence(session_id, &["preexec", "command_finished"]);
+    let preexec_event = &hooks[0];
+    assert_eq!(preexec_event["payload"]["shell"].as_str(), Some(shell));
+    assert_eq!(
+        preexec_event["payload"]["command"].as_str(),
+        Some("echo ok")
+    );
+    let finished_event = &hooks[1];
+    assert_eq!(finished_event["payload"]["shell"].as_str(), Some(shell));
+    assert_eq!(
+        finished_event["payload"]["command"].as_str(),
+        Some("echo ok")
+    );
+    assert_eq!(finished_event["payload"]["exit_code"].as_i64(), Some(0));
+
+    session::write_session(session_id, b"false\n").unwrap();
+    let hooks = wait_for_shell_hook_sequence(session_id, &["preexec", "command_finished"]);
+    let failed_event = &hooks[1];
+    assert_eq!(failed_event["payload"]["shell"].as_str(), Some(shell));
+    assert_eq!(failed_event["payload"]["command"].as_str(), Some("false"));
+    assert_eq!(failed_event["payload"]["exit_code"].as_i64(), Some(1));
+}
+
 fn assert_event_kind_never_arrives(session_id: u64, kind: &str) {
     for _ in 0..10 {
         let events = session::poll_events(session_id).unwrap();
@@ -978,6 +1060,258 @@ fn session_emits_shell_hook_events_from_dcs_hooks() {
     let event = wait_for_event(session_id, "shell_hook");
     assert_eq!(event["payload"]["hook"].as_str(), Some("precmd"));
     assert_eq!(event["payload"]["pwd"].as_str(), Some("/tmp/flutterm"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn zsh_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
+    if !Path::new("/bin/zsh").exists() {
+        return;
+    }
+
+    let original_zdotdir = tempdir().unwrap();
+    fs::write(
+        original_zdotdir.path().join(".zshrc"),
+        "PROMPT='flutterm-test% '\n",
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    let session_id = session::create_session(
+        &serde_json::to_string(&local_profile(
+            "zsh-shell-integration",
+            "Zsh Shell Integration",
+            "/bin/zsh",
+            vec![],
+            env,
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let pwd_event = wait_for_shell_hook(session_id, "precmd.pwd");
+    let expected_pwd = fs::canonicalize(original_zdotdir.path()).unwrap();
+    assert_eq!(
+        pwd_event["payload"]["pwd"].as_str(),
+        Some(expected_pwd.to_string_lossy().as_ref())
+    );
+
+    session::write_session(session_id, b"echo ok\n").unwrap();
+    let hooks = wait_for_shell_hook_sequence(session_id, &["preexec", "command_finished"]);
+    let preexec_event = &hooks[0];
+    assert_eq!(
+        preexec_event["payload"]["command"].as_str(),
+        Some("echo ok")
+    );
+    let finished_event = &hooks[1];
+    assert_eq!(
+        finished_event["payload"]["command"].as_str(),
+        Some("echo ok")
+    );
+    assert_eq!(finished_event["payload"]["exit_code"].as_i64(), Some(0));
+
+    session::write_session(session_id, b"false\n").unwrap();
+    let hooks = wait_for_shell_hook_sequence(session_id, &["preexec", "command_finished"]);
+    let failed_event = &hooks[1];
+    assert_eq!(failed_event["payload"]["command"].as_str(), Some("false"));
+    assert_eq!(failed_event["payload"]["exit_code"].as_i64(), Some(1));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn bash_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
+    let Some(bash_path) = find_shell("bash") else {
+        return;
+    };
+
+    let home = tempdir().unwrap();
+    let cwd = tempdir().unwrap();
+    fs::write(home.path().join(".bashrc"), "PS1='flutterm-bash$ '\n").unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        home.path().to_string_lossy().into_owned(),
+    );
+    let mut profile = local_profile(
+        "bash-shell-integration",
+        "Bash Shell Integration",
+        &bash_path,
+        vec![],
+        env,
+        TerminalEmulation::Xterm256,
+    );
+    profile.launch.cwd = Some(cwd.path().to_string_lossy().into_owned());
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let pwd_event = wait_for_shell_hook(session_id, "precmd.pwd");
+    let expected_pwd = fs::canonicalize(cwd.path()).unwrap();
+    assert_eq!(pwd_event["payload"]["shell"].as_str(), Some("bash"));
+    assert_eq!(
+        pwd_event["payload"]["pwd"].as_str(),
+        Some(expected_pwd.to_string_lossy().as_ref())
+    );
+
+    assert_shell_hook_command_lifecycle(session_id, "bash");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn fish_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
+    let Some(fish_path) = find_shell("fish") else {
+        return;
+    };
+
+    let home = tempdir().unwrap();
+    let cwd = tempdir().unwrap();
+    let fish_config_dir = home.path().join(".config/fish");
+    fs::create_dir_all(&fish_config_dir).unwrap();
+    fs::write(
+        fish_config_dir.join("config.fish"),
+        "function fish_prompt; printf 'flutterm-fish> '; end\n",
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        home.path().to_string_lossy().into_owned(),
+    );
+    let mut profile = local_profile(
+        "fish-shell-integration",
+        "Fish Shell Integration",
+        &fish_path,
+        vec![],
+        env,
+        TerminalEmulation::Xterm256,
+    );
+    profile.launch.cwd = Some(cwd.path().to_string_lossy().into_owned());
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let pwd_event = wait_for_shell_hook(session_id, "precmd.pwd");
+    let expected_pwd = fs::canonicalize(cwd.path()).unwrap();
+    assert_eq!(pwd_event["payload"]["shell"].as_str(), Some("fish"));
+    assert_eq!(
+        pwd_event["payload"]["pwd"].as_str(),
+        Some(expected_pwd.to_string_lossy().as_ref())
+    );
+
+    assert_shell_hook_command_lifecycle(session_id, "fish");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn zsh_shell_hook_integration_disabled_emits_no_shell_hooks() {
+    if !Path::new("/bin/zsh").exists() {
+        return;
+    }
+
+    let original_zdotdir = tempdir().unwrap();
+    fs::write(
+        original_zdotdir.path().join(".zshrc"),
+        "PROMPT='flutterm-disabled% '\n",
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    let mut profile = local_profile(
+        "zsh-shell-integration-disabled",
+        "Zsh Shell Integration Disabled",
+        "/bin/zsh",
+        vec![],
+        env,
+        TerminalEmulation::Xterm256,
+    );
+    profile.shell_integration.enabled = false;
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+    let _ = session::poll_events(session_id).unwrap();
+
+    session::write_session(session_id, b"echo still-works\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "still-works");
+    assert_event_kind_never_arrives(session_id, "shell_hook");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn bash_shell_hook_integration_disabled_emits_no_shell_hooks() {
+    let Some(bash_path) = find_shell("bash") else {
+        return;
+    };
+
+    let home = tempdir().unwrap();
+    fs::write(home.path().join(".bashrc"), "PS1='flutterm-disabled$ '\n").unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        home.path().to_string_lossy().into_owned(),
+    );
+    let mut profile = local_profile(
+        "bash-shell-integration-disabled",
+        "Bash Shell Integration Disabled",
+        &bash_path,
+        vec![],
+        env,
+        TerminalEmulation::Xterm256,
+    );
+    profile.shell_integration.enabled = false;
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+    let _ = session::poll_events(session_id).unwrap();
+
+    session::write_session(session_id, b"echo still-works\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "still-works");
+    assert_event_kind_never_arrives(session_id, "shell_hook");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn fish_shell_hook_integration_disabled_emits_no_shell_hooks() {
+    let Some(fish_path) = find_shell("fish") else {
+        return;
+    };
+
+    let home = tempdir().unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        home.path().to_string_lossy().into_owned(),
+    );
+    let mut profile = local_profile(
+        "fish-shell-integration-disabled",
+        "Fish Shell Integration Disabled",
+        &fish_path,
+        vec![],
+        env,
+        TerminalEmulation::Xterm256,
+    );
+    profile.shell_integration.enabled = false;
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+    let _ = session::poll_events(session_id).unwrap();
+
+    session::write_session(session_id, b"echo still-works\n").unwrap();
+    let _ = wait_for_frame_containing(session_id, "still-works");
+    assert_event_kind_never_arrives(session_id, "shell_hook");
 
     session::close_session(session_id).unwrap();
 }
