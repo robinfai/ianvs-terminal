@@ -58,6 +58,23 @@ flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "term
 
 这些测试覆盖 VT220/vttest 类 screen-features 的 autowrap、terminal reports、已知 wrap-around 回归，以及 Flutter viewport 对连续满宽 wrapped rows 的重绘。真实 app 前台、macOS shortcut 抢键、trackpad/DPI 这类依赖宿主 GUI 的项仍保留在 `T-059` 人工矩阵。
 
+## vttest GUI nightly/manual gate
+
+真实 macOS GUI + 真实 PTY + 真实 `vttest` 的完整链路入口：
+
+```bash
+./tools/vttest_gui_nightly.sh
+./tools/vttest_gui_nightly.sh --release-gate
+```
+
+这条 gate 分三层：
+
+- fast deterministic regression：`cargo test --test vttest_regression_test`、`cargo test vt220`、Flutter wraparound viewport 单测
+- GUI full-chain vttest：`flutter test -d macos integration_test/vttest_gui_test.dart`，使用真实 `NativePtyBackend` 和 VT220 profile 启动 `vttest`
+- still manual：真实 trackpad、DPI/font-metric 切换、以及外部宿主条件仍按 `T-059` 人工矩阵记录
+
+默认模式下，缺少 macOS GUI session、`vttest`、或 macOS Flutter device 会生成 `blocked` summary 并退出 0；`--release-gate` 下同样的前置缺失退出 2。产品断言或构建/测试失败始终退出 1。结果写到 `build/vttest-gui-nightly/<timestamp>/summary.json`，GUI 测试日志固定为同目录下的 `flutter-test.log`。
+
 前置检查最小命令：
 
 ```bash
