@@ -466,12 +466,7 @@ void main() {
         'size': savedProfile.appearance.font.size,
         'lineHeight': savedProfile.appearance.font.lineHeight,
       },
-      'colors': {
-        'foreground': '#112233',
-        'background': null,
-        'cursor': null,
-        'selection': null,
-      },
+      'colors': savedProfile.appearance.colors.resolveWith().toJson(),
       'cursor': {
         'shape': savedProfile.appearance.cursor.shape.name,
         'blink': savedProfile.appearance.cursor.blink,

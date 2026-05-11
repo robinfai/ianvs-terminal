@@ -96,7 +96,7 @@ impl Default for TerminalProfileFont {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct TerminalProfileColors {
+pub struct TerminalProfileSpecialColors {
     #[serde(default)]
     pub foreground: Option<String>,
     #[serde(default)]
@@ -105,6 +105,36 @@ pub struct TerminalProfileColors {
     pub cursor: Option<String>,
     #[serde(default)]
     pub selection: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TerminalProfileAnsiColors {
+    #[serde(default)]
+    pub black: Option<String>,
+    #[serde(default)]
+    pub red: Option<String>,
+    #[serde(default)]
+    pub green: Option<String>,
+    #[serde(default)]
+    pub yellow: Option<String>,
+    #[serde(default)]
+    pub blue: Option<String>,
+    #[serde(default)]
+    pub magenta: Option<String>,
+    #[serde(default)]
+    pub cyan: Option<String>,
+    #[serde(default)]
+    pub white: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TerminalProfileColors {
+    #[serde(default)]
+    pub special: TerminalProfileSpecialColors,
+    #[serde(default)]
+    pub normal: TerminalProfileAnsiColors,
+    #[serde(default)]
+    pub bright: TerminalProfileAnsiColors,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

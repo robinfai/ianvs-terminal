@@ -14,6 +14,80 @@ import 'widgets/toggle_setting_row.dart';
 
 const _hexColorErrorText = 'Use #RRGGBB or leave empty.';
 
+class _ColorFieldSpec {
+  const _ColorFieldSpec({
+    required this.group,
+    required this.slot,
+    required this.label,
+  });
+
+  final String group;
+  final String slot;
+  final String label;
+
+  String get fieldKey => '$group.$slot';
+
+  String get debugLabel => switch (group) {
+    'special' => 'profile-editor-color-$slot',
+    _ => 'profile-editor-color-$group-$slot',
+  };
+
+  Key get inputKey => switch (group) {
+    'special' => Key('profile-editor-color-$slot'),
+    _ => Key('profile-editor-color-$group-$slot'),
+  };
+
+  Key get swatchKey => switch (group) {
+    'special' => Key('profile-editor-swatch-$slot'),
+    _ => Key('profile-editor-swatch-$group-$slot'),
+  };
+
+  Key get pickKey => switch (group) {
+    'special' => Key('profile-editor-pick-$slot'),
+    _ => Key('profile-editor-pick-$group-$slot'),
+  };
+
+  Key get resetKey => switch (group) {
+    'special' => Key('profile-editor-reset-$slot'),
+    _ => Key('profile-editor-reset-$group-$slot'),
+  };
+}
+
+const List<_ColorFieldSpec> _specialColorFieldSpecs = <_ColorFieldSpec>[
+  _ColorFieldSpec(group: 'special', slot: 'foreground', label: 'Foreground'),
+  _ColorFieldSpec(group: 'special', slot: 'background', label: 'Background'),
+  _ColorFieldSpec(group: 'special', slot: 'cursor', label: 'Cursor color'),
+  _ColorFieldSpec(group: 'special', slot: 'selection', label: 'Selection color'),
+];
+
+const List<_ColorFieldSpec> _normalAnsiColorFieldSpecs = <_ColorFieldSpec>[
+  _ColorFieldSpec(group: 'normal', slot: 'black', label: 'Black'),
+  _ColorFieldSpec(group: 'normal', slot: 'red', label: 'Red'),
+  _ColorFieldSpec(group: 'normal', slot: 'green', label: 'Green'),
+  _ColorFieldSpec(group: 'normal', slot: 'yellow', label: 'Yellow'),
+  _ColorFieldSpec(group: 'normal', slot: 'blue', label: 'Blue'),
+  _ColorFieldSpec(group: 'normal', slot: 'magenta', label: 'Magenta'),
+  _ColorFieldSpec(group: 'normal', slot: 'cyan', label: 'Cyan'),
+  _ColorFieldSpec(group: 'normal', slot: 'white', label: 'White'),
+];
+
+const List<_ColorFieldSpec> _brightAnsiColorFieldSpecs = <_ColorFieldSpec>[
+  _ColorFieldSpec(group: 'bright', slot: 'black', label: 'Bright black'),
+  _ColorFieldSpec(group: 'bright', slot: 'red', label: 'Bright red'),
+  _ColorFieldSpec(group: 'bright', slot: 'green', label: 'Bright green'),
+  _ColorFieldSpec(group: 'bright', slot: 'yellow', label: 'Bright yellow'),
+  _ColorFieldSpec(group: 'bright', slot: 'blue', label: 'Bright blue'),
+  _ColorFieldSpec(group: 'bright', slot: 'magenta', label: 'Bright magenta'),
+  _ColorFieldSpec(group: 'bright', slot: 'cyan', label: 'Bright cyan'),
+  _ColorFieldSpec(group: 'bright', slot: 'white', label: 'Bright white'),
+];
+
+const List<_ColorFieldSpec> _allColorFieldSpecs = <_ColorFieldSpec>[
+  ..._specialColorFieldSpecs,
+  ..._normalAnsiColorFieldSpecs,
+  ..._brightAnsiColorFieldSpecs,
+];
+
 class ProfileEditorDialog extends StatefulWidget {
   const ProfileEditorDialog({super.key, required this.initialValue});
 
@@ -26,21 +100,17 @@ class ProfileEditorDialog extends StatefulWidget {
 class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   static const double _controlHeight = 48;
   static const double _dropdownItemHeight = 48;
-  static const String _foregroundColorFieldKey = 'foreground';
-  static const String _backgroundColorFieldKey = 'background';
-  static const String _cursorColorFieldKey = 'cursor';
-  static const String _selectionColorFieldKey = 'selection';
 
   final _formKey = GlobalKey<FormState>();
   final List<TextEditingController> _argControllers = [];
   final List<_EnvEntryControllers> _envControllers = [];
   final List<TextEditingController> _fallbackControllers = [];
   final _scrollController = ScrollController();
+  final Map<String, TextEditingController> _colorControllers =
+      <String, TextEditingController>{};
+  final Map<String, FocusNode> _colorFocusNodes = <String, FocusNode>{};
   final Map<String, String?> _colorErrors = <String, String?>{
-    _foregroundColorFieldKey: null,
-    _backgroundColorFieldKey: null,
-    _cursorColorFieldKey: null,
-    _selectionColorFieldKey: null,
+    for (final spec in _allColorFieldSpecs) spec.fieldKey: null,
   };
 
   late final TextEditingController _nameController;
@@ -50,20 +120,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final TextEditingController _fontFamilyController;
   late final TextEditingController _fontSizeController;
   late final TextEditingController _lineHeightController;
-  late final TextEditingController _foregroundColorController;
-  late final TextEditingController _backgroundColorController;
-  late final TextEditingController _cursorColorController;
-  late final TextEditingController _selectionColorController;
   late final FocusNode _nameFocusNode;
   late final FocusNode _shellFocusNode;
   late final FocusNode _scrollbackFocusNode;
   late final FocusNode _fontFamilyFocusNode;
   late final FocusNode _fontSizeFocusNode;
   late final FocusNode _lineHeightFocusNode;
-  late final FocusNode _foregroundColorFocusNode;
-  late final FocusNode _backgroundColorFocusNode;
-  late final FocusNode _cursorColorFocusNode;
-  late final FocusNode _selectionColorFocusNode;
 
   late TerminalEmulation _terminalEmulation;
   late TerminalCursorShape _cursorShape;
@@ -94,18 +156,6 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _lineHeightController = _trackedController(
       text: profile.appearance.font.lineHeight.toString(),
     );
-    _foregroundColorController = _trackedController(
-      text: profile.appearance.colors.foreground ?? '',
-    );
-    _backgroundColorController = _trackedController(
-      text: profile.appearance.colors.background ?? '',
-    );
-    _cursorColorController = _trackedController(
-      text: profile.appearance.colors.cursor ?? '',
-    );
-    _selectionColorController = _trackedController(
-      text: profile.appearance.colors.selection ?? '',
-    );
     _nameFocusNode = FocusNode(debugLabel: 'profile-editor-name');
     _shellFocusNode = FocusNode(debugLabel: 'profile-editor-shell');
     _scrollbackFocusNode = FocusNode(debugLabel: 'profile-editor-scrollback');
@@ -114,18 +164,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _lineHeightFocusNode = FocusNode(
       debugLabel: 'profile-editor-font-line-height',
     );
-    _foregroundColorFocusNode = FocusNode(
-      debugLabel: 'profile-editor-color-foreground',
-    );
-    _backgroundColorFocusNode = FocusNode(
-      debugLabel: 'profile-editor-color-background',
-    );
-    _cursorColorFocusNode = FocusNode(
-      debugLabel: 'profile-editor-color-cursor',
-    );
-    _selectionColorFocusNode = FocusNode(
-      debugLabel: 'profile-editor-color-selection',
-    );
+    for (final spec in _allColorFieldSpecs) {
+      _colorControllers[spec.fieldKey] = _trackedController(
+        text: _colorValueForSpec(profile.appearance.colors, spec) ?? '',
+      );
+      _colorFocusNodes[spec.fieldKey] = FocusNode(debugLabel: spec.debugLabel);
+    }
 
     for (final arg in profile.launch.args) {
       _argControllers.add(_trackedController(text: arg));
@@ -155,10 +199,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       _fontFamilyController,
       _fontSizeController,
       _lineHeightController,
-      _foregroundColorController,
-      _backgroundColorController,
-      _cursorColorController,
-      _selectionColorController,
+      ..._colorControllers.values,
     ]);
     _disposeControllers(_argControllers);
     _disposeControllers(_fallbackControllers);
@@ -169,10 +210,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       _fontFamilyFocusNode,
       _fontSizeFocusNode,
       _lineHeightFocusNode,
-      _foregroundColorFocusNode,
-      _backgroundColorFocusNode,
-      _cursorColorFocusNode,
-      _selectionColorFocusNode,
+      ..._colorFocusNodes.values,
     ]);
     for (final entry in _envControllers) {
       entry.dispose();
@@ -204,6 +242,46 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       valueController: _trackedController(text: value),
       keyFocusNode: FocusNode(debugLabel: 'profile-editor-env-key'),
     );
+  }
+
+  TextEditingController _colorControllerForSpec(_ColorFieldSpec spec) {
+    return _colorControllers[spec.fieldKey]!;
+  }
+
+  FocusNode _colorFocusNodeForSpec(_ColorFieldSpec spec) {
+    return _colorFocusNodes[spec.fieldKey]!;
+  }
+
+  String? _colorValueForSpec(
+    TerminalColorPalette palette,
+    _ColorFieldSpec spec,
+  ) {
+    return switch (spec.group) {
+      'special' => switch (spec.slot) {
+        'foreground' => palette.special.foreground,
+        'background' => palette.special.background,
+        'cursor' => palette.special.cursor,
+        'selection' => palette.special.selection,
+        _ => null,
+      },
+      'normal' => _ansiColorValueForSlot(palette.normal, spec.slot),
+      'bright' => _ansiColorValueForSlot(palette.bright, spec.slot),
+      _ => null,
+    };
+  }
+
+  String? _ansiColorValueForSlot(TerminalAnsiColors colors, String slot) {
+    return switch (slot) {
+      'black' => colors.black,
+      'red' => colors.red,
+      'green' => colors.green,
+      'yellow' => colors.yellow,
+      'blue' => colors.blue,
+      'magenta' => colors.magenta,
+      'cyan' => colors.cyan,
+      'white' => colors.white,
+      _ => null,
+    };
   }
 
   void _markDirtyFromListener() {
@@ -381,11 +459,94 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   }
 
   bool _validateAllColorFields() {
-    _normalizeColorField(_foregroundColorFieldKey, _foregroundColorController);
-    _normalizeColorField(_backgroundColorFieldKey, _backgroundColorController);
-    _normalizeColorField(_cursorColorFieldKey, _cursorColorController);
-    _normalizeColorField(_selectionColorFieldKey, _selectionColorController);
+    for (final spec in _allColorFieldSpecs) {
+      _normalizeColorField(spec.fieldKey, _colorControllerForSpec(spec));
+    }
     return !_hasColorErrors;
+  }
+
+  TerminalThemePreset? get _selectedThemePreset {
+    final colors = _paletteFromControllerValues();
+    for (final preset in terminalThemePresets) {
+      if (preset.matchesColors(colors)) {
+        return preset;
+      }
+    }
+    return null;
+  }
+
+  String? _normalizedColorValueForPreset(String rawValue) {
+    final trimmed = rawValue.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    try {
+      return normalizeHexColor(trimmed);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  void _applyThemePreset(TerminalThemePreset preset) {
+    _didEdit = true;
+    for (final spec in _allColorFieldSpecs) {
+      _setControllerText(
+        _colorControllerForSpec(spec),
+        _colorValueForSpec(preset.palette, spec) ?? '',
+      );
+    }
+
+    setState(() {
+      for (final spec in _allColorFieldSpecs) {
+        _colorErrors[spec.fieldKey] = null;
+      }
+    });
+  }
+
+  TerminalColorPalette _paletteFromControllerValues() {
+    String? valueFor(_ColorFieldSpec spec) {
+      return _normalizedColorValueForPreset(_colorControllerForSpec(spec).text);
+    }
+
+    return TerminalColorPalette(
+      special: TerminalSpecialColors(
+        foreground: valueFor(_specialColorFieldSpecs[0]),
+        background: valueFor(_specialColorFieldSpecs[1]),
+        cursor: valueFor(_specialColorFieldSpecs[2]),
+        selection: valueFor(_specialColorFieldSpecs[3]),
+      ),
+      normal: TerminalAnsiColors(
+        black: valueFor(_normalAnsiColorFieldSpecs[0]),
+        red: valueFor(_normalAnsiColorFieldSpecs[1]),
+        green: valueFor(_normalAnsiColorFieldSpecs[2]),
+        yellow: valueFor(_normalAnsiColorFieldSpecs[3]),
+        blue: valueFor(_normalAnsiColorFieldSpecs[4]),
+        magenta: valueFor(_normalAnsiColorFieldSpecs[5]),
+        cyan: valueFor(_normalAnsiColorFieldSpecs[6]),
+        white: valueFor(_normalAnsiColorFieldSpecs[7]),
+      ),
+      bright: TerminalAnsiColors(
+        black: valueFor(_brightAnsiColorFieldSpecs[0]),
+        red: valueFor(_brightAnsiColorFieldSpecs[1]),
+        green: valueFor(_brightAnsiColorFieldSpecs[2]),
+        yellow: valueFor(_brightAnsiColorFieldSpecs[3]),
+        blue: valueFor(_brightAnsiColorFieldSpecs[4]),
+        magenta: valueFor(_brightAnsiColorFieldSpecs[5]),
+        cyan: valueFor(_brightAnsiColorFieldSpecs[6]),
+        white: valueFor(_brightAnsiColorFieldSpecs[7]),
+      ),
+    );
+  }
+
+  void _setControllerText(TextEditingController controller, String value) {
+    if (controller.text == value) {
+      return;
+    }
+    controller.value = controller.value.copyWith(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+      composing: TextRange.empty,
+    );
   }
 
   void _resetColorField(String fieldKey, TextEditingController controller) {
@@ -457,19 +618,73 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           size: double.parse(_fontSizeController.text.trim()),
           lineHeight: double.parse(_lineHeightController.text.trim()),
         ),
-        colors: widget.initialValue.appearance.colors.copyWith(
-          foreground: _foregroundColorController.text.trim().isEmpty
-              ? null
-              : normalizeHexColor(_foregroundColorController.text),
-          background: _backgroundColorController.text.trim().isEmpty
-              ? null
-              : normalizeHexColor(_backgroundColorController.text),
-          cursor: _cursorColorController.text.trim().isEmpty
-              ? null
-              : normalizeHexColor(_cursorColorController.text),
-          selection: _selectionColorController.text.trim().isEmpty
-              ? null
-              : normalizeHexColor(_selectionColorController.text),
+        colors: TerminalColorPalette(
+          special: TerminalSpecialColors(
+            foreground: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_specialColorFieldSpecs[0]).text,
+            ),
+            background: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_specialColorFieldSpecs[1]).text,
+            ),
+            cursor: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_specialColorFieldSpecs[2]).text,
+            ),
+            selection: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_specialColorFieldSpecs[3]).text,
+            ),
+          ),
+          normal: TerminalAnsiColors(
+            black: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_normalAnsiColorFieldSpecs[0]).text,
+            ),
+            red: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_normalAnsiColorFieldSpecs[1]).text,
+            ),
+            green: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_normalAnsiColorFieldSpecs[2]).text,
+            ),
+            yellow: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_normalAnsiColorFieldSpecs[3]).text,
+            ),
+            blue: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_normalAnsiColorFieldSpecs[4]).text,
+            ),
+            magenta: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_normalAnsiColorFieldSpecs[5]).text,
+            ),
+            cyan: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_normalAnsiColorFieldSpecs[6]).text,
+            ),
+            white: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_normalAnsiColorFieldSpecs[7]).text,
+            ),
+          ),
+          bright: TerminalAnsiColors(
+            black: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_brightAnsiColorFieldSpecs[0]).text,
+            ),
+            red: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_brightAnsiColorFieldSpecs[1]).text,
+            ),
+            green: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_brightAnsiColorFieldSpecs[2]).text,
+            ),
+            yellow: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_brightAnsiColorFieldSpecs[3]).text,
+            ),
+            blue: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_brightAnsiColorFieldSpecs[4]).text,
+            ),
+            magenta: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_brightAnsiColorFieldSpecs[5]).text,
+            ),
+            cyan: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_brightAnsiColorFieldSpecs[6]).text,
+            ),
+            white: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_brightAnsiColorFieldSpecs[7]).text,
+            ),
+          ),
         ),
         cursor: widget.initialValue.appearance.cursor.copyWith(
           shape: _cursorShape,
@@ -582,17 +797,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         null) {
       return _lineHeightFocusNode;
     }
-    if (_validateOptionalHexColor(_foregroundColorController.text) != null) {
-      return _foregroundColorFocusNode;
-    }
-    if (_validateOptionalHexColor(_backgroundColorController.text) != null) {
-      return _backgroundColorFocusNode;
-    }
-    if (_validateOptionalHexColor(_cursorColorController.text) != null) {
-      return _cursorColorFocusNode;
-    }
-    if (_validateOptionalHexColor(_selectionColorController.text) != null) {
-      return _selectionColorFocusNode;
+    for (final spec in _allColorFieldSpecs) {
+      if (_validateOptionalHexColor(_colorControllerForSpec(spec).text) != null) {
+        return _colorFocusNodeForSpec(spec);
+      }
     }
     return null;
   }
@@ -831,52 +1039,25 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     description:
                         'Override terminal colors for newly opened sessions.',
                     children: [
-                      _buildColorField(
-                        fieldKey: _foregroundColorFieldKey,
-                        label: 'Foreground',
-                        controller: _foregroundColorController,
-                        focusNode: _foregroundColorFocusNode,
-                        inputKey: const Key('profile-editor-color-foreground'),
-                        swatchKey: const Key(
-                          'profile-editor-swatch-foreground',
-                        ),
-                        pickKey: const Key('profile-editor-pick-foreground'),
-                        resetKey: const Key('profile-editor-reset-foreground'),
+                      _buildThemePresetSection(),
+                      const SizedBox(height: 16),
+                      _buildColorGroupSection(
+                        title: 'Special',
+                        description:
+                            'Foreground, background, cursor, and selection.',
+                        specs: _specialColorFieldSpecs,
                       ),
-                      const SizedBox(height: 12),
-                      _buildColorField(
-                        fieldKey: _backgroundColorFieldKey,
-                        label: 'Background',
-                        controller: _backgroundColorController,
-                        focusNode: _backgroundColorFocusNode,
-                        inputKey: const Key('profile-editor-color-background'),
-                        swatchKey: const Key(
-                          'profile-editor-swatch-background',
-                        ),
-                        pickKey: const Key('profile-editor-pick-background'),
-                        resetKey: const Key('profile-editor-reset-background'),
+                      const SizedBox(height: 16),
+                      _buildColorGroupSection(
+                        title: 'ANSI normal',
+                        description: 'Standard ANSI 0-7 terminal colors.',
+                        specs: _normalAnsiColorFieldSpecs,
                       ),
-                      const SizedBox(height: 12),
-                      _buildColorField(
-                        fieldKey: _cursorColorFieldKey,
-                        label: 'Cursor color',
-                        controller: _cursorColorController,
-                        focusNode: _cursorColorFocusNode,
-                        inputKey: const Key('profile-editor-color-cursor'),
-                        swatchKey: const Key('profile-editor-swatch-cursor'),
-                        pickKey: const Key('profile-editor-pick-cursor'),
-                        resetKey: const Key('profile-editor-reset-cursor'),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildColorField(
-                        fieldKey: _selectionColorFieldKey,
-                        label: 'Selection color',
-                        controller: _selectionColorController,
-                        focusNode: _selectionColorFocusNode,
-                        inputKey: const Key('profile-editor-color-selection'),
-                        swatchKey: const Key('profile-editor-swatch-selection'),
-                        pickKey: const Key('profile-editor-pick-selection'),
-                        resetKey: const Key('profile-editor-reset-selection'),
+                      const SizedBox(height: 16),
+                      _buildColorGroupSection(
+                        title: 'ANSI bright',
+                        description: 'Bright ANSI 8-15 terminal colors.',
+                        specs: _brightAnsiColorFieldSpecs,
                       ),
                     ],
                   ),
@@ -1172,29 +1353,90 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
   }
 
-  Widget _buildColorField({
-    required String fieldKey,
-    required String label,
-    required TextEditingController controller,
-    required FocusNode focusNode,
-    required Key inputKey,
-    required Key swatchKey,
-    required Key pickKey,
-    required Key resetKey,
+  Widget _buildColorGroupSection({
+    required String title,
+    required String description,
+    required List<_ColorFieldSpec> specs,
   }) {
+    final theme = context.appTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        SizedBox(height: theme.spacing.xs + 1),
+        Text(
+          description,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+        ),
+        for (var index = 0; index < specs.length; index += 1) ...[
+          SizedBox(height: theme.spacing.sm + 4),
+          _buildColorField(specs[index]),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildColorField(_ColorFieldSpec spec) {
+    final controller = _colorControllerForSpec(spec);
     return ColorSettingRow(
-      label: label,
+      label: spec.label,
       controller: controller,
-      focusNode: focusNode,
-      inputKey: inputKey,
-      swatchKey: swatchKey,
-      pickKey: pickKey,
-      resetKey: resetKey,
-      errorText: _colorErrors[fieldKey],
-      onChanged: (value) => _handleColorChanged(fieldKey, value),
-      onBlurNormalize: () => _normalizeColorField(fieldKey, controller),
-      onPick: () => unawaited(_pickColor(fieldKey, controller)),
-      onReset: () => _resetColorField(fieldKey, controller),
+      focusNode: _colorFocusNodeForSpec(spec),
+      inputKey: spec.inputKey,
+      swatchKey: spec.swatchKey,
+      pickKey: spec.pickKey,
+      resetKey: spec.resetKey,
+      errorText: _colorErrors[spec.fieldKey],
+      onChanged: (value) => _handleColorChanged(spec.fieldKey, value),
+      onBlurNormalize: () => _normalizeColorField(spec.fieldKey, controller),
+      onPick: () => unawaited(_pickColor(spec.fieldKey, controller)),
+      onReset: () => _resetColorField(spec.fieldKey, controller),
+    );
+  }
+
+  Widget _buildThemePresetSection() {
+    final theme = context.appTheme;
+    final selectedPreset = _selectedThemePreset;
+
+    return Column(
+      key: const Key('profile-editor-theme-presets'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Theme presets',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        SizedBox(height: theme.spacing.xs + 1),
+        Text(
+          'Apply a curated palette, then fine-tune any color below.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+        ),
+        SizedBox(height: theme.spacing.sm + 1),
+        Wrap(
+          spacing: theme.spacing.sm,
+          runSpacing: theme.spacing.sm,
+          children: [
+            for (final preset in terminalThemePresets)
+              _TerminalThemePresetButton(
+                key: Key('profile-editor-theme-preset-${preset.id}'),
+                preset: preset,
+                selected: selectedPreset?.id == preset.id,
+                onPressed: () => _applyThemePreset(preset),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1280,6 +1522,136 @@ class _ColorPickerResult {
 
   final bool applied;
   final String? hexValue;
+}
+
+class _TerminalThemePresetButton extends StatelessWidget {
+  const _TerminalThemePresetButton({
+    super.key,
+    required this.preset,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final TerminalThemePreset preset;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final titleStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
+      color: theme.textPrimary,
+      fontWeight: FontWeight.w700,
+    );
+    final toneBackground = selected
+        ? theme.focus.withValues(alpha: 0.18)
+        : theme.chrome.withValues(alpha: 0.65);
+    final toneColor = selected ? theme.textPrimary : theme.textMuted;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'Apply ${preset.name} theme preset',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(theme.radius.lg),
+          onTap: onPressed,
+          child: Ink(
+            width: 168,
+            padding: EdgeInsets.all(theme.spacing.md),
+            decoration: BoxDecoration(
+              color: selected
+                  ? theme.panel
+                  : theme.chrome.withValues(alpha: 0.30),
+              borderRadius: BorderRadius.circular(theme.radius.lg),
+              border: Border.all(
+                color: selected ? theme.focus : theme.border,
+                width: selected ? 1.5 : 1,
+              ),
+              boxShadow: selected ? theme.elevation.floating : const [],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        preset.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: titleStyle,
+                      ),
+                    ),
+                    if (selected)
+                      Icon(
+                        Icons.check_circle_rounded,
+                        key: Key(
+                          'profile-editor-theme-preset-selected-${preset.id}',
+                        ),
+                        size: 16,
+                        color: theme.focus,
+                      ),
+                  ],
+                ),
+                SizedBox(height: theme.spacing.xs + 1),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: toneBackground,
+                    borderRadius: BorderRadius.circular(theme.radius.sm),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: theme.spacing.sm,
+                      vertical: theme.spacing.xs + 1,
+                    ),
+                    child: Text(
+                      preset.tone.label,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: toneColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: theme.spacing.sm + 1),
+                Wrap(
+                  spacing: theme.spacing.xs + 1,
+                  runSpacing: theme.spacing.xs + 1,
+                  children: [
+                    for (final colorValue in preset.previewColors)
+                      _ThemePresetColorSwatch(colorValue: colorValue),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemePresetColorSwatch extends StatelessWidget {
+  const _ThemePresetColorSwatch({required this.colorValue});
+
+  final String colorValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        color: parseOptionalHexColor(colorValue),
+        borderRadius: BorderRadius.circular(theme.radius.sm),
+        border: Border.all(color: theme.border),
+      ),
+    );
+  }
 }
 
 class _ColorPickerDialog extends StatefulWidget {

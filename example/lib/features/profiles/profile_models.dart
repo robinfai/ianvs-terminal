@@ -5,6 +5,13 @@ import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal_pkg;
 typedef TerminalEmulation = terminal_pkg.TerminalEmulation;
 typedef TerminalCursorShape = terminal_pkg.TerminalCursorShape;
 typedef TerminalOptionDragMode = terminal_pkg.TerminalOptionDragMode;
+typedef TerminalColorPalette = terminal_pkg.TerminalColorPalette;
+typedef TerminalProfileColors = terminal_pkg.TerminalColorPalette;
+typedef TerminalSpecialColors = terminal_pkg.TerminalSpecialColors;
+typedef TerminalAnsiColors = terminal_pkg.TerminalAnsiColors;
+typedef TerminalProfileCursor = terminal_pkg.TerminalCursorConfig;
+typedef TerminalProfileAppearance = terminal_pkg.TerminalDisplayConfig;
+typedef TerminalProfileInteraction = terminal_pkg.TerminalInteractionConfig;
 
 class TerminalProfileLoadWarning {
   const TerminalProfileLoadWarning({
@@ -194,7 +201,7 @@ class TerminalProfilesDocument {
     this.loadWarnings = const [],
   });
 
-  static const int currentSchemaVersion = 2;
+  static const int currentSchemaVersion = 3;
 
   final int schemaVersion;
   final List<TerminalProfile> profiles;
@@ -230,10 +237,12 @@ class TerminalProfilesDocument {
           continue;
         }
         profiles.add(
-          TerminalProfile.fromJson(
-            profileMap,
-            fallbackId: _fallbackProfileIdFor(index),
-            loadWarnings: warnings,
+          _normalizeBuiltInShellProfile(
+            TerminalProfile.fromJson(
+              profileMap,
+              fallbackId: _fallbackProfileIdFor(index),
+              loadWarnings: warnings,
+            ),
           ),
         );
       }
@@ -265,6 +274,7 @@ TerminalProfile defaultTerminalProfile() {
       'FLUTTERM_DEFAULT_SHELL',
       defaultValue: '/bin/zsh',
     ),
+    args: const ['-l'],
   );
 }
 
@@ -276,6 +286,7 @@ TerminalProfile vt220TerminalProfile() {
       'FLUTTERM_DEFAULT_SHELL',
       defaultValue: '/bin/zsh',
     ),
+    args: const ['-l'],
     terminalEmulation: TerminalEmulation.vt220,
   );
 }
@@ -347,6 +358,27 @@ Map<String, Object?>? _asStringMap(Object? value) {
 
 String? _stringOrNull(Object? value) {
   return value is String ? value : null;
+}
+
+TerminalProfile _normalizeBuiltInShellProfile(TerminalProfile profile) {
+  if (profile.args.isNotEmpty) {
+    return profile;
+  }
+
+  final defaultProfile = defaultTerminalProfile();
+  if (profile.id == defaultProfile.id &&
+      profile.shell == defaultProfile.shell) {
+    return profile.copyWith(args: defaultProfile.args);
+  }
+
+  final vt220Profile = vt220TerminalProfile();
+  if (profile.id == vt220Profile.id &&
+      profile.shell == vt220Profile.shell &&
+      profile.terminalEmulation == vt220Profile.terminalEmulation) {
+    return profile.copyWith(args: vt220Profile.args);
+  }
+
+  return profile;
 }
 
 String _rawValueSummary(Object? value) {

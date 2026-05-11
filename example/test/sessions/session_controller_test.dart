@@ -1102,7 +1102,9 @@ void main() {
         sshProfile.copyWith(
           scrollbackLines: 4096,
           appearance: sshProfile.appearance.copyWith(
-            colors: const terminal.TerminalColorPalette(foreground: '#112233'),
+            colors: const terminal.TerminalColorPalette(
+              special: terminal.TerminalSpecialColors(foreground: '#112233'),
+            ),
           ),
         ),
       );

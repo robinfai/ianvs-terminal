@@ -8,3 +8,4 @@ export 'components/app_toolbar.dart';
 export 'foundation/app_terminal_colors.dart';
 export 'foundation/app_theme.dart';
 export 'foundation/app_theme_tokens.dart';
+export 'foundation/terminal_theme_presets.dart';

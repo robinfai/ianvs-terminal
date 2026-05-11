@@ -2,7 +2,77 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutterm_terminal/flutterm_terminal.dart';
 
 void main() {
-  test('terminal session config parses legacy profile JSON with warnings', () {
+  test('terminal color palette roundtrips grouped special and ansi colors', () {
+    const palette = TerminalColorPalette(
+      special: TerminalSpecialColors(
+        foreground: '#112233',
+        background: '#445566',
+        cursor: '#778899',
+        selection: '#AABBCC',
+      ),
+      normal: TerminalAnsiColors(
+        black: '#010101',
+        red: '#020202',
+        green: '#030303',
+        yellow: '#040404',
+        blue: '#050505',
+        magenta: '#060606',
+        cyan: '#070707',
+        white: '#080808',
+      ),
+      bright: TerminalAnsiColors(
+        black: '#111111',
+        red: '#121212',
+        green: '#131313',
+        yellow: '#141414',
+        blue: '#151515',
+        magenta: '#161616',
+        cyan: '#171717',
+        white: '#181818',
+      ),
+    );
+
+    expect(palette.toJson(), <String, Object?>{
+      'special': <String, Object?>{
+        'foreground': '#112233',
+        'background': '#445566',
+        'cursor': '#778899',
+        'selection': '#AABBCC',
+      },
+      'normal': <String, Object?>{
+        'black': '#010101',
+        'red': '#020202',
+        'green': '#030303',
+        'yellow': '#040404',
+        'blue': '#050505',
+        'magenta': '#060606',
+        'cyan': '#070707',
+        'white': '#080808',
+      },
+      'bright': <String, Object?>{
+        'black': '#111111',
+        'red': '#121212',
+        'green': '#131313',
+        'yellow': '#141414',
+        'blue': '#151515',
+        'magenta': '#161616',
+        'cyan': '#171717',
+        'white': '#181818',
+      },
+    });
+
+    final roundTrip = TerminalColorPalette.fromJson(palette.toJson());
+    expect(roundTrip.special.foreground, '#112233');
+    expect(roundTrip.special.background, '#445566');
+    expect(roundTrip.special.cursor, '#778899');
+    expect(roundTrip.special.selection, '#AABBCC');
+    expect(roundTrip.normal.red, '#020202');
+    expect(roundTrip.normal.blue, '#050505');
+    expect(roundTrip.bright.red, '#121212');
+    expect(roundTrip.bright.white, '#181818');
+  });
+
+  test('terminal session config parses grouped profile colors', () {
     final warnings = <TerminalConfigWarning>[];
 
     final config = TerminalSessionConfig.fromProfileJson(
@@ -16,7 +86,34 @@ void main() {
             'family': '',
             'fallback': <Object?>['Monaco', ''],
           },
-          'colors': <String, Object?>{'foreground': 'not-a-color'},
+          'colors': <String, Object?>{
+            'special': <String, Object?>{
+              'foreground': '#112233',
+              'background': '#445566',
+              'cursor': '#778899',
+              'selection': '#AABBCC',
+            },
+            'normal': <String, Object?>{
+              'black': '#010101',
+              'red': '#020202',
+              'green': '#030303',
+              'yellow': '#040404',
+              'blue': '#050505',
+              'magenta': '#060606',
+              'cyan': '#070707',
+              'white': '#080808',
+            },
+            'bright': <String, Object?>{
+              'black': '#111111',
+              'red': '#121212',
+              'green': '#131313',
+              'yellow': '#141414',
+              'blue': '#151515',
+              'magenta': '#161616',
+              'cyan': '#171717',
+              'white': '#181818',
+            },
+          },
         },
       },
       defaultProgram: '/bin/zsh',
@@ -30,7 +127,12 @@ void main() {
     expect(config.shellIntegration.enabled, isTrue);
     expect(config.display.font.family, terminalPrimaryFontFamily);
     expect(config.display.font.fallback, <String>['Monaco']);
-    expect(config.display.colors.foreground, isNull);
+    expect(config.display.colors.special.foreground, '#112233');
+    expect(config.display.colors.special.background, '#445566');
+    expect(config.display.colors.special.cursor, '#778899');
+    expect(config.display.colors.special.selection, '#AABBCC');
+    expect(config.display.colors.normal.blue, '#050505');
+    expect(config.display.colors.bright.white, '#181818');
     expect(
       warnings.map((warning) => warning.path),
       containsAll(<String>[
@@ -38,10 +140,46 @@ void main() {
         'terminal.scrollbackLines',
         'appearance.font.family',
         'appearance.font.fallback[1]',
-        'appearance.colors.foreground',
       ]),
     );
   });
+
+  test(
+    'terminal session config ignores legacy flat profile color fields and warns',
+    () {
+      final warnings = <TerminalConfigWarning>[];
+
+      final config = TerminalSessionConfig.fromProfileJson(
+        <String, Object?>{
+          'shell': '/bin/bash',
+          'appearance': <String, Object?>{
+            'colors': <String, Object?>{
+              'foreground': '#112233',
+              'background': '#445566',
+              'cursor': '#778899',
+              'selection': '#AABBCC',
+            },
+          },
+        },
+        defaultProgram: '/bin/zsh',
+        onWarning: warnings.add,
+      );
+
+      expect(config.display.colors.special.foreground, isNull);
+      expect(config.display.colors.special.background, isNull);
+      expect(config.display.colors.special.cursor, isNull);
+      expect(config.display.colors.special.selection, isNull);
+      expect(
+        warnings.map((warning) => warning.path),
+        containsAll(<String>[
+          'appearance.colors.foreground',
+          'appearance.colors.background',
+          'appearance.colors.cursor',
+          'appearance.colors.selection',
+        ]),
+      );
+    },
+  );
 
   test('terminal session config forwards shell integration settings', () {
     final config = TerminalSessionConfig.fromJson(<String, Object?>{

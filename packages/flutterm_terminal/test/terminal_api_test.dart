@@ -26,11 +26,21 @@ void main() {
         lineHeight: 1.3,
         cursorBlink: false,
         cursorStyle: TerminalCursorStyle.bar,
-        theme: TerminalTheme(
-          foreground: '#eeeeee',
-          background: '#101010',
-          cursor: '#ffffff',
-          selectionBackground: '#334455',
+        theme: TerminalColorPalette(
+          special: TerminalSpecialColors(
+            foreground: '#EEEEEE',
+            background: '#101010',
+            cursor: '#FFFFFF',
+            selection: '#334455',
+          ),
+          normal: TerminalAnsiColors(
+            red: '#AA2200',
+            blue: '#2244AA',
+          ),
+          bright: TerminalAnsiColors(
+            red: '#FF3300',
+            blue: '#5577FF',
+          ),
         ),
         copyOnSelect: true,
       ),
@@ -60,10 +70,32 @@ void main() {
         'lineHeight': 1.3,
       },
       'colors': <String, Object?>{
-        'foreground': '#eeeeee',
-        'background': '#101010',
-        'cursor': '#ffffff',
-        'selection': '#334455',
+        'special': <String, Object?>{
+          'foreground': '#EEEEEE',
+          'background': '#101010',
+          'cursor': '#FFFFFF',
+          'selection': '#334455',
+        },
+        'normal': <String, Object?>{
+          'black': '#14191E',
+          'red': '#AA2200',
+          'green': '#00815B',
+          'yellow': '#CFA518',
+          'blue': '#2244AA',
+          'magenta': '#8818A3',
+          'cyan': '#009399',
+          'white': '#E5E5E5',
+        },
+        'bright': <String, Object?>{
+          'black': '#687378',
+          'red': '#FF3300',
+          'green': '#00C984',
+          'yellow': '#FFC531',
+          'blue': '#5577FF',
+          'magenta': '#C54FFF',
+          'cyan': '#00CCCC',
+          'white': '#FFFFFF',
+        },
       },
       'cursor': <String, Object?>{'shape': 'beam', 'blink': false},
     });

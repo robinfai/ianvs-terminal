@@ -71,6 +71,16 @@ void main() {
         TerminalEmulation.vt220,
       );
       expect(
+        loaded.profiles
+            .where(
+              (profile) =>
+                  profile.id == defaultTerminalProfile().id ||
+                  profile.id == vt220TerminalProfile().id,
+            )
+            .map((profile) => profile.args),
+        everyElement(const ['-l']),
+      );
+      expect(
         raw['schemaVersion'],
         TerminalProfilesDocument.currentSchemaVersion,
       );
@@ -154,15 +164,15 @@ void main() {
     },
   );
 
-  test('profile repository reads nested schema v2 documents', () async {
+  test('profile repository reads nested schema v3 documents', () async {
     final directory = await Directory.systemTemp.createTemp(
-      'flutterm-profiles-v2',
+      'flutterm-profiles-v3',
     );
     final file = File('${directory.path}/flutterm_profiles.json');
     await file.parent.create(recursive: true);
     await file.writeAsString(
       jsonEncode({
-        'schemaVersion': 2,
+        'schemaVersion': 3,
         'profiles': [
           {
             'id': 'default',
@@ -182,10 +192,14 @@ void main() {
                 'lineHeight': 1.4,
               },
               'colors': {
-                'foreground': '#eeeeee',
-                'background': '#111111',
-                'cursor': '#22c55e',
-                'selection': '#334155',
+                'special': {
+                  'foreground': '#eeeeee',
+                  'background': '#111111',
+                  'cursor': '#22c55e',
+                  'selection': '#334155',
+                },
+                'normal': {'red': '#ff5544', 'blue': '#3366cc'},
+                'bright': {'yellow': '#ffd166', 'white': '#fafafa'},
               },
               'cursor': {'shape': 'beam', 'blink': false},
             },
@@ -203,7 +217,7 @@ void main() {
 
     final loaded = await repository.load();
 
-    expect(loaded.schemaVersion, 2);
+    expect(loaded.schemaVersion, 3);
     expect(loaded.profiles.single.shell, '/bin/zsh');
     expect(loaded.profiles.single.args, const ['-l']);
     expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
@@ -221,6 +235,14 @@ void main() {
       loaded.profiles.single.interaction.optionDragMode,
       TerminalOptionDragMode.normalSelection,
     );
+    expect(loaded.profiles.single.appearance.colors.foreground, '#EEEEEE');
+    expect(loaded.profiles.single.appearance.colors.background, '#111111');
+    expect(loaded.profiles.single.appearance.colors.cursor, '#22C55E');
+    expect(loaded.profiles.single.appearance.colors.selection, '#334155');
+    expect(loaded.profiles.single.appearance.colors.normal.red, '#FF5544');
+    expect(loaded.profiles.single.appearance.colors.normal.blue, '#3366CC');
+    expect(loaded.profiles.single.appearance.colors.bright.yellow, '#FFD166');
+    expect(loaded.profiles.single.appearance.colors.bright.white, '#FAFAFA');
   });
 
   test(
@@ -232,7 +254,7 @@ void main() {
       final file = File('${directory.path}/flutterm_profiles.json');
       await file.parent.create(recursive: true);
       final rawDocument = jsonEncode({
-        'schemaVersion': 2,
+        'schemaVersion': 3,
         'profiles': [
           {
             'name': '',
@@ -255,6 +277,14 @@ void main() {
                 'background': '#112233',
                 'cursor': 12,
                 'selection': '#334455',
+                'special': {
+                  'foreground': 'red',
+                  'background': '#112233',
+                  'cursor': 12,
+                  'selection': '#334455',
+                },
+                'normal': {'black': '#010203', 'red': 'tomato'},
+                'bright': const ['wrong-shape'],
               },
               'cursor': {'shape': 'triangle', 'blink': 'yes'},
             },
@@ -296,6 +326,9 @@ void main() {
       expect(loaded.profiles.single.appearance.colors.background, '#112233');
       expect(loaded.profiles.single.appearance.colors.cursor, isNull);
       expect(loaded.profiles.single.appearance.colors.selection, '#334455');
+      expect(loaded.profiles.single.appearance.colors.normal.black, '#010203');
+      expect(loaded.profiles.single.appearance.colors.normal.red, isNull);
+      expect(loaded.profiles.single.appearance.colors.bright.blue, isNull);
       expect(
         loaded.profiles.single.appearance.cursor.shape,
         TerminalCursorShape.block,
@@ -323,7 +356,12 @@ void main() {
           'appearance.font.size',
           'appearance.font.lineHeight',
           'appearance.colors.foreground',
+          'appearance.colors.background',
           'appearance.colors.cursor',
+          'appearance.colors.selection',
+          'appearance.colors.special.foreground',
+          'appearance.colors.special.cursor',
+          'appearance.colors.normal.red',
           'appearance.cursor.shape',
           'appearance.cursor.blink',
           'interaction.copyOnSelect',
@@ -331,6 +369,62 @@ void main() {
         ]),
       );
       expect(loaded.toJson().containsKey('loadWarnings'), isFalse);
+    },
+  );
+
+  test(
+    'profile repository upgrades built-in shell presets without explicit login args',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'flutterm-profiles-login-shell-upgrade',
+      );
+      final file = File('${directory.path}/flutterm_profiles.json');
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        jsonEncode({
+          'schemaVersion': 2,
+          'profiles': [
+            {
+              'id': 'default',
+              'name': 'Local Shell',
+              'launch': {
+                'program': defaultTerminalProfile().shell,
+                'env': const {'TERM_PROGRAM': 'flutterm'},
+                'cwd': null,
+              },
+              'terminal': {'emulation': 'xterm256', 'scrollbackLines': 8000},
+            },
+            {
+              'id': 'vt220',
+              'name': 'Strict VT220',
+              'launch': {
+                'program': vt220TerminalProfile().shell,
+                'env': const {'TERM_PROGRAM': 'flutterm'},
+                'cwd': null,
+              },
+              'terminal': {'emulation': 'vt220', 'scrollbackLines': 8000},
+            },
+          ],
+        }),
+      );
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(
+        loaded.profiles
+            .firstWhere((profile) => profile.id == defaultTerminalProfile().id)
+            .args,
+        const ['-l'],
+      );
+      expect(
+        loaded.profiles
+            .firstWhere((profile) => profile.id == vt220TerminalProfile().id)
+            .args,
+        const ['-l'],
+      );
     },
   );
 

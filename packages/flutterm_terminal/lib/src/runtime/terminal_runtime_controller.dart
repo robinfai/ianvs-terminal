@@ -136,7 +136,7 @@ class TerminalRuntimeController {
 
   String createSession(TerminalSessionConfig config) {
     final sessionId = _backend.createSession(
-      _encodeNativeSessionConfig(config),
+      _encodeNativeSessionConfig(_resolveColorsForRuntime(config)),
     );
     _activeSessionIds.add(sessionId);
     viewportFor(sessionId);
@@ -738,6 +738,14 @@ class TerminalRuntimeController {
       'name': wireName,
       ...json,
     });
+  }
+
+  TerminalSessionConfig _resolveColorsForRuntime(TerminalSessionConfig config) {
+    return config.copyWith(
+      display: config.display.copyWith(
+        colors: config.display.colors.resolveWith(),
+      ),
+    );
   }
 
   void dispose() {

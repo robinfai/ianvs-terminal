@@ -19,51 +19,6 @@ abstract interface class TerminalAddon implements TerminalDisposable {
 
 enum TerminalCursorStyle { block, underline, bar }
 
-class TerminalTheme {
-  const TerminalTheme({
-    this.foreground,
-    this.background,
-    this.cursor,
-    this.selectionBackground,
-  });
-
-  final String? foreground;
-  final String? background;
-  final String? cursor;
-  final String? selectionBackground;
-
-  TerminalTheme copyWith({
-    Object? foreground = _terminalApiNoChange,
-    Object? background = _terminalApiNoChange,
-    Object? cursor = _terminalApiNoChange,
-    Object? selectionBackground = _terminalApiNoChange,
-  }) {
-    return TerminalTheme(
-      foreground: identical(foreground, _terminalApiNoChange)
-          ? this.foreground
-          : foreground as String?,
-      background: identical(background, _terminalApiNoChange)
-          ? this.background
-          : background as String?,
-      cursor: identical(cursor, _terminalApiNoChange)
-          ? this.cursor
-          : cursor as String?,
-      selectionBackground: identical(selectionBackground, _terminalApiNoChange)
-          ? this.selectionBackground
-          : selectionBackground as String?,
-    );
-  }
-
-  TerminalColorPalette toColorPalette() {
-    return TerminalColorPalette(
-      foreground: foreground,
-      background: background,
-      cursor: cursor,
-      selection: selectionBackground,
-    );
-  }
-}
-
 class TerminalOptions {
   const TerminalOptions({
     this.cols = 80,
@@ -75,7 +30,7 @@ class TerminalOptions {
     this.lineHeight = terminalLineHeight,
     this.cursorBlink = true,
     this.cursorStyle = TerminalCursorStyle.block,
-    this.theme = const TerminalTheme(),
+    this.theme = const TerminalColorPalette(),
     this.copyOnSelect = false,
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.emulation = TerminalEmulation.xterm256,
@@ -90,7 +45,7 @@ class TerminalOptions {
   final double lineHeight;
   final bool cursorBlink;
   final TerminalCursorStyle cursorStyle;
-  final TerminalTheme theme;
+  final TerminalColorPalette theme;
   final bool copyOnSelect;
   final TerminalOptionDragMode optionDragMode;
   final TerminalEmulation emulation;
@@ -105,7 +60,7 @@ class TerminalOptions {
     double? lineHeight,
     bool? cursorBlink,
     TerminalCursorStyle? cursorStyle,
-    TerminalTheme? theme,
+    TerminalColorPalette? theme,
     bool? copyOnSelect,
     TerminalOptionDragMode? optionDragMode,
     TerminalEmulation? emulation,
@@ -138,7 +93,7 @@ class TerminalOptions {
           size: fontSize,
           lineHeight: lineHeight,
         ),
-        colors: theme.toColorPalette(),
+        colors: theme,
         cursor: config.display.cursor.copyWith(
           shape: _cursorShapeFor(cursorStyle),
           blink: cursorBlink,
@@ -595,5 +550,3 @@ bool _sameSelection(TerminalSelection? left, TerminalSelection? right) {
       left.endRow == right.endRow &&
       left.endCol == right.endCol;
 }
-
-const Object _terminalApiNoChange = Object();

@@ -139,8 +139,8 @@ class TerminalFontConfig {
   }
 }
 
-class TerminalColorPalette {
-  const TerminalColorPalette({
+class TerminalSpecialColors {
+  const TerminalSpecialColors({
     this.foreground,
     this.background,
     this.cursor,
@@ -152,13 +152,13 @@ class TerminalColorPalette {
   final String? cursor;
   final String? selection;
 
-  TerminalColorPalette copyWith({
+  TerminalSpecialColors copyWith({
     Object? foreground = _terminalConfigNoChange,
     Object? background = _terminalConfigNoChange,
     Object? cursor = _terminalConfigNoChange,
     Object? selection = _terminalConfigNoChange,
   }) {
-    return TerminalColorPalette(
+    return TerminalSpecialColors(
       foreground: identical(foreground, _terminalConfigNoChange)
           ? this.foreground
           : foreground as String?,
@@ -174,6 +174,15 @@ class TerminalColorPalette {
     );
   }
 
+  TerminalSpecialColors resolveWith(TerminalSpecialColors defaults) {
+    return TerminalSpecialColors(
+      foreground: foreground ?? defaults.foreground,
+      background: background ?? defaults.background,
+      cursor: cursor ?? defaults.cursor,
+      selection: selection ?? defaults.selection,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'foreground': foreground,
@@ -183,9 +192,9 @@ class TerminalColorPalette {
     };
   }
 
-  factory TerminalColorPalette.fromJson(Object? json) {
+  factory TerminalSpecialColors.fromJson(Object? json) {
     final map = _asObjectMap(json);
-    return TerminalColorPalette(
+    return TerminalSpecialColors(
       foreground: _stringOrNull(map?['foreground']),
       background: _stringOrNull(map?['background']),
       cursor: _stringOrNull(map?['cursor']),
@@ -193,6 +202,193 @@ class TerminalColorPalette {
     );
   }
 }
+
+class TerminalAnsiColors {
+  const TerminalAnsiColors({
+    this.black,
+    this.red,
+    this.green,
+    this.yellow,
+    this.blue,
+    this.magenta,
+    this.cyan,
+    this.white,
+  });
+
+  final String? black;
+  final String? red;
+  final String? green;
+  final String? yellow;
+  final String? blue;
+  final String? magenta;
+  final String? cyan;
+  final String? white;
+
+  TerminalAnsiColors copyWith({
+    Object? black = _terminalConfigNoChange,
+    Object? red = _terminalConfigNoChange,
+    Object? green = _terminalConfigNoChange,
+    Object? yellow = _terminalConfigNoChange,
+    Object? blue = _terminalConfigNoChange,
+    Object? magenta = _terminalConfigNoChange,
+    Object? cyan = _terminalConfigNoChange,
+    Object? white = _terminalConfigNoChange,
+  }) {
+    return TerminalAnsiColors(
+      black: identical(black, _terminalConfigNoChange)
+          ? this.black
+          : black as String?,
+      red: identical(red, _terminalConfigNoChange) ? this.red : red as String?,
+      green: identical(green, _terminalConfigNoChange)
+          ? this.green
+          : green as String?,
+      yellow: identical(yellow, _terminalConfigNoChange)
+          ? this.yellow
+          : yellow as String?,
+      blue: identical(blue, _terminalConfigNoChange)
+          ? this.blue
+          : blue as String?,
+      magenta: identical(magenta, _terminalConfigNoChange)
+          ? this.magenta
+          : magenta as String?,
+      cyan: identical(cyan, _terminalConfigNoChange)
+          ? this.cyan
+          : cyan as String?,
+      white: identical(white, _terminalConfigNoChange)
+          ? this.white
+          : white as String?,
+    );
+  }
+
+  TerminalAnsiColors resolveWith(TerminalAnsiColors defaults) {
+    return TerminalAnsiColors(
+      black: black ?? defaults.black,
+      red: red ?? defaults.red,
+      green: green ?? defaults.green,
+      yellow: yellow ?? defaults.yellow,
+      blue: blue ?? defaults.blue,
+      magenta: magenta ?? defaults.magenta,
+      cyan: cyan ?? defaults.cyan,
+      white: white ?? defaults.white,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'black': black,
+      'red': red,
+      'green': green,
+      'yellow': yellow,
+      'blue': blue,
+      'magenta': magenta,
+      'cyan': cyan,
+      'white': white,
+    };
+  }
+
+  factory TerminalAnsiColors.fromJson(Object? json) {
+    final map = _asObjectMap(json);
+    return TerminalAnsiColors(
+      black: _stringOrNull(map?['black']),
+      red: _stringOrNull(map?['red']),
+      green: _stringOrNull(map?['green']),
+      yellow: _stringOrNull(map?['yellow']),
+      blue: _stringOrNull(map?['blue']),
+      magenta: _stringOrNull(map?['magenta']),
+      cyan: _stringOrNull(map?['cyan']),
+      white: _stringOrNull(map?['white']),
+    );
+  }
+}
+
+const TerminalSpecialColors defaultTerminalSpecialColors = TerminalSpecialColors(
+  foreground: '#C0C0C0',
+  background: '#000000',
+  cursor: '#C0C0C0',
+  selection: '#B5D5FF',
+);
+
+const TerminalAnsiColors defaultTerminalAnsiColors = TerminalAnsiColors(
+  black: '#14191E',
+  red: '#B43C2A',
+  green: '#00815B',
+  yellow: '#CFA518',
+  blue: '#3065B8',
+  magenta: '#8818A3',
+  cyan: '#009399',
+  white: '#E5E5E5',
+);
+
+const TerminalAnsiColors defaultTerminalBrightAnsiColors = TerminalAnsiColors(
+  black: '#687378',
+  red: '#FF6148',
+  green: '#00C984',
+  yellow: '#FFC531',
+  blue: '#4F9CFE',
+  magenta: '#C54FFF',
+  cyan: '#00CCCC',
+  white: '#FFFFFF',
+);
+
+class TerminalColorPalette {
+  const TerminalColorPalette({
+    this.special = const TerminalSpecialColors(),
+    this.normal = const TerminalAnsiColors(),
+    this.bright = const TerminalAnsiColors(),
+  });
+
+  final TerminalSpecialColors special;
+  final TerminalAnsiColors normal;
+  final TerminalAnsiColors bright;
+
+  String? get foreground => special.foreground;
+  String? get background => special.background;
+  String? get cursor => special.cursor;
+  String? get selection => special.selection;
+
+  TerminalColorPalette copyWith({
+    TerminalSpecialColors? special,
+    TerminalAnsiColors? normal,
+    TerminalAnsiColors? bright,
+  }) {
+    return TerminalColorPalette(
+      special: special ?? this.special,
+      normal: normal ?? this.normal,
+      bright: bright ?? this.bright,
+    );
+  }
+
+  TerminalColorPalette resolveWith([TerminalColorPalette defaults = defaultTerminalColorPalette]) {
+    return TerminalColorPalette(
+      special: special.resolveWith(defaults.special),
+      normal: normal.resolveWith(defaults.normal),
+      bright: bright.resolveWith(defaults.bright),
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'special': special.toJson(),
+      'normal': normal.toJson(),
+      'bright': bright.toJson(),
+    };
+  }
+
+  factory TerminalColorPalette.fromJson(Object? json) {
+    final map = _asObjectMap(json);
+    return TerminalColorPalette(
+      special: TerminalSpecialColors.fromJson(map?['special']),
+      normal: TerminalAnsiColors.fromJson(map?['normal']),
+      bright: TerminalAnsiColors.fromJson(map?['bright']),
+    );
+  }
+}
+
+const TerminalColorPalette defaultTerminalColorPalette = TerminalColorPalette(
+  special: defaultTerminalSpecialColors,
+  normal: defaultTerminalAnsiColors,
+  bright: defaultTerminalBrightAnsiColors,
+);
 
 class TerminalCursorConfig {
   const TerminalCursorConfig({
@@ -479,7 +675,11 @@ TerminalDisplayConfig _displayConfigFromProfileJson(
   final rawFamily = font?['family'];
   final family = _stringOrNull(rawFamily)?.trim();
   final colors = _asObjectMap(appearance?['colors']);
+  final specialColors = _asObjectMap(colors?['special']);
+  final normalColors = _asObjectMap(colors?['normal']);
+  final brightColors = _asObjectMap(colors?['bright']);
   final cursor = _asObjectMap(appearance?['cursor']);
+  _warnLegacyFlatColorFields(colors, onWarning: onWarning);
   return TerminalDisplayConfig(
     font: TerminalFontConfig(
       family: family == null || family.isEmpty
@@ -505,24 +705,36 @@ TerminalDisplayConfig _displayConfigFromProfileJson(
       ),
     ),
     colors: TerminalColorPalette(
-      foreground: _nullableHexColor(
-        colors?['foreground'],
-        path: 'appearance.colors.foreground',
+      special: TerminalSpecialColors(
+        foreground: _nullableHexColor(
+          specialColors?['foreground'],
+          path: 'appearance.colors.special.foreground',
+          onWarning: onWarning,
+        ),
+        background: _nullableHexColor(
+          specialColors?['background'],
+          path: 'appearance.colors.special.background',
+          onWarning: onWarning,
+        ),
+        cursor: _nullableHexColor(
+          specialColors?['cursor'],
+          path: 'appearance.colors.special.cursor',
+          onWarning: onWarning,
+        ),
+        selection: _nullableHexColor(
+          specialColors?['selection'],
+          path: 'appearance.colors.special.selection',
+          onWarning: onWarning,
+        ),
+      ),
+      normal: _ansiColorsFromProfileJson(
+        normalColors,
+        path: 'appearance.colors.normal',
         onWarning: onWarning,
       ),
-      background: _nullableHexColor(
-        colors?['background'],
-        path: 'appearance.colors.background',
-        onWarning: onWarning,
-      ),
-      cursor: _nullableHexColor(
-        colors?['cursor'],
-        path: 'appearance.colors.cursor',
-        onWarning: onWarning,
-      ),
-      selection: _nullableHexColor(
-        colors?['selection'],
-        path: 'appearance.colors.selection',
+      bright: _ansiColorsFromProfileJson(
+        brightColors,
+        path: 'appearance.colors.bright',
         onWarning: onWarning,
       ),
     ),
@@ -575,6 +787,33 @@ TerminalShellIntegrationConfig _shellIntegrationConfigFromProfileJson(
       onWarning: onWarning,
     ),
   );
+}
+
+void _warnLegacyFlatColorFields(
+  Map<String, Object?>? colors, {
+  required TerminalConfigWarningCallback? onWarning,
+}) {
+  if (colors == null) {
+    return;
+  }
+  for (final field in const <String>[
+    'foreground',
+    'background',
+    'cursor',
+    'selection',
+  ]) {
+    if (!colors.containsKey(field)) {
+      continue;
+    }
+    onWarning?.call(
+      TerminalConfigWarning(
+        path: 'appearance.colors.$field',
+        rawValue: colors[field],
+        fallbackSummary:
+            'ignored legacy flat color field; use appearance.colors.special.$field',
+      ),
+    );
+  }
 }
 
 Map<String, Object?>? _asObjectMap(Object? value) {
@@ -912,6 +1151,65 @@ String? _nullableHexColor(
     ),
   );
   return null;
+}
+
+TerminalAnsiColors _ansiColorsFromProfileJson(
+  Object? rawValue, {
+  required String path,
+  required TerminalConfigWarningCallback? onWarning,
+}) {
+  if (rawValue == null) {
+    return const TerminalAnsiColors();
+  }
+  final colors = _asObjectMap(rawValue);
+  if (colors == null) {
+    onWarning?.call(
+      TerminalConfigWarning(
+        path: path,
+        rawValue: rawValue,
+        fallbackSummary: 'used inherited default ansi colors',
+      ),
+    );
+    return const TerminalAnsiColors();
+  }
+  return TerminalAnsiColors(
+    black: _nullableHexColor(
+      colors['black'],
+      path: '$path.black',
+      onWarning: onWarning,
+    ),
+    red: _nullableHexColor(colors['red'], path: '$path.red', onWarning: onWarning),
+    green: _nullableHexColor(
+      colors['green'],
+      path: '$path.green',
+      onWarning: onWarning,
+    ),
+    yellow: _nullableHexColor(
+      colors['yellow'],
+      path: '$path.yellow',
+      onWarning: onWarning,
+    ),
+    blue: _nullableHexColor(
+      colors['blue'],
+      path: '$path.blue',
+      onWarning: onWarning,
+    ),
+    magenta: _nullableHexColor(
+      colors['magenta'],
+      path: '$path.magenta',
+      onWarning: onWarning,
+    ),
+    cyan: _nullableHexColor(
+      colors['cyan'],
+      path: '$path.cyan',
+      onWarning: onWarning,
+    ),
+    white: _nullableHexColor(
+      colors['white'],
+      path: '$path.white',
+      onWarning: onWarning,
+    ),
+  );
 }
 
 TerminalEmulation _emulationFromProfileJson(

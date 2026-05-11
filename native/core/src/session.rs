@@ -1,7 +1,8 @@
 use crate::model::{
     TerminalCursor, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
-    TerminalFrameKind, TerminalFrameModes, TerminalHyperlinkRange, TerminalProfile, TerminalRow,
-    TerminalSearchMatch, TerminalSelectionRequest, TerminalStyleRun,
+    TerminalFrameKind, TerminalFrameModes, TerminalHyperlinkRange, TerminalProfile,
+    TerminalProfileAnsiColors, TerminalProfileColors, TerminalRow, TerminalSearchMatch,
+    TerminalSelectionRequest, TerminalStyleRun,
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
@@ -484,6 +485,7 @@ pub struct TerminalSession {
     session_id: u64,
     emulation: TerminalEmulation,
     scrollback_lines: usize,
+    profile_colors: TerminalProfileColors,
     state: Mutex<TerminalState>,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
@@ -502,6 +504,7 @@ impl TerminalSession {
     pub fn spawn(session_id: u64, profile: TerminalProfile) -> Result<Arc<Self>, SessionError> {
         let emulation = profile.terminal.emulation;
         let scrollback_lines = profile.terminal.scrollback_lines.max(1);
+        let profile_colors = profile.appearance.colors.clone();
         let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
         let reader = runtime.reader;
@@ -512,6 +515,7 @@ impl TerminalSession {
             DEFAULT_ROWS as usize,
             scrollback_lines,
         );
+        apply_profile_colors(&mut terminal, &profile_colors);
         if emulation == TerminalEmulation::Vt220 {
             terminal.process(b"\x1b[62;1\"p");
         }
@@ -520,6 +524,7 @@ impl TerminalSession {
             session_id,
             emulation,
             scrollback_lines,
+            profile_colors,
             state: Mutex::new(TerminalState {
                 terminal,
                 transcript: Vec::new(),
@@ -681,6 +686,7 @@ impl TerminalSession {
             let transcript = state.transcript.clone();
             let mut terminal =
                 Terminal::with_scrollback(cols as usize, rows as usize, self.scrollback_lines);
+            apply_profile_colors(&mut terminal, &self.profile_colors);
             if self.emulation == TerminalEmulation::Vt220 {
                 terminal.process(b"\x1b[62;1\"p");
             }
@@ -914,6 +920,7 @@ impl TerminalSession {
 
         let state = self.state.lock();
         let terminal = &state.terminal;
+        let theme = terminal_theme_snapshot(terminal);
         let (_viewport_cols, viewport_rows) = terminal.size();
         let mut matches = Vec::new();
 
@@ -922,6 +929,7 @@ impl TerminalSession {
                 let extracted = extract_row(
                     terminal.alt_grid().row(row),
                     terminal.alt_grid().is_line_wrapped(row),
+                    &theme,
                 );
                 collect_text_matches(&mut matches, &extracted.text, query, row, 0);
             }
@@ -937,10 +945,11 @@ impl TerminalSession {
                 extract_row(
                     grid.scrollback_line(visible_index),
                     grid.is_scrollback_wrapped(visible_index),
+                    &theme,
                 )
             } else {
                 let screen_row = visible_index.saturating_sub(scrollback_len);
-                extract_row(grid.row(screen_row), grid.is_line_wrapped(screen_row))
+                extract_row(grid.row(screen_row), grid.is_line_wrapped(screen_row), &theme)
             };
             let scrollback_offset = total_lines.saturating_sub(viewport_rows + visible_index);
             collect_text_matches(
@@ -1146,11 +1155,12 @@ fn extract_viewport_row(
     viewport_start_row: usize,
     viewport_row: usize,
 ) -> ExtractedVisibleRow {
+    let theme = terminal_theme_snapshot(terminal);
     let absolute_visible_index = viewport_start_row.saturating_add(viewport_row);
     let (cells, wrapped) = row_cells_for_visible_index(terminal, absolute_visible_index);
     let continues_from_previous = absolute_visible_index > 0
         && row_cells_for_visible_index(terminal, absolute_visible_index - 1).1;
-    let extracted = extract_row(cells, wrapped);
+    let extracted = extract_row(cells, wrapped, &theme);
     let hyperlinks = if emulation == TerminalEmulation::Xterm256 {
         extract_hyperlinks_for_row(terminal, cells, viewport_row)
     } else {
@@ -1520,7 +1530,22 @@ fn extract_hyperlinks_for_row(
     ranges
 }
 
-fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
+#[derive(Clone, Copy)]
+struct TerminalThemeSnapshot {
+    default_fg: Color,
+    default_bg: Color,
+    ansi_palette: [Color; 16],
+}
+
+fn terminal_theme_snapshot(terminal: &Terminal) -> TerminalThemeSnapshot {
+    TerminalThemeSnapshot {
+        default_fg: terminal.default_fg(),
+        default_bg: terminal.default_bg(),
+        ansi_palette: *terminal.get_ansi_palette(),
+    }
+}
+
+fn extract_row(cells: Option<&[Cell]>, wrapped: bool, theme: &TerminalThemeSnapshot) -> ExtractedRow {
     let mut text = String::new();
     let mut style_runs = Vec::new();
     let mut run_start = 0usize;
@@ -1540,8 +1565,8 @@ fn extract_row(cells: Option<&[Cell]>, wrapped: bool) -> ExtractedRow {
         let style = TerminalStyleRun {
             start: column_start,
             end: column_end,
-            foreground: color_to_hex_delta(cell.fg, Color::Named(NamedColor::White)),
-            background: color_to_hex_delta(cell.bg, Color::Named(NamedColor::Black)),
+            foreground: color_to_hex_delta(cell.fg, theme.default_fg, &theme.ansi_palette),
+            background: color_to_hex_delta(cell.bg, theme.default_bg, &theme.ansi_palette),
             bold: cell.flags.bold(),
             dim: cell.flags.dim(),
             italic: cell.flags.italic(),
@@ -1994,16 +2019,93 @@ fn merge_dirty_ranges(dirty_row_indexes: &[usize]) -> Vec<TerminalDirtyRange> {
     ranges
 }
 
-fn color_to_hex(color: Color) -> Option<String> {
-    let (red, green, blue) = color.to_rgb();
+fn parse_hex_color(value: &str) -> Option<Color> {
+    let normalized = value.trim().strip_prefix('#')?;
+    if normalized.len() != 6 {
+        return None;
+    }
+    let red = u8::from_str_radix(&normalized[0..2], 16).ok()?;
+    let green = u8::from_str_radix(&normalized[2..4], 16).ok()?;
+    let blue = u8::from_str_radix(&normalized[4..6], 16).ok()?;
+    Some(Color::Rgb(red, green, blue))
+}
+
+fn apply_profile_colors(terminal: &mut Terminal, colors: &TerminalProfileColors) {
+    if let Some(color) = colors
+        .special
+        .foreground
+        .as_deref()
+        .and_then(parse_hex_color)
+    {
+        terminal.set_default_fg(color);
+    }
+    if let Some(color) = colors
+        .special
+        .background
+        .as_deref()
+        .and_then(parse_hex_color)
+    {
+        terminal.set_default_bg(color);
+    }
+    if let Some(color) = colors.special.cursor.as_deref().and_then(parse_hex_color) {
+        terminal.set_cursor_color(color);
+    }
+    if let Some(color) = colors
+        .special
+        .selection
+        .as_deref()
+        .and_then(parse_hex_color)
+    {
+        terminal.set_selection_bg_color(color);
+    }
+
+    apply_profile_ansi_colors(terminal, &colors.normal, 0);
+    apply_profile_ansi_colors(terminal, &colors.bright, 8);
+}
+
+fn apply_profile_ansi_colors(
+    terminal: &mut Terminal,
+    colors: &TerminalProfileAnsiColors,
+    offset: usize,
+) {
+    for (index, color) in [
+        colors.black.as_deref(),
+        colors.red.as_deref(),
+        colors.green.as_deref(),
+        colors.yellow.as_deref(),
+        colors.blue.as_deref(),
+        colors.magenta.as_deref(),
+        colors.cyan.as_deref(),
+        colors.white.as_deref(),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let Some(color) = color.and_then(parse_hex_color) else {
+            continue;
+        };
+        let _ = terminal.set_ansi_palette_color(index + offset, color);
+    }
+}
+
+fn resolve_color_rgb(color: Color, ansi_palette: &[Color; 16]) -> (u8, u8, u8) {
+    match color {
+        Color::Named(named) => ansi_palette[named as usize].to_rgb(),
+        Color::Indexed(index) if index < 16 => ansi_palette[index as usize].to_rgb(),
+        _ => color.to_rgb(),
+    }
+}
+
+fn color_to_hex(color: Color, ansi_palette: &[Color; 16]) -> Option<String> {
+    let (red, green, blue) = resolve_color_rgb(color, ansi_palette);
     Some(format!("#{red:02x}{green:02x}{blue:02x}"))
 }
 
-fn color_to_hex_delta(color: Color, default: Color) -> Option<String> {
-    if color == default {
+fn color_to_hex_delta(color: Color, default: Color, ansi_palette: &[Color; 16]) -> Option<String> {
+    if resolve_color_rgb(color, ansi_palette) == resolve_color_rgb(default, ansi_palette) {
         return None;
     }
-    color_to_hex(color)
+    color_to_hex(color, ansi_palette)
 }
 
 fn mouse_mode_name(mode: MouseMode) -> &'static str {
@@ -2155,35 +2257,49 @@ pub fn take_events(session_id: u64) -> Result<Vec<TerminalEvent>, SessionError> 
 mod tests {
     use super::*;
     use par_term_emu_core_rust::cell::Cell;
+    use par_term_emu_core_rust::terminal::Terminal;
 
     #[test]
     fn color_to_hex_handles_named_and_rgb_colors() {
+        let mut terminal = Terminal::with_scrollback(4, 4, 16);
+        terminal
+            .set_ansi_palette_color(1, Color::Rgb(0x12, 0x34, 0x56))
+            .unwrap();
+        let ansi_palette = *terminal.get_ansi_palette();
+
         assert_eq!(
-            color_to_hex(Color::Rgb(255, 0, 0)),
+            color_to_hex(Color::Rgb(255, 0, 0), &ansi_palette),
             Some("#ff0000".to_string())
         );
         assert_eq!(
-            color_to_hex(Color::Indexed(46)),
+            color_to_hex(Color::Indexed(46), &ansi_palette),
             Some("#00ff00".to_string())
         );
         assert_eq!(
             color_to_hex_delta(
                 Color::Named(NamedColor::White),
-                Color::Named(NamedColor::White)
+                Color::Named(NamedColor::White),
+                &ansi_palette,
             ),
             None
         );
         assert_eq!(
             color_to_hex_delta(
-                Color::Named(NamedColor::Black),
-                Color::Named(NamedColor::Black)
+                Color::Named(NamedColor::Red),
+                Color::Named(NamedColor::White),
+                &ansi_palette,
             ),
-            None
+            Some("#123456".to_string())
         );
     }
 
     #[test]
     fn extract_row_tracks_style_runs_in_terminal_columns() {
+        let mut terminal = Terminal::with_scrollback(4, 4, 16);
+        terminal
+            .set_ansi_palette_color(1, Color::Rgb(0x12, 0x34, 0x56))
+            .unwrap();
+        let ansi_palette = *terminal.get_ansi_palette();
         let wide = Cell::with_colors(
             '你',
             Color::Named(NamedColor::White),
@@ -2197,8 +2313,13 @@ mod tests {
             Color::Named(NamedColor::Black),
         );
         let row = vec![wide, spacer, ascii];
+        let theme = TerminalThemeSnapshot {
+            default_fg: Color::Named(NamedColor::White),
+            default_bg: Color::Named(NamedColor::Black),
+            ansi_palette,
+        };
 
-        let extracted = extract_row(Some(&row), false);
+        let extracted = extract_row(Some(&row), false, &theme);
 
         assert_eq!(extracted.text, "你a");
         assert_eq!(extracted.style_runs.len(), 2);
@@ -2210,16 +2331,25 @@ mod tests {
         assert_eq!(extracted.style_runs[1].end, 3);
         assert_eq!(
             extracted.style_runs[1].foreground,
-            Some("#800000".to_string())
+            Some("#123456".to_string())
         );
         assert_eq!(extracted.style_runs[1].background, None);
     }
 
     #[test]
     fn extract_row_omits_default_colors_from_style_runs() {
-        let row = vec![Cell::new('a')];
+        let terminal = Terminal::with_scrollback(4, 4, 16);
+        let ansi_palette = *terminal.get_ansi_palette();
+        let default_fg = Color::Rgb(0xAB, 0xCD, 0xEF);
+        let default_bg = Color::Rgb(0x12, 0x34, 0x56);
+        let theme = TerminalThemeSnapshot {
+            default_fg,
+            default_bg,
+            ansi_palette,
+        };
+        let row = vec![Cell::with_colors('a', default_fg, default_bg)];
 
-        let extracted = extract_row(Some(&row), false);
+        let extracted = extract_row(Some(&row), false, &theme);
 
         assert_eq!(extracted.text, "a");
         assert_eq!(extracted.style_runs.len(), 1);

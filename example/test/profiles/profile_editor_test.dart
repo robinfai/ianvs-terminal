@@ -30,10 +30,20 @@ void main() {
               lineHeight: 1.4,
             ),
             colors: terminal.TerminalColorPalette(
-              foreground: '#AABBCC',
-              background: '#101112',
-              cursor: '#778899',
-              selection: '#334455',
+              special: terminal.TerminalSpecialColors(
+                foreground: '#AABBCC',
+                background: '#101112',
+                cursor: '#778899',
+                selection: '#334455',
+              ),
+              normal: terminal.TerminalAnsiColors(
+                red: '#AA5500',
+                blue: '#3355AA',
+              ),
+              bright: terminal.TerminalAnsiColors(
+                yellow: '#FFCC33',
+                cyan: '#77DDFF',
+              ),
             ),
             cursor: terminal.TerminalCursorConfig(
               shape: TerminalCursorShape.beam,
@@ -71,10 +81,16 @@ void main() {
         '/bin/bash',
       );
       expect(find.text('Colors'), findsOneWidget);
+      expect(find.text('Special'), findsOneWidget);
+      expect(find.text('ANSI normal'), findsOneWidget);
+      expect(find.text('ANSI bright'), findsOneWidget);
       expect(find.text('Cursor'), findsOneWidget);
       expect(find.text('Interaction'), findsOneWidget);
       expect(find.text('VT220'), findsOneWidget);
       expect(find.text('Beam'), findsOneWidget);
+      for (final fieldKey in _allColorFieldKeys) {
+        expect(find.byKey(Key(fieldKey)), findsOneWidget);
+      }
       expect(
         tester.getSize(find.byKey(const Key('profile-editor-save'))).height,
         40,
@@ -232,6 +248,10 @@ void main() {
         find.byKey(const Key('profile-editor-color-foreground')),
         '112233',
       );
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-color-background')),
+      );
       await tester.tap(
         find.byKey(const Key('profile-editor-color-background')),
       );
@@ -283,6 +303,22 @@ void main() {
       await tester.enterText(
         find.byKey(const Key('profile-editor-color-selection')),
         '#445566',
+      );
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-color-normal-red')),
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-editor-color-normal-red')),
+        '#BB5500',
+      );
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-color-bright-blue')),
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-editor-color-bright-blue')),
+        '#55AAFF',
       );
 
       await _ensureVisible(
@@ -357,6 +393,10 @@ void main() {
       expect(savedProfile!.appearance.colors.background, '#101112');
       expect(savedProfile!.appearance.colors.cursor, isNull);
       expect(savedProfile!.appearance.colors.selection, '#445566');
+      expect(savedProfile!.appearance.colors.normal.red, '#BB5500');
+      expect(savedProfile!.appearance.colors.normal.blue, '#3355AA');
+      expect(savedProfile!.appearance.colors.bright.blue, '#55AAFF');
+      expect(savedProfile!.appearance.colors.bright.yellow, '#FFCC33');
       expect(savedProfile!.appearance.cursor.shape, TerminalCursorShape.block);
       expect(savedProfile!.appearance.cursor.blink, isTrue);
       expect(savedProfile!.interaction.copyOnSelect, isFalse);
@@ -600,7 +640,286 @@ void main() {
       expect(savedProfile!.appearance.colors.foreground, isNull);
     },
   );
+
+  testWidgets(
+    'profile editor renders theme presets and applies a preset to all terminal colors',
+    (tester) async {
+      final paperSlate = terminalThemePresets.singleWhere(
+        (preset) => preset.id == 'paper-slate',
+      );
+      TerminalProfile? savedProfile;
+      await _pumpEditorHarness(
+        tester,
+        initialValue: TerminalProfile(
+          id: 'default',
+          name: 'Local Shell',
+          shell: '/bin/zsh',
+        ),
+        onSaved: (value) => savedProfile = value,
+      );
+
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-theme-presets')),
+      );
+      expect(find.text('Theme presets'), findsOneWidget);
+      expect(find.text('Dark').evaluate().length, greaterThanOrEqualTo(3));
+      expect(find.text('Light').evaluate().length, greaterThanOrEqualTo(2));
+      expect(find.text('Graphite Night'), findsOneWidget);
+      expect(find.text('Moss Night'), findsOneWidget);
+      expect(find.text('Ember Dusk'), findsOneWidget);
+      expect(find.text('Paper Slate'), findsOneWidget);
+      expect(find.text('Sage Mist'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('profile-editor-theme-preset-paper-slate')),
+      );
+      await tester.pumpAndSettle();
+
+      _expectColorFieldText(
+        tester,
+        'profile-editor-color-foreground',
+        paperSlate.palette.special.foreground!,
+      );
+      _expectColorFieldText(
+        tester,
+        'profile-editor-color-background',
+        paperSlate.palette.special.background!,
+      );
+      _expectColorFieldText(
+        tester,
+        'profile-editor-color-cursor',
+        paperSlate.palette.special.cursor!,
+      );
+      _expectColorFieldText(
+        tester,
+        'profile-editor-color-selection',
+        paperSlate.palette.special.selection!,
+      );
+      _expectColorFieldText(
+        tester,
+        'profile-editor-color-normal-red',
+        paperSlate.palette.normal.red!,
+      );
+      _expectColorFieldText(
+        tester,
+        'profile-editor-color-bright-yellow',
+        paperSlate.palette.bright.yellow!,
+      );
+      expect(
+        find.byKey(
+          const Key('profile-editor-theme-preset-selected-paper-slate'),
+        ),
+        findsOneWidget,
+      );
+
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-save')),
+      );
+      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.pumpAndSettle();
+
+      expect(savedProfile, isNotNull);
+      expect(
+        savedProfile!.appearance.colors.special.toJson(),
+        paperSlate.palette.special.toJson(),
+      );
+      expect(
+        savedProfile!.appearance.colors.normal.toJson(),
+        paperSlate.palette.normal.toJson(),
+      );
+      expect(
+        savedProfile!.appearance.colors.bright.toJson(),
+        paperSlate.palette.bright.toJson(),
+      );
+    },
+  );
+
+  testWidgets(
+    'profile editor clears preset selection after a manual color edit and keeps manual values',
+    (tester) async {
+      TerminalProfile? savedProfile;
+      await _pumpEditorHarness(
+        tester,
+        initialValue: TerminalProfile(
+          id: 'default',
+          name: 'Local Shell',
+          shell: '/bin/zsh',
+        ),
+        onSaved: (value) => savedProfile = value,
+      );
+
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-theme-presets')),
+      );
+      await tester.tap(
+        find.byKey(const Key('profile-editor-theme-preset-graphite-night')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(
+          const Key('profile-editor-theme-preset-selected-graphite-night'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('profile-editor-color-cursor')),
+        '#123456',
+      );
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-color-normal-green')),
+      );
+      _expectColorFieldText(
+        tester,
+        'profile-editor-color-normal-green',
+        '#8FB573',
+      );
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-color-selection')),
+      );
+      await tester.tap(find.byKey(const Key('profile-editor-color-selection')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(
+          const Key('profile-editor-theme-preset-selected-graphite-night'),
+        ),
+        findsNothing,
+      );
+
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-save')),
+      );
+      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.pumpAndSettle();
+
+      expect(savedProfile, isNotNull);
+      expect(savedProfile!.appearance.colors.foreground, '#E6EAF2');
+      expect(savedProfile!.appearance.colors.background, '#11141A');
+      expect(savedProfile!.appearance.colors.cursor, '#123456');
+      expect(savedProfile!.appearance.colors.selection, '#2A3C56');
+      expect(savedProfile!.appearance.colors.normal.green, '#8FB573');
+      expect(savedProfile!.appearance.colors.bright.white, '#F8FBFF');
+    },
+  );
+
+  testWidgets(
+    'profile editor reset only clears one color after applying a preset',
+    (tester) async {
+      TerminalProfile? savedProfile;
+      await _pumpEditorHarness(
+        tester,
+        initialValue: TerminalProfile(
+          id: 'default',
+          name: 'Local Shell',
+          shell: '/bin/zsh',
+        ),
+        onSaved: (value) => savedProfile = value,
+      );
+
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-theme-presets')),
+      );
+      await tester.tap(
+        find.byKey(const Key('profile-editor-theme-preset-sage-mist')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('profile-editor-reset-foreground')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.byKey(const Key('profile-editor-color-foreground')),
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.byKey(const Key('profile-editor-color-background')),
+            )
+            .controller!
+            .text,
+        '#F1F5EF',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.byKey(const Key('profile-editor-color-cursor')),
+            )
+            .controller!
+            .text,
+        '#2F855A',
+      );
+      _expectColorFieldText(
+        tester,
+        'profile-editor-color-normal-green',
+        '#3F7A57',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.byKey(const Key('profile-editor-color-selection')),
+            )
+            .controller!
+            .text,
+        '#CFE3D4',
+      );
+
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-save')),
+      );
+      await tester.tap(find.byKey(const Key('profile-editor-save')));
+      await tester.pumpAndSettle();
+
+      expect(savedProfile, isNotNull);
+      expect(savedProfile!.appearance.colors.foreground, isNull);
+      expect(savedProfile!.appearance.colors.background, '#F1F5EF');
+      expect(savedProfile!.appearance.colors.cursor, '#2F855A');
+      expect(savedProfile!.appearance.colors.selection, '#CFE3D4');
+      expect(savedProfile!.appearance.colors.normal.green, '#3F7A57');
+      expect(savedProfile!.appearance.colors.bright.white, '#FFFFFF');
+    },
+  );
 }
+
+const List<String> _allColorFieldKeys = <String>[
+  'profile-editor-color-foreground',
+  'profile-editor-color-background',
+  'profile-editor-color-cursor',
+  'profile-editor-color-selection',
+  'profile-editor-color-normal-black',
+  'profile-editor-color-normal-red',
+  'profile-editor-color-normal-green',
+  'profile-editor-color-normal-yellow',
+  'profile-editor-color-normal-blue',
+  'profile-editor-color-normal-magenta',
+  'profile-editor-color-normal-cyan',
+  'profile-editor-color-normal-white',
+  'profile-editor-color-bright-black',
+  'profile-editor-color-bright-red',
+  'profile-editor-color-bright-green',
+  'profile-editor-color-bright-yellow',
+  'profile-editor-color-bright-blue',
+  'profile-editor-color-bright-magenta',
+  'profile-editor-color-bright-cyan',
+  'profile-editor-color-bright-white',
+];
 
 Future<void> _pumpEditorHarness(
   WidgetTester tester, {
@@ -643,4 +962,15 @@ Future<void> _pumpEditorHarness(
 Future<void> _ensureVisible(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
+}
+
+void _expectColorFieldText(
+  WidgetTester tester,
+  String fieldKey,
+  String expected,
+) {
+  expect(
+    tester.widget<TextFormField>(find.byKey(Key(fieldKey))).controller!.text,
+    expected,
+  );
 }

@@ -128,10 +128,12 @@ void main() {
         lightContext,
         profileAppearance: const TerminalProfileAppearance(
           colors: TerminalProfileColors(
-            foreground: '#112233',
-            background: '#445566',
-            cursor: '#778899',
-            selection: '#AABBCC',
+            special: TerminalSpecialColors(
+              foreground: '#112233',
+              background: '#445566',
+              cursor: '#778899',
+              selection: '#AABBCC',
+            ),
           ),
         ),
       ).viewport;

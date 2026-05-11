@@ -17,10 +17,12 @@ AppTerminalColors resolveTerminalColors(
   final overrides = profileAppearance?.colors;
   return AppTerminalColors(
     viewport: base.copyWith(
-      canvasBackground: terminalViewportColorFromHex(overrides?.background),
-      foreground: terminalViewportColorFromHex(overrides?.foreground),
-      cursor: terminalViewportColorFromHex(overrides?.cursor),
-      selection: terminalViewportColorFromHex(overrides?.selection),
+      canvasBackground: terminalViewportColorFromHex(
+        overrides?.special.background,
+      ),
+      foreground: terminalViewportColorFromHex(overrides?.special.foreground),
+      cursor: terminalViewportColorFromHex(overrides?.special.cursor),
+      selection: terminalViewportColorFromHex(overrides?.special.selection),
     ),
   );
 }
