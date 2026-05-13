@@ -687,6 +687,7 @@ void main() {
     await tester.pump();
 
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Copy selection'));
     await tester.tap(find.text('Copy selection'));
     await tester.pumpAndSettle();
 
@@ -1809,6 +1810,54 @@ void main() {
       find.byKey(const Key('terminal-coprocess-indicator-1')),
       findsNothing,
     );
+  });
+
+  testWidgets('dynamic profiles imports iTerm profile JSON', (tester) async {
+    final fakeBindings = FakePtyBackend();
+    final repository = MemoryProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: repository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-dynamic-profiles')));
+    await tester.tap(find.byKey(const Key('shell-dynamic-profiles')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('dynamic-profiles-sheet')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('dynamic-profiles-json-field')),
+      jsonEncode({
+        'Profiles': [
+          {
+            'Name': 'prod.example.com',
+            'Guid': 'prod-host',
+            'Custom Command': 'Yes',
+            'Command': 'ssh prod.example.com',
+            'Tags': ['ssh'],
+          },
+        ],
+      }),
+    );
+    await tester.tap(find.byKey(const Key('dynamic-profiles-import')));
+    await tester.pumpAndSettle();
+
+    final document = await repository.load();
+    final imported = document.profiles.singleWhere(
+      (profile) => profile.id == 'prod-host',
+    );
+
+    expect(find.text('Imported 1 dynamic profile'), findsOneWidget);
+    expect(imported.name, 'prod.example.com');
+    expect(imported.tags, const ['ssh', 'Dynamic']);
+    expect(imported.shell, '/bin/sh');
+    expect(imported.args, const ['-lc', 'ssh prod.example.com']);
   });
 
   testWidgets('command menu hotkey window invokes the window bridge', (

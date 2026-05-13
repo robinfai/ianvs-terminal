@@ -324,7 +324,11 @@ class TerminalProfilesDocument {
   static TerminalProfilesDocument fromJson(Map<String, Object?> json) {
     final warnings = <TerminalProfileLoadWarning>[];
     final profiles = <TerminalProfile>[];
-    final rawProfiles = json['profiles'];
+    final dynamicProfilesFormat =
+        json['profiles'] == null && json['Profiles'] != null;
+    final rawProfiles = dynamicProfilesFormat
+        ? json['Profiles']
+        : json['profiles'];
     if (rawProfiles is List<dynamic>) {
       for (var index = 0; index < rawProfiles.length; index += 1) {
         final rawProfile = rawProfiles[index];
@@ -344,7 +348,9 @@ class TerminalProfilesDocument {
         profiles.add(
           _normalizeBuiltInShellProfile(
             TerminalProfile.fromJson(
-              profileMap,
+              dynamicProfilesFormat
+                  ? _dynamicProfileToProfileJson(profileMap)
+                  : profileMap,
               fallbackId: _fallbackProfileIdFor(index),
               loadWarnings: warnings,
             ),
@@ -369,6 +375,47 @@ class TerminalProfilesDocument {
       loadWarnings: warnings,
     );
   }
+}
+
+Map<String, Object?> _dynamicProfileToProfileJson(
+  Map<String, Object?> dynamicProfile,
+) {
+  final guid = _stringOrNull(dynamicProfile['Guid'])?.trim();
+  final name = _stringOrNull(dynamicProfile['Name'])?.trim();
+  final command = _stringOrNull(dynamicProfile['Command'])?.trim();
+  final customCommand = _stringOrNull(
+    dynamicProfile['Custom Command'],
+  )?.trim().toLowerCase();
+  final cwd = _stringOrNull(dynamicProfile['Working Directory'])?.trim();
+  final rawTags = dynamicProfile['Tags'] ?? dynamicProfile['tags'];
+  final tags = <String>[];
+  if (rawTags is List) {
+    for (final rawTag in rawTags) {
+      final tag = _stringOrNull(rawTag)?.trim();
+      if (tag != null && tag.isNotEmpty) {
+        tags.add(tag);
+      }
+    }
+  }
+  tags.add('Dynamic');
+  final launch = <String, Object?>{};
+  if (customCommand == 'yes' ||
+      customCommand == 'true' ||
+      customCommand == '1') {
+    if (command != null && command.isNotEmpty) {
+      launch['program'] = '/bin/sh';
+      launch['args'] = <String>['-lc', command];
+    }
+  }
+  if (cwd != null && cwd.isNotEmpty) {
+    launch['cwd'] = cwd;
+  }
+  return <String, Object?>{
+    if (guid != null && guid.isNotEmpty) 'id': guid,
+    if (name != null && name.isNotEmpty) 'name': name,
+    'tags': tags.toSet().toList(growable: false),
+    if (launch.isNotEmpty) 'launch': launch,
+  };
 }
 
 TerminalProfile defaultTerminalProfile() {

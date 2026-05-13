@@ -329,6 +329,27 @@ void main() {
     expect(loaded.profiles.single.appearance.colors.bright.white, '#FAFAFA');
   });
 
+  test('profile document imports iTerm dynamic profiles JSON', () {
+    final document = TerminalProfilesDocument.fromJson({
+      'Profiles': [
+        {
+          'Name': 'prod.example.com',
+          'Guid': 'prod-host',
+          'Custom Command': 'Yes',
+          'Command': 'ssh prod.example.com',
+          'Tags': ['ssh', 'prod'],
+        },
+      ],
+    });
+
+    final profile = document.profiles.single;
+    expect(profile.id, 'prod-host');
+    expect(profile.name, 'prod.example.com');
+    expect(profile.tags, const ['ssh', 'prod', 'Dynamic']);
+    expect(profile.shell, '/bin/sh');
+    expect(profile.args, const ['-lc', 'ssh prod.example.com']);
+  });
+
   test(
     'profile repository tolerates invalid nested fields and reports warnings',
     () async {
