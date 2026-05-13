@@ -1363,6 +1363,43 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets('shell integration badge shows current session context', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'git status',
+          'pwd': '/tmp/project',
+          'shell': 'zsh',
+          'host': 'workstation.local',
+          'user': 'dev',
+          'exit_code': 0,
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('terminal-session-badge-1')), findsOneWidget);
+    expect(find.text('dev@workstation.local'), findsOneWidget);
+    expect(find.text('/tmp/project'), findsOneWidget);
+    expect(find.text('git status ok'), findsOneWidget);
+  });
+
   testWidgets(
     'shift-command arrows navigate shell integration prompt marks',
     (tester) async {

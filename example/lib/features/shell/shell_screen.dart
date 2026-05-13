@@ -186,6 +186,18 @@ class _TerminalAnnotation {
   final String note;
 }
 
+class _SessionBadgeContent {
+  const _SessionBadgeContent({
+    required this.title,
+    required this.detail,
+    this.status,
+  });
+
+  final String title;
+  final String detail;
+  final String? status;
+}
+
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
@@ -993,6 +1005,79 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       context,
       profileAppearance: profile?.appearance,
     ).viewport;
+  }
+
+  _SessionBadgeContent? _sessionBadgeForPane(
+    TerminalPane pane,
+    TerminalProfile? profile,
+  ) {
+    final integration = pane.shellIntegration;
+    final hasShellData =
+        integration.username != null ||
+        integration.hostname != null ||
+        integration.currentDirectory != null ||
+        integration.lastCommand != null ||
+        integration.shell != null;
+    if (!hasShellData) {
+      return null;
+    }
+
+    final identity = _sessionIdentityLabel(integration);
+    final directory = integration.currentDirectory == null
+        ? null
+        : _compactSessionPath(integration.currentDirectory!);
+    final title = identity ?? profile?.name ?? pane.title;
+    final detail =
+        directory ?? integration.shell ?? profile?.name ?? pane.title;
+    final status = _sessionStatusLabel(integration);
+    return _SessionBadgeContent(title: title, detail: detail, status: status);
+  }
+
+  String? _sessionIdentityLabel(TerminalShellIntegrationSnapshot integration) {
+    final username = integration.username;
+    final hostname = integration.hostname;
+    if (username != null && hostname != null) {
+      return '$username@$hostname';
+    }
+    return username ?? hostname;
+  }
+
+  String? _sessionStatusLabel(TerminalShellIntegrationSnapshot integration) {
+    final command = integration.lastCommand;
+    if (command == null) {
+      return integration.shell;
+    }
+    final exitCode = integration.lastExitCode;
+    if (exitCode == null) {
+      return _compactSessionCommand(command);
+    }
+    final status = exitCode == 0 ? 'ok' : 'exit $exitCode';
+    return '${_compactSessionCommand(command)} $status';
+  }
+
+  String _compactSessionCommand(String command) {
+    const maxLength = 34;
+    final normalized = command.trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return '${normalized.substring(0, maxLength - 3)}...';
+  }
+
+  String _compactSessionPath(String path) {
+    const maxLength = 34;
+    final normalized = path.trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    final segments = normalized.split('/').where((part) => part.isNotEmpty);
+    final tail = segments.length <= 2
+        ? normalized.substring(normalized.length - (maxLength - 3))
+        : segments.skip(segments.length - 2).join('/');
+    final compact = '.../$tail';
+    return compact.length <= maxLength
+        ? compact
+        : compact.substring(compact.length - maxLength);
   }
 
   String _defaultSummary(
@@ -2480,6 +2565,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       readClipboard: ClipboardBridge.paste,
     );
     final annotations = _annotationsForSession(sessionId);
+    final sessionBadge = _sessionBadgeForPane(pane, profile);
 
     return LayoutBuilder(
       key: Key('shell-pane-$sessionId'),
@@ -2614,6 +2700,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         onNext: () => _moveAutocompleteSelection(1),
                         onAccept: _acceptAutocomplete,
                         onClose: _closeAutocomplete,
+                      ),
+                    ),
+                  if (isActive &&
+                      sessionBadge != null &&
+                      !_isSearchOpen &&
+                      !_isAutocompleteOpen &&
+                      !_showWorkspaceCue)
+                    Positioned(
+                      top: _terminalViewportPadding.top,
+                      right: _terminalViewportPadding.right,
+                      child: IgnorePointer(
+                        child: _TerminalSessionBadge(
+                          key: Key('terminal-session-badge-$sessionId'),
+                          content: sessionBadge,
+                          palette: palette,
+                        ),
                       ),
                     ),
                   if (isActive && _isCopyModeOpen)
@@ -4848,6 +4950,82 @@ class _PasswordManagerEntryTile extends StatelessWidget {
             child: const Text('Send'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _TerminalSessionBadge extends StatelessWidget {
+  const _TerminalSessionBadge({
+    super.key,
+    required this.content,
+    required this.palette,
+  });
+
+  final _SessionBadgeContent content;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = content.status;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 260),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.overlay.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          border: Border.all(color: palette.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                content.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: palette.textPrimary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                content.detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: palette.textSubtle,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (status != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  status,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: palette.textMuted,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
