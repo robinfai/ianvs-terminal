@@ -20,6 +20,7 @@ import '../terminal/terminal_viewport.dart';
 import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
 import 'paste_history_repository.dart';
+import 'password_manager_store.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
 import 'window_bridge.dart';
@@ -32,6 +33,7 @@ enum _ShellCommandAction {
   copyMode,
   paste,
   pasteHistory,
+  passwordManager,
   instantReplay,
   search,
   globalSearch,
@@ -75,6 +77,15 @@ final instantReplayStoreProvider = Provider<InstantReplayStore>((ref) {
   return InstantReplayStore();
 });
 
+final passwordManagerStoreProvider = Provider<PasswordManagerStore>((ref) {
+  return PasswordManagerStore();
+});
+
+final RegExp _passwordPromptPattern = RegExp(
+  r'(?:password|passphrase)(?:\s+for\s+[^:]+)?\s*:\s*$',
+  caseSensitive: false,
+);
+
 typedef ShellNotificationSender =
     Future<void> Function({
       required String title,
@@ -112,6 +123,16 @@ final class _PasteHistoryPickResult extends _PasteHistorySheetResult {
   const _PasteHistoryPickResult(this.entry);
 
   final PasteHistoryEntry entry;
+}
+
+sealed class _PasswordManagerSheetResult {
+  const _PasswordManagerSheetResult();
+}
+
+final class _PasswordManagerSendResult extends _PasswordManagerSheetResult {
+  const _PasswordManagerSendResult(this.entry);
+
+  final PasswordManagerEntry entry;
 }
 
 sealed class _InstantReplaySheetResult {
@@ -1356,6 +1377,63 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
   }
 
+  Future<void> _openPasswordManager(
+    SessionController sessionController,
+    String sessionId,
+  ) async {
+    final store = ref.read(passwordManagerStoreProvider);
+    final frame = sessionController.viewportFor(sessionId).frame;
+    final promptDetected = _frameHasPasswordPrompt(frame);
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final result = await showModalBottomSheet<_PasswordManagerSheetResult>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _PasswordManagerSheet(
+          entries: store.entries,
+          promptDetected: promptDetected,
+          onAdd: store.add,
+          onRemove: store.remove,
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+    switch (result) {
+      case _PasswordManagerSendResult(:final entry):
+        _sendPasswordToSession(sessionId, entry);
+        return;
+      case null:
+        return;
+    }
+  }
+
+  void _sendPasswordToSession(String sessionId, PasswordManagerEntry entry) {
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .sendInput(sessionId, utf8.encode('${entry.password}\n'));
+  }
+
+  bool _frameHasPasswordPrompt(terminal.TerminalFrameDiff frame) {
+    for (final row in frame.rows.reversed) {
+      final text = row.text.trimRight();
+      if (text.isEmpty) {
+        continue;
+      }
+      if (_passwordPromptPattern.hasMatch(text)) {
+        return true;
+      }
+      return false;
+    }
+    return false;
+  }
+
   void _seedInstantReplayFrame(String sessionId) {
     final sessionController = ref.read(sessionControllerProvider.notifier);
     ref
@@ -2108,6 +2186,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return;
         }
         await _openPasteHistory(sessionState);
+        return;
+      case _ShellCommandAction.passwordManager:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _openPasswordManager(sessionController, currentSessionId);
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
         return;
       case _ShellCommandAction.instantReplay:
         if (currentSessionId == null) {
@@ -3881,6 +3969,257 @@ class _PasteHistoryEntryTile extends StatelessWidget {
   }
 }
 
+class _PasswordManagerSheet extends StatefulWidget {
+  const _PasswordManagerSheet({
+    required this.entries,
+    required this.promptDetected,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final List<PasswordManagerEntry> entries;
+  final bool promptDetected;
+  final PasswordManagerEntry Function({
+    required String label,
+    required String password,
+  })
+  onAdd;
+  final ValueChanged<String> onRemove;
+
+  @override
+  State<_PasswordManagerSheet> createState() => _PasswordManagerSheetState();
+}
+
+class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
+  late List<PasswordManagerEntry> _entries;
+  late final TextEditingController _labelController;
+  late final TextEditingController _passwordController;
+
+  @override
+  void initState() {
+    super.initState();
+    _entries = widget.entries;
+    _labelController = TextEditingController();
+    _passwordController = TextEditingController();
+    _passwordController.addListener(_handlePasswordChanged);
+  }
+
+  @override
+  void dispose() {
+    _passwordController.removeListener(_handlePasswordChanged);
+    _labelController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _handlePasswordChanged() {
+    setState(() {});
+  }
+
+  void _addEntry() {
+    final password = _passwordController.text;
+    if (password.isEmpty) {
+      return;
+    }
+    final entry = widget.onAdd(
+      label: _labelController.text,
+      password: password,
+    );
+    setState(() {
+      _entries = [entry, ..._entries];
+      _labelController.clear();
+      _passwordController.clear();
+    });
+  }
+
+  void _removeEntry(PasswordManagerEntry entry) {
+    widget.onRemove(entry.id);
+    setState(() {
+      _entries = [
+        for (final current in _entries)
+          if (current.id != entry.id) current,
+      ];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        16 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Material(
+        key: const Key('password-manager-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Password Manager',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close password manager',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                    ),
+                  ],
+                ),
+                Text(
+                  widget.promptDetected
+                      ? 'Password prompt detected in the active session.'
+                      : 'Open a password prompt before sending a password.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  key: const Key('password-manager-label-field'),
+                  controller: _labelController,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(
+                    labelText: 'Label',
+                    hintText: 'Server or account',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('password-manager-password-field'),
+                  controller: _passwordController,
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  onSubmitted: (_) => _addEntry(),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    key: const Key('password-manager-add'),
+                    onPressed: _addEntry,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Add'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: _entries.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Center(
+                            child: Text(
+                              'No saved passwords in this session.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: palette.textSubtle),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _entries.length,
+                          separatorBuilder: (_, _) =>
+                              Divider(color: palette.border, height: 1),
+                          itemBuilder: (context, index) {
+                            final entry = _entries[index];
+                            return _PasswordManagerEntryTile(
+                              index: index,
+                              entry: entry,
+                              promptDetected: widget.promptDetected,
+                              palette: palette,
+                              onSend: () => Navigator.of(
+                                context,
+                              ).pop(_PasswordManagerSendResult(entry)),
+                              onRemove: () => _removeEntry(entry),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PasswordManagerEntryTile extends StatelessWidget {
+  const _PasswordManagerEntryTile({
+    required this.index,
+    required this.entry,
+    required this.promptDetected,
+    required this.palette,
+    required this.onSend,
+    required this.onRemove,
+  });
+
+  final int index;
+  final PasswordManagerEntry entry;
+  final bool promptDetected;
+  final AppThemeTokens palette;
+  final VoidCallback onSend;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: Key('password-manager-entry-$index'),
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(Icons.key_rounded, color: palette.textMuted),
+      title: Text(
+        entry.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        promptDetected ? 'Ready to send' : 'Waiting for password prompt',
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+      ),
+      trailing: Wrap(
+        spacing: 4,
+        children: [
+          IconButton(
+            key: Key('password-manager-remove-$index'),
+            tooltip: 'Remove password',
+            onPressed: onRemove,
+            icon: Icon(Icons.delete_outline_rounded, color: palette.textMuted),
+          ),
+          FilledButton(
+            key: Key('password-manager-send-$index'),
+            onPressed: promptDetected ? onSend : null,
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ShellWorkspaceCue extends StatelessWidget {
   const _ShellWorkspaceCue({required this.title, required this.palette});
 
@@ -4115,6 +4454,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.pasteHistory),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-password-manager'),
+                    icon: Icons.password_rounded,
+                    title: 'Password manager',
+                    subtitle:
+                        'Session action • Send saved passwords at prompts.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.passwordManager),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-instant-replay'),
