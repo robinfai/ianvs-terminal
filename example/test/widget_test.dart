@@ -1275,4 +1275,64 @@ void main() {
       expect(fakeBindings.scrollToCalls.last, [1, 0]);
     },
   );
+
+  testWidgets('global search searches all tabs and jumps to a match', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
+    await tester.pumpAndSettle();
+
+    fakeBindings.setSearchMatches(1, 'needle', [
+      {
+        'row': 3,
+        'start_col': 0,
+        'end_col': 6,
+        'text': 'first tab needle',
+        'scrollback_offset': 8,
+      },
+    ]);
+    fakeBindings.setSearchMatches(2, 'needle', [
+      {
+        'row': 5,
+        'start_col': 2,
+        'end_col': 8,
+        'text': 'second tab needle',
+        'scrollback_offset': 13,
+      },
+    ]);
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-global-search')));
+    await tester.tap(find.byKey(const Key('shell-global-search')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('terminal-global-search-field')),
+      'needle',
+    );
+    await tester.pump();
+
+    expect(fakeBindings.searchCalls, contains(equals([1, 'needle'])));
+    expect(fakeBindings.searchCalls, contains(equals([2, 'needle'])));
+    expect(find.text('first tab needle'), findsOneWidget);
+    expect(find.text('second tab needle'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const Key('terminal-global-search-result-2-1')),
+    );
+    await tester.pumpAndSettle();
+
+    _expectSelectedTab(tester, '2');
+    expect(fakeBindings.scrollToCalls.last, [2, 13]);
+  });
 }

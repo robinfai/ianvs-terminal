@@ -34,6 +34,7 @@ enum _ShellCommandAction {
   pasteHistory,
   instantReplay,
   search,
+  globalSearch,
   autocomplete,
   hotkeyWindow,
   defaults,
@@ -119,6 +120,20 @@ final class _InstantReplayCopyResult extends _InstantReplaySheetResult {
   const _InstantReplayCopyResult(this.text);
 
   final String text;
+}
+
+class _SearchableSession {
+  const _SearchableSession({required this.sessionId, required this.title});
+
+  final String sessionId;
+  final String title;
+}
+
+class _GlobalSearchResult {
+  const _GlobalSearchResult({required this.session, required this.match});
+
+  final _SearchableSession session;
+  final TerminalSearchMatch match;
 }
 
 class ShellScreen extends ConsumerStatefulWidget {
@@ -1352,6 +1367,57 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
   }
 
+  Future<void> _openGlobalSearch(SessionState sessionState) async {
+    final sessions = _searchableSessions(sessionState);
+    if (sessions.isEmpty) {
+      return;
+    }
+    final result = await showModalBottomSheet<_GlobalSearchResult>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) =>
+          _GlobalSearchSheet(sessions: sessions, onSearch: _searchAllSessions),
+    );
+    if (!mounted || result == null) {
+      _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+      return;
+    }
+    final sessionController = ref.read(sessionControllerProvider.notifier);
+    sessionController.activateSession(result.session.sessionId);
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .scrollViewportTo(
+          result.session.sessionId,
+          result.match.scrollbackOffset,
+        );
+    _focusSession(result.session.sessionId);
+  }
+
+  List<_SearchableSession> _searchableSessions(SessionState sessionState) {
+    return [
+      for (final tab in sessionState.tabs)
+        for (final pane in tab.effectivePanes)
+          _SearchableSession(sessionId: pane.sessionId, title: pane.title),
+    ];
+  }
+
+  List<_GlobalSearchResult> _searchAllSessions(
+    String query,
+    List<_SearchableSession> sessions,
+  ) {
+    if (query.trim().isEmpty) {
+      return const <_GlobalSearchResult>[];
+    }
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    return [
+      for (final session in sessions)
+        for (final match in runtime.searchText(session.sessionId, query))
+          _GlobalSearchResult(session: session, match: match),
+    ];
+  }
+
   void _openAutocomplete() {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {
@@ -1810,6 +1876,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return;
         }
         _openSearch();
+        return;
+      case _ShellCommandAction.globalSearch:
+        if (sessionState.tabs.isEmpty) {
+          return;
+        }
+        await _openGlobalSearch(sessionState);
         return;
       case _ShellCommandAction.autocomplete:
         if (currentSessionId == null) {
@@ -2859,6 +2931,152 @@ class _TerminalSearchBar extends StatelessWidget {
   }
 }
 
+class _GlobalSearchSheet extends StatefulWidget {
+  const _GlobalSearchSheet({required this.sessions, required this.onSearch});
+
+  final List<_SearchableSession> sessions;
+  final List<_GlobalSearchResult> Function(
+    String query,
+    List<_SearchableSession> sessions,
+  )
+  onSearch;
+
+  @override
+  State<_GlobalSearchSheet> createState() => _GlobalSearchSheetState();
+}
+
+class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
+  String _query = '';
+  List<_GlobalSearchResult> _results = const [];
+
+  void _handleQueryChanged(String value) {
+    setState(() {
+      _query = value;
+      _results = widget.onSearch(value, widget.sessions);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final resultCount = _results.length;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Material(
+        key: const Key('terminal-global-search-sheet'),
+        color: palette.panel,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(palette.radius.lg),
+        ),
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 520),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          key: const Key('terminal-global-search-field'),
+                          autofocus: true,
+                          onChanged: _handleQueryChanged,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: palette.textPrimary),
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.manage_search_rounded),
+                            hintText: 'Global search',
+                            isDense: true,
+                            filled: true,
+                            fillColor: palette.overlay,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                palette.radius.sm,
+                              ),
+                              borderSide: BorderSide(color: palette.border),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '$resultCount matches',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: palette.textSubtle,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: _query.trim().isEmpty
+                        ? Center(
+                            child: Text(
+                              'Type to search ${widget.sessions.length} sessions',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: palette.textMuted),
+                            ),
+                          )
+                        : resultCount == 0
+                        ? Center(
+                            child: Text(
+                              'No matches',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: palette.textMuted),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: resultCount,
+                            separatorBuilder: (_, _) =>
+                                Divider(height: 1, color: palette.border),
+                            itemBuilder: (context, index) {
+                              final result = _results[index];
+                              return ListTile(
+                                key: Key(
+                                  'terminal-global-search-result-${result.session.sessionId}-$index',
+                                ),
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  result.match.text,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(color: palette.textPrimary),
+                                ),
+                                subtitle: Text(
+                                  '${result.session.title} • row ${result.match.row + 1}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: palette.textSubtle),
+                                ),
+                                trailing: const Icon(
+                                  Icons.keyboard_return_rounded,
+                                  size: 18,
+                                ),
+                                onTap: () => Navigator.of(context).pop(result),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TerminalAutocompleteMenu extends StatelessWidget {
   const _TerminalAutocompleteMenu({
     required this.prefix,
@@ -3660,6 +3878,16 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.search),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-global-search'),
+                    icon: Icons.manage_search_rounded,
+                    title: 'Global search',
+                    subtitle: 'Workspace action • Search all tabs at once.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.globalSearch),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-autocomplete'),
