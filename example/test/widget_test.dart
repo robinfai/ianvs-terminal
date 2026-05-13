@@ -703,6 +703,66 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('annotations attach notes to selected terminal text', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final renderViewport = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final selectionStart = renderViewport.localToGlobal(const Offset(1, 9));
+    await tester.dragFrom(selectionStart, const Offset(300, 0));
+    await tester.pump();
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-annotations')));
+    await tester.tap(find.byKey(const Key('shell-annotations')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('annotations-sheet')), findsOneWidget);
+    expect(find.text('flutterm ready'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('annotation-note-field')),
+      'Check startup output',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('annotation-save')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Check startup output'), findsOneWidget);
+    expect(find.byKey(const Key('annotation-entry-0')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('annotations-close')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('terminal-annotation-badge-1')),
+      findsOneWidget,
+    );
+    expect(find.text('1 annotation'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('terminal-annotation-badge-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('annotation-remove-0')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('annotations-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-annotation-badge-1')), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'command-shift-c copy mode extends selection and copies with enter',
     (tester) async {

@@ -35,6 +35,7 @@ enum _ShellCommandAction {
   paste,
   advancedPaste,
   pasteHistory,
+  annotations,
   passwordManager,
   instantReplay,
   search,
@@ -171,6 +172,20 @@ class _GlobalSearchResult {
   final TerminalSearchMatch match;
 }
 
+class _TerminalAnnotation {
+  const _TerminalAnnotation({
+    required this.id,
+    required this.sessionId,
+    required this.selectedText,
+    required this.note,
+  });
+
+  final String id;
+  final String sessionId;
+  final String selectedText;
+  final String note;
+}
+
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
@@ -213,8 +228,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
+  List<_TerminalAnnotation> _annotations = const [];
   bool _pasteHistoryPersistToDisk = false;
   bool _pasteHistoryLoaded = false;
+  int _nextAnnotationId = 0;
   int? _copyModeAnchorRow;
   int? _copyModeAnchorCol;
   int? _copyModeExtentRow;
@@ -1098,6 +1115,72 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           .read(pasteHistoryRepositoryProvider)
           .save(const PasteHistoryDocument());
     }
+  }
+
+  List<_TerminalAnnotation> _annotationsForSession(String sessionId) {
+    return [
+      for (final annotation in _annotations)
+        if (annotation.sessionId == sessionId) annotation,
+    ];
+  }
+
+  Future<void> _openAnnotations(
+    SessionController sessionController,
+    String sessionId,
+    SelectionController selectionController,
+  ) async {
+    final selectedText = _selectionTextForSession(
+      sessionController,
+      sessionId,
+      selectionController,
+    ).trimRight();
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _AnnotationsSheet(
+          entries: _annotationsForSession(sessionId),
+          selectedText: selectedText,
+          onAdd: (note) => _addAnnotation(
+            sessionId: sessionId,
+            selectedText: selectedText,
+            note: note,
+          ),
+          onRemove: _removeAnnotation,
+        );
+      },
+    );
+  }
+
+  _TerminalAnnotation _addAnnotation({
+    required String sessionId,
+    required String selectedText,
+    required String note,
+  }) {
+    final annotation = _TerminalAnnotation(
+      id: 'annotation-${_nextAnnotationId++}',
+      sessionId: sessionId,
+      selectedText: selectedText.trimRight(),
+      note: note.trim(),
+    );
+    setState(() {
+      _annotations = [annotation, ..._annotations];
+    });
+    return annotation;
+  }
+
+  void _removeAnnotation(String annotationId) {
+    setState(() {
+      _annotations = [
+        for (final annotation in _annotations)
+          if (annotation.id != annotationId) annotation,
+      ];
+    });
   }
 
   String _selectionTextForSession(
@@ -2245,6 +2328,24 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
         await _openPasteHistory(sessionState);
         return;
+      case _ShellCommandAction.annotations:
+        if (currentSessionId == null) {
+          return;
+        }
+        final selectionController = _selectionControllers.putIfAbsent(
+          currentSessionId,
+          SelectionController.new,
+        );
+        await _openAnnotations(
+          sessionController,
+          currentSessionId,
+          selectionController,
+        );
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
+        return;
       case _ShellCommandAction.passwordManager:
         if (currentSessionId == null) {
           return;
@@ -2378,6 +2479,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       copySelection: ClipboardBridge.copy,
       readClipboard: ClipboardBridge.paste,
     );
+    final annotations = _annotationsForSession(sessionId);
 
     return LayoutBuilder(
       key: Key('shell-pane-$sessionId'),
@@ -2522,6 +2624,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         child: _ShellWorkspaceCue(
                           title: 'Copy mode',
                           palette: palette,
+                        ),
+                      ),
+                    ),
+                  if (isActive && annotations.isNotEmpty)
+                    Positioned(
+                      left: _terminalViewportPadding.left,
+                      bottom: _terminalViewportPadding.bottom,
+                      child: _TerminalAnnotationBadge(
+                        key: Key('terminal-annotation-badge-$sessionId'),
+                        count: annotations.length,
+                        palette: palette,
+                        onTap: () => unawaited(
+                          _openAnnotations(
+                            sessionController,
+                            sessionId,
+                            selectionController,
+                          ),
                         ),
                       ),
                     ),
@@ -4018,6 +4137,267 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
   }
 }
 
+class _AnnotationsSheet extends StatefulWidget {
+  const _AnnotationsSheet({
+    required this.entries,
+    required this.selectedText,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final List<_TerminalAnnotation> entries;
+  final String selectedText;
+  final _TerminalAnnotation Function(String note) onAdd;
+  final ValueChanged<String> onRemove;
+
+  @override
+  State<_AnnotationsSheet> createState() => _AnnotationsSheetState();
+}
+
+class _AnnotationsSheetState extends State<_AnnotationsSheet> {
+  late List<_TerminalAnnotation> _entries;
+  late final TextEditingController _noteController;
+
+  @override
+  void initState() {
+    super.initState();
+    _entries = widget.entries;
+    _noteController = TextEditingController();
+    _noteController.addListener(_handleNoteChanged);
+  }
+
+  @override
+  void dispose() {
+    _noteController.removeListener(_handleNoteChanged);
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  bool get _canSave {
+    return widget.selectedText.trim().isNotEmpty &&
+        _noteController.text.trim().isNotEmpty;
+  }
+
+  void _handleNoteChanged() {
+    setState(() {});
+  }
+
+  void _save() {
+    if (!_canSave) {
+      return;
+    }
+    final annotation = widget.onAdd(_noteController.text);
+    setState(() {
+      _entries = [annotation, ..._entries];
+      _noteController.clear();
+    });
+  }
+
+  void _remove(_TerminalAnnotation annotation) {
+    widget.onRemove(annotation.id);
+    setState(() {
+      _entries = [
+        for (final current in _entries)
+          if (current.id != annotation.id) current,
+      ];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final hasSelection = widget.selectedText.trim().isNotEmpty;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        16 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Material(
+        key: const Key('annotations-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Annotations',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('annotations-close'),
+                      tooltip: 'Close annotations',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (hasSelection)
+                  DecoratedBox(
+                    key: const Key('annotation-selection-preview'),
+                    decoration: BoxDecoration(
+                      color: palette.terminalSurface,
+                      borderRadius: BorderRadius.circular(palette.radius.md),
+                      border: Border.all(color: palette.border),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          widget.selectedText,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontFamily: 'monospace',
+                                height: 1.25,
+                              ),
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    'Select terminal text to add an annotation.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+                  ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('annotation-note-field'),
+                  controller: _noteController,
+                  enabled: hasSelection,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Note',
+                    alignLabelWithHint: true,
+                  ),
+                  onSubmitted: (_) => _save(),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    key: const Key('annotation-save'),
+                    onPressed: _canSave ? _save : null,
+                    icon: const Icon(Icons.add_comment_rounded, size: 18),
+                    label: const Text('Add Annotation'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Text(
+                      '${_entries.length} annotation${_entries.length == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: palette.textSubtle,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: _entries.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
+                          child: Center(
+                            child: Text(
+                              'No annotations in this session.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: palette.textSubtle),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _entries.length,
+                          separatorBuilder: (_, _) =>
+                              Divider(color: palette.border, height: 1),
+                          itemBuilder: (context, index) {
+                            final annotation = _entries[index];
+                            return _AnnotationEntryTile(
+                              index: index,
+                              annotation: annotation,
+                              palette: palette,
+                              onRemove: () => _remove(annotation),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnnotationEntryTile extends StatelessWidget {
+  const _AnnotationEntryTile({
+    required this.index,
+    required this.annotation,
+    required this.palette,
+    required this.onRemove,
+  });
+
+  final int index;
+  final _TerminalAnnotation annotation;
+  final AppThemeTokens palette;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: Key('annotation-entry-$index'),
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(Icons.sticky_note_2_rounded, color: palette.textMuted),
+      title: Text(
+        annotation.note,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        annotation.selectedText.replaceAll('\n', ' ⏎ '),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+      ),
+      trailing: IconButton(
+        key: Key('annotation-remove-$index'),
+        tooltip: 'Remove annotation',
+        onPressed: onRemove,
+        icon: Icon(Icons.delete_outline_rounded, color: palette.textMuted),
+      ),
+    );
+  }
+}
+
 class _PasteHistorySheet extends StatefulWidget {
   const _PasteHistorySheet({
     required this.entries,
@@ -4473,6 +4853,58 @@ class _PasswordManagerEntryTile extends StatelessWidget {
   }
 }
 
+class _TerminalAnnotationBadge extends StatelessWidget {
+  const _TerminalAnnotationBadge({
+    super.key,
+    required this.count,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final int count;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(palette.radius.md),
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.overlay.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(palette.radius.md),
+            border: Border.all(color: palette.border),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.sticky_note_2_rounded,
+                  size: 16,
+                  color: palette.textMuted,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$count annotation${count == 1 ? '' : 's'}',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ShellWorkspaceCue extends StatelessWidget {
   const _ShellWorkspaceCue({required this.title, required this.palette});
 
@@ -4685,6 +5117,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.copyMode),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-annotations'),
+                    icon: Icons.sticky_note_2_rounded,
+                    title: 'Annotations',
+                    subtitle:
+                        'Session action • Attach notes to selected output.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.annotations),
                   ),
                   _ShellCommandTile(
                     icon: Icons.content_paste_rounded,
