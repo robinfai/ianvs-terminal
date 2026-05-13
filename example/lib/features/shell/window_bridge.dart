@@ -83,6 +83,28 @@ class WindowBridge {
       return;
     }
   }
+
+  static Future<void> showNotification({
+    required String title,
+    String? body,
+    String? identifier,
+  }) async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    try {
+      final arguments = <String, Object?>{'title': title};
+      if (body != null) {
+        arguments['body'] = body;
+      }
+      if (identifier != null) {
+        arguments['identifier'] = identifier;
+      }
+      await _channel.invokeMethod<void>('showNotification', arguments);
+    } on MissingPluginException {
+      return;
+    }
+  }
 }
 
 class HotkeyWindowStatus {

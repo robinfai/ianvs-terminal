@@ -1,6 +1,7 @@
 import Cocoa
 import Carbon.HIToolbox
 import FlutterMacOS
+import UserNotifications
 
 private final class HotkeyWindowController {
   static let shortcutLabel = "⌥⌘Space"
@@ -239,11 +240,81 @@ class MainFlutterWindow: NSWindow {
 
         NSWorkspace.shared.open(url)
         result(nil)
+      case "showNotification":
+        self.showNotification(arguments: call.arguments, result: result)
       default:
         result(FlutterMethodNotImplemented)
       }
     }
 
     super.awakeFromNib()
+  }
+
+  private func showNotification(arguments: Any?, result: @escaping FlutterResult) {
+    guard
+      let arguments = arguments as? [String: Any],
+      let title = arguments["title"] as? String
+    else {
+      result(
+        FlutterError(
+          code: "invalid_notification",
+          message: "Notification title is required",
+          details: nil
+        )
+      )
+      return
+    }
+
+    let body = arguments["body"] as? String
+    let identifier = arguments["identifier"] as? String ?? UUID().uuidString
+    let center = UNUserNotificationCenter.current()
+    center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+      if let error {
+        DispatchQueue.main.async {
+          result(
+            FlutterError(
+              code: "notification_authorization_failed",
+              message: error.localizedDescription,
+              details: nil
+            )
+          )
+        }
+        return
+      }
+      guard granted else {
+        DispatchQueue.main.async {
+          result(nil)
+        }
+        return
+      }
+
+      let content = UNMutableNotificationContent()
+      content.title = title
+      if let body, !body.isEmpty {
+        content.body = body
+      }
+      content.sound = .default
+
+      let request = UNNotificationRequest(
+        identifier: identifier,
+        content: content,
+        trigger: nil
+      )
+      center.add(request) { error in
+        DispatchQueue.main.async {
+          if let error {
+            result(
+              FlutterError(
+                code: "notification_delivery_failed",
+                message: error.localizedDescription,
+                details: nil
+              )
+            )
+            return
+          }
+          result(nil)
+        }
+      }
+    }
   }
 }

@@ -48,6 +48,7 @@ Future<void> _pumpShellScreen(
   required PtySessionBackend bindings,
   required MemoryProfileRepository repository,
   PasteHistoryRepository? pasteHistoryRepository,
+  ShellNotificationSender? notificationSender,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -60,6 +61,8 @@ Future<void> _pumpShellScreen(
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
+        if (notificationSender != null)
+          shellNotificationSenderProvider.overrideWithValue(notificationSender),
       ],
       child: const MaterialApp(home: ShellScreen()),
     ),
@@ -879,6 +882,95 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
+
+  testWidgets('shell posts notifications for command completion and bells', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final notifications = <Map<String, String?>>[];
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      notificationSender: ({required title, body, identifier}) async {
+        notifications.add({
+          'title': title,
+          'body': body,
+          'identifier': identifier,
+        });
+      },
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'echo ok',
+          'exit_code': 7,
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(1, PtyEvent(kind: 'bell', sessionId: '1'));
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(notifications, hasLength(2));
+    expect(notifications[0]['title'], 'Command finished');
+    expect(notifications[0]['body'], contains('echo ok'));
+    expect(notifications[0]['body'], contains('Exit code 7'));
+    expect(notifications[1]['title'], startsWith('Bell in '));
+    expect(notifications[1]['body'], 'The terminal requested attention.');
+  });
+
+  testWidgets('inactive session activity posts a notification', (tester) async {
+    final fakeBindings = FakePtyBackend();
+    final notifications = <Map<String, String?>>[];
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      notificationSender: ({required title, body, identifier}) async {
+        notifications.add({
+          'title': title,
+          'body': body,
+          'identifier': identifier,
+        });
+      },
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
+    await tester.pumpAndSettle();
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'background build done', 'style_runs': const []},
+      ],
+      'cursor': {'row': 0, 'col': 21, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(notifications, hasLength(1));
+    expect(notifications.single['title'], startsWith('Activity in '));
+    expect(notifications.single['body'], 'background build done');
+    expect(notifications.single['identifier'], 'flutterm.activity.1');
+  });
 
   testWidgets(
     'command-semicolon autocompletes from visible terminal words',

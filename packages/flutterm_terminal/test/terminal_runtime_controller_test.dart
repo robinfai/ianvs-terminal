@@ -292,6 +292,41 @@ void main() {
     expect(event.exitCode, 7);
   });
 
+  testWidgets('terminal runtime controller emits bell events', (tester) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+
+    final bells = <TerminalSessionBellEvent>[];
+    final subscription = runtime.events
+        .where((event) => event is TerminalSessionBellEvent)
+        .cast<TerminalSessionBellEvent>()
+        .listen(bells.add);
+    addTearDown(subscription.cancel);
+
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      PtyEvent(kind: 'bell', sessionId: sessionId),
+    );
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    expect(bells.single.sessionId, sessionId);
+  });
+
   testWidgets(
     'terminal runtime controller passes through unknown shell hooks',
     (tester) async {

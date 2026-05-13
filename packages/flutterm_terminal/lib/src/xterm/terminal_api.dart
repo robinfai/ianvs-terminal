@@ -453,6 +453,8 @@ class Terminal implements TerminalDisposable {
         _exitEvents.add(TerminalExitEvent(exitCode: exitCode));
         _sessionId = null;
         break;
+      case TerminalSessionBellEvent():
+        break;
       case TerminalSessionShellHookEvent():
         break;
     }

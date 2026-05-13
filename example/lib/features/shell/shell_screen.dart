@@ -72,6 +72,19 @@ final instantReplayStoreProvider = Provider<InstantReplayStore>((ref) {
   return InstantReplayStore();
 });
 
+typedef ShellNotificationSender =
+    Future<void> Function({
+      required String title,
+      String? body,
+      String? identifier,
+    });
+
+final shellNotificationSenderProvider = Provider<ShellNotificationSender>((
+  ref,
+) {
+  return WindowBridge.showNotification;
+});
+
 sealed class _ProfilesSheetResult {
   const _ProfilesSheetResult();
 }
@@ -125,7 +138,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
-  StreamSubscription<terminal.TerminalSessionEvent>? _instantReplaySubscription;
+  final Map<String, DateTime> _lastActivityNotificationAt = {};
+  final Map<String, String?> _lastActivityFramePreviews = {};
+  final Set<String> _sessionsSeenForActivityNotifications = {};
+  StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
   Timer? _workspaceCueTimer;
   Timer? _viewportResizeTimer;
   bool _isCommandMenuOpen = false;
@@ -156,16 +172,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
-    _instantReplaySubscription = ref
+    _terminalEventSubscription = ref
         .read(terminalRuntimeControllerProvider)
         .events
-        .listen(_recordInstantReplayEvent);
+        .listen(_handleTerminalSessionEvent);
     Future.microtask(_loadPasteHistory);
   }
 
   @override
   void dispose() {
-    _instantReplaySubscription?.cancel();
+    _terminalEventSubscription?.cancel();
     _workspaceCueTimer?.cancel();
     _viewportResizeTimer?.cancel();
     for (final focusNode in _terminalFocusNodes.values) {
@@ -174,14 +190,126 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     super.dispose();
   }
 
-  void _recordInstantReplayEvent(terminal.TerminalSessionEvent event) {
+  void _handleTerminalSessionEvent(terminal.TerminalSessionEvent event) {
     switch (event) {
       case terminal.TerminalSessionFrameEvent(:final sessionId, :final frame):
         ref.read(instantReplayStoreProvider).record(sessionId, frame);
+        _notifyInactiveActivity(sessionId, frame);
       case terminal.TerminalSessionExitEvent():
+        _notifySessionExit(event.sessionId, event.exitCode);
+      case terminal.TerminalSessionBellEvent():
+        _notifyBell(event.sessionId);
       case terminal.TerminalSessionShellHookEvent():
-        break;
+        _notifyShellHook(event);
     }
+  }
+
+  void _notifyInactiveActivity(
+    String sessionId,
+    terminal.TerminalFrameDiff frame,
+  ) {
+    final preview = _framePreview(frame);
+    final hasSeenSession = !_sessionsSeenForActivityNotifications.add(
+      sessionId,
+    );
+    final previousPreview = _lastActivityFramePreviews[sessionId];
+    _lastActivityFramePreviews[sessionId] = preview;
+    if (hasSeenSession &&
+        previousPreview != preview &&
+        _notificationSessionIsInactive(sessionId) &&
+        preview != null &&
+        _activityNotificationAllowed(sessionId)) {
+      _sendShellNotification(
+        title: 'Activity in ${_sessionTitleForNotification(sessionId)}',
+        body: preview,
+        identifier: 'flutterm.activity.$sessionId',
+      );
+    }
+  }
+
+  void _notifySessionExit(String sessionId, int? exitCode) {
+    _sendShellNotification(
+      title: 'Session ended',
+      body:
+          '${_sessionTitleForNotification(sessionId)} exited${exitCode == null ? '' : ' with code $exitCode'}.',
+      identifier:
+          'flutterm.exit.$sessionId.${DateTime.now().microsecondsSinceEpoch}',
+    );
+  }
+
+  void _notifyBell(String sessionId) {
+    _sendShellNotification(
+      title: 'Bell in ${_sessionTitleForNotification(sessionId)}',
+      body: 'The terminal requested attention.',
+      identifier: 'flutterm.bell.$sessionId',
+    );
+  }
+
+  void _notifyShellHook(terminal.TerminalSessionShellHookEvent event) {
+    if (event.hook != 'command_finished') {
+      return;
+    }
+    final command = event.command;
+    final exitCode = event.exitCode;
+    _sendShellNotification(
+      title: 'Command finished',
+      body: [
+        if (command != null && command.trim().isNotEmpty) command.trim(),
+        if (exitCode != null) 'Exit code $exitCode',
+      ].join('\n'),
+      identifier:
+          'flutterm.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
+    );
+  }
+
+  bool _notificationSessionIsInactive(String sessionId) {
+    return ref.read(sessionControllerProvider).activeSessionId != sessionId;
+  }
+
+  bool _activityNotificationAllowed(String sessionId) {
+    final now = DateTime.now();
+    final lastNotification = _lastActivityNotificationAt[sessionId];
+    if (lastNotification != null &&
+        now.difference(lastNotification) < const Duration(seconds: 30)) {
+      return false;
+    }
+    _lastActivityNotificationAt[sessionId] = now;
+    return true;
+  }
+
+  String? _framePreview(terminal.TerminalFrameDiff frame) {
+    for (final row in frame.rows) {
+      final text = row.text.trim();
+      if (text.isNotEmpty) {
+        return text;
+      }
+    }
+    return null;
+  }
+
+  String _sessionTitleForNotification(String sessionId) {
+    final state = ref.read(sessionControllerProvider);
+    for (final tab in state.tabs) {
+      final pane = tab.paneFor(sessionId);
+      if (pane != null) {
+        return pane.title;
+      }
+    }
+    return 'Session $sessionId';
+  }
+
+  void _sendShellNotification({
+    required String title,
+    String? body,
+    required String identifier,
+  }) {
+    unawaited(
+      ref.read(shellNotificationSenderProvider)(
+        title: title,
+        body: body,
+        identifier: identifier,
+      ),
+    );
   }
 
   String get _visibleOverlay {

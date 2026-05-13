@@ -35,6 +35,10 @@ final class TerminalSessionExitEvent extends TerminalSessionEvent {
   final int? exitCode;
 }
 
+final class TerminalSessionBellEvent extends TerminalSessionEvent {
+  const TerminalSessionBellEvent(super.sessionId);
+}
+
 final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
   TerminalSessionShellHookEvent(
     super.sessionId, {
@@ -547,6 +551,9 @@ class TerminalRuntimeController {
             pendingAsyncWork,
             () => _handleClipboardPasteRequestEvent(sessionId, event.payload),
           );
+          break;
+        case 'bell':
+          _events.add(TerminalSessionBellEvent(sessionId));
           break;
         case 'shell_hook':
           _events.add(
