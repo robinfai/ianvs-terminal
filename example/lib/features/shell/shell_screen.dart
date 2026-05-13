@@ -38,6 +38,7 @@ enum _ShellCommandAction {
   pasteHistory,
   shellIntegrationUtilities,
   tmuxIntegration,
+  coprocess,
   annotations,
   capturedOutput,
   passwordManager,
@@ -206,6 +207,44 @@ class _CapturedOutputEntry {
   final int rowIndex;
 }
 
+class _CoprocessStartRequest {
+  const _CoprocessStartRequest({
+    required this.command,
+    required this.pattern,
+    required this.response,
+  });
+
+  final String command;
+  final String pattern;
+  final String response;
+}
+
+class _ShellCoprocess {
+  const _ShellCoprocess({
+    required this.command,
+    required this.pattern,
+    required this.response,
+    this.inputLineCount = 0,
+    this.lastInput,
+  });
+
+  final String command;
+  final String pattern;
+  final String response;
+  final int inputLineCount;
+  final String? lastInput;
+
+  _ShellCoprocess copyWith({int? inputLineCount, String? lastInput}) {
+    return _ShellCoprocess(
+      command: command,
+      pattern: pattern,
+      response: response,
+      inputLineCount: inputLineCount ?? this.inputLineCount,
+      lastInput: lastInput ?? this.lastInput,
+    );
+  }
+}
+
 class _SessionBadgeContent {
   const _SessionBadgeContent({
     required this.title,
@@ -264,10 +303,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
   List<_TerminalAnnotation> _annotations = const [];
   List<_CapturedOutputEntry> _capturedOutputEntries = const [];
+  Map<String, _ShellCoprocess> _coprocesses = const {};
   bool _pasteHistoryPersistToDisk = false;
   bool _pasteHistoryLoaded = false;
   int _nextAnnotationId = 0;
   int _nextCapturedOutputId = 0;
+  final Map<String, Set<String>> _coprocessInputKeysBySession =
+      <String, Set<String>>{};
   int? _copyModeAnchorRow;
   int? _copyModeAnchorCol;
   int? _copyModeExtentRow;
@@ -298,10 +340,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     switch (event) {
       case terminal.TerminalSessionFrameEvent(:final sessionId, :final frame):
         ref.read(instantReplayStoreProvider).record(sessionId, frame);
+        _feedCoprocess(sessionId, frame);
         _runProfileTriggers(sessionId, frame);
         _notifyInactiveActivity(sessionId, frame);
       case terminal.TerminalSessionExitEvent():
         _triggerMatchesBySession.remove(event.sessionId);
+        _stopCoprocess(event.sessionId);
         _clearCapturedOutput(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
       case terminal.TerminalSessionBellEvent():
@@ -367,6 +411,88 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       identifier:
           'flutterm.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );
+  }
+
+  void _feedCoprocess(String sessionId, terminal.TerminalFrameDiff frame) {
+    final currentCoprocess = _coprocesses[sessionId];
+    if (currentCoprocess == null) {
+      return;
+    }
+    var nextCoprocess = currentCoprocess;
+    final seenKeys = _coprocessInputKeysBySession.putIfAbsent(
+      sessionId,
+      () => <String>{},
+    );
+    String? pendingResponse;
+    for (final row in frame.rows) {
+      final input = row.text.trimRight();
+      if (input.trim().isEmpty) {
+        continue;
+      }
+      final inputKey = '${row.index}\u0000$input';
+      if (!seenKeys.add(inputKey)) {
+        continue;
+      }
+      nextCoprocess = nextCoprocess.copyWith(
+        inputLineCount: nextCoprocess.inputLineCount + 1,
+        lastInput: input,
+      );
+      if (pendingResponse == null &&
+          _coprocessPatternMatches(nextCoprocess.pattern, input)) {
+        pendingResponse = nextCoprocess.response;
+      }
+    }
+    if (nextCoprocess != currentCoprocess && mounted) {
+      setState(() {
+        _coprocesses = <String, _ShellCoprocess>{
+          ..._coprocesses,
+          sessionId: nextCoprocess,
+        };
+      });
+    }
+    if (pendingResponse != null) {
+      _sendPlainTextToSession(sessionId, pendingResponse);
+    }
+  }
+
+  bool _coprocessPatternMatches(String pattern, String input) {
+    final trimmedPattern = pattern.trim();
+    if (trimmedPattern.isEmpty) {
+      return false;
+    }
+    try {
+      return RegExp(trimmedPattern, caseSensitive: false).hasMatch(input);
+    } on FormatException {
+      return input.toLowerCase().contains(trimmedPattern.toLowerCase());
+    }
+  }
+
+  void _startCoprocess(String sessionId, _CoprocessStartRequest request) {
+    _coprocessInputKeysBySession[sessionId] = <String>{};
+    setState(() {
+      _coprocesses = <String, _ShellCoprocess>{
+        ..._coprocesses,
+        sessionId: _ShellCoprocess(
+          command: request.command,
+          pattern: request.pattern,
+          response: request.response,
+        ),
+      };
+    });
+  }
+
+  void _stopCoprocess(String sessionId) {
+    if (!_coprocesses.containsKey(sessionId)) {
+      _coprocessInputKeysBySession.remove(sessionId);
+      return;
+    }
+    _coprocessInputKeysBySession.remove(sessionId);
+    setState(() {
+      _coprocesses = <String, _ShellCoprocess>{
+        for (final entry in _coprocesses.entries)
+          if (entry.key != sessionId) entry.key: entry.value,
+      };
+    });
   }
 
   void _runProfileTriggers(String sessionId, terminal.TerminalFrameDiff frame) {
@@ -1700,6 +1826,25 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
   }
 
+  Future<void> _openCoprocess(String sessionId) async {
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _CoprocessSheet(
+          activeCoprocess: _coprocesses[sessionId],
+          onStart: (request) => _startCoprocess(sessionId, request),
+          onStop: () => _stopCoprocess(sessionId),
+        );
+      },
+    );
+  }
+
   Future<void> _openAdvancedPaste(String sessionId) async {
     final clipboardText = await ClipboardBridge.paste();
     if (!mounted) {
@@ -2642,6 +2787,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
+      case _ShellCommandAction.coprocess:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _openCoprocess(currentSessionId);
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
+        return;
       case _ShellCommandAction.annotations:
         if (currentSessionId == null) {
           return;
@@ -2805,6 +2960,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     final annotations = _annotationsForSession(sessionId);
     final sessionBadge = _sessionBadgeForPane(pane, profile);
+    final activeCoprocess = _coprocesses[sessionId];
 
     return LayoutBuilder(
       key: Key('shell-pane-$sessionId'),
@@ -2947,7 +3103,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       !_isAutocompleteOpen &&
                       !_showWorkspaceCue)
                     Positioned(
-                      top: _terminalViewportPadding.top,
+                      top:
+                          _terminalViewportPadding.top +
+                          (activeCoprocess == null ? 0 : 34),
                       right: _terminalViewportPadding.right,
                       child: IgnorePointer(
                         child: _TerminalSessionBadge(
@@ -2955,6 +3113,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           content: sessionBadge,
                           palette: palette,
                         ),
+                      ),
+                    ),
+                  if (isActive &&
+                      activeCoprocess != null &&
+                      !_isSearchOpen &&
+                      !_isAutocompleteOpen)
+                    Positioned(
+                      top: _terminalViewportPadding.top,
+                      right: _terminalViewportPadding.right,
+                      child: _CoprocessIndicator(
+                        key: Key('terminal-coprocess-indicator-$sessionId'),
+                        command: activeCoprocess.command,
+                        palette: palette,
                       ),
                     ),
                   if (isActive && _isCopyModeOpen)
@@ -3274,6 +3445,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                         .length,
                                     tmuxControlModeActive:
                                         _tmuxControlModeActive(activeSessionId),
+                                    coprocessActive: _coprocesses.containsKey(
+                                      activeSessionId,
+                                    ),
                                     annotationCount: _annotationsForSession(
                                       activeSessionId,
                                     ).length,
@@ -3298,6 +3472,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                         ),
                                     onOpenTmuxIntegration: () => unawaited(
                                       _openTmuxIntegration(activeSessionId),
+                                    ),
+                                    onOpenCoprocess: () => unawaited(
+                                      _openCoprocess(activeSessionId),
                                     ),
                                     onOpenAnnotations: () {
                                       final selectionController =
@@ -3345,6 +3522,7 @@ class _ShellToolbelt extends StatelessWidget {
     required this.recentDirectoryCount,
     required this.promptMarkCount,
     required this.tmuxControlModeActive,
+    required this.coprocessActive,
     required this.annotationCount,
     required this.palette,
     required this.onClose,
@@ -3352,6 +3530,7 @@ class _ShellToolbelt extends StatelessWidget {
     required this.onOpenPasteHistory,
     required this.onOpenShellIntegrationUtilities,
     required this.onOpenTmuxIntegration,
+    required this.onOpenCoprocess,
     required this.onOpenAnnotations,
     required this.onOpenInstantReplay,
     required this.onOpenPasswordManager,
@@ -3363,6 +3542,7 @@ class _ShellToolbelt extends StatelessWidget {
   final int recentDirectoryCount;
   final int promptMarkCount;
   final bool tmuxControlModeActive;
+  final bool coprocessActive;
   final int annotationCount;
   final AppThemeTokens palette;
   final VoidCallback onClose;
@@ -3370,6 +3550,7 @@ class _ShellToolbelt extends StatelessWidget {
   final VoidCallback onOpenPasteHistory;
   final VoidCallback onOpenShellIntegrationUtilities;
   final VoidCallback onOpenTmuxIntegration;
+  final VoidCallback onOpenCoprocess;
   final VoidCallback onOpenAnnotations;
   final VoidCallback onOpenInstantReplay;
   final VoidCallback onOpenPasswordManager;
@@ -3472,6 +3653,16 @@ class _ShellToolbelt extends StatelessWidget {
                               : 'Start or attach',
                           palette: palette,
                           onTap: onOpenTmuxIntegration,
+                        ),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-coprocess'),
+                          icon: Icons.hub_rounded,
+                          title: 'Coprocess',
+                          countLabel: coprocessActive
+                              ? 'Automation active'
+                              : 'Run automation',
+                          palette: palette,
+                          onTap: onOpenCoprocess,
                         ),
                         _ToolbeltActionRow(
                           key: const Key('toolbelt-annotations'),
@@ -4234,6 +4425,280 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CoprocessSheet extends StatefulWidget {
+  const _CoprocessSheet({
+    required this.activeCoprocess,
+    required this.onStart,
+    required this.onStop,
+  });
+
+  final _ShellCoprocess? activeCoprocess;
+  final ValueChanged<_CoprocessStartRequest> onStart;
+  final VoidCallback onStop;
+
+  @override
+  State<_CoprocessSheet> createState() => _CoprocessSheetState();
+}
+
+class _CoprocessSheetState extends State<_CoprocessSheet> {
+  late final TextEditingController _commandController;
+  late final TextEditingController _patternController;
+  late final TextEditingController _responseController;
+
+  bool get _canStart =>
+      _patternController.text.trim().isNotEmpty &&
+      _responseController.text.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _commandController = TextEditingController(text: 'presence bot');
+    _patternController = TextEditingController(text: 'Are you there?');
+    _responseController = TextEditingController(text: 'Yes\n');
+  }
+
+  @override
+  void dispose() {
+    _commandController.dispose();
+    _patternController.dispose();
+    _responseController.dispose();
+    super.dispose();
+  }
+
+  void _start() {
+    if (!_canStart) {
+      return;
+    }
+    final command = _commandController.text.trim();
+    widget.onStart(
+      _CoprocessStartRequest(
+        command: command.isEmpty ? 'Coprocess' : command,
+        pattern: _patternController.text.trim(),
+        response: _responseController.text,
+      ),
+    );
+    Navigator.of(context).pop();
+  }
+
+  void _stop() {
+    widget.onStop();
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final active = widget.activeCoprocess;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Material(
+        key: const Key('coprocess-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 560),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Coprocess',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close coprocess',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: palette.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (active == null)
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _ShellIntegrationSectionHeader(
+                              icon: Icons.hub_rounded,
+                              title: 'Run Coprocess',
+                              countLabel: 'one per session',
+                              palette: palette,
+                            ),
+                            _CoprocessTextField(
+                              fieldKey: const Key('coprocess-command-field'),
+                              controller: _commandController,
+                              label: 'Command label',
+                              icon: Icons.label_rounded,
+                              palette: palette,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 8),
+                            _CoprocessTextField(
+                              fieldKey: const Key('coprocess-pattern-field'),
+                              controller: _patternController,
+                              label: 'Input pattern',
+                              icon: Icons.search_rounded,
+                              palette: palette,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 8),
+                            _CoprocessTextField(
+                              fieldKey: const Key('coprocess-response-field'),
+                              controller: _responseController,
+                              label: 'Coprocess output',
+                              icon: Icons.keyboard_return_rounded,
+                              palette: palette,
+                              maxLines: 3,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: FilledButton.icon(
+                                key: const Key('coprocess-start'),
+                                onPressed: _canStart ? _start : null,
+                                icon: const Icon(Icons.play_arrow_rounded),
+                                label: const Text('Run'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    _ActiveCoprocessPanel(
+                      coprocess: active,
+                      palette: palette,
+                      onStop: _stop,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoprocessTextField extends StatelessWidget {
+  const _CoprocessTextField({
+    required this.fieldKey,
+    required this.controller,
+    required this.label,
+    required this.icon,
+    required this.palette,
+    required this.onChanged,
+    this.maxLines = 1,
+  });
+
+  final Key fieldKey;
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final AppThemeTokens palette;
+  final ValueChanged<String> onChanged;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      key: fieldKey,
+      controller: controller,
+      maxLines: maxLines,
+      onChanged: onChanged,
+      style: Theme.of(
+        context,
+      ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon),
+        labelText: label,
+        isDense: true,
+        filled: true,
+        fillColor: palette.chrome,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(palette.radius.sm),
+          borderSide: BorderSide(color: palette.border),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActiveCoprocessPanel extends StatelessWidget {
+  const _ActiveCoprocessPanel({
+    required this.coprocess,
+    required this.palette,
+    required this.onStop,
+  });
+
+  final _ShellCoprocess coprocess;
+  final AppThemeTokens palette;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('coprocess-active-summary'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ShellIntegrationSectionHeader(
+          icon: Icons.hub_rounded,
+          title: coprocess.command,
+          countLabel: '${coprocess.inputLineCount} lines',
+          palette: palette,
+        ),
+        Text(
+          'Pattern ${coprocess.pattern}',
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
+        ),
+        if (coprocess.lastInput != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            coprocess.lastInput!,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: palette.textMuted,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        Align(
+          alignment: Alignment.centerRight,
+          child: OutlinedButton.icon(
+            key: const Key('coprocess-stop'),
+            onPressed: onStop,
+            icon: const Icon(Icons.stop_rounded),
+            label: const Text('Stop'),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -6483,6 +6948,53 @@ class _TerminalSessionBadge extends StatelessWidget {
   }
 }
 
+class _CoprocessIndicator extends StatelessWidget {
+  const _CoprocessIndicator({
+    super.key,
+    required this.command,
+    required this.palette,
+  });
+
+  final String command;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Coprocess: $command',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.accent.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          border: Border.all(color: palette.accent),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.hub_rounded, size: 15, color: palette.accent),
+              const SizedBox(width: 5),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 180),
+                child: Text(
+                  command,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TerminalAnnotationBadge extends StatelessWidget {
   const _TerminalAnnotationBadge({
     super.key,
@@ -6836,6 +7348,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.tmuxIntegration),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-coprocess'),
+                    icon: Icons.hub_rounded,
+                    title: 'Coprocess',
+                    subtitle:
+                        'Session action • Automate replies from terminal output.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.coprocess),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-password-manager'),

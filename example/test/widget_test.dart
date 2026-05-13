@@ -1742,6 +1742,75 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode('list-windows\n'));
   });
 
+  testWidgets('coprocess replies to matching terminal output', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    Future<void> openCoprocess() async {
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(const Key('shell-coprocess')));
+      await tester.tap(find.byKey(const Key('shell-coprocess')));
+      await tester.pumpAndSettle();
+    }
+
+    await openCoprocess();
+
+    expect(find.byKey(const Key('coprocess-sheet')), findsOneWidget);
+    expect(find.text('Run Coprocess'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('coprocess-command-field')),
+      'presence bot',
+    );
+    await tester.tap(find.byKey(const Key('coprocess-start')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('terminal-coprocess-indicator-1')),
+      findsOneWidget,
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'Are you there?', 'style_runs': const []},
+      ],
+      'cursor': {'row': 0, 'col': 14, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(fakeBindings.writes.last, utf8.encode('Yes\n'));
+
+    await openCoprocess();
+
+    expect(find.byKey(const Key('coprocess-active-summary')), findsOneWidget);
+    expect(find.text('presence bot'), findsWidgets);
+    expect(find.textContaining('lines'), findsOneWidget);
+    expect(find.text('Are you there?'), findsWidgets);
+
+    await tester.tap(find.byKey(const Key('coprocess-stop')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('terminal-coprocess-indicator-1')),
+      findsNothing,
+    );
+  });
+
   testWidgets('command menu hotkey window invokes the window bridge', (
     tester,
   ) async {
