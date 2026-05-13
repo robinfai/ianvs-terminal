@@ -3227,6 +3227,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             }
           });
         }
+        final viewportController = sessionController.viewportFor(sessionId);
 
         return MouseRegion(
           onEnter: (_) {
@@ -3260,7 +3261,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   Positioned.fill(
                     child: TerminalViewport(
                       focusNode: focusNode,
-                      controller: sessionController.viewportFor(sessionId),
+                      controller: viewportController,
                       selectionController: selectionController,
                       inputController: inputController,
                       contentPadding: _terminalViewportPadding,
@@ -3304,6 +3305,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           unawaited(WindowBridge.openExternalUrl(url)),
                     ),
                   ),
+                  if (isActive && _isSearchOpen && _searchMatches.isNotEmpty)
+                    Positioned.fill(
+                      child: _TerminalSearchHighlights(
+                        matches: _searchMatches,
+                        activeIndex: _activeSearchIndex,
+                        frame: viewportController.frame,
+                        cellSize:
+                            viewportController.measuredCellSize ??
+                            terminal.terminalFallbackCellSize,
+                        contentPadding: _terminalViewportPadding,
+                        palette: palette,
+                      ),
+                    ),
                   if (!isActive)
                     Positioned.fill(
                       child: IgnorePointer(
@@ -4441,6 +4455,83 @@ class _ShellEmptyState extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TerminalSearchHighlights extends StatelessWidget {
+  const _TerminalSearchHighlights({
+    required this.matches,
+    required this.activeIndex,
+    required this.frame,
+    required this.cellSize,
+    required this.contentPadding,
+    required this.palette,
+  });
+
+  final List<terminal.TerminalSearchMatch> matches;
+  final int activeIndex;
+  final terminal.TerminalFrameDiff frame;
+  final Size cellSize;
+  final EdgeInsets contentPadding;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    if (cellSize.width <= 0 || cellSize.height <= 0) {
+      return const SizedBox.shrink();
+    }
+    final highlights = <Widget>[];
+    for (var index = 0; index < matches.length; index += 1) {
+      final match = matches[index];
+      final relativeRow = match.row - frame.viewportStartRow;
+      if (relativeRow < 0 || relativeRow >= frame.viewportRows) {
+        continue;
+      }
+      final startCol = match.startCol.clamp(0, frame.viewportCols).toInt();
+      if (startCol >= frame.viewportCols) {
+        continue;
+      }
+      final endCol = match.endCol
+          .clamp(startCol + 1, frame.viewportCols)
+          .toInt();
+      final maxWidth = (frame.viewportCols - startCol) * cellSize.width;
+      if (maxWidth <= 0) {
+        continue;
+      }
+      final highlightWidth = (endCol - startCol) * cellSize.width;
+      final isActive = index == activeIndex;
+      highlights.add(
+        Positioned(
+          key: Key('terminal-search-highlight-$index'),
+          left: contentPadding.left + startCol * cellSize.width,
+          top: contentPadding.top + relativeRow * cellSize.height,
+          width: highlightWidth > maxWidth ? maxWidth : highlightWidth,
+          height: cellSize.height,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: (isActive ? palette.accent : palette.warning).withValues(
+                alpha: isActive ? 0.34 : 0.22,
+              ),
+              border: isActive
+                  ? Border.all(
+                      color: palette.accent.withValues(alpha: 0.82),
+                      width: 1,
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (highlights.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return IgnorePointer(
+      key: const Key('terminal-search-highlights'),
+      child: SizedBox.expand(child: Stack(children: highlights)),
     );
   }
 }

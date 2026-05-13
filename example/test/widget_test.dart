@@ -2264,6 +2264,83 @@ void main() {
     },
   );
 
+  testWidgets('shell search highlights visible matches', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'alpha', 'style_runs': const []},
+        {'index': 1, 'text': '  ERR one', 'style_runs': const []},
+        {'index': 2, 'text': 'middle', 'style_runs': const []},
+        {'index': 3, 'text': 'xxERR two', 'style_runs': const []},
+        {'index': 4, 'text': 'omega', 'style_runs': const []},
+      ],
+      'cursor': {'row': 4, 'col': 5, 'visible': true},
+      'selection': null,
+      'viewport_rows': 5,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 5},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    fakeBindings.setSearchMatches(1, 'ERR', [
+      {
+        'row': 11,
+        'start_col': 2,
+        'end_col': 5,
+        'text': 'ERR',
+        'scrollback_offset': 9,
+      },
+      {
+        'row': 13,
+        'start_col': 2,
+        'end_col': 5,
+        'text': 'ERR',
+        'scrollback_offset': 7,
+      },
+      {
+        'row': 20,
+        'start_col': 0,
+        'end_col': 3,
+        'text': 'ERR',
+        'scrollback_offset': 0,
+      },
+    ]);
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Search scrollback'));
+    await tester.tap(find.text('Search scrollback'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('terminal-search-field')),
+      'ERR',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-search-highlights')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-search-highlight-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-search-highlight-1')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('terminal-search-highlight-2')), findsNothing);
+  });
+
   testWidgets('global search searches all tabs and jumps to a match', (
     tester,
   ) async {
