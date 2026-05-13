@@ -26,6 +26,7 @@ enum _ShellCommandAction {
   splitRight,
   splitDown,
   copy,
+  copyMode,
   paste,
   search,
   autocomplete,
@@ -40,6 +41,7 @@ enum _ShellShortcutAction {
   splitRight,
   splitDown,
   autocomplete,
+  copyMode,
   closeActiveTab,
   openDefaults,
   requestQuitConfirmation,
@@ -94,6 +96,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isProfilesOpen = false;
   bool _isSearchOpen = false;
   bool _isAutocompleteOpen = false;
+  bool _isCopyModeOpen = false;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showWorkspaceCue = false;
@@ -105,6 +108,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String _autocompletePrefix = '';
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
+  int? _copyModeAnchorRow;
+  int? _copyModeAnchorCol;
+  int? _copyModeExtentRow;
+  int? _copyModeExtentCol;
 
   @override
   void dispose() {
@@ -216,6 +223,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌘C' : 'Ctrl+C';
   }
 
+  String _copyModeShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘⇧C' : 'Ctrl+Shift+C';
+  }
+
   String _sessionPasteShortcutLabel() {
     return _usesMetaShortcuts ? '⌘V' : 'Ctrl+V';
   }
@@ -263,6 +274,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyD) {
       return const _ShellShortcut(_ShellShortcutAction.splitDown);
+    }
+
+    if (usesAppModifier &&
+        isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyC) {
+      return const _ShellShortcut(_ShellShortcutAction.copyMode);
     }
 
     if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
@@ -426,12 +443,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _showWorkspaceCue = false;
       _isSearchOpen = false;
       _isAutocompleteOpen = false;
+      _isCopyModeOpen = false;
       _searchQuery = '';
       _searchMatches = const [];
       _activeSearchIndex = 0;
       _autocompletePrefix = '';
       _autocompleteSuggestions = const [];
       _activeAutocompleteIndex = 0;
+      _copyModeAnchorRow = null;
+      _copyModeAnchorCol = null;
+      _copyModeExtentRow = null;
+      _copyModeExtentCol = null;
       _workspaceCueTimer?.cancel();
       _workspaceCueTimer = null;
     }
@@ -639,6 +661,172 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           block: selectionController.isBlockSelection,
         );
     return text ?? selectionController.textForFrame(frame);
+  }
+
+  void _enterCopyMode(
+    SessionController sessionController,
+    String sessionId,
+    SelectionController selectionController,
+  ) {
+    final frame = sessionController.viewportFor(sessionId).frame;
+    if (frame.viewportRows <= 0 || frame.viewportCols <= 0) {
+      return;
+    }
+
+    final row = (frame.viewportStartRow + frame.cursor.row)
+        .clamp(
+          frame.viewportStartRow,
+          frame.viewportStartRow + frame.viewportRows - 1,
+        )
+        .toInt();
+    final cursorCol = frame.cursor.col.clamp(0, frame.viewportCols).toInt();
+    final anchorCol = cursorCol >= frame.viewportCols
+        ? (frame.viewportCols - 1).clamp(0, frame.viewportCols).toInt()
+        : cursorCol;
+    final extentCol = (anchorCol + 1).clamp(0, frame.viewportCols).toInt();
+
+    setState(() {
+      _isCopyModeOpen = true;
+      _isSearchOpen = false;
+      _isAutocompleteOpen = false;
+      _copyModeAnchorRow = row;
+      _copyModeAnchorCol = anchorCol;
+      _copyModeExtentRow = row;
+      _copyModeExtentCol = extentCol;
+    });
+    selectionController.setSelection(
+      terminal.TerminalSelection(
+        startRow: row,
+        startCol: anchorCol,
+        endRow: row,
+        endCol: extentCol,
+      ),
+    );
+    _focusSession(sessionId);
+  }
+
+  KeyEventResult? _handleCopyModeKey(
+    KeyEvent event,
+    SessionController sessionController,
+    String? activeSessionId,
+  ) {
+    if (!_isCopyModeOpen) {
+      return null;
+    }
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.handled;
+    }
+    if (activeSessionId == null) {
+      _closeCopyMode(null);
+      return KeyEventResult.handled;
+    }
+    final selectionController = _selectionControllers[activeSessionId];
+    if (selectionController == null) {
+      _closeCopyMode(null);
+      return KeyEventResult.handled;
+    }
+
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.escape:
+        _closeCopyMode(selectionController);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.enter:
+      case LogicalKeyboardKey.numpadEnter:
+        unawaited(
+          _copySelection(
+            sessionController,
+            activeSessionId,
+            selectionController,
+          ),
+        );
+        _closeCopyMode(selectionController);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowLeft:
+        _moveCopyModeSelection(
+          sessionController,
+          activeSessionId,
+          selectionController,
+          columnDelta: -1,
+        );
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowRight:
+        _moveCopyModeSelection(
+          sessionController,
+          activeSessionId,
+          selectionController,
+          columnDelta: 1,
+        );
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowUp:
+        _moveCopyModeSelection(
+          sessionController,
+          activeSessionId,
+          selectionController,
+          rowDelta: -1,
+        );
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowDown:
+        _moveCopyModeSelection(
+          sessionController,
+          activeSessionId,
+          selectionController,
+          rowDelta: 1,
+        );
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.handled;
+    }
+  }
+
+  void _moveCopyModeSelection(
+    SessionController sessionController,
+    String sessionId,
+    SelectionController selectionController, {
+    int rowDelta = 0,
+    int columnDelta = 0,
+  }) {
+    final anchorRow = _copyModeAnchorRow;
+    final anchorCol = _copyModeAnchorCol;
+    final extentRow = _copyModeExtentRow;
+    final extentCol = _copyModeExtentCol;
+    if (anchorRow == null ||
+        anchorCol == null ||
+        extentRow == null ||
+        extentCol == null) {
+      return;
+    }
+    final frame = sessionController.viewportFor(sessionId).frame;
+    final minRow = frame.viewportStartRow;
+    final maxRow = frame.viewportStartRow + frame.viewportRows - 1;
+    final nextRow = (extentRow + rowDelta).clamp(minRow, maxRow).toInt();
+    final nextCol = (extentCol + columnDelta)
+        .clamp(0, frame.viewportCols)
+        .toInt();
+
+    setState(() {
+      _copyModeExtentRow = nextRow;
+      _copyModeExtentCol = nextCol;
+    });
+    selectionController.setSelection(
+      terminal.TerminalSelection(
+        startRow: anchorRow,
+        startCol: anchorCol,
+        endRow: nextRow,
+        endCol: nextCol,
+      ),
+    );
+  }
+
+  void _closeCopyMode(SelectionController? selectionController) {
+    setState(() {
+      _isCopyModeOpen = false;
+      _copyModeAnchorRow = null;
+      _copyModeAnchorCol = null;
+      _copyModeExtentRow = null;
+      _copyModeExtentCol = null;
+    });
+    selectionController?.clear();
+    _focusSession(ref.read(sessionControllerProvider).activeSessionId);
   }
 
   Future<void> _pasteToSession(String sessionId) async {
@@ -1050,6 +1238,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   splitDownShortcutLabel: _splitDownShortcutLabel(),
                   hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
                   autocompleteShortcutLabel: _autocompleteShortcutLabel(),
+                  copyModeShortcutLabel: _copyModeShortcutLabel(),
                   sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                   sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
@@ -1082,6 +1271,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     splitDownShortcutLabel: _splitDownShortcutLabel(),
                     hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
                     autocompleteShortcutLabel: _autocompleteShortcutLabel(),
+                    copyModeShortcutLabel: _copyModeShortcutLabel(),
                     sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                     sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
@@ -1153,6 +1343,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
+        );
+        return;
+      case _ShellCommandAction.copyMode:
+        if (currentSessionId == null) {
+          return;
+        }
+        final selectionController = _selectionControllers.putIfAbsent(
+          currentSessionId,
+          SelectionController.new,
+        );
+        _enterCopyMode(
+          sessionController,
+          currentSessionId,
+          selectionController,
         );
         return;
       case _ShellCommandAction.paste:
@@ -1398,6 +1602,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       onClose: _closeAutocomplete,
                     ),
                   ),
+                if (isActive && _isCopyModeOpen)
+                  Positioned(
+                    top: _terminalViewportPadding.top,
+                    left: _terminalViewportPadding.left,
+                    child: IgnorePointer(
+                      child: _ShellWorkspaceCue(
+                        title: 'Copy mode',
+                        palette: palette,
+                      ),
+                    ),
+                  ),
                 if (isActive && _showWorkspaceCue)
                   Positioned(
                     top: _terminalViewportPadding.top,
@@ -1449,6 +1664,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
+      }
+      final copyModeResult = _handleCopyModeKey(
+        event,
+        sessionController,
+        activeSessionId,
+      );
+      if (copyModeResult != null) {
+        return copyModeResult;
       }
       final shortcut = _shortcutActionFor(event);
       if (shortcut == null) {
@@ -1510,6 +1733,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             return KeyEventResult.handled;
           }
           _openAutocomplete();
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.copyMode:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          final selectionController = _selectionControllers.putIfAbsent(
+            activeSessionId,
+            SelectionController.new,
+          );
+          _enterCopyMode(
+            sessionController,
+            activeSessionId,
+            selectionController,
+          );
           return KeyEventResult.handled;
         case _ShellShortcutAction.closeActiveTab:
           if (activeSessionId == null) {
@@ -2369,6 +2606,7 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.splitDownShortcutLabel,
     required this.hotkeyWindowShortcutLabel,
     required this.autocompleteShortcutLabel,
+    required this.copyModeShortcutLabel,
     required this.sessionCopyShortcutLabel,
     required this.sessionPasteShortcutLabel,
     required this.hasDefaultProfile,
@@ -2381,6 +2619,7 @@ class _ShellCommandMenu extends StatelessWidget {
   final String splitDownShortcutLabel;
   final String hotkeyWindowShortcutLabel;
   final String autocompleteShortcutLabel;
+  final String copyModeShortcutLabel;
   final String sessionCopyShortcutLabel;
   final String sessionPasteShortcutLabel;
   final bool hasDefaultProfile;
@@ -2509,6 +2748,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.copy),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-copy-mode'),
+                    icon: Icons.select_all_rounded,
+                    title: 'Copy mode',
+                    subtitle:
+                        'Session action • Select terminal text from the keyboard.',
+                    shortcutLabel: copyModeShortcutLabel,
+                    enabled: hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(_ShellCommandAction.copyMode),
                   ),
                   _ShellCommandTile(
                     icon: Icons.content_paste_rounded,

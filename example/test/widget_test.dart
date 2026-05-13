@@ -77,6 +77,23 @@ Future<void> _sendMetaShortcut(
   await tester.pump();
 }
 
+Future<void> _sendMetaShiftShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key,
+) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.sendKeyDownEvent(
+    LogicalKeyboardKey.shiftLeft,
+    platform: 'macos',
+  );
+  await tester.sendKeyDownEvent(key, platform: 'macos');
+  await tester.pumpAndSettle();
+  await tester.sendKeyUpEvent(key, platform: 'macos');
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft, platform: 'macos');
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.pump();
+}
+
 Future<void> _sendControlShortcut(
   WidgetTester tester,
   LogicalKeyboardKey key, {
@@ -253,6 +270,86 @@ void main() {
     expect(copiedText, 'flutterm ready');
     expect(fakeBindings.writes, isEmpty);
   });
+
+  testWidgets(
+    'command-shift-c copy mode extends selection and copies with enter',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      String? copiedText;
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': copiedText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            copiedText = (methodCall.arguments as Map)['text'] as String?;
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'alpha beta', 'style_runs': const []},
+        ],
+        'cursor': {'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyC);
+
+      expect(find.text('Copy mode'), findsOneWidget);
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.arrowRight,
+        platform: 'macos',
+      );
+      await tester.pump();
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.arrowRight,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.enter,
+        platform: 'macos',
+      );
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter, platform: 'macos');
+      await tester.pump();
+
+      expect(copiedText, 'al');
+      expect(find.text('Copy mode'), findsNothing);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets(
     'command-shift-p opens the command menu without leaking input',
