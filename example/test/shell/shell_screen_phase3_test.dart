@@ -333,13 +333,16 @@ void main() {
   testWidgets('profiles sheet opens from the command menu and lists profiles', (
     tester,
   ) async {
-    final localProfile = defaultTerminalProfile();
+    final localProfile = defaultTerminalProfile().copyWith(
+      tags: const ['local', 'login'],
+    );
     final sshProfile = TerminalProfile(
       id: 'ssh',
       name: 'SSH',
       shell: '/usr/bin/ssh',
       terminalEmulation: TerminalEmulation.vt220,
       scrollbackLines: 4096,
+      tags: const ['remote', 'ops'],
     );
     final profileRepository = MemoryProfileRepository(
       TerminalProfilesDocument(profiles: [localProfile, sshProfile]),
@@ -364,8 +367,11 @@ void main() {
     expect(find.text('Profiles'), findsOneWidget);
     expect(find.byKey(const Key('profile-entry-default')), findsOneWidget);
     expect(find.byKey(const Key('profile-entry-ssh')), findsOneWidget);
+    expect(find.byKey(const Key('profiles-search-field')), findsOneWidget);
     expect(find.text('Local Shell'), findsWidgets);
     expect(find.text('SSH'), findsOneWidget);
+    expect(find.byKey(const Key('profile-tag-local')), findsOneWidget);
+    expect(find.byKey(const Key('profile-tag-remote')), findsOneWidget);
     expect(
       find.text(
         '${localProfile.shell} • xterm-256color • ${localProfile.scrollbackLines} lines • Default profile',
@@ -373,6 +379,24 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('/usr/bin/ssh • VT220 • 4096 lines'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('profiles-search-field')),
+      'remote',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('profile-entry-default')), findsNothing);
+    expect(find.byKey(const Key('profile-entry-ssh')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('profiles-search-field')),
+      'missing',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('profile-entry-ssh')), findsNothing);
+    expect(find.text('No matching profiles'), findsOneWidget);
   });
 
   testWidgets('editing a profile in the GUI only affects new sessions', (

@@ -20,7 +20,12 @@ void main() {
       final file = File('${directory.path}/flutterm_profiles.json');
 
       final document = TerminalProfilesDocument(
-        profiles: [defaultTerminalProfile().copyWith(name: 'Custom Shell')],
+        profiles: [
+          defaultTerminalProfile().copyWith(
+            name: 'Custom Shell',
+            tags: const ['work', 'prod'],
+          ),
+        ],
       );
 
       await repository.save(document);
@@ -28,6 +33,7 @@ void main() {
       final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
 
       expect(loaded.profiles.single.name, 'Custom Shell');
+      expect(loaded.profiles.single.tags, const ['work', 'prod']);
       expect(
         raw['schemaVersion'],
         TerminalProfilesDocument.currentSchemaVersion,
@@ -39,6 +45,10 @@ void main() {
           'launch',
           containsPair('program', defaultTerminalProfile().shell),
         ),
+      );
+      expect(
+        (raw['profiles'] as List<dynamic>).single,
+        containsPair('tags', const ['work', 'prod']),
       );
     },
   );
@@ -177,6 +187,7 @@ void main() {
           {
             'id': 'default',
             'name': 'Local Shell',
+            'tags': const ['prod', 'ops', 'prod', ' '],
             'launch': {
               'program': '/bin/zsh',
               'args': const ['-l'],
@@ -219,6 +230,7 @@ void main() {
 
     expect(loaded.schemaVersion, 3);
     expect(loaded.profiles.single.shell, '/bin/zsh');
+    expect(loaded.profiles.single.tags, const ['prod', 'ops']);
     expect(loaded.profiles.single.args, const ['-l']);
     expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
     expect(loaded.profiles.single.cwd, '/tmp');
@@ -258,6 +270,7 @@ void main() {
         'profiles': [
           {
             'name': '',
+            'tags': const ['ops', 7, ' ops ', ' '],
             'launch': {
               'program': 7,
               'args': const ['-l', 3, ''],
@@ -303,6 +316,7 @@ void main() {
       expect(rawAfterLoad, rawDocument);
       expect(loaded.profiles.single.id, 'profile-1');
       expect(loaded.profiles.single.name, 'profile-1');
+      expect(loaded.profiles.single.tags, const ['ops']);
       expect(loaded.profiles.single.shell, defaultTerminalProfile().shell);
       expect(loaded.profiles.single.args, const ['-l']);
       expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
@@ -345,6 +359,7 @@ void main() {
         containsAll(<String>[
           'id',
           'name',
+          'tags[1]',
           'launch.program',
           'launch.args[1]',
           'launch.env.BAD',

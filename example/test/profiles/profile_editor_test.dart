@@ -13,6 +13,7 @@ void main() {
       final initialProfile = TerminalProfile.configured(
         id: 'default',
         name: 'Local Shell',
+        tags: const ['work', 'prod'],
         sessionConfig: const terminal.TerminalSessionConfig(
           launch: terminal.TerminalLaunchConfig(
             program: '/bin/bash',
@@ -73,6 +74,13 @@ void main() {
       );
       expect(
         tester
+            .widget<TextFormField>(find.byKey(const Key('profile-editor-tags')))
+            .controller!
+            .text,
+        'work, prod',
+      );
+      expect(
+        tester
             .widget<TextFormField>(
               find.byKey(const Key('profile-editor-shell')),
             )
@@ -107,6 +115,10 @@ void main() {
       await tester.enterText(
         find.byKey(const Key('profile-editor-name')),
         'Workspace Shell',
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-editor-tags')),
+        'work, staging, staging',
       );
       await tester.enterText(
         find.byKey(const Key('profile-editor-shell')),
@@ -373,6 +385,7 @@ void main() {
 
       expect(savedProfile, isNotNull);
       expect(savedProfile!.name, 'Workspace Shell');
+      expect(savedProfile!.tags, const ['work', 'staging']);
       expect(savedProfile!.shell, '/bin/fish');
       expect(savedProfile!.cwd, isNull);
       expect(savedProfile!.args, ['printf hello', '-lc', '--login']);

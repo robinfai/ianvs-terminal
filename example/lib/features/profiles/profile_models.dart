@@ -62,6 +62,7 @@ class TerminalProfile {
         const terminal_pkg.TerminalDisplayConfig(),
     terminal_pkg.TerminalInteractionConfig interaction =
         const terminal_pkg.TerminalInteractionConfig(),
+    this.tags = const [],
   }) : sessionConfig = terminal_pkg.TerminalSessionConfig(
          launch: terminal_pkg.TerminalLaunchConfig(
            program: shell,
@@ -79,10 +80,12 @@ class TerminalProfile {
     required this.id,
     required this.name,
     required this.sessionConfig,
+    this.tags = const [],
   });
 
   final String id;
   final String name;
+  final List<String> tags;
   final terminal_pkg.TerminalSessionConfig sessionConfig;
 
   String get shell => sessionConfig.launch.program;
@@ -108,6 +111,7 @@ class TerminalProfile {
     terminal_pkg.TerminalDisplayConfig? appearance,
     terminal_pkg.TerminalInteractionConfig? interaction,
     terminal_pkg.TerminalSessionConfig? sessionConfig,
+    List<String>? tags,
   }) {
     final baseConfig = sessionConfig ?? this.sessionConfig;
     final nextLaunch = baseConfig.launch.copyWith(
@@ -119,6 +123,7 @@ class TerminalProfile {
     return TerminalProfile.configured(
       id: id ?? this.id,
       name: name ?? this.name,
+      tags: tags ?? this.tags,
       sessionConfig: baseConfig.copyWith(
         launch: nextLaunch,
         emulation: terminalEmulation,
@@ -131,7 +136,12 @@ class TerminalProfile {
 
   Map<String, Object?> toJson() {
     final configJson = sessionConfig.toJson();
-    return {'id': id, 'name': name, ...configJson};
+    return {
+      'id': id,
+      'name': name,
+      if (tags.isNotEmpty) 'tags': tags,
+      ...configJson,
+    };
   }
 
   static TerminalProfile fromJson(
@@ -154,6 +164,7 @@ class TerminalProfile {
       profileName: profileName,
       warnings: loadWarnings,
     );
+    final tags = _profileTagsFromJson(json['tags'], warningSink);
 
     if (parsedId == null || parsedId.isEmpty) {
       warningSink.add(
@@ -185,6 +196,7 @@ class TerminalProfile {
     return TerminalProfile.configured(
       id: profileId,
       name: profileName,
+      tags: tags,
       sessionConfig: sessionConfig,
     );
   }
@@ -358,6 +370,58 @@ Map<String, Object?>? _asStringMap(Object? value) {
 
 String? _stringOrNull(Object? value) {
   return value is String ? value : null;
+}
+
+List<String> _profileTagsFromJson(
+  Object? rawValue,
+  _TerminalProfileWarningSink warningSink,
+) {
+  if (rawValue == null) {
+    return const [];
+  }
+  if (rawValue is String) {
+    return _normalizeProfileTags(rawValue.split(','));
+  }
+  if (rawValue is List) {
+    final tags = <String>[];
+    for (var index = 0; index < rawValue.length; index += 1) {
+      final entry = rawValue[index];
+      if (entry is String) {
+        tags.add(entry);
+        continue;
+      }
+      warningSink.add(
+        path: 'tags[$index]',
+        rawValue: entry,
+        fallbackSummary: 'ignored invalid tag entry',
+      );
+    }
+    return _normalizeProfileTags(tags);
+  }
+
+  warningSink.add(
+    path: 'tags',
+    rawValue: rawValue,
+    fallbackSummary: 'used no tags',
+  );
+  return const [];
+}
+
+List<String> _normalizeProfileTags(Iterable<String> tags) {
+  final normalized = <String>[];
+  final seen = <String>{};
+  for (final tag in tags) {
+    final trimmed = tag.trim();
+    if (trimmed.isEmpty) {
+      continue;
+    }
+    final lookup = trimmed.toLowerCase();
+    if (!seen.add(lookup)) {
+      continue;
+    }
+    normalized.add(trimmed);
+  }
+  return List.unmodifiable(normalized);
 }
 
 TerminalProfile _normalizeBuiltInShellProfile(TerminalProfile profile) {

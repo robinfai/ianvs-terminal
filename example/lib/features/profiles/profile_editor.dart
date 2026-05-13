@@ -14,6 +14,22 @@ import 'widgets/toggle_setting_row.dart';
 
 const _hexColorErrorText = 'Use #RRGGBB or leave empty.';
 
+List<String> _normalizedTagsFromText(String text) {
+  final tags = <String>[];
+  final seen = <String>{};
+  for (final rawTag in text.split(',')) {
+    final tag = rawTag.trim();
+    if (tag.isEmpty) {
+      continue;
+    }
+    if (!seen.add(tag.toLowerCase())) {
+      continue;
+    }
+    tags.add(tag);
+  }
+  return tags;
+}
+
 class _ColorFieldSpec {
   const _ColorFieldSpec({
     required this.group,
@@ -57,7 +73,11 @@ const List<_ColorFieldSpec> _specialColorFieldSpecs = <_ColorFieldSpec>[
   _ColorFieldSpec(group: 'special', slot: 'foreground', label: 'Foreground'),
   _ColorFieldSpec(group: 'special', slot: 'background', label: 'Background'),
   _ColorFieldSpec(group: 'special', slot: 'cursor', label: 'Cursor color'),
-  _ColorFieldSpec(group: 'special', slot: 'selection', label: 'Selection color'),
+  _ColorFieldSpec(
+    group: 'special',
+    slot: 'selection',
+    label: 'Selection color',
+  ),
 ];
 
 const List<_ColorFieldSpec> _normalAnsiColorFieldSpecs = <_ColorFieldSpec>[
@@ -114,6 +134,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   };
 
   late final TextEditingController _nameController;
+  late final TextEditingController _tagsController;
   late final TextEditingController _shellController;
   late final TextEditingController _cwdController;
   late final TextEditingController _scrollbackController;
@@ -142,6 +163,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     super.initState();
     final profile = widget.initialValue;
     _nameController = _trackedController(text: profile.name);
+    _tagsController = _trackedController(text: profile.tags.join(', '));
     _shellController = _trackedController(text: profile.shell);
     _cwdController = _trackedController(text: profile.cwd ?? '');
     _scrollbackController = _trackedController(
@@ -193,6 +215,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _scrollController.dispose();
     _disposeControllers([
       _nameController,
+      _tagsController,
       _shellController,
       _cwdController,
       _scrollbackController,
@@ -601,6 +624,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
     final updated = widget.initialValue.copyWith(
       name: _nameController.text.trim(),
+      tags: _normalizedTagsFromText(_tagsController.text),
       shell: _shellController.text.trim(),
       args: _nonEmptyEntries(_argControllers),
       env: _envEntries(),
@@ -798,7 +822,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       return _lineHeightFocusNode;
     }
     for (final spec in _allColorFieldSpecs) {
-      if (_validateOptionalHexColor(_colorControllerForSpec(spec).text) != null) {
+      if (_validateOptionalHexColor(_colorControllerForSpec(spec).text) !=
+          null) {
         return _colorFocusNodeForSpec(spec);
       }
     }
@@ -860,6 +885,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                         decoration: const InputDecoration(labelText: 'Name'),
                         validator: (value) =>
                             _requiredFieldError(value ?? '', 'Name'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('profile-editor-tags'),
+                        controller: _tagsController,
+                        decoration: const InputDecoration(
+                          labelText: 'Tags',
+                          helperText: 'Separate tags with commas.',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
