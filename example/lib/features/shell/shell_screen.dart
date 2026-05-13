@@ -36,6 +36,7 @@ enum _ShellCommandAction {
   advancedPaste,
   pasteHistory,
   annotations,
+  capturedOutput,
   passwordManager,
   instantReplay,
   search,
@@ -186,6 +187,22 @@ class _TerminalAnnotation {
   final String note;
 }
 
+class _CapturedOutputEntry {
+  const _CapturedOutputEntry({
+    required this.id,
+    required this.sessionId,
+    required this.pattern,
+    required this.text,
+    required this.rowIndex,
+  });
+
+  final String id;
+  final String sessionId;
+  final String pattern;
+  final String text;
+  final int rowIndex;
+}
+
 class _SessionBadgeContent {
   const _SessionBadgeContent({
     required this.title,
@@ -210,6 +227,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
   static const _terminalViewportPadding = EdgeInsets.fromLTRB(16, 10, 18, 14);
   static const _pasteHistoryLimit = 30;
+  static const _capturedOutputLimit = 80;
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -241,9 +259,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   int _activeAutocompleteIndex = 0;
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
   List<_TerminalAnnotation> _annotations = const [];
+  List<_CapturedOutputEntry> _capturedOutputEntries = const [];
   bool _pasteHistoryPersistToDisk = false;
   bool _pasteHistoryLoaded = false;
   int _nextAnnotationId = 0;
+  int _nextCapturedOutputId = 0;
   int? _copyModeAnchorRow;
   int? _copyModeAnchorCol;
   int? _copyModeExtentRow;
@@ -278,6 +298,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         _notifyInactiveActivity(sessionId, frame);
       case terminal.TerminalSessionExitEvent():
         _triggerMatchesBySession.remove(event.sessionId);
+        _clearCapturedOutput(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
       case terminal.TerminalSessionBellEvent():
         _notifyBell(event.sessionId);
@@ -370,9 +391,34 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         if (!seenMatches.add(matchKey)) {
           continue;
         }
+        _recordCapturedOutput(sessionId, trigger, row);
         _runProfileTrigger(sessionId, trigger, text);
       }
     }
+  }
+
+  void _recordCapturedOutput(
+    String sessionId,
+    TerminalProfileTrigger trigger,
+    terminal.TerminalRow row,
+  ) {
+    final text = row.text.trimRight();
+    if (text.trim().isEmpty) {
+      return;
+    }
+    final entry = _CapturedOutputEntry(
+      id: 'capture-${_nextCapturedOutputId++}',
+      sessionId: sessionId,
+      pattern: trigger.pattern,
+      text: text,
+      rowIndex: row.index,
+    );
+    setState(() {
+      _capturedOutputEntries = <_CapturedOutputEntry>[
+        entry,
+        ..._capturedOutputEntries,
+      ].take(_capturedOutputLimit).toList(growable: false);
+    });
   }
 
   TerminalProfile? _profileForSession(String sessionId) {
@@ -1264,6 +1310,48 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _annotations = [
         for (final annotation in _annotations)
           if (annotation.id != annotationId) annotation,
+      ];
+    });
+  }
+
+  List<_CapturedOutputEntry> _capturedOutputForSession(String sessionId) {
+    return [
+      for (final entry in _capturedOutputEntries)
+        if (entry.sessionId == sessionId) entry,
+    ];
+  }
+
+  Future<void> _openCapturedOutput(String sessionId) async {
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _CapturedOutputSheet(
+          entries: _capturedOutputForSession(sessionId),
+          onClear: () => _clearCapturedOutput(sessionId),
+          onCopy: (text) => unawaited(ClipboardBridge.copy(text)),
+        );
+      },
+    );
+  }
+
+  void _clearCapturedOutput(String sessionId) {
+    if (!mounted) {
+      _capturedOutputEntries = [
+        for (final entry in _capturedOutputEntries)
+          if (entry.sessionId != sessionId) entry,
+      ];
+      return;
+    }
+    setState(() {
+      _capturedOutputEntries = [
+        for (final entry in _capturedOutputEntries)
+          if (entry.sessionId != sessionId) entry,
       ];
     });
   }
@@ -2426,6 +2514,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           currentSessionId,
           selectionController,
         );
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
+        return;
+      case _ShellCommandAction.capturedOutput:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _openCapturedOutput(currentSessionId);
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
@@ -4239,6 +4337,174 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
   }
 }
 
+class _CapturedOutputSheet extends StatefulWidget {
+  const _CapturedOutputSheet({
+    required this.entries,
+    required this.onClear,
+    required this.onCopy,
+  });
+
+  final List<_CapturedOutputEntry> entries;
+  final VoidCallback onClear;
+  final ValueChanged<String> onCopy;
+
+  @override
+  State<_CapturedOutputSheet> createState() => _CapturedOutputSheetState();
+}
+
+class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
+  late List<_CapturedOutputEntry> _entries;
+
+  @override
+  void initState() {
+    super.initState();
+    _entries = widget.entries;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Material(
+        key: const Key('captured-output-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Captured Output',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close captured output',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Text(
+                      '${_entries.length} captured line${_entries.length == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: palette.textSubtle,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      key: const Key('captured-output-clear'),
+                      onPressed: _entries.isEmpty
+                          ? null
+                          : () {
+                              setState(() {
+                                _entries = const [];
+                              });
+                              widget.onClear();
+                            },
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      label: const Text('Clear'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: _entries.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 22),
+                          child: Center(
+                            child: Text(
+                              'No trigger output captured yet.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: palette.textSubtle),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _entries.length,
+                          separatorBuilder: (_, _) =>
+                              Divider(color: palette.border, height: 1),
+                          itemBuilder: (context, index) {
+                            final entry = _entries[index];
+                            return _CapturedOutputEntryTile(
+                              index: index,
+                              entry: entry,
+                              palette: palette,
+                              onCopy: () => widget.onCopy(entry.text),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CapturedOutputEntryTile extends StatelessWidget {
+  const _CapturedOutputEntryTile({
+    required this.index,
+    required this.entry,
+    required this.palette,
+    required this.onCopy,
+  });
+
+  final int index;
+  final _CapturedOutputEntry entry;
+  final AppThemeTokens palette;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: Key('captured-output-entry-$index'),
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(Icons.outbox_rounded, color: palette.textMuted),
+      title: Text(
+        entry.text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        'Pattern ${entry.pattern} • Row ${entry.rowIndex}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+      ),
+      trailing: IconButton(
+        key: Key('captured-output-copy-$index'),
+        tooltip: 'Copy captured output',
+        onPressed: onCopy,
+        icon: Icon(Icons.copy_rounded, color: palette.textMuted),
+      ),
+    );
+  }
+}
+
 class _AnnotationsSheet extends StatefulWidget {
   const _AnnotationsSheet({
     required this.entries,
@@ -5306,6 +5572,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.annotations),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-captured-output'),
+                    icon: Icons.outbox_rounded,
+                    title: 'Captured output',
+                    subtitle:
+                        'Session action • Review lines matched by triggers.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.capturedOutput),
                   ),
                   _ShellCommandTile(
                     icon: Icons.content_paste_rounded,
