@@ -179,6 +179,73 @@ void main() {
     );
   });
 
+  testWidgets('terminal viewport shows last-modified line timestamps', (
+    tester,
+  ) async {
+    final modifiedAt = DateTime(2026, 5, 13, 9, 8, 7);
+    final controller =
+        TerminalViewportController(now: () => DateTime(2026, 5, 13, 1, 2, 3))
+          ..updateFrame(
+            TerminalFrameDiff(
+              rows: [
+                TerminalRow(index: 0, text: 'build started'),
+                TerminalRow(
+                  index: 1,
+                  text: 'build finished',
+                  modifiedAt: modifiedAt,
+                ),
+              ],
+              cursor: const TerminalCursor(row: 1, col: 0, visible: true),
+              viewportRows: 24,
+              viewportCols: 80,
+              dirtyRanges: const [TerminalDirtyRange(start: 0, end: 2)],
+              scrollbackOffset: 0,
+              scrollbackMaxOffset: 0,
+            ),
+          );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                return TerminalViewport(
+                  controller: controller,
+                  selectionController: SelectionController(),
+                  inputController: TerminalInputController(
+                    sessionId: '1',
+                    runtime: testRuntime(FakePtyBackend()),
+                    readSelection: () => '',
+                    copySelection: (_) async {},
+                    readClipboard: () async => '',
+                  ),
+                  showLineTimestamps: true,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                  onMeasuredCellSizeChanged: (_) => setState(() {}),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final renderObject = _terminalRenderObject(tester);
+    final cellSize = renderObject.debugCellSize;
+    final timestampFinder = find.byKey(const Key('terminal-line-timestamp-1'));
+
+    expect(timestampFinder, findsOneWidget);
+    expect(find.text('09:08:07'), findsOneWidget);
+    expect(tester.getTopLeft(timestampFinder).dy, cellSize.height);
+    expect(tester.getSize(timestampFinder).height, cellSize.height);
+  });
+
   testWidgets(
     'terminal viewport maps upward wheel motion into positive scrollback deltas',
     (tester) async {

@@ -99,12 +99,75 @@ void main() {
     },
   );
 
+  test('terminal viewport controller timestamps changed rows', () {
+    final firstModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 3);
+    final secondModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 9);
+    final timestamps = <DateTime>[firstModifiedAt, secondModifiedAt];
+    final controller = TerminalViewportController(
+      now: () => timestamps.removeAt(0),
+    );
+
+    controller.updateFrame(
+      const TerminalFrameDiff(
+        rows: [
+          TerminalRow(index: 0, text: 'alpha'),
+          TerminalRow(index: 1, text: 'beta'),
+        ],
+        cursor: TerminalCursor(row: 1, col: 4, visible: true),
+        viewportRows: 2,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+    controller.updateFrame(
+      const TerminalFrameDiff(
+        frameKind: TerminalFrameKind.delta,
+        rows: [TerminalRow(index: 1, text: 'beta*')],
+        cursor: TerminalCursor(row: 1, col: 5, visible: true),
+        viewportRows: 2,
+        viewportCols: 80,
+        dirtyRanges: [],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    expect(controller.frame.rows[0].modifiedAt, firstModifiedAt);
+    expect(controller.frame.rows[1].modifiedAt, secondModifiedAt);
+  });
+
   test('terminal frame modes parse alternate screen hints', () {
     final modes = TerminalFrameModes.fromJson(const <String, Object?>{
       'alternate_screen': true,
     });
 
     expect(modes.alternateScreen, isTrue);
+  });
+
+  test('terminal frames parse row timestamp metadata', () {
+    final modifiedAt = DateTime.parse('2026-05-13T08:09:10Z');
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {
+          'index': 0,
+          'text': 'timestamped',
+          'modified_at': '2026-05-13T08:09:10Z',
+          'style_runs': [],
+        },
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 1,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(frame.rows.single.modifiedAt, modifiedAt);
   });
 
   test('terminal frames parse inline image payloads', () {

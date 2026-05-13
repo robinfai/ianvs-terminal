@@ -15,6 +15,7 @@ import 'terminal_viewport_colors.dart';
 
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
+const double _terminalTimestampOverlayWidth = 66;
 const Size terminalFallbackCellSize = Size(9, 18);
 final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
 final RegExp _smartEmailPattern = RegExp(
@@ -28,7 +29,11 @@ const String _smartSelectionTrailingTrim = ".,;:!?)]}>\"'";
 const String _xtermWordSeparators = " ()[]{}',\"`";
 
 class TerminalViewportController extends ChangeNotifier {
+  TerminalViewportController({DateTime Function()? now})
+    : _now = now ?? DateTime.now;
+
   TerminalViewportState _state = TerminalViewportState.empty;
+  final DateTime Function() _now;
   Size? _measuredCellSize;
   int _frameVersion = 0;
 
@@ -38,19 +43,19 @@ class TerminalViewportController extends ChangeNotifier {
   Size? get measuredCellSize => _measuredCellSize;
 
   void updateFrame(TerminalFrameDiff value) {
-    _state = _state.applyFrame(value);
+    _state = _state.applyFrame(value, capturedAt: _now());
     _frameVersion += 1;
     notifyListeners();
   }
 
   void applySnapshot(TerminalFrameDiff value) {
-    _state = _state.applySnapshot(value);
+    _state = _state.applySnapshot(value, capturedAt: _now());
     _frameVersion += 1;
     notifyListeners();
   }
 
   void applyDelta(TerminalFrameDiff value) {
-    _state = _state.applyDelta(value);
+    _state = _state.applyDelta(value, capturedAt: _now());
     _frameVersion += 1;
     notifyListeners();
   }
@@ -82,6 +87,7 @@ class TerminalViewport extends StatefulWidget {
     this.font = const TerminalFontConfig(),
     this.cursor = const TerminalCursorConfig(),
     this.copyOnSelect = false,
+    this.showLineTimestamps = false,
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.focusNode,
     this.onHostKeyEvent,
@@ -101,6 +107,7 @@ class TerminalViewport extends StatefulWidget {
   final TerminalFontConfig font;
   final TerminalCursorConfig cursor;
   final bool copyOnSelect;
+  final bool showLineTimestamps;
   final TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
   final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
@@ -1326,6 +1333,12 @@ class _TerminalViewportState extends State<TerminalViewport>
                           contentPadding,
                           colors,
                         ),
+                        if (widget.showLineTimestamps)
+                          ..._buildTimestampOverlays(
+                            frame,
+                            contentPadding,
+                            colors,
+                          ),
                         if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
                           Positioned(
                             top: 8,
@@ -1392,6 +1405,65 @@ class _TerminalViewportState extends State<TerminalViewport>
                     color: colors.foreground.withValues(alpha: 0.18),
                   );
                 },
+              ),
+            ),
+          ),
+    ];
+  }
+
+  List<Widget> _buildTimestampOverlays(
+    TerminalFrameDiff frame,
+    EdgeInsets contentPadding,
+    TerminalViewportColors colors,
+  ) {
+    final timestampedRows = frame.rows
+        .where((row) => row.modifiedAt != null)
+        .toList(growable: false);
+    if (timestampedRows.isEmpty) {
+      return const <Widget>[];
+    }
+    final cellSize =
+        widget.controller.measuredCellSize ?? terminalFallbackCellSize;
+    if (cellSize.width <= 0 || cellSize.height <= 0) {
+      return const <Widget>[];
+    }
+    final textStyle = TextStyle(
+      color: colors.foreground.withValues(alpha: 0.58),
+      fontFamily: widget.font.family,
+      fontFamilyFallback: widget.font.fallback,
+      fontSize: math.max(9.0, math.min(11.0, widget.font.size * 0.72)),
+      height: 1,
+    );
+    final rightInset =
+        contentPadding.right + (frame.scrollbackMaxOffset > 0 ? 16.0 : 0.0);
+    return [
+      for (final row in timestampedRows)
+        if (row.index >= 0 && row.index < frame.viewportRows)
+          Positioned(
+            top: contentPadding.top + row.index * cellSize.height,
+            right: rightInset,
+            width: _terminalTimestampOverlayWidth,
+            height: cellSize.height,
+            child: IgnorePointer(
+              key: Key('terminal-line-timestamp-${row.index}'),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.canvasBackground.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      _formatLineTimestamp(row.modifiedAt!),
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      textAlign: TextAlign.right,
+                      style: textStyle,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1672,6 +1744,14 @@ bool _rowContinuesFromAbove(TerminalFrameDiff frame, int rowIndex) {
   final previousRow = _rowForRelativeIndex(frame, rowIndex - 1);
   return previousRow?.wrapped ?? false;
 }
+
+String _formatLineTimestamp(DateTime timestamp) {
+  final local = timestamp.toLocal();
+  return '${_twoDigits(local.hour)}:${_twoDigits(local.minute)}:'
+      '${_twoDigits(local.second)}';
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
 TerminalTextCell? _primaryCellAtColumn(TerminalTextCells cells, int column) {
   if (cells.cellCount <= 0) {

@@ -2310,6 +2310,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           const terminal.TerminalCursorConfig(),
                       copyOnSelect:
                           terminalConfig?.interaction.copyOnSelect ?? false,
+                      showLineTimestamps: true,
                       optionDragMode:
                           terminalConfig?.interaction.optionDragMode ??
                           terminal.TerminalOptionDragMode.blockSelection,

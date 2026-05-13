@@ -102,12 +102,14 @@ class TerminalRow {
     required this.index,
     required this.text,
     this.wrapped = false,
+    this.modifiedAt,
     this.styleRuns = const [],
   });
 
   final int index;
   final String text;
   final bool wrapped;
+  final DateTime? modifiedAt;
   final List<TerminalStyleRun> styleRuns;
 
   factory TerminalRow.fromJson(Map<String, Object?> json) {
@@ -115,6 +117,12 @@ class TerminalRow {
       index: json['index']! as int,
       text: json['text']! as String,
       wrapped: json['wrapped'] as bool? ?? false,
+      modifiedAt: _dateTimeFromJson(
+        json['modified_at'] ??
+            json['modifiedAt'] ??
+            json['timestamp'] ??
+            json['last_modified'],
+      ),
       styleRuns: (json['style_runs'] as List<dynamic>? ?? const [])
           .map(
             (entry) => TerminalStyleRun.fromJson(entry as Map<String, Object?>),
@@ -390,24 +398,38 @@ class TerminalViewportState {
 
   static const empty = TerminalViewportState(frame: TerminalFrameDiff.empty);
 
-  TerminalViewportState applyFrame(TerminalFrameDiff nextFrame) {
+  TerminalViewportState applyFrame(
+    TerminalFrameDiff nextFrame, {
+    DateTime? capturedAt,
+  }) {
     return switch (nextFrame.frameKind) {
-      TerminalFrameKind.snapshot => applySnapshot(nextFrame),
-      TerminalFrameKind.delta => applyDelta(nextFrame),
+      TerminalFrameKind.snapshot => applySnapshot(
+        nextFrame,
+        capturedAt: capturedAt,
+      ),
+      TerminalFrameKind.delta => applyDelta(nextFrame, capturedAt: capturedAt),
     };
   }
 
-  TerminalViewportState applySnapshot(TerminalFrameDiff nextFrame) {
-    return TerminalViewportState(frame: _normalizeSnapshotFrame(nextFrame));
+  TerminalViewportState applySnapshot(
+    TerminalFrameDiff nextFrame, {
+    DateTime? capturedAt,
+  }) {
+    return TerminalViewportState(
+      frame: _normalizeSnapshotFrame(nextFrame, capturedAt: capturedAt),
+    );
   }
 
-  TerminalViewportState applyDelta(TerminalFrameDiff nextFrame) {
+  TerminalViewportState applyDelta(
+    TerminalFrameDiff nextFrame, {
+    DateTime? capturedAt,
+  }) {
     if (frame.viewportRows <= 0 ||
         frame.viewportCols <= 0 ||
         frame.rows.isEmpty ||
         frame.viewportRows != nextFrame.viewportRows ||
         frame.viewportCols != nextFrame.viewportCols) {
-      return applySnapshot(nextFrame);
+      return applySnapshot(nextFrame, capturedAt: capturedAt);
     }
 
     final mergedRows = _mergeViewportRows(
@@ -418,6 +440,7 @@ class TerminalViewportState {
       ),
       incomingRows: nextFrame.rows,
       viewportRows: nextFrame.viewportRows,
+      modifiedAt: capturedAt,
     );
     final dirtyRanges = _mergeDirtyRangesWithRows(
       dirtyRanges: nextFrame.dirtyRanges,
@@ -585,6 +608,19 @@ int _intFromJson(Object? value, {required int fallback}) {
   return fallback;
 }
 
+DateTime? _dateTimeFromJson(Object? value) {
+  if (value is String && value.isNotEmpty) {
+    return DateTime.tryParse(value);
+  }
+  if (value is num) {
+    final milliseconds = value >= 100000000000
+        ? value.toInt()
+        : (value * 1000).toInt();
+    return DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true);
+  }
+  return null;
+}
+
 TerminalFrameKind _terminalFrameKindFromWire(String? value) {
   return switch (value) {
     'delta' => TerminalFrameKind.delta,
@@ -592,12 +628,16 @@ TerminalFrameKind _terminalFrameKindFromWire(String? value) {
   };
 }
 
-TerminalFrameDiff _normalizeSnapshotFrame(TerminalFrameDiff frame) {
+TerminalFrameDiff _normalizeSnapshotFrame(
+  TerminalFrameDiff frame, {
+  DateTime? capturedAt,
+}) {
   return TerminalFrameDiff(
     frameKind: TerminalFrameKind.snapshot,
     rows: _normalizeViewportRows(
       rows: frame.rows,
       viewportRows: frame.viewportRows,
+      modifiedAt: capturedAt,
     ),
     cursor: frame.cursor,
     selection: frame.selection,
@@ -677,6 +717,7 @@ List<TerminalDirtyRange> _mergeDirtyRangesWithRows({
 List<TerminalRow> _normalizeViewportRows({
   required List<TerminalRow> rows,
   required int viewportRows,
+  DateTime? modifiedAt,
 }) {
   if (viewportRows <= 0) {
     return const <TerminalRow>[];
@@ -687,7 +728,7 @@ List<TerminalRow> _normalizeViewportRows({
     if (row.index < 0 || row.index >= viewportRows) {
       continue;
     }
-    rowsByIndex[row.index] = row;
+    rowsByIndex[row.index] = _rowWithFallbackModifiedAt(row, modifiedAt);
   }
 
   return List<TerminalRow>.generate(viewportRows, (index) {
@@ -699,6 +740,7 @@ List<TerminalRow> _mergeViewportRows({
   required List<TerminalRow> currentRows,
   required List<TerminalRow> incomingRows,
   required int viewportRows,
+  DateTime? modifiedAt,
 }) {
   final normalizedCurrent = _normalizeViewportRows(
     rows: currentRows,
@@ -713,7 +755,7 @@ List<TerminalRow> _mergeViewportRows({
     if (row.index < 0 || row.index >= viewportRows) {
       continue;
     }
-    rowsByIndex[row.index] = row;
+    rowsByIndex[row.index] = _rowWithFallbackModifiedAt(row, modifiedAt);
   }
 
   return List<TerminalRow>.generate(viewportRows, (index) {
@@ -744,9 +786,23 @@ List<TerminalRow> _shiftViewportRows({
       index: index,
       text: sourceRow.text,
       wrapped: sourceRow.wrapped,
+      modifiedAt: sourceRow.modifiedAt,
       styleRuns: sourceRow.styleRuns,
     );
   }, growable: false);
+}
+
+TerminalRow _rowWithFallbackModifiedAt(TerminalRow row, DateTime? modifiedAt) {
+  if (row.modifiedAt != null || modifiedAt == null || row.text.isEmpty) {
+    return row;
+  }
+  return TerminalRow(
+    index: row.index,
+    text: row.text,
+    wrapped: row.wrapped,
+    modifiedAt: modifiedAt,
+    styleRuns: row.styleRuns,
+  );
 }
 
 List<TerminalHyperlinkRange> _mergeHyperlinks({
