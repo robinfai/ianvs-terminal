@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutterm_pty/flutterm_pty.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
+import 'package:flutterm_terminal/flutterm_terminal.dart'
+    hide TerminalEmulation;
 
 import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
@@ -191,11 +192,10 @@ class SessionController extends Notifier<SessionState> {
     }
     _ensureRuntimeSubscription();
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
-    final launchProfile = environmentOverrides.isEmpty
-        ? profile
-        : profile.copyWith(
-            env: <String, String>{...profile.env, ...environmentOverrides},
-          );
+    final launchProfile = _profileWithSessionEnvironment(
+      profile,
+      environmentOverrides,
+    );
     final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
     state = state.copyWith(
       tabs: <TerminalTab>[
@@ -230,11 +230,10 @@ class SessionController extends Notifier<SessionState> {
 
     _ensureRuntimeSubscription();
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
-    final launchProfile = environmentOverrides.isEmpty
-        ? profile
-        : profile.copyWith(
-            env: <String, String>{...profile.env, ...environmentOverrides},
-          );
+    final launchProfile = _profileWithSessionEnvironment(
+      profile,
+      environmentOverrides,
+    );
     final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
     final newPane = TerminalPane(
       sessionId: sessionId,
@@ -251,6 +250,31 @@ class SessionController extends Notifier<SessionState> {
     );
     state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
     _setWindowTitle(launchProfile.name);
+  }
+
+  TerminalProfile _profileWithSessionEnvironment(
+    TerminalProfile profile,
+    Map<String, String> environmentOverrides,
+  ) {
+    return profile.copyWith(
+      env: <String, String>{
+        ..._defaultEnvironmentForEmulation(profile.terminalEmulation),
+        ...profile.env,
+        ...environmentOverrides,
+      },
+    );
+  }
+
+  Map<String, String> _defaultEnvironmentForEmulation(
+    TerminalEmulation emulation,
+  ) {
+    return switch (emulation) {
+      TerminalEmulation.xterm256 => const <String, String>{
+        'TERM': 'xterm-256color',
+        'COLORTERM': 'truecolor',
+      },
+      TerminalEmulation.vt220 => const <String, String>{'TERM': 'vt220'},
+    };
   }
 
   void activateSession(String sessionId) {

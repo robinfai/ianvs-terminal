@@ -480,7 +480,10 @@ void main() {
     expect(fakeBindings.lastCreatedSessionPayload!['launch'], {
       'program': '/bin/fish',
       'args': <String>['-l'],
-      'env': <String, String>{},
+      'env': <String, String>{
+        'TERM': 'xterm-256color',
+        'COLORTERM': 'truecolor',
+      },
       'cwd': null,
     });
     expect(fakeBindings.lastCreatedSessionPayload!['terminal'], {

@@ -278,6 +278,71 @@ void main() {
     expect(afterCloseSecond.activeSessionId, isNull);
   });
 
+  test('xterm sessions advertise 24-bit color support', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'xterm'));
+
+    expect(coreClient.lastCreatedSessionPayload!['launch'], {
+      'program': defaultTerminalProfile().shell,
+      'args': defaultTerminalProfile().args,
+      'env': {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
+      'cwd': defaultTerminalProfile().cwd,
+    });
+    expect(
+      container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .profileSnapshot!
+          .env,
+      {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
+    );
+  });
+
+  test('vt220 sessions keep a conservative terminal environment', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+
+    controller.createSession(vt220TerminalProfile().copyWith(id: 'vt220'));
+
+    expect(coreClient.lastCreatedSessionPayload!['launch'], {
+      'program': vt220TerminalProfile().shell,
+      'args': vt220TerminalProfile().args,
+      'env': {'TERM': 'vt220'},
+      'cwd': vt220TerminalProfile().cwd,
+    });
+  });
+
   test('closing inactive session keeps current active session', () {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(
@@ -360,6 +425,12 @@ void main() {
       splitState.tabs.single.containsSession(splitState.activeSessionId!),
       isTrue,
     );
+    expect(coreClient.lastCreatedSessionPayload!['launch'], {
+      'program': profile.shell,
+      'args': profile.args,
+      'env': {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
+      'cwd': profile.cwd,
+    });
 
     final secondSessionId = splitState.activeSessionId!;
     controller.activateSession(firstSessionId);
@@ -1070,7 +1141,11 @@ void main() {
       expect(coreBindings.lastCreatedSessionPayload!['launch'], {
         'program': defaultTerminalProfile().shell,
         'args': const ['-l'],
-        'env': const {'TERM_PROGRAM': 'flutterm'},
+        'env': const {
+          'TERM': 'xterm-256color',
+          'COLORTERM': 'truecolor',
+          'TERM_PROGRAM': 'flutterm',
+        },
         'cwd': null,
       });
       expect(coreBindings.lastCreatedSessionPayload!['terminal'], {
