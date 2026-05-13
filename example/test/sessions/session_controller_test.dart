@@ -324,6 +324,62 @@ void main() {
     expect(afterCloseInactive.activeSessionId, first);
   });
 
+  test('splitActiveSession adds panes inside the active tab', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    final firstSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+
+    final splitState = container.read(sessionControllerProvider);
+    expect(splitState.tabs, hasLength(1));
+    expect(splitState.tabs.single.effectivePanes, hasLength(2));
+    expect(splitState.tabs.single.splitAxis, TerminalSplitAxis.horizontal);
+    expect(splitState.activeSessionId, isNot(firstSessionId));
+    expect(splitState.tabs.single.containsSession(firstSessionId), isTrue);
+    expect(
+      splitState.tabs.single.containsSession(splitState.activeSessionId!),
+      isTrue,
+    );
+
+    final secondSessionId = splitState.activeSessionId!;
+    controller.activateSession(firstSessionId);
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      firstSessionId,
+    );
+
+    controller.closeSession(firstSessionId);
+    final afterCloseFirst = container.read(sessionControllerProvider);
+    expect(afterCloseFirst.tabs, hasLength(1));
+    expect(afterCloseFirst.tabs.single.effectivePanes, hasLength(1));
+    expect(afterCloseFirst.activeSessionId, secondSessionId);
+
+    controller.closeSession(secondSessionId);
+    final afterCloseSecond = container.read(sessionControllerProvider);
+    expect(afterCloseSecond.tabs, isEmpty);
+    expect(afterCloseSecond.activeSessionId, isNull);
+  });
+
   test('resizeActiveSession dedupes identical size requests', () {
     final coreBindings = FakePtyBackend();
     final coreClient = coreBindings;

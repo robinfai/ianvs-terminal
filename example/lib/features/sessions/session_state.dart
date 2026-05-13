@@ -1,8 +1,10 @@
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
 
-class TerminalTab {
-  const TerminalTab({
+enum TerminalSplitAxis { horizontal, vertical }
+
+class TerminalPane {
+  const TerminalPane({
     required this.sessionId,
     required this.title,
     required this.profileId,
@@ -18,13 +20,13 @@ class TerminalTab {
   final bool isExited;
   final int? exitCode;
 
-  TerminalTab copyWith({
+  TerminalPane copyWith({
     String? title,
     TerminalProfile? profileSnapshot,
     bool? isExited,
     int? exitCode,
   }) {
-    return TerminalTab(
+    return TerminalPane(
       sessionId: sessionId,
       title: title ?? this.title,
       profileId: profileId,
@@ -34,6 +36,91 @@ class TerminalTab {
     );
   }
 }
+
+class TerminalTab {
+  const TerminalTab({
+    required this.sessionId,
+    required this.title,
+    required this.profileId,
+    this.profileSnapshot,
+    this.isExited = false,
+    this.exitCode,
+    this.panes = const [],
+    this.activePaneSessionId,
+    this.splitAxis = TerminalSplitAxis.horizontal,
+  });
+
+  final String sessionId;
+  final String title;
+  final String profileId;
+  final TerminalProfile? profileSnapshot;
+  final bool isExited;
+  final int? exitCode;
+  final List<TerminalPane> panes;
+  final String? activePaneSessionId;
+  final TerminalSplitAxis splitAxis;
+
+  List<TerminalPane> get effectivePanes {
+    if (panes.isNotEmpty) {
+      return panes;
+    }
+    return [
+      TerminalPane(
+        sessionId: sessionId,
+        title: title,
+        profileId: profileId,
+        profileSnapshot: profileSnapshot,
+        isExited: isExited,
+        exitCode: exitCode,
+      ),
+    ];
+  }
+
+  String get activeSessionId => activePaneSessionId ?? sessionId;
+
+  TerminalPane get activePane {
+    return paneFor(activeSessionId) ?? effectivePanes.first;
+  }
+
+  bool containsSession(String sessionId) {
+    return effectivePanes.any((pane) => pane.sessionId == sessionId);
+  }
+
+  TerminalPane? paneFor(String sessionId) {
+    for (final pane in effectivePanes) {
+      if (pane.sessionId == sessionId) {
+        return pane;
+      }
+    }
+    return null;
+  }
+
+  TerminalTab copyWith({
+    String? title,
+    TerminalProfile? profileSnapshot,
+    bool? isExited,
+    int? exitCode,
+    List<TerminalPane>? panes,
+    Object? activePaneSessionId = _terminalTabNoChange,
+    TerminalSplitAxis? splitAxis,
+  }) {
+    return TerminalTab(
+      sessionId: sessionId,
+      title: title ?? this.title,
+      profileId: profileId,
+      profileSnapshot: profileSnapshot ?? this.profileSnapshot,
+      isExited: isExited ?? this.isExited,
+      exitCode: exitCode ?? this.exitCode,
+      panes: panes ?? this.panes,
+      activePaneSessionId: identical(activePaneSessionId, _terminalTabNoChange)
+          ? this.activePaneSessionId
+          : activePaneSessionId as String?,
+      splitAxis: splitAxis ?? this.splitAxis,
+    );
+  }
+}
+
+const Object _terminalTabNoChange = Object();
 
 class SessionState {
   const SessionState({

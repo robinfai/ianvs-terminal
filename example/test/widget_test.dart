@@ -129,6 +129,39 @@ void main() {
     _expectSelectedTab(tester, '2');
   });
 
+  testWidgets(
+    'command menu split right opens a second pane in the active tab',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Split right'));
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+      expect(find.byType(TerminalViewport), findsNWidgets(2));
+      expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
   testWidgets('command menu paste sends clipboard text to the active session', (
     tester,
   ) async {

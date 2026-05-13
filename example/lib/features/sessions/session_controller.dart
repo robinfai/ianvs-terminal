@@ -118,13 +118,15 @@ class SessionController extends Notifier<SessionState> {
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       for (final tab in demoFixture.tabs) {
-        final frame = demoFixture.frameFor(tab.sessionId);
-        if (frame == null) {
-          continue;
+        for (final pane in tab.effectivePanes) {
+          final frame = demoFixture.frameFor(pane.sessionId);
+          if (frame == null) {
+            continue;
+          }
+          _demoViewports
+              .putIfAbsent(pane.sessionId, TerminalViewportController.new)
+              .updateFrame(frame);
         }
-        _demoViewports
-            .putIfAbsent(tab.sessionId, TerminalViewportController.new)
-            .updateFrame(frame);
       }
       state = state.copyWith(
         profiles: demoFixture.profiles,
@@ -210,17 +212,70 @@ class SessionController extends Notifier<SessionState> {
     _setWindowTitle(launchProfile.name);
   }
 
-  void activateSession(String sessionId) {
-    state = state.copyWith(activeSessionId: sessionId);
-    for (final tab in state.tabs) {
-      if (tab.sessionId == sessionId) {
-        _setWindowTitle(tab.title);
-        break;
-      }
+  void splitActiveSession(TerminalProfile profile, TerminalSplitAxis axis) {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
+      return;
     }
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      createSession(profile);
+      return;
+    }
+
+    final activeTabIndex = _tabIndexContainingSession(activeSessionId);
+    if (activeTabIndex == -1) {
+      createSession(profile);
+      return;
+    }
+
+    _ensureRuntimeSubscription();
+    final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
+    final launchProfile = environmentOverrides.isEmpty
+        ? profile
+        : profile.copyWith(
+            env: <String, String>{...profile.env, ...environmentOverrides},
+          );
+    final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+    final newPane = TerminalPane(
+      sessionId: sessionId,
+      title: launchProfile.name,
+      profileId: profile.id,
+      profileSnapshot: launchProfile,
+    );
+    final activeTab = state.tabs[activeTabIndex];
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[activeTabIndex] = activeTab.copyWith(
+      panes: <TerminalPane>[...activeTab.effectivePanes, newPane],
+      activePaneSessionId: sessionId,
+      splitAxis: axis,
+    );
+    state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
+    _setWindowTitle(launchProfile.name);
+  }
+
+  void activateSession(String sessionId) {
+    final tabIndex = _tabIndexContainingSession(sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+
+    final tab = state.tabs[tabIndex];
+    final pane = tab.paneFor(sessionId);
+    if (pane == null) {
+      return;
+    }
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[tabIndex] = tab.copyWith(
+      activePaneSessionId: pane.sessionId == tab.sessionId
+          ? null
+          : pane.sessionId,
+    );
+    state = state.copyWith(tabs: nextTabs, activeSessionId: pane.sessionId);
+    _setWindowTitle(pane.title);
+
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
-      _publishDemoContent(demoFixture, sessionId);
+      _publishDemoContent(demoFixture, pane.sessionId);
     }
   }
 
@@ -233,12 +288,69 @@ class SessionController extends Notifier<SessionState> {
     _removeSessionState(sessionId);
   }
 
+  void closeTab(String tabSessionId) {
+    final tabIndex = state.tabs.indexWhere(
+      (tab) => tab.sessionId == tabSessionId,
+    );
+    if (tabIndex == -1) {
+      return;
+    }
+
+    final closingTab = state.tabs[tabIndex];
+    final demoFixture = ref.read(sessionDemoFixtureProvider);
+    if (demoFixture == null) {
+      for (final pane in closingTab.effectivePanes) {
+        if (_runtime.hasSession(pane.sessionId)) {
+          _runtime.closeSession(pane.sessionId);
+        }
+      }
+    } else {
+      for (final pane in closingTab.effectivePanes) {
+        _demoViewports.remove(pane.sessionId)?.dispose();
+      }
+    }
+    _removeTabState(tabIndex);
+    if (demoFixture != null) {
+      if (state.tabs.isEmpty) {
+        _publishTerminalContent(
+          terminalHasVisibleContent: false,
+          terminalPreview: null,
+        );
+      } else {
+        _publishDemoContent(demoFixture, state.activeSessionId);
+      }
+      return;
+    }
+    if (state.activeSessionId == null) {
+      _publishTerminalContent(
+        terminalHasVisibleContent: false,
+        terminalPreview: null,
+      );
+      return;
+    }
+    final activePane = _paneForSession(state.activeSessionId!);
+    if (activePane != null) {
+      _setWindowTitle(activePane.title);
+    }
+  }
+
   void resizeActiveSession(Size viewportSize, double devicePixelRatio) {
+    final sessionId = state.activeSessionId;
+    if (sessionId == null) {
+      return;
+    }
+    resizeSession(sessionId, viewportSize, devicePixelRatio);
+  }
+
+  void resizeSession(
+    String sessionId,
+    Size viewportSize,
+    double devicePixelRatio,
+  ) {
     if (ref.read(sessionDemoFixtureProvider) != null) {
       return;
     }
-    final sessionId = state.activeSessionId;
-    if (sessionId == null) {
+    if (_tabIndexContainingSession(sessionId) == -1) {
       return;
     }
     _runtime.resizeSession(sessionId, viewportSize, devicePixelRatio);
@@ -306,31 +418,45 @@ class SessionController extends Notifier<SessionState> {
     String? windowTitle,
     String? windowIconName,
   }) {
-    final tabIndex = state.tabs.indexWhere((tab) => tab.sessionId == sessionId);
+    final tabIndex = _tabIndexContainingSession(sessionId);
     if (tabIndex == -1) {
       return;
     }
 
     final currentTab = state.tabs[tabIndex];
-    final nextTitle = _resolvedTabTitle(
-      currentTab,
+    final currentPane = currentTab.paneFor(sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    final nextTitle = _resolvedPaneTitle(
+      currentPane,
       windowTitle: windowTitle,
       windowIconName: windowIconName,
     );
-    if (nextTitle == currentTab.title) {
+    if (nextTitle == currentPane.title) {
       return;
     }
 
+    final nextPanes = <TerminalPane>[
+      for (final pane in currentTab.effectivePanes)
+        if (pane.sessionId == sessionId)
+          pane.copyWith(title: nextTitle)
+        else
+          pane,
+    ];
     final nextTabs = <TerminalTab>[...state.tabs];
-    nextTabs[tabIndex] = currentTab.copyWith(title: nextTitle);
+    nextTabs[tabIndex] = currentTab.copyWith(
+      title: sessionId == currentTab.sessionId ? nextTitle : currentTab.title,
+      panes: nextPanes,
+    );
     state = state.copyWith(tabs: nextTabs);
     if (sessionId == state.activeSessionId) {
       _setWindowTitle(nextTitle);
     }
   }
 
-  String _resolvedTabTitle(
-    TerminalTab tab, {
+  String _resolvedPaneTitle(
+    TerminalPane pane, {
     String? windowTitle,
     String? windowIconName,
   }) {
@@ -341,54 +467,74 @@ class SessionController extends Notifier<SessionState> {
       return windowIconName;
     }
 
-    final profileSnapshot = tab.profileSnapshot;
+    final profileSnapshot = pane.profileSnapshot;
     if (profileSnapshot != null) {
       return profileSnapshot.name;
     }
 
     for (final profile in state.profiles) {
-      if (profile.id == tab.profileId) {
+      if (profile.id == pane.profileId) {
         return profile.name;
       }
     }
-    return tab.title;
+    return pane.title;
   }
 
   void _removeSessionState(
     String sessionId, {
     bool runtimeAlreadyClosed = false,
   }) {
-    final nextTabs = state.tabs
-        .where((tab) => tab.sessionId != sessionId)
-        .toList();
-    final nextActiveSessionId = state.activeSessionId == sessionId
-        ? (nextTabs.isEmpty ? null : nextTabs.last.sessionId)
-        : state.activeSessionId;
+    final tabIndex = _tabIndexContainingSession(sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
 
-    state = state.copyWith(
-      tabs: nextTabs,
-      activeSessionId: nextActiveSessionId,
-    );
+    final tab = state.tabs[tabIndex];
+    final tabHasMultiplePanes = tab.effectivePanes.length > 1;
+    if (!tabHasMultiplePanes) {
+      _removeTabState(tabIndex);
+    } else {
+      final nextPanes = tab.effectivePanes
+          .where((pane) => pane.sessionId != sessionId)
+          .toList();
+      final closingActivePane = state.activeSessionId == sessionId;
+      final nextActivePaneId = closingActivePane
+          ? nextPanes.last.sessionId
+          : tab.activeSessionId;
+      final nextTabs = <TerminalTab>[...state.tabs];
+      nextTabs[tabIndex] = tab.copyWith(
+        panes: nextPanes,
+        activePaneSessionId: nextActivePaneId == tab.sessionId
+            ? null
+            : nextActivePaneId,
+      );
+      state = state.copyWith(
+        tabs: nextTabs,
+        activeSessionId: closingActivePane
+            ? nextActivePaneId
+            : state.activeSessionId,
+      );
+    }
 
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       _demoViewports.remove(sessionId)?.dispose();
-      if (nextTabs.isEmpty) {
+      if (state.tabs.isEmpty) {
         _publishTerminalContent(
           terminalHasVisibleContent: false,
           terminalPreview: null,
         );
       } else {
-        _publishDemoContent(demoFixture, nextActiveSessionId);
+        _publishDemoContent(demoFixture, state.activeSessionId);
       }
       return;
     }
 
-    if (nextActiveSessionId != null) {
-      final activeTab = nextTabs.firstWhere(
-        (tab) => tab.sessionId == nextActiveSessionId,
-      );
-      _setWindowTitle(activeTab.title);
+    if (state.activeSessionId != null) {
+      final activePane = _paneForSession(state.activeSessionId!);
+      if (activePane != null) {
+        _setWindowTitle(activePane.title);
+      }
     } else {
       _publishTerminalContent(
         terminalHasVisibleContent: false,
@@ -399,6 +545,37 @@ class SessionController extends Notifier<SessionState> {
     if (!runtimeAlreadyClosed && _runtime.hasSession(sessionId)) {
       _runtime.closeSession(sessionId);
     }
+  }
+
+  void _removeTabState(int tabIndex) {
+    final closingTab = state.tabs[tabIndex];
+    final nextTabs = <TerminalTab>[
+      ...state.tabs.take(tabIndex),
+      ...state.tabs.skip(tabIndex + 1),
+    ];
+    final closingActiveTab =
+        state.activeSessionId != null &&
+        closingTab.containsSession(state.activeSessionId!);
+    final nextActiveSessionId = closingActiveTab
+        ? (nextTabs.isEmpty ? null : nextTabs.last.activeSessionId)
+        : state.activeSessionId;
+
+    state = state.copyWith(
+      tabs: nextTabs,
+      activeSessionId: nextActiveSessionId,
+    );
+  }
+
+  int _tabIndexContainingSession(String sessionId) {
+    return state.tabs.indexWhere((tab) => tab.containsSession(sessionId));
+  }
+
+  TerminalPane? _paneForSession(String sessionId) {
+    final tabIndex = _tabIndexContainingSession(sessionId);
+    if (tabIndex == -1) {
+      return null;
+    }
+    return state.tabs[tabIndex].paneFor(sessionId);
   }
 
   Future<void> saveProfile(TerminalProfile profile) async {

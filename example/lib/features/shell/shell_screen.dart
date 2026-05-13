@@ -20,11 +20,22 @@ import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
 import 'window_bridge.dart';
 
-enum _ShellCommandAction { newTab, copy, paste, search, defaults, profiles }
+enum _ShellCommandAction {
+  newTab,
+  splitRight,
+  splitDown,
+  copy,
+  paste,
+  search,
+  defaults,
+  profiles,
+}
 
 enum _ShellShortcutAction {
   openLauncher,
   newTab,
+  splitRight,
+  splitDown,
   closeActiveTab,
   openDefaults,
   requestQuitConfirmation,
@@ -177,6 +188,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌘T' : 'Ctrl+T';
   }
 
+  String _splitRightShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘D' : 'Ctrl+D';
+  }
+
+  String _splitDownShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘⇧D' : 'Ctrl+Shift+D';
+  }
+
   String _sessionCopyShortcutLabel() {
     return _usesMetaShortcuts ? '⌘C' : 'Ctrl+C';
   }
@@ -199,6 +218,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     if (usesAppModifier && !isShiftPressed) {
       final platformAction = switch (event.logicalKey) {
+        LogicalKeyboardKey.keyD => _ShellShortcutAction.splitRight,
         LogicalKeyboardKey.keyQ => _ShellShortcutAction.requestQuitConfirmation,
         LogicalKeyboardKey.keyW => _ShellShortcutAction.closeActiveTab,
         LogicalKeyboardKey.comma => _ShellShortcutAction.openDefaults,
@@ -220,6 +240,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyP) {
       return const _ShellShortcut(_ShellShortcutAction.openLauncher);
+    }
+
+    if (usesAppModifier &&
+        isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyD) {
+      return const _ShellShortcut(_ShellShortcutAction.splitDown);
     }
 
     if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
@@ -261,12 +287,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     Size viewportSize,
     double devicePixelRatio,
   ) {
-    if (!mounted ||
-        ref.read(sessionControllerProvider).activeSessionId != sessionId) {
+    if (!mounted || !_sessionExists(sessionId)) {
       return;
     }
-    sessionController.resizeActiveSession(viewportSize, devicePixelRatio);
+    sessionController.resizeSession(sessionId, viewportSize, devicePixelRatio);
     _committedViewportSizes[sessionId] = viewportSize;
+  }
+
+  bool _sessionExists(String sessionId) {
+    return ref
+        .read(sessionControllerProvider)
+        .tabs
+        .any((tab) => tab.containsSession(sessionId));
   }
 
   void _scheduleViewportResize(
@@ -403,18 +435,56 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _focusSession(sessionId);
   }
 
+  void _splitActiveSession(
+    SessionController sessionController,
+    TerminalProfile profile,
+    TerminalSplitAxis axis,
+  ) {
+    sessionController.splitActiveSession(profile, axis);
+    _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+  }
+
   void _closeSession(
     SessionController sessionController,
     SessionState sessionState,
     String sessionId,
   ) {
-    final closesLastSession = sessionState.tabs.length == 1;
+    final closesLastSession =
+        sessionState.tabs.length == 1 &&
+        sessionState.tabs.single.effectivePanes.length == 1;
     if (closesLastSession) {
       _recentlyClosedLastSession = true;
     }
     _scheduledViewportSizes.remove(sessionId);
     _committedViewportSizes.remove(sessionId);
     sessionController.closeSession(sessionId);
+    final nextActiveSessionId = ref
+        .read(sessionControllerProvider)
+        .activeSessionId;
+    if (nextActiveSessionId != null) {
+      _scheduleReturningCue();
+      _focusSession(nextActiveSessionId);
+    }
+  }
+
+  void _closeTab(
+    SessionController sessionController,
+    SessionState sessionState,
+    String tabSessionId,
+  ) {
+    final closesLastTab = sessionState.tabs.length == 1;
+    final closingTab = sessionState.tabs.firstWhere(
+      (tab) => tab.sessionId == tabSessionId,
+      orElse: () => sessionState.tabs.first,
+    );
+    if (closesLastTab) {
+      _recentlyClosedLastSession = true;
+    }
+    for (final pane in closingTab.effectivePanes) {
+      _scheduledViewportSizes.remove(pane.sessionId);
+      _committedViewportSizes.remove(pane.sessionId);
+    }
+    sessionController.closeTab(tabSessionId);
     final nextActiveSessionId = ref
         .read(sessionControllerProvider)
         .activeSessionId;
@@ -473,6 +543,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   ) {
     return _profileForId(profiles, effectiveDefaultProfileId) ??
         (profiles.isEmpty ? null : profiles.first);
+  }
+
+  TerminalProfile? _profileForPane(
+    TerminalPane pane,
+    List<TerminalProfile> profiles,
+  ) {
+    return pane.profileSnapshot ?? _profileForId(profiles, pane.profileId);
   }
 
   terminal.TerminalViewportColors _terminalColorsForProfile(
@@ -550,14 +627,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     final sessionState = ref.read(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
-    String? profileId;
+    TerminalPane? activePane;
     for (final tab in sessionState.tabs) {
-      if (tab.sessionId == sessionId) {
-        profileId = tab.profileId;
+      final pane = tab.paneFor(sessionId);
+      if (pane != null) {
+        activePane = pane;
         break;
       }
     }
-    final profile = _profileForId(sessionState.profiles, profileId);
+    final profile = activePane == null
+        ? null
+        : _profileForPane(activePane, sessionState.profiles);
     final terminalConfig = profile?.toSessionConfig();
     final frame = sessionController.viewportFor(sessionId).frame;
     ref
@@ -825,6 +905,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 child: _ShellCommandMenu(
                   launcherShortcutLabel: _launcherShortcutLabel(),
                   newTabShortcutLabel: _newTabShortcutLabel(),
+                  splitRightShortcutLabel: _splitRightShortcutLabel(),
+                  splitDownShortcutLabel: _splitDownShortcutLabel(),
                   sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                   sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
@@ -853,6 +935,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   child: _ShellCommandMenu(
                     launcherShortcutLabel: _launcherShortcutLabel(),
                     newTabShortcutLabel: _newTabShortcutLabel(),
+                    splitRightShortcutLabel: _splitRightShortcutLabel(),
+                    splitDownShortcutLabel: _splitDownShortcutLabel(),
                     sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                     sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
@@ -886,6 +970,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           sessionController,
           defaultProfile,
           returningToWorkspace: activeSessionIdBeforeOpen == null,
+        );
+        return;
+      case _ShellCommandAction.splitRight:
+        if (defaultProfile == null || currentSessionId == null) {
+          return;
+        }
+        _splitActiveSession(
+          sessionController,
+          defaultProfile,
+          TerminalSplitAxis.horizontal,
+        );
+        return;
+      case _ShellCommandAction.splitDown:
+        if (defaultProfile == null || currentSessionId == null) {
+          return;
+        }
+        _splitActiveSession(
+          sessionController,
+          defaultProfile,
+          TerminalSplitAxis.vertical,
         );
         return;
       case _ShellCommandAction.copy:
@@ -937,6 +1041,213 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
   }
 
+  Widget _buildTerminalWorkspace({
+    required BuildContext context,
+    required SessionController sessionController,
+    required SessionState sessionState,
+    required TerminalTab activeTab,
+    required String activeSessionId,
+    required AppThemeTokens palette,
+    required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
+  }) {
+    final panes = activeTab.effectivePanes;
+    final direction = activeTab.splitAxis == TerminalSplitAxis.horizontal
+        ? Axis.horizontal
+        : Axis.vertical;
+
+    return RepaintBoundary(
+      key: const Key('shell-terminal-surface'),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.terminalSurface,
+          border: Border(top: BorderSide(color: palette.border)),
+        ),
+        child: Flex(
+          direction: direction,
+          children: [
+            for (var index = 0; index < panes.length; index++) ...[
+              Expanded(
+                child: _buildTerminalPane(
+                  context: context,
+                  sessionController: sessionController,
+                  sessionState: sessionState,
+                  pane: panes[index],
+                  isActive: panes[index].sessionId == activeSessionId,
+                  palette: palette,
+                  onHostKeyEvent: onHostKeyEvent,
+                ),
+              ),
+              if (index < panes.length - 1)
+                SizedBox(
+                  width: direction == Axis.horizontal ? 1 : double.infinity,
+                  height: direction == Axis.horizontal ? double.infinity : 1,
+                  child: ColoredBox(color: palette.border),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTerminalPane({
+    required BuildContext context,
+    required SessionController sessionController,
+    required SessionState sessionState,
+    required TerminalPane pane,
+    required bool isActive,
+    required AppThemeTokens palette,
+    required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
+  }) {
+    final sessionId = pane.sessionId;
+    final focusNode = _focusNodeFor(sessionId);
+    final selectionController = _selectionControllers.putIfAbsent(
+      sessionId,
+      SelectionController.new,
+    );
+    final profile = _profileForPane(pane, sessionState.profiles);
+    final terminalConfig = profile?.toSessionConfig();
+    final terminalColors = _terminalColorsForProfile(context, profile);
+    final inputController = TerminalInputController(
+      sessionId: sessionId,
+      runtime: ref.read(terminalRuntimeControllerProvider),
+      readFrame: () => sessionController.viewportFor(sessionId).frame,
+      emulation:
+          terminalConfig?.emulation ?? terminal.TerminalEmulation.xterm256,
+      readSelection: () => _selectionTextForSession(
+        sessionController,
+        sessionId,
+        selectionController,
+      ),
+      copySelection: ClipboardBridge.copy,
+      readClipboard: ClipboardBridge.paste,
+    );
+
+    return LayoutBuilder(
+      key: Key('shell-pane-$sessionId'),
+      builder: (context, constraints) {
+        final viewportSize = _terminalContentSizeFor(constraints);
+        final scheduledSize = _scheduledViewportSizes[sessionId];
+        if (scheduledSize != viewportSize) {
+          _scheduledViewportSizes[sessionId] = viewportSize;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              _scheduleViewportResize(
+                sessionController,
+                sessionId,
+                viewportSize,
+                MediaQuery.devicePixelRatioOf(context),
+                immediate: !_committedViewportSizes.containsKey(sessionId),
+              );
+            }
+          });
+        }
+
+        return Listener(
+          onPointerDown: (_) {
+            if (!isActive) {
+              _activateSession(sessionController, sessionId);
+            }
+          },
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isActive
+                    ? palette.accent.withValues(alpha: 0.46)
+                    : Colors.transparent,
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: TerminalViewport(
+                    focusNode: focusNode,
+                    controller: sessionController.viewportFor(sessionId),
+                    selectionController: selectionController,
+                    inputController: inputController,
+                    contentPadding: _terminalViewportPadding,
+                    onMeasuredCellSizeChanged: (_) {
+                      if (!mounted) {
+                        return;
+                      }
+                      _scheduleViewportResize(
+                        sessionController,
+                        sessionId,
+                        viewportSize,
+                        MediaQuery.devicePixelRatioOf(context),
+                        immediate: true,
+                      );
+                    },
+                    colors: terminalColors,
+                    font:
+                        terminalConfig?.display.font ??
+                        const terminal.TerminalFontConfig(),
+                    cursor:
+                        terminalConfig?.display.cursor ??
+                        const terminal.TerminalCursorConfig(),
+                    copyOnSelect:
+                        terminalConfig?.interaction.copyOnSelect ?? false,
+                    optionDragMode:
+                        terminalConfig?.interaction.optionDragMode ??
+                        terminal.TerminalOptionDragMode.blockSelection,
+                    onHostKeyEvent: onHostKeyEvent,
+                    onScrollLines: (delta) {
+                      ref
+                          .read(terminalRuntimeControllerProvider)
+                          .scrollViewport(sessionId, delta);
+                    },
+                    onScrollToOffset: (offset) {
+                      ref
+                          .read(terminalRuntimeControllerProvider)
+                          .scrollViewportTo(sessionId, offset);
+                    },
+                    onOpenLink: (url) =>
+                        unawaited(WindowBridge.openExternalUrl(url)),
+                  ),
+                ),
+                if (!isActive)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ColoredBox(
+                        key: Key('shell-pane-dim-$sessionId'),
+                        color: Colors.black.withValues(alpha: 0.20),
+                      ),
+                    ),
+                  ),
+                if (isActive && _isSearchOpen)
+                  Positioned(
+                    top: _terminalViewportPadding.top,
+                    right: _terminalViewportPadding.right,
+                    child: _TerminalSearchBar(
+                      query: _searchQuery,
+                      matches: _searchMatches.length,
+                      activeIndex: _activeSearchIndex,
+                      palette: palette,
+                      onChanged: _searchScrollback,
+                      onPrevious: () => _moveSearchMatch(-1),
+                      onNext: () => _moveSearchMatch(1),
+                      onClose: _closeSearch,
+                    ),
+                  ),
+                if (isActive && _showWorkspaceCue)
+                  Positioned(
+                    top: _terminalViewportPadding.top,
+                    right: _terminalViewportPadding.right,
+                    child: IgnorePointer(
+                      child: _ShellWorkspaceCue(
+                        title: _workspaceCueTitle,
+                        palette: palette,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sessionState = ref.watch(sessionControllerProvider);
@@ -955,30 +1266,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
     _publishAcceptanceSnapshot(sessionState);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
-    final activeSelectionController = activeSessionId == null
-        ? null
-        : _selectionControllers.putIfAbsent(
-            activeSessionId,
-            SelectionController.new,
-          );
     TerminalTab? activeTab;
     if (activeSessionId != null) {
       for (final tab in sessionState.tabs) {
-        if (tab.sessionId == activeSessionId) {
+        if (tab.containsSession(activeSessionId)) {
           activeTab = tab;
           break;
         }
       }
     }
-    final activeProfile = activeTab == null
-        ? null
-        : activeTab.profileSnapshot ??
-              _profileForId(sessionState.profiles, activeTab.profileId);
-    final activeFocusNode = activeSessionId == null
-        ? null
-        : _focusNodeFor(activeSessionId);
     final palette = context.appTheme;
-    final terminalColors = _terminalColorsForProfile(context, activeProfile);
 
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -1019,6 +1316,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             returningToWorkspace: activeSessionId == null,
           );
           return KeyEventResult.handled;
+        case _ShellShortcutAction.splitRight:
+          if (defaultProfile == null || activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _splitActiveSession(
+            sessionController,
+            defaultProfile,
+            TerminalSplitAxis.horizontal,
+          );
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.splitDown:
+          if (defaultProfile == null || activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _splitActiveSession(
+            sessionController,
+            defaultProfile,
+            TerminalSplitAxis.vertical,
+          );
+          return KeyEventResult.handled;
         case _ShellShortcutAction.closeActiveTab:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
@@ -1038,11 +1355,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             return KeyEventResult.handled;
           }
           final tab = sessionState.tabs[tabIndex];
-          if (tab.sessionId == activeSessionId) {
-            _focusSession(tab.sessionId);
+          final tabActiveSessionId = tab.activeSessionId;
+          if (tab.containsSession(activeSessionId ?? '')) {
+            _focusSession(tabActiveSessionId);
             return KeyEventResult.handled;
           }
-          _activateSession(sessionController, tab.sessionId);
+          _activateSession(sessionController, tabActiveSessionId);
           return KeyEventResult.handled;
       }
     }
@@ -1070,7 +1388,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   onActivateSession: (sessionId) =>
                       _activateSession(sessionController, sessionId),
                   onCloseSession: (sessionId) =>
-                      _closeSession(sessionController, sessionState, sessionId),
+                      _closeTab(sessionController, sessionState, sessionId),
                   onShowCommandMenu: () =>
                       _openCommandMenu(sessionController, sessionState),
                 ),
@@ -1091,7 +1409,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         : Duration.zero,
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
-                    child: activeSessionId == null
+                    child: activeSessionId == null || activeTab == null
                         ? _ShellEmptyState(
                             key: const Key('shell-empty-state'),
                             palette: palette,
@@ -1108,170 +1426,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     );
                                   },
                           )
-                        : LayoutBuilder(
-                            key: ValueKey(activeSessionId),
-                            builder: (context, constraints) {
-                              final viewportSize = _terminalContentSizeFor(
-                                constraints,
-                              );
-                              final scheduledSize =
-                                  _scheduledViewportSizes[activeSessionId];
-                              if (scheduledSize != viewportSize) {
-                                _scheduledViewportSizes[activeSessionId] =
-                                    viewportSize;
-                                WidgetsBinding.instance.addPostFrameCallback((
-                                  _,
-                                ) {
-                                  if (mounted) {
-                                    _scheduleViewportResize(
-                                      sessionController,
-                                      activeSessionId,
-                                      viewportSize,
-                                      MediaQuery.devicePixelRatioOf(context),
-                                      immediate: !_committedViewportSizes
-                                          .containsKey(activeSessionId),
-                                    );
-                                  }
-                                });
-                              }
-
-                              final selectionController =
-                                  activeSelectionController!;
-                              final terminalConfig = activeProfile
-                                  ?.toSessionConfig();
-                              final inputController = TerminalInputController(
-                                sessionId: activeSessionId,
-                                runtime: ref.read(
-                                  terminalRuntimeControllerProvider,
-                                ),
-                                readFrame: () => sessionController
-                                    .viewportFor(activeSessionId)
-                                    .frame,
-                                emulation:
-                                    terminalConfig?.emulation ??
-                                    terminal.TerminalEmulation.xterm256,
-                                readSelection: () => _selectionTextForSession(
-                                  sessionController,
-                                  activeSessionId,
-                                  selectionController,
-                                ),
-                                copySelection: (text) =>
-                                    ClipboardBridge.copy(text),
-                                readClipboard: ClipboardBridge.paste,
-                              );
-
-                              return RepaintBoundary(
-                                key: const Key('shell-terminal-surface'),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: palette.terminalSurface,
-                                    border: Border(
-                                      top: BorderSide(color: palette.border),
-                                    ),
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: TerminalViewport(
-                                          focusNode: activeFocusNode,
-                                          controller: sessionController
-                                              .viewportFor(activeSessionId),
-                                          selectionController:
-                                              selectionController,
-                                          inputController: inputController,
-                                          contentPadding:
-                                              _terminalViewportPadding,
-                                          onMeasuredCellSizeChanged: (_) {
-                                            if (!mounted) {
-                                              return;
-                                            }
-                                            _scheduleViewportResize(
-                                              sessionController,
-                                              activeSessionId,
-                                              viewportSize,
-                                              MediaQuery.devicePixelRatioOf(
-                                                context,
-                                              ),
-                                              immediate: true,
-                                            );
-                                          },
-                                          colors: terminalColors,
-                                          font:
-                                              terminalConfig?.display.font ??
-                                              const terminal.TerminalFontConfig(),
-                                          cursor:
-                                              terminalConfig?.display.cursor ??
-                                              const terminal.TerminalCursorConfig(),
-                                          copyOnSelect:
-                                              terminalConfig
-                                                  ?.interaction
-                                                  .copyOnSelect ??
-                                              false,
-                                          optionDragMode:
-                                              terminalConfig
-                                                  ?.interaction
-                                                  .optionDragMode ??
-                                              terminal
-                                                  .TerminalOptionDragMode
-                                                  .blockSelection,
-                                          onHostKeyEvent: handleShellShortcut,
-                                          onScrollLines: (delta) {
-                                            ref
-                                                .read(
-                                                  terminalRuntimeControllerProvider,
-                                                )
-                                                .scrollViewport(
-                                                  activeSessionId,
-                                                  delta,
-                                                );
-                                          },
-                                          onScrollToOffset: (offset) {
-                                            ref
-                                                .read(
-                                                  terminalRuntimeControllerProvider,
-                                                )
-                                                .scrollViewportTo(
-                                                  activeSessionId,
-                                                  offset,
-                                                );
-                                          },
-                                          onOpenLink: (url) => unawaited(
-                                            WindowBridge.openExternalUrl(url),
-                                          ),
-                                        ),
-                                      ),
-                                      if (_isSearchOpen)
-                                        Positioned(
-                                          top: _terminalViewportPadding.top,
-                                          right: _terminalViewportPadding.right,
-                                          child: _TerminalSearchBar(
-                                            query: _searchQuery,
-                                            matches: _searchMatches.length,
-                                            activeIndex: _activeSearchIndex,
-                                            palette: palette,
-                                            onChanged: _searchScrollback,
-                                            onPrevious: () =>
-                                                _moveSearchMatch(-1),
-                                            onNext: () => _moveSearchMatch(1),
-                                            onClose: _closeSearch,
-                                          ),
-                                        ),
-                                      if (_showWorkspaceCue)
-                                        Positioned(
-                                          top: _terminalViewportPadding.top,
-                                          right: _terminalViewportPadding.right,
-                                          child: IgnorePointer(
-                                            child: _ShellWorkspaceCue(
-                                              title: _workspaceCueTitle,
-                                              palette: palette,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
+                        : KeyedSubtree(
+                            key: ValueKey(activeTab.sessionId),
+                            child: _buildTerminalWorkspace(
+                              context: context,
+                              sessionController: sessionController,
+                              sessionState: sessionState,
+                              activeTab: activeTab,
+                              activeSessionId: activeSessionId,
+                              palette: palette,
+                              onHostKeyEvent: handleShellShortcut,
+                            ),
                           ),
                   ),
                 ),
@@ -1463,8 +1628,10 @@ class _ReferenceDemoTabStrip extends StatelessWidget {
               palette: palette,
               tab: tabs[index],
               shortcutIndex: index < 9 ? index + 1 : null,
-              isActive: tabs[index].sessionId == activeSessionId,
-              onActivate: () => onActivateSession(tabs[index].sessionId),
+              isActive:
+                  activeSessionId != null &&
+                  tabs[index].containsSession(activeSessionId!),
+              onActivate: () => onActivateSession(tabs[index].activeSessionId),
             ),
           ),
           if (index < tabs.length - 1)
@@ -1568,13 +1735,14 @@ class _ShellTabStrip extends StatelessWidget {
         ),
         itemBuilder: (context, index) {
           final tab = tabs[index];
-          final isActive = tab.sessionId == activeSessionId;
+          final isActive =
+              activeSessionId != null && tab.containsSession(activeSessionId!);
           return _ShellTabButton(
             palette: palette,
             tab: tab,
             shortcutIndex: index < 9 ? index + 1 : null,
             isActive: isActive,
-            onActivate: () => onActivateSession(tab.sessionId),
+            onActivate: () => onActivateSession(tab.activeSessionId),
             onClose: () => onCloseSession(tab.sessionId),
           );
         },
@@ -1621,15 +1789,15 @@ class _ShellTabButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (shortcutIndex != null) ...[
-                Text(
-                  '⌘$shortcutIndex',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isActive ? palette.textMuted : palette.textSubtle,
-                    fontWeight: FontWeight.w500,
-                  ),
+              Text(
+                '⌘$shortcutIndex',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: isActive ? palette.textMuted : palette.textSubtle,
+                  fontWeight: FontWeight.w500,
                 ),
-                const SizedBox(width: 6),
-              ],
+              ),
+              const SizedBox(width: 6),
+            ],
             AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 140),
               style: Theme.of(context).textTheme.titleSmall!.copyWith(
@@ -1868,6 +2036,8 @@ class _ShellCommandMenu extends StatelessWidget {
   const _ShellCommandMenu({
     required this.launcherShortcutLabel,
     required this.newTabShortcutLabel,
+    required this.splitRightShortcutLabel,
+    required this.splitDownShortcutLabel,
     required this.sessionCopyShortcutLabel,
     required this.sessionPasteShortcutLabel,
     required this.hasDefaultProfile,
@@ -1876,6 +2046,8 @@ class _ShellCommandMenu extends StatelessWidget {
 
   final String launcherShortcutLabel;
   final String newTabShortcutLabel;
+  final String splitRightShortcutLabel;
+  final String splitDownShortcutLabel;
   final String sessionCopyShortcutLabel;
   final String sessionPasteShortcutLabel;
   final bool hasDefaultProfile;
@@ -2022,6 +2194,30 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.search),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-split-right'),
+                    icon: Icons.vertical_split_rounded,
+                    title: 'Split right',
+                    subtitle:
+                        'Pane action • Open the default profile beside this pane.',
+                    shortcutLabel: splitRightShortcutLabel,
+                    enabled: hasDefaultProfile && hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.splitRight),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-split-down'),
+                    icon: Icons.horizontal_split_rounded,
+                    title: 'Split down',
+                    subtitle:
+                        'Pane action • Open the default profile below this pane.',
+                    shortcutLabel: splitDownShortcutLabel,
+                    enabled: hasDefaultProfile && hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.splitDown),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
