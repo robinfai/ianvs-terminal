@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,6 +186,38 @@ void main() {
     },
   );
 
+  testWidgets('hovering a split pane activates it without a click', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Split right'));
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+
+    final pointer = TestPointer(7, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+      pointer.hover(tester.getCenter(find.byKey(const Key('shell-pane-1')))),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('command menu paste sends clipboard text to the active session', (
     tester,
   ) async {
@@ -221,6 +254,51 @@ void main() {
     await _openCommandMenu(tester);
     await tester.ensureVisible(find.text('Paste clipboard'));
     await tester.tap(find.text('Paste clipboard'));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes, isNotEmpty);
+    expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+  });
+
+  testWidgets('middle click pastes the clipboard when mouse reporting is off', (
+    tester,
+  ) async {
+    const clipboardText = 'middle paste';
+    final fakeBindings = FakePtyBackend();
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    final pointer = TestPointer(8, PointerDeviceKind.mouse);
+    final center = tester.getCenter(find.byType(TerminalViewport));
+    await tester.sendEventToBinding(
+      pointer.down(center, buttons: kMiddleMouseButton),
+    );
+    await tester.sendEventToBinding(pointer.up());
     await tester.pumpAndSettle();
 
     expect(fakeBindings.writes, isNotEmpty);

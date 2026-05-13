@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1808,130 +1809,144 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           });
         }
 
-        return Listener(
-          onPointerDown: (_) {
+        return MouseRegion(
+          onEnter: (_) {
             if (!isActive) {
               _activateSession(sessionController, sessionId);
             }
           },
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isActive
-                    ? palette.accent.withValues(alpha: 0.46)
-                    : Colors.transparent,
-              ),
-            ),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: TerminalViewport(
-                    focusNode: focusNode,
-                    controller: sessionController.viewportFor(sessionId),
-                    selectionController: selectionController,
-                    inputController: inputController,
-                    contentPadding: _terminalViewportPadding,
-                    onMeasuredCellSizeChanged: (_) {
-                      if (!mounted) {
-                        return;
-                      }
-                      _scheduleViewportResize(
-                        sessionController,
-                        sessionId,
-                        viewportSize,
-                        MediaQuery.devicePixelRatioOf(context),
-                        immediate: true,
-                      );
-                    },
-                    colors: terminalColors,
-                    font:
-                        terminalConfig?.display.font ??
-                        const terminal.TerminalFontConfig(),
-                    cursor:
-                        terminalConfig?.display.cursor ??
-                        const terminal.TerminalCursorConfig(),
-                    copyOnSelect:
-                        terminalConfig?.interaction.copyOnSelect ?? false,
-                    optionDragMode:
-                        terminalConfig?.interaction.optionDragMode ??
-                        terminal.TerminalOptionDragMode.blockSelection,
-                    onHostKeyEvent: onHostKeyEvent,
-                    onScrollLines: (delta) {
-                      ref
-                          .read(terminalRuntimeControllerProvider)
-                          .scrollViewport(sessionId, delta);
-                    },
-                    onScrollToOffset: (offset) {
-                      ref
-                          .read(terminalRuntimeControllerProvider)
-                          .scrollViewportTo(sessionId, offset);
-                    },
-                    onOpenLink: (url) =>
-                        unawaited(WindowBridge.openExternalUrl(url)),
-                  ),
+          child: Listener(
+            onPointerDown: (event) {
+              if (!isActive) {
+                _activateSession(sessionController, sessionId);
+              }
+              final frame = sessionController.viewportFor(sessionId).frame;
+              final shouldMiddlePaste =
+                  frame.modes.mouseMode == 'off' &&
+                  (event.buttons & kMiddleMouseButton) != 0;
+              if (shouldMiddlePaste) {
+                unawaited(_pasteToSession(sessionId));
+              }
+            },
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: isActive
+                      ? palette.accent.withValues(alpha: 0.46)
+                      : Colors.transparent,
                 ),
-                if (!isActive)
+              ),
+              child: Stack(
+                children: [
                   Positioned.fill(
-                    child: IgnorePointer(
-                      child: ColoredBox(
-                        key: Key('shell-pane-dim-$sessionId'),
-                        color: Colors.black.withValues(alpha: 0.20),
+                    child: TerminalViewport(
+                      focusNode: focusNode,
+                      controller: sessionController.viewportFor(sessionId),
+                      selectionController: selectionController,
+                      inputController: inputController,
+                      contentPadding: _terminalViewportPadding,
+                      onMeasuredCellSizeChanged: (_) {
+                        if (!mounted) {
+                          return;
+                        }
+                        _scheduleViewportResize(
+                          sessionController,
+                          sessionId,
+                          viewportSize,
+                          MediaQuery.devicePixelRatioOf(context),
+                          immediate: true,
+                        );
+                      },
+                      colors: terminalColors,
+                      font:
+                          terminalConfig?.display.font ??
+                          const terminal.TerminalFontConfig(),
+                      cursor:
+                          terminalConfig?.display.cursor ??
+                          const terminal.TerminalCursorConfig(),
+                      copyOnSelect:
+                          terminalConfig?.interaction.copyOnSelect ?? false,
+                      optionDragMode:
+                          terminalConfig?.interaction.optionDragMode ??
+                          terminal.TerminalOptionDragMode.blockSelection,
+                      onHostKeyEvent: onHostKeyEvent,
+                      onScrollLines: (delta) {
+                        ref
+                            .read(terminalRuntimeControllerProvider)
+                            .scrollViewport(sessionId, delta);
+                      },
+                      onScrollToOffset: (offset) {
+                        ref
+                            .read(terminalRuntimeControllerProvider)
+                            .scrollViewportTo(sessionId, offset);
+                      },
+                      onOpenLink: (url) =>
+                          unawaited(WindowBridge.openExternalUrl(url)),
+                    ),
+                  ),
+                  if (!isActive)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: ColoredBox(
+                          key: Key('shell-pane-dim-$sessionId'),
+                          color: Colors.black.withValues(alpha: 0.20),
+                        ),
                       ),
                     ),
-                  ),
-                if (isActive && _isSearchOpen)
-                  Positioned(
-                    top: _terminalViewportPadding.top,
-                    right: _terminalViewportPadding.right,
-                    child: _TerminalSearchBar(
-                      query: _searchQuery,
-                      matches: _searchMatches.length,
-                      activeIndex: _activeSearchIndex,
-                      palette: palette,
-                      onChanged: _searchScrollback,
-                      onPrevious: () => _moveSearchMatch(-1),
-                      onNext: () => _moveSearchMatch(1),
-                      onClose: _closeSearch,
-                    ),
-                  ),
-                if (isActive && _isAutocompleteOpen)
-                  Positioned(
-                    top: _terminalViewportPadding.top,
-                    right: _terminalViewportPadding.right,
-                    child: _TerminalAutocompleteMenu(
-                      prefix: _autocompletePrefix,
-                      suggestions: _autocompleteSuggestions,
-                      activeIndex: _activeAutocompleteIndex,
-                      palette: palette,
-                      onPrevious: () => _moveAutocompleteSelection(-1),
-                      onNext: () => _moveAutocompleteSelection(1),
-                      onAccept: _acceptAutocomplete,
-                      onClose: _closeAutocomplete,
-                    ),
-                  ),
-                if (isActive && _isCopyModeOpen)
-                  Positioned(
-                    top: _terminalViewportPadding.top,
-                    left: _terminalViewportPadding.left,
-                    child: IgnorePointer(
-                      child: _ShellWorkspaceCue(
-                        title: 'Copy mode',
+                  if (isActive && _isSearchOpen)
+                    Positioned(
+                      top: _terminalViewportPadding.top,
+                      right: _terminalViewportPadding.right,
+                      child: _TerminalSearchBar(
+                        query: _searchQuery,
+                        matches: _searchMatches.length,
+                        activeIndex: _activeSearchIndex,
                         palette: palette,
+                        onChanged: _searchScrollback,
+                        onPrevious: () => _moveSearchMatch(-1),
+                        onNext: () => _moveSearchMatch(1),
+                        onClose: _closeSearch,
                       ),
                     ),
-                  ),
-                if (isActive && _showWorkspaceCue)
-                  Positioned(
-                    top: _terminalViewportPadding.top,
-                    right: _terminalViewportPadding.right,
-                    child: IgnorePointer(
-                      child: _ShellWorkspaceCue(
-                        title: _workspaceCueTitle,
+                  if (isActive && _isAutocompleteOpen)
+                    Positioned(
+                      top: _terminalViewportPadding.top,
+                      right: _terminalViewportPadding.right,
+                      child: _TerminalAutocompleteMenu(
+                        prefix: _autocompletePrefix,
+                        suggestions: _autocompleteSuggestions,
+                        activeIndex: _activeAutocompleteIndex,
                         palette: palette,
+                        onPrevious: () => _moveAutocompleteSelection(-1),
+                        onNext: () => _moveAutocompleteSelection(1),
+                        onAccept: _acceptAutocomplete,
+                        onClose: _closeAutocomplete,
                       ),
                     ),
-                  ),
-              ],
+                  if (isActive && _isCopyModeOpen)
+                    Positioned(
+                      top: _terminalViewportPadding.top,
+                      left: _terminalViewportPadding.left,
+                      child: IgnorePointer(
+                        child: _ShellWorkspaceCue(
+                          title: 'Copy mode',
+                          palette: palette,
+                        ),
+                      ),
+                    ),
+                  if (isActive && _showWorkspaceCue)
+                    Positioned(
+                      top: _terminalViewportPadding.top,
+                      right: _terminalViewportPadding.right,
+                      child: IgnorePointer(
+                        child: _ShellWorkspaceCue(
+                          title: _workspaceCueTitle,
+                          palette: palette,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
