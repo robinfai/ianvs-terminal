@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,7 @@ enum _ShellCommandAction {
   copy,
   paste,
   search,
+  autocomplete,
   hotkeyWindow,
   defaults,
   profiles,
@@ -37,6 +39,7 @@ enum _ShellShortcutAction {
   newTab,
   splitRight,
   splitDown,
+  autocomplete,
   closeActiveTab,
   openDefaults,
   requestQuitConfirmation,
@@ -90,6 +93,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
   bool _isSearchOpen = false;
+  bool _isAutocompleteOpen = false;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showWorkspaceCue = false;
@@ -98,6 +102,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String _searchQuery = '';
   List<TerminalSearchMatch> _searchMatches = const [];
   int _activeSearchIndex = 0;
+  String _autocompletePrefix = '';
+  List<String> _autocompleteSuggestions = const [];
+  int _activeAutocompleteIndex = 0;
 
   @override
   void dispose() {
@@ -201,6 +208,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌥⌘Space' : 'Alt+Ctrl+Space';
   }
 
+  String _autocompleteShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘;' : 'Ctrl+;';
+  }
+
   String _sessionCopyShortcutLabel() {
     return _usesMetaShortcuts ? '⌘C' : 'Ctrl+C';
   }
@@ -224,6 +235,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (usesAppModifier && !isShiftPressed) {
       final platformAction = switch (event.logicalKey) {
         LogicalKeyboardKey.keyD => _ShellShortcutAction.splitRight,
+        LogicalKeyboardKey.semicolon => _ShellShortcutAction.autocomplete,
         LogicalKeyboardKey.keyQ => _ShellShortcutAction.requestQuitConfirmation,
         LogicalKeyboardKey.keyW => _ShellShortcutAction.closeActiveTab,
         LogicalKeyboardKey.comma => _ShellShortcutAction.openDefaults,
@@ -413,9 +425,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _activeTerminalHasFocus = false;
       _showWorkspaceCue = false;
       _isSearchOpen = false;
+      _isAutocompleteOpen = false;
       _searchQuery = '';
       _searchMatches = const [];
       _activeSearchIndex = 0;
+      _autocompletePrefix = '';
+      _autocompleteSuggestions = const [];
+      _activeAutocompleteIndex = 0;
       _workspaceCueTimer?.cancel();
       _workspaceCueTimer = null;
     }
@@ -728,6 +744,126 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
   }
 
+  void _openAutocomplete() {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(activeSessionId)
+        .frame;
+    final prefix = _autocompletePrefixForFrame(frame);
+    final suggestions = _autocompleteSuggestionsForFrame(frame, prefix);
+    if (suggestions.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isAutocompleteOpen = true;
+      _isSearchOpen = false;
+      _autocompletePrefix = prefix;
+      _autocompleteSuggestions = suggestions;
+      _activeAutocompleteIndex = 0;
+    });
+  }
+
+  String _autocompletePrefixForFrame(terminal.TerminalFrameDiff frame) {
+    final row = _rowAtCursor(frame);
+    if (row == null) {
+      return '';
+    }
+    final beforeCursor = terminal.TerminalTextCells.fromText(
+      row.text,
+    ).sliceColumns(0, frame.cursor.col);
+    return RegExp(r'[A-Za-z0-9_./:-]+$').firstMatch(beforeCursor)?.group(0) ??
+        '';
+  }
+
+  terminal.TerminalRow? _rowAtCursor(terminal.TerminalFrameDiff frame) {
+    for (final row in frame.rows) {
+      if (row.index == frame.cursor.row) {
+        return row;
+      }
+    }
+    if (frame.cursor.row >= 0 && frame.cursor.row < frame.rows.length) {
+      return frame.rows[frame.cursor.row];
+    }
+    return null;
+  }
+
+  List<String> _autocompleteSuggestionsForFrame(
+    terminal.TerminalFrameDiff frame,
+    String prefix,
+  ) {
+    final normalizedPrefix = prefix.toLowerCase();
+    final seen = <String>{};
+    final suggestions = <String>[];
+    final wordPattern = RegExp(r'[A-Za-z0-9_./:-]{2,}');
+
+    for (final row in frame.rows.reversed) {
+      final matches = wordPattern.allMatches(row.text).toList().reversed;
+      for (final match in matches) {
+        final word = match.group(0)!;
+        final normalizedWord = word.toLowerCase();
+        if (word == prefix ||
+            (normalizedPrefix.isNotEmpty &&
+                !normalizedWord.startsWith(normalizedPrefix)) ||
+            word.length <= prefix.length ||
+            !seen.add(normalizedWord)) {
+          continue;
+        }
+        suggestions.add(word);
+        if (suggestions.length >= 8) {
+          return suggestions;
+        }
+      }
+    }
+
+    return suggestions;
+  }
+
+  void _moveAutocompleteSelection(int delta) {
+    if (_autocompleteSuggestions.isEmpty) {
+      return;
+    }
+    final nextIndex =
+        (_activeAutocompleteIndex + delta) % _autocompleteSuggestions.length;
+    setState(() {
+      _activeAutocompleteIndex = nextIndex < 0
+          ? nextIndex + _autocompleteSuggestions.length
+          : nextIndex;
+    });
+  }
+
+  void _closeAutocomplete() {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    setState(() {
+      _isAutocompleteOpen = false;
+      _autocompletePrefix = '';
+      _autocompleteSuggestions = const [];
+      _activeAutocompleteIndex = 0;
+    });
+    _focusSession(activeSessionId);
+  }
+
+  void _acceptAutocomplete(String suggestion) {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    final suffix =
+        suggestion.toLowerCase().startsWith(_autocompletePrefix.toLowerCase())
+        ? suggestion.substring(_autocompletePrefix.length)
+        : suggestion;
+    if (suffix.isNotEmpty) {
+      ref
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(activeSessionId, Uint8List.fromList(utf8.encode(suffix)));
+    }
+    _closeAutocomplete();
+  }
+
   Future<void> _openDefaultsAndAppearance(
     SessionController sessionController,
     SessionState sessionState,
@@ -913,6 +1049,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   splitRightShortcutLabel: _splitRightShortcutLabel(),
                   splitDownShortcutLabel: _splitDownShortcutLabel(),
                   hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
+                  autocompleteShortcutLabel: _autocompleteShortcutLabel(),
                   sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                   sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
@@ -944,6 +1081,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     splitRightShortcutLabel: _splitRightShortcutLabel(),
                     splitDownShortcutLabel: _splitDownShortcutLabel(),
                     hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
+                    autocompleteShortcutLabel: _autocompleteShortcutLabel(),
                     sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                     sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
@@ -1032,6 +1170,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return;
         }
         _openSearch();
+        return;
+      case _ShellCommandAction.autocomplete:
+        if (currentSessionId == null) {
+          return;
+        }
+        _openAutocomplete();
         return;
       case _ShellCommandAction.hotkeyWindow:
         await WindowBridge.toggleHotkeyWindow();
@@ -1239,6 +1383,21 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       onClose: _closeSearch,
                     ),
                   ),
+                if (isActive && _isAutocompleteOpen)
+                  Positioned(
+                    top: _terminalViewportPadding.top,
+                    right: _terminalViewportPadding.right,
+                    child: _TerminalAutocompleteMenu(
+                      prefix: _autocompletePrefix,
+                      suggestions: _autocompleteSuggestions,
+                      activeIndex: _activeAutocompleteIndex,
+                      palette: palette,
+                      onPrevious: () => _moveAutocompleteSelection(-1),
+                      onNext: () => _moveAutocompleteSelection(1),
+                      onAccept: _acceptAutocomplete,
+                      onClose: _closeAutocomplete,
+                    ),
+                  ),
                 if (isActive && _showWorkspaceCue)
                   Positioned(
                     top: _terminalViewportPadding.top,
@@ -1345,6 +1504,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             defaultProfile,
             TerminalSplitAxis.vertical,
           );
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.autocomplete:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _openAutocomplete();
           return KeyEventResult.handled;
         case _ShellShortcutAction.closeActiveTab:
           if (activeSessionId == null) {
@@ -1995,6 +2160,160 @@ class _TerminalSearchBar extends StatelessWidget {
   }
 }
 
+class _TerminalAutocompleteMenu extends StatelessWidget {
+  const _TerminalAutocompleteMenu({
+    required this.prefix,
+    required this.suggestions,
+    required this.activeIndex,
+    required this.palette,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onAccept,
+    required this.onClose,
+  });
+
+  final String prefix;
+  final List<String> suggestions;
+  final int activeIndex;
+  final AppThemeTokens palette;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final ValueChanged<String> onAccept;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('terminal-autocomplete-menu'),
+      color: Colors.transparent,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.overlay.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          border: Border.all(color: palette.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: SizedBox(
+          width: 280,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 6, 4, 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.auto_fix_high_rounded,
+                      size: 15,
+                      color: palette.accent,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        prefix.isEmpty ? 'Completions' : 'Complete "$prefix"',
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('terminal-autocomplete-previous'),
+                      tooltip: 'Previous completion',
+                      onPressed: suggestions.length < 2 ? null : onPrevious,
+                      visualDensity: VisualDensity.compact,
+                      splashRadius: 14,
+                      iconSize: 16,
+                      icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                    ),
+                    IconButton(
+                      key: const Key('terminal-autocomplete-next'),
+                      tooltip: 'Next completion',
+                      onPressed: suggestions.length < 2 ? null : onNext,
+                      visualDensity: VisualDensity.compact,
+                      splashRadius: 14,
+                      iconSize: 16,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
+                    IconButton(
+                      key: const Key('terminal-autocomplete-close'),
+                      tooltip: 'Close completions',
+                      onPressed: onClose,
+                      visualDensity: VisualDensity.compact,
+                      splashRadius: 14,
+                      iconSize: 16,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(color: palette.border, height: 1),
+              for (var index = 0; index < suggestions.length; index++)
+                _AutocompleteSuggestionTile(
+                  suggestion: suggestions[index],
+                  active: index == activeIndex,
+                  palette: palette,
+                  onTap: () => onAccept(suggestions[index]),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AutocompleteSuggestionTile extends StatelessWidget {
+  const _AutocompleteSuggestionTile({
+    required this.suggestion,
+    required this.active,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final String suggestion;
+  final bool active;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      key: Key('terminal-autocomplete-suggestion-$suggestion'),
+      onTap: onTap,
+      child: ColoredBox(
+        color: active
+            ? palette.accent.withValues(alpha: 0.14)
+            : Colors.transparent,
+        child: SizedBox(
+          height: 30,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                suggestion,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: active ? palette.textPrimary : palette.textSubtle,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ShellWorkspaceCue extends StatelessWidget {
   const _ShellWorkspaceCue({required this.title, required this.palette});
 
@@ -2049,6 +2368,7 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.splitRightShortcutLabel,
     required this.splitDownShortcutLabel,
     required this.hotkeyWindowShortcutLabel,
+    required this.autocompleteShortcutLabel,
     required this.sessionCopyShortcutLabel,
     required this.sessionPasteShortcutLabel,
     required this.hasDefaultProfile,
@@ -2060,6 +2380,7 @@ class _ShellCommandMenu extends StatelessWidget {
   final String splitRightShortcutLabel;
   final String splitDownShortcutLabel;
   final String hotkeyWindowShortcutLabel;
+  final String autocompleteShortcutLabel;
   final String sessionCopyShortcutLabel;
   final String sessionPasteShortcutLabel;
   final bool hasDefaultProfile;
@@ -2206,6 +2527,18 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.search),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-autocomplete'),
+                    icon: Icons.auto_fix_high_rounded,
+                    title: 'Autocomplete',
+                    subtitle:
+                        'Session action • Complete a word from visible output.',
+                    shortcutLabel: autocompleteShortcutLabel,
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.autocomplete),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-split-right'),

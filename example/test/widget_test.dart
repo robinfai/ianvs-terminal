@@ -496,6 +496,60 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets(
+    'command-semicolon autocompletes from visible terminal words',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'git checkout feature/login',
+            'style_runs': const [],
+          },
+          {'index': 1, 'text': 'git che', 'style_runs': const []},
+        ],
+        'cursor': {'row': 1, 'col': 7, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.semicolon);
+
+      expect(
+        find.byKey(const Key('terminal-autocomplete-menu')),
+        findsOneWidget,
+      );
+      expect(find.text('checkout'), findsOneWidget);
+
+      await tester.tap(find.text('checkout'));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, utf8.encode('ckout'));
+      expect(find.byKey(const Key('terminal-autocomplete-menu')), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('command menu hotkey window invokes the window bridge', (
     tester,
   ) async {
