@@ -17,6 +17,7 @@ import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
 import 'defaults_appearance_dialog.dart';
+import 'paste_history_repository.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
 import 'window_bridge.dart';
@@ -28,6 +29,7 @@ enum _ShellCommandAction {
   copy,
   copyMode,
   paste,
+  pasteHistory,
   search,
   autocomplete,
   hotkeyWindow,
@@ -42,6 +44,7 @@ enum _ShellShortcutAction {
   splitDown,
   autocomplete,
   copyMode,
+  pasteHistory,
   closeActiveTab,
   openDefaults,
   requestQuitConfirmation,
@@ -56,6 +59,10 @@ class _ShellShortcut {
 }
 
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
+
+final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepository>((ref) {
+  return PasteHistoryRepository();
+});
 
 sealed class _ProfilesSheetResult {
   const _ProfilesSheetResult();
@@ -73,6 +80,16 @@ final class _EditProfileResult extends _ProfilesSheetResult {
   final TerminalProfile profile;
 }
 
+sealed class _PasteHistorySheetResult {
+  const _PasteHistorySheetResult();
+}
+
+final class _PasteHistoryPickResult extends _PasteHistorySheetResult {
+  const _PasteHistoryPickResult(this.entry);
+
+  final PasteHistoryEntry entry;
+}
+
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
@@ -84,6 +101,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _workspaceCueDuration = Duration(milliseconds: 1400);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
   static const _terminalViewportPadding = EdgeInsets.fromLTRB(16, 10, 18, 14);
+  static const _pasteHistoryLimit = 30;
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -108,10 +126,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String _autocompletePrefix = '';
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
+  List<PasteHistoryEntry> _pasteHistoryEntries = const [];
+  bool _pasteHistoryPersistToDisk = false;
+  bool _pasteHistoryLoaded = false;
   int? _copyModeAnchorRow;
   int? _copyModeAnchorCol;
   int? _copyModeExtentRow;
   int? _copyModeExtentCol;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_loadPasteHistory);
+  }
 
   @override
   void dispose() {
@@ -231,6 +258,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌘V' : 'Ctrl+V';
   }
 
+  String _pasteHistoryShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘⇧V' : 'Ctrl+Shift+V';
+  }
+
   String get _workspaceCueTitle => 'Back in shell';
 
   _ShellShortcut? _shortcutActionFor(KeyEvent event) {
@@ -280,6 +311,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyC) {
       return const _ShellShortcut(_ShellShortcutAction.copyMode);
+    }
+
+    if (usesAppModifier &&
+        isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyV) {
+      return const _ShellShortcut(_ShellShortcutAction.pasteHistory);
     }
 
     if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
@@ -638,6 +675,93 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       return;
     }
     await ClipboardBridge.copy(text);
+    await _recordPasteHistory(text, PasteHistoryKind.copy);
+  }
+
+  Future<void> _loadPasteHistory() async {
+    final document = await ref.read(pasteHistoryRepositoryProvider).load();
+    if (!mounted) {
+      return;
+    }
+    final loadedEntries = document?.entries ?? const <PasteHistoryEntry>[];
+    setState(() {
+      _pasteHistoryLoaded = true;
+      _pasteHistoryPersistToDisk = document != null;
+      _pasteHistoryEntries = _mergePasteHistoryEntries(
+        _pasteHistoryEntries,
+        loadedEntries,
+      );
+    });
+  }
+
+  Future<void> _recordPasteHistory(String text, PasteHistoryKind kind) async {
+    final normalizedText = text.trimRight();
+    if (normalizedText.trim().isEmpty) {
+      return;
+    }
+    final nextEntry = PasteHistoryEntry(
+      text: normalizedText,
+      kind: kind,
+      createdAt: DateTime.now(),
+    );
+    final nextEntries = <PasteHistoryEntry>[
+      nextEntry,
+      for (final entry in _pasteHistoryEntries)
+        if (entry.text != normalizedText) entry,
+    ].take(_pasteHistoryLimit).toList();
+
+    if (mounted) {
+      setState(() {
+        _pasteHistoryEntries = nextEntries;
+        _pasteHistoryLoaded = true;
+      });
+    } else {
+      _pasteHistoryEntries = nextEntries;
+    }
+
+    if (_pasteHistoryPersistToDisk) {
+      await ref
+          .read(pasteHistoryRepositoryProvider)
+          .save(PasteHistoryDocument(entries: nextEntries));
+    }
+  }
+
+  List<PasteHistoryEntry> _mergePasteHistoryEntries(
+    List<PasteHistoryEntry> leading,
+    List<PasteHistoryEntry> trailing,
+  ) {
+    final seenTexts = <String>{};
+    return <PasteHistoryEntry>[
+      for (final entry in [...leading, ...trailing])
+        if (entry.text.trim().isNotEmpty && seenTexts.add(entry.text)) entry,
+    ].take(_pasteHistoryLimit).toList();
+  }
+
+  Future<void> _setPasteHistoryPersistence(bool enabled) async {
+    setState(() {
+      _pasteHistoryPersistToDisk = enabled;
+      _pasteHistoryLoaded = true;
+    });
+    final repository = ref.read(pasteHistoryRepositoryProvider);
+    if (enabled) {
+      await repository.save(
+        PasteHistoryDocument(entries: _pasteHistoryEntries),
+      );
+    } else {
+      await repository.clearDiskHistory();
+    }
+  }
+
+  Future<void> _clearPasteHistory() async {
+    setState(() {
+      _pasteHistoryEntries = const [];
+      _pasteHistoryLoaded = true;
+    });
+    if (_pasteHistoryPersistToDisk) {
+      await ref
+          .read(pasteHistoryRepositoryProvider)
+          .save(const PasteHistoryDocument());
+    }
   }
 
   String _selectionTextForSession(
@@ -834,6 +958,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (text.isEmpty) {
       return;
     }
+    await _pasteTextToSession(sessionId, text);
+    await _recordPasteHistory(text, PasteHistoryKind.paste);
+  }
+
+  Future<void> _pasteTextToSession(String sessionId, String text) async {
     final sessionState = ref.read(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
     TerminalPane? activePane;
@@ -861,6 +990,67 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             text: text,
           ),
         );
+  }
+
+  Future<void> _openPasteHistory(SessionState sessionState) async {
+    final activeSessionIdBeforeOpen = sessionState.activeSessionId;
+    if (activeSessionIdBeforeOpen == null) {
+      return;
+    }
+    if (!_pasteHistoryLoaded) {
+      await _loadPasteHistory();
+    }
+    if (!mounted) {
+      return;
+    }
+
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final result = await showModalBottomSheet<_PasteHistorySheetResult>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _PasteHistorySheet(
+          entries: _pasteHistoryEntries,
+          persistToDisk: _pasteHistoryPersistToDisk,
+          onPersistChanged: (enabled) =>
+              unawaited(_setPasteHistoryPersistence(enabled)),
+          onClear: () => unawaited(_clearPasteHistory()),
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    switch (result) {
+      case _PasteHistoryPickResult(:final entry):
+        final currentActiveSessionId = ref
+            .read(sessionControllerProvider)
+            .activeSessionId;
+        if (currentActiveSessionId == null) {
+          return;
+        }
+        await _pasteTextToSession(currentActiveSessionId, entry.text);
+        await _recordPasteHistory(entry.text, PasteHistoryKind.paste);
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentActiveSessionId,
+        );
+        return;
+      case null:
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+        return;
+    }
   }
 
   void _openSearch() {
@@ -1241,6 +1431,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   copyModeShortcutLabel: _copyModeShortcutLabel(),
                   sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                   sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
+                  pasteHistoryShortcutLabel: _pasteHistoryShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
                   hasActiveSession: hasActiveSession,
                 ),
@@ -1274,6 +1465,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     copyModeShortcutLabel: _copyModeShortcutLabel(),
                     sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                     sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
+                    pasteHistoryShortcutLabel: _pasteHistoryShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
                     hasActiveSession: hasActiveSession,
                   ),
@@ -1368,6 +1560,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
         );
+        return;
+      case _ShellCommandAction.pasteHistory:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _openPasteHistory(sessionState);
         return;
       case _ShellCommandAction.search:
         if (currentSessionId == null) {
@@ -1747,6 +1945,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             activeSessionId,
             selectionController,
           );
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.pasteHistory:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          unawaited(_openPasteHistory(sessionState));
           return KeyEventResult.handled;
         case _ShellShortcutAction.closeActiveTab:
           if (activeSessionId == null) {
@@ -2551,6 +2755,210 @@ class _AutocompleteSuggestionTile extends StatelessWidget {
   }
 }
 
+class _PasteHistorySheet extends StatefulWidget {
+  const _PasteHistorySheet({
+    required this.entries,
+    required this.persistToDisk,
+    required this.onPersistChanged,
+    required this.onClear,
+  });
+
+  final List<PasteHistoryEntry> entries;
+  final bool persistToDisk;
+  final ValueChanged<bool> onPersistChanged;
+  final VoidCallback onClear;
+
+  @override
+  State<_PasteHistorySheet> createState() => _PasteHistorySheetState();
+}
+
+class _PasteHistorySheetState extends State<_PasteHistorySheet> {
+  late List<PasteHistoryEntry> _entries;
+  late bool _persistToDisk;
+
+  @override
+  void initState() {
+    super.initState();
+    _entries = widget.entries;
+    _persistToDisk = widget.persistToDisk;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Material(
+        key: const Key('paste-history-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Paste History',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close paste history',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                    ),
+                  ],
+                ),
+                SwitchListTile(
+                  key: const Key('paste-history-persist'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Save History to Disk',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Keep recent copied and pasted text across launches.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+                  ),
+                  value: _persistToDisk,
+                  onChanged: (value) {
+                    setState(() {
+                      _persistToDisk = value;
+                    });
+                    widget.onPersistChanged(value);
+                  },
+                ),
+                Row(
+                  children: [
+                    Text(
+                      '${_entries.length} recent item${_entries.length == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: palette.textSubtle,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      key: const Key('paste-history-clear'),
+                      onPressed: _entries.isEmpty
+                          ? null
+                          : () {
+                              setState(() {
+                                _entries = const [];
+                              });
+                              widget.onClear();
+                            },
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      label: const Text('Clear'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: _entries.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 22),
+                          child: Center(
+                            child: Text(
+                              'No copied or pasted text yet.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: palette.textSubtle),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _entries.length,
+                          separatorBuilder: (_, _) =>
+                              Divider(color: palette.border, height: 1),
+                          itemBuilder: (context, index) {
+                            final entry = _entries[index];
+                            return _PasteHistoryEntryTile(
+                              index: index,
+                              entry: entry,
+                              palette: palette,
+                              onTap: () => Navigator.of(
+                                context,
+                              ).pop(_PasteHistoryPickResult(entry)),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PasteHistoryEntryTile extends StatelessWidget {
+  const _PasteHistoryEntryTile({
+    required this.index,
+    required this.entry,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final int index;
+  final PasteHistoryEntry entry;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+
+  String get _kindLabel {
+    return switch (entry.kind) {
+      PasteHistoryKind.copy => 'Copied',
+      PasteHistoryKind.paste => 'Pasted',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = entry.text.replaceAll('\n', ' ⏎ ');
+    return ListTile(
+      key: Key('paste-history-entry-$index'),
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        entry.kind == PasteHistoryKind.copy
+            ? Icons.copy_rounded
+            : Icons.content_paste_rounded,
+        color: palette.textMuted,
+      ),
+      title: Text(
+        preview,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        _kindLabel,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
 class _ShellWorkspaceCue extends StatelessWidget {
   const _ShellWorkspaceCue({required this.title, required this.palette});
 
@@ -2609,6 +3017,7 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.copyModeShortcutLabel,
     required this.sessionCopyShortcutLabel,
     required this.sessionPasteShortcutLabel,
+    required this.pasteHistoryShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
   });
@@ -2622,6 +3031,7 @@ class _ShellCommandMenu extends StatelessWidget {
   final String copyModeShortcutLabel;
   final String sessionCopyShortcutLabel;
   final String sessionPasteShortcutLabel;
+  final String pasteHistoryShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
 
@@ -2769,6 +3179,18 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.paste),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-paste-history'),
+                    icon: Icons.history_rounded,
+                    title: 'Paste history',
+                    subtitle:
+                        'Session action • Revisit recently copied or pasted text.',
+                    shortcutLabel: pasteHistoryShortcutLabel,
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.pasteHistory),
                   ),
                   _ShellCommandTile(
                     icon: Icons.search_rounded,

@@ -14,6 +14,7 @@ import 'package:app/features/terminal/terminal_viewport.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
+import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 
 Future<void> _pumpShellScreen(
@@ -27,6 +28,9 @@ Future<void> _pumpShellScreen(
       overrides: [
         ptySessionBackendProvider.overrideWithValue(fakeBindings),
         profileRepositoryProvider.overrideWithValue(profileRepository),
+        pasteHistoryRepositoryProvider.overrideWithValue(
+          MemoryPasteHistoryRepository(),
+        ),
         appPreferencesRepositoryProvider.overrideWithValue(
           preferencesRepository,
         ),

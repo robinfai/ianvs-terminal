@@ -8,10 +8,12 @@ import 'package:flutterm_pty/flutterm_pty.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/paste_history_repository.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'support/fake_pty_backend.dart';
 import 'support/memory_app_preferences_repository.dart';
+import 'support/memory_paste_history_repository.dart';
 import 'support/memory_profile_repository.dart';
 
 class _EventfulPtyBackend extends FakePtyBackend {
@@ -44,12 +46,16 @@ Future<void> _pumpShellScreen(
   WidgetTester tester, {
   required PtySessionBackend bindings,
   required MemoryProfileRepository repository,
+  PasteHistoryRepository? pasteHistoryRepository,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         ptySessionBackendProvider.overrideWithValue(bindings),
         profileRepositoryProvider.overrideWithValue(repository),
+        pasteHistoryRepositoryProvider.overrideWithValue(
+          pasteHistoryRepository ?? MemoryPasteHistoryRepository(),
+        ),
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
@@ -221,6 +227,118 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));
   });
 
+  testWidgets(
+    'command menu paste records text for paste history reuse and persistence',
+    (tester) async {
+      const clipboardText = 'from clipboard history';
+      final fakeBindings = FakePtyBackend();
+      final pasteHistoryRepository = MemoryPasteHistoryRepository();
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        pasteHistoryRepository: pasteHistoryRepository,
+      );
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Paste clipboard'));
+      await tester.tap(find.text('Paste clipboard'));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, hasLength(1));
+      expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+      expect(pasteHistoryRepository.document, isNull);
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Paste history'));
+      await tester.tap(find.text('Paste history'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
+      expect(find.text(clipboardText), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('paste-history-persist')));
+      await tester.pumpAndSettle();
+
+      expect(pasteHistoryRepository.document?.entries, hasLength(1));
+      expect(
+        pasteHistoryRepository.document?.entries.single.text,
+        clipboardText,
+      );
+
+      await tester.tap(find.byKey(const Key('paste-history-entry-0')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, hasLength(2));
+      expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+    },
+  );
+
+  testWidgets(
+    'command-shift-v opens saved paste history without leaking input',
+    (tester) async {
+      const savedText = 'saved paste';
+      final fakeBindings = FakePtyBackend();
+      final pasteHistoryRepository = MemoryPasteHistoryRepository(
+        PasteHistoryDocument(
+          entries: [
+            PasteHistoryEntry(
+              text: savedText,
+              kind: PasteHistoryKind.paste,
+              createdAt: DateTime.utc(2026, 5, 14),
+            ),
+          ],
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        pasteHistoryRepository: pasteHistoryRepository,
+      );
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyV);
+
+      expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
+      expect(find.text(savedText), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+
+      await tester.tap(find.byKey(const Key('paste-history-entry-0')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, hasLength(1));
+      expect(fakeBindings.writes.last, utf8.encode(savedText));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('command menu copy writes the selection to the clipboard', (
     tester,
   ) async {
@@ -268,6 +386,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(copiedText, 'flutterm ready');
+    expect(fakeBindings.writes, isEmpty);
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Paste history'));
+    await tester.tap(find.text('Paste history'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
+    expect(find.text('flutterm ready'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
 
