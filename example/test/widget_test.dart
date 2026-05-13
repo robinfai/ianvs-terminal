@@ -263,6 +263,80 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));
   });
 
+  testWidgets(
+    'advanced paste transforms edited clipboard text before sending',
+    (tester) async {
+      const clipboardText = 'line 1\nline 2\t✓';
+      const editedText = 'deploy\npath\t✓';
+      const escapedText = r'deploy\npath\t✓';
+      final expectedText = '${base64.encode(utf8.encode(escapedText))}\n';
+      final fakeBindings = FakePtyBackend();
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(const Key('shell-advanced-paste')));
+      await tester.tap(find.byKey(const Key('shell-advanced-paste')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('advanced-paste-sheet')), findsOneWidget);
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('advanced-paste-text-field')),
+      );
+      expect(field.controller?.text, clipboardText);
+
+      await tester.enterText(
+        find.byKey(const Key('advanced-paste-text-field')),
+        editedText,
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('advanced-paste-escape')),
+      );
+      await tester.tap(find.byKey(const Key('advanced-paste-escape')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('advanced-paste-base64')),
+      );
+      await tester.tap(find.byKey(const Key('advanced-paste-base64')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('advanced-paste-newline')),
+      );
+      await tester.tap(find.byKey(const Key('advanced-paste-newline')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('advanced-paste-send')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, hasLength(1));
+      expect(fakeBindings.writes.single, utf8.encode(expectedText));
+    },
+  );
+
   testWidgets('middle click pastes the clipboard when mouse reporting is off', (
     tester,
   ) async {

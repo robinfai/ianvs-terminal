@@ -17,6 +17,7 @@ import '../terminal/clipboard_bridge.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
+import 'advanced_paste_transformer.dart';
 import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
 import 'paste_history_repository.dart';
@@ -32,6 +33,7 @@ enum _ShellCommandAction {
   copy,
   copyMode,
   paste,
+  advancedPaste,
   pasteHistory,
   passwordManager,
   instantReplay,
@@ -123,6 +125,16 @@ final class _PasteHistoryPickResult extends _PasteHistorySheetResult {
   const _PasteHistoryPickResult(this.entry);
 
   final PasteHistoryEntry entry;
+}
+
+sealed class _AdvancedPasteSheetResult {
+  const _AdvancedPasteSheetResult();
+}
+
+final class _AdvancedPasteSendResult extends _AdvancedPasteSheetResult {
+  const _AdvancedPasteSendResult(this.text);
+
+  final String text;
 }
 
 sealed class _PasswordManagerSheetResult {
@@ -1316,6 +1328,42 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         );
   }
 
+  Future<void> _openAdvancedPaste(String sessionId) async {
+    final clipboardText = await ClipboardBridge.paste();
+    if (!mounted) {
+      return;
+    }
+
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final result = await showModalBottomSheet<_AdvancedPasteSheetResult>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _AdvancedPasteSheet(initialText: clipboardText);
+      },
+    );
+
+    if (!mounted || !_sessionExists(sessionId)) {
+      return;
+    }
+
+    switch (result) {
+      case _AdvancedPasteSendResult(:final text):
+        if (text.isEmpty) {
+          return;
+        }
+        await _pasteTextToSession(sessionId, text);
+        await _recordPasteHistory(text, PasteHistoryKind.paste);
+        return;
+      case null:
+        return;
+    }
+  }
+
   Future<void> _openPasteHistory(SessionState sessionState) async {
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     if (activeSessionIdBeforeOpen == null) {
@@ -2176,6 +2224,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return;
         }
         await _pasteToSession(currentSessionId);
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
+        return;
+      case _ShellCommandAction.advancedPaste:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _openAdvancedPaste(currentSessionId);
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
@@ -3765,6 +3823,201 @@ class _InstantReplaySheetState extends State<_InstantReplaySheet> {
   }
 }
 
+class _AdvancedPasteSheet extends StatefulWidget {
+  const _AdvancedPasteSheet({required this.initialText});
+
+  final String initialText;
+
+  @override
+  State<_AdvancedPasteSheet> createState() => _AdvancedPasteSheetState();
+}
+
+class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
+  late final TextEditingController _textController;
+  bool _escapeSpecialCharacters = false;
+  bool _base64Encode = false;
+  bool _appendNewline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(text: widget.initialText);
+    _textController.addListener(_handleTextChanged);
+  }
+
+  @override
+  void dispose() {
+    _textController.removeListener(_handleTextChanged);
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void _handleTextChanged() {
+    setState(() {});
+  }
+
+  String get _transformedText {
+    return transformAdvancedPasteText(
+      _textController.text,
+      escapeSpecialCharacters: _escapeSpecialCharacters,
+      base64Encode: _base64Encode,
+      appendNewline: _appendNewline,
+    );
+  }
+
+  int get _transformedByteCount {
+    return utf8.encode(_transformedText).length;
+  }
+
+  void _send() {
+    final text = _transformedText;
+    if (text.isEmpty) {
+      return;
+    }
+    Navigator.of(context).pop(_AdvancedPasteSendResult(text));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final transformedText = _transformedText;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        0,
+        16,
+        16 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Material(
+        key: const Key('advanced-paste-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Advanced Paste',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close advanced paste',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: palette.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('advanced-paste-text-field'),
+                    controller: _textController,
+                    minLines: 4,
+                    maxLines: 8,
+                    keyboardType: TextInputType.multiline,
+                    decoration: const InputDecoration(
+                      labelText: 'Text',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    key: const Key('advanced-paste-escape'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Escape special characters',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    value: _escapeSpecialCharacters,
+                    onChanged: (value) {
+                      setState(() {
+                        _escapeSpecialCharacters = value;
+                      });
+                    },
+                  ),
+                  SwitchListTile(
+                    key: const Key('advanced-paste-base64'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Base64 encode',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    value: _base64Encode,
+                    onChanged: (value) {
+                      setState(() {
+                        _base64Encode = value;
+                      });
+                    },
+                  ),
+                  SwitchListTile(
+                    key: const Key('advanced-paste-newline'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      'Append newline',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: palette.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    value: _appendNewline,
+                    onChanged: (value) {
+                      setState(() {
+                        _appendNewline = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '$_transformedByteCount byte${_transformedByteCount == 1 ? '' : 's'}',
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: palette.textSubtle,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                      FilledButton.icon(
+                        key: const Key('advanced-paste-send'),
+                        onPressed: transformedText.isEmpty ? null : _send,
+                        icon: const Icon(Icons.send_rounded, size: 18),
+                        label: const Text('Paste'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _PasteHistorySheet extends StatefulWidget {
   const _PasteHistorySheet({
     required this.entries,
@@ -4442,6 +4695,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.paste),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-advanced-paste'),
+                    icon: Icons.assignment_rounded,
+                    title: 'Advanced paste',
+                    subtitle:
+                        'Session action • Edit and transform text before pasting.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.advancedPaste),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-paste-history'),
