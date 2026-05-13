@@ -1465,6 +1465,66 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets('auto composer edits a command with shell history completion', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'git checkout feature/login',
+          'pwd': '/Users/dev/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
+    await tester.tap(find.byKey(const Key('shell-auto-composer')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-auto-composer')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-auto-composer-field')),
+      'git checkout f',
+    );
+    await tester.pump();
+
+    await tester.tap(
+      find.byKey(const Key('terminal-auto-composer-suggestion-feature/login')),
+    );
+    await tester.pump();
+
+    final composerField = tester.widget<TextField>(
+      find.byKey(const Key('terminal-auto-composer-field')),
+    );
+    expect(composerField.controller?.text, 'git checkout feature/login');
+
+    await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
+    await tester.pumpAndSettle();
+
+    expect(
+      fakeBindings.writes.last,
+      utf8.encode('git checkout feature/login\n'),
+    );
+    expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
+  });
+
   testWidgets('shell integration badge shows current session context', (
     tester,
   ) async {

@@ -46,6 +46,7 @@ enum _ShellCommandAction {
   search,
   globalSearch,
   autocomplete,
+  autoComposer,
   hotkeyWindow,
   defaults,
   profiles,
@@ -289,6 +290,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
+  final TextEditingController _autoComposerController = TextEditingController();
+  final FocusNode _autoComposerFocusNode = FocusNode();
   final Set<String> _sessionsSeenForActivityNotifications = {};
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
   Timer? _workspaceCueTimer;
@@ -298,6 +301,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isProfilesOpen = false;
   bool _isSearchOpen = false;
   bool _isAutocompleteOpen = false;
+  bool _isAutoComposerOpen = false;
   bool _isCopyModeOpen = false;
   bool _isToolbeltOpen = false;
   bool _activeTerminalHasFocus = false;
@@ -311,6 +315,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String _autocompletePrefix = '';
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
+  List<String> _autoComposerSuggestions = const [];
+  int _activeAutoComposerIndex = 0;
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
   List<_TerminalAnnotation> _annotations = const [];
   List<_CapturedOutputEntry> _capturedOutputEntries = const [];
@@ -344,6 +350,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }
+    _autoComposerController.dispose();
+    _autoComposerFocusNode.dispose();
     super.dispose();
   }
 
@@ -1035,6 +1043,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _showWorkspaceCue = false;
       _isSearchOpen = false;
       _isAutocompleteOpen = false;
+      _isAutoComposerOpen = false;
       _isCopyModeOpen = false;
       _isToolbeltOpen = false;
       _searchQuery = '';
@@ -1043,6 +1052,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _autocompletePrefix = '';
       _autocompleteSuggestions = const [];
       _activeAutocompleteIndex = 0;
+      _autoComposerController.clear();
+      _autoComposerSuggestions = const [];
+      _activeAutoComposerIndex = 0;
       _copyModeAnchorRow = null;
       _copyModeAnchorCol = null;
       _copyModeExtentRow = null;
@@ -2387,6 +2399,120 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _closeAutocomplete();
   }
 
+  void _openAutoComposer() {
+    final sessionState = ref.read(sessionControllerProvider);
+    final activeSessionId = sessionState.activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    _autoComposerController.clear();
+    final suggestions = _autoComposerSuggestionsForText('', sessionState);
+    setState(() {
+      _isAutoComposerOpen = true;
+      _isSearchOpen = false;
+      _isAutocompleteOpen = false;
+      _isCopyModeOpen = false;
+      _autoComposerSuggestions = suggestions;
+      _activeAutoComposerIndex = 0;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_isAutoComposerOpen) {
+        return;
+      }
+      _autoComposerFocusNode.requestFocus();
+    });
+  }
+
+  void _closeAutoComposer() {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    setState(() {
+      _isAutoComposerOpen = false;
+      _autoComposerSuggestions = const [];
+      _activeAutoComposerIndex = 0;
+    });
+    _focusSession(activeSessionId);
+  }
+
+  void _updateAutoComposerSuggestions(String text) {
+    final suggestions = _autoComposerSuggestionsForText(text);
+    setState(() {
+      _autoComposerSuggestions = suggestions;
+      _activeAutoComposerIndex = 0;
+    });
+  }
+
+  List<String> _autoComposerSuggestionsForText(
+    String text, [
+    SessionState? sessionState,
+  ]) {
+    final SessionState state =
+        sessionState ?? ref.read(sessionControllerProvider);
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      return const <String>[];
+    }
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(activeSessionId)
+        .frame;
+    final prefix = _autoComposerPrefixForText(text);
+    return _mergeAutocompleteSuggestions([
+      _shellCommandAutocompleteSuggestions(state, activeSessionId, prefix),
+      _autocompleteSuggestionsForFrame(frame, prefix),
+    ]);
+  }
+
+  String _autoComposerPrefixForText(String text) {
+    return RegExp(r'[A-Za-z0-9_./:-]+$').firstMatch(text)?.group(0) ?? '';
+  }
+
+  void _moveAutoComposerSuggestion(int delta) {
+    if (_autoComposerSuggestions.isEmpty) {
+      return;
+    }
+    final nextIndex =
+        (_activeAutoComposerIndex + delta) % _autoComposerSuggestions.length;
+    setState(() {
+      _activeAutoComposerIndex = nextIndex < 0
+          ? nextIndex + _autoComposerSuggestions.length
+          : nextIndex;
+    });
+  }
+
+  void _acceptAutoComposerSuggestion(String suggestion) {
+    final currentText = _autoComposerController.text;
+    final prefix = _autoComposerPrefixForText(currentText);
+    final nextText = prefix.isEmpty
+        ? suggestion
+        : '${currentText.substring(0, currentText.length - prefix.length)}'
+              '$suggestion';
+    _autoComposerController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+    );
+    _updateAutoComposerSuggestions(nextText);
+    _autoComposerFocusNode.requestFocus();
+  }
+
+  void _sendAutoComposerCommand() {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    final command = _autoComposerController.text.trimRight();
+    if (command.isEmpty) {
+      return;
+    }
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .sendInput(
+          activeSessionId,
+          Uint8List.fromList(utf8.encode('$command\n')),
+        );
+    _autoComposerController.clear();
+    _closeAutoComposer();
+  }
+
   void _navigateShellPrompt(String sessionId, {required int direction}) {
     final sessionState = ref.read(sessionControllerProvider);
     final pane = _paneForSession(sessionState, sessionId);
@@ -2900,6 +3026,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
         _openAutocomplete();
         return;
+      case _ShellCommandAction.autoComposer:
+        if (currentSessionId == null) {
+          return;
+        }
+        _openAutoComposer();
+        return;
       case _ShellCommandAction.hotkeyWindow:
         await WindowBridge.toggleHotkeyWindow();
         return;
@@ -3141,10 +3273,30 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         onClose: _closeAutocomplete,
                       ),
                     ),
+                  if (isActive && _isAutoComposerOpen)
+                    Positioned(
+                      left: _terminalViewportPadding.left,
+                      right: _terminalViewportPadding.right,
+                      bottom: _terminalViewportPadding.bottom,
+                      child: _TerminalAutoComposer(
+                        controller: _autoComposerController,
+                        focusNode: _autoComposerFocusNode,
+                        suggestions: _autoComposerSuggestions,
+                        activeIndex: _activeAutoComposerIndex,
+                        palette: palette,
+                        onChanged: _updateAutoComposerSuggestions,
+                        onPrevious: () => _moveAutoComposerSuggestion(-1),
+                        onNext: () => _moveAutoComposerSuggestion(1),
+                        onAcceptSuggestion: _acceptAutoComposerSuggestion,
+                        onSend: _sendAutoComposerCommand,
+                        onClose: _closeAutoComposer,
+                      ),
+                    ),
                   if (isActive &&
                       sessionBadge != null &&
                       !_isSearchOpen &&
                       !_isAutocompleteOpen &&
+                      !_isAutoComposerOpen &&
                       !_showWorkspaceCue)
                     Positioned(
                       top:
@@ -3162,7 +3314,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   if (isActive &&
                       activeCoprocess != null &&
                       !_isSearchOpen &&
-                      !_isAutocompleteOpen)
+                      !_isAutocompleteOpen &&
+                      !_isAutoComposerOpen)
                     Positioned(
                       top: _terminalViewportPadding.top,
                       right: _terminalViewportPadding.right,
@@ -3183,7 +3336,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ),
                       ),
                     ),
-                  if (isActive && annotations.isNotEmpty)
+                  if (isActive &&
+                      annotations.isNotEmpty &&
+                      !_isAutoComposerOpen)
                     Positioned(
                       left: _terminalViewportPadding.left,
                       bottom: _terminalViewportPadding.bottom,
@@ -3265,6 +3420,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       );
       if (copyModeResult != null) {
         return copyModeResult;
+      }
+      if (_isAutoComposerOpen) {
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
+          _closeAutoComposer();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
       }
       final shortcut = _shortcutActionFor(event);
       if (shortcut == null) {
@@ -5604,6 +5766,159 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
   }
 }
 
+class _TerminalAutoComposer extends StatelessWidget {
+  const _TerminalAutoComposer({
+    required this.controller,
+    required this.focusNode,
+    required this.suggestions,
+    required this.activeIndex,
+    required this.palette,
+    required this.onChanged,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onAcceptSuggestion,
+    required this.onSend,
+    required this.onClose,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final List<String> suggestions;
+  final int activeIndex;
+  final AppThemeTokens palette;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final ValueChanged<String> onAcceptSuggestion;
+  final VoidCallback onSend;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final canSend = controller.text.trimRight().isNotEmpty;
+    return Material(
+      key: const Key('terminal-auto-composer'),
+      color: Colors.transparent,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: palette.overlay.withValues(alpha: 0.97),
+              borderRadius: BorderRadius.circular(palette.radius.lg),
+              border: Border.all(color: palette.accent.withValues(alpha: 0.34)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.24),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.edit_note_rounded,
+                        size: 18,
+                        color: palette.accent,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          key: const Key('terminal-auto-composer-field'),
+                          controller: controller,
+                          focusNode: focusNode,
+                          minLines: 1,
+                          maxLines: 3,
+                          textInputAction: TextInputAction.send,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                          decoration: const InputDecoration(
+                            hintText: 'Compose command',
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                          onChanged: onChanged,
+                          onSubmitted: (_) {
+                            if (controller.text.trimRight().isNotEmpty) {
+                              onSend();
+                            }
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        key: const Key('terminal-auto-composer-previous'),
+                        tooltip: 'Previous completion',
+                        onPressed: suggestions.length < 2 ? null : onPrevious,
+                        visualDensity: VisualDensity.compact,
+                        splashRadius: 16,
+                        iconSize: 18,
+                        icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                      ),
+                      IconButton(
+                        key: const Key('terminal-auto-composer-next'),
+                        tooltip: 'Next completion',
+                        onPressed: suggestions.length < 2 ? null : onNext,
+                        visualDensity: VisualDensity.compact,
+                        splashRadius: 16,
+                        iconSize: 18,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      ),
+                      IconButton(
+                        key: const Key('terminal-auto-composer-send'),
+                        tooltip: 'Send command',
+                        onPressed: canSend ? onSend : null,
+                        visualDensity: VisualDensity.compact,
+                        splashRadius: 16,
+                        iconSize: 18,
+                        icon: const Icon(Icons.send_rounded),
+                      ),
+                      IconButton(
+                        key: const Key('terminal-auto-composer-close'),
+                        tooltip: 'Close composer',
+                        onPressed: onClose,
+                        visualDensity: VisualDensity.compact,
+                        splashRadius: 16,
+                        iconSize: 18,
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  if (suggestions.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Divider(color: palette.border, height: 1),
+                    const SizedBox(height: 4),
+                    for (
+                      var index = 0;
+                      index < suggestions.length && index < 5;
+                      index++
+                    )
+                      _AutoComposerSuggestionTile(
+                        suggestion: suggestions[index],
+                        active: index == activeIndex,
+                        palette: palette,
+                        onTap: () => onAcceptSuggestion(suggestions[index]),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AutocompleteSuggestionTile extends StatelessWidget {
   const _AutocompleteSuggestionTile({
     required this.suggestion,
@@ -5640,6 +5955,62 @@ class _AutocompleteSuggestionTile extends StatelessWidget {
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AutoComposerSuggestionTile extends StatelessWidget {
+  const _AutoComposerSuggestionTile({
+    required this.suggestion,
+    required this.active,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final String suggestion;
+  final bool active;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      key: Key('terminal-auto-composer-suggestion-$suggestion'),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(palette.radius.sm),
+      child: ColoredBox(
+        color: active
+            ? palette.accent.withValues(alpha: 0.14)
+            : Colors.transparent,
+        child: SizedBox(
+          height: 30,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Icon(
+                  active
+                      ? Icons.keyboard_return_rounded
+                      : Icons.subdirectory_arrow_right_rounded,
+                  size: 15,
+                  color: active ? palette.accent : palette.textSubtle,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    suggestion,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: active ? palette.textPrimary : palette.textSubtle,
+                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -7466,6 +7837,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.autocomplete),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-auto-composer'),
+                    icon: Icons.edit_note_rounded,
+                    title: 'Auto Composer',
+                    subtitle:
+                        'Session action • Native command editor with completions.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.autoComposer),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-split-right'),
