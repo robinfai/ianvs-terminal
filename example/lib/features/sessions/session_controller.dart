@@ -256,6 +256,8 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionExitEvent():
         _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
         break;
+      case TerminalSessionShellHookEvent():
+        break;
     }
   }
 
