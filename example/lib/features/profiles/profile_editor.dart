@@ -301,6 +301,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final FocusNode _lineHeightFocusNode;
 
   late TerminalEmulation _terminalEmulation;
+  late bool _shellIntegrationEnabled;
   late TerminalCursorShape _cursorShape;
   late bool _cursorBlink;
   late bool _copyOnSelect;
@@ -366,6 +367,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     }
 
     _terminalEmulation = profile.terminalEmulation;
+    _shellIntegrationEnabled = profile.sessionConfig.shellIntegration.enabled;
     _cursorShape = profile.appearance.cursor.shape;
     _cursorBlink = profile.appearance.cursor.blink;
     _copyOnSelect = profile.interaction.copyOnSelect;
@@ -799,6 +801,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       cwd: _cwdController.text.trim().isEmpty
           ? null
           : _cwdController.text.trim(),
+      sessionConfig: widget.initialValue.sessionConfig.copyWith(
+        shellIntegration: widget.initialValue.sessionConfig.shellIntegration
+            .copyWith(enabled: _shellIntegrationEnabled),
+      ),
       terminalEmulation: _terminalEmulation,
       scrollbackLines: int.parse(_scrollbackController.text.trim()),
       appearance: widget.initialValue.appearance.copyWith(
@@ -1195,6 +1201,20 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                           value ?? '',
                           'Scrollback lines',
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      ToggleSettingRow(
+                        key: const Key('profile-editor-shell-integration'),
+                        label: 'Shell integration',
+                        description:
+                            'Enable prompt marks, badges, command navigation, and shell-aware actions.',
+                        value: _shellIntegrationEnabled,
+                        onChanged: (value) {
+                          setState(() {
+                            _didEdit = true;
+                            _shellIntegrationEnabled = value;
+                          });
+                        },
                       ),
                     ],
                   ),

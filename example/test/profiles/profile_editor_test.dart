@@ -192,6 +192,14 @@ void main() {
         find.byKey(const Key('profile-editor-scrollback')),
         '12000',
       );
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-shell-integration')),
+      );
+      await tester.tap(
+        find.byKey(const Key('profile-editor-shell-integration')),
+      );
+      await tester.pump();
 
       await _ensureVisible(
         tester,
@@ -395,6 +403,7 @@ void main() {
       });
       expect(savedProfile!.terminalEmulation, TerminalEmulation.xterm256);
       expect(savedProfile!.scrollbackLines, 12000);
+      expect(savedProfile!.sessionConfig.shellIntegration.enabled, isFalse);
       expect(
         savedProfile!.appearance.font.family,
         'JetBrainsMono Nerd Font Mono',
