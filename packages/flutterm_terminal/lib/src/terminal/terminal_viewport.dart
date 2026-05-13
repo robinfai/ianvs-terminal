@@ -742,10 +742,13 @@ class _TerminalViewportState extends State<TerminalViewport>
       _syncSelectionAutoScroll();
       return;
     }
+    final mode = widget.controller.frame.modes.mouseMode;
     if (event.buttons == 0) {
+      if (mode == 'any_event') {
+        _sendAnyMouseMotion(event.position);
+      }
       return;
     }
-    final mode = widget.controller.frame.modes.mouseMode;
     if (mode != 'button_event' && mode != 'any_event') {
       return;
     }
@@ -755,6 +758,18 @@ class _TerminalViewportState extends State<TerminalViewport>
       button: _activeMouseButton! | 32,
       pressed: true,
     );
+  }
+
+  void _handlePointerHover(PointerHoverEvent event) {
+    if (!_terminalMouseEnabled ||
+        widget.controller.frame.modes.mouseMode != 'any_event') {
+      return;
+    }
+    _sendAnyMouseMotion(event.position);
+  }
+
+  void _sendAnyMouseMotion(Offset globalPosition) {
+    _sendMouseEvent(globalPosition: globalPosition, button: 35, pressed: true);
   }
 
   void _handlePointerUp(PointerUpEvent event) {
@@ -1253,6 +1268,7 @@ class _TerminalViewportState extends State<TerminalViewport>
           behavior: HitTestBehavior.opaque,
           onPointerDown: _handlePointerDown,
           onPointerMove: _handlePointerMove,
+          onPointerHover: _handlePointerHover,
           onPointerUp: _handlePointerUp,
           onPointerCancel: _handlePointerCancel,
           onPointerSignal: (event) {

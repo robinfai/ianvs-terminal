@@ -844,6 +844,71 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport sends SGR any-event hover bytes without a pressed button',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            modes: TerminalFrameModes(
+              mouseMode: 'any_event',
+              mouseEncoding: 'sgr',
+            ),
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: SelectionController(),
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(bindings),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellSize = renderObject.debugCellSize;
+      final pointer = TestPointer(14, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(
+        pointer.hover(
+          renderObject.localToGlobal(
+            Offset(cellSize.width / 2, cellSize.height / 2),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(bindings.writes, isNotEmpty);
+      expect(ascii.decode(bindings.writes.single), '\x1B[<35;1;1M');
+    },
+  );
+
+  testWidgets(
     'terminal viewport keeps local selection when mouse mode is off',
     (tester) async {
       final bindings = FakePtyBackend();
