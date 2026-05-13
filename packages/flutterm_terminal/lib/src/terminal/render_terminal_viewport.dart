@@ -110,6 +110,8 @@ final TerminalRowTextMetrics terminalFallbackRowTextMetrics =
       textHeight: terminalFallbackCellSize.height,
     );
 
+const double _smartCursorContrastRatio = 4.5;
+
 class RenderTerminalViewport extends RenderBox {
   RenderTerminalViewport({
     required TerminalViewportController controller,
@@ -152,6 +154,7 @@ class RenderTerminalViewport extends RenderBox {
   List<String> _debugLastPaintedRowTexts = const [];
   List<int> _debugLastRebuiltRowIndexes = const [];
   Rect? _debugCursorRect;
+  Color? _debugCursorColor;
   _MeasuredCellMetrics? _cachedCellMetrics;
   TerminalRowTextMetrics? _cachedMeasuredRowTextMetrics;
   int? _textMetricsSignature;
@@ -342,15 +345,18 @@ class RenderTerminalViewport extends RenderBox {
 
     if (frame.cursor.visible && _cursorVisible) {
       final cursorRect = _cursorRect(frame.cursor);
+      final cursorColor = _cursorPaintColorFor(frame);
       _debugCursorRect = cursorRect;
+      _debugCursorColor = cursorColor;
       canvas.drawRect(
         cursorRect,
         Paint()
-          ..color = _colors.cursor
+          ..color = cursorColor
           ..isAntiAlias = false,
       );
     } else {
       _debugCursorRect = null;
+      _debugCursorColor = null;
     }
     canvas.restore();
   }
@@ -369,6 +375,8 @@ class RenderTerminalViewport extends RenderBox {
     final frame = _controller.frame;
     return frame.cursor.visible && _cursorVisible;
   }
+
+  Color? get debugCursorColor => _debugCursorColor;
 
   int debugRowPictureBuildsForRow(int row) => _rowPictureBuildCounts[row] ?? 0;
 
@@ -465,6 +473,7 @@ class RenderTerminalViewport extends RenderBox {
       row.text,
       _colors.foreground.toARGB32(),
       _colors.canvasBackground.toARGB32(),
+      _colors.minimumContrastRatio,
       for (final entry in row.styleRuns)
         Object.hash(
           entry.start,
@@ -485,10 +494,14 @@ class RenderTerminalViewport extends RenderBox {
     }
 
     final textCells = TerminalTextCells.fromText(row.text);
+    final defaultForeground = _foregroundWithMinimumContrast(
+      _colors.foreground,
+      _colors.canvasBackground,
+    );
     final cellStyles = List<_ResolvedCellStyle>.filled(
       textCells.cellCount,
       _ResolvedCellStyle(
-        foreground: _colors.foreground,
+        foreground: defaultForeground,
         background: null,
         fontWeight: FontWeight.w400,
         fontStyle: FontStyle.normal,
@@ -802,6 +815,7 @@ class RenderTerminalViewport extends RenderBox {
         background,
       );
     }
+    foreground = _foregroundWithMinimumContrast(foreground, background);
 
     return _ResolvedCellStyle(
       foreground: foreground,
@@ -812,6 +826,109 @@ class RenderTerminalViewport extends RenderBox {
           ? TextDecoration.underline
           : TextDecoration.none,
     );
+  }
+
+  Color _foregroundWithMinimumContrast(Color foreground, Color background) {
+    return _foregroundWithContrastRatio(
+      foreground,
+      background,
+      _minimumContrastRatio,
+    );
+  }
+
+  Color _cursorPaintColorFor(TerminalFrameDiff frame) {
+    if (!_colors.smartCursorColor) {
+      return _colors.cursor;
+    }
+    final background = _cursorBackgroundFor(frame);
+    return _foregroundWithContrastRatio(
+      _colors.cursor,
+      background,
+      math.max(_minimumContrastRatio, _smartCursorContrastRatio),
+    );
+  }
+
+  Color _cursorBackgroundFor(TerminalFrameDiff frame) {
+    final cursor = frame.cursor;
+    final rowLayout = _rowLayoutCache[cursor.row];
+    if (rowLayout == null) {
+      return _colors.canvasBackground;
+    }
+    for (final cell in rowLayout.cells) {
+      if (cursor.col >= cell.column &&
+          cursor.col < cell.column + cell.columnSpan) {
+        return cell.background ?? _colors.canvasBackground;
+      }
+    }
+    return _colors.canvasBackground;
+  }
+
+  double get _minimumContrastRatio =>
+      _colors.minimumContrastRatio.clamp(1.0, 21.0).toDouble();
+
+  Color _foregroundWithContrastRatio(
+    Color foreground,
+    Color background,
+    double ratio,
+  ) {
+    final targetRatio = ratio.clamp(1.0, 21.0).toDouble();
+    if (targetRatio <= 1 ||
+        _contrastRatio(foreground, background) >= targetRatio) {
+      return foreground;
+    }
+
+    const black = Color(0xFF000000);
+    const white = Color(0xFFFFFFFF);
+    final target =
+        _contrastRatio(black, background) >= _contrastRatio(white, background)
+        ? black
+        : white;
+    var low = 0.0;
+    var high = 1.0;
+    var best = target;
+    for (var step = 0; step < 16; step += 1) {
+      final midpoint = (low + high) / 2;
+      final candidate = Color.lerp(foreground, target, midpoint)!;
+      if (_contrastRatio(candidate, background) >= targetRatio) {
+        best = candidate;
+        high = midpoint;
+      } else {
+        low = midpoint;
+      }
+    }
+    return best;
+  }
+
+  double _contrastRatio(Color foreground, Color background) {
+    final effectiveForeground = _opaqueColorOnBackground(
+      foreground,
+      background,
+    );
+    final foregroundLuminance = _relativeLuminance(effectiveForeground);
+    final backgroundLuminance = _relativeLuminance(background);
+    final lighter = math.max(foregroundLuminance, backgroundLuminance);
+    final darker = math.min(foregroundLuminance, backgroundLuminance);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  Color _opaqueColorOnBackground(Color color, Color background) {
+    if (color.a >= 1) {
+      return color;
+    }
+    return Color.alphaBlend(color, background);
+  }
+
+  double _relativeLuminance(Color color) {
+    return 0.2126 * _linearizedColorComponent(color.r) +
+        0.7152 * _linearizedColorComponent(color.g) +
+        0.0722 * _linearizedColorComponent(color.b);
+  }
+
+  double _linearizedColorComponent(double component) {
+    if (component <= 0.03928) {
+      return component / 12.92;
+    }
+    return math.pow((component + 0.055) / 1.055, 2.4).toDouble();
   }
 
   _CachedGlyphParagraph _glyphParagraphFor(

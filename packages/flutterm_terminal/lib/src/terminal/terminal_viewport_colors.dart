@@ -8,6 +8,8 @@ class TerminalViewportColors {
     required this.selection,
     required this.scrollbarTrack,
     required this.scrollbarThumb,
+    this.minimumContrastRatio = 1,
+    this.smartCursorColor = false,
   });
 
   static const light = TerminalViewportColors(
@@ -42,6 +44,8 @@ class TerminalViewportColors {
   final Color selection;
   final Color scrollbarTrack;
   final Color scrollbarThumb;
+  final double minimumContrastRatio;
+  final bool smartCursorColor;
 
   TerminalViewportColors copyWith({
     Color? canvasBackground,
@@ -50,6 +54,8 @@ class TerminalViewportColors {
     Color? selection,
     Color? scrollbarTrack,
     Color? scrollbarThumb,
+    double? minimumContrastRatio,
+    bool? smartCursorColor,
   }) {
     return TerminalViewportColors(
       canvasBackground: canvasBackground ?? this.canvasBackground,
@@ -58,6 +64,8 @@ class TerminalViewportColors {
       selection: selection ?? this.selection,
       scrollbarTrack: scrollbarTrack ?? this.scrollbarTrack,
       scrollbarThumb: scrollbarThumb ?? this.scrollbarThumb,
+      minimumContrastRatio: minimumContrastRatio ?? this.minimumContrastRatio,
+      smartCursorColor: smartCursorColor ?? this.smartCursorColor,
     );
   }
 
@@ -69,7 +77,9 @@ class TerminalViewportColors {
         other.cursor == cursor &&
         other.selection == selection &&
         other.scrollbarTrack == scrollbarTrack &&
-        other.scrollbarThumb == scrollbarThumb;
+        other.scrollbarThumb == scrollbarThumb &&
+        other.minimumContrastRatio == minimumContrastRatio &&
+        other.smartCursorColor == smartCursorColor;
   }
 
   @override
@@ -80,6 +90,8 @@ class TerminalViewportColors {
     selection,
     scrollbarTrack,
     scrollbarThumb,
+    minimumContrastRatio,
+    smartCursorColor,
   );
 }
 

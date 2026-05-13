@@ -123,6 +123,8 @@ void main() {
         lightDefaults.foreground.toARGB32(),
         const Color(0xFF111111).toARGB32(),
       );
+      expect(lightDefaults.minimumContrastRatio, 4.5);
+      expect(lightDefaults.smartCursorColor, isTrue);
 
       final overridden = resolveTerminalColors(
         lightContext,

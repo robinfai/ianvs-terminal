@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -2184,6 +2185,53 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport raises low-contrast foregrounds against cell backgrounds',
+    (tester) async {
+      const background = Color(0xFF202020);
+      const foreground = Color(0xFF222222);
+      final colors = TerminalViewportColors.dark.copyWith(
+        minimumContrastRatio: 4.5,
+      );
+      final renderObject = await _pumpThemedTerminalViewport(
+        tester,
+        themeMode: ThemeMode.dark,
+        colors: colors,
+        frame: const TerminalFrameDiff(
+          rows: [
+            TerminalRow(
+              index: 0,
+              text: 'x',
+              styleRuns: [
+                TerminalStyleRun(
+                  start: 0,
+                  end: 1,
+                  foreground: foreground,
+                  background: background,
+                ),
+              ],
+            ),
+          ],
+          cursor: TerminalCursor(row: 0, col: 1, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      final cell = renderObject.debugResolvedCellsForRow(0).single;
+
+      expect(cell.background?.toARGB32(), background.toARGB32());
+      expect(cell.foreground.toARGB32(), isNot(foreground.toARGB32()));
+      expect(
+        _testContrastRatio(cell.foreground, background),
+        greaterThanOrEqualTo(4.5),
+      );
+    },
+  );
+
+  testWidgets(
     'terminal viewport keeps the debug1 Codex box right border at the same dim color as the left border',
     (tester) async {
       const boundaryKey = Key('debug1-codex-box-boundary');
@@ -3746,6 +3794,51 @@ void main() {
     expect(cursorRect.top, 0);
   });
 
+  testWidgets('terminal viewport adjusts cursor color against the cell below', (
+    tester,
+  ) async {
+    const background = Color(0xFF123456);
+    final renderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.dark,
+      colors: TerminalViewportColors.dark.copyWith(
+        cursor: background,
+        minimumContrastRatio: 4.5,
+        smartCursorColor: true,
+      ),
+      frame: const TerminalFrameDiff(
+        rows: [
+          TerminalRow(
+            index: 0,
+            text: 'x',
+            styleRuns: [
+              TerminalStyleRun(
+                start: 0,
+                end: 1,
+                foreground: Color(0xFFFFFFFF),
+                background: background,
+              ),
+            ],
+          ),
+        ],
+        cursor: TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    final cursorColor = renderObject.debugCursorColor!;
+
+    expect(cursorColor.toARGB32(), isNot(background.toARGB32()));
+    expect(
+      _testContrastRatio(cursorColor, background),
+      greaterThanOrEqualTo(4.5),
+    );
+  });
+
   testWidgets('terminal viewport paints underline cursor overrides', (
     tester,
   ) async {
@@ -4560,4 +4653,29 @@ void _expectRectSnapped(Rect rect, double devicePixelRatio) {
   expect(_isSnappedToDevicePixel(rect.top, devicePixelRatio), isTrue);
   expect(_isSnappedToDevicePixel(rect.right, devicePixelRatio), isTrue);
   expect(_isSnappedToDevicePixel(rect.bottom, devicePixelRatio), isTrue);
+}
+
+double _testContrastRatio(Color foreground, Color background) {
+  final foregroundLuminance = _testRelativeLuminance(foreground);
+  final backgroundLuminance = _testRelativeLuminance(background);
+  final lighter = foregroundLuminance >= backgroundLuminance
+      ? foregroundLuminance
+      : backgroundLuminance;
+  final darker = foregroundLuminance < backgroundLuminance
+      ? foregroundLuminance
+      : backgroundLuminance;
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+double _testRelativeLuminance(Color color) {
+  return 0.2126 * _testLinearizedColorComponent(color.r) +
+      0.7152 * _testLinearizedColorComponent(color.g) +
+      0.0722 * _testLinearizedColorComponent(color.b);
+}
+
+double _testLinearizedColorComponent(double component) {
+  if (component <= 0.03928) {
+    return component / 12.92;
+  }
+  return math.pow((component + 0.055) / 1.055, 2.4).toDouble();
 }

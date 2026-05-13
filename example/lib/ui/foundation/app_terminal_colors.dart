@@ -13,7 +13,9 @@ AppTerminalColors resolveTerminalColors(
   BuildContext context, {
   TerminalProfileAppearance? profileAppearance,
 }) {
-  final base = TerminalViewportColors.fromBrightness(Theme.of(context).brightness);
+  final base = TerminalViewportColors.fromBrightness(
+    Theme.of(context).brightness,
+  );
   final overrides = profileAppearance?.colors;
   return AppTerminalColors(
     viewport: base.copyWith(
@@ -23,6 +25,8 @@ AppTerminalColors resolveTerminalColors(
       foreground: terminalViewportColorFromHex(overrides?.special.foreground),
       cursor: terminalViewportColorFromHex(overrides?.special.cursor),
       selection: terminalViewportColorFromHex(overrides?.special.selection),
+      minimumContrastRatio: 4.5,
+      smartCursorColor: true,
     ),
   );
 }
