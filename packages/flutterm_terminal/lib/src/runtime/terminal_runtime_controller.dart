@@ -51,6 +51,15 @@ final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
   String? get command => _stringValue(rawPayload['command']);
   String? get cwd => _stringValue(rawPayload['cwd'] ?? rawPayload['pwd']);
   String? get shell => _stringValue(rawPayload['shell']);
+  String? get hostname =>
+      _stringValue(rawPayload['hostname'] ?? rawPayload['host']);
+  String? get username =>
+      _stringValue(rawPayload['username'] ?? rawPayload['user']);
+  int? get promptScrollbackOffset => _intValue(
+    rawPayload['promptScrollbackOffset'] ??
+        rawPayload['prompt_scrollback_offset'] ??
+        rawPayload['scrollback_offset'],
+  );
   int? get exitCode =>
       _intValue(rawPayload['exitCode'] ?? rawPayload['exit_code']);
 

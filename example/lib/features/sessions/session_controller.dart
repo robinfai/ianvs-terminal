@@ -371,6 +371,7 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionBellEvent():
         break;
       case TerminalSessionShellHookEvent():
+        _applyShellHook(event);
         break;
     }
   }
@@ -394,6 +395,133 @@ class SessionController extends Notifier<SessionState> {
       terminalHasVisibleContent: preview != null,
       terminalPreview: preview,
     );
+  }
+
+  void _applyShellHook(TerminalSessionShellHookEvent event) {
+    final tabIndex = _tabIndexContainingSession(event.sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+
+    final currentTab = state.tabs[tabIndex];
+    final currentPane = currentTab.paneFor(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+
+    final nextIntegration = _shellIntegrationForHook(
+      currentPane.shellIntegration,
+      event,
+    );
+    final nextTabs = <TerminalTab>[...state.tabs];
+    if (currentTab.panes.isEmpty && currentTab.sessionId == event.sessionId) {
+      nextTabs[tabIndex] = currentTab.copyWith(
+        shellIntegration: nextIntegration,
+      );
+    } else {
+      nextTabs[tabIndex] = currentTab.copyWith(
+        panes: [
+          for (final pane in currentTab.effectivePanes)
+            if (pane.sessionId == event.sessionId)
+              pane.copyWith(shellIntegration: nextIntegration)
+            else
+              pane,
+        ],
+      );
+    }
+    state = state.copyWith(tabs: nextTabs);
+  }
+
+  TerminalShellIntegrationSnapshot _shellIntegrationForHook(
+    TerminalShellIntegrationSnapshot current,
+    TerminalSessionShellHookEvent event,
+  ) {
+    final command = _trimShellHookValue(event.command);
+    final cwd = _trimShellHookValue(event.cwd);
+    final hostname = _trimShellHookValue(event.hostname);
+    final username = _trimShellHookValue(event.username);
+    final shell = _trimShellHookValue(event.shell);
+    final nextCommands = _prependRecentShellValue(
+      current.recentCommands,
+      command,
+      limit: 40,
+    );
+    final nextDirectories = _prependRecentShellValue(
+      current.recentDirectories,
+      cwd,
+      limit: 40,
+    );
+    final nextCurrentDirectory = cwd ?? current.currentDirectory;
+    final nextPromptMarks = _promptMarksForHook(
+      current.promptMarks,
+      event,
+      command: command ?? current.lastCommand,
+      cwd: nextCurrentDirectory,
+    );
+
+    return current.copyWith(
+      currentDirectory: nextCurrentDirectory,
+      hostname: hostname ?? current.hostname,
+      username: username ?? current.username,
+      shell: shell ?? current.shell,
+      lastCommand: command ?? current.lastCommand,
+      lastExitCode: event.exitCode ?? current.lastExitCode,
+      recentCommands: nextCommands,
+      recentDirectories: nextDirectories,
+      promptMarks: nextPromptMarks,
+    );
+  }
+
+  List<TerminalShellPromptMark> _promptMarksForHook(
+    List<TerminalShellPromptMark> current,
+    TerminalSessionShellHookEvent event, {
+    required String? command,
+    required String? cwd,
+  }) {
+    final promptOffset = event.promptScrollbackOffset;
+    if (promptOffset == null || promptOffset < 0) {
+      return current;
+    }
+
+    final nextMarks = <TerminalShellPromptMark>[
+      for (final mark in current)
+        if (mark.scrollbackOffset != promptOffset) mark,
+      TerminalShellPromptMark(
+        scrollbackOffset: promptOffset,
+        command: command,
+        cwd: cwd,
+      ),
+    ];
+    final boundedMarks = nextMarks.length > 100
+        ? nextMarks.sublist(nextMarks.length - 100)
+        : nextMarks;
+    boundedMarks.sort(
+      (a, b) => a.scrollbackOffset.compareTo(b.scrollbackOffset),
+    );
+    return boundedMarks;
+  }
+
+  List<String> _prependRecentShellValue(
+    List<String> current,
+    String? value, {
+    required int limit,
+  }) {
+    if (value == null) {
+      return current;
+    }
+    return <String>[
+      value,
+      for (final existing in current)
+        if (existing != value) existing,
+    ].take(limit).toList(growable: false);
+  }
+
+  String? _trimShellHookValue(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    return trimmed;
   }
 
   void _publishDemoContent(SessionDemoFixture fixture, String? sessionId) {

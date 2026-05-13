@@ -54,6 +54,8 @@ enum _ShellShortcutAction {
   openDefaults,
   requestQuitConfirmation,
   activateTab,
+  previousPrompt,
+  nextPrompt,
 }
 
 class _ShellShortcut {
@@ -606,6 +608,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyR) {
       return const _ShellShortcut(_ShellShortcutAction.instantReplay);
+    }
+
+    if (usesAppModifier &&
+        isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      return const _ShellShortcut(_ShellShortcutAction.previousPrompt);
+    }
+
+    if (usesAppModifier &&
+        isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      return const _ShellShortcut(_ShellShortcutAction.nextPrompt);
     }
 
     if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
@@ -1521,7 +1535,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   void _openAutocomplete() {
-    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    final sessionState = ref.read(sessionControllerProvider);
+    final activeSessionId = sessionState.activeSessionId;
     if (activeSessionId == null) {
       return;
     }
@@ -1530,7 +1545,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         .viewportFor(activeSessionId)
         .frame;
     final prefix = _autocompletePrefixForFrame(frame);
-    final suggestions = _autocompleteSuggestionsForFrame(frame, prefix);
+    final suggestions = _mergeAutocompleteSuggestions([
+      _shellCommandAutocompleteSuggestions(
+        sessionState,
+        activeSessionId,
+        prefix,
+      ),
+      _autocompleteSuggestionsForFrame(frame, prefix),
+    ]);
     if (suggestions.isEmpty) {
       return;
     }
@@ -1599,6 +1621,77 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return suggestions;
   }
 
+  List<String> _shellCommandAutocompleteSuggestions(
+    SessionState sessionState,
+    String sessionId,
+    String prefix,
+  ) {
+    final pane = _paneForSession(sessionState, sessionId);
+    if (pane == null) {
+      return const <String>[];
+    }
+    final normalizedPrefix = prefix.toLowerCase();
+    final seen = <String>{};
+    final suggestions = <String>[];
+    final wordPattern = RegExp(r'[A-Za-z0-9_./:-]{2,}');
+    for (final command in pane.shellIntegration.recentCommands) {
+      final normalizedCommand = command.toLowerCase();
+      if (command != prefix &&
+          command.length > prefix.length &&
+          (normalizedPrefix.isEmpty ||
+              normalizedCommand.startsWith(normalizedPrefix)) &&
+          seen.add(normalizedCommand)) {
+        suggestions.add(command);
+        if (suggestions.length >= 8) {
+          return suggestions;
+        }
+      }
+      for (final match in wordPattern.allMatches(command)) {
+        final word = match.group(0)!;
+        final normalizedWord = word.toLowerCase();
+        if (word == prefix ||
+            (normalizedPrefix.isNotEmpty &&
+                !normalizedWord.startsWith(normalizedPrefix)) ||
+            word.length <= prefix.length ||
+            !seen.add(normalizedWord)) {
+          continue;
+        }
+        suggestions.add(word);
+        if (suggestions.length >= 8) {
+          return suggestions;
+        }
+      }
+    }
+    return suggestions;
+  }
+
+  List<String> _mergeAutocompleteSuggestions(List<List<String>> groups) {
+    final seen = <String>{};
+    final merged = <String>[];
+    for (final group in groups) {
+      for (final suggestion in group) {
+        if (!seen.add(suggestion.toLowerCase())) {
+          continue;
+        }
+        merged.add(suggestion);
+        if (merged.length >= 8) {
+          return merged;
+        }
+      }
+    }
+    return merged;
+  }
+
+  TerminalPane? _paneForSession(SessionState sessionState, String sessionId) {
+    for (final tab in sessionState.tabs) {
+      final pane = tab.paneFor(sessionId);
+      if (pane != null) {
+        return pane;
+      }
+    }
+    return null;
+  }
+
   void _moveAutocompleteSelection(int delta) {
     if (_autocompleteSuggestions.isEmpty) {
       return;
@@ -1638,6 +1731,55 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           .sendInput(activeSessionId, Uint8List.fromList(utf8.encode(suffix)));
     }
     _closeAutocomplete();
+  }
+
+  void _navigateShellPrompt(String sessionId, {required int direction}) {
+    final sessionState = ref.read(sessionControllerProvider);
+    final pane = _paneForSession(sessionState, sessionId);
+    final promptMarks = pane?.shellIntegration.promptMarks;
+    if (promptMarks == null || promptMarks.isEmpty) {
+      return;
+    }
+
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(sessionId)
+        .frame;
+    final target = _shellPromptNavigationTarget(
+      promptMarks,
+      frame.scrollbackOffset,
+      direction: direction,
+    );
+    if (target == null) {
+      return;
+    }
+
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .scrollViewportTo(sessionId, target.scrollbackOffset);
+    _focusSession(sessionId);
+  }
+
+  TerminalShellPromptMark? _shellPromptNavigationTarget(
+    List<TerminalShellPromptMark> marks,
+    int currentOffset, {
+    required int direction,
+  }) {
+    if (direction < 0) {
+      for (final mark in marks) {
+        if (mark.scrollbackOffset > currentOffset) {
+          return mark;
+        }
+      }
+      return marks.last;
+    }
+
+    for (final mark in marks.reversed) {
+      if (mark.scrollbackOffset < currentOffset) {
+        return mark;
+      }
+    }
+    return marks.first;
   }
 
   Future<void> _openDefaultsAndAppearance(
@@ -2383,6 +2525,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             return KeyEventResult.handled;
           }
           unawaited(_openInstantReplay(sessionState));
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.previousPrompt:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _navigateShellPrompt(activeSessionId, direction: -1);
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.nextPrompt:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _navigateShellPrompt(activeSessionId, direction: 1);
           return KeyEventResult.handled;
         case _ShellShortcutAction.closeActiveTab:
           if (activeSessionId == null) {

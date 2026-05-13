@@ -1101,6 +1101,134 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets(
+    'command-semicolon autocompletes from shell integration command history',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'git che', 'style_runs': const []},
+        ],
+        'cursor': {'row': 0, 'col': 7, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'git checkout feature/login',
+            'pwd': '/Users/dev/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.semicolon);
+
+      expect(
+        find.byKey(const Key('terminal-autocomplete-menu')),
+        findsOneWidget,
+      );
+      expect(find.text('checkout'), findsOneWidget);
+
+      await tester.tap(find.text('checkout'));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, utf8.encode('ckout'));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shift-command arrows navigate shell integration prompt marks',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 9,
+            'pwd': '/Users/dev/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 27,
+            'pwd': '/Users/dev/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.arrowUp);
+
+      expect(fakeBindings.scrollToCalls.last, [1, 9]);
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'old prompt', 'style_runs': const []},
+        ],
+        'cursor': {'row': 0, 'col': 10, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 27,
+        'scrollback_max_offset': 40,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.arrowDown);
+
+      expect(fakeBindings.scrollToCalls.last, [1, 9]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('command menu hotkey window invokes the window bridge', (
     tester,
   ) async {

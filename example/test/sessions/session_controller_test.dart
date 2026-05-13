@@ -623,6 +623,88 @@ void main() {
     expect(container.read(sessionControllerProvider).tabs.single.title, '构建目标');
   });
 
+  testWidgets(
+    'shell hook metadata updates per-session shell integration state',
+    (tester) async {
+      final bindings = _EventfulPtyBackend(FakePtyBackend());
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(
+        defaultTerminalProfile().copyWith(id: 'shell-1'),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      await tester.pump();
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'shell_hook',
+        'payload': const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'git status',
+          'pwd': '/tmp/project',
+          'shell': 'zsh',
+          'host': 'workstation.local',
+          'user': 'dev',
+          'exit_code': 0,
+          'prompt_scrollback_offset': 12,
+        },
+      });
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'shell_hook',
+        'payload': const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'dart test',
+          'cwd': '/tmp/project',
+          'prompt_scrollback_offset': 36,
+        },
+      });
+
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+
+      final shellIntegration = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .shellIntegration;
+      expect(shellIntegration.currentDirectory, '/tmp/project');
+      expect(shellIntegration.shell, 'zsh');
+      expect(shellIntegration.hostname, 'workstation.local');
+      expect(shellIntegration.username, 'dev');
+      expect(shellIntegration.lastCommand, 'dart test');
+      expect(shellIntegration.lastExitCode, 0);
+      expect(shellIntegration.recentCommands, <String>[
+        'dart test',
+        'git status',
+      ]);
+      expect(shellIntegration.recentDirectories, <String>['/tmp/project']);
+      expect(
+        shellIntegration.promptMarks
+            .map((mark) => mark.scrollbackOffset)
+            .toList(),
+        <int>[12, 36],
+      );
+    },
+  );
+
   test(
     'resize events update the terminal session before resizing the macOS window',
     () async {

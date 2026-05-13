@@ -273,6 +273,9 @@ void main() {
           'command': 'echo ok',
           'pwd': '/tmp/project',
           'shell': 'zsh',
+          'hostname': 'buildbox.local',
+          'username': 'dev',
+          'prompt_scrollback_offset': 17,
           'exit_code': 7,
           'extra': <String, Object?>{'kept': true},
         },
@@ -289,6 +292,9 @@ void main() {
     expect(event.command, 'echo ok');
     expect(event.cwd, '/tmp/project');
     expect(event.shell, 'zsh');
+    expect(event.hostname, 'buildbox.local');
+    expect(event.username, 'dev');
+    expect(event.promptScrollbackOffset, 17);
     expect(event.exitCode, 7);
   });
 
