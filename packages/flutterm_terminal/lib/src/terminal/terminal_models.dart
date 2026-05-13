@@ -764,6 +764,7 @@ List<_TerminalGraphemeCluster> _terminalGraphemeClusters(String text) {
   var clusterStart = 0;
   var codeUnitOffset = 0;
   var previousWasJoiner = false;
+  var regionalIndicatorRunLength = 0;
 
   void flushCurrentCluster() {
     if (buffer.isEmpty) {
@@ -782,15 +783,23 @@ List<_TerminalGraphemeCluster> _terminalGraphemeClusters(String text) {
 
   for (final rune in text.runes) {
     final runeText = String.fromCharCode(rune);
+    final isRegionalIndicator = _isRegionalIndicatorRune(rune);
     final attachesToPrevious =
-        buffer.isNotEmpty && (_isZeroWidthRune(rune) || previousWasJoiner);
+        buffer.isNotEmpty &&
+        (_isZeroWidthRune(rune) ||
+            previousWasJoiner ||
+            (isRegionalIndicator && regionalIndicatorRunLength.isOdd));
     if (!attachesToPrevious) {
       flushCurrentCluster();
       clusterStart = codeUnitOffset;
+      regionalIndicatorRunLength = 0;
     }
     buffer.write(runeText);
     codeUnitOffset += runeText.length;
     previousWasJoiner = rune == 0x200D;
+    regionalIndicatorRunLength = isRegionalIndicator
+        ? regionalIndicatorRunLength + 1
+        : 0;
   }
   flushCurrentCluster();
   return clusters;
@@ -1001,6 +1010,10 @@ bool _isWideRune(int rune) {
       (rune >= 0x1F300 && rune <= 0x1FAFF) ||
       (rune >= 0x20000 && rune <= 0x2FFFD) ||
       (rune >= 0x30000 && rune <= 0x3FFFD);
+}
+
+bool _isRegionalIndicatorRune(int rune) {
+  return rune >= 0x1F1E6 && rune <= 0x1F1FF;
 }
 
 class _TerminalGraphemeCluster {

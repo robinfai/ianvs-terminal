@@ -9,4 +9,7 @@ const List<String> terminalFontFamilyFallback = <String>[
   'SF Mono',
   'Monaco',
   'Apple Symbols',
+  'Apple Color Emoji',
+  'Segoe UI Emoji',
+  'Noto Color Emoji',
 ];
