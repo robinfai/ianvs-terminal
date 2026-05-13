@@ -27,6 +27,7 @@ enum _ShellCommandAction {
   copy,
   paste,
   search,
+  hotkeyWindow,
   defaults,
   profiles,
 }
@@ -194,6 +195,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   String _splitDownShortcutLabel() {
     return _usesMetaShortcuts ? '⌘⇧D' : 'Ctrl+Shift+D';
+  }
+
+  String _hotkeyWindowShortcutLabel() {
+    return _usesMetaShortcuts ? '⌥⌘Space' : 'Alt+Ctrl+Space';
   }
 
   String _sessionCopyShortcutLabel() {
@@ -907,6 +912,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   newTabShortcutLabel: _newTabShortcutLabel(),
                   splitRightShortcutLabel: _splitRightShortcutLabel(),
                   splitDownShortcutLabel: _splitDownShortcutLabel(),
+                  hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
                   sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                   sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
@@ -937,6 +943,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     newTabShortcutLabel: _newTabShortcutLabel(),
                     splitRightShortcutLabel: _splitRightShortcutLabel(),
                     splitDownShortcutLabel: _splitDownShortcutLabel(),
+                    hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
                     sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                     sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
@@ -1025,6 +1032,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return;
         }
         _openSearch();
+        return;
+      case _ShellCommandAction.hotkeyWindow:
+        await WindowBridge.toggleHotkeyWindow();
         return;
       case _ShellCommandAction.defaults:
         await _openDefaultsAndAppearance(sessionController, sessionState);
@@ -2038,6 +2048,7 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.newTabShortcutLabel,
     required this.splitRightShortcutLabel,
     required this.splitDownShortcutLabel,
+    required this.hotkeyWindowShortcutLabel,
     required this.sessionCopyShortcutLabel,
     required this.sessionPasteShortcutLabel,
     required this.hasDefaultProfile,
@@ -2048,6 +2059,7 @@ class _ShellCommandMenu extends StatelessWidget {
   final String newTabShortcutLabel;
   final String splitRightShortcutLabel;
   final String splitDownShortcutLabel;
+  final String hotkeyWindowShortcutLabel;
   final String sessionCopyShortcutLabel;
   final String sessionPasteShortcutLabel;
   final bool hasDefaultProfile;
@@ -2218,6 +2230,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.splitDown),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-hotkey-window'),
+                    icon: Icons.keyboard_rounded,
+                    title: 'Hotkey window',
+                    subtitle: 'App action • Hide or summon the shell window.',
+                    shortcutLabel: hotkeyWindowShortcutLabel,
+                    enabled: true,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.hotkeyWindow),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),

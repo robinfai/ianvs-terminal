@@ -496,6 +496,45 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets('command menu hotkey window invokes the window bridge', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final windowBridgeCalls = <MethodCall>[];
+    const channel = MethodChannel('app/window_bridge');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      windowBridgeCalls.add(call);
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Hotkey window'));
+    await tester.tap(find.text('Hotkey window'));
+    await tester.pumpAndSettle();
+
+    expect(
+      windowBridgeCalls.map((call) => call.method),
+      contains('toggleHotkeyWindow'),
+    );
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'command-w closes the active tab without leaking input',
     (tester) async {

@@ -45,6 +45,34 @@ class WindowBridge {
     }
   }
 
+  static Future<void> toggleHotkeyWindow() async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('toggleHotkeyWindow');
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  static Future<HotkeyWindowStatus?> hotkeyStatus() async {
+    if (BindingBase.debugBindingType() == null) {
+      return null;
+    }
+    try {
+      final status = await _channel.invokeMapMethod<String, Object?>(
+        'hotkeyStatus',
+      );
+      if (status == null) {
+        return null;
+      }
+      return HotkeyWindowStatus.fromMap(status);
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   static Future<void> openExternalUrl(String url) async {
     if (BindingBase.debugBindingType() == null) {
       return;
@@ -54,5 +82,25 @@ class WindowBridge {
     } on MissingPluginException {
       return;
     }
+  }
+}
+
+class HotkeyWindowStatus {
+  const HotkeyWindowStatus({
+    required this.registered,
+    required this.shortcut,
+    this.errorCode,
+  });
+
+  final bool registered;
+  final String shortcut;
+  final int? errorCode;
+
+  factory HotkeyWindowStatus.fromMap(Map<String, Object?> map) {
+    return HotkeyWindowStatus(
+      registered: map['registered'] == true,
+      shortcut: map['shortcut'] as String? ?? '⌥⌘Space',
+      errorCode: map['errorCode'] as int?,
+    );
   }
 }
