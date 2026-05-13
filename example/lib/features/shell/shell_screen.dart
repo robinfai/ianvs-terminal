@@ -28,6 +28,7 @@ import 'window_bridge.dart';
 
 enum _ShellCommandAction {
   newTab,
+  toolbelt,
   splitRight,
   splitDown,
   copy,
@@ -246,6 +247,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isSearchOpen = false;
   bool _isAutocompleteOpen = false;
   bool _isCopyModeOpen = false;
+  bool _isToolbeltOpen = false;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showWorkspaceCue = false;
@@ -548,6 +550,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     if (_isCommandMenuOpen) {
       return 'commandMenu';
+    }
+    if (_isToolbeltOpen) {
+      return 'toolbelt';
     }
     return 'none';
   }
@@ -892,6 +897,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _isSearchOpen = false;
       _isAutocompleteOpen = false;
       _isCopyModeOpen = false;
+      _isToolbeltOpen = false;
       _searchQuery = '';
       _searchMatches = const [];
       _activeSearchIndex = 0;
@@ -2423,6 +2429,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           returningToWorkspace: activeSessionIdBeforeOpen == null,
         );
         return;
+      case _ShellCommandAction.toolbelt:
+        setState(() {
+          _isToolbeltOpen = true;
+        });
+        return;
       case _ShellCommandAction.splitRight:
         if (defaultProfile == null || currentSessionId == null) {
           return;
@@ -3096,14 +3107,67 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           )
                         : KeyedSubtree(
                             key: ValueKey(activeTab.sessionId),
-                            child: _buildTerminalWorkspace(
-                              context: context,
-                              sessionController: sessionController,
-                              sessionState: sessionState,
-                              activeTab: activeTab,
-                              activeSessionId: activeSessionId,
-                              palette: palette,
-                              onHostKeyEvent: handleShellShortcut,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _buildTerminalWorkspace(
+                                    context: context,
+                                    sessionController: sessionController,
+                                    sessionState: sessionState,
+                                    activeTab: activeTab,
+                                    activeSessionId: activeSessionId,
+                                    palette: palette,
+                                    onHostKeyEvent: handleShellShortcut,
+                                  ),
+                                ),
+                                if (_isToolbeltOpen)
+                                  _ShellToolbelt(
+                                    capturedOutputCount:
+                                        _capturedOutputForSession(
+                                          activeSessionId,
+                                        ).length,
+                                    pasteHistoryCount:
+                                        _pasteHistoryEntries.length,
+                                    annotationCount: _annotationsForSession(
+                                      activeSessionId,
+                                    ).length,
+                                    palette: palette,
+                                    onClose: () {
+                                      setState(() {
+                                        _isToolbeltOpen = false;
+                                      });
+                                    },
+                                    onOpenCapturedOutput: () => unawaited(
+                                      _openCapturedOutput(activeSessionId),
+                                    ),
+                                    onOpenPasteHistory: () => unawaited(
+                                      _openPasteHistory(sessionState),
+                                    ),
+                                    onOpenAnnotations: () {
+                                      final selectionController =
+                                          _selectionControllers.putIfAbsent(
+                                            activeSessionId,
+                                            SelectionController.new,
+                                          );
+                                      unawaited(
+                                        _openAnnotations(
+                                          sessionController,
+                                          activeSessionId,
+                                          selectionController,
+                                        ),
+                                      );
+                                    },
+                                    onOpenInstantReplay: () => unawaited(
+                                      _openInstantReplay(sessionState),
+                                    ),
+                                    onOpenPasswordManager: () => unawaited(
+                                      _openPasswordManager(
+                                        sessionController,
+                                        activeSessionId,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                   ),
@@ -3113,6 +3177,168 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ShellToolbelt extends StatelessWidget {
+  const _ShellToolbelt({
+    required this.capturedOutputCount,
+    required this.pasteHistoryCount,
+    required this.annotationCount,
+    required this.palette,
+    required this.onClose,
+    required this.onOpenCapturedOutput,
+    required this.onOpenPasteHistory,
+    required this.onOpenAnnotations,
+    required this.onOpenInstantReplay,
+    required this.onOpenPasswordManager,
+  });
+
+  final int capturedOutputCount;
+  final int pasteHistoryCount;
+  final int annotationCount;
+  final AppThemeTokens palette;
+  final VoidCallback onClose;
+  final VoidCallback onOpenCapturedOutput;
+  final VoidCallback onOpenPasteHistory;
+  final VoidCallback onOpenAnnotations;
+  final VoidCallback onOpenInstantReplay;
+  final VoidCallback onOpenPasswordManager;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('shell-toolbelt-panel'),
+      width: 280,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.chrome,
+          border: Border(left: BorderSide(color: palette.border)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Toolbelt',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              color: palette.textPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('toolbelt-close'),
+                      tooltip: 'Close toolbelt',
+                      onPressed: onClose,
+                      visualDensity: VisualDensity.compact,
+                      splashRadius: 16,
+                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                _ToolbeltActionRow(
+                  key: const Key('toolbelt-captured-output'),
+                  icon: Icons.outbox_rounded,
+                  title: 'Captured output',
+                  countLabel:
+                      '$capturedOutputCount captured line${capturedOutputCount == 1 ? '' : 's'}',
+                  palette: palette,
+                  onTap: onOpenCapturedOutput,
+                ),
+                _ToolbeltActionRow(
+                  key: const Key('toolbelt-paste-history'),
+                  icon: Icons.history_rounded,
+                  title: 'Paste history',
+                  countLabel:
+                      '$pasteHistoryCount recent item${pasteHistoryCount == 1 ? '' : 's'}',
+                  palette: palette,
+                  onTap: onOpenPasteHistory,
+                ),
+                _ToolbeltActionRow(
+                  key: const Key('toolbelt-annotations'),
+                  icon: Icons.sticky_note_2_rounded,
+                  title: 'Annotations',
+                  countLabel:
+                      '$annotationCount note${annotationCount == 1 ? '' : 's'}',
+                  palette: palette,
+                  onTap: onOpenAnnotations,
+                ),
+                Divider(color: palette.border, height: 18),
+                _ToolbeltActionRow(
+                  key: const Key('toolbelt-instant-replay'),
+                  icon: Icons.replay_rounded,
+                  title: 'Instant replay',
+                  countLabel: 'Recent frames',
+                  palette: palette,
+                  onTap: onOpenInstantReplay,
+                ),
+                _ToolbeltActionRow(
+                  key: const Key('toolbelt-password-manager'),
+                  icon: Icons.password_rounded,
+                  title: 'Password manager',
+                  countLabel: 'Prompt-gated sends',
+                  palette: palette,
+                  onTap: onOpenPasswordManager,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolbeltActionRow extends StatelessWidget {
+  const _ToolbeltActionRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.countLabel,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String countLabel;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      leading: Icon(icon, color: palette.textMuted, size: 20),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      subtitle: Text(
+        countLabel,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+      ),
+      onTap: onTap,
     );
   }
 }
@@ -5430,6 +5656,9 @@ class _ShellCommandMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
+    final maxMenuHeight = (MediaQuery.sizeOf(context).height - 24)
+        .clamp(360.0, 560.0)
+        .toDouble();
 
     Widget sectionLabel(String text) {
       return Padding(
@@ -5452,7 +5681,7 @@ class _ShellCommandMenu extends StatelessWidget {
       key: const Key('shell-command-menu-overlay'),
       color: Colors.transparent,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340, maxHeight: 460),
+        constraints: BoxConstraints(maxWidth: 340, maxHeight: maxMenuHeight),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: palette.overlay,
@@ -5509,6 +5738,15 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasDefaultProfile,
                     onTap: () =>
                         Navigator.of(context).pop(_ShellCommandAction.newTab),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-toolbelt'),
+                    icon: Icons.view_sidebar_rounded,
+                    title: 'Toolbelt',
+                    subtitle: 'App action • Keep terminal tools in a sidebar.',
+                    enabled: hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(_ShellCommandAction.toolbelt),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-command-defaults'),

@@ -1300,6 +1300,56 @@ void main() {
     expect(find.text('No trigger output captured yet.'), findsOneWidget);
   });
 
+  testWidgets('toolbelt opens a sidebar with terminal tool shortcuts', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final profile = defaultTerminalProfile().copyWith(
+      triggers: const [TerminalProfileTrigger(pattern: 'ERROR [0-9]+')],
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [profile]),
+      ),
+      notificationSender: ({required title, body, identifier}) async {},
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'ERROR 42 failed', 'style_runs': const []},
+      ],
+      'cursor': {'row': 0, 'col': 15, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-toolbelt-panel')), findsOneWidget);
+    expect(find.text('Toolbelt'), findsOneWidget);
+    expect(find.text('1 captured line'), findsOneWidget);
+    expect(find.byKey(const Key('toolbelt-captured-output')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('toolbelt-captured-output')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
+    expect(find.text('ERROR 42 failed'), findsOneWidget);
+  });
+
   testWidgets(
     'command-semicolon autocompletes from visible terminal words',
     (tester) async {
