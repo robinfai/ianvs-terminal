@@ -37,6 +37,7 @@ enum _ShellCommandAction {
   advancedPaste,
   pasteHistory,
   shellIntegrationUtilities,
+  selectCommandOutput,
   tmuxIntegration,
   coprocess,
   annotations,
@@ -2382,6 +2383,48 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _focusSession(activeSessionId);
   }
 
+  bool _selectLastCommandOutput(
+    SessionController sessionController,
+    String sessionId,
+    SelectionController selectionController,
+  ) {
+    final pane = _paneForSession(
+      ref.read(sessionControllerProvider),
+      sessionId,
+    );
+    final promptMarks = pane?.shellIntegration.promptMarks;
+    if (promptMarks == null || promptMarks.length < 2) {
+      return false;
+    }
+    final startMark = promptMarks[promptMarks.length - 2];
+    final endMark = promptMarks.last;
+    final startRow = startMark.scrollbackOffset + 1;
+    final endRow = endMark.scrollbackOffset - 1;
+    if (endRow < startRow) {
+      return false;
+    }
+    final frame = sessionController.viewportFor(sessionId).frame;
+    selectionController.setSelection(
+      terminal.TerminalSelection(
+        startRow: startRow,
+        startCol: 0,
+        endRow: endRow,
+        endCol: _rowEndColumn(frame, endRow),
+      ),
+    );
+    _focusSession(sessionId);
+    return true;
+  }
+
+  int _rowEndColumn(terminal.TerminalFrameDiff frame, int rowIndex) {
+    for (final row in frame.rows) {
+      if (row.index == rowIndex) {
+        return terminal.TerminalTextCells.fromText(row.text).cellCount;
+      }
+    }
+    return frame.viewportCols;
+  }
+
   void _acceptAutocomplete(String suggestion) {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {
@@ -2755,6 +2798,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     final hasActiveSession = activeSessionIdBeforeOpen != null;
+    final activePaneBeforeOpen = activeSessionIdBeforeOpen == null
+        ? null
+        : _paneForSession(sessionState, activeSessionIdBeforeOpen);
+    final canSelectCommandOutput =
+        (activePaneBeforeOpen?.shellIntegration.promptMarks.length ?? 0) >= 2;
     final action = await showGeneralDialog<_ShellCommandAction>(
       context: context,
       barrierDismissible: true,
@@ -2785,6 +2833,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
                   hasActiveSession: hasActiveSession,
+                  canSelectCommandOutput: canSelectCommandOutput,
                 ),
               ),
             ),
@@ -2820,6 +2869,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
                     hasActiveSession: hasActiveSession,
+                    canSelectCommandOutput: canSelectCommandOutput,
                   ),
                 ),
               ),
@@ -2939,6 +2989,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return;
         }
         await _openShellIntegrationUtilities(currentState, currentSessionId);
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
+        return;
+      case _ShellCommandAction.selectCommandOutput:
+        if (currentSessionId == null) {
+          return;
+        }
+        final selectionController = _selectionControllers.putIfAbsent(
+          currentSessionId,
+          SelectionController.new,
+        );
+        if (_selectLastCommandOutput(
+          sessionController,
+          currentSessionId,
+          selectionController,
+        )) {
+          return;
+        }
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
@@ -7524,6 +7594,7 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.instantReplayShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
+    required this.canSelectCommandOutput,
   });
 
   final String launcherShortcutLabel;
@@ -7539,6 +7610,7 @@ class _ShellCommandMenu extends StatelessWidget {
   final String instantReplayShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
+  final bool canSelectCommandOutput;
 
   @override
   Widget build(BuildContext context) {
@@ -7762,6 +7834,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.shellIntegrationUtilities),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-select-command-output'),
+                    icon: Icons.fact_check_rounded,
+                    title: 'Select command output',
+                    subtitle:
+                        'Session action • Select output between prompt marks.',
+                    enabled: hasActiveSession && canSelectCommandOutput,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.selectCommandOutput),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-tmux-integration'),
