@@ -1024,6 +1024,44 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport smart-selects URLs without trailing punctuation',
+    (tester) async {
+      final selectedText = await _doubleClickSelectedText(
+        tester,
+        rowText: 'see https://example.com/path.',
+        column: 10,
+      );
+
+      expect(selectedText, 'https://example.com/path');
+    },
+  );
+
+  testWidgets(
+    'terminal viewport smart-selects email addresses inside punctuation',
+    (tester) async {
+      final selectedText = await _doubleClickSelectedText(
+        tester,
+        rowText: 'mail <dev@example.com>.',
+        column: 8,
+      );
+
+      expect(selectedText, 'dev@example.com');
+    },
+  );
+
+  testWidgets('terminal viewport smart-selects path-like filenames', (
+    tester,
+  ) async {
+    final selectedText = await _doubleClickSelectedText(
+      tester,
+      rowText: 'open ./lib/main.dart:12, please',
+      column: 9,
+    );
+
+    expect(selectedText, './lib/main.dart:12');
+  });
+
+  testWidgets(
     'terminal viewport double-click selects a contiguous whitespace run',
     (tester) async {
       final selectionController = SelectionController();
@@ -4716,6 +4754,61 @@ String _resolvedRowText(RenderTerminalViewport renderObject, int row) {
       .debugResolvedCellsForRow(row)
       .map((cell) => cell.text)
       .join();
+}
+
+Future<String> _doubleClickSelectedText(
+  WidgetTester tester, {
+  required String rowText,
+  required int column,
+}) async {
+  final selectionController = SelectionController();
+  final controller = TerminalViewportController()
+    ..updateFrame(
+      TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: rowText)],
+        cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: 400,
+          height: 200,
+          child: TerminalViewport(
+            controller: controller,
+            selectionController: selectionController,
+            inputController: TerminalInputController(
+              sessionId: '1',
+              runtime: testRuntime(FakePtyBackend()),
+              readFrame: () => controller.frame,
+              readSelection: () => '',
+              copySelection: (_) async {},
+              readClipboard: () async => '',
+            ),
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+          ),
+        ),
+      ),
+    ),
+  );
+
+  final renderObject = _terminalRenderObject(tester);
+  final cellSize = renderObject.debugCellSize;
+  await _mouseDoubleClickAt(
+    tester,
+    renderObject.localToGlobal(
+      Offset(cellSize.width * (column + 0.5), cellSize.height / 2),
+    ),
+  );
+  return selectionController.textForFrame(controller.frame);
 }
 
 Future<void> _mouseClickAt(WidgetTester tester, Offset position) async {

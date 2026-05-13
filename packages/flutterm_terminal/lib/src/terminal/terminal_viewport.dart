@@ -17,6 +17,14 @@ const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
 const Size terminalFallbackCellSize = Size(9, 18);
 final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
+final RegExp _smartEmailPattern = RegExp(
+  r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}',
+);
+final RegExp _smartPathPattern = RegExp(
+  r'''(?:~|\.{1,2}|/)[^\s<>()"']+|[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.:-]+)+''',
+);
+const String _smartSelectionLeadingTrim = "([<{\"'";
+const String _smartSelectionTrailingTrim = ".,;:!?)]}>\"'";
 const String _xtermWordSeparators = " ()[]{}',\"`";
 
 class TerminalViewportController extends ChangeNotifier {
@@ -1426,6 +1434,16 @@ _TerminalWordRange? _wordRangeAtRelativeCell(
   if (cell == null) {
     return null;
   }
+  final smartRange = _smartRangeAtCell(
+    frame: frame,
+    relativeRow: relativeRow,
+    rowText: row.text,
+    rowCells: rowCells,
+    cell: cell,
+  );
+  if (smartRange != null) {
+    return smartRange;
+  }
   final kind = _wordCellKind(cell);
   if (!allowWhitespaceOnlySelection && kind == _WordCellKind.whitespace) {
     return null;
@@ -1532,6 +1550,64 @@ _TerminalWordRange? _wordRangeAtRelativeCell(
     endRow: endRow,
     endCol: endCol,
   );
+}
+
+_TerminalWordRange? _smartRangeAtCell({
+  required TerminalFrameDiff frame,
+  required int relativeRow,
+  required String rowText,
+  required TerminalTextCells rowCells,
+  required TerminalTextCell cell,
+}) {
+  final codeUnit = cell.codeUnitStart;
+  final patterns = <RegExp>[
+    _visibleUrlPattern,
+    _smartEmailPattern,
+    _smartPathPattern,
+  ];
+  for (final pattern in patterns) {
+    for (final match in pattern.allMatches(rowText)) {
+      final range = _trimSmartSelectionRange(rowText, match.start, match.end);
+      if (range == null || codeUnit < range.start || codeUnit >= range.end) {
+        continue;
+      }
+      return _TerminalWordRange(
+        startRow: frame.viewportStartRow + relativeRow,
+        startCol: rowCells.columnForCodeUnit(range.start),
+        endRow: frame.viewportStartRow + relativeRow,
+        endCol: rowCells.columnForCodeUnit(range.end),
+      );
+    }
+  }
+  return null;
+}
+
+_SmartSelectionCodeUnitRange? _trimSmartSelectionRange(
+  String text,
+  int start,
+  int end,
+) {
+  var rangeStart = start;
+  var rangeEnd = end;
+  while (rangeStart < rangeEnd &&
+      _smartSelectionLeadingTrim.contains(text[rangeStart])) {
+    rangeStart += 1;
+  }
+  while (rangeEnd > rangeStart &&
+      _smartSelectionTrailingTrim.contains(text[rangeEnd - 1])) {
+    rangeEnd -= 1;
+  }
+  if (rangeStart >= rangeEnd) {
+    return null;
+  }
+  return _SmartSelectionCodeUnitRange(rangeStart, rangeEnd);
+}
+
+class _SmartSelectionCodeUnitRange {
+  const _SmartSelectionCodeUnitRange(this.start, this.end);
+
+  final int start;
+  final int end;
 }
 
 TerminalRow? _rowForRelativeIndex(TerminalFrameDiff frame, int rowIndex) {
