@@ -13,6 +13,43 @@ typedef TerminalProfileCursor = terminal_pkg.TerminalCursorConfig;
 typedef TerminalProfileAppearance = terminal_pkg.TerminalDisplayConfig;
 typedef TerminalProfileInteraction = terminal_pkg.TerminalInteractionConfig;
 
+enum TerminalProfileTriggerAction { notify, sendText }
+
+class TerminalProfileTrigger {
+  const TerminalProfileTrigger({
+    required this.pattern,
+    this.action = TerminalProfileTriggerAction.notify,
+    this.value,
+    this.caseSensitive = true,
+  });
+
+  final String pattern;
+  final TerminalProfileTriggerAction action;
+  final String? value;
+  final bool caseSensitive;
+
+  Map<String, Object?> toJson() {
+    return {
+      'pattern': pattern,
+      'action': _triggerActionToJson(action),
+      if (value != null && value!.isNotEmpty) 'value': value,
+      if (!caseSensitive) 'caseSensitive': caseSensitive,
+    };
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TerminalProfileTrigger &&
+        other.pattern == pattern &&
+        other.action == action &&
+        other.value == value &&
+        other.caseSensitive == caseSensitive;
+  }
+
+  @override
+  int get hashCode => Object.hash(pattern, action, value, caseSensitive);
+}
+
 class TerminalProfileLoadWarning {
   const TerminalProfileLoadWarning({
     required this.profileId,
@@ -63,6 +100,7 @@ class TerminalProfile {
     terminal_pkg.TerminalInteractionConfig interaction =
         const terminal_pkg.TerminalInteractionConfig(),
     this.tags = const [],
+    this.triggers = const [],
   }) : sessionConfig = terminal_pkg.TerminalSessionConfig(
          launch: terminal_pkg.TerminalLaunchConfig(
            program: shell,
@@ -81,11 +119,13 @@ class TerminalProfile {
     required this.name,
     required this.sessionConfig,
     this.tags = const [],
+    this.triggers = const [],
   });
 
   final String id;
   final String name;
   final List<String> tags;
+  final List<TerminalProfileTrigger> triggers;
   final terminal_pkg.TerminalSessionConfig sessionConfig;
 
   String get shell => sessionConfig.launch.program;
@@ -112,6 +152,7 @@ class TerminalProfile {
     terminal_pkg.TerminalInteractionConfig? interaction,
     terminal_pkg.TerminalSessionConfig? sessionConfig,
     List<String>? tags,
+    List<TerminalProfileTrigger>? triggers,
   }) {
     final baseConfig = sessionConfig ?? this.sessionConfig;
     final nextLaunch = baseConfig.launch.copyWith(
@@ -124,6 +165,7 @@ class TerminalProfile {
       id: id ?? this.id,
       name: name ?? this.name,
       tags: tags ?? this.tags,
+      triggers: triggers ?? this.triggers,
       sessionConfig: baseConfig.copyWith(
         launch: nextLaunch,
         emulation: terminalEmulation,
@@ -140,6 +182,8 @@ class TerminalProfile {
       'id': id,
       'name': name,
       if (tags.isNotEmpty) 'tags': tags,
+      if (triggers.isNotEmpty)
+        'triggers': triggers.map((trigger) => trigger.toJson()).toList(),
       ...configJson,
     };
   }
@@ -165,6 +209,7 @@ class TerminalProfile {
       warnings: loadWarnings,
     );
     final tags = _profileTagsFromJson(json['tags'], warningSink);
+    final triggers = _profileTriggersFromJson(json['triggers'], warningSink);
 
     if (parsedId == null || parsedId.isEmpty) {
       warningSink.add(
@@ -197,6 +242,7 @@ class TerminalProfile {
       id: profileId,
       name: profileName,
       tags: tags,
+      triggers: triggers,
       sessionConfig: sessionConfig,
     );
   }
@@ -422,6 +468,123 @@ List<String> _normalizeProfileTags(Iterable<String> tags) {
     normalized.add(trimmed);
   }
   return List.unmodifiable(normalized);
+}
+
+List<TerminalProfileTrigger> _profileTriggersFromJson(
+  Object? rawValue,
+  _TerminalProfileWarningSink warningSink,
+) {
+  if (rawValue == null) {
+    return const [];
+  }
+  if (rawValue is! List) {
+    warningSink.add(
+      path: 'triggers',
+      rawValue: rawValue,
+      fallbackSummary: 'used no triggers',
+    );
+    return const [];
+  }
+
+  final triggers = <TerminalProfileTrigger>[];
+  for (var index = 0; index < rawValue.length; index += 1) {
+    final rawEntry = rawValue[index];
+    if (rawEntry is! Map) {
+      warningSink.add(
+        path: 'triggers[$index]',
+        rawValue: rawEntry,
+        fallbackSummary: 'ignored invalid trigger entry',
+      );
+      continue;
+    }
+    final map = _asStringMap(rawEntry)!;
+    final pattern = _stringOrNull(map['pattern'])?.trim();
+    if (pattern == null || pattern.isEmpty) {
+      warningSink.add(
+        path: 'triggers[$index].pattern',
+        rawValue: map['pattern'],
+        fallbackSummary: 'ignored trigger without a pattern',
+      );
+      continue;
+    }
+    if (!_validRegex(pattern)) {
+      warningSink.add(
+        path: 'triggers[$index].pattern',
+        rawValue: pattern,
+        fallbackSummary: 'ignored invalid trigger regex',
+      );
+      continue;
+    }
+    final action = _triggerActionFromJson(map['action']);
+    if (action == null) {
+      warningSink.add(
+        path: 'triggers[$index].action',
+        rawValue: map['action'],
+        fallbackSummary: 'used notify action',
+      );
+    }
+    final rawTriggerValue = map['value'] ?? map['text'];
+    final value = _stringOrNull(rawTriggerValue);
+    if ((action ?? TerminalProfileTriggerAction.notify) ==
+            TerminalProfileTriggerAction.sendText &&
+        (value == null || value.isEmpty)) {
+      warningSink.add(
+        path: 'triggers[$index].value',
+        rawValue: rawTriggerValue,
+        fallbackSummary: 'ignored send-text trigger without a value',
+      );
+      continue;
+    }
+    final rawCaseSensitive = map['caseSensitive'];
+    final caseSensitive = rawCaseSensitive is bool ? rawCaseSensitive : true;
+    if (rawCaseSensitive != null && rawCaseSensitive is! bool) {
+      warningSink.add(
+        path: 'triggers[$index].caseSensitive',
+        rawValue: rawCaseSensitive,
+        fallbackSummary: 'used case-sensitive matching',
+      );
+    }
+    triggers.add(
+      TerminalProfileTrigger(
+        pattern: pattern,
+        action: action ?? TerminalProfileTriggerAction.notify,
+        value: value,
+        caseSensitive: caseSensitive,
+      ),
+    );
+  }
+  return List.unmodifiable(triggers);
+}
+
+TerminalProfileTriggerAction? _triggerActionFromJson(Object? rawValue) {
+  if (rawValue == null) {
+    return TerminalProfileTriggerAction.notify;
+  }
+  final normalized = _stringOrNull(rawValue)?.trim().toLowerCase();
+  return switch (normalized) {
+    '' || 'notify' || 'notification' => TerminalProfileTriggerAction.notify,
+    'send' ||
+    'send_text' ||
+    'sendtext' ||
+    'respond' => TerminalProfileTriggerAction.sendText,
+    _ => null,
+  };
+}
+
+String _triggerActionToJson(TerminalProfileTriggerAction action) {
+  return switch (action) {
+    TerminalProfileTriggerAction.notify => 'notify',
+    TerminalProfileTriggerAction.sendText => 'send_text',
+  };
+}
+
+bool _validRegex(String pattern) {
+  try {
+    RegExp(pattern);
+    return true;
+  } on FormatException {
+    return false;
+  }
 }
 
 TerminalProfile _normalizeBuiltInShellProfile(TerminalProfile profile) {

@@ -30,6 +30,98 @@ List<String> _normalizedTagsFromText(String text) {
   return tags;
 }
 
+List<TerminalProfileTrigger> _triggersFromText(String text) {
+  final triggers = <TerminalProfileTrigger>[];
+  final lines = text.split('\n');
+  for (var index = 0; index < lines.length; index += 1) {
+    final line = lines[index].trim();
+    if (line.isEmpty) {
+      continue;
+    }
+    final separator = line.indexOf('=>');
+    final pattern = (separator == -1 ? line : line.substring(0, separator))
+        .trim();
+    final actionText = separator == -1
+        ? 'notify'
+        : line.substring(separator + 2).trim();
+    if (pattern.isEmpty) {
+      throw FormatException('Line ${index + 1}: trigger regex is required.');
+    }
+    try {
+      RegExp(pattern);
+    } on FormatException {
+      throw FormatException('Line ${index + 1}: invalid trigger regex.');
+    }
+    if (actionText.isEmpty || actionText.toLowerCase() == 'notify') {
+      triggers.add(TerminalProfileTrigger(pattern: pattern));
+      continue;
+    }
+    final normalizedAction = actionText.toLowerCase();
+    if (normalizedAction.startsWith('send:')) {
+      final value = _unescapeTriggerValue(actionText.substring(5).trimLeft());
+      if (value.isEmpty) {
+        throw FormatException('Line ${index + 1}: send text is required.');
+      }
+      triggers.add(
+        TerminalProfileTrigger(
+          pattern: pattern,
+          action: TerminalProfileTriggerAction.sendText,
+          value: value,
+        ),
+      );
+      continue;
+    }
+    throw FormatException(
+      'Line ${index + 1}: use notify or send: response text.',
+    );
+  }
+  return triggers;
+}
+
+String? _triggerLinesError(String text) {
+  try {
+    _triggersFromText(text);
+    return null;
+  } on FormatException catch (error) {
+    return error.message;
+  }
+}
+
+String _triggerLineFor(TerminalProfileTrigger trigger) {
+  return switch (trigger.action) {
+    TerminalProfileTriggerAction.notify => '${trigger.pattern} => notify',
+    TerminalProfileTriggerAction.sendText =>
+      '${trigger.pattern} => send: ${_escapeTriggerValue(trigger.value ?? '')}',
+  };
+}
+
+String _escapeTriggerValue(String value) {
+  return value
+      .replaceAll('\\', r'\\')
+      .replaceAll('\r', r'\r')
+      .replaceAll('\n', r'\n');
+}
+
+String _unescapeTriggerValue(String value) {
+  final buffer = StringBuffer();
+  for (var index = 0; index < value.length; index += 1) {
+    final character = value[index];
+    if (character != '\\' || index == value.length - 1) {
+      buffer.write(character);
+      continue;
+    }
+    index += 1;
+    final escaped = value[index];
+    buffer.write(switch (escaped) {
+      'n' => '\n',
+      'r' => '\r',
+      '\\' => '\\',
+      _ => escaped,
+    });
+  }
+  return buffer.toString();
+}
+
 class _ColorFieldSpec {
   const _ColorFieldSpec({
     required this.group,
@@ -135,6 +227,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   late final TextEditingController _nameController;
   late final TextEditingController _tagsController;
+  late final TextEditingController _triggersController;
   late final TextEditingController _shellController;
   late final TextEditingController _cwdController;
   late final TextEditingController _scrollbackController;
@@ -142,6 +235,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final TextEditingController _fontSizeController;
   late final TextEditingController _lineHeightController;
   late final FocusNode _nameFocusNode;
+  late final FocusNode _triggersFocusNode;
   late final FocusNode _shellFocusNode;
   late final FocusNode _scrollbackFocusNode;
   late final FocusNode _fontFamilyFocusNode;
@@ -164,6 +258,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     final profile = widget.initialValue;
     _nameController = _trackedController(text: profile.name);
     _tagsController = _trackedController(text: profile.tags.join(', '));
+    _triggersController = _trackedController(
+      text: profile.triggers.map(_triggerLineFor).join('\n'),
+    );
     _shellController = _trackedController(text: profile.shell);
     _cwdController = _trackedController(text: profile.cwd ?? '');
     _scrollbackController = _trackedController(
@@ -179,6 +276,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       text: profile.appearance.font.lineHeight.toString(),
     );
     _nameFocusNode = FocusNode(debugLabel: 'profile-editor-name');
+    _triggersFocusNode = FocusNode(debugLabel: 'profile-editor-triggers');
     _shellFocusNode = FocusNode(debugLabel: 'profile-editor-shell');
     _scrollbackFocusNode = FocusNode(debugLabel: 'profile-editor-scrollback');
     _fontFamilyFocusNode = FocusNode(debugLabel: 'profile-editor-font-family');
@@ -216,6 +314,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _disposeControllers([
       _nameController,
       _tagsController,
+      _triggersController,
       _shellController,
       _cwdController,
       _scrollbackController,
@@ -228,6 +327,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _disposeControllers(_fallbackControllers);
     _disposeFocusNodes([
       _nameFocusNode,
+      _triggersFocusNode,
       _shellFocusNode,
       _scrollbackFocusNode,
       _fontFamilyFocusNode,
@@ -625,6 +725,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     final updated = widget.initialValue.copyWith(
       name: _nameController.text.trim(),
       tags: _normalizedTagsFromText(_tagsController.text),
+      triggers: _triggersFromText(_triggersController.text),
       shell: _shellController.text.trim(),
       args: _nonEmptyEntries(_argControllers),
       env: _envEntries(),
@@ -801,6 +902,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     if (_requiredFieldError(_shellController.text, 'Shell') != null) {
       return _shellFocusNode;
     }
+    if (_triggerLinesError(_triggersController.text) != null) {
+      return _triggersFocusNode;
+    }
     for (final entry in _envControllers) {
       if (_envKeyError(_envControllers.indexOf(entry)) != null) {
         return entry.keyFocusNode;
@@ -915,6 +1019,20 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                           helperText:
                               'Leave empty to use the default working directory.',
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('profile-editor-triggers'),
+                        controller: _triggersController,
+                        focusNode: _triggersFocusNode,
+                        minLines: 2,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          labelText: 'Triggers',
+                          helperText:
+                              'One per line: regex => notify or regex => send: text.',
+                        ),
+                        validator: (value) => _triggerLinesError(value ?? ''),
                       ),
                     ],
                   ),

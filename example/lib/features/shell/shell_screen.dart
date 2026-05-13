@@ -155,6 +155,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, Size> _committedViewportSizes = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
+  final Map<String, Set<String>> _triggerMatchesBySession = {};
   final Set<String> _sessionsSeenForActivityNotifications = {};
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
   Timer? _workspaceCueTimer;
@@ -209,8 +210,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     switch (event) {
       case terminal.TerminalSessionFrameEvent(:final sessionId, :final frame):
         ref.read(instantReplayStoreProvider).record(sessionId, frame);
+        _runProfileTriggers(sessionId, frame);
         _notifyInactiveActivity(sessionId, frame);
       case terminal.TerminalSessionExitEvent():
+        _triggerMatchesBySession.remove(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
       case terminal.TerminalSessionBellEvent():
         _notifyBell(event.sessionId);
@@ -275,6 +278,105 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       identifier:
           'flutterm.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );
+  }
+
+  void _runProfileTriggers(String sessionId, terminal.TerminalFrameDiff frame) {
+    final profile = _profileForSession(sessionId);
+    if (profile == null || profile.triggers.isEmpty) {
+      return;
+    }
+    final seenMatches = _triggerMatchesBySession.putIfAbsent(
+      sessionId,
+      () => <String>{},
+    );
+    for (final row in frame.rows) {
+      final text = row.text;
+      if (text.isEmpty) {
+        continue;
+      }
+      for (final trigger in profile.triggers) {
+        final regex = _regexForTrigger(trigger);
+        if (regex == null) {
+          continue;
+        }
+        if (!regex.hasMatch(text)) {
+          continue;
+        }
+        final matchKey = _triggerMatchKey(trigger, row);
+        if (!seenMatches.add(matchKey)) {
+          continue;
+        }
+        _runProfileTrigger(sessionId, trigger, text);
+      }
+    }
+  }
+
+  TerminalProfile? _profileForSession(String sessionId) {
+    final state = ref.read(sessionControllerProvider);
+    for (final tab in state.tabs) {
+      final pane = tab.paneFor(sessionId);
+      if (pane == null) {
+        continue;
+      }
+      final snapshot = pane.profileSnapshot;
+      if (snapshot != null) {
+        return snapshot;
+      }
+      for (final profile in state.profiles) {
+        if (profile.id == pane.profileId) {
+          return profile;
+        }
+      }
+      return null;
+    }
+    return null;
+  }
+
+  RegExp? _regexForTrigger(TerminalProfileTrigger trigger) {
+    try {
+      return RegExp(trigger.pattern, caseSensitive: trigger.caseSensitive);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  String _triggerMatchKey(
+    TerminalProfileTrigger trigger,
+    terminal.TerminalRow row,
+  ) {
+    return [
+      trigger.pattern,
+      trigger.action.name,
+      trigger.value ?? '',
+      trigger.caseSensitive,
+      row.index,
+      row.text,
+    ].join('\u0000');
+  }
+
+  void _runProfileTrigger(
+    String sessionId,
+    TerminalProfileTrigger trigger,
+    String rowText,
+  ) {
+    switch (trigger.action) {
+      case TerminalProfileTriggerAction.notify:
+        _sendShellNotification(
+          title:
+              'Trigger matched in ${_sessionTitleForNotification(sessionId)}',
+          body: rowText.trim(),
+          identifier:
+              'flutterm.trigger.$sessionId.${trigger.pattern.hashCode}.${DateTime.now().microsecondsSinceEpoch}',
+        );
+      case TerminalProfileTriggerAction.sendText:
+        final value = trigger.value;
+        if (value == null || value.isEmpty) {
+          return;
+        }
+        ref
+            .read(terminalRuntimeControllerProvider)
+            .sendInput(sessionId, Uint8List.fromList(utf8.encode(value)));
+    }
   }
 
   bool _notificationSessionIsInactive(String sessionId) {

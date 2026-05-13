@@ -24,6 +24,14 @@ void main() {
           defaultTerminalProfile().copyWith(
             name: 'Custom Shell',
             tags: const ['work', 'prod'],
+            triggers: const [
+              TerminalProfileTrigger(pattern: 'ERROR'),
+              TerminalProfileTrigger(
+                pattern: 'Password:',
+                action: TerminalProfileTriggerAction.sendText,
+                value: 'secret\n',
+              ),
+            ],
           ),
         ],
       );
@@ -34,6 +42,14 @@ void main() {
 
       expect(loaded.profiles.single.name, 'Custom Shell');
       expect(loaded.profiles.single.tags, const ['work', 'prod']);
+      expect(loaded.profiles.single.triggers, const [
+        TerminalProfileTrigger(pattern: 'ERROR'),
+        TerminalProfileTrigger(
+          pattern: 'Password:',
+          action: TerminalProfileTriggerAction.sendText,
+          value: 'secret\n',
+        ),
+      ]);
       expect(
         raw['schemaVersion'],
         TerminalProfilesDocument.currentSchemaVersion,
@@ -49,6 +65,16 @@ void main() {
       expect(
         (raw['profiles'] as List<dynamic>).single,
         containsPair('tags', const ['work', 'prod']),
+      );
+      expect(
+        (raw['profiles'] as List<dynamic>).single,
+        containsPair(
+          'triggers',
+          containsAll([
+            containsPair('pattern', 'ERROR'),
+            containsPair('action', 'send_text'),
+          ]),
+        ),
       );
     },
   );
@@ -188,6 +214,14 @@ void main() {
             'id': 'default',
             'name': 'Local Shell',
             'tags': const ['prod', 'ops', 'prod', ' '],
+            'triggers': const [
+              {'pattern': 'ERROR', 'action': 'notify'},
+              {
+                'pattern': 'Password:',
+                'action': 'send_text',
+                'value': 'secret\n',
+              },
+            ],
             'launch': {
               'program': '/bin/zsh',
               'args': const ['-l'],
@@ -231,6 +265,14 @@ void main() {
     expect(loaded.schemaVersion, 3);
     expect(loaded.profiles.single.shell, '/bin/zsh');
     expect(loaded.profiles.single.tags, const ['prod', 'ops']);
+    expect(loaded.profiles.single.triggers, const [
+      TerminalProfileTrigger(pattern: 'ERROR'),
+      TerminalProfileTrigger(
+        pattern: 'Password:',
+        action: TerminalProfileTriggerAction.sendText,
+        value: 'secret\n',
+      ),
+    ]);
     expect(loaded.profiles.single.args, const ['-l']);
     expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
     expect(loaded.profiles.single.cwd, '/tmp');
@@ -271,6 +313,11 @@ void main() {
           {
             'name': '',
             'tags': const ['ops', 7, ' ops ', ' '],
+            'triggers': const [
+              {'pattern': 'ERROR', 'action': 7},
+              {'pattern': '[', 'action': 'notify'},
+              {'pattern': 'Prompt:', 'action': 'send_text'},
+            ],
             'launch': {
               'program': 7,
               'args': const ['-l', 3, ''],
@@ -317,6 +364,9 @@ void main() {
       expect(loaded.profiles.single.id, 'profile-1');
       expect(loaded.profiles.single.name, 'profile-1');
       expect(loaded.profiles.single.tags, const ['ops']);
+      expect(loaded.profiles.single.triggers, const [
+        TerminalProfileTrigger(pattern: 'ERROR'),
+      ]);
       expect(loaded.profiles.single.shell, defaultTerminalProfile().shell);
       expect(loaded.profiles.single.args, const ['-l']);
       expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
@@ -360,6 +410,9 @@ void main() {
           'id',
           'name',
           'tags[1]',
+          'triggers[0].action',
+          'triggers[1].pattern',
+          'triggers[2].value',
           'launch.program',
           'launch.args[1]',
           'launch.env.BAD',

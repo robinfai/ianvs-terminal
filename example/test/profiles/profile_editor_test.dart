@@ -420,6 +420,52 @@ void main() {
     },
   );
 
+  testWidgets('profile editor saves notification and send-text triggers', (
+    tester,
+  ) async {
+    final initialProfile = TerminalProfile(
+      id: 'default',
+      name: 'Local Shell',
+      shell: '/bin/zsh',
+      triggers: const [TerminalProfileTrigger(pattern: 'ERROR')],
+    );
+
+    TerminalProfile? savedProfile;
+    await _pumpEditorHarness(
+      tester,
+      initialValue: initialProfile,
+      onSaved: (value) => savedProfile = value,
+    );
+
+    expect(
+      tester
+          .widget<TextFormField>(
+            find.byKey(const Key('profile-editor-triggers')),
+          )
+          .controller!
+          .text,
+      'ERROR => notify',
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-triggers')),
+      'WARN[0-9]+ => notify\nPassword: => send: secret\\n',
+    );
+    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
+    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await tester.pumpAndSettle();
+
+    expect(savedProfile, isNotNull);
+    expect(savedProfile!.triggers, const [
+      TerminalProfileTrigger(pattern: 'WARN[0-9]+'),
+      TerminalProfileTrigger(
+        pattern: 'Password:',
+        action: TerminalProfileTriggerAction.sendText,
+        value: 'secret\n',
+      ),
+    ]);
+  });
+
   testWidgets('profile editor blocks invalid values and duplicate env keys', (
     tester,
   ) async {

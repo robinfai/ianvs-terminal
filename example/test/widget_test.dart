@@ -972,6 +972,81 @@ void main() {
     expect(notifications.single['identifier'], 'flutterm.activity.1');
   });
 
+  testWidgets('profile triggers notify and send text for matching output', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final notifications = <Map<String, String?>>[];
+    final profile = defaultTerminalProfile().copyWith(
+      triggers: const [
+        TerminalProfileTrigger(pattern: 'ERROR [0-9]+'),
+        TerminalProfileTrigger(
+          pattern: 'Password:',
+          action: TerminalProfileTriggerAction.sendText,
+          value: 'secret\n',
+        ),
+      ],
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [profile]),
+      ),
+      notificationSender: ({required title, body, identifier}) async {
+        notifications.add({
+          'title': title,
+          'body': body,
+          'identifier': identifier,
+        });
+      },
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'Password:', 'style_runs': const []},
+        {'index': 1, 'text': 'ERROR 42 failed', 'style_runs': const []},
+      ],
+      'cursor': {'row': 1, 'col': 15, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 2},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(fakeBindings.writes, hasLength(1));
+    expect(fakeBindings.writes.single, utf8.encode('secret\n'));
+    expect(notifications, hasLength(1));
+    expect(notifications.single['title'], startsWith('Trigger matched in '));
+    expect(notifications.single['body'], 'ERROR 42 failed');
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'Password:', 'style_runs': const []},
+        {'index': 1, 'text': 'ERROR 42 failed', 'style_runs': const []},
+      ],
+      'cursor': {'row': 1, 'col': 15, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 2},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(fakeBindings.writes, hasLength(1));
+    expect(notifications, hasLength(1));
+  });
+
   testWidgets(
     'command-semicolon autocompletes from visible terminal words',
     (tester) async {
