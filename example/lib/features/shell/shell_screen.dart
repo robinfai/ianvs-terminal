@@ -17,6 +17,7 @@ import '../terminal/selection_controller.dart';
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
 import 'defaults_appearance_dialog.dart';
+import 'instant_replay_store.dart';
 import 'paste_history_repository.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
@@ -30,6 +31,7 @@ enum _ShellCommandAction {
   copyMode,
   paste,
   pasteHistory,
+  instantReplay,
   search,
   autocomplete,
   hotkeyWindow,
@@ -45,6 +47,7 @@ enum _ShellShortcutAction {
   autocomplete,
   copyMode,
   pasteHistory,
+  instantReplay,
   closeActiveTab,
   openDefaults,
   requestQuitConfirmation,
@@ -62,6 +65,10 @@ final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
 
 final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepository>((ref) {
   return PasteHistoryRepository();
+});
+
+final instantReplayStoreProvider = Provider<InstantReplayStore>((ref) {
+  return InstantReplayStore();
 });
 
 sealed class _ProfilesSheetResult {
@@ -90,6 +97,16 @@ final class _PasteHistoryPickResult extends _PasteHistorySheetResult {
   final PasteHistoryEntry entry;
 }
 
+sealed class _InstantReplaySheetResult {
+  const _InstantReplaySheetResult();
+}
+
+final class _InstantReplayCopyResult extends _InstantReplaySheetResult {
+  const _InstantReplayCopyResult(this.text);
+
+  final String text;
+}
+
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
@@ -107,6 +124,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
+  StreamSubscription<terminal.TerminalSessionEvent>? _instantReplaySubscription;
   Timer? _workspaceCueTimer;
   Timer? _viewportResizeTimer;
   bool _isCommandMenuOpen = false;
@@ -137,17 +155,32 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    _instantReplaySubscription = ref
+        .read(terminalRuntimeControllerProvider)
+        .events
+        .listen(_recordInstantReplayEvent);
     Future.microtask(_loadPasteHistory);
   }
 
   @override
   void dispose() {
+    _instantReplaySubscription?.cancel();
     _workspaceCueTimer?.cancel();
     _viewportResizeTimer?.cancel();
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }
     super.dispose();
+  }
+
+  void _recordInstantReplayEvent(terminal.TerminalSessionEvent event) {
+    switch (event) {
+      case terminal.TerminalSessionFrameEvent(:final sessionId, :final frame):
+        ref.read(instantReplayStoreProvider).record(sessionId, frame);
+      case terminal.TerminalSessionExitEvent():
+      case terminal.TerminalSessionShellHookEvent():
+        break;
+    }
   }
 
   String get _visibleOverlay {
@@ -262,6 +295,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌘⇧V' : 'Ctrl+Shift+V';
   }
 
+  String _instantReplayShortcutLabel() {
+    return _usesMetaShortcuts ? '⌘⇧R' : 'Ctrl+Shift+R';
+  }
+
   String get _workspaceCueTitle => 'Back in shell';
 
   _ShellShortcut? _shortcutActionFor(KeyEvent event) {
@@ -317,6 +354,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyV) {
       return const _ShellShortcut(_ShellShortcutAction.pasteHistory);
+    }
+
+    if (usesAppModifier &&
+        isShiftPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyR) {
+      return const _ShellShortcut(_ShellShortcutAction.instantReplay);
     }
 
     if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
@@ -1053,6 +1096,64 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
   }
 
+  void _seedInstantReplayFrame(String sessionId) {
+    final sessionController = ref.read(sessionControllerProvider.notifier);
+    ref
+        .read(instantReplayStoreProvider)
+        .record(sessionId, sessionController.viewportFor(sessionId).frame);
+  }
+
+  Future<void> _openInstantReplay(SessionState sessionState) async {
+    final activeSessionIdBeforeOpen = sessionState.activeSessionId;
+    if (activeSessionIdBeforeOpen == null) {
+      return;
+    }
+    _seedInstantReplayFrame(activeSessionIdBeforeOpen);
+    final store = ref.read(instantReplayStoreProvider);
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final result = await showModalBottomSheet<_InstantReplaySheetResult>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _InstantReplaySheet(
+          frames: store.framesFor(activeSessionIdBeforeOpen),
+          onClear: () => store.clear(activeSessionIdBeforeOpen),
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    switch (result) {
+      case _InstantReplayCopyResult(:final text):
+        if (text.trim().isNotEmpty) {
+          await ClipboardBridge.copy(text);
+          await _recordPasteHistory(text, PasteHistoryKind.copy);
+        }
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+        return;
+      case null:
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+        return;
+    }
+  }
+
   void _openSearch() {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {
@@ -1432,6 +1533,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                   sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                   pasteHistoryShortcutLabel: _pasteHistoryShortcutLabel(),
+                  instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
                   hasActiveSession: hasActiveSession,
                 ),
@@ -1466,6 +1568,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
                     sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
                     pasteHistoryShortcutLabel: _pasteHistoryShortcutLabel(),
+                    instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
                     hasActiveSession: hasActiveSession,
                   ),
@@ -1566,6 +1669,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return;
         }
         await _openPasteHistory(sessionState);
+        return;
+      case _ShellCommandAction.instantReplay:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _openInstantReplay(sessionState);
         return;
       case _ShellCommandAction.search:
         if (currentSessionId == null) {
@@ -1951,6 +2060,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             return KeyEventResult.handled;
           }
           unawaited(_openPasteHistory(sessionState));
+          return KeyEventResult.handled;
+        case _ShellShortcutAction.instantReplay:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          unawaited(_openInstantReplay(sessionState));
           return KeyEventResult.handled;
         case _ShellShortcutAction.closeActiveTab:
           if (activeSessionId == null) {
@@ -2755,6 +2870,195 @@ class _AutocompleteSuggestionTile extends StatelessWidget {
   }
 }
 
+class _InstantReplaySheet extends StatefulWidget {
+  const _InstantReplaySheet({required this.frames, required this.onClear});
+
+  final List<InstantReplayFrame> frames;
+  final VoidCallback onClear;
+
+  @override
+  State<_InstantReplaySheet> createState() => _InstantReplaySheetState();
+}
+
+class _InstantReplaySheetState extends State<_InstantReplaySheet> {
+  late List<InstantReplayFrame> _frames;
+  int _activeIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _frames = widget.frames;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final activeFrame = _frames.isEmpty ? null : _frames[_activeIndex];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Material(
+        key: const Key('instant-replay-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Instant Replay',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close instant replay',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Text(
+                      '${_frames.length} captured frame${_frames.length == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: palette.textSubtle,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      key: const Key('instant-replay-clear'),
+                      onPressed: _frames.isEmpty
+                          ? null
+                          : () {
+                              setState(() {
+                                _frames = const [];
+                                _activeIndex = 0;
+                              });
+                              widget.onClear();
+                            },
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      label: const Text('Clear'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (_frames.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'No terminal frames captured yet.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: palette.textSubtle,
+                        ),
+                      ),
+                    ),
+                  )
+                else ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.history_toggle_off_rounded,
+                        size: 16,
+                        color: palette.textMuted,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _frameLabel(activeFrame!),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    key: const Key('instant-replay-slider'),
+                    value: _activeIndex.toDouble(),
+                    min: 0,
+                    max: (_frames.length - 1).toDouble(),
+                    divisions: _frames.length <= 1 ? null : _frames.length - 1,
+                    label: _activeIndex == 0
+                        ? 'Now'
+                        : '${_activeIndex + 1} of ${_frames.length}',
+                    onChanged: _frames.length <= 1
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _activeIndex = value
+                                  .round()
+                                  .clamp(0, _frames.length - 1)
+                                  .toInt();
+                            });
+                          },
+                  ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: palette.terminalSurface,
+                        borderRadius: BorderRadius.circular(palette.radius.md),
+                        border: Border.all(color: palette.border),
+                      ),
+                      child: SingleChildScrollView(
+                        key: const Key('instant-replay-preview'),
+                        padding: const EdgeInsets.all(10),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            activeFrame.text,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: palette.textPrimary,
+                                  fontFamily: 'monospace',
+                                  height: 1.25,
+                                ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton.icon(
+                      key: const Key('instant-replay-copy'),
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).pop(_InstantReplayCopyResult(activeFrame.text)),
+                      icon: const Icon(Icons.copy_rounded, size: 16),
+                      label: const Text('Copy Text'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _frameLabel(InstantReplayFrame frame) {
+    final timestamp = frame.capturedAt;
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+    final time =
+        '${twoDigits(timestamp.hour)}:${twoDigits(timestamp.minute)}:${twoDigits(timestamp.second)}';
+    return _activeIndex == 0 ? 'Latest frame • $time' : 'Older frame • $time';
+  }
+}
+
 class _PasteHistorySheet extends StatefulWidget {
   const _PasteHistorySheet({
     required this.entries,
@@ -3018,6 +3322,7 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.sessionCopyShortcutLabel,
     required this.sessionPasteShortcutLabel,
     required this.pasteHistoryShortcutLabel,
+    required this.instantReplayShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
   });
@@ -3032,6 +3337,7 @@ class _ShellCommandMenu extends StatelessWidget {
   final String sessionCopyShortcutLabel;
   final String sessionPasteShortcutLabel;
   final String pasteHistoryShortcutLabel;
+  final String instantReplayShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
 
@@ -3191,6 +3497,18 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.pasteHistory),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-instant-replay'),
+                    icon: Icons.replay_rounded,
+                    title: 'Instant replay',
+                    subtitle:
+                        'Session action • Recover text from recent terminal frames.',
+                    shortcutLabel: instantReplayShortcutLabel,
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.instantReplay),
                   ),
                   _ShellCommandTile(
                     icon: Icons.search_rounded,
