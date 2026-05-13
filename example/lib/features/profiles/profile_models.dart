@@ -15,6 +15,39 @@ typedef TerminalProfileInteraction = terminal_pkg.TerminalInteractionConfig;
 
 enum TerminalProfileTriggerAction { notify, sendText }
 
+enum TerminalProfileSwitchRuleKind { hostname, username, directory }
+
+class TerminalProfileSwitchRule {
+  const TerminalProfileSwitchRule({
+    required this.kind,
+    required this.pattern,
+    this.caseSensitive = false,
+  });
+
+  final TerminalProfileSwitchRuleKind kind;
+  final String pattern;
+  final bool caseSensitive;
+
+  Map<String, Object?> toJson() {
+    return {
+      'kind': _switchRuleKindToJson(kind),
+      'pattern': pattern,
+      if (caseSensitive) 'caseSensitive': caseSensitive,
+    };
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TerminalProfileSwitchRule &&
+        other.kind == kind &&
+        other.pattern == pattern &&
+        other.caseSensitive == caseSensitive;
+  }
+
+  @override
+  int get hashCode => Object.hash(kind, pattern, caseSensitive);
+}
+
 class TerminalProfileTrigger {
   const TerminalProfileTrigger({
     required this.pattern,
@@ -101,6 +134,7 @@ class TerminalProfile {
         const terminal_pkg.TerminalInteractionConfig(),
     this.tags = const [],
     this.triggers = const [],
+    this.switchRules = const [],
   }) : sessionConfig = terminal_pkg.TerminalSessionConfig(
          launch: terminal_pkg.TerminalLaunchConfig(
            program: shell,
@@ -120,12 +154,14 @@ class TerminalProfile {
     required this.sessionConfig,
     this.tags = const [],
     this.triggers = const [],
+    this.switchRules = const [],
   });
 
   final String id;
   final String name;
   final List<String> tags;
   final List<TerminalProfileTrigger> triggers;
+  final List<TerminalProfileSwitchRule> switchRules;
   final terminal_pkg.TerminalSessionConfig sessionConfig;
 
   String get shell => sessionConfig.launch.program;
@@ -153,6 +189,7 @@ class TerminalProfile {
     terminal_pkg.TerminalSessionConfig? sessionConfig,
     List<String>? tags,
     List<TerminalProfileTrigger>? triggers,
+    List<TerminalProfileSwitchRule>? switchRules,
   }) {
     final baseConfig = sessionConfig ?? this.sessionConfig;
     final nextLaunch = baseConfig.launch.copyWith(
@@ -166,6 +203,7 @@ class TerminalProfile {
       name: name ?? this.name,
       tags: tags ?? this.tags,
       triggers: triggers ?? this.triggers,
+      switchRules: switchRules ?? this.switchRules,
       sessionConfig: baseConfig.copyWith(
         launch: nextLaunch,
         emulation: terminalEmulation,
@@ -184,6 +222,10 @@ class TerminalProfile {
       if (tags.isNotEmpty) 'tags': tags,
       if (triggers.isNotEmpty)
         'triggers': triggers.map((trigger) => trigger.toJson()).toList(),
+      if (switchRules.isNotEmpty)
+        'automaticProfileSwitching': switchRules
+            .map((rule) => rule.toJson())
+            .toList(),
       ...configJson,
     };
   }
@@ -210,6 +252,10 @@ class TerminalProfile {
     );
     final tags = _profileTagsFromJson(json['tags'], warningSink);
     final triggers = _profileTriggersFromJson(json['triggers'], warningSink);
+    final switchRules = _profileSwitchRulesFromJson(
+      json['automaticProfileSwitching'] ?? json['switchRules'],
+      warningSink,
+    );
 
     if (parsedId == null || parsedId.isEmpty) {
       warningSink.add(
@@ -243,6 +289,7 @@ class TerminalProfile {
       name: profileName,
       tags: tags,
       triggers: triggers,
+      switchRules: switchRules,
       sessionConfig: sessionConfig,
     );
   }
@@ -259,7 +306,7 @@ class TerminalProfilesDocument {
     this.loadWarnings = const [],
   });
 
-  static const int currentSchemaVersion = 3;
+  static const int currentSchemaVersion = 4;
 
   final int schemaVersion;
   final List<TerminalProfile> profiles;
@@ -556,6 +603,72 @@ List<TerminalProfileTrigger> _profileTriggersFromJson(
   return List.unmodifiable(triggers);
 }
 
+List<TerminalProfileSwitchRule> _profileSwitchRulesFromJson(
+  Object? rawValue,
+  _TerminalProfileWarningSink warningSink,
+) {
+  if (rawValue == null) {
+    return const [];
+  }
+  if (rawValue is! List) {
+    warningSink.add(
+      path: 'automaticProfileSwitching',
+      rawValue: rawValue,
+      fallbackSummary: 'used no automatic profile switching rules',
+    );
+    return const [];
+  }
+
+  final rules = <TerminalProfileSwitchRule>[];
+  for (var index = 0; index < rawValue.length; index += 1) {
+    final rawEntry = rawValue[index];
+    if (rawEntry is! Map) {
+      warningSink.add(
+        path: 'automaticProfileSwitching[$index]',
+        rawValue: rawEntry,
+        fallbackSummary: 'ignored invalid switching rule entry',
+      );
+      continue;
+    }
+    final map = _asStringMap(rawEntry)!;
+    final kind = _switchRuleKindFromJson(map['kind'] ?? map['type']);
+    if (kind == null) {
+      warningSink.add(
+        path: 'automaticProfileSwitching[$index].kind',
+        rawValue: map['kind'] ?? map['type'],
+        fallbackSummary: 'ignored switching rule with invalid kind',
+      );
+      continue;
+    }
+    final pattern = _stringOrNull(map['pattern'] ?? map['value'])?.trim();
+    if (pattern == null || pattern.isEmpty) {
+      warningSink.add(
+        path: 'automaticProfileSwitching[$index].pattern',
+        rawValue: map['pattern'] ?? map['value'],
+        fallbackSummary: 'ignored switching rule without a pattern',
+      );
+      continue;
+    }
+    final rawCaseSensitive = map['caseSensitive'];
+    final caseSensitive = rawCaseSensitive is bool ? rawCaseSensitive : false;
+    if (rawCaseSensitive != null && rawCaseSensitive is! bool) {
+      warningSink.add(
+        path: 'automaticProfileSwitching[$index].caseSensitive',
+        rawValue: rawCaseSensitive,
+        fallbackSummary: 'used case-insensitive matching',
+      );
+    }
+    rules.add(
+      TerminalProfileSwitchRule(
+        kind: kind,
+        pattern: pattern,
+        caseSensitive: caseSensitive,
+      ),
+    );
+  }
+  return List.unmodifiable(rules);
+}
+
 TerminalProfileTriggerAction? _triggerActionFromJson(Object? rawValue) {
   if (rawValue == null) {
     return TerminalProfileTriggerAction.notify;
@@ -575,6 +688,27 @@ String _triggerActionToJson(TerminalProfileTriggerAction action) {
   return switch (action) {
     TerminalProfileTriggerAction.notify => 'notify',
     TerminalProfileTriggerAction.sendText => 'send_text',
+  };
+}
+
+TerminalProfileSwitchRuleKind? _switchRuleKindFromJson(Object? rawValue) {
+  final normalized = _stringOrNull(rawValue)?.trim().toLowerCase();
+  return switch (normalized) {
+    'host' || 'hostname' => TerminalProfileSwitchRuleKind.hostname,
+    'user' || 'username' => TerminalProfileSwitchRuleKind.username,
+    'dir' ||
+    'directory' ||
+    'cwd' ||
+    'path' => TerminalProfileSwitchRuleKind.directory,
+    _ => null,
+  };
+}
+
+String _switchRuleKindToJson(TerminalProfileSwitchRuleKind kind) {
+  return switch (kind) {
+    TerminalProfileSwitchRuleKind.hostname => 'hostname',
+    TerminalProfileSwitchRuleKind.username => 'username',
+    TerminalProfileSwitchRuleKind.directory => 'directory',
   };
 }
 

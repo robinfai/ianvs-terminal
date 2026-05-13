@@ -430,6 +430,7 @@ class SessionController extends Notifier<SessionState> {
       );
     }
     state = state.copyWith(tabs: nextTabs);
+    _applyAutomaticProfileSwitch(event.sessionId, nextIntegration);
   }
 
   TerminalShellIntegrationSnapshot _shellIntegrationForHook(
@@ -522,6 +523,123 @@ class SessionController extends Notifier<SessionState> {
       return null;
     }
     return trimmed;
+  }
+
+  void _applyAutomaticProfileSwitch(
+    String sessionId,
+    TerminalShellIntegrationSnapshot shellIntegration,
+  ) {
+    final profile = _matchingAutomaticProfile(shellIntegration);
+    if (profile == null) {
+      return;
+    }
+    final tabIndex = _tabIndexContainingSession(sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+    final currentTab = state.tabs[tabIndex];
+    final currentPane = currentTab.paneFor(sessionId);
+    if (currentPane == null || currentPane.profileId == profile.id) {
+      return;
+    }
+
+    final nextTabs = <TerminalTab>[...state.tabs];
+    if (currentTab.panes.isEmpty && currentTab.sessionId == sessionId) {
+      nextTabs[tabIndex] = currentTab.copyWith(
+        title: profile.name,
+        profileId: profile.id,
+        profileSnapshot: profile,
+        shellIntegration: shellIntegration,
+      );
+    } else {
+      nextTabs[tabIndex] = currentTab.copyWith(
+        title: sessionId == currentTab.sessionId
+            ? profile.name
+            : currentTab.title,
+        panes: [
+          for (final pane in currentTab.effectivePanes)
+            if (pane.sessionId == sessionId)
+              pane.copyWith(
+                title: profile.name,
+                profileId: profile.id,
+                profileSnapshot: profile,
+                shellIntegration: shellIntegration,
+              )
+            else
+              pane,
+        ],
+      );
+    }
+    state = state.copyWith(tabs: nextTabs);
+    if (sessionId == state.activeSessionId) {
+      _setWindowTitle(profile.name);
+    }
+  }
+
+  TerminalProfile? _matchingAutomaticProfile(
+    TerminalShellIntegrationSnapshot shellIntegration,
+  ) {
+    for (final profile in state.profiles) {
+      for (final rule in profile.switchRules) {
+        if (_profileSwitchRuleMatches(rule, shellIntegration)) {
+          return profile;
+        }
+      }
+    }
+    return null;
+  }
+
+  bool _profileSwitchRuleMatches(
+    TerminalProfileSwitchRule rule,
+    TerminalShellIntegrationSnapshot shellIntegration,
+  ) {
+    final value = switch (rule.kind) {
+      TerminalProfileSwitchRuleKind.hostname => shellIntegration.hostname,
+      TerminalProfileSwitchRuleKind.username => shellIntegration.username,
+      TerminalProfileSwitchRuleKind.directory =>
+        shellIntegration.currentDirectory,
+    };
+    if (value == null || value.isEmpty) {
+      return false;
+    }
+    if (rule.kind == TerminalProfileSwitchRuleKind.directory &&
+        !rule.pattern.contains('*')) {
+      return _directoryRuleMatches(value, rule);
+    }
+    return _shellPatternMatches(
+      value,
+      rule.pattern,
+      caseSensitive: rule.caseSensitive,
+    );
+  }
+
+  bool _directoryRuleMatches(String directory, TerminalProfileSwitchRule rule) {
+    final candidate = rule.caseSensitive ? directory : directory.toLowerCase();
+    final pattern = rule.caseSensitive
+        ? rule.pattern
+        : rule.pattern.toLowerCase();
+    final normalizedPattern = pattern.endsWith('/')
+        ? pattern.substring(0, pattern.length - 1)
+        : pattern;
+    return candidate == normalizedPattern ||
+        candidate.startsWith('$normalizedPattern/');
+  }
+
+  bool _shellPatternMatches(
+    String value,
+    String pattern, {
+    required bool caseSensitive,
+  }) {
+    final buffer = StringBuffer('^');
+    for (var index = 0; index < pattern.length; index += 1) {
+      final character = pattern[index];
+      buffer.write(character == '*' ? '.*' : RegExp.escape(character));
+    }
+    buffer.write(r'$');
+    return RegExp(
+      buffer.toString(),
+      caseSensitive: caseSensitive,
+    ).hasMatch(value);
   }
 
   void _publishDemoContent(SessionDemoFixture fixture, String? sessionId) {

@@ -32,6 +32,16 @@ void main() {
                 value: 'secret\n',
               ),
             ],
+            switchRules: const [
+              TerminalProfileSwitchRule(
+                kind: TerminalProfileSwitchRuleKind.hostname,
+                pattern: '*.prod.example.com',
+              ),
+              TerminalProfileSwitchRule(
+                kind: TerminalProfileSwitchRuleKind.directory,
+                pattern: '/srv/app',
+              ),
+            ],
           ),
         ],
       );
@@ -48,6 +58,16 @@ void main() {
           pattern: 'Password:',
           action: TerminalProfileTriggerAction.sendText,
           value: 'secret\n',
+        ),
+      ]);
+      expect(loaded.profiles.single.switchRules, const [
+        TerminalProfileSwitchRule(
+          kind: TerminalProfileSwitchRuleKind.hostname,
+          pattern: '*.prod.example.com',
+        ),
+        TerminalProfileSwitchRule(
+          kind: TerminalProfileSwitchRuleKind.directory,
+          pattern: '/srv/app',
         ),
       ]);
       expect(
@@ -73,6 +93,16 @@ void main() {
           containsAll([
             containsPair('pattern', 'ERROR'),
             containsPair('action', 'send_text'),
+          ]),
+        ),
+      );
+      expect(
+        (raw['profiles'] as List<dynamic>).single,
+        containsPair(
+          'automaticProfileSwitching',
+          containsAll([
+            containsPair('kind', 'hostname'),
+            containsPair('kind', 'directory'),
           ]),
         ),
       );
@@ -318,6 +348,12 @@ void main() {
               {'pattern': '[', 'action': 'notify'},
               {'pattern': 'Prompt:', 'action': 'send_text'},
             ],
+            'automaticProfileSwitching': const [
+              {'kind': 'host', 'pattern': 'prod.example.com'},
+              {'kind': 'role', 'pattern': 'root'},
+              {'kind': 'user', 'pattern': ''},
+              {'kind': 'dir', 'pattern': '/srv', 'caseSensitive': 'yes'},
+            ],
             'launch': {
               'program': 7,
               'args': const ['-l', 3, ''],
@@ -367,6 +403,16 @@ void main() {
       expect(loaded.profiles.single.triggers, const [
         TerminalProfileTrigger(pattern: 'ERROR'),
       ]);
+      expect(loaded.profiles.single.switchRules, const [
+        TerminalProfileSwitchRule(
+          kind: TerminalProfileSwitchRuleKind.hostname,
+          pattern: 'prod.example.com',
+        ),
+        TerminalProfileSwitchRule(
+          kind: TerminalProfileSwitchRuleKind.directory,
+          pattern: '/srv',
+        ),
+      ]);
       expect(loaded.profiles.single.shell, defaultTerminalProfile().shell);
       expect(loaded.profiles.single.args, const ['-l']);
       expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
@@ -413,6 +459,9 @@ void main() {
           'triggers[0].action',
           'triggers[1].pattern',
           'triggers[2].value',
+          'automaticProfileSwitching[1].kind',
+          'automaticProfileSwitching[2].pattern',
+          'automaticProfileSwitching[3].caseSensitive',
           'launch.program',
           'launch.args[1]',
           'launch.env.BAD',

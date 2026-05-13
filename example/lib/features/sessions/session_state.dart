@@ -24,6 +24,7 @@ class TerminalPane {
 
   TerminalPane copyWith({
     String? title,
+    String? profileId,
     TerminalProfile? profileSnapshot,
     bool? isExited,
     int? exitCode,
@@ -32,7 +33,7 @@ class TerminalPane {
     return TerminalPane(
       sessionId: sessionId,
       title: title ?? this.title,
-      profileId: profileId,
+      profileId: profileId ?? this.profileId,
       profileSnapshot: profileSnapshot ?? this.profileSnapshot,
       isExited: isExited ?? this.isExited,
       exitCode: exitCode ?? this.exitCode,
@@ -104,6 +105,7 @@ class TerminalTab {
 
   TerminalTab copyWith({
     String? title,
+    String? profileId,
     TerminalProfile? profileSnapshot,
     bool? isExited,
     int? exitCode,
@@ -115,7 +117,7 @@ class TerminalTab {
     return TerminalTab(
       sessionId: sessionId,
       title: title ?? this.title,
-      profileId: profileId,
+      profileId: profileId ?? this.profileId,
       profileSnapshot: profileSnapshot ?? this.profileSnapshot,
       isExited: isExited ?? this.isExited,
       exitCode: exitCode ?? this.exitCode,

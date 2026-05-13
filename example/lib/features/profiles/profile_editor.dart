@@ -95,6 +95,62 @@ String _triggerLineFor(TerminalProfileTrigger trigger) {
   };
 }
 
+List<TerminalProfileSwitchRule> _switchRulesFromText(String text) {
+  final rules = <TerminalProfileSwitchRule>[];
+  final lines = text.split('\n');
+  for (var index = 0; index < lines.length; index += 1) {
+    final line = lines[index].trim();
+    if (line.isEmpty) {
+      continue;
+    }
+    final separator = line.indexOf(':');
+    if (separator == -1) {
+      throw FormatException(
+        'Line ${index + 1}: use host:, user:, or dir: before the pattern.',
+      );
+    }
+    final kind = _switchRuleKindFromText(line.substring(0, separator));
+    final pattern = line.substring(separator + 1).trim();
+    if (kind == null) {
+      throw FormatException(
+        'Line ${index + 1}: use host, user, or dir as the rule type.',
+      );
+    }
+    if (pattern.isEmpty) {
+      throw FormatException('Line ${index + 1}: pattern is required.');
+    }
+    rules.add(TerminalProfileSwitchRule(kind: kind, pattern: pattern));
+  }
+  return rules;
+}
+
+String? _switchRuleLinesError(String text) {
+  try {
+    _switchRulesFromText(text);
+    return null;
+  } on FormatException catch (error) {
+    return error.message;
+  }
+}
+
+TerminalProfileSwitchRuleKind? _switchRuleKindFromText(String value) {
+  return switch (value.trim().toLowerCase()) {
+    'host' || 'hostname' => TerminalProfileSwitchRuleKind.hostname,
+    'user' || 'username' => TerminalProfileSwitchRuleKind.username,
+    'dir' || 'directory' || 'cwd' => TerminalProfileSwitchRuleKind.directory,
+    _ => null,
+  };
+}
+
+String _switchRuleLineFor(TerminalProfileSwitchRule rule) {
+  final kind = switch (rule.kind) {
+    TerminalProfileSwitchRuleKind.hostname => 'host',
+    TerminalProfileSwitchRuleKind.username => 'user',
+    TerminalProfileSwitchRuleKind.directory => 'dir',
+  };
+  return '$kind: ${rule.pattern}';
+}
+
 String _escapeTriggerValue(String value) {
   return value
       .replaceAll('\\', r'\\')
@@ -228,6 +284,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _tagsController;
   late final TextEditingController _triggersController;
+  late final TextEditingController _switchRulesController;
   late final TextEditingController _shellController;
   late final TextEditingController _cwdController;
   late final TextEditingController _scrollbackController;
@@ -236,6 +293,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final TextEditingController _lineHeightController;
   late final FocusNode _nameFocusNode;
   late final FocusNode _triggersFocusNode;
+  late final FocusNode _switchRulesFocusNode;
   late final FocusNode _shellFocusNode;
   late final FocusNode _scrollbackFocusNode;
   late final FocusNode _fontFamilyFocusNode;
@@ -261,6 +319,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _triggersController = _trackedController(
       text: profile.triggers.map(_triggerLineFor).join('\n'),
     );
+    _switchRulesController = _trackedController(
+      text: profile.switchRules.map(_switchRuleLineFor).join('\n'),
+    );
     _shellController = _trackedController(text: profile.shell);
     _cwdController = _trackedController(text: profile.cwd ?? '');
     _scrollbackController = _trackedController(
@@ -277,6 +338,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
     _nameFocusNode = FocusNode(debugLabel: 'profile-editor-name');
     _triggersFocusNode = FocusNode(debugLabel: 'profile-editor-triggers');
+    _switchRulesFocusNode = FocusNode(
+      debugLabel: 'profile-editor-switch-rules',
+    );
     _shellFocusNode = FocusNode(debugLabel: 'profile-editor-shell');
     _scrollbackFocusNode = FocusNode(debugLabel: 'profile-editor-scrollback');
     _fontFamilyFocusNode = FocusNode(debugLabel: 'profile-editor-font-family');
@@ -315,6 +379,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       _nameController,
       _tagsController,
       _triggersController,
+      _switchRulesController,
       _shellController,
       _cwdController,
       _scrollbackController,
@@ -328,6 +393,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _disposeFocusNodes([
       _nameFocusNode,
       _triggersFocusNode,
+      _switchRulesFocusNode,
       _shellFocusNode,
       _scrollbackFocusNode,
       _fontFamilyFocusNode,
@@ -726,6 +792,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       name: _nameController.text.trim(),
       tags: _normalizedTagsFromText(_tagsController.text),
       triggers: _triggersFromText(_triggersController.text),
+      switchRules: _switchRulesFromText(_switchRulesController.text),
       shell: _shellController.text.trim(),
       args: _nonEmptyEntries(_argControllers),
       env: _envEntries(),
@@ -905,6 +972,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     if (_triggerLinesError(_triggersController.text) != null) {
       return _triggersFocusNode;
     }
+    if (_switchRuleLinesError(_switchRulesController.text) != null) {
+      return _switchRulesFocusNode;
+    }
     for (final entry in _envControllers) {
       if (_envKeyError(_envControllers.indexOf(entry)) != null) {
         return entry.keyFocusNode;
@@ -1033,6 +1103,21 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               'One per line: regex => notify or regex => send: text.',
                         ),
                         validator: (value) => _triggerLinesError(value ?? ''),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        key: const Key('profile-editor-switch-rules'),
+                        controller: _switchRulesController,
+                        focusNode: _switchRulesFocusNode,
+                        minLines: 2,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          labelText: 'Automatic profile switching',
+                          helperText:
+                              'One per line: host: pattern, user: root, or dir: /path.',
+                        ),
+                        validator: (value) =>
+                            _switchRuleLinesError(value ?? ''),
                       ),
                     ],
                   ),

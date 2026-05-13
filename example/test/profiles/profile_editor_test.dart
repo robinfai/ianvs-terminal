@@ -466,6 +466,59 @@ void main() {
     ]);
   });
 
+  testWidgets('profile editor saves automatic profile switching rules', (
+    tester,
+  ) async {
+    final initialProfile = TerminalProfile(
+      id: 'prod',
+      name: 'Production',
+      shell: '/bin/zsh',
+      switchRules: const [
+        TerminalProfileSwitchRule(
+          kind: TerminalProfileSwitchRuleKind.hostname,
+          pattern: '*.prod.example.com',
+        ),
+      ],
+    );
+
+    TerminalProfile? savedProfile;
+    await _pumpEditorHarness(
+      tester,
+      initialValue: initialProfile,
+      onSaved: (value) => savedProfile = value,
+    );
+
+    expect(
+      tester
+          .widget<TextFormField>(
+            find.byKey(const Key('profile-editor-switch-rules')),
+          )
+          .controller!
+          .text,
+      'host: *.prod.example.com',
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-switch-rules')),
+      'user: root\ndir: /srv/app',
+    );
+    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
+    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await tester.pumpAndSettle();
+
+    expect(savedProfile, isNotNull);
+    expect(savedProfile!.switchRules, const [
+      TerminalProfileSwitchRule(
+        kind: TerminalProfileSwitchRuleKind.username,
+        pattern: 'root',
+      ),
+      TerminalProfileSwitchRule(
+        kind: TerminalProfileSwitchRuleKind.directory,
+        pattern: '/srv/app',
+      ),
+    ]);
+  });
+
   testWidgets('profile editor blocks invalid values and duplicate env keys', (
     tester,
   ) async {
