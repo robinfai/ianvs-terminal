@@ -37,6 +37,7 @@ enum _ShellCommandAction {
   advancedPaste,
   pasteHistory,
   shellIntegrationUtilities,
+  tmuxIntegration,
   annotations,
   capturedOutput,
   passwordManager,
@@ -1652,6 +1653,53 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
   }
 
+  bool _tmuxControlModeActive(String sessionId) {
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(sessionId)
+        .frame;
+    return _frameLooksLikeTmuxControlMode(frame);
+  }
+
+  bool _frameLooksLikeTmuxControlMode(terminal.TerminalFrameDiff frame) {
+    var sawModeBanner = false;
+    var sawCommandMenu = false;
+    for (final row in frame.rows) {
+      final text = row.text.trim();
+      if (text.contains('tmux mode started') ||
+          text.startsWith('%window-add') ||
+          text.startsWith('%session-changed')) {
+        sawModeBanner = true;
+      }
+      if (text.contains('Detach cleanly') ||
+          text.contains('Force-quit tmux mode') ||
+          text == 'Command Menu') {
+        sawCommandMenu = true;
+      }
+    }
+    return sawModeBanner && sawCommandMenu;
+  }
+
+  Future<void> _openTmuxIntegration(String sessionId) async {
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _TmuxIntegrationSheet(
+          controlModeDetected: _tmuxControlModeActive(sessionId),
+          onSendCommand: (command) {
+            _sendPlainTextToSession(sessionId, command);
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openAdvancedPaste(String sessionId) async {
     final clipboardText = await ClipboardBridge.paste();
     if (!mounted) {
@@ -2584,6 +2632,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
+      case _ShellCommandAction.tmuxIntegration:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _openTmuxIntegration(currentSessionId);
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
+        return;
       case _ShellCommandAction.annotations:
         if (currentSessionId == null) {
           return;
@@ -3214,6 +3272,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     promptMarkCount: activeShellIntegration
                                         .promptMarks
                                         .length,
+                                    tmuxControlModeActive:
+                                        _tmuxControlModeActive(activeSessionId),
                                     annotationCount: _annotationsForSession(
                                       activeSessionId,
                                     ).length,
@@ -3236,6 +3296,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                             activeSessionId,
                                           ),
                                         ),
+                                    onOpenTmuxIntegration: () => unawaited(
+                                      _openTmuxIntegration(activeSessionId),
+                                    ),
                                     onOpenAnnotations: () {
                                       final selectionController =
                                           _selectionControllers.putIfAbsent(
@@ -3281,12 +3344,14 @@ class _ShellToolbelt extends StatelessWidget {
     required this.commandHistoryCount,
     required this.recentDirectoryCount,
     required this.promptMarkCount,
+    required this.tmuxControlModeActive,
     required this.annotationCount,
     required this.palette,
     required this.onClose,
     required this.onOpenCapturedOutput,
     required this.onOpenPasteHistory,
     required this.onOpenShellIntegrationUtilities,
+    required this.onOpenTmuxIntegration,
     required this.onOpenAnnotations,
     required this.onOpenInstantReplay,
     required this.onOpenPasswordManager,
@@ -3297,12 +3362,14 @@ class _ShellToolbelt extends StatelessWidget {
   final int commandHistoryCount;
   final int recentDirectoryCount;
   final int promptMarkCount;
+  final bool tmuxControlModeActive;
   final int annotationCount;
   final AppThemeTokens palette;
   final VoidCallback onClose;
   final VoidCallback onOpenCapturedOutput;
   final VoidCallback onOpenPasteHistory;
   final VoidCallback onOpenShellIntegrationUtilities;
+  final VoidCallback onOpenTmuxIntegration;
   final VoidCallback onOpenAnnotations;
   final VoidCallback onOpenInstantReplay;
   final VoidCallback onOpenPasswordManager;
@@ -3395,6 +3462,16 @@ class _ShellToolbelt extends StatelessWidget {
                               '$promptMarkCount mark${promptMarkCount == 1 ? '' : 's'}',
                           palette: palette,
                           onTap: onOpenShellIntegrationUtilities,
+                        ),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-tmux-integration'),
+                          icon: Icons.account_tree_rounded,
+                          title: 'tmux integration',
+                          countLabel: tmuxControlModeActive
+                              ? 'Control mode active'
+                              : 'Start or attach',
+                          palette: palette,
+                          onTap: onOpenTmuxIntegration,
                         ),
                         _ToolbeltActionRow(
                           key: const Key('toolbelt-annotations'),
@@ -4157,6 +4234,312 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TmuxIntegrationSheet extends StatefulWidget {
+  const _TmuxIntegrationSheet({
+    required this.controlModeDetected,
+    required this.onSendCommand,
+  });
+
+  final bool controlModeDetected;
+  final ValueChanged<String> onSendCommand;
+
+  @override
+  State<_TmuxIntegrationSheet> createState() => _TmuxIntegrationSheetState();
+}
+
+class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
+  late final TextEditingController _commandController;
+
+  @override
+  void initState() {
+    super.initState();
+    _commandController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _commandController.dispose();
+    super.dispose();
+  }
+
+  void _send(String command) {
+    Navigator.of(context).pop();
+    widget.onSendCommand(command);
+  }
+
+  void _sendCustomCommand() {
+    final command = _commandController.text.trim();
+    if (command.isEmpty) {
+      return;
+    }
+    _send('$command\n');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final controlModeDetected = widget.controlModeDetected;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Material(
+        key: const Key('tmux-integration-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 560),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'tmux Integration',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close tmux integration',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: palette.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _TmuxStatusChip(
+                    controlModeDetected: controlModeDetected,
+                    palette: palette,
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _ShellIntegrationSectionHeader(
+                            icon: Icons.terminal_rounded,
+                            title: 'Control Mode',
+                            countLabel: 'tmux -CC',
+                            palette: palette,
+                          ),
+                          _TmuxActionTile(
+                            key: const Key('tmux-start-control-mode'),
+                            icon: Icons.play_arrow_rounded,
+                            title: 'Start tmux -CC',
+                            subtitle: 'Create a new tmux control-mode session.',
+                            palette: palette,
+                            onTap: () => _send('tmux -CC\n'),
+                          ),
+                          _TmuxActionTile(
+                            key: const Key('tmux-attach-control-mode'),
+                            icon: Icons.login_rounded,
+                            title: 'Attach tmux -CC',
+                            subtitle: 'Attach to an existing tmux session.',
+                            palette: palette,
+                            onTap: () => _send('tmux -CC attach\n'),
+                          ),
+                          const SizedBox(height: 8),
+                          _ShellIntegrationSectionHeader(
+                            icon: Icons.account_tree_rounded,
+                            title: 'tmux Actions',
+                            countLabel: controlModeDetected
+                                ? 'available'
+                                : 'waiting',
+                            palette: palette,
+                          ),
+                          _TmuxActionTile(
+                            key: const Key('tmux-new-window'),
+                            icon: Icons.add_box_outlined,
+                            title: 'New window',
+                            subtitle: 'Send new-window to tmux control mode.',
+                            palette: palette,
+                            enabled: controlModeDetected,
+                            onTap: () => _send('new-window\n'),
+                          ),
+                          _TmuxActionTile(
+                            key: const Key('tmux-split-right'),
+                            icon: Icons.vertical_split_rounded,
+                            title: 'Split pane right',
+                            subtitle: 'Send split-window -h.',
+                            palette: palette,
+                            enabled: controlModeDetected,
+                            onTap: () => _send('split-window -h\n'),
+                          ),
+                          _TmuxActionTile(
+                            key: const Key('tmux-split-down'),
+                            icon: Icons.horizontal_split_rounded,
+                            title: 'Split pane down',
+                            subtitle: 'Send split-window -v.',
+                            palette: palette,
+                            enabled: controlModeDetected,
+                            onTap: () => _send('split-window -v\n'),
+                          ),
+                          _TmuxActionTile(
+                            key: const Key('tmux-detach-client'),
+                            icon: Icons.logout_rounded,
+                            title: 'Detach client',
+                            subtitle: 'Detach while leaving tmux running.',
+                            palette: palette,
+                            enabled: controlModeDetected,
+                            onTap: () => _send('detach-client\n'),
+                          ),
+                          const SizedBox(height: 8),
+                          TextField(
+                            key: const Key('tmux-command-field'),
+                            controller: _commandController,
+                            enabled: controlModeDetected,
+                            onSubmitted: (_) => _sendCustomCommand(),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: palette.textPrimary),
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.code_rounded),
+                              suffixIcon: IconButton(
+                                key: const Key('tmux-send-command'),
+                                tooltip: 'Send tmux command',
+                                onPressed: controlModeDetected
+                                    ? _sendCustomCommand
+                                    : null,
+                                icon: const Icon(Icons.keyboard_return_rounded),
+                              ),
+                              hintText: 'tmux command',
+                              isDense: true,
+                              filled: true,
+                              fillColor: palette.chrome,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  palette.radius.sm,
+                                ),
+                                borderSide: BorderSide(color: palette.border),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TmuxStatusChip extends StatelessWidget {
+  const _TmuxStatusChip({
+    required this.controlModeDetected,
+    required this.palette,
+  });
+
+  final bool controlModeDetected;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: controlModeDetected
+            ? palette.accent.withValues(alpha: 0.12)
+            : palette.chrome,
+        borderRadius: BorderRadius.circular(palette.radius.sm),
+        border: Border.all(
+          color: controlModeDetected ? palette.accent : palette.border,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              controlModeDetected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              size: 15,
+              color: controlModeDetected ? palette.accent : palette.textMuted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              controlModeDetected
+                  ? 'Control mode detected'
+                  : 'No tmux control mode detected',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: controlModeDetected
+                    ? palette.textPrimary
+                    : palette.textSubtle,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TmuxActionTile extends StatelessWidget {
+  const _TmuxActionTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+    required this.onTap,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleColor = enabled ? palette.textPrimary : palette.textSubtle;
+    final iconColor = enabled ? palette.textMuted : palette.textSubtle;
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      enabled: enabled,
+      leading: Icon(icon, color: iconColor, size: 20),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: titleColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+      ),
+      onTap: enabled ? onTap : null,
     );
   }
 }
@@ -6442,6 +6825,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.shellIntegrationUtilities),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-tmux-integration'),
+                    icon: Icons.account_tree_rounded,
+                    title: 'tmux integration',
+                    subtitle:
+                        'Session action • Start or drive tmux control mode.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.tmuxIntegration),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-password-manager'),

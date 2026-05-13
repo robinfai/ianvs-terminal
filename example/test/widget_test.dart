@@ -1657,6 +1657,91 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets('tmux integration starts and drives control mode', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    Future<void> openTmuxIntegration() async {
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(
+        find.byKey(const Key('shell-tmux-integration')),
+      );
+      await tester.tap(find.byKey(const Key('shell-tmux-integration')));
+      await tester.pumpAndSettle();
+    }
+
+    await openTmuxIntegration();
+
+    expect(find.byKey(const Key('tmux-integration-sheet')), findsOneWidget);
+    expect(find.text('No tmux control mode detected'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('tmux-attach-control-mode')));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes.last, utf8.encode('tmux -CC attach\n'));
+
+    Future<void> showTmuxControlMenuFrame() async {
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': '** tmux mode started **',
+            'style_runs': const [],
+          },
+          {'index': 1, 'text': 'Command Menu', 'style_runs': const []},
+          {
+            'index': 2,
+            'text': 'esc    Detach cleanly.',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 2, 'col': 22, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 3},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+
+    await showTmuxControlMenuFrame();
+
+    await openTmuxIntegration();
+
+    expect(find.text('Control mode detected'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('tmux-split-right')));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes.last, utf8.encode('split-window -h\n'));
+
+    await showTmuxControlMenuFrame();
+    await openTmuxIntegration();
+    await tester.ensureVisible(find.byKey(const Key('tmux-command-field')));
+    await tester.enterText(
+      find.byKey(const Key('tmux-command-field')),
+      'list-windows',
+    );
+    await tester.ensureVisible(find.byKey(const Key('tmux-send-command')));
+    await tester.tap(find.byKey(const Key('tmux-send-command')));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes.last, utf8.encode('list-windows\n'));
+  });
+
   testWidgets('command menu hotkey window invokes the window bridge', (
     tester,
   ) async {
