@@ -313,6 +313,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String _searchQuery = '';
   List<TerminalSearchMatch> _searchMatches = const [];
   int _activeSearchIndex = 0;
+  bool _searchUseRegex = false;
   String _autocompletePrefix = '';
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
@@ -2091,6 +2092,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _searchQuery = '';
       _searchMatches = const [];
       _activeSearchIndex = 0;
+      _searchUseRegex = false;
     });
   }
 
@@ -2099,9 +2101,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (activeSessionId == null) {
       return;
     }
-    final matches = ref
-        .read(terminalRuntimeControllerProvider)
-        .searchText(activeSessionId, query);
+    final matches = _searchUseRegex
+        ? _regexSearchVisibleFrame(activeSessionId, query)
+        : ref
+              .read(terminalRuntimeControllerProvider)
+              .searchText(activeSessionId, query);
     setState(() {
       _searchQuery = query;
       _searchMatches = matches;
@@ -2111,6 +2115,69 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       ref
           .read(terminalRuntimeControllerProvider)
           .scrollViewportTo(activeSessionId, matches.first.scrollbackOffset);
+    }
+  }
+
+  List<TerminalSearchMatch> _regexSearchVisibleFrame(
+    String sessionId,
+    String query,
+  ) {
+    if (query.isEmpty) {
+      return const <TerminalSearchMatch>[];
+    }
+    final RegExp expression;
+    try {
+      expression = RegExp(query);
+    } on FormatException {
+      return const <TerminalSearchMatch>[];
+    }
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(sessionId)
+        .frame;
+    final matches = <TerminalSearchMatch>[];
+    for (final row in frame.rows) {
+      final absoluteRow = frame.viewportStartRow + row.index;
+      if (absoluteRow < frame.viewportStartRow ||
+          absoluteRow >= frame.viewportStartRow + frame.viewportRows) {
+        continue;
+      }
+      for (final match in expression.allMatches(row.text)) {
+        final text = match.group(0) ?? '';
+        final startCol = terminal.TerminalTextCells.fromText(
+          row.text.substring(0, match.start),
+        ).cellCount;
+        final endCol = terminal.TerminalTextCells.fromText(
+          row.text.substring(0, match.end),
+        ).cellCount;
+        matches.add(
+          TerminalSearchMatch(
+            row: absoluteRow,
+            startCol: startCol,
+            endCol: endCol,
+            text: text,
+            scrollbackOffset: (frame.scrollbackMaxOffset - absoluteRow).clamp(
+              0,
+              frame.scrollbackMaxOffset,
+            ),
+          ),
+        );
+      }
+    }
+    return matches;
+  }
+
+  void _setSearchRegexEnabled(bool value) {
+    if (_searchUseRegex == value) {
+      return;
+    }
+    setState(() {
+      _searchUseRegex = value;
+      _searchMatches = const [];
+      _activeSearchIndex = 0;
+    });
+    if (_searchQuery.isNotEmpty) {
+      _searchScrollback(_searchQuery);
     }
   }
 
@@ -2141,6 +2208,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _searchQuery = '';
       _searchMatches = const [];
       _activeSearchIndex = 0;
+      _searchUseRegex = false;
     });
     if (activeSessionId != null) {
       ref
@@ -3335,8 +3403,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         query: _searchQuery,
                         matches: _searchMatches.length,
                         activeIndex: _activeSearchIndex,
+                        regexEnabled: _searchUseRegex,
                         palette: palette,
                         onChanged: _searchScrollback,
+                        onRegexChanged: _setSearchRegexEnabled,
                         onPrevious: () => _moveSearchMatch(-1),
                         onNext: () => _moveSearchMatch(1),
                         onClose: _closeSearch,
@@ -4541,8 +4611,10 @@ class _TerminalSearchBar extends StatelessWidget {
     required this.query,
     required this.matches,
     required this.activeIndex,
+    required this.regexEnabled,
     required this.palette,
     required this.onChanged,
+    required this.onRegexChanged,
     required this.onPrevious,
     required this.onNext,
     required this.onClose,
@@ -4551,8 +4623,10 @@ class _TerminalSearchBar extends StatelessWidget {
   final String query;
   final int matches;
   final int activeIndex;
+  final bool regexEnabled;
   final AppThemeTokens palette;
   final ValueChanged<String> onChanged;
+  final ValueChanged<bool> onRegexChanged;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onClose;
@@ -4613,6 +4687,20 @@ class _TerminalSearchBar extends StatelessWidget {
                       ? palette.textMuted
                       : palette.textSubtle,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+              IconButton(
+                key: const Key('terminal-search-regex'),
+                tooltip: 'Regular expression',
+                isSelected: regexEnabled,
+                onPressed: () => onRegexChanged(!regexEnabled),
+                visualDensity: VisualDensity.compact,
+                splashRadius: 16,
+                iconSize: 16,
+                selectedIcon: const Icon(Icons.code_rounded),
+                icon: Icon(
+                  Icons.code_rounded,
+                  color: regexEnabled ? palette.accent : null,
                 ),
               ),
               IconButton(

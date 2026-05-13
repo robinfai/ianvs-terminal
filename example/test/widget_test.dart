@@ -2341,6 +2341,65 @@ void main() {
     expect(find.byKey(const Key('terminal-search-highlight-2')), findsNothing);
   });
 
+  testWidgets('shell search regex mode matches visible terminal output', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'alpha', 'style_runs': const []},
+        {'index': 1, 'text': 'ERR 100 one', 'style_runs': const []},
+        {'index': 2, 'text': 'WARN two', 'style_runs': const []},
+        {'index': 3, 'text': 'ERR 200 three', 'style_runs': const []},
+      ],
+      'cursor': {'row': 3, 'col': 13, 'visible': true},
+      'selection': null,
+      'viewport_rows': 4,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 4},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Search scrollback'));
+    await tester.tap(find.text('Search scrollback'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('terminal-search-regex')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('terminal-search-field')),
+      r'ERR \d+',
+    );
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.searchCalls, isEmpty);
+    expect(find.text('1 of 2'), findsOneWidget);
+    expect(fakeBindings.scrollToCalls.last, [1, 9]);
+    expect(find.byKey(const Key('terminal-search-highlights')), findsOneWidget);
+    expect(
+      find.byKey(const Key('terminal-search-highlight-0')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('terminal-search-highlight-1')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('global search searches all tabs and jumps to a match', (
     tester,
   ) async {
