@@ -101,6 +101,84 @@ void main() {
     },
   );
 
+  testWidgets('terminal viewport overlays inline images at cell coordinates', (
+    tester,
+  ) async {
+    final imageBytes = base64.decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/lWnU2wAAAABJRU5ErkJggg==',
+    );
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        TerminalFrameDiff(
+          rows: const [
+            TerminalRow(index: 0, text: ''),
+            TerminalRow(index: 1, text: 'preview'),
+          ],
+          cursor: const TerminalCursor(row: 1, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: const [TerminalDirtyRange(start: 0, end: 2)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          inlineImages: [
+            TerminalInlineImage(
+              row: 1,
+              col: 3,
+              widthCells: 4,
+              heightCells: 2,
+              bytes: imageBytes,
+              altText: 'red pixel',
+            ),
+          ],
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                return TerminalViewport(
+                  controller: controller,
+                  selectionController: SelectionController(),
+                  inputController: TerminalInputController(
+                    sessionId: '1',
+                    runtime: testRuntime(FakePtyBackend()),
+                    readSelection: () => '',
+                    copySelection: (_) async {},
+                    readClipboard: () async => '',
+                  ),
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                  onMeasuredCellSizeChanged: (_) => setState(() {}),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final renderObject = _terminalRenderObject(tester);
+    final cellSize = renderObject.debugCellSize;
+    final imageFinder = find.byKey(const Key('terminal-inline-image-1-3'));
+
+    expect(imageFinder, findsOneWidget);
+    expect(
+      tester.getTopLeft(imageFinder),
+      Offset(cellSize.width * 3, cellSize.height),
+    );
+    expect(
+      tester.getSize(imageFinder),
+      Size(cellSize.width * 4, cellSize.height * 2),
+    );
+  });
+
   testWidgets(
     'terminal viewport maps upward wheel motion into positive scrollback deltas',
     (tester) async {

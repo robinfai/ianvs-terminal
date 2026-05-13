@@ -1321,6 +1321,11 @@ class _TerminalViewportState extends State<TerminalViewport>
                             ),
                           ),
                         ),
+                        ..._buildInlineImageOverlays(
+                          frame,
+                          contentPadding,
+                          colors,
+                        ),
                         if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
                           Positioned(
                             top: 8,
@@ -1347,6 +1352,50 @@ class _TerminalViewportState extends State<TerminalViewport>
         ),
       ),
     );
+  }
+
+  List<Widget> _buildInlineImageOverlays(
+    TerminalFrameDiff frame,
+    EdgeInsets contentPadding,
+    TerminalViewportColors colors,
+  ) {
+    if (frame.inlineImages.isEmpty) {
+      return const <Widget>[];
+    }
+    final cellSize =
+        widget.controller.measuredCellSize ?? terminalFallbackCellSize;
+    if (cellSize.width <= 0 || cellSize.height <= 0) {
+      return const <Widget>[];
+    }
+    return [
+      for (final image in frame.inlineImages)
+        if (image.row >= 0 &&
+            image.row < frame.viewportRows &&
+            image.col >= 0 &&
+            image.widthCells > 0 &&
+            image.heightCells > 0)
+          Positioned(
+            left: contentPadding.left + image.col * cellSize.width,
+            top: contentPadding.top + image.row * cellSize.height,
+            width: image.widthCells * cellSize.width,
+            height: image.heightCells * cellSize.height,
+            child: IgnorePointer(
+              key: Key('terminal-inline-image-${image.row}-${image.col}'),
+              child: Image.memory(
+                image.bytes,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.medium,
+                semanticLabel: image.altText,
+                errorBuilder: (context, error, stackTrace) {
+                  return ColoredBox(
+                    color: colors.foreground.withValues(alpha: 0.18),
+                  );
+                },
+              ),
+            ),
+          ),
+    ];
   }
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui';
 
 enum TerminalFrameKind { snapshot, delta }
@@ -223,6 +225,42 @@ class TerminalHyperlinkRange {
   }
 }
 
+class TerminalInlineImage {
+  const TerminalInlineImage({
+    required this.row,
+    required this.col,
+    required this.widthCells,
+    required this.heightCells,
+    required this.bytes,
+    this.altText,
+  });
+
+  final int row;
+  final int col;
+  final int widthCells;
+  final int heightCells;
+  final Uint8List bytes;
+  final String? altText;
+
+  factory TerminalInlineImage.fromJson(Map<String, Object?> json) {
+    final encoded = json['data'] as String? ?? json['base64'] as String? ?? '';
+    return TerminalInlineImage(
+      row: _intFromJson(json['row'], fallback: 0),
+      col: _intFromJson(json['col'] ?? json['column'], fallback: 0),
+      widthCells: _intFromJson(
+        json['width_cells'] ?? json['widthCells'],
+        fallback: 1,
+      ),
+      heightCells: _intFromJson(
+        json['height_cells'] ?? json['heightCells'],
+        fallback: 1,
+      ),
+      bytes: base64.decode(encoded),
+      altText: json['alt'] as String? ?? json['alt_text'] as String?,
+    );
+  }
+}
+
 class TerminalSearchMatch {
   const TerminalSearchMatch({
     required this.row,
@@ -266,6 +304,7 @@ class TerminalFrameDiff {
     this.windowTitle,
     this.windowIconName,
     this.hyperlinks = const [],
+    this.inlineImages = const [],
   });
 
   final TerminalFrameKind frameKind;
@@ -283,6 +322,7 @@ class TerminalFrameDiff {
   final String? windowTitle;
   final String? windowIconName;
   final List<TerminalHyperlinkRange> hyperlinks;
+  final List<TerminalInlineImage> inlineImages;
 
   static const empty = TerminalFrameDiff(
     frameKind: TerminalFrameKind.snapshot,
@@ -330,6 +370,13 @@ class TerminalFrameDiff {
           .map(
             (entry) =>
                 TerminalHyperlinkRange.fromJson(entry as Map<String, Object?>),
+          )
+          .toList(),
+      inlineImages: (json['inline_images'] as List<dynamic>? ?? const [])
+          .map(
+            (entry) => TerminalInlineImage.fromJson(
+              (entry as Map).cast<String, Object?>(),
+            ),
           )
           .toList(),
     );
@@ -387,6 +434,16 @@ class TerminalViewportState {
       dirtyRanges: dirtyRanges,
       viewportRows: nextFrame.viewportRows,
     );
+    final mergedInlineImages = _mergeInlineImages(
+      currentImages: _shiftInlineImages(
+        images: frame.inlineImages,
+        viewportRows: nextFrame.viewportRows,
+        rowShift: nextFrame.viewportRowShift,
+      ),
+      incomingImages: nextFrame.inlineImages,
+      dirtyRanges: dirtyRanges,
+      viewportRows: nextFrame.viewportRows,
+    );
 
     return TerminalViewportState(
       frame: TerminalFrameDiff(
@@ -405,6 +462,7 @@ class TerminalViewportState {
         windowTitle: nextFrame.windowTitle,
         windowIconName: nextFrame.windowIconName,
         hyperlinks: mergedHyperlinks,
+        inlineImages: mergedInlineImages,
       ),
     );
   }
@@ -520,6 +578,13 @@ Color? _colorFromHex(String? value) {
   return Color(int.parse('FF$normalized', radix: 16));
 }
 
+int _intFromJson(Object? value, {required int fallback}) {
+  if (value is num) {
+    return value.toInt();
+  }
+  return fallback;
+}
+
 TerminalFrameKind _terminalFrameKindFromWire(String? value) {
   return switch (value) {
     'delta' => TerminalFrameKind.delta,
@@ -549,6 +614,15 @@ TerminalFrameDiff _normalizeSnapshotFrame(TerminalFrameDiff frame) {
     hyperlinks: frame.hyperlinks
         .where((range) {
           return range.row >= 0 && range.row < frame.viewportRows;
+        })
+        .toList(growable: false),
+    inlineImages: frame.inlineImages
+        .where((image) {
+          return image.row >= 0 &&
+              image.row < frame.viewportRows &&
+              image.widthCells > 0 &&
+              image.heightCells > 0 &&
+              image.bytes.isNotEmpty;
         })
         .toList(growable: false),
   );
@@ -742,6 +816,81 @@ List<TerminalHyperlinkRange> _shiftHyperlinks({
     );
   }
   return shifted;
+}
+
+List<TerminalInlineImage> _mergeInlineImages({
+  required List<TerminalInlineImage> currentImages,
+  required List<TerminalInlineImage> incomingImages,
+  required List<TerminalDirtyRange> dirtyRanges,
+  required int viewportRows,
+}) {
+  final dirtyRows = <int>{
+    for (final range in dirtyRanges)
+      for (var row = range.start; row < range.end; row += 1)
+        if (row >= 0 && row < viewportRows) row,
+  };
+  bool imageTouchesDirtyRows(TerminalInlineImage image) {
+    final start = image.row.clamp(0, viewportRows).toInt();
+    final end = (image.row + image.heightCells)
+        .clamp(start, viewportRows)
+        .toInt();
+    for (var row = start; row < end; row += 1) {
+      if (dirtyRows.contains(row)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  final merged = <TerminalInlineImage>[
+    for (final image in currentImages)
+      if (!_inlineImageInvalid(image, viewportRows) &&
+          (dirtyRows.isEmpty || !imageTouchesDirtyRows(image)))
+        image,
+    for (final image in incomingImages)
+      if (!_inlineImageInvalid(image, viewportRows)) image,
+  ];
+  merged.sort((left, right) {
+    final byRow = left.row.compareTo(right.row);
+    if (byRow != 0) {
+      return byRow;
+    }
+    return left.col.compareTo(right.col);
+  });
+  return merged;
+}
+
+List<TerminalInlineImage> _shiftInlineImages({
+  required List<TerminalInlineImage> images,
+  required int viewportRows,
+  required int rowShift,
+}) {
+  final shifted = <TerminalInlineImage>[];
+  for (final image in images) {
+    final nextRow = image.row + rowShift;
+    final shiftedImage = TerminalInlineImage(
+      row: nextRow,
+      col: image.col,
+      widthCells: image.widthCells,
+      heightCells: image.heightCells,
+      bytes: image.bytes,
+      altText: image.altText,
+    );
+    if (_inlineImageInvalid(shiftedImage, viewportRows)) {
+      continue;
+    }
+    shifted.add(shiftedImage);
+  }
+  return shifted;
+}
+
+bool _inlineImageInvalid(TerminalInlineImage image, int viewportRows) {
+  return image.row < 0 ||
+      image.row >= viewportRows ||
+      image.col < 0 ||
+      image.widthCells <= 0 ||
+      image.heightCells <= 0 ||
+      image.bytes.isEmpty;
 }
 
 int _terminalDisplayWidthForGrapheme(String grapheme) {

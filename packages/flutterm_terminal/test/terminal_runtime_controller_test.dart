@@ -107,6 +107,41 @@ void main() {
     expect(modes.alternateScreen, isTrue);
   });
 
+  test('terminal frames parse inline image payloads', () {
+    final imageBytes = utf8.encode('fake-png');
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': const [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': const {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 80,
+      'dirty_ranges': const [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'inline_images': [
+        {
+          'row': 0,
+          'col': 2,
+          'width_cells': 4,
+          'height_cells': 3,
+          'data': base64.encode(imageBytes),
+          'alt': 'preview',
+        },
+      ],
+    });
+
+    expect(frame.inlineImages, hasLength(1));
+    expect(frame.inlineImages.single.row, 0);
+    expect(frame.inlineImages.single.col, 2);
+    expect(frame.inlineImages.single.widthCells, 4);
+    expect(frame.inlineImages.single.heightCells, 3);
+    expect(frame.inlineImages.single.bytes, imageBytes);
+    expect(frame.inlineImages.single.altText, 'preview');
+  });
+
   test('terminal runtime falls back when JSON requests are unsupported', () {
     final runtimeBackend = _FakePtyBackend()..returnNullJsonRequests = true;
     final runtime = TerminalRuntimeController(
