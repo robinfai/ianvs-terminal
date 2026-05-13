@@ -1569,6 +1569,94 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets(
+    'shell integration utilities expose history directories and prompt marks',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'git status',
+            'pwd': '/tmp/project',
+            'shell': 'zsh',
+            'host': 'workstation.local',
+            'user': 'dev',
+            'exit_code': 0,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 12,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      Future<void> openUtilities() async {
+        await _openCommandMenu(tester);
+        await tester.ensureVisible(
+          find.byKey(const Key('shell-integration-utilities')),
+        );
+        await tester.tap(find.byKey(const Key('shell-integration-utilities')));
+        await tester.pumpAndSettle();
+      }
+
+      await openUtilities();
+
+      expect(
+        find.byKey(const Key('shell-integration-utilities-sheet')),
+        findsOneWidget,
+      );
+      expect(find.text('Shell Integration'), findsOneWidget);
+      expect(find.text('Command History'), findsOneWidget);
+      expect(find.text('Recent Directories'), findsOneWidget);
+      expect(find.text('Prompt Marks'), findsOneWidget);
+      expect(find.text('dev@workstation.local'), findsWidgets);
+      expect(find.text('git status'), findsWidgets);
+      expect(find.text('/tmp/project'), findsWidgets);
+      expect(find.text('Offset 12'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('shell-command-history-entry-0')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes.last, utf8.encode('git status'));
+
+      await openUtilities();
+      await tester.tap(find.byKey(const Key('shell-recent-directory-0')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes.last, utf8.encode('cd /tmp/project'));
+
+      await openUtilities();
+      await tester.ensureVisible(find.byKey(const Key('shell-prompt-mark-0')));
+      await tester.tap(find.byKey(const Key('shell-prompt-mark-0')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.scrollToCalls.last, [1, 12]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('command menu hotkey window invokes the window bridge', (
     tester,
   ) async {

@@ -36,6 +36,7 @@ enum _ShellCommandAction {
   paste,
   advancedPaste,
   pasteHistory,
+  shellIntegrationUtilities,
   annotations,
   capturedOutput,
   passwordManager,
@@ -1590,6 +1591,67 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         );
   }
 
+  void _sendPlainTextToSession(String sessionId, String text) {
+    if (text.isEmpty) {
+      return;
+    }
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .sendInput(sessionId, Uint8List.fromList(utf8.encode(text)));
+    _focusSession(sessionId);
+  }
+
+  String _shellQuotedPath(String path) {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty) {
+      return "''";
+    }
+    if (RegExp(r'^[A-Za-z0-9_./:@%+=,-]+$').hasMatch(trimmed)) {
+      return trimmed;
+    }
+    return "'${trimmed.replaceAll("'", r"'\''")}'";
+  }
+
+  Future<void> _openShellIntegrationUtilities(
+    SessionState sessionState,
+    String sessionId,
+  ) async {
+    final pane = _paneForSession(sessionState, sessionId);
+    if (pane == null) {
+      return;
+    }
+    final integration = pane.shellIntegration;
+    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      sheetAnimationStyle: animationsEnabled
+          ? null
+          : AnimationStyle.noAnimation,
+      builder: (sheetContext) {
+        return _ShellIntegrationUtilitiesSheet(
+          integration: integration,
+          onInsertCommand: (command) {
+            _sendPlainTextToSession(sessionId, command);
+          },
+          onChangeDirectory: (directory) {
+            _sendPlainTextToSession(
+              sessionId,
+              'cd ${_shellQuotedPath(directory)}',
+            );
+          },
+          onJumpToMark: (mark) {
+            ref
+                .read(terminalRuntimeControllerProvider)
+                .scrollViewportTo(sessionId, mark.scrollbackOffset);
+            _focusSession(sessionId);
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _openAdvancedPaste(String sessionId) async {
     final clipboardText = await ClipboardBridge.paste();
     if (!mounted) {
@@ -2512,6 +2574,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
         await _openPasteHistory(sessionState);
         return;
+      case _ShellCommandAction.shellIntegrationUtilities:
+        if (currentSessionId == null) {
+          return;
+        }
+        await _openShellIntegrationUtilities(currentState, currentSessionId);
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: currentSessionId,
+        );
+        return;
       case _ShellCommandAction.annotations:
         if (currentSessionId == null) {
           return;
@@ -2903,6 +2975,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     }
     final palette = context.appTheme;
+    final activePane = activeSessionId == null
+        ? null
+        : activeTab?.paneFor(activeSessionId);
+    final activeShellIntegration =
+        activePane?.shellIntegration ?? TerminalShellIntegrationSnapshot.empty;
 
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -3128,6 +3205,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                         ).length,
                                     pasteHistoryCount:
                                         _pasteHistoryEntries.length,
+                                    commandHistoryCount: activeShellIntegration
+                                        .recentCommands
+                                        .length,
+                                    recentDirectoryCount: activeShellIntegration
+                                        .recentDirectories
+                                        .length,
+                                    promptMarkCount: activeShellIntegration
+                                        .promptMarks
+                                        .length,
                                     annotationCount: _annotationsForSession(
                                       activeSessionId,
                                     ).length,
@@ -3143,6 +3229,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     onOpenPasteHistory: () => unawaited(
                                       _openPasteHistory(sessionState),
                                     ),
+                                    onOpenShellIntegrationUtilities: () =>
+                                        unawaited(
+                                          _openShellIntegrationUtilities(
+                                            sessionState,
+                                            activeSessionId,
+                                          ),
+                                        ),
                                     onOpenAnnotations: () {
                                       final selectionController =
                                           _selectionControllers.putIfAbsent(
@@ -3185,11 +3278,15 @@ class _ShellToolbelt extends StatelessWidget {
   const _ShellToolbelt({
     required this.capturedOutputCount,
     required this.pasteHistoryCount,
+    required this.commandHistoryCount,
+    required this.recentDirectoryCount,
+    required this.promptMarkCount,
     required this.annotationCount,
     required this.palette,
     required this.onClose,
     required this.onOpenCapturedOutput,
     required this.onOpenPasteHistory,
+    required this.onOpenShellIntegrationUtilities,
     required this.onOpenAnnotations,
     required this.onOpenInstantReplay,
     required this.onOpenPasswordManager,
@@ -3197,11 +3294,15 @@ class _ShellToolbelt extends StatelessWidget {
 
   final int capturedOutputCount;
   final int pasteHistoryCount;
+  final int commandHistoryCount;
+  final int recentDirectoryCount;
+  final int promptMarkCount;
   final int annotationCount;
   final AppThemeTokens palette;
   final VoidCallback onClose;
   final VoidCallback onOpenCapturedOutput;
   final VoidCallback onOpenPasteHistory;
+  final VoidCallback onOpenShellIntegrationUtilities;
   final VoidCallback onOpenAnnotations;
   final VoidCallback onOpenInstantReplay;
   final VoidCallback onOpenPasswordManager;
@@ -3246,49 +3347,84 @@ class _ShellToolbelt extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
-                _ToolbeltActionRow(
-                  key: const Key('toolbelt-captured-output'),
-                  icon: Icons.outbox_rounded,
-                  title: 'Captured output',
-                  countLabel:
-                      '$capturedOutputCount captured line${capturedOutputCount == 1 ? '' : 's'}',
-                  palette: palette,
-                  onTap: onOpenCapturedOutput,
-                ),
-                _ToolbeltActionRow(
-                  key: const Key('toolbelt-paste-history'),
-                  icon: Icons.history_rounded,
-                  title: 'Paste history',
-                  countLabel:
-                      '$pasteHistoryCount recent item${pasteHistoryCount == 1 ? '' : 's'}',
-                  palette: palette,
-                  onTap: onOpenPasteHistory,
-                ),
-                _ToolbeltActionRow(
-                  key: const Key('toolbelt-annotations'),
-                  icon: Icons.sticky_note_2_rounded,
-                  title: 'Annotations',
-                  countLabel:
-                      '$annotationCount note${annotationCount == 1 ? '' : 's'}',
-                  palette: palette,
-                  onTap: onOpenAnnotations,
-                ),
-                Divider(color: palette.border, height: 18),
-                _ToolbeltActionRow(
-                  key: const Key('toolbelt-instant-replay'),
-                  icon: Icons.replay_rounded,
-                  title: 'Instant replay',
-                  countLabel: 'Recent frames',
-                  palette: palette,
-                  onTap: onOpenInstantReplay,
-                ),
-                _ToolbeltActionRow(
-                  key: const Key('toolbelt-password-manager'),
-                  icon: Icons.password_rounded,
-                  title: 'Password manager',
-                  countLabel: 'Prompt-gated sends',
-                  palette: palette,
-                  onTap: onOpenPasswordManager,
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-captured-output'),
+                          icon: Icons.outbox_rounded,
+                          title: 'Captured output',
+                          countLabel:
+                              '$capturedOutputCount captured line${capturedOutputCount == 1 ? '' : 's'}',
+                          palette: palette,
+                          onTap: onOpenCapturedOutput,
+                        ),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-paste-history'),
+                          icon: Icons.history_rounded,
+                          title: 'Paste history',
+                          countLabel:
+                              '$pasteHistoryCount recent item${pasteHistoryCount == 1 ? '' : 's'}',
+                          palette: palette,
+                          onTap: onOpenPasteHistory,
+                        ),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-command-history'),
+                          icon: Icons.list_alt_rounded,
+                          title: 'Command history',
+                          countLabel:
+                              '$commandHistoryCount command${commandHistoryCount == 1 ? '' : 's'}',
+                          palette: palette,
+                          onTap: onOpenShellIntegrationUtilities,
+                        ),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-recent-directories'),
+                          icon: Icons.folder_rounded,
+                          title: 'Recent directories',
+                          countLabel:
+                              '$recentDirectoryCount director${recentDirectoryCount == 1 ? 'y' : 'ies'}',
+                          palette: palette,
+                          onTap: onOpenShellIntegrationUtilities,
+                        ),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-prompt-marks'),
+                          icon: Icons.assistant_direction_rounded,
+                          title: 'Prompt marks',
+                          countLabel:
+                              '$promptMarkCount mark${promptMarkCount == 1 ? '' : 's'}',
+                          palette: palette,
+                          onTap: onOpenShellIntegrationUtilities,
+                        ),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-annotations'),
+                          icon: Icons.sticky_note_2_rounded,
+                          title: 'Annotations',
+                          countLabel:
+                              '$annotationCount note${annotationCount == 1 ? '' : 's'}',
+                          palette: palette,
+                          onTap: onOpenAnnotations,
+                        ),
+                        Divider(color: palette.border, height: 18),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-instant-replay'),
+                          icon: Icons.replay_rounded,
+                          title: 'Instant replay',
+                          countLabel: 'Recent frames',
+                          palette: palette,
+                          onTap: onOpenInstantReplay,
+                        ),
+                        _ToolbeltActionRow(
+                          key: const Key('toolbelt-password-manager'),
+                          icon: Icons.password_rounded,
+                          title: 'Password manager',
+                          countLabel: 'Prompt-gated sends',
+                          palette: palette,
+                          onTap: onOpenPasswordManager,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -4023,6 +4159,447 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
       ),
     );
   }
+}
+
+class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
+  const _ShellIntegrationUtilitiesSheet({
+    required this.integration,
+    required this.onInsertCommand,
+    required this.onChangeDirectory,
+    required this.onJumpToMark,
+  });
+
+  final TerminalShellIntegrationSnapshot integration;
+  final ValueChanged<String> onInsertCommand;
+  final ValueChanged<String> onChangeDirectory;
+  final ValueChanged<TerminalShellPromptMark> onJumpToMark;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final commandCount = integration.recentCommands.length;
+    final directoryCount = integration.recentDirectories.length;
+    final markCount = integration.promptMarks.length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Material(
+        key: const Key('shell-integration-utilities-sheet'),
+        color: palette.overlay,
+        borderRadius: BorderRadius.circular(palette.radius.xl),
+        child: SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 560),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Shell Integration',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close shell integration',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: palette.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  _ShellIntegrationSummary(
+                    integration: integration,
+                    palette: palette,
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        _ShellIntegrationSectionHeader(
+                          icon: Icons.list_alt_rounded,
+                          title: 'Command History',
+                          countLabel:
+                              '$commandCount command${commandCount == 1 ? '' : 's'}',
+                          palette: palette,
+                        ),
+                        if (integration.recentCommands.isEmpty)
+                          _ShellIntegrationEmptyRow(
+                            message: 'No shell command history yet.',
+                            palette: palette,
+                          )
+                        else
+                          for (
+                            var index = 0;
+                            index < integration.recentCommands.length &&
+                                index < 8;
+                            index++
+                          )
+                            _ShellIntegrationActionTile(
+                              key: Key('shell-command-history-entry-$index'),
+                              icon: Icons.keyboard_return_rounded,
+                              title: integration.recentCommands[index],
+                              subtitle: 'Insert previous command',
+                              palette: palette,
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                onInsertCommand(
+                                  integration.recentCommands[index],
+                                );
+                              },
+                            ),
+                        const SizedBox(height: 8),
+                        _ShellIntegrationSectionHeader(
+                          icon: Icons.folder_rounded,
+                          title: 'Recent Directories',
+                          countLabel:
+                              '$directoryCount director${directoryCount == 1 ? 'y' : 'ies'}',
+                          palette: palette,
+                        ),
+                        if (integration.recentDirectories.isEmpty)
+                          _ShellIntegrationEmptyRow(
+                            message: 'No recent directories yet.',
+                            palette: palette,
+                          )
+                        else
+                          for (
+                            var index = 0;
+                            index < integration.recentDirectories.length &&
+                                index < 8;
+                            index++
+                          )
+                            _ShellIntegrationActionTile(
+                              key: Key('shell-recent-directory-$index'),
+                              icon: Icons.subdirectory_arrow_right_rounded,
+                              title: integration.recentDirectories[index],
+                              subtitle: 'Insert cd command',
+                              palette: palette,
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                onChangeDirectory(
+                                  integration.recentDirectories[index],
+                                );
+                              },
+                            ),
+                        const SizedBox(height: 8),
+                        _ShellIntegrationSectionHeader(
+                          icon: Icons.assistant_direction_rounded,
+                          title: 'Prompt Marks',
+                          countLabel:
+                              '$markCount mark${markCount == 1 ? '' : 's'}',
+                          palette: palette,
+                        ),
+                        if (integration.promptMarks.isEmpty)
+                          _ShellIntegrationEmptyRow(
+                            message: 'No prompt marks captured yet.',
+                            palette: palette,
+                          )
+                        else
+                          for (
+                            var index = 0;
+                            index < integration.promptMarks.length && index < 8;
+                            index++
+                          )
+                            _ShellPromptMarkTile(
+                              key: Key('shell-prompt-mark-$index'),
+                              mark: integration.promptMarks.reversed.elementAt(
+                                index,
+                              ),
+                              palette: palette,
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                onJumpToMark(
+                                  integration.promptMarks.reversed.elementAt(
+                                    index,
+                                  ),
+                                );
+                              },
+                            ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellIntegrationSummary extends StatelessWidget {
+  const _ShellIntegrationSummary({
+    required this.integration,
+    required this.palette,
+  });
+
+  final TerminalShellIntegrationSnapshot integration;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final identity = _identityLabel;
+    final directory = integration.currentDirectory;
+    final command = integration.lastCommand;
+    final exitCode = integration.lastExitCode;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _ShellIntegrationChip(
+          icon: Icons.account_tree_rounded,
+          label: identity ?? 'Local shell',
+          palette: palette,
+        ),
+        if (directory != null)
+          _ShellIntegrationChip(
+            icon: Icons.folder_open_rounded,
+            label: _compactText(directory, 42),
+            palette: palette,
+          ),
+        if (command != null)
+          _ShellIntegrationChip(
+            icon: Icons.terminal_rounded,
+            label: exitCode == null
+                ? _compactText(command, 42)
+                : '${_compactText(command, 32)} ${exitCode == 0 ? 'ok' : 'exit $exitCode'}',
+            palette: palette,
+          ),
+      ],
+    );
+  }
+
+  String? get _identityLabel {
+    final username = integration.username;
+    final hostname = integration.hostname;
+    if (username != null && hostname != null) {
+      return '$username@$hostname';
+    }
+    return username ?? hostname ?? integration.shell;
+  }
+}
+
+class _ShellIntegrationChip extends StatelessWidget {
+  const _ShellIntegrationChip({
+    required this.icon,
+    required this.label,
+    required this.palette,
+  });
+
+  final IconData icon;
+  final String label;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.chrome,
+        borderRadius: BorderRadius.circular(palette.radius.sm),
+        border: Border.all(color: palette.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: palette.textMuted),
+            const SizedBox(width: 5),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 260),
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: palette.textSubtle,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellIntegrationSectionHeader extends StatelessWidget {
+  const _ShellIntegrationSectionHeader({
+    required this.icon,
+    required this.title,
+    required this.countLabel,
+    required this.palette,
+  });
+
+  final IconData icon;
+  final String title;
+  final String countLabel;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: palette.accent),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Text(
+            countLabel,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: palette.textSubtle,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShellIntegrationEmptyRow extends StatelessWidget {
+  const _ShellIntegrationEmptyRow({
+    required this.message,
+    required this.palette,
+  });
+
+  final String message;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Text(
+        message,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
+      ),
+    );
+  }
+}
+
+class _ShellIntegrationActionTile extends StatelessWidget {
+  const _ShellIntegrationActionTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: palette.textMuted, size: 20),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _ShellPromptMarkTile extends StatelessWidget {
+  const _ShellPromptMarkTile({
+    super.key,
+    required this.mark,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final TerminalShellPromptMark mark;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final command = mark.command;
+    final cwd = mark.cwd;
+    final compactCwd = cwd == null ? null : _compactText(cwd, 42);
+    final subtitle = [?command, ?compactCwd].join(' • ');
+
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        Icons.assistant_direction_rounded,
+        color: palette.textMuted,
+        size: 20,
+      ),
+      title: Text(
+        'Offset ${mark.scrollbackOffset}',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        subtitle.isEmpty ? 'Shell prompt mark' : subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+String _compactText(String text, int maxLength) {
+  final trimmed = text.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+  return '${trimmed.substring(0, maxLength - 3)}...';
 }
 
 class _TerminalAutocompleteMenu extends StatelessWidget {
@@ -5854,6 +6431,17 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(_ShellCommandAction.pasteHistory),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-integration-utilities'),
+                    icon: Icons.integration_instructions_rounded,
+                    title: 'Shell integration',
+                    subtitle:
+                        'Session action • Command history, directories, and marks.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(_ShellCommandAction.shellIntegrationUtilities),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-password-manager'),
