@@ -220,6 +220,18 @@ class _CapturedOutputEntry {
   final int rowIndex;
 }
 
+class _LogicalTerminalRow {
+  const _LogicalTerminalRow({
+    required this.startRow,
+    required this.endRow,
+    required this.text,
+  });
+
+  final terminal.TerminalRow startRow;
+  final terminal.TerminalRow endRow;
+  final String text;
+}
+
 class _CoprocessStartRequest {
   const _CoprocessStartRequest({
     required this.command,
@@ -454,14 +466,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       () => <String>{},
     );
     String? pendingResponse;
-    for (final row in frame.rows) {
-      final input = row.text.trimRight();
+    for (final logicalRow in _logicalRows(frame.rows)) {
+      final input = logicalRow.text.trimRight();
       if (input.trim().isEmpty) {
         continue;
       }
       final inputKey = [
         _frameDedupeScope(frame, frameSequence),
-        row.index,
+        logicalRow.endRow.index,
         input,
       ].join('\u0000');
       if (!seenKeys.add(inputKey)) {
@@ -542,8 +554,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       sessionId,
       () => <String>{},
     );
-    for (final row in frame.rows) {
-      final text = row.text;
+    for (final logicalRow in _logicalRows(frame.rows)) {
+      final text = logicalRow.text;
       if (text.isEmpty) {
         continue;
       }
@@ -557,13 +569,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
         final matchKey = _triggerMatchKey(
           trigger,
-          row,
+          logicalRow,
           frameScope: _frameDedupeScope(frame, frameSequence),
         );
         if (!seenMatches.add(matchKey)) {
           continue;
         }
-        _recordCapturedOutput(sessionId, trigger, row);
+        _recordCapturedOutput(sessionId, trigger, logicalRow);
         _runProfileTrigger(sessionId, trigger, text);
       }
     }
@@ -572,9 +584,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void _recordCapturedOutput(
     String sessionId,
     TerminalProfileTrigger trigger,
-    terminal.TerminalRow row,
+    _LogicalTerminalRow logicalRow,
   ) {
-    final text = row.text.trimRight();
+    final text = logicalRow.text.trimRight();
     if (text.trim().isEmpty) {
       return;
     }
@@ -583,7 +595,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       sessionId: sessionId,
       pattern: trigger.pattern,
       text: text,
-      rowIndex: row.index,
+      rowIndex: logicalRow.endRow.index,
     );
     setState(() {
       _capturedOutputEntries = <_CapturedOutputEntry>[
@@ -624,7 +636,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   String _triggerMatchKey(
     TerminalProfileTrigger trigger,
-    terminal.TerminalRow row, {
+    _LogicalTerminalRow logicalRow, {
     required String frameScope,
   }) {
     return [
@@ -633,8 +645,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       trigger.action.name,
       trigger.value ?? '',
       trigger.caseSensitive,
-      row.index,
-      row.text,
+      logicalRow.endRow.index,
+      logicalRow.text,
     ].join('\u0000');
   }
 
@@ -2047,8 +2059,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   bool _frameHasPasswordPrompt(terminal.TerminalFrameDiff frame) {
-    for (var index = frame.rows.length - 1; index >= 0; index -= 1) {
-      final text = _logicalRowTextEndingAt(frame.rows, index).trimRight();
+    for (final logicalRow in _logicalRows(frame.rows).reversed) {
+      final text = logicalRow.text.trimRight();
       if (text.isEmpty) {
         continue;
       }
@@ -2060,16 +2072,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return false;
   }
 
-  String _logicalRowTextEndingAt(List<terminal.TerminalRow> rows, int index) {
-    final segments = <String>[rows[index].text];
-    for (var current = index - 1; current >= 0; current -= 1) {
-      final row = rows[current];
-      if (!row.wrapped) {
-        break;
+  List<_LogicalTerminalRow> _logicalRows(List<terminal.TerminalRow> rows) {
+    final logicalRows = <_LogicalTerminalRow>[];
+    var start = 0;
+    while (start < rows.length) {
+      final buffer = StringBuffer(rows[start].text);
+      var end = start;
+      while (end < rows.length - 1 && rows[end].wrapped) {
+        end += 1;
+        buffer.write(rows[end].text);
       }
-      segments.insert(0, row.text);
+      logicalRows.add(
+        _LogicalTerminalRow(
+          startRow: rows[start],
+          endRow: rows[end],
+          text: buffer.toString(),
+        ),
+      );
+      start = end + 1;
     }
-    return segments.join();
+    return logicalRows;
   }
 
   void _seedInstantReplayFrame(String sessionId) {

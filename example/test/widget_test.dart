@@ -1526,6 +1526,82 @@ void main() {
     ]);
   });
 
+  testWidgets(
+    'profile triggers match wrapped logical rows for notifications and send-text actions',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+      final profile = defaultTerminalProfile().copyWith(
+        triggers: const [
+          TerminalProfileTrigger(pattern: 'ERROR [0-9]+ failed'),
+          TerminalProfileTrigger(
+            pattern: 'Password:',
+            action: TerminalProfileTriggerAction.sendText,
+            value: 'secret\n',
+          ),
+        ],
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
+        ),
+        notificationSender: ({required title, body, identifier}) async {
+          notifications.add({
+            'title': title,
+            'body': body,
+            'identifier': identifier,
+          });
+        },
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'Pass',
+            'wrapped': true,
+            'style_runs': const [],
+          },
+          {
+            'index': 1,
+            'text': 'word:',
+            'style_runs': const [],
+          },
+          {
+            'index': 2,
+            'text': 'ERROR 42 fa',
+            'wrapped': true,
+            'style_runs': const [],
+          },
+          {
+            'index': 3,
+            'text': 'iled',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 3, 'col': 4, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 32,
+        'dirty_ranges': [
+          {'start': 0, 'end': 4},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(fakeBindings.writes, hasLength(1));
+      expect(fakeBindings.writes.single, utf8.encode('secret\n'));
+      expect(notifications, hasLength(1));
+      expect(notifications.single['title'], startsWith('Trigger matched in '));
+      expect(notifications.single['body'], 'ERROR 42 failed');
+    },
+  );
+
   testWidgets('captured output lists trigger-matched terminal rows', (
     tester,
   ) async {
@@ -1575,6 +1651,62 @@ void main() {
 
     expect(find.byKey(const Key('captured-output-entry-0')), findsNothing);
     expect(find.text('No trigger output captured yet.'), findsOneWidget);
+  });
+
+  testWidgets('captured output stores wrapped logical trigger matches', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final profile = defaultTerminalProfile().copyWith(
+      triggers: const [
+        TerminalProfileTrigger(pattern: 'ERROR [0-9]+ failed'),
+      ],
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [profile]),
+      ),
+      notificationSender: ({required title, body, identifier}) async {},
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'INFO ready', 'style_runs': const []},
+        {
+          'index': 1,
+          'text': 'ERROR 42 fa',
+          'wrapped': true,
+          'style_runs': const [],
+        },
+        {
+          'index': 2,
+          'text': 'iled',
+          'style_runs': const [],
+        },
+      ],
+      'cursor': {'row': 2, 'col': 4, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 32,
+      'dirty_ranges': [
+        {'start': 0, 'end': 3},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-captured-output')));
+    await tester.tap(find.byKey(const Key('shell-captured-output')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
+    expect(find.text('ERROR 42 failed'), findsOneWidget);
+    expect(find.textContaining('Pattern ERROR [0-9]+ failed'), findsOneWidget);
   });
 
   testWidgets('toolbelt opens a sidebar with terminal tool shortcuts', (
@@ -2289,6 +2421,58 @@ void main() {
     await tester.pump(const Duration(milliseconds: 40));
 
     expect(fakeBindings.writes.map(utf8.decode).toList(), ['Yes\n', 'Yes\n']);
+  });
+
+  testWidgets('coprocess replies to wrapped logical output', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-coprocess')));
+    await tester.tap(find.byKey(const Key('shell-coprocess')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('coprocess-command-field')),
+      'presence bot',
+    );
+    await tester.tap(find.byKey(const Key('coprocess-start')));
+    await tester.pumpAndSettle();
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {
+          'index': 0,
+          'text': 'Are you ',
+          'wrapped': true,
+          'style_runs': const [],
+        },
+        {
+          'index': 1,
+          'text': 'there?',
+          'style_runs': const [],
+        },
+      ],
+      'cursor': {'row': 1, 'col': 6, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 16,
+      'dirty_ranges': [
+        {'start': 0, 'end': 2},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(fakeBindings.writes.last, utf8.encode('Yes\n'));
   });
 
   testWidgets('dynamic profiles imports iTerm profile JSON', (tester) async {
