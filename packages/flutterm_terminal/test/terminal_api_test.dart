@@ -33,14 +33,8 @@ void main() {
             cursor: '#FFFFFF',
             selection: '#334455',
           ),
-          normal: TerminalAnsiColors(
-            red: '#AA2200',
-            blue: '#2244AA',
-          ),
-          bright: TerminalAnsiColors(
-            red: '#FF3300',
-            blue: '#5577FF',
-          ),
+          normal: TerminalAnsiColors(red: '#AA2200', blue: '#2244AA'),
+          bright: TerminalAnsiColors(red: '#FF3300', blue: '#5577FF'),
         ),
         copyOnSelect: true,
       ),
@@ -177,6 +171,21 @@ void main() {
     expect(titles.last, 'demo title');
     expect(selectionChanges, 1);
     expect(terminal.hasSelection(), isTrue);
+
+    backend.setFrame(
+      sessionId,
+      _singleRowSnapshot(
+        'ready',
+        windowTitle: 'demo title',
+        scrollbackOffset: 2,
+        scrollbackMaxOffset: 9,
+      ),
+    );
+    terminal.write('');
+    await tester.pump();
+
+    expect(selectionChanges, 2);
+    expect(terminal.hasSelection(), isFalse);
 
     terminal.resize(120, 40);
     await tester.pump();

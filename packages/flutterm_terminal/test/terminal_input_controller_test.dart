@@ -42,6 +42,79 @@ void main() {
     );
   });
 
+  testWidgets('terminal input controller maps Control letters to C0 bytes', (
+    tester,
+  ) async {
+    final previousOverride = debugDefaultTargetPlatformOverride;
+    try {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final controller = TerminalInputController(
+        sessionId: sessionId,
+        runtime: runtime,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        _KeyHandlerHarness(onKeyEvent: controller.handle),
+      );
+
+      const cases = <(LogicalKeyboardKey, int)>[
+        (LogicalKeyboardKey.keyA, 0x01),
+        (LogicalKeyboardKey.keyB, 0x02),
+        (LogicalKeyboardKey.keyC, 0x03),
+        (LogicalKeyboardKey.keyD, 0x04),
+        (LogicalKeyboardKey.keyE, 0x05),
+        (LogicalKeyboardKey.keyF, 0x06),
+        (LogicalKeyboardKey.keyG, 0x07),
+        (LogicalKeyboardKey.keyH, 0x08),
+        (LogicalKeyboardKey.keyI, 0x09),
+        (LogicalKeyboardKey.keyJ, 0x0A),
+        (LogicalKeyboardKey.keyK, 0x0B),
+        (LogicalKeyboardKey.keyL, 0x0C),
+        (LogicalKeyboardKey.keyM, 0x0D),
+        (LogicalKeyboardKey.keyN, 0x0E),
+        (LogicalKeyboardKey.keyO, 0x0F),
+        (LogicalKeyboardKey.keyP, 0x10),
+        (LogicalKeyboardKey.keyQ, 0x11),
+        (LogicalKeyboardKey.keyR, 0x12),
+        (LogicalKeyboardKey.keyS, 0x13),
+        (LogicalKeyboardKey.keyT, 0x14),
+        (LogicalKeyboardKey.keyU, 0x15),
+        (LogicalKeyboardKey.keyV, 0x16),
+        (LogicalKeyboardKey.keyW, 0x17),
+        (LogicalKeyboardKey.keyX, 0x18),
+        (LogicalKeyboardKey.keyY, 0x19),
+        (LogicalKeyboardKey.keyZ, 0x1A),
+      ];
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      for (final (key, expectedByte) in cases) {
+        await tester.sendKeyDownEvent(key);
+        await tester.pump();
+        await tester.sendKeyUpEvent(key);
+        await tester.pump();
+
+        expect(backend.writeCalls.last.toList(), <int>[expectedByte]);
+      }
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+      expect(backend.writeCalls, hasLength(cases.length));
+    } finally {
+      debugDefaultTargetPlatformOverride = previousOverride;
+    }
+  });
+
   testWidgets('terminal viewport forwards repeated backspace events', (
     tester,
   ) async {

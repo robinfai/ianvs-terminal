@@ -2481,6 +2481,41 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport keeps dim color resolution when bold and dim are combined',
+    (tester) async {
+      final renderObject = await _pumpThemedTerminalViewport(
+        tester,
+        themeMode: ThemeMode.dark,
+        frame: const TerminalFrameDiff(
+          rows: [
+            TerminalRow(
+              index: 0,
+              text: 'a',
+              styleRuns: [
+                TerminalStyleRun(start: 0, end: 1, bold: true, dim: true),
+              ],
+            ),
+          ],
+          cursor: TerminalCursor(row: 0, col: 1, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      final cell = renderObject.debugResolvedCellsForRow(0).single;
+      final expectedForeground = Color.alphaBlend(
+        const Color(0xFFF8FAFC).withValues(alpha: 0.65),
+        const Color(0xFF050608),
+      );
+
+      expect(cell.foreground.toARGB32(), expectedForeground.toARGB32());
+    },
+  );
+
+  testWidgets(
     'terminal viewport keeps the debug1 Codex box right border at the same dim color as the left border',
     (tester) async {
       const boundaryKey = Key('debug1-codex-box-boundary');

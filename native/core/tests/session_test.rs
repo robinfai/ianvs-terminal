@@ -1829,6 +1829,21 @@ fn session_searches_scrollback_text_without_changing_scroll_position() {
 }
 
 #[test]
+fn session_search_empty_query_returns_no_matches() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&scrollback_profile()).unwrap()).unwrap();
+
+    wait_for_frame_containing(session_id, "line79");
+
+    let search = session::search_session(session_id, "").unwrap();
+    let matches: serde_json::Value = serde_json::from_str(&search).unwrap();
+
+    assert_eq!(matches.as_array().map(Vec::len), Some(0));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn interactive_session_accepts_input_and_emits_output() {
     let session_id =
         session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
