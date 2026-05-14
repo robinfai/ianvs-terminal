@@ -1400,6 +1400,64 @@ void main() {
     expect(notifications.single['identifier'], 'flutterm.activity.1');
   });
 
+  testWidgets(
+    'inactive session activity notification uses wrapped logical rows as its preview',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        notificationSender: ({required title, body, identifier}) async {
+          notifications.add({
+            'title': title,
+            'body': body,
+            'identifier': identifier,
+          });
+        },
+      );
+
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('New tab'));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'background build ',
+            'wrapped': true,
+            'style_runs': const [],
+          },
+          {
+            'index': 1,
+            'text': 'done',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 1, 'col': 4, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 16,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(notifications, hasLength(1));
+      expect(notifications.single['title'], startsWith('Activity in '));
+      expect(notifications.single['body'], 'background build done');
+      expect(notifications.single['identifier'], 'flutterm.activity.1');
+    },
+  );
+
   testWidgets('profile triggers notify and send text for matching output', (
     tester,
   ) async {

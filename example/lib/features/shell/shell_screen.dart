@@ -700,8 +700,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   String? _framePreview(terminal.TerminalFrameDiff frame) {
-    for (final row in frame.rows) {
-      final text = row.text.trim();
+    for (final logicalRow in _logicalRows(frame.rows)) {
+      final text = logicalRow.text.trim();
       if (text.isNotEmpty) {
         return text;
       }
