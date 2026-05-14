@@ -949,7 +949,11 @@ impl TerminalSession {
                 )
             } else {
                 let screen_row = visible_index.saturating_sub(scrollback_len);
-                extract_row(grid.row(screen_row), grid.is_line_wrapped(screen_row), &theme)
+                extract_row(
+                    grid.row(screen_row),
+                    grid.is_line_wrapped(screen_row),
+                    &theme,
+                )
             };
             let scrollback_offset = total_lines.saturating_sub(viewport_rows + visible_index);
             collect_text_matches(
@@ -1545,7 +1549,11 @@ fn terminal_theme_snapshot(terminal: &Terminal) -> TerminalThemeSnapshot {
     }
 }
 
-fn extract_row(cells: Option<&[Cell]>, wrapped: bool, theme: &TerminalThemeSnapshot) -> ExtractedRow {
+fn extract_row(
+    cells: Option<&[Cell]>,
+    wrapped: bool,
+    theme: &TerminalThemeSnapshot,
+) -> ExtractedRow {
     let mut text = String::new();
     let mut style_runs = Vec::new();
     let mut run_start = 0usize;
