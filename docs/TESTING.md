@@ -92,6 +92,29 @@ cd example && flutter run -d macos
 - 真实 trackpad / scrollback 行为
 - viewport scroll / return-to-bottom 行为
 
+## Real PTY acceptance gate
+
+当前 manual checklist 中可稳定机器断言的真实 PTY 行为，集中在：
+
+```bash
+cd example
+flutter test -d macos integration_test/real_pty_acceptance_test.dart
+```
+
+这条 gate 使用真实 `NativePtyBackend`、真实 `/bin/sh` profile 和真实
+terminal frame/event 通道，覆盖：
+
+- 默认 shell 视图隐藏 line timestamp overlay
+- shell-hook DCS 触发的 profile 自动切换与 baseline 恢复
+- password manager stale prompt 发送拦截
+- trigger 对真实重复 prompt 的 send-text 响应
+- coprocess 对真实重复 prompt 的 response
+- wrapped 输出下的 trigger notification 与 captured output 逻辑行拼接
+- inactive tab wrapped 输出下的 activity notification 逻辑行拼接
+
+仍保留人工 smoke 的项：真实 macOS 系统通知弹窗权限、Powerline 在实际字体/DPI
+组合下的观感、真实 trackpad/窗口拖拽/显示器切换等宿主 GUI 行为。
+
 ## 脚本入口
 
 ```bash
