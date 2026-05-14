@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal_pkg;
+import '../terminal/terminal.dart' as terminal_pkg;
 
 typedef TerminalEmulation = terminal_pkg.TerminalEmulation;
 typedef TerminalCursorShape = terminal_pkg.TerminalCursorShape;

@@ -7,7 +7,7 @@
 - `example/`：tab、窗口壳、菜单、profile 编辑和 demo 流程
 - `native/core`：Rust PTY / VT core，当前仍作为 `flutterm_pty` 背后的原生实现
 
-`example/` 不再定义终端能力；共享终端能力统一从 package 暴露。`example` 目录里的 Flutter package 现阶段仍保留 `name: app`，只是为了不顺手扩大平台工程改动面。
+`example/` 不再定义终端能力；共享终端能力统一从 package 暴露。app 侧通过 `example/lib/features/terminal/terminal.dart` 和 `example/lib/features/pty/pty.dart` 收口 package 依赖，平台剪贴板桥接留在 `example/lib/platform/clipboard_bridge.dart`。`example` 目录里的 Flutter package 现阶段仍保留 `name: app`，只是为了不顺手扩大平台工程改动面。
 
 ## 快速开始
 

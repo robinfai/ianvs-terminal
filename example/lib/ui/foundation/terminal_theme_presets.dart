@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
+
+import '../../features/terminal/terminal.dart';
 
 enum TerminalThemePresetTone {
   dark,

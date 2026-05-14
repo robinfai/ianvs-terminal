@@ -8,7 +8,7 @@ import 'features/shell/shell_acceptance.dart';
 import 'features/shell/reference_demo.dart';
 import 'features/shell/shell_screen.dart';
 import 'features/shell/window_bridge.dart';
-import 'features/terminal/clipboard_bridge.dart';
+import 'platform/clipboard_bridge.dart';
 
 Widget buildFluttermRoot({
   bool enableSessionPolling = true,

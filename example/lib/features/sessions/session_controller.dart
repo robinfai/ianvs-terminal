@@ -2,19 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutterm_pty/flutterm_pty.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart'
-    hide TerminalEmulation;
 
+import '../pty/pty.dart';
 import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
+import '../terminal/terminal.dart' hide TerminalEmulation;
 import 'session_ports.dart';
 import 'session_state.dart';
 
 final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
-  return NativePtyBackend.load();
+  return loadDefaultPtySessionBackend();
 });
 
 final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((

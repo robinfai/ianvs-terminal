@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
+
+import '../terminal/terminal.dart';
 
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';

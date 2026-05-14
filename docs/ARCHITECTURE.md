@@ -16,6 +16,8 @@
 - `example/`
   - 负责 tab、窗口壳、菜单、profile 编辑、defaults、demo fixture
   - 负责用 demo 侧元数据包住 `TerminalSessionConfig`
+  - 通过 `features/terminal/terminal.dart` 和 `features/pty/pty.dart` 消费 package
+  - 平台桥接（例如系统剪贴板）留在 `example/lib/platform/`
   - 不再定义 PTY/terminal 共享能力
 - `native/core`
   - 负责 Rust PTY、VT 解析、frame diff、事件输出
@@ -44,6 +46,14 @@
 
 这里不暴露 `Profile` 这个 app 词汇。对 native/core 仍需旧 wire 形状的地方，由 package 内部适配，不把这个兼容债务抛给上层。
 
+### `example/` 本地边界入口
+
+- `example/lib/features/terminal/terminal.dart`
+- `example/lib/features/pty/pty.dart`
+- `example/lib/platform/clipboard_bridge.dart`
+
+`example` 内部业务代码不再直接散落地 import `flutterm_terminal` / `flutterm_pty`；优先经过这些本地入口收口。这样 package 边界和 app 边界各自只有一个入口面。
+
 ## 数据流
 
 创建会话：
@@ -68,6 +78,7 @@
 - tab 生命周期和排序
 - 窗口标题与窗口壳
 - launcher / command menu
+- 系统剪贴板桥接
 - defaults / appearance UI
 - profile 编辑器
 - `reference_demo.dart` 和其他 demo fixture

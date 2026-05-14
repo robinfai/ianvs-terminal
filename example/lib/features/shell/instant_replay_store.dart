@@ -1,4 +1,4 @@
-import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
+import '../terminal/terminal.dart' as terminal;
 
 class InstantReplayFrame {
   const InstantReplayFrame({

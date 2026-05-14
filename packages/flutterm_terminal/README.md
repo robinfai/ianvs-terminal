@@ -36,10 +36,11 @@ first simple command for complex pipelines or compound commands.
 ## 不负责
 
 - tab / menu / window chrome
+- 系统剪贴板平台桥接
 - profile 编辑器
 - demo fixture
 
-这些都留在 `example/`。
+这些都留在 `example/`。剪贴板这类平台能力由上层通过 `copyToClipboard` / `readClipboard` 回调注入。
 
 ## 测试
 

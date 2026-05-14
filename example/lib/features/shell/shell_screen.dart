@@ -6,15 +6,15 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 
+import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
-import '../terminal/clipboard_bridge.dart';
 import '../terminal/selection_controller.dart';
+import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
 import 'advanced_paste_transformer.dart';
@@ -22,8 +22,8 @@ import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
 import 'paste_history_repository.dart';
 import 'password_manager_store.dart';
-import 'package:app/features/shell/shell_acceptance.dart';
 import 'reference_demo.dart';
+import 'shell_acceptance.dart';
 import 'window_bridge.dart';
 
 enum _ShellCommandAction {
