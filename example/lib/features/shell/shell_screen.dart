@@ -2047,8 +2047,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   bool _frameHasPasswordPrompt(terminal.TerminalFrameDiff frame) {
-    for (final row in frame.rows.reversed) {
-      final text = row.text.trimRight();
+    for (var index = frame.rows.length - 1; index >= 0; index -= 1) {
+      final text = _logicalRowTextEndingAt(frame.rows, index).trimRight();
       if (text.isEmpty) {
         continue;
       }
@@ -2058,6 +2058,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       return false;
     }
     return false;
+  }
+
+  String _logicalRowTextEndingAt(List<terminal.TerminalRow> rows, int index) {
+    final segments = <String>[rows[index].text];
+    for (var current = index - 1; current >= 0; current -= 1) {
+      final row = rows[current];
+      if (!row.wrapped) {
+        break;
+      }
+      segments.insert(0, row.text);
+    }
+    return segments.join();
   }
 
   void _seedInstantReplayFrame(String sessionId) {

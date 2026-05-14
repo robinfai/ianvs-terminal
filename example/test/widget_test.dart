@@ -737,6 +737,138 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets(
+    'password manager recognizes capitalized password prompts before sending',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Password manager'));
+      await tester.tap(find.text('Password manager'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('password-manager-label-field')),
+        'remote login',
+      );
+      await tester.enterText(
+        find.byKey(const Key('password-manager-password-field')),
+        's3cr3t!',
+      );
+      await tester.tap(find.byKey(const Key('password-manager-add')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Close password manager'));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'Password:',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 0, 'col': 9, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Password manager'));
+      await tester.tap(find.text('Password manager'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('password-manager-send-0')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes.single, utf8.encode('s3cr3t!\n'));
+    },
+  );
+
+  testWidgets(
+    'password manager recognizes wrapped password prompts before sending',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Password manager'));
+      await tester.tap(find.text('Password manager'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('password-manager-label-field')),
+        'remote login',
+      );
+      await tester.enterText(
+        find.byKey(const Key('password-manager-password-field')),
+        's3cr3t!',
+      );
+      await tester.tap(find.byKey(const Key('password-manager-add')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Close password manager'));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': '[sudo] password for development-',
+            'wrapped': true,
+            'style_runs': const [],
+          },
+          {
+            'index': 1,
+            'text': 'host:',
+            'style_runs': const [],
+          },
+        ],
+        'cursor': {'row': 1, 'col': 5, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 32,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Password manager'));
+      await tester.tap(find.text('Password manager'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('password-manager-send-0')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes.single, utf8.encode('s3cr3t!\n'));
+    },
+  );
+
   testWidgets('command menu copy writes the selection to the clipboard', (
     tester,
   ) async {
