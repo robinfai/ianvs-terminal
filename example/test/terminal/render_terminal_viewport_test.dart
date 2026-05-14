@@ -247,6 +247,46 @@ void main() {
   });
 
   testWidgets(
+    'terminal viewport hides line timestamps for whitespace-only rows',
+    (tester) async {
+      final modifiedAt = DateTime(2026, 5, 13, 9, 8, 7);
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          TerminalFrameDiff(
+            rows: [
+              TerminalRow(index: 0, text: '        ', modifiedAt: modifiedAt),
+              TerminalRow(
+                index: 1,
+                text: 'build finished',
+                modifiedAt: modifiedAt,
+              ),
+            ],
+            cursor: const TerminalCursor(row: 1, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: const [TerminalDirtyRange(start: 0, end: 2)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await _pumpTerminalViewportWithController(
+        tester,
+        controller: controller,
+        themeMode: ThemeMode.dark,
+        showLineTimestamps: true,
+      );
+
+      expect(find.byKey(const Key('terminal-line-timestamp-0')), findsNothing);
+      expect(
+        find.byKey(const Key('terminal-line-timestamp-1')),
+        findsOneWidget,
+      );
+      expect(find.text('09:08:07'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'terminal viewport maps upward wheel motion into positive scrollback deltas',
     (tester) async {
       final controller = TerminalViewportController()
@@ -2477,6 +2517,60 @@ void main() {
         _testContrastRatio(cell.foreground, background),
         greaterThanOrEqualTo(4.5),
       );
+    },
+  );
+
+  testWidgets(
+    'terminal viewport preserves powerline separator colors under minimum contrast',
+    (tester) async {
+      const previousSegment = Color(0xFF202020);
+      const nextSegment = Color(0xFF222222);
+      final renderObject = await _pumpThemedTerminalViewport(
+        tester,
+        themeMode: ThemeMode.dark,
+        colors: TerminalViewportColors.dark.copyWith(minimumContrastRatio: 4.5),
+        frame: const TerminalFrameDiff(
+          rows: [
+            TerminalRow(
+              index: 0,
+              text: 'ab',
+              styleRuns: [
+                TerminalStyleRun(
+                  start: 0,
+                  end: 1,
+                  foreground: Color(0xFFFFFFFF),
+                  background: previousSegment,
+                ),
+                TerminalStyleRun(
+                  start: 1,
+                  end: 2,
+                  foreground: previousSegment,
+                  background: nextSegment,
+                ),
+                TerminalStyleRun(
+                  start: 2,
+                  end: 3,
+                  foreground: Color(0xFFFFFFFF),
+                  background: nextSegment,
+                ),
+              ],
+            ),
+          ],
+          cursor: TerminalCursor(row: 0, col: 3, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      final powerlineCell = cells[1];
+
+      expect(powerlineCell.glyphClass, TerminalGlyphClass.powerlineCustom);
+      expect(powerlineCell.background?.toARGB32(), nextSegment.toARGB32());
+      expect(powerlineCell.foreground.toARGB32(), previousSegment.toARGB32());
     },
   );
 
@@ -4862,6 +4956,7 @@ Future<void> _pumpTerminalViewportWithController(
   TerminalViewportColors? colors,
   TerminalFontConfig font = const TerminalFontConfig(),
   TerminalCursorConfig cursor = const TerminalCursorConfig(),
+  bool showLineTimestamps = false,
 }) async {
   final selectionController = SelectionController();
   final inputController = TerminalInputController(
@@ -4889,6 +4984,7 @@ Future<void> _pumpTerminalViewportWithController(
             colors: colors,
             font: font,
             cursor: cursor,
+            showLineTimestamps: showLineTimestamps,
             onScrollLines: (_) {},
             onScrollToOffset: (_) {},
           ),

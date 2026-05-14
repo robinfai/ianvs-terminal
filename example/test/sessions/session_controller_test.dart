@@ -840,6 +840,92 @@ void main() {
     expect(pane.shellIntegration.username, 'root');
   });
 
+  testWidgets('automatic profile switching restores the baseline profile', (
+    tester,
+  ) async {
+    final defaultProfile = defaultTerminalProfile().copyWith(
+      id: 'local',
+      name: 'Local',
+    );
+    final rootProfile = defaultTerminalProfile().copyWith(
+      id: 'root',
+      name: 'Root Session',
+      switchRules: const [
+        TerminalProfileSwitchRule(
+          kind: TerminalProfileSwitchRuleKind.username,
+          pattern: 'root',
+        ),
+      ],
+    );
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile, rootProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider);
+    await tester.pump();
+    await tester.pump();
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'shell_hook',
+      'payload': const <String, Object?>{
+        'hook': 'command_finished',
+        'command': 'sudo -s',
+        'user': 'root',
+        'pwd': '/root',
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump();
+
+    expect(
+      container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .profileId,
+      'root',
+    );
+
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'shell_hook',
+      'payload': const <String, Object?>{
+        'hook': 'command_finished',
+        'command': 'exit',
+        'user': 'dev',
+        'pwd': '/Users/dev',
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump();
+
+    final pane = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .activePane;
+    expect(pane.profileId, 'local');
+    expect(pane.title, 'Local');
+    expect(pane.profileSnapshot?.name, 'Local');
+    expect(pane.shellIntegration.username, 'dev');
+  });
+
   test(
     'resize events update the terminal session before resizing the macOS window',
     () async {

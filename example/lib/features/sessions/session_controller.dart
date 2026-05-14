@@ -53,9 +53,23 @@ final sessionEnvironmentOverridesProvider = Provider<Map<String, String>>((
 final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 
+class _AutomaticProfileBaseline {
+  const _AutomaticProfileBaseline({
+    required this.title,
+    required this.profileId,
+    required this.profileSnapshot,
+  });
+
+  final String title;
+  final String profileId;
+  final TerminalProfile? profileSnapshot;
+}
+
 class SessionController extends Notifier<SessionState> {
   final Map<String, TerminalViewportController> _demoViewports =
       <String, TerminalViewportController>{};
+  final Map<String, _AutomaticProfileBaseline> _automaticProfileBaselines =
+      <String, _AutomaticProfileBaseline>{};
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
   bool _preferencesLoadedFromDisk = false;
@@ -555,6 +569,7 @@ class SessionController extends Notifier<SessionState> {
   ) {
     final profile = _matchingAutomaticProfile(shellIntegration);
     if (profile == null) {
+      _restoreAutomaticProfileBaseline(sessionId, shellIntegration);
       return;
     }
     final tabIndex = _tabIndexContainingSession(sessionId);
@@ -566,6 +581,14 @@ class SessionController extends Notifier<SessionState> {
     if (currentPane == null || currentPane.profileId == profile.id) {
       return;
     }
+    _automaticProfileBaselines.putIfAbsent(
+      sessionId,
+      () => _AutomaticProfileBaseline(
+        title: currentPane.title,
+        profileId: currentPane.profileId,
+        profileSnapshot: currentPane.profileSnapshot,
+      ),
+    );
 
     final nextTabs = <TerminalTab>[...state.tabs];
     if (currentTab.panes.isEmpty && currentTab.sessionId == sessionId) {
@@ -597,6 +620,66 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(tabs: nextTabs);
     if (sessionId == state.activeSessionId) {
       _setWindowTitle(profile.name);
+    }
+  }
+
+  void _restoreAutomaticProfileBaseline(
+    String sessionId,
+    TerminalShellIntegrationSnapshot shellIntegration,
+  ) {
+    final baseline = _automaticProfileBaselines.remove(sessionId);
+    if (baseline == null) {
+      return;
+    }
+    final tabIndex = _tabIndexContainingSession(sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+    final currentTab = state.tabs[tabIndex];
+    final currentPane = currentTab.paneFor(sessionId);
+    if (currentPane == null) {
+      return;
+    }
+
+    final nextTabs = <TerminalTab>[...state.tabs];
+    if (currentTab.panes.isEmpty && currentTab.sessionId == sessionId) {
+      nextTabs[tabIndex] = TerminalTab(
+        sessionId: currentTab.sessionId,
+        title: baseline.title,
+        profileId: baseline.profileId,
+        profileSnapshot: baseline.profileSnapshot,
+        isExited: currentTab.isExited,
+        exitCode: currentTab.exitCode,
+        panes: currentTab.panes,
+        activePaneSessionId: currentTab.activePaneSessionId,
+        splitAxis: currentTab.splitAxis,
+        shellIntegration: shellIntegration,
+      );
+    } else {
+      nextTabs[tabIndex] = currentTab.copyWith(
+        title: sessionId == currentTab.sessionId
+            ? baseline.title
+            : currentTab.title,
+        panes: [
+          for (final pane in currentTab.effectivePanes)
+            if (pane.sessionId == sessionId)
+              TerminalPane(
+                sessionId: pane.sessionId,
+                title: baseline.title,
+                profileId: baseline.profileId,
+                profileSnapshot: baseline.profileSnapshot,
+                isExited: pane.isExited,
+                exitCode: pane.exitCode,
+                shellIntegration: shellIntegration,
+              )
+            else
+              pane,
+        ],
+      );
+    }
+    state = state.copyWith(tabs: nextTabs);
+    if (sessionId == state.activeSessionId) {
+      _setWindowTitle(baseline.title);
     }
   }
 
@@ -756,6 +839,7 @@ class SessionController extends Notifier<SessionState> {
     String sessionId, {
     bool runtimeAlreadyClosed = false,
   }) {
+    _automaticProfileBaselines.remove(sessionId);
     final tabIndex = _tabIndexContainingSession(sessionId);
     if (tabIndex == -1) {
       return;
@@ -821,6 +905,9 @@ class SessionController extends Notifier<SessionState> {
 
   void _removeTabState(int tabIndex) {
     final closingTab = state.tabs[tabIndex];
+    for (final pane in closingTab.effectivePanes) {
+      _automaticProfileBaselines.remove(pane.sessionId);
+    }
     final nextTabs = <TerminalTab>[
       ...state.tabs.take(tabIndex),
       ...state.tabs.skip(tabIndex + 1),

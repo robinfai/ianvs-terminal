@@ -1417,7 +1417,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     TerminalViewportColors colors,
   ) {
     final timestampedRows = frame.rows
-        .where((row) => row.modifiedAt != null)
+        .where((row) => row.modifiedAt != null && row.text.trim().isNotEmpty)
         .toList(growable: false);
     if (timestampedRows.isEmpty) {
       return const <Widget>[];

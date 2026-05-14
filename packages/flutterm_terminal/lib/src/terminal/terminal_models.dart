@@ -4,6 +4,10 @@ import 'dart:ui';
 
 enum TerminalFrameKind { snapshot, delta }
 
+const int _maxInlineImageDecodedBytes = 4 * 1024 * 1024;
+const int _maxInlineImageEncodedLength =
+    ((_maxInlineImageDecodedBytes + 2) ~/ 3) * 4;
+
 class TerminalStyleRun {
   const TerminalStyleRun({
     required this.start,
@@ -251,7 +255,27 @@ class TerminalInlineImage {
   final String? altText;
 
   factory TerminalInlineImage.fromJson(Map<String, Object?> json) {
+    final image = TerminalInlineImage.tryFromJson(json);
+    if (image == null) {
+      throw const FormatException('Invalid inline image payload');
+    }
+    return image;
+  }
+
+  static TerminalInlineImage? tryFromJson(Map<String, Object?> json) {
     final encoded = json['data'] as String? ?? json['base64'] as String? ?? '';
+    if (encoded.isEmpty || encoded.length > _maxInlineImageEncodedLength) {
+      return null;
+    }
+    final Uint8List bytes;
+    try {
+      bytes = base64.decode(encoded);
+    } on FormatException {
+      return null;
+    }
+    if (bytes.isEmpty || bytes.length > _maxInlineImageDecodedBytes) {
+      return null;
+    }
     return TerminalInlineImage(
       row: _intFromJson(json['row'], fallback: 0),
       col: _intFromJson(json['col'] ?? json['column'], fallback: 0),
@@ -263,7 +287,7 @@ class TerminalInlineImage {
         json['height_cells'] ?? json['heightCells'],
         fallback: 1,
       ),
-      bytes: base64.decode(encoded),
+      bytes: bytes,
       altText: json['alt'] as String? ?? json['alt_text'] as String?,
     );
   }
@@ -380,15 +404,32 @@ class TerminalFrameDiff {
                 TerminalHyperlinkRange.fromJson(entry as Map<String, Object?>),
           )
           .toList(),
-      inlineImages: (json['inline_images'] as List<dynamic>? ?? const [])
-          .map(
-            (entry) => TerminalInlineImage.fromJson(
-              (entry as Map).cast<String, Object?>(),
-            ),
-          )
-          .toList(),
+      inlineImages: _inlineImagesFromJson(json['inline_images']),
     );
   }
+}
+
+List<TerminalInlineImage> _inlineImagesFromJson(Object? value) {
+  if (value is! List) {
+    return const [];
+  }
+  final images = <TerminalInlineImage>[];
+  for (final entry in value) {
+    if (entry is! Map) {
+      continue;
+    }
+    final imageJson = <String, Object?>{};
+    entry.forEach((key, value) {
+      if (key is String) {
+        imageJson[key] = value;
+      }
+    });
+    final image = TerminalInlineImage.tryFromJson(imageJson);
+    if (image != null) {
+      images.add(image);
+    }
+  }
+  return images;
 }
 
 class TerminalViewportState {
@@ -793,7 +834,7 @@ List<TerminalRow> _shiftViewportRows({
 }
 
 TerminalRow _rowWithFallbackModifiedAt(TerminalRow row, DateTime? modifiedAt) {
-  if (row.modifiedAt != null || modifiedAt == null || row.text.isEmpty) {
+  if (row.modifiedAt != null || modifiedAt == null || row.text.trim().isEmpty) {
     return row;
   }
   return TerminalRow(

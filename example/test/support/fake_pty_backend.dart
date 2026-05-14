@@ -10,6 +10,8 @@ class FakePtyBackend
   int _nextSessionId = 0;
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
+  final Map<String, List<Map<String, Object?>>> _queuedFrames =
+      <String, List<Map<String, Object?>>>{};
   final Map<String, List<PtyEvent>> _events = <String, List<PtyEvent>>{};
   final Map<String, Map<String, List<Map<String, Object?>>>> _searchMatches =
       <String, Map<String, List<Map<String, Object?>>>>{};
@@ -25,6 +27,12 @@ class FakePtyBackend
 
   void setFrame(Object sessionId, Map<String, Object?> frame) {
     _frames[_sessionKey(sessionId)] = frame;
+  }
+
+  void enqueueFrame(Object sessionId, Map<String, Object?> frame) {
+    _queuedFrames
+        .putIfAbsent(_sessionKey(sessionId), () => <Map<String, Object?>>[])
+        .add(frame);
   }
 
   void setSearchMatches(
@@ -197,6 +205,15 @@ class FakePtyBackend
 
   @override
   String? takeFrameDiffJson(String sessionId) {
+    final queuedFrames = _queuedFrames[sessionId];
+    if (queuedFrames != null && queuedFrames.isNotEmpty) {
+      _frameDiffReads.update(
+        sessionId,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
+      return jsonEncode(queuedFrames.removeAt(0));
+    }
     final frame = _frames[sessionId];
     if (frame == null) {
       return null;

@@ -291,6 +291,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
+  final Map<String, int> _terminalFrameSequenceBySession = {};
   final TextEditingController _autoComposerController = TextEditingController();
   final FocusNode _autoComposerFocusNode = FocusNode();
   final Set<String> _sessionsSeenForActivityNotifications = {};
@@ -360,11 +361,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void _handleTerminalSessionEvent(terminal.TerminalSessionEvent event) {
     switch (event) {
       case terminal.TerminalSessionFrameEvent(:final sessionId, :final frame):
+        final frameSequence =
+            (_terminalFrameSequenceBySession[sessionId] ?? 0) + 1;
+        _terminalFrameSequenceBySession[sessionId] = frameSequence;
         ref.read(instantReplayStoreProvider).record(sessionId, frame);
-        _feedCoprocess(sessionId, frame);
-        _runProfileTriggers(sessionId, frame);
+        _feedCoprocess(sessionId, frame, frameSequence: frameSequence);
+        _runProfileTriggers(sessionId, frame, frameSequence: frameSequence);
         _notifyInactiveActivity(sessionId, frame);
       case terminal.TerminalSessionExitEvent():
+        _terminalFrameSequenceBySession.remove(event.sessionId);
         _triggerMatchesBySession.remove(event.sessionId);
         _stopCoprocess(event.sessionId);
         _clearCapturedOutput(event.sessionId);
@@ -434,7 +439,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
   }
 
-  void _feedCoprocess(String sessionId, terminal.TerminalFrameDiff frame) {
+  void _feedCoprocess(
+    String sessionId,
+    terminal.TerminalFrameDiff frame, {
+    required int frameSequence,
+  }) {
     final currentCoprocess = _coprocesses[sessionId];
     if (currentCoprocess == null) {
       return;
@@ -450,7 +459,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       if (input.trim().isEmpty) {
         continue;
       }
-      final inputKey = '${row.index}\u0000$input';
+      final inputKey = [
+        _frameDedupeScope(frame, frameSequence),
+        row.index,
+        input,
+      ].join('\u0000');
       if (!seenKeys.add(inputKey)) {
         continue;
       }
@@ -516,7 +529,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     });
   }
 
-  void _runProfileTriggers(String sessionId, terminal.TerminalFrameDiff frame) {
+  void _runProfileTriggers(
+    String sessionId,
+    terminal.TerminalFrameDiff frame, {
+    required int frameSequence,
+  }) {
     final profile = _profileForSession(sessionId);
     if (profile == null || profile.triggers.isEmpty) {
       return;
@@ -538,7 +555,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         if (!regex.hasMatch(text)) {
           continue;
         }
-        final matchKey = _triggerMatchKey(trigger, row);
+        final matchKey = _triggerMatchKey(
+          trigger,
+          row,
+          frameScope: _frameDedupeScope(frame, frameSequence),
+        );
         if (!seenMatches.add(matchKey)) {
           continue;
         }
@@ -603,9 +624,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   String _triggerMatchKey(
     TerminalProfileTrigger trigger,
-    terminal.TerminalRow row,
-  ) {
+    terminal.TerminalRow row, {
+    required String frameScope,
+  }) {
     return [
+      frameScope,
       trigger.pattern,
       trigger.action.name,
       trigger.value ?? '',
@@ -613,6 +636,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       row.index,
       row.text,
     ].join('\u0000');
+  }
+
+  String _frameDedupeScope(
+    terminal.TerminalFrameDiff frame,
+    int frameSequence,
+  ) {
+    return frame.frameKind == terminal.TerminalFrameKind.delta
+        ? 'delta:$frameSequence'
+        : 'snapshot';
   }
 
   void _runProfileTrigger(
@@ -1997,6 +2029,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     switch (result) {
       case _PasswordManagerSendResult(:final entry):
+        final latestFrame = sessionController.viewportFor(sessionId).frame;
+        if (!_frameHasPasswordPrompt(latestFrame)) {
+          return;
+        }
         _sendPasswordToSession(sessionId, entry);
         return;
       case null:
@@ -3354,7 +3390,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           const terminal.TerminalCursorConfig(),
                       copyOnSelect:
                           terminalConfig?.interaction.copyOnSelect ?? false,
-                      showLineTimestamps: true,
                       optionDragMode:
                           terminalConfig?.interaction.optionDragMode ??
                           terminal.TerminalOptionDragMode.blockSelection,

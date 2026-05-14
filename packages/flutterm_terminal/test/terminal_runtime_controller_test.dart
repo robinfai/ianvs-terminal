@@ -138,6 +138,32 @@ void main() {
     expect(controller.frame.rows[1].modifiedAt, secondModifiedAt);
   });
 
+  test(
+    'terminal viewport controller leaves whitespace-only rows untimestamped',
+    () {
+      final modifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 3);
+      final controller = TerminalViewportController(now: () => modifiedAt);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [
+            TerminalRow(index: 0, text: '        '),
+            TerminalRow(index: 1, text: 'alpha'),
+          ],
+          cursor: TerminalCursor(row: 1, col: 5, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(controller.frame.rows[0].modifiedAt, isNull);
+      expect(controller.frame.rows[1].modifiedAt, modifiedAt);
+    },
+  );
+
   test('terminal frame modes parse alternate screen hints', () {
     final modes = TerminalFrameModes.fromJson(const <String, Object?>{
       'alternate_screen': true,
@@ -204,6 +230,64 @@ void main() {
     expect(frame.inlineImages.single.bytes, imageBytes);
     expect(frame.inlineImages.single.altText, 'preview');
   });
+
+  test('terminal frames ignore malformed inline image payloads', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'inline_images': [
+        {
+          'row': 0,
+          'col': 2,
+          'width_cells': 4,
+          'height_cells': 3,
+          'data': 'not-valid-base64!!!',
+        },
+      ],
+    });
+
+    expect(frame.inlineImages, isEmpty);
+  });
+
+  test(
+    'terminal frames ignore oversized inline image payloads before decoding',
+    () {
+      final oversizedPayload = 'A' * (6 * 1024 * 1024);
+      final frame = TerminalFrameDiff.fromJson(<String, Object?>{
+        'rows': const [
+          {'index': 0, 'text': 'image', 'style_runs': []},
+        ],
+        'cursor': const {'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': const [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'inline_images': [
+          {
+            'row': 0,
+            'col': 2,
+            'width_cells': 4,
+            'height_cells': 3,
+            'data': oversizedPayload,
+          },
+        ],
+      });
+
+      expect(frame.inlineImages, isEmpty);
+    },
+  );
 
   test('terminal runtime falls back when JSON requests are unsupported', () {
     final runtimeBackend = _FakePtyBackend()..returnNullJsonRequests = true;

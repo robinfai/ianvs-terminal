@@ -494,13 +494,15 @@ class RenderTerminalViewport extends RenderBox {
     }
 
     final textCells = TerminalTextCells.fromText(row.text);
+    final defaultRawForeground = _colors.foreground;
     final defaultForeground = _foregroundWithMinimumContrast(
-      _colors.foreground,
+      defaultRawForeground,
       _colors.canvasBackground,
     );
     final cellStyles = List<_ResolvedCellStyle>.filled(
       textCells.cellCount,
       _ResolvedCellStyle(
+        rawForeground: defaultRawForeground,
         foreground: defaultForeground,
         background: null,
         fontWeight: FontWeight.w400,
@@ -535,6 +537,9 @@ class RenderTerminalViewport extends RenderBox {
       final glyph = textCell.text;
       final placementPolicy = _placementPolicyForGlyph(glyph);
       final glyphClass = _glyphClassForGlyph(glyph, placementPolicy);
+      final foreground = glyphClass == TerminalGlyphClass.powerlineCustom
+          ? style.rawForeground
+          : style.foreground;
       final usesCustomGeometry = _usesCustomGeometryFor(placementPolicy);
       ui.Paragraph? paragraph;
       Size glyphSize = Size.zero;
@@ -552,7 +557,7 @@ class RenderTerminalViewport extends RenderBox {
           column: textCell.column,
           columnSpan: textCell.columnSpan,
           text: glyph,
-          foreground: style.foreground,
+          foreground: foreground,
           background: style.background,
           glyphClass: glyphClass,
           paragraph: paragraph,
@@ -801,23 +806,27 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   _ResolvedCellStyle _resolvedCellStyleFor(TerminalStyleRun run) {
-    var foreground = run.foreground ?? _colors.foreground;
+    var rawForeground = run.foreground ?? _colors.foreground;
     var background = run.background ?? _colors.canvasBackground;
 
     if (run.inverse) {
       final swapped = background;
-      background = foreground;
-      foreground = swapped;
+      background = rawForeground;
+      rawForeground = swapped;
     }
     if (run.dim) {
-      foreground = Color.alphaBlend(
-        foreground.withValues(alpha: foreground.a * 0.65),
+      rawForeground = Color.alphaBlend(
+        rawForeground.withValues(alpha: rawForeground.a * 0.65),
         background,
       );
     }
-    foreground = _foregroundWithMinimumContrast(foreground, background);
+    final foreground = _foregroundWithMinimumContrast(
+      rawForeground,
+      background,
+    );
 
     return _ResolvedCellStyle(
+      rawForeground: rawForeground,
       foreground: foreground,
       background: (run.background == null && !run.inverse) ? null : background,
       fontWeight: run.bold ? FontWeight.w700 : FontWeight.w400,
@@ -1412,6 +1421,7 @@ bool _sameStringList(List<String> left, List<String> right) {
 
 class _ResolvedCellStyle {
   const _ResolvedCellStyle({
+    required this.rawForeground,
     required this.foreground,
     required this.background,
     required this.fontWeight,
@@ -1419,6 +1429,7 @@ class _ResolvedCellStyle {
     required this.decoration,
   });
 
+  final Color rawForeground;
   final Color foreground;
   final Color? background;
   final FontWeight fontWeight;
