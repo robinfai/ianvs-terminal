@@ -429,6 +429,84 @@ void main() {
     },
   );
 
+  testWidgets('profile editor groups controls under the profile hierarchy', (
+    tester,
+  ) async {
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (_) {},
+    );
+
+    _expectDescendant(
+      const Key('profile-editor-section-identity'),
+      const Key('profile-editor-name'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-identity'),
+      const Key('profile-editor-tags'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-startup'),
+      const Key('profile-editor-group-command'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-group-command'),
+      const Key('profile-editor-shell'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-group-launch-data'),
+      const Key('profile-editor-add-arg'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-group-launch-data'),
+      const Key('profile-editor-add-env'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-automation'),
+      const Key('profile-editor-triggers'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-automation'),
+      const Key('profile-editor-switch-rules'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-session'),
+      const Key('profile-editor-emulation'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-session'),
+      const Key('profile-editor-shell-integration'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-appearance'),
+      const Key('profile-editor-font-family'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-appearance'),
+      const Key('profile-editor-theme-presets'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-group-cursor'),
+      const Key('profile-editor-cursor-shape'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-section-interaction'),
+      const Key('profile-editor-copy-on-select'),
+    );
+
+    expect(find.text('Identity'), findsOneWidget);
+    expect(find.text('Startup'), findsOneWidget);
+    expect(find.text('Automation'), findsOneWidget);
+    expect(find.text('Terminal session'), findsOneWidget);
+    expect(find.text('Appearance'), findsOneWidget);
+    expect(find.text('Interaction'), findsOneWidget);
+  });
+
   testWidgets('profile editor saves notification and send-text triggers', (
     tester,
   ) async {
@@ -608,7 +686,7 @@ void main() {
 
     await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
     await tester.tap(find.byKey(const Key('profile-editor-save')));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(savedProfile, isNull);
     expect(find.text('Name is required'), findsOneWidget);
@@ -954,6 +1032,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-reset-foreground')),
+      );
       await tester.tap(
         find.byKey(const Key('profile-editor-reset-foreground')),
       );
@@ -1081,7 +1163,36 @@ Future<void> _pumpEditorHarness(
 }
 
 Future<void> _ensureVisible(WidgetTester tester, Finder finder) async {
-  await tester.ensureVisible(finder);
+  final targetElements = finder.evaluate().toList();
+  if (targetElements.any((element) {
+    return element.widget.key == const Key('profile-editor-save');
+  })) {
+    await tester.pumpAndSettle();
+    return;
+  }
+
+  await Scrollable.ensureVisible(
+    targetElements.single,
+    duration: Duration.zero,
+    alignment: 0.2,
+  );
+  await tester.pumpAndSettle();
+
+  final saveButton = find.byKey(const Key('profile-editor-save'));
+  if (saveButton.evaluate().isEmpty) {
+    return;
+  }
+
+  final targetCenter = tester.getCenter(finder);
+  final footerTop = tester.getTopLeft(saveButton).dy - 12;
+  if (targetCenter.dy <= footerTop) {
+    return;
+  }
+
+  await tester.drag(
+    find.byType(SingleChildScrollView),
+    Offset(0, -(targetCenter.dy - footerTop + 48)),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -1093,5 +1204,12 @@ void _expectColorFieldText(
   expect(
     tester.widget<TextFormField>(find.byKey(Key(fieldKey))).controller!.text,
     expected,
+  );
+}
+
+void _expectDescendant(Key parentKey, Key childKey) {
+  expect(
+    find.descendant(of: find.byKey(parentKey), matching: find.byKey(childKey)),
+    findsOneWidget,
   );
 }
