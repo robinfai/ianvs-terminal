@@ -2,6 +2,8 @@
 
 这份文档只定义阶段目标，不写具体实现细节。具体开发任务应落到 `docs/tasks/`。
 
+本地 terminal 功能扩展的竞品分析与功能设计见 [LOCAL_TERMINAL_FEATURE_PLAN.md](LOCAL_TERMINAL_FEATURE_PLAN.md)。
+
 ## Phase 1: macOS Local Shell Stabilization
 
 目标：
@@ -52,15 +54,18 @@
 - 已知问题和剩余风险更明确
 - 至少形成一轮稳定的人工 smoke 流程
 
-## Phase 3: SSH Session Support
+## Phase 3: Local Workspace Expansion
 
 目标：
 
-- 为 profile 增加 SSH 会话能力
-- 明确本地 shell 与 SSH session 的统一模型
+- 把本地 tabs / panes / workspace / layout 能力收口成稳定产品模型
+- 建立统一 action registry，让快捷键、菜单和 command palette 共享同一动作入口
+- 建立本地配置模型，覆盖 profiles、keybindings、layouts、clipboard/paste policy、notification policy 和 hotkey window
+- 把 shell integration 的 prompt marks、cwd tracking、command status、recent commands / directories 做成本地效率能力
 
 非目标：
 
+- SSH、remote domain、SFTP、serial、协作 Web session
 - 插件系统
 - Linux / Windows 适配
 - renderer 重构
@@ -68,13 +73,16 @@
 进入条件：
 
 - 本地 shell 能力稳定
-- profile 模型与 session 生命周期足够清晰
+- profile 模型、session 生命周期和 pane/tab 状态足够清晰
+- Phase 2 的 terminal 输入、选区、滚动、复制粘贴、resize 风险已收敛
 
 完成条件：
 
-- SSH profile 可创建、编辑、删除
-- 至少有一条可用的 SSH 会话链路
-- 验收清单覆盖 SSH 基本连接场景
+- 本地 workspace 支持 tab、split right/down、focus、resize、close、undo close、same-cwd open
+- keybinding / menu / command palette 通过统一 action id 触发，不向 terminal input 泄漏事件
+- 旧 profile/preferences 配置仍可读取，新配置 schema 不引入 SSH/remote/serial/SFTP 顶层能力
+- shell integration 关闭时，相关本地效率动作正确降级为不可用
+- 验收清单覆盖本地 workspace、配置迁移、焦点安全、粘贴安全和通知策略
 
 ## Phase 4: Linux / Windows Integration
 
