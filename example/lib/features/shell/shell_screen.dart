@@ -1,80 +1,49 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:convert' show utf8;
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
+import '../config/local_terminal_config_models.dart';
+import '../config/local_terminal_keybinding_resolver.dart';
+import '../preferences/app_preferences_models.dart';
+import '../policies/local_terminal_paste_decision.dart';
+import '../policies/local_terminal_policy_models.dart';
+import '../profiles/dynamic_profiles_sheet.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
+import '../profiles/profiles_sheet.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
+import '../visual/local_terminal_scrollback_exporter.dart';
+import '../visual/local_terminal_visual_models.dart';
 import 'advanced_paste_transformer.dart';
 import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
 import 'paste_history_repository.dart';
 import 'password_manager_store.dart';
 import 'reference_demo.dart';
+import 'local_terminal_shell_ui_wiring_exports.dart';
 import 'shell_acceptance.dart';
+import 'shell_action_registry.dart';
+import 'shell_action_runtime_bindings.dart';
 import 'window_bridge.dart';
-
-enum _ShellCommandAction {
-  newTab,
-  toolbelt,
-  splitRight,
-  splitDown,
-  copy,
-  copyMode,
-  paste,
-  advancedPaste,
-  pasteHistory,
-  shellIntegrationUtilities,
-  selectCommandOutput,
-  tmuxIntegration,
-  coprocess,
-  annotations,
-  capturedOutput,
-  passwordManager,
-  instantReplay,
-  search,
-  globalSearch,
-  autocomplete,
-  autoComposer,
-  hotkeyWindow,
-  defaults,
-  profiles,
-  dynamicProfiles,
-}
-
-enum _ShellShortcutAction {
-  openLauncher,
-  newTab,
-  splitRight,
-  splitDown,
-  autocomplete,
-  copyMode,
-  pasteHistory,
-  instantReplay,
-  closeActiveTab,
-  openDefaults,
-  requestQuitConfirmation,
-  activateTab,
-  previousPrompt,
-  nextPrompt,
-}
 
 class _ShellShortcut {
   const _ShellShortcut(this.action, {this.tabIndex});
 
-  final _ShellShortcutAction action;
+  final TerminalActionId action;
   final int? tabIndex;
 }
 
@@ -109,22 +78,6 @@ final shellNotificationSenderProvider = Provider<ShellNotificationSender>((
 ) {
   return WindowBridge.showNotification;
 });
-
-sealed class _ProfilesSheetResult {
-  const _ProfilesSheetResult();
-}
-
-final class _OpenProfileResult extends _ProfilesSheetResult {
-  const _OpenProfileResult(this.profile);
-
-  final TerminalProfile profile;
-}
-
-final class _EditProfileResult extends _ProfilesSheetResult {
-  const _EditProfileResult(this.profile);
-
-  final TerminalProfile profile;
-}
 
 sealed class _PasteHistorySheetResult {
   const _PasteHistorySheetResult();
@@ -164,16 +117,6 @@ final class _InstantReplayCopyResult extends _InstantReplaySheetResult {
   const _InstantReplayCopyResult(this.text);
 
   final String text;
-}
-
-class _DynamicProfilesImportResult {
-  const _DynamicProfilesImportResult({
-    required this.profiles,
-    required this.warningCount,
-  });
-
-  final List<TerminalProfile> profiles;
-  final int warningCount;
 }
 
 class _SearchableSession {
@@ -300,6 +243,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
+  final Map<String, int> _paneFlexBySession = {};
+  final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
@@ -308,6 +253,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final FocusNode _autoComposerFocusNode = FocusNode();
   final Set<String> _sessionsSeenForActivityNotifications = {};
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
+  late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   Timer? _workspaceCueTimer;
   Timer? _viewportResizeTimer;
   bool _isCommandMenuOpen = false;
@@ -322,7 +268,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _recentlyClosedLastSession = false;
   bool _showWorkspaceCue = false;
   bool _showReturningCueOnNextFocus = false;
+  bool _commandFinishedNotificationsEnabled = true;
+  bool _bellNotificationsEnabled = true;
+  bool _activityNotificationsEnabled = true;
   int _lastObservedTabCount = 0;
+  String? _zoomedPaneSessionId;
   String _searchQuery = '';
   List<TerminalSearchMatch> _searchMatches = const [];
   int _activeSearchIndex = 0;
@@ -350,11 +300,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    _completionDiagnosticsSnapshot =
+        const LocalTerminalPendingCompletionSnapshotFactory(
+          p0BoundaryManifest: LocalTerminalP0BoundaryClosureManifest(
+            localTerminalPlanDocumented: true,
+            roadmapLocalWorkspaceAligned: true,
+            remoteScopeExcluded: true,
+            perMilestoneExecutionPlansCreated: true,
+            competitorCoverageMapped: true,
+            productionWiringChecklistCreated: true,
+          ),
+        ).build(capturedAt: DateTime.now());
     _terminalEventSubscription = ref
         .read(terminalRuntimeControllerProvider)
         .events
         .listen(_handleTerminalSessionEvent);
     Future.microtask(_loadPasteHistory);
+    Future.microtask(_loadNotificationPreferences);
   }
 
   @override
@@ -397,6 +359,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     String sessionId,
     terminal.TerminalFrameDiff frame,
   ) {
+    if (!_activityNotificationsEnabled) {
+      return;
+    }
     final preview = _framePreview(frame);
     final hasSeenSession = !_sessionsSeenForActivityNotifications.add(
       sessionId,
@@ -427,6 +392,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   void _notifyBell(String sessionId) {
+    if (!_bellNotificationsEnabled) {
+      return;
+    }
     _sendShellNotification(
       title: 'Bell in ${_sessionTitleForNotification(sessionId)}',
       body: 'The terminal requested attention.',
@@ -436,6 +404,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   void _notifyShellHook(terminal.TerminalSessionShellHookEvent event) {
     if (event.hook != 'command_finished') {
+      return;
+    }
+    if (!_commandFinishedNotificationsEnabled) {
       return;
     }
     final command = event.command;
@@ -449,6 +420,68 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       identifier:
           'flutterm.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    final preferences = await ref.read(appPreferencesRepositoryProvider).load();
+    if (!mounted || preferences == null) {
+      return;
+    }
+    setState(() {
+      _commandFinishedNotificationsEnabled =
+          preferences.notifications.commandFinished;
+      _bellNotificationsEnabled = preferences.notifications.bell;
+      _activityNotificationsEnabled = preferences.notifications.activity;
+    });
+  }
+
+  Future<void> _saveNotificationPreferences() async {
+    final repository = ref.read(appPreferencesRepositoryProvider);
+    final preferences =
+        await repository.load() ?? const TerminalAppPreferencesDocument();
+    await repository.save(
+      preferences.copyWith(
+        notifications: TerminalAppNotifications(
+          commandFinished: _commandFinishedNotificationsEnabled,
+          bell: _bellNotificationsEnabled,
+          activity: _activityNotificationsEnabled,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _toggleHotkeyWindowWithFeedback() async {
+    final status = await WindowBridge.hotkeyStatus();
+    if (status != null && !status.registered) {
+      _showHotkeyWindowFailure(status);
+      return false;
+    }
+    try {
+      await WindowBridge.toggleHotkeyWindow();
+      return true;
+    } on PlatformException catch (error) {
+      _showHotkeyWindowFailure(status, error: error);
+      return false;
+    }
+  }
+
+  void _showHotkeyWindowFailure(
+    HotkeyWindowStatus? status, {
+    PlatformException? error,
+  }) {
+    if (!mounted) {
+      return;
+    }
+    final details = <String>[
+      'Hotkey window unavailable',
+      if (status != null) 'shortcut: ${status.shortcut}',
+      if (status?.errorCode != null) 'error: ${status!.errorCode}',
+      if (error?.message != null && error!.message!.trim().isNotEmpty)
+        error.message!.trim(),
+    ].join(' - ');
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(details)));
   }
 
   void _feedCoprocess(
@@ -678,6 +711,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         if (value == null || value.isEmpty) {
           return;
         }
+        if (_isSessionReadOnly(sessionId)) {
+          return;
+        }
         ref
             .read(terminalRuntimeControllerProvider)
             .sendInput(sessionId, Uint8List.fromList(utf8.encode(value)));
@@ -859,80 +895,116 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;
     final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final isAltPressed = HardwareKeyboard.instance.isAltPressed;
     final usesMetaShortcuts =
         _usesMetaShortcuts || ref.read(referenceDemoModeProvider);
     final usesAppModifier = usesMetaShortcuts
         ? isMetaPressed && !isControlPressed
         : isControlPressed && !isMetaPressed;
 
-    if (usesAppModifier && !isShiftPressed) {
-      final platformAction = switch (event.logicalKey) {
-        LogicalKeyboardKey.keyD => _ShellShortcutAction.splitRight,
-        LogicalKeyboardKey.semicolon => _ShellShortcutAction.autocomplete,
-        LogicalKeyboardKey.keyQ => _ShellShortcutAction.requestQuitConfirmation,
-        LogicalKeyboardKey.keyW => _ShellShortcutAction.closeActiveTab,
-        LogicalKeyboardKey.comma => _ShellShortcutAction.openDefaults,
-        _ => null,
-      };
-      if (platformAction != null) {
-        return _ShellShortcut(platformAction);
+    final resolvedBindings = LocalTerminalKeyBindingResolver.resolve(
+      config: const LocalTerminalKeybindingsConfig(),
+    );
+    for (final binding in resolvedBindings) {
+      final action = ShellActionRegistry.actions[binding.actionId];
+      final defaultBinding = action?.defaultKeyBinding;
+      if (defaultBinding == null) {
+        continue;
       }
+      if (binding.source != LocalTerminalKeyBindingSource.defaultBinding) {
+        continue;
+      }
+      if (_shortcutEventMatchesDefaultBinding(
+        event: event,
+        binding: defaultBinding,
+        usesMetaShortcuts: usesMetaShortcuts,
+        isMetaPressed: isMetaPressed,
+        isControlPressed: isControlPressed,
+        isShiftPressed: isShiftPressed,
+        isAltPressed: isAltPressed,
+      )) {
+        return _ShellShortcut(binding.actionId);
+      }
+    }
+
+    if (usesAppModifier && !isShiftPressed && !isAltPressed) {
       final tabIndex = _tabShortcutIndexFor(event.logicalKey);
       if (tabIndex != null) {
-        return _ShellShortcut(
-          _ShellShortcutAction.activateTab,
-          tabIndex: tabIndex,
-        );
+        return _ShellShortcut(TerminalActionId.activateTab, tabIndex: tabIndex);
       }
     }
 
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyP) {
-      return const _ShellShortcut(_ShellShortcutAction.openLauncher);
+      return const _ShellShortcut(TerminalActionId.openLauncher);
     }
 
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyD) {
-      return const _ShellShortcut(_ShellShortcutAction.splitDown);
+      return const _ShellShortcut(TerminalActionId.splitDown);
     }
 
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyC) {
-      return const _ShellShortcut(_ShellShortcutAction.copyMode);
+      return const _ShellShortcut(TerminalActionId.copyMode);
     }
 
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyV) {
-      return const _ShellShortcut(_ShellShortcutAction.pasteHistory);
+      return const _ShellShortcut(TerminalActionId.pasteHistory);
     }
 
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.keyR) {
-      return const _ShellShortcut(_ShellShortcutAction.instantReplay);
+      return const _ShellShortcut(TerminalActionId.instantReplay);
     }
 
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      return const _ShellShortcut(_ShellShortcutAction.previousPrompt);
+      return const _ShellShortcut(TerminalActionId.previousPrompt);
     }
 
     if (usesAppModifier &&
         isShiftPressed &&
         event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      return const _ShellShortcut(_ShellShortcutAction.nextPrompt);
+      return const _ShellShortcut(TerminalActionId.nextPrompt);
     }
 
     if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
-      return const _ShellShortcut(_ShellShortcutAction.newTab);
+      return const _ShellShortcut(TerminalActionId.newTab);
     }
 
     return null;
+  }
+
+  bool _shortcutEventMatchesDefaultBinding({
+    required KeyEvent event,
+    required TerminalKeyBinding binding,
+    required bool usesMetaShortcuts,
+    required bool isMetaPressed,
+    required bool isControlPressed,
+    required bool isShiftPressed,
+    required bool isAltPressed,
+  }) {
+    if (event.logicalKey != binding.key) {
+      return false;
+    }
+
+    final appModifierMatches = binding.meta
+        ? usesMetaShortcuts
+              ? isMetaPressed && !isControlPressed
+              : isControlPressed && !isMetaPressed
+        : !isMetaPressed && !isControlPressed;
+
+    return appModifierMatches &&
+        isShiftPressed == binding.shift &&
+        isAltPressed == binding.alt;
   }
 
   int? _tabShortcutIndexFor(LogicalKeyboardKey key) {
@@ -1127,6 +1199,123 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _scheduleReturningCue();
     sessionController.activateSession(sessionId);
     _focusSession(sessionId);
+  }
+
+  TerminalTab? _tabForSession(SessionState sessionState, String? sessionId) {
+    if (sessionId == null) {
+      return null;
+    }
+    for (final tab in sessionState.tabs) {
+      if (tab.containsSession(sessionId)) {
+        return tab;
+      }
+    }
+    return null;
+  }
+
+  bool _focusRelativePane(
+    SessionController sessionController,
+    TerminalTab activeTab,
+    String activeSessionId, {
+    required int delta,
+  }) {
+    final zoomedPaneSessionId = _zoomedPaneSessionId;
+    final zoomedPane = zoomedPaneSessionId == null
+        ? null
+        : activeTab.paneFor(zoomedPaneSessionId);
+    final panes = zoomedPane == null ? activeTab.effectivePanes : [zoomedPane];
+    if (panes.length < 2) {
+      return false;
+    }
+    final activeIndex = panes.indexWhere(
+      (pane) => pane.sessionId == activeSessionId,
+    );
+    if (activeIndex < 0) {
+      return false;
+    }
+    final nextIndex = (activeIndex + delta) % panes.length;
+    final normalizedIndex = nextIndex < 0
+        ? nextIndex + panes.length
+        : nextIndex;
+    _activateSession(sessionController, panes[normalizedIndex].sessionId);
+    return true;
+  }
+
+  bool _growActivePane(TerminalTab activeTab, String activeSessionId) {
+    final panes = activeTab.effectivePanes;
+    if (panes.length < 2 || !activeTab.containsSession(activeSessionId)) {
+      return false;
+    }
+    setState(() {
+      for (final pane in panes) {
+        _paneFlexBySession.putIfAbsent(pane.sessionId, () => 1);
+      }
+      _paneFlexBySession[activeSessionId] =
+          (_paneFlexBySession[activeSessionId] ?? 1) + 1;
+    });
+    return true;
+  }
+
+  bool _isSessionReadOnly(String sessionId) {
+    return _readOnlySessionIds.contains(sessionId);
+  }
+
+  String _visibleFrameText(String sessionId) {
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(sessionId)
+        .frame;
+    final lines = <String>[
+      for (final row in _logicalRows(frame.rows)) row.text.trimRight(),
+    ];
+    while (lines.isNotEmpty && lines.last.trim().isEmpty) {
+      lines.removeLast();
+    }
+    return lines.join('\n');
+  }
+
+  Future<File?> _exportVisibleFrame(String sessionId) async {
+    final historicalContent = ref
+        .read(terminalRuntimeControllerProvider)
+        .exportScrollbackText(sessionId);
+    final hasHistoricalContent =
+        historicalContent != null && historicalContent.trim().isNotEmpty;
+    final content = hasHistoricalContent
+        ? historicalContent
+        : _visibleFrameText(sessionId);
+    if (content.trim().isEmpty) {
+      return null;
+    }
+    final supportDirectory = await getApplicationSupportDirectory();
+    final exportDirectory = Directory(
+      '${supportDirectory.path}/scrollback_exports',
+    );
+    final basename =
+        'visible-scrollback-${DateTime.now().millisecondsSinceEpoch}';
+    return LocalTerminalScrollbackExporter.write(
+      directory: exportDirectory,
+      basename: basename,
+      export: LocalTerminalScrollbackExport(
+        format: LocalTerminalExportFormat.plainText,
+        content: content,
+        metadata: <String, Object?>{
+          'sessionId': sessionId,
+          'scope': hasHistoricalContent
+              ? 'historical-scrollback'
+              : 'visible-frame',
+          'capturedAt': DateTime.now().toIso8601String(),
+        },
+      ),
+      policy: const LocalTerminalScrollbackExportPolicy(),
+    );
+  }
+
+  void _toggleReadOnlySession(String sessionId) {
+    setState(() {
+      if (!_readOnlySessionIds.add(sessionId)) {
+        _readOnlySessionIds.remove(sessionId);
+      }
+    });
   }
 
   void _splitActiveSession(
@@ -1753,8 +1942,56 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (text.isEmpty) {
       return;
     }
-    await _pasteTextToSession(sessionId, text);
-    await _recordPasteHistory(text, PasteHistoryKind.paste);
+    final decision = LocalTerminalPasteDecisionResolver.resolve(
+      text: text,
+      readOnly: _isSessionReadOnly(sessionId),
+      pastePolicy: const LocalTerminalPastePolicy(),
+      historyPolicy: const LocalTerminalPasteHistoryPolicy(),
+    );
+    switch (decision.kind) {
+      case LocalTerminalPasteDecisionKind.blockedReadOnly:
+        _focusSession(sessionId);
+        return;
+      case LocalTerminalPasteDecisionKind.requireConfirmation:
+        final confirmed = await _confirmPaste(decision);
+        if (!confirmed) {
+          _focusSession(sessionId);
+          return;
+        }
+      case LocalTerminalPasteDecisionKind.sendImmediately:
+        break;
+    }
+    await _pasteTextToSession(sessionId, decision.text);
+    if (decision.captureHistory) {
+      await _recordPasteHistory(decision.text, PasteHistoryKind.paste);
+    }
+  }
+
+  Future<bool> _confirmPaste(LocalTerminalPasteDecision decision) async {
+    final lineCount = '\n'.allMatches(decision.text).length + 1;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          key: const Key('paste-confirmation-dialog'),
+          title: const Text('Confirm paste'),
+          content: Text(
+            'Paste ${decision.text.length} characters across $lineCount lines?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Paste'),
+            ),
+          ],
+        );
+      },
+    );
+    return confirmed ?? false;
   }
 
   Future<void> _pasteTextToSession(String sessionId, String text) async {
@@ -1773,6 +2010,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         : _profileForPane(activePane, sessionState.profiles);
     final terminalConfig = profile?.toSessionConfig();
     final frame = sessionController.viewportFor(sessionId).frame;
+    if (_isSessionReadOnly(sessionId)) {
+      return;
+    }
     ref
         .read(terminalRuntimeControllerProvider)
         .sendInput(
@@ -1787,14 +2027,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         );
   }
 
-  void _sendPlainTextToSession(String sessionId, String text) {
+  bool _sendPlainTextToSession(String sessionId, String text) {
     if (text.isEmpty) {
-      return;
+      return false;
+    }
+    if (_isSessionReadOnly(sessionId)) {
+      return false;
     }
     ref
         .read(terminalRuntimeControllerProvider)
         .sendInput(sessionId, Uint8List.fromList(utf8.encode(text)));
     _focusSession(sessionId);
+    return true;
   }
 
   String _shellQuotedPath(String path) {
@@ -2053,9 +2297,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   void _sendPasswordToSession(String sessionId, PasswordManagerEntry entry) {
+    if (_isSessionReadOnly(sessionId)) {
+      return;
+    }
     ref
         .read(terminalRuntimeControllerProvider)
-        .sendInput(sessionId, utf8.encode('${entry.password}\n'));
+        .sendInput(
+          sessionId,
+          Uint8List.fromList(utf8.encode('${entry.password}\n')),
+        );
   }
 
   bool _frameHasPasswordPrompt(terminal.TerminalFrameDiff frame) {
@@ -2573,9 +2823,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ? suggestion.substring(_autocompletePrefix.length)
         : suggestion;
     if (suffix.isNotEmpty) {
-      ref
-          .read(terminalRuntimeControllerProvider)
-          .sendInput(activeSessionId, Uint8List.fromList(utf8.encode(suffix)));
+      _sendPlainTextToSession(activeSessionId, suffix);
     }
     _closeAutocomplete();
   }
@@ -2684,12 +2932,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (command.isEmpty) {
       return;
     }
-    ref
-        .read(terminalRuntimeControllerProvider)
-        .sendInput(
-          activeSessionId,
-          Uint8List.fromList(utf8.encode('$command\n')),
-        );
+    if (!_sendPlainTextToSession(activeSessionId, '$command\n')) {
+      return;
+    }
     _autoComposerController.clear();
     _closeAutoComposer();
   }
@@ -2827,7 +3072,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
-    final result = await showModalBottomSheet<_ProfilesSheetResult>(
+    final result = await showModalBottomSheet<ProfilesSheetResult>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -2835,7 +3080,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           ? null
           : AnimationStyle.noAnimation,
       builder: (sheetContext) {
-        return _ProfilesSheet(
+        return ProfilesSheet(
           profiles: sessionState.profiles,
           effectiveDefaultProfileId: sessionState.defaultProfileId,
         );
@@ -2852,14 +3097,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _publishAcceptanceSnapshot();
 
     switch (result) {
-      case _OpenProfileResult(:final profile):
+      case OpenProfileResult(:final profile):
         _createSession(
           sessionController,
           profile,
           returningToWorkspace: activeSessionIdBeforeOpen == null,
         );
         return;
-      case _EditProfileResult(:final profile):
+      case EditProfileResult(:final profile):
         final edited = await showDialog<TerminalProfile>(
           context: context,
           builder: (dialogContext) =>
@@ -2888,14 +3133,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   Future<void> _openDynamicProfiles(SessionController sessionController) async {
     final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
-    final result = await showModalBottomSheet<_DynamicProfilesImportResult>(
+    final result = await showModalBottomSheet<DynamicProfilesImportResult>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       sheetAnimationStyle: animationsEnabled
           ? null
           : AnimationStyle.noAnimation,
-      builder: (sheetContext) => const _DynamicProfilesSheet(),
+      builder: (sheetContext) => const DynamicProfilesSheet(),
     );
     if (!mounted || result == null) {
       return;
@@ -2914,6 +3159,46 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ),
       ),
     );
+  }
+
+  ShellActionProductionRuntimeAdapter _buildScopedProductionActionAdapter({
+    required Set<String> requiredActionNames,
+    required ShellActionProductionCallbacks callbacks,
+  }) {
+    return ShellActionProductionRuntimeAdapter.fromCallbacks(
+      actionSet: ShellActionProductionActionSet(
+        requiredActionNames: requiredActionNames,
+      ),
+      callbacks: callbacks,
+    );
+  }
+
+  Future<bool> _executeProductionActionIfBound({
+    required ShellActionProductionRuntimeAdapter adapter,
+    required TerminalActionId action,
+  }) async {
+    if (!adapter.isReady) {
+      return false;
+    }
+    if (!adapter.executor.wiringState.bindings.contains(action)) {
+      return false;
+    }
+    final result = await adapter.executor.execute(action);
+    return result.completed;
+  }
+
+  bool _dispatchProductionShortcutIfBound({
+    required ShellActionProductionRuntimeAdapter adapter,
+    required TerminalActionId action,
+  }) {
+    if (!adapter.isReady) {
+      return false;
+    }
+    if (!adapter.executor.wiringState.bindings.contains(action)) {
+      return false;
+    }
+    unawaited(adapter.executor.execute(action));
+    return true;
   }
 
   Future<void> _openCommandMenu(
@@ -2939,9 +3224,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final activePaneBeforeOpen = activeSessionIdBeforeOpen == null
         ? null
         : _paneForSession(sessionState, activeSessionIdBeforeOpen);
+    final activeTabBeforeOpen = _tabForSession(
+      sessionState,
+      activeSessionIdBeforeOpen,
+    );
+    final hasMultiplePanes =
+        (activeTabBeforeOpen?.effectivePanes.length ?? 0) > 1;
+    final isActiveSessionReadOnly =
+        activeSessionIdBeforeOpen != null &&
+        _isSessionReadOnly(activeSessionIdBeforeOpen);
+    final isActivePaneZoomed =
+        activeSessionIdBeforeOpen != null &&
+        _zoomedPaneSessionId == activeSessionIdBeforeOpen &&
+        (activeTabBeforeOpen?.paneFor(activeSessionIdBeforeOpen) != null);
     final canSelectCommandOutput =
         (activePaneBeforeOpen?.shellIntegration.promptMarks.length ?? 0) >= 2;
-    final action = await showGeneralDialog<_ShellCommandAction>(
+    final action = await showGeneralDialog<TerminalActionId>(
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Close command menu',
@@ -2971,6 +3269,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
                   hasActiveSession: hasActiveSession,
+                  hasMultiplePanes: hasMultiplePanes,
+                  canReopenClosedTab: sessionController.canReopenClosedTab,
+                  isActiveSessionReadOnly: isActiveSessionReadOnly,
+                  isActivePaneZoomed: isActivePaneZoomed,
+                  commandFinishedNotificationsEnabled:
+                      _commandFinishedNotificationsEnabled,
+                  bellNotificationsEnabled: _bellNotificationsEnabled,
+                  activityMonitorEnabled: _activityNotificationsEnabled,
                   canSelectCommandOutput: canSelectCommandOutput,
                 ),
               ),
@@ -3007,6 +3313,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
                     hasActiveSession: hasActiveSession,
+                    hasMultiplePanes: hasMultiplePanes,
+                    canReopenClosedTab: sessionController.canReopenClosedTab,
+                    isActiveSessionReadOnly: isActiveSessionReadOnly,
+                    isActivePaneZoomed: isActivePaneZoomed,
+                    commandFinishedNotificationsEnabled:
+                        _commandFinishedNotificationsEnabled,
+                    bellNotificationsEnabled: _bellNotificationsEnabled,
+                    activityMonitorEnabled: _activityNotificationsEnabled,
                     canSelectCommandOutput: canSelectCommandOutput,
                   ),
                 ),
@@ -3028,8 +3342,702 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     final currentState = ref.read(sessionControllerProvider);
     final currentSessionId = currentState.activeSessionId;
+    final productionMenuAdapter = _buildScopedProductionActionAdapter(
+      requiredActionNames: const {
+        'newTab',
+        'closeTab',
+        'reopenClosedTab',
+        'duplicateCurrentCwd',
+        'toolbelt',
+        'splitRight',
+        'splitDown',
+        'closePane',
+        'focusNextPane',
+        'focusPreviousPane',
+        'resizePane',
+        'swapPane',
+        'zoomPane',
+        'copy',
+        'copyCommandOutput',
+        'copyMode',
+        'paste',
+        'advancedPaste',
+        'pasteHistory',
+        'instantReplay',
+        'toggleReadOnly',
+        'clearScrollback',
+        'globalSearch',
+        'autocomplete',
+        'autoComposer',
+        'searchScrollback',
+        'previousPrompt',
+        'nextPrompt',
+        'selectCommandOutput',
+        'shellIntegrationUtilities',
+        'openRecentDirectory',
+        'tmuxIntegration',
+        'coprocess',
+        'annotations',
+        'capturedOutput',
+        'passwordManager',
+        'toggleHotkeyWindow',
+        'openDefaults',
+        'defaults',
+        'profiles',
+        'dynamicProfiles',
+        'openThemePicker',
+        'applyLayoutTemplate',
+        'exportScrollback',
+        'toggleCommandFinishedNotify',
+        'toggleBellNotify',
+        'toggleActivityMonitor',
+      },
+      callbacks: ShellActionProductionCallbacks(
+        newTab: (_) {
+          if (defaultProfile == null) {
+            return const ShellActionBindingResult.skipped(
+              'No default profile is available.',
+            );
+          }
+          _createSession(
+            sessionController,
+            defaultProfile,
+            returningToWorkspace: activeSessionIdBeforeOpen == null,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        closeTab: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Close tab requires an active session.',
+            );
+          }
+          _closeSession(sessionController, currentState, currentSessionId);
+          return const ShellActionBindingResult.completed();
+        },
+        duplicateCurrentCwd: (_) {
+          if (defaultProfile == null || currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Duplicate current directory requires a default profile and active session.',
+            );
+          }
+          final currentPane = _paneForSession(currentState, currentSessionId);
+          final currentDirectory =
+              currentPane?.shellIntegration.currentDirectory;
+          if (currentDirectory == null || currentDirectory.isEmpty) {
+            return const ShellActionBindingResult.skipped(
+              'No current directory is available to duplicate.',
+            );
+          }
+          _createSession(
+            sessionController,
+            defaultProfile,
+            returningToWorkspace: activeSessionIdBeforeOpen == null,
+          );
+          final duplicateSessionId = ref
+              .read(sessionControllerProvider)
+              .activeSessionId;
+          if (duplicateSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'No duplicated session was created.',
+            );
+          }
+          _sendPlainTextToSession(
+            duplicateSessionId,
+            'cd ${_shellQuotedPath(currentDirectory)}',
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        reopenClosedTab: (_) {
+          if (!sessionController.canReopenClosedTab) {
+            return const ShellActionBindingResult.skipped(
+              'No recently closed tab is available.',
+            );
+          }
+          sessionController.reopenClosedTab();
+          _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+          return const ShellActionBindingResult.completed();
+        },
+        closePane: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Close pane requires an active session.',
+            );
+          }
+          _closeSession(sessionController, currentState, currentSessionId);
+          return const ShellActionBindingResult.completed();
+        },
+        toolbelt: (_) {
+          setState(() {
+            _isToolbeltOpen = true;
+          });
+          return const ShellActionBindingResult.completed();
+        },
+        splitRight: (_) {
+          if (defaultProfile == null || currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Split right requires a default profile and active session.',
+            );
+          }
+          _splitActiveSession(
+            sessionController,
+            defaultProfile,
+            TerminalSplitAxis.horizontal,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        splitDown: (_) {
+          if (defaultProfile == null || currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Split down requires a default profile and active session.',
+            );
+          }
+          _splitActiveSession(
+            sessionController,
+            defaultProfile,
+            TerminalSplitAxis.vertical,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        focusNextPane: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Focus next pane requires an active session.',
+            );
+          }
+          final currentTab = _tabForSession(currentState, currentSessionId);
+          if (currentTab == null ||
+              !_focusRelativePane(
+                sessionController,
+                currentTab,
+                currentSessionId,
+                delta: 1,
+              )) {
+            return const ShellActionBindingResult.skipped(
+              'No next pane is available.',
+            );
+          }
+          return const ShellActionBindingResult.completed();
+        },
+        focusPreviousPane: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Focus previous pane requires an active session.',
+            );
+          }
+          final currentTab = _tabForSession(currentState, currentSessionId);
+          if (currentTab == null ||
+              !_focusRelativePane(
+                sessionController,
+                currentTab,
+                currentSessionId,
+                delta: -1,
+              )) {
+            return const ShellActionBindingResult.skipped(
+              'No previous pane is available.',
+            );
+          }
+          return const ShellActionBindingResult.completed();
+        },
+        resizePaneRight: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Resize pane requires an active session.',
+            );
+          }
+          final currentTab = _tabForSession(currentState, currentSessionId);
+          if (currentTab == null ||
+              !_growActivePane(currentTab, currentSessionId)) {
+            return const ShellActionBindingResult.skipped(
+              'Resize pane requires at least two panes.',
+            );
+          }
+          _focusSession(currentSessionId);
+          return const ShellActionBindingResult.completed();
+        },
+        swapPane: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Swap pane requires an active session.',
+            );
+          }
+          final currentTab = _tabForSession(currentState, currentSessionId);
+          if ((currentTab?.effectivePanes.length ?? 0) < 2) {
+            return const ShellActionBindingResult.skipped(
+              'Swap pane requires at least two panes.',
+            );
+          }
+          sessionController.swapActivePaneWithSibling();
+          _focusSession(currentSessionId);
+          return const ShellActionBindingResult.completed();
+        },
+        zoomPane: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Zoom pane requires an active session.',
+            );
+          }
+          final currentTab = _tabForSession(currentState, currentSessionId);
+          if ((currentTab?.effectivePanes.length ?? 0) < 2) {
+            return const ShellActionBindingResult.skipped(
+              'Zoom pane requires at least two panes.',
+            );
+          }
+          setState(() {
+            _zoomedPaneSessionId = _zoomedPaneSessionId == currentSessionId
+                ? null
+                : currentSessionId;
+          });
+          _focusSession(currentSessionId);
+          return const ShellActionBindingResult.completed();
+        },
+        copy: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Copy requires an active session.',
+            );
+          }
+          final selectionController = _selectionControllers[currentSessionId];
+          if (selectionController == null) {
+            return const ShellActionBindingResult.skipped(
+              'Copy requires an active selection controller.',
+            );
+          }
+          await _copySelection(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          );
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        copyCommandOutput: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Copy command output requires an active session.',
+            );
+          }
+          final selectionController = _selectionControllers.putIfAbsent(
+            currentSessionId,
+            SelectionController.new,
+          );
+          final selected = _selectLastCommandOutput(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          );
+          if (!selected) {
+            _restoreSessionFocus(
+              activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+              activeSessionIdAfterClose: currentSessionId,
+            );
+            return const ShellActionBindingResult.skipped(
+              'No command output is available to copy.',
+            );
+          }
+          await _copySelection(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          );
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        copyMode: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Copy mode requires an active session.',
+            );
+          }
+          final selectionController = _selectionControllers.putIfAbsent(
+            currentSessionId,
+            SelectionController.new,
+          );
+          _enterCopyMode(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        paste: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Paste requires an active session.',
+            );
+          }
+          await _pasteToSession(currentSessionId);
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        advancedPaste: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Advanced paste requires an active session.',
+            );
+          }
+          await _openAdvancedPaste(currentSessionId);
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        pasteHistory: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Paste history requires an active session.',
+            );
+          }
+          await _openPasteHistory(sessionState);
+          return const ShellActionBindingResult.completed();
+        },
+        instantReplay: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Instant replay requires an active session.',
+            );
+          }
+          await _openInstantReplay(sessionState);
+          return const ShellActionBindingResult.completed();
+        },
+        toggleReadOnly: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Read-only mode requires an active session.',
+            );
+          }
+          _toggleReadOnlySession(currentSessionId);
+          return const ShellActionBindingResult.completed();
+        },
+        clearScrollback: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Clear scrollback requires an active session.',
+            );
+          }
+          final cleared = ref
+              .read(terminalRuntimeControllerProvider)
+              .clearScrollback(currentSessionId);
+          if (!cleared && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Clear scrollback requires native runtime support.',
+                ),
+              ),
+            );
+          }
+          return ShellActionBindingResult.completed(
+            cleared
+                ? 'Cleared scrollback.'
+                : 'Clear scrollback is not supported by this runtime.',
+          );
+        },
+        globalSearch: (_) async {
+          if (sessionState.tabs.isEmpty) {
+            return const ShellActionBindingResult.skipped(
+              'Global search requires at least one tab.',
+            );
+          }
+          await _openGlobalSearch(sessionState);
+          return const ShellActionBindingResult.completed();
+        },
+        autocomplete: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Autocomplete requires an active session.',
+            );
+          }
+          _openAutocomplete();
+          return const ShellActionBindingResult.completed();
+        },
+        autoComposer: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Auto composer requires an active session.',
+            );
+          }
+          _openAutoComposer();
+          return const ShellActionBindingResult.completed();
+        },
+        searchScrollback: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Search requires an active session.',
+            );
+          }
+          _openSearch();
+          return const ShellActionBindingResult.completed();
+        },
+        previousPrompt: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Previous prompt requires an active session.',
+            );
+          }
+          _navigateShellPrompt(currentSessionId, direction: -1);
+          return const ShellActionBindingResult.completed();
+        },
+        nextPrompt: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Next prompt requires an active session.',
+            );
+          }
+          _navigateShellPrompt(currentSessionId, direction: 1);
+          return const ShellActionBindingResult.completed();
+        },
+        selectCommandOutput: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Select command output requires an active session.',
+            );
+          }
+          final selectionController = _selectionControllers.putIfAbsent(
+            currentSessionId,
+            SelectionController.new,
+          );
+          final selected = _selectLastCommandOutput(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          );
+          if (!selected) {
+            _restoreSessionFocus(
+              activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+              activeSessionIdAfterClose: currentSessionId,
+            );
+          }
+          return const ShellActionBindingResult.completed();
+        },
+        shellIntegrationUtilities: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Shell integration utilities require an active session.',
+            );
+          }
+          await _openShellIntegrationUtilities(currentState, currentSessionId);
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        openRecentDirectory: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Open recent directory requires an active session.',
+            );
+          }
+          final currentPane = _paneForSession(currentState, currentSessionId);
+          final recentDirectories =
+              currentPane?.shellIntegration.recentDirectories ?? const [];
+          if (recentDirectories.isEmpty) {
+            return const ShellActionBindingResult.skipped(
+              'No recent directory is available.',
+            );
+          }
+          _sendPlainTextToSession(
+            currentSessionId,
+            'cd ${_shellQuotedPath(recentDirectories.first)}',
+          );
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        tmuxIntegration: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'tmux integration requires an active session.',
+            );
+          }
+          await _openTmuxIntegration(currentSessionId);
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        coprocess: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Coprocess requires an active session.',
+            );
+          }
+          await _openCoprocess(currentSessionId);
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        annotations: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Annotations require an active session.',
+            );
+          }
+          final selectionController = _selectionControllers.putIfAbsent(
+            currentSessionId,
+            SelectionController.new,
+          );
+          await _openAnnotations(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          );
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        capturedOutput: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Captured output requires an active session.',
+            );
+          }
+          await _openCapturedOutput(currentSessionId);
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        passwordManager: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Password manager requires an active session.',
+            );
+          }
+          await _openPasswordManager(sessionController, currentSessionId);
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: currentSessionId,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        toggleHotkeyWindow: (_) async {
+          final toggled = await _toggleHotkeyWindowWithFeedback();
+          return toggled
+              ? const ShellActionBindingResult.completed()
+              : const ShellActionBindingResult.skipped(
+                  'Hotkey window is unavailable.',
+                );
+        },
+        openDefaults: (_) async {
+          await _openDefaultsAndAppearance(sessionController, sessionState);
+          return const ShellActionBindingResult.completed();
+        },
+        defaults: (_) async {
+          await _openDefaultsAndAppearance(sessionController, sessionState);
+          return const ShellActionBindingResult.completed();
+        },
+        profiles: (_) async {
+          await _openProfilesSheet(sessionController, sessionState);
+          return const ShellActionBindingResult.completed();
+        },
+        dynamicProfiles: (_) async {
+          await _openDynamicProfiles(sessionController);
+          return const ShellActionBindingResult.completed();
+        },
+        openThemePicker: (_) async {
+          await _openDefaultsAndAppearance(sessionController, sessionState);
+          return const ShellActionBindingResult.completed();
+        },
+        applyLayoutTemplate: (_) {
+          if (defaultProfile == null || currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Apply layout template requires a default profile and active session.',
+            );
+          }
+          final currentTab = _tabForSession(currentState, currentSessionId);
+          if (currentTab == null) {
+            return const ShellActionBindingResult.skipped(
+              'No active tab is available for layout templates.',
+            );
+          }
+          if (currentTab.effectivePanes.length > 1) {
+            return const ShellActionBindingResult.skipped(
+              'Two-pane layout template is already satisfied.',
+            );
+          }
+          _splitActiveSession(
+            sessionController,
+            defaultProfile,
+            TerminalSplitAxis.horizontal,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        exportScrollback: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Export scrollback requires an active session.',
+            );
+          }
+          final file = await _exportVisibleFrame(currentSessionId);
+          if (file == null) {
+            return const ShellActionBindingResult.skipped(
+              'No visible terminal content is available to export.',
+            );
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Exported terminal scrollback to ${file.path}'),
+              ),
+            );
+          }
+          return const ShellActionBindingResult.completed(
+            'Exported terminal scrollback.',
+          );
+        },
+        toggleCommandFinishedNotify: (_) {
+          setState(() {
+            _commandFinishedNotificationsEnabled =
+                !_commandFinishedNotificationsEnabled;
+          });
+          unawaited(_saveNotificationPreferences());
+          return const ShellActionBindingResult.completed();
+        },
+        toggleBellNotify: (_) {
+          setState(() {
+            _bellNotificationsEnabled = !_bellNotificationsEnabled;
+          });
+          unawaited(_saveNotificationPreferences());
+          return const ShellActionBindingResult.completed();
+        },
+        toggleActivityMonitor: (_) {
+          setState(() {
+            _activityNotificationsEnabled = !_activityNotificationsEnabled;
+          });
+          unawaited(_saveNotificationPreferences());
+          return const ShellActionBindingResult.completed();
+        },
+      ),
+    );
+    if (action != null &&
+        await _executeProductionActionIfBound(
+          adapter: productionMenuAdapter,
+          action: action,
+        )) {
+      return;
+    }
     switch (action) {
-      case _ShellCommandAction.newTab:
+      case TerminalActionId.newTab:
         if (defaultProfile == null) {
           return;
         }
@@ -3039,12 +4047,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           returningToWorkspace: activeSessionIdBeforeOpen == null,
         );
         return;
-      case _ShellCommandAction.toolbelt:
+      case TerminalActionId.toolbelt:
         setState(() {
           _isToolbeltOpen = true;
         });
         return;
-      case _ShellCommandAction.splitRight:
+      case TerminalActionId.splitRight:
         if (defaultProfile == null || currentSessionId == null) {
           return;
         }
@@ -3054,7 +4062,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           TerminalSplitAxis.horizontal,
         );
         return;
-      case _ShellCommandAction.splitDown:
+      case TerminalActionId.splitDown:
         if (defaultProfile == null || currentSessionId == null) {
           return;
         }
@@ -3064,7 +4072,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           TerminalSplitAxis.vertical,
         );
         return;
-      case _ShellCommandAction.copy:
+      case TerminalActionId.copy:
         if (currentSessionId == null) {
           return;
         }
@@ -3082,7 +4090,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.copyMode:
+      case TerminalActionId.copyMode:
         if (currentSessionId == null) {
           return;
         }
@@ -3096,7 +4104,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           selectionController,
         );
         return;
-      case _ShellCommandAction.paste:
+      case TerminalActionId.paste:
         if (currentSessionId == null) {
           return;
         }
@@ -3106,7 +4114,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.advancedPaste:
+      case TerminalActionId.advancedPaste:
         if (currentSessionId == null) {
           return;
         }
@@ -3116,13 +4124,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.pasteHistory:
+      case TerminalActionId.pasteHistory:
         if (currentSessionId == null) {
           return;
         }
         await _openPasteHistory(sessionState);
         return;
-      case _ShellCommandAction.shellIntegrationUtilities:
+      case TerminalActionId.shellIntegrationUtilities:
         if (currentSessionId == null) {
           return;
         }
@@ -3132,7 +4140,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.selectCommandOutput:
+      case TerminalActionId.selectCommandOutput:
         if (currentSessionId == null) {
           return;
         }
@@ -3152,7 +4160,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.tmuxIntegration:
+      case TerminalActionId.tmuxIntegration:
         if (currentSessionId == null) {
           return;
         }
@@ -3162,7 +4170,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.coprocess:
+      case TerminalActionId.coprocess:
         if (currentSessionId == null) {
           return;
         }
@@ -3172,7 +4180,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.annotations:
+      case TerminalActionId.annotations:
         if (currentSessionId == null) {
           return;
         }
@@ -3190,7 +4198,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.capturedOutput:
+      case TerminalActionId.capturedOutput:
         if (currentSessionId == null) {
           return;
         }
@@ -3200,7 +4208,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.passwordManager:
+      case TerminalActionId.passwordManager:
         if (currentSessionId == null) {
           return;
         }
@@ -3210,53 +4218,64 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case _ShellCommandAction.instantReplay:
+      case TerminalActionId.instantReplay:
         if (currentSessionId == null) {
           return;
         }
         await _openInstantReplay(sessionState);
         return;
-      case _ShellCommandAction.search:
+      case TerminalActionId.search:
         if (currentSessionId == null) {
           return;
         }
         _openSearch();
         return;
-      case _ShellCommandAction.globalSearch:
+      case TerminalActionId.globalSearch:
         if (sessionState.tabs.isEmpty) {
           return;
         }
         await _openGlobalSearch(sessionState);
         return;
-      case _ShellCommandAction.autocomplete:
+      case TerminalActionId.autocomplete:
         if (currentSessionId == null) {
           return;
         }
         _openAutocomplete();
         return;
-      case _ShellCommandAction.autoComposer:
+      case TerminalActionId.autoComposer:
         if (currentSessionId == null) {
           return;
         }
         _openAutoComposer();
         return;
-      case _ShellCommandAction.hotkeyWindow:
-        await WindowBridge.toggleHotkeyWindow();
+      case TerminalActionId.hotkeyWindow:
+        await _toggleHotkeyWindowWithFeedback();
         return;
-      case _ShellCommandAction.defaults:
+      case TerminalActionId.defaults:
         await _openDefaultsAndAppearance(sessionController, sessionState);
         return;
-      case _ShellCommandAction.profiles:
+      case TerminalActionId.profiles:
         await _openProfilesSheet(sessionController, sessionState);
         return;
-      case _ShellCommandAction.dynamicProfiles:
+      case TerminalActionId.dynamicProfiles:
         await _openDynamicProfiles(sessionController);
+        return;
+      case TerminalActionId.openDefaults:
+        await _openDefaultsAndAppearance(sessionController, sessionState);
+        return;
+      case TerminalActionId.activateTab:
+        return;
+      case TerminalActionId.openLauncher:
+      case TerminalActionId.openCommandMenu:
+      case TerminalActionId.closeActiveTab:
         return;
       case null:
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
           activeSessionIdAfterClose: currentSessionId,
         );
+        return;
+      default:
         return;
     }
   }
@@ -3270,7 +4289,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     required AppThemeTokens palette,
     required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
   }) {
-    final panes = activeTab.effectivePanes;
+    final zoomedPaneSessionId = _zoomedPaneSessionId;
+    final zoomedPane = zoomedPaneSessionId == null
+        ? null
+        : activeTab.paneFor(zoomedPaneSessionId);
+    final panes = zoomedPane == null ? activeTab.effectivePanes : [zoomedPane];
     final direction = activeTab.splitAxis == TerminalSplitAxis.horizontal
         ? Axis.horizontal
         : Axis.vertical;
@@ -3287,6 +4310,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           children: [
             for (var index = 0; index < panes.length; index++) ...[
               Expanded(
+                flex: _paneFlexBySession[panes[index].sessionId] ?? 1,
                 child: _buildTerminalPane(
                   context: context,
                   sessionController: sessionController,
@@ -3341,6 +4365,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       ),
       copySelection: ClipboardBridge.copy,
       readClipboard: ClipboardBridge.paste,
+      readOnly: () => _isSessionReadOnly(sessionId),
     );
     final annotations = _annotationsForSession(sessionId);
     final sessionBadge = _sessionBadgeForPane(pane, profile);
@@ -3656,7 +4681,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         return KeyEventResult.ignored;
       }
 
-      if (shortcut.action == _ShellShortcutAction.requestQuitConfirmation) {
+      if (shortcut.action == TerminalActionId.requestQuitConfirmation) {
         if (event is KeyRepeatEvent) {
           return KeyEventResult.handled;
         }
@@ -3672,11 +4697,226 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         return KeyEventResult.handled;
       }
 
+      final shortcutProductionAdapter = _buildScopedProductionActionAdapter(
+        requiredActionNames: const {
+          'newTab',
+          'closeTab',
+          'splitRight',
+          'splitDown',
+          'closePane',
+          'focusNextPane',
+          'focusPreviousPane',
+          'searchScrollback',
+          'previousPrompt',
+          'nextPrompt',
+          'autocomplete',
+          'copyMode',
+          'pasteHistory',
+          'instantReplay',
+          'toggleCommandPalette',
+          'toggleHotkeyWindow',
+          'openDefaults',
+        },
+        callbacks: ShellActionProductionCallbacks(
+          newTab: (_) {
+            if (defaultProfile == null) {
+              return const ShellActionBindingResult.skipped(
+                'No default profile is available.',
+              );
+            }
+            _createSession(
+              sessionController,
+              defaultProfile,
+              returningToWorkspace: activeSessionId == null,
+            );
+            return const ShellActionBindingResult.completed();
+          },
+          closeTab: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Close tab requires an active session.',
+              );
+            }
+            _closeSession(sessionController, sessionState, activeSessionId);
+            return const ShellActionBindingResult.completed();
+          },
+          closePane: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Close pane requires an active session.',
+              );
+            }
+            _closeSession(sessionController, sessionState, activeSessionId);
+            return const ShellActionBindingResult.completed();
+          },
+          splitRight: (_) {
+            if (defaultProfile == null || activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Split right requires a default profile and active session.',
+              );
+            }
+            _splitActiveSession(
+              sessionController,
+              defaultProfile,
+              TerminalSplitAxis.horizontal,
+            );
+            return const ShellActionBindingResult.completed();
+          },
+          splitDown: (_) {
+            if (defaultProfile == null || activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Split down requires a default profile and active session.',
+              );
+            }
+            _splitActiveSession(
+              sessionController,
+              defaultProfile,
+              TerminalSplitAxis.vertical,
+            );
+            return const ShellActionBindingResult.completed();
+          },
+          focusNextPane: (_) {
+            if (activeSessionId == null || activeTab == null) {
+              return const ShellActionBindingResult.skipped(
+                'Focus next pane requires an active session.',
+              );
+            }
+            if (!_focusRelativePane(
+              sessionController,
+              activeTab,
+              activeSessionId,
+              delta: 1,
+            )) {
+              return const ShellActionBindingResult.skipped(
+                'No next pane is available.',
+              );
+            }
+            return const ShellActionBindingResult.completed();
+          },
+          focusPreviousPane: (_) {
+            if (activeSessionId == null || activeTab == null) {
+              return const ShellActionBindingResult.skipped(
+                'Focus previous pane requires an active session.',
+              );
+            }
+            if (!_focusRelativePane(
+              sessionController,
+              activeTab,
+              activeSessionId,
+              delta: -1,
+            )) {
+              return const ShellActionBindingResult.skipped(
+                'No previous pane is available.',
+              );
+            }
+            return const ShellActionBindingResult.completed();
+          },
+          searchScrollback: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Search requires an active session.',
+              );
+            }
+            _openSearch();
+            return const ShellActionBindingResult.completed();
+          },
+          previousPrompt: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Previous prompt requires an active session.',
+              );
+            }
+            _navigateShellPrompt(activeSessionId, direction: -1);
+            return const ShellActionBindingResult.completed();
+          },
+          nextPrompt: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Next prompt requires an active session.',
+              );
+            }
+            _navigateShellPrompt(activeSessionId, direction: 1);
+            return const ShellActionBindingResult.completed();
+          },
+          autocomplete: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Autocomplete requires an active session.',
+              );
+            }
+            _openAutocomplete();
+            return const ShellActionBindingResult.completed();
+          },
+          copyMode: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Copy mode requires an active session.',
+              );
+            }
+            final selectionController = _selectionControllers.putIfAbsent(
+              activeSessionId,
+              SelectionController.new,
+            );
+            _enterCopyMode(
+              sessionController,
+              activeSessionId,
+              selectionController,
+            );
+            return const ShellActionBindingResult.completed();
+          },
+          pasteHistory: (_) async {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Paste history requires an active session.',
+              );
+            }
+            await _openPasteHistory(sessionState);
+            return const ShellActionBindingResult.completed();
+          },
+          instantReplay: (_) async {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Instant replay requires an active session.',
+              );
+            }
+            await _openInstantReplay(sessionState);
+            return const ShellActionBindingResult.completed();
+          },
+          toggleCommandPalette: (_) {
+            unawaited(_openCommandMenu(sessionController, sessionState));
+            return const ShellActionBindingResult.completed();
+          },
+          toggleHotkeyWindow: (_) async {
+            final toggled = await _toggleHotkeyWindowWithFeedback();
+            return toggled
+                ? const ShellActionBindingResult.completed()
+                : const ShellActionBindingResult.skipped(
+                    'Hotkey window is unavailable.',
+                  );
+          },
+          openDefaults: (_) async {
+            await _openDefaultsAndAppearance(sessionController, sessionState);
+            return const ShellActionBindingResult.completed();
+          },
+        ),
+      );
+      if (_dispatchProductionShortcutIfBound(
+        adapter: shortcutProductionAdapter,
+        action: shortcut.action,
+      )) {
+        return KeyEventResult.handled;
+      }
+
       switch (shortcut.action) {
-        case _ShellShortcutAction.openLauncher:
+        case TerminalActionId.openLauncher:
           unawaited(_openCommandMenu(sessionController, sessionState));
           return KeyEventResult.handled;
-        case _ShellShortcutAction.newTab:
+        case TerminalActionId.openCommandMenu:
+          unawaited(_openCommandMenu(sessionController, sessionState));
+          return KeyEventResult.handled;
+        case TerminalActionId.toolbelt:
+          return KeyEventResult.handled;
+        case TerminalActionId.newTab:
           if (defaultProfile == null) {
             return KeyEventResult.handled;
           }
@@ -3686,7 +4926,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             returningToWorkspace: activeSessionId == null,
           );
           return KeyEventResult.handled;
-        case _ShellShortcutAction.splitRight:
+        case TerminalActionId.splitRight:
           if (defaultProfile == null || activeSessionId == null) {
             return KeyEventResult.handled;
           }
@@ -3696,7 +4936,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             TerminalSplitAxis.horizontal,
           );
           return KeyEventResult.handled;
-        case _ShellShortcutAction.splitDown:
+        case TerminalActionId.splitDown:
           if (defaultProfile == null || activeSessionId == null) {
             return KeyEventResult.handled;
           }
@@ -3706,13 +4946,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             TerminalSplitAxis.vertical,
           );
           return KeyEventResult.handled;
-        case _ShellShortcutAction.autocomplete:
+        case TerminalActionId.autocomplete:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
           _openAutocomplete();
           return KeyEventResult.handled;
-        case _ShellShortcutAction.copyMode:
+        case TerminalActionId.copyMode:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
@@ -3726,44 +4966,48 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             selectionController,
           );
           return KeyEventResult.handled;
-        case _ShellShortcutAction.pasteHistory:
+        case TerminalActionId.pasteHistory:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
           unawaited(_openPasteHistory(sessionState));
           return KeyEventResult.handled;
-        case _ShellShortcutAction.instantReplay:
+        case TerminalActionId.instantReplay:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
           unawaited(_openInstantReplay(sessionState));
           return KeyEventResult.handled;
-        case _ShellShortcutAction.previousPrompt:
+        case TerminalActionId.previousPrompt:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
           _navigateShellPrompt(activeSessionId, direction: -1);
           return KeyEventResult.handled;
-        case _ShellShortcutAction.nextPrompt:
+        case TerminalActionId.nextPrompt:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
           _navigateShellPrompt(activeSessionId, direction: 1);
           return KeyEventResult.handled;
-        case _ShellShortcutAction.closeActiveTab:
+        case TerminalActionId.closeActiveTab:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
           _closeSession(sessionController, sessionState, activeSessionId);
           return KeyEventResult.handled;
-        case _ShellShortcutAction.openDefaults:
+        case TerminalActionId.openDefaults:
           unawaited(
             _openDefaultsAndAppearance(sessionController, sessionState),
           );
           return KeyEventResult.handled;
-        case _ShellShortcutAction.requestQuitConfirmation:
+        case TerminalActionId.requestQuitConfirmation:
           return KeyEventResult.handled;
-        case _ShellShortcutAction.activateTab:
+        case TerminalActionId.copy:
+          return KeyEventResult.ignored;
+        case TerminalActionId.paste:
+          return KeyEventResult.ignored;
+        case TerminalActionId.activateTab:
           final tabIndex = shortcut.tabIndex;
           if (tabIndex == null || tabIndex >= sessionState.tabs.length) {
             return KeyEventResult.handled;
@@ -3775,6 +5019,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             return KeyEventResult.handled;
           }
           _activateSession(sessionController, tabActiveSessionId);
+          return KeyEventResult.handled;
+        default:
           return KeyEventResult.handled;
       }
     }
@@ -3880,6 +5126,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     annotationCount: _annotationsForSession(
                                       activeSessionId,
                                     ).length,
+                                    completionDiagnosticsSnapshot:
+                                        _completionDiagnosticsSnapshot,
                                     palette: palette,
                                     onClose: () {
                                       setState(() {
@@ -3953,6 +5201,7 @@ class _ShellToolbelt extends StatelessWidget {
     required this.tmuxControlModeActive,
     required this.coprocessActive,
     required this.annotationCount,
+    required this.completionDiagnosticsSnapshot,
     required this.palette,
     required this.onClose,
     required this.onOpenCapturedOutput,
@@ -3973,6 +5222,7 @@ class _ShellToolbelt extends StatelessWidget {
   final bool tmuxControlModeActive;
   final bool coprocessActive;
   final int annotationCount;
+  final LocalTerminalShellUiWiringSnapshot completionDiagnosticsSnapshot;
   final AppThemeTokens palette;
   final VoidCallback onClose;
   final VoidCallback onOpenCapturedOutput;
@@ -4118,6 +5368,12 @@ class _ShellToolbelt extends StatelessWidget {
                           countLabel: 'Prompt-gated sends',
                           palette: palette,
                           onTap: onOpenPasswordManager,
+                        ),
+                        Divider(color: palette.border, height: 18),
+                        LocalTerminalCompletionDiagnosticsPanel(
+                          key: const Key('toolbelt-completion-diagnostics'),
+                          snapshot: completionDiagnosticsSnapshot,
+                          maxItemsPerSection: 4,
                         ),
                       ],
                     ),
@@ -7842,6 +9098,13 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.instantReplayShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
+    required this.hasMultiplePanes,
+    required this.canReopenClosedTab,
+    required this.isActiveSessionReadOnly,
+    required this.isActivePaneZoomed,
+    required this.commandFinishedNotificationsEnabled,
+    required this.bellNotificationsEnabled,
+    required this.activityMonitorEnabled,
     required this.canSelectCommandOutput,
   });
 
@@ -7858,6 +9121,13 @@ class _ShellCommandMenu extends StatelessWidget {
   final String instantReplayShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
+  final bool hasMultiplePanes;
+  final bool canReopenClosedTab;
+  final bool isActiveSessionReadOnly;
+  final bool isActivePaneZoomed;
+  final bool commandFinishedNotificationsEnabled;
+  final bool bellNotificationsEnabled;
+  final bool activityMonitorEnabled;
   final bool canSelectCommandOutput;
 
   @override
@@ -7944,7 +9214,29 @@ class _ShellCommandMenu extends StatelessWidget {
                     shortcutLabel: newTabShortcutLabel,
                     enabled: hasDefaultProfile,
                     onTap: () =>
-                        Navigator.of(context).pop(_ShellCommandAction.newTab),
+                        Navigator.of(context).pop(TerminalActionId.newTab),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-duplicate-current-cwd'),
+                    icon: Icons.create_new_folder_rounded,
+                    title: 'Duplicate current directory',
+                    subtitle:
+                        'App action • Open a new tab and insert cd for this cwd.',
+                    enabled: hasDefaultProfile && hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.duplicateCurrentCwd),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-reopen-closed-tab'),
+                    icon: Icons.restore_rounded,
+                    title: 'Reopen closed tab',
+                    subtitle:
+                        'App action • Recreate the most recently closed tab.',
+                    enabled: canReopenClosedTab,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.reopenClosedTab),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-toolbelt'),
@@ -7953,7 +9245,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     subtitle: 'App action • Keep terminal tools in a sidebar.',
                     enabled: hasActiveSession,
                     onTap: () =>
-                        Navigator.of(context).pop(_ShellCommandAction.toolbelt),
+                        Navigator.of(context).pop(TerminalActionId.toolbelt),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-command-defaults'),
@@ -7963,7 +9255,63 @@ class _ShellCommandMenu extends StatelessWidget {
                         'App action • Pick the default profile and theme.',
                     enabled: true,
                     onTap: () =>
-                        Navigator.of(context).pop(_ShellCommandAction.defaults),
+                        Navigator.of(context).pop(TerminalActionId.defaults),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-theme-picker'),
+                    icon: Icons.palette_rounded,
+                    title: 'Theme picker',
+                    subtitle: 'App action • Open appearance controls.',
+                    enabled: true,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.openThemePicker),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-export-scrollback'),
+                    icon: Icons.ios_share_rounded,
+                    title: 'Export scrollback',
+                    subtitle:
+                        'App action • Save historical scrollback when available.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.exportScrollback),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-toggle-command-finished-notify'),
+                    icon: Icons.notifications_active_rounded,
+                    title:
+                        '${commandFinishedNotificationsEnabled ? 'Disable' : 'Enable'} command-finished notifications',
+                    subtitle:
+                        'App action • Toggle shell hook completion alerts.',
+                    enabled: true,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.toggleCommandFinishedNotify),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-toggle-bell-notify'),
+                    icon: Icons.notifications_rounded,
+                    title:
+                        '${bellNotificationsEnabled ? 'Disable' : 'Enable'} bell notifications',
+                    subtitle: 'App action • Toggle terminal bell alerts.',
+                    enabled: true,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.toggleBellNotify),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-toggle-activity-monitor'),
+                    icon: Icons.notification_important_rounded,
+                    title:
+                        '${activityMonitorEnabled ? 'Disable' : 'Enable'} activity monitor',
+                    subtitle:
+                        'App action • Toggle inactive-session activity alerts.',
+                    enabled: true,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.toggleActivityMonitor),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-command-profiles'),
@@ -7972,7 +9320,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     subtitle: 'App action • Open or edit shell profiles.',
                     enabled: true,
                     onTap: () =>
-                        Navigator.of(context).pop(_ShellCommandAction.profiles),
+                        Navigator.of(context).pop(TerminalActionId.profiles),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-dynamic-profiles'),
@@ -7982,7 +9330,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: true,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.dynamicProfiles),
+                    ).pop(TerminalActionId.dynamicProfiles),
                   ),
                   sectionLabel('Session actions'),
                   if (!hasActiveSession)
@@ -8004,7 +9352,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     shortcutLabel: sessionCopyShortcutLabel,
                     enabled: hasActiveSession,
                     onTap: () =>
-                        Navigator.of(context).pop(_ShellCommandAction.copy),
+                        Navigator.of(context).pop(TerminalActionId.copy),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-copy-mode'),
@@ -8015,7 +9363,30 @@ class _ShellCommandMenu extends StatelessWidget {
                     shortcutLabel: copyModeShortcutLabel,
                     enabled: hasActiveSession,
                     onTap: () =>
-                        Navigator.of(context).pop(_ShellCommandAction.copyMode),
+                        Navigator.of(context).pop(TerminalActionId.copyMode),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-toggle-read-only'),
+                    icon: Icons.lock_outline_rounded,
+                    title:
+                        '${isActiveSessionReadOnly ? 'Disable' : 'Enable'} read-only mode',
+                    subtitle:
+                        'Session action • Block terminal input for this pane.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.toggleReadOnly),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-clear-scrollback'),
+                    icon: Icons.clear_all_rounded,
+                    title: 'Clear scrollback',
+                    subtitle:
+                        'Session action • Clear local scrollback when supported.',
+                    enabled: hasActiveSession,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.clearScrollback),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-annotations'),
@@ -8024,9 +9395,8 @@ class _ShellCommandMenu extends StatelessWidget {
                     subtitle:
                         'Session action • Attach notes to selected output.',
                     enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(_ShellCommandAction.annotations),
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.annotations),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-captured-output'),
@@ -8037,7 +9407,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.capturedOutput),
+                    ).pop(TerminalActionId.capturedOutput),
                   ),
                   _ShellCommandTile(
                     icon: Icons.content_paste_rounded,
@@ -8047,7 +9417,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     shortcutLabel: sessionPasteShortcutLabel,
                     enabled: hasActiveSession,
                     onTap: () =>
-                        Navigator.of(context).pop(_ShellCommandAction.paste),
+                        Navigator.of(context).pop(TerminalActionId.paste),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-advanced-paste'),
@@ -8058,7 +9428,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.advancedPaste),
+                    ).pop(TerminalActionId.advancedPaste),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-paste-history'),
@@ -8070,7 +9440,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.pasteHistory),
+                    ).pop(TerminalActionId.pasteHistory),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-integration-utilities'),
@@ -8081,7 +9451,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.shellIntegrationUtilities),
+                    ).pop(TerminalActionId.shellIntegrationUtilities),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-select-command-output'),
@@ -8092,7 +9462,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession && canSelectCommandOutput,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.selectCommandOutput),
+                    ).pop(TerminalActionId.selectCommandOutput),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-tmux-integration'),
@@ -8103,7 +9473,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.tmuxIntegration),
+                    ).pop(TerminalActionId.tmuxIntegration),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-coprocess'),
@@ -8112,9 +9482,8 @@ class _ShellCommandMenu extends StatelessWidget {
                     subtitle:
                         'Session action • Automate replies from terminal output.',
                     enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(_ShellCommandAction.coprocess),
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.coprocess),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-password-manager'),
@@ -8125,7 +9494,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.passwordManager),
+                    ).pop(TerminalActionId.passwordManager),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-instant-replay'),
@@ -8137,7 +9506,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.instantReplay),
+                    ).pop(TerminalActionId.instantReplay),
                   ),
                   _ShellCommandTile(
                     icon: Icons.search_rounded,
@@ -8145,7 +9514,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     subtitle: 'Session action • Find text in local output.',
                     enabled: hasActiveSession,
                     onTap: () =>
-                        Navigator.of(context).pop(_ShellCommandAction.search),
+                        Navigator.of(context).pop(TerminalActionId.search),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-global-search'),
@@ -8155,7 +9524,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.globalSearch),
+                    ).pop(TerminalActionId.globalSearch),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-autocomplete'),
@@ -8167,7 +9536,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.autocomplete),
+                    ).pop(TerminalActionId.autocomplete),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-auto-composer'),
@@ -8178,7 +9547,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasActiveSession,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.autoComposer),
+                    ).pop(TerminalActionId.autoComposer),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-split-right'),
@@ -8188,9 +9557,8 @@ class _ShellCommandMenu extends StatelessWidget {
                         'Pane action • Open the default profile beside this pane.',
                     shortcutLabel: splitRightShortcutLabel,
                     enabled: hasDefaultProfile && hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(_ShellCommandAction.splitRight),
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.splitRight),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-split-down'),
@@ -8200,9 +9568,81 @@ class _ShellCommandMenu extends StatelessWidget {
                         'Pane action • Open the default profile below this pane.',
                     shortcutLabel: splitDownShortcutLabel,
                     enabled: hasDefaultProfile && hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.splitDown),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-apply-layout-template'),
+                    icon: Icons.dashboard_customize_rounded,
+                    title: 'Apply two-pane layout',
+                    subtitle:
+                        'Pane action • Use the local split-right template.',
+                    enabled:
+                        hasDefaultProfile &&
+                        hasActiveSession &&
+                        !hasMultiplePanes,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.splitDown),
+                    ).pop(TerminalActionId.applyLayoutTemplate),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-focus-next-pane'),
+                    icon: Icons.keyboard_tab_rounded,
+                    title: 'Focus next pane',
+                    subtitle: 'Pane action • Move focus to the next split.',
+                    enabled: hasMultiplePanes,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.focusNextPane),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-focus-previous-pane'),
+                    icon: Icons.keyboard_tab_rounded,
+                    title: 'Focus previous pane',
+                    subtitle: 'Pane action • Move focus to the previous split.',
+                    enabled: hasMultiplePanes,
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(TerminalActionId.focusPreviousPane),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-close-pane'),
+                    icon: Icons.close_fullscreen_rounded,
+                    title: 'Close active pane',
+                    subtitle: 'Pane action • Close the active split session.',
+                    enabled: hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.closePane),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-resize-pane'),
+                    icon: Icons.open_with_rounded,
+                    title: 'Grow active pane',
+                    subtitle: 'Pane action • Give this split more workspace.',
+                    enabled: hasMultiplePanes,
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.resizePane),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-swap-pane'),
+                    icon: Icons.swap_horiz_rounded,
+                    title: 'Swap active pane',
+                    subtitle:
+                        'Pane action • Swap this split with its neighbor.',
+                    enabled: hasMultiplePanes,
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.swapPane),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-zoom-pane'),
+                    icon: Icons.zoom_out_map_rounded,
+                    title:
+                        '${isActivePaneZoomed ? 'Unzoom' : 'Zoom'} active pane',
+                    subtitle:
+                        'Pane action • Toggle single-pane focus for this split.',
+                    enabled: hasMultiplePanes,
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.zoomPane),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-hotkey-window'),
@@ -8213,7 +9653,7 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: true,
                     onTap: () => Navigator.of(
                       context,
-                    ).pop(_ShellCommandAction.hotkeyWindow),
+                    ).pop(TerminalActionId.hotkeyWindow),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
@@ -8301,386 +9741,6 @@ class _ShellCommandTile extends StatelessWidget {
             ),
       enabled: enabled,
       onTap: enabled ? onTap : null,
-    );
-  }
-}
-
-class _DynamicProfilesSheet extends StatefulWidget {
-  const _DynamicProfilesSheet();
-
-  @override
-  State<_DynamicProfilesSheet> createState() => _DynamicProfilesSheetState();
-}
-
-class _DynamicProfilesSheetState extends State<_DynamicProfilesSheet> {
-  late final TextEditingController _controller;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(
-      text:
-          '{\n'
-          '  "Profiles": [\n'
-          '    {\n'
-          '      "Name": "Example",\n'
-          '      "Guid": "example-dynamic-profile",\n'
-          '      "Custom Command": "Yes",\n'
-          '      "Command": "ssh example.com"\n'
-          '    }\n'
-          '  ]\n'
-          '}',
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _importProfiles() {
-    try {
-      final decoded = jsonDecode(_controller.text);
-      if (decoded is! Map) {
-        setState(() {
-          _errorText = 'Top-level JSON must be an object.';
-        });
-        return;
-      }
-      final document = TerminalProfilesDocument.fromJson(
-        decoded.cast<String, Object?>(),
-      );
-      if (document.profiles.isEmpty) {
-        setState(() {
-          _errorText = 'No profiles found in JSON.';
-        });
-        return;
-      }
-      Navigator.of(context).pop(
-        _DynamicProfilesImportResult(
-          profiles: document.profiles,
-          warningCount: document.loadWarnings.length,
-        ),
-      );
-    } on FormatException catch (error) {
-      setState(() {
-        _errorText = error.message;
-      });
-    } on Object catch (error) {
-      setState(() {
-        _errorText = error.toString();
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.appTheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Material(
-        key: const Key('dynamic-profiles-sheet'),
-        color: palette.overlay,
-        borderRadius: BorderRadius.circular(palette.radius.xl),
-        child: SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 560),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Dynamic Profiles',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Close dynamic profiles',
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Flexible(
-                    child: TextField(
-                      key: const Key('dynamic-profiles-json-field'),
-                      controller: _controller,
-                      maxLines: null,
-                      expands: true,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: palette.textPrimary,
-                        fontFamily: 'monospace',
-                      ),
-                      decoration: InputDecoration(
-                        alignLabelWithHint: true,
-                        labelText: 'JSON',
-                        errorText: _errorText,
-                        filled: true,
-                        fillColor: palette.chrome,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            palette.radius.sm,
-                          ),
-                          borderSide: BorderSide(color: palette.border),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      key: const Key('dynamic-profiles-import'),
-                      onPressed: _importProfiles,
-                      icon: const Icon(Icons.download_rounded),
-                      label: const Text('Import'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfilesSheet extends StatefulWidget {
-  const _ProfilesSheet({
-    required this.profiles,
-    required this.effectiveDefaultProfileId,
-  });
-
-  final List<TerminalProfile> profiles;
-  final String? effectiveDefaultProfileId;
-
-  @override
-  State<_ProfilesSheet> createState() => _ProfilesSheetState();
-}
-
-class _ProfilesSheetState extends State<_ProfilesSheet> {
-  final _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  List<TerminalProfile> get _filteredProfiles {
-    final normalizedQuery = _query.trim().toLowerCase();
-    if (normalizedQuery.isEmpty) {
-      return widget.profiles;
-    }
-    return [
-      for (final profile in widget.profiles)
-        if (_profileMatchesQuery(profile, normalizedQuery)) profile,
-    ];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.appTheme;
-    final filteredProfiles = _filteredProfiles;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Material(
-        key: const Key('profiles-sheet'),
-        color: palette.overlay,
-        borderRadius: BorderRadius.circular(palette.radius.xl),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Profiles',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close profiles',
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
-                    ),
-                  ],
-                ),
-                Text(
-                  'Open a tab with any saved profile or edit its terminal settings.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  key: const Key('profiles-search-field'),
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search_rounded),
-                    labelText: 'Search profiles or tags',
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _query = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 10),
-                Flexible(
-                  child: filteredProfiles.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          child: Text(
-                            'No matching profiles',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: palette.textSubtle),
-                          ),
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: filteredProfiles.length,
-                          separatorBuilder: (_, _) =>
-                              Divider(color: palette.border, height: 1),
-                          itemBuilder: (context, index) {
-                            final profile = filteredProfiles[index];
-                            final isDefault =
-                                profile.id == widget.effectiveDefaultProfileId;
-                            final summary = _profileSummary(
-                              profile,
-                              isDefault: isDefault,
-                            );
-                            return ListTile(
-                              key: Key('profile-entry-${profile.id}'),
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                profile.name,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      color: palette.textPrimary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                              subtitle: _ProfileEntrySubtitle(
-                                summary: summary,
-                                tags: profile.tags,
-                              ),
-                              trailing: IconButton(
-                                tooltip: 'Edit ${profile.name}',
-                                onPressed: () => Navigator.of(
-                                  context,
-                                ).pop(_EditProfileResult(profile)),
-                                icon: Icon(
-                                  Icons.edit_outlined,
-                                  color: palette.textMuted,
-                                ),
-                              ),
-                              onTap: () => Navigator.of(
-                                context,
-                              ).pop(_OpenProfileResult(profile)),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _profileSummary(TerminalProfile profile, {required bool isDefault}) {
-    final base =
-        '${profile.shell} • ${terminalEmulationLabel(profile.terminalEmulation)} • ${profile.scrollbackLines} lines';
-    return isDefault ? '$base • Default profile' : base;
-  }
-
-  bool _profileMatchesQuery(TerminalProfile profile, String query) {
-    if (profile.name.toLowerCase().contains(query) ||
-        profile.shell.toLowerCase().contains(query)) {
-      return true;
-    }
-    return profile.tags.any((tag) => tag.toLowerCase().contains(query));
-  }
-}
-
-class _ProfileEntrySubtitle extends StatelessWidget {
-  const _ProfileEntrySubtitle({required this.summary, required this.tags});
-
-  final String summary;
-  final List<String> tags;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = context.appTheme;
-    final summaryStyle = Theme.of(
-      context,
-    ).textTheme.bodySmall?.copyWith(color: palette.textSubtle);
-    if (tags.isEmpty) {
-      return Text(summary, style: summaryStyle);
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(summary, style: summaryStyle),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (final tag in tags)
-              DecoratedBox(
-                key: Key('profile-tag-$tag'),
-                decoration: BoxDecoration(
-                  color: palette.panel,
-                  border: Border.all(color: palette.border),
-                  borderRadius: BorderRadius.circular(palette.radius.sm),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  child: Text(
-                    tag,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: palette.textMuted,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ],
     );
   }
 }

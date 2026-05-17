@@ -60,11 +60,52 @@ class TerminalAppAppearance {
   }
 }
 
+class TerminalAppNotifications {
+  const TerminalAppNotifications({
+    this.commandFinished = true,
+    this.bell = true,
+    this.activity = true,
+  });
+
+  final bool commandFinished;
+  final bool bell;
+  final bool activity;
+
+  TerminalAppNotifications copyWith({
+    bool? commandFinished,
+    bool? bell,
+    bool? activity,
+  }) {
+    return TerminalAppNotifications(
+      commandFinished: commandFinished ?? this.commandFinished,
+      bell: bell ?? this.bell,
+      activity: activity ?? this.activity,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'commandFinished': commandFinished,
+      'bell': bell,
+      'activity': activity,
+    };
+  }
+
+  static TerminalAppNotifications fromJson(Map<Object?, Object?>? json) {
+    return TerminalAppNotifications(
+      commandFinished: json?['commandFinished'] as bool? ?? true,
+      bell: json?['bell'] as bool? ?? true,
+      activity: json?['activity'] as bool? ?? true,
+    );
+  }
+}
+
 class TerminalAppPreferencesDocument {
   const TerminalAppPreferencesDocument({
     this.schemaVersion = currentSchemaVersion,
     this.defaults = const TerminalAppDefaults(),
     this.appearance = const TerminalAppAppearance(),
+    this.notifications = const TerminalAppNotifications(),
   });
 
   static const int currentSchemaVersion = 1;
@@ -72,16 +113,19 @@ class TerminalAppPreferencesDocument {
   final int schemaVersion;
   final TerminalAppDefaults defaults;
   final TerminalAppAppearance appearance;
+  final TerminalAppNotifications notifications;
 
   TerminalAppPreferencesDocument copyWith({
     int? schemaVersion,
     TerminalAppDefaults? defaults,
     TerminalAppAppearance? appearance,
+    TerminalAppNotifications? notifications,
   }) {
     return TerminalAppPreferencesDocument(
       schemaVersion: schemaVersion ?? this.schemaVersion,
       defaults: defaults ?? this.defaults,
       appearance: appearance ?? this.appearance,
+      notifications: notifications ?? this.notifications,
     );
   }
 
@@ -90,6 +134,7 @@ class TerminalAppPreferencesDocument {
       'schemaVersion': schemaVersion,
       'defaults': defaults.toJson(),
       'appearance': appearance.toJson(),
+      'notifications': notifications.toJson(),
     };
   }
 
@@ -103,6 +148,9 @@ class TerminalAppPreferencesDocument {
       ),
       appearance: TerminalAppAppearance.fromJson(
         json['appearance'] as Map<Object?, Object?>?,
+      ),
+      notifications: TerminalAppNotifications.fromJson(
+        json['notifications'] as Map<Object?, Object?>?,
       ),
     );
   }

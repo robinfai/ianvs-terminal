@@ -1,18 +1,82 @@
+import 'dart:async';
+
 import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
 import 'package:flutter/foundation.dart';
-
-import '../profiles/profile_models.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 class TerminalInputController extends terminal.TerminalInputController {
   TerminalInputController({
     required super.sessionId,
     required super.runtime,
     super.readFrame,
-    Object emulation = TerminalEmulation.xterm256,
+    Object emulation = terminal.TerminalEmulation.xterm256,
     required super.readSelection,
     required super.copySelection,
     required super.readClipboard,
+    this.readOnly,
   }) : super(emulation: _resolveEmulation(emulation));
+
+  final bool Function()? readOnly;
+
+  bool get isReadOnly => readOnly?.call() ?? false;
+
+  @override
+  void sendText(String text) {
+    if (isReadOnly) {
+      return;
+    }
+    super.sendText(text);
+  }
+
+  @override
+  KeyEventResult handle(KeyEvent event) {
+    if (!isReadOnly) {
+      return super.handle(event);
+    }
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (HardwareKeyboard.instance.isMetaPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyC) {
+      if (event is KeyRepeatEvent) {
+        return KeyEventResult.handled;
+      }
+      unawaited(copySelection());
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.handled;
+  }
+
+  @override
+  void sendFocusReport({required bool focused}) {
+    if (isReadOnly) {
+      return;
+    }
+    super.sendFocusReport(focused: focused);
+  }
+
+  @override
+  void sendMouseReport({
+    required terminal.TerminalFrameModes modes,
+    required int row,
+    required int col,
+    required int button,
+    required bool pressed,
+    int modifiers = 0,
+  }) {
+    if (isReadOnly) {
+      return;
+    }
+    super.sendMouseReport(
+      modes: modes,
+      row: row,
+      col: col,
+      button: button,
+      pressed: pressed,
+      modifiers: modifiers,
+    );
+  }
 
   static Uint8List clipboardPasteBytesFor({
     required Object emulation,

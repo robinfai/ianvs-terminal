@@ -45,5 +45,8 @@ flutterm/
 
 - 仓库边界： [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 测试命令： [docs/TESTING.md](docs/TESTING.md)
+- Local terminal P0-P5 最终验证 handoff： [docs/LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md](docs/LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md)
+- Local terminal 当前验证阻塞状态： [docs/LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md](docs/LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md)
+- Local terminal 验证 helper 索引： [docs/LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md](docs/LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md)
 - 文档总览： [docs/README.md](docs/README.md)
 - 任务索引： [docs/tasks/README.md](docs/tasks/README.md)

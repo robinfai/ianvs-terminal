@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -80,6 +82,130 @@ void main() {
       (viewportSize.height * tester.view.devicePixelRatio).round(),
     );
     expect(fakeBindings.resizeCalls.length, greaterThanOrEqualTo(2));
+  });
+
+  testWidgets('paste clipboard confirms multiline text before sending', (
+    tester,
+  ) async {
+    const clipboardText = 'one\ntwo';
+    final fakeBindings = FakePtyBackend();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.ensureVisible(find.text('Paste clipboard'));
+    await tester.tap(find.text('Paste clipboard'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Paste'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(fakeBindings.writes, hasLength(1));
+    expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
+  });
+
+  testWidgets('zoom active pane hides the split sibling and can unzoom', (
+    tester,
+  ) async {
+    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.ensureVisible(find.text('Split right'));
+    await tester.tap(find.text('Split right'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.byType(TerminalViewport), findsNWidgets(2));
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.ensureVisible(find.text('Zoom active pane'));
+    await tester.tap(find.text('Zoom active pane'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.byType(TerminalViewport), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.ensureVisible(find.text('Unzoom active pane'));
+    await tester.tap(find.text('Unzoom active pane'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.byType(TerminalViewport), findsNWidgets(2));
+  });
+
+  testWidgets('hotkey window failure is visible when registration is missing', (
+    tester,
+  ) async {
+    final windowBridgeCalls = <MethodCall>[];
+    const channel = MethodChannel('app/window_bridge');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      windowBridgeCalls.add(call);
+      if (call.method == 'hotkeyStatus') {
+        return <String, Object?>{
+          'registered': false,
+          'shortcut': 'Option+Command+Space',
+          'errorCode': -9876,
+        };
+      }
+      return null;
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.ensureVisible(find.text('Hotkey window'));
+    await tester.tap(find.text('Hotkey window'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.textContaining('Hotkey window unavailable'), findsOneWidget);
+    expect(find.textContaining('Option+Command+Space'), findsOneWidget);
+    expect(
+      windowBridgeCalls.map((call) => call.method),
+      isNot(contains('toggleHotkeyWindow')),
+    );
   });
 
   testWidgets(

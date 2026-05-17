@@ -43,6 +43,44 @@ flutter run -d macos
 当前 local-only 的 terminal 人工矩阵结果入口固定是
 [tasks/verification-gates/T-059-local-terminal-manual-matrix.md](tasks/verification-gates/T-059-local-terminal-manual-matrix.md)。
 
+## Local Terminal P0-P5 final verification
+
+当前 local-terminal P0-P5 收尾验证入口固定为：
+
+- [LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md](LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md)
+- [LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md](LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md)
+- [LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md](LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md)
+- [LOCAL_TERMINAL_VERIFICATION_COMMAND_BATCHES_2026-05.md](LOCAL_TERMINAL_VERIFICATION_COMMAND_BATCHES_2026-05.md)
+- [LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md](LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md)
+
+只查看入口，不运行验证：
+
+```bash
+bash tools/local_terminal_verification_status.sh
+```
+
+可先打印自动化命令批次，不执行：
+
+```bash
+bash tools/local_terminal_verification_batches.sh print all-automated
+```
+
+显式获准后再运行自动化批次：
+
+```bash
+bash tools/local_terminal_verification_batches.sh run all-automated
+```
+
+如果需要捕获输出方便回填 ledger：
+
+```bash
+bash tools/local_terminal_verification_capture.sh run all-automated
+```
+
+capture wrapper 会在 `build/local-terminal-verification/` 下写出 `output.log`、
+`summary.txt` 和 `ledger-entry.md`。脚本不会自动更新 evidence ledger。所有真实命令输出和人工观察结果都必须写回
+[LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md](LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md)。
+
 ## vttest-derived 自动化覆盖
 
 可机器断言的 `vttest` 场景不要依赖交互式 `vttest` 菜单本身；把对应 VT 序列收成自动化回归测试：

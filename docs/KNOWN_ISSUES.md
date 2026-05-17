@@ -28,11 +28,12 @@
 - 还没有跨平台验证
 - 还没有 SSH 兼容性验证
 - local-only terminal 手工矩阵已于 `2026-05-06` 在 `T-059` 实际执行，但当前仍有未修复的真实失败项，不能把这轮结果当成“全部通过”
+- local-terminal P0-P5 当前已有计划、竞品映射、核心 wiring、诊断和测试脚手架。`2026-05-16` 这轮已经记录 `dart format`、`flutter analyze` 和 focused automated tests 的通过证据；当前仍缺 `broader` 最后修复后的重跑、integration/smoke evidence、manual gates，以及把这些结果转换成 canonical verification evidence，因此不能把当前状态当成已完成。
 
 ## 当前环境相关风险
 
 - `flutter test -d macos integration_test/flutterm_smoke_test.dart` 当前可以通过，但运行时仍会打印 `Failed to foreground app; open returned 1`。这说明 smoke 已覆盖基本启动链路，但 foreground 行为仍不够干净。
-- 不指定 `-d macos` 运行 integration smoke 时，当前 host 可能卡在 Flutter device discovery 的 Android `adb devices` 路径；这属于本机验证环境风险，不是 terminal 产品回归。
+- 默认 verification helper 现在用 `flutter test -d macos ...` 运行 integration smoke，避免当前 host 卡在 Flutter device discovery 的 Android `adb devices` 路径；手工 ad-hoc 跑 integration smoke 时仍不要省略 `-d macos`。这属于本机验证环境风险，不是 terminal 产品回归。
 - `osascript -e 'tell application "System Events" to get UI elements enabled'` 仍返回 `false`。当前这不再阻止 `T-059` 的人工矩阵结论成立，但它仍是本地 GUI 自动化和辅助访问验证的环境风险。
 
 ## 当前真实产品缺口

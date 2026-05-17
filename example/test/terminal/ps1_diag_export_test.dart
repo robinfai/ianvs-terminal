@@ -73,11 +73,19 @@ void main() {
     await _exportCodexBoxDiagnostics(tester, outDir: directory);
 
     expect(
-      File('${directory.path}/codex-box-shell-surface-current.png').existsSync(),
+      File(
+        '${directory.path}/codex-box-shell-surface-current.png',
+      ).existsSync(),
       isTrue,
     );
-    expect(File('${directory.path}/codex-box-row-current.png').existsSync(), isTrue);
-    expect(File('${directory.path}/codex-box-metrics.json').existsSync(), isTrue);
+    expect(
+      File('${directory.path}/codex-box-row-current.png').existsSync(),
+      isTrue,
+    );
+    expect(
+      File('${directory.path}/codex-box-metrics.json').existsSync(),
+      isTrue,
+    );
   });
 
   testWidgets('ps1 diag export writes png and metrics json', (tester) async {
@@ -889,11 +897,7 @@ TerminalFrameDiff _debug1CodexBoxFrame() {
           TerminalStyleRun(start: 0, end: 13, dim: true),
           TerminalStyleRun(start: 13, end: 26),
           TerminalStyleRun(start: 26, end: 29, dim: true),
-          TerminalStyleRun(
-            start: 29,
-            end: 35,
-            foreground: Color(0xFF008080),
-          ),
+          TerminalStyleRun(start: 29, end: 35, foreground: Color(0xFF008080)),
           TerminalStyleRun(start: 35, end: 47, dim: true),
           TerminalStyleRun(start: 47, end: 142),
         ],

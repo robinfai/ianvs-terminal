@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 import '../foundation/app_theme_tokens.dart';
 
 class AppSectionHeader extends StatelessWidget {
-  const AppSectionHeader({
-    super.key,
-    required this.title,
-    this.description,
-  });
+  const AppSectionHeader({super.key, required this.title, this.description});
 
   final String title;
   final String? description;

@@ -4,10 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('feature ui keeps inline Color literals out of business widgets', () {
-    final projectRoot = Directory.current.parent;
-    final featuresDir = Directory(
-      '${projectRoot.path}/example/lib/features',
-    );
+    final projectRoot = _projectRoot();
+    final featuresDir = Directory('${projectRoot.path}/example/lib/features');
     const allowedFiles = <String>{
       'example/lib/features/shell/reference_demo.dart',
     };
@@ -37,4 +35,15 @@ void main() {
           ' except for approved demo fixtures.',
     );
   });
+}
+
+Directory _projectRoot() {
+  final current = Directory.current;
+  if (Directory('${current.path}/example/lib/features').existsSync()) {
+    return current;
+  }
+  if (Directory('${current.path}/lib/features').existsSync()) {
+    return current.parent;
+  }
+  return current;
 }

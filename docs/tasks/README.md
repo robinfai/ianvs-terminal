@@ -16,7 +16,7 @@
 - `runtime-pty/`：PTY、runtime、native/core、VT/xterm API、shell hook、row-range annotation 和底层 session 合同。
   - 当前包括 `T-017`、`T-019`、`T-030`、`T-033`、`T-036`、`T-040`、`T-050`、`T-053`、`T-063`、`T-064`、`T-069`、`T-072`、`T-073`。
 - `shell-product/`：应用壳层、Hyper-inspired UI、profile/defaults、launcher、visual polish 和产品体验。
-  - 当前包括 `T-044` 到 `T-049`、`T-056` 到 `T-058`。
+  - 当前包括 `T-044` 到 `T-049`、`T-056` 到 `T-058`、`T-077` 到 `T-297`。
 - `verification-gates/`：自动化 smoke、测试覆盖、人工矩阵、平台 validation gate 和 host/tooling 阻塞记录。
   - 当前包括 `T-009`、`T-028`、`T-035`、`T-051`、`T-052`、`T-054`、`T-055`、`T-059`、`T-065`、`T-076`。
 - `feedback-handoffs/`：外部反馈、跨仓 handoff 和需要拆分回本仓任务的反馈记录。

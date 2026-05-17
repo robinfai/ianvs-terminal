@@ -357,6 +357,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Profiles…'));
     await tester.tap(find.text('Profiles…'));
     await tester.pumpAndSettle();
 
@@ -420,6 +421,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Profiles…'));
     await tester.tap(find.text('Profiles…'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Edit Local Shell'));
@@ -470,8 +472,10 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Profiles…'));
     await tester.tap(find.text('Profiles…'));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('profile-entry-default')));
     await tester.tap(find.byKey(const Key('profile-entry-default')));
     await tester.pumpAndSettle();
 

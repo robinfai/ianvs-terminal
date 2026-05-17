@@ -174,28 +174,30 @@ void main() {
     );
   });
 
-  testWidgets('reference demo mode supports command-number tab selection', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-      referenceDemoMode: true,
-    );
+  testWidgets(
+    'reference demo mode supports command-number tab selection',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        referenceDemoMode: true,
+      );
 
-    await sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
+      await sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
 
-    expect(
-      tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-1')),
-      matchesSemantics(
-        label: 'shell-tab-demo-1',
-        hasSelectedState: true,
-        isButton: true,
-        isSelected: true,
-      ),
-    );
-  }, variant: TargetPlatformVariant.only(TargetPlatform.macOS));
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-1')),
+        matchesSemantics(
+          label: 'shell-tab-demo-1',
+          hasSelectedState: true,
+          isButton: true,
+          isSelected: true,
+        ),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 }

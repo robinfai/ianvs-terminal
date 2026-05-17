@@ -135,6 +135,8 @@ void main() {
     );
 
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Profiles…'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Profiles…'));
     await tester.pumpAndSettle();
 

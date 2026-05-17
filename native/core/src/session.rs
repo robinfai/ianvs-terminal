@@ -9,7 +9,9 @@ use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::{Color, NamedColor};
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
-use par_term_emu_core_rust::terminal::{Terminal, TerminalDamage, TerminalProcessDebugStats};
+use par_term_emu_core_rust::terminal::{
+    snapshot::ExportFormat, Terminal, TerminalDamage, TerminalProcessDebugStats,
+};
 use parking_lot::Mutex;
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -751,6 +753,30 @@ impl TerminalSession {
             .lock()
             .mark_full_repaint("scrollback_navigation");
         self.dirty.store(true, Ordering::SeqCst);
+    }
+
+    pub fn clear_scrollback(&self) -> Result<bool, SessionError> {
+        let mut state = self.state.lock();
+        state.terminal.process(b"\x1b[3J");
+        state.scrollback_offset = 0;
+        state.transcript.clear();
+        state.transcript_truncated = true;
+        drop(state);
+
+        self.last_rows.lock().clear();
+        *self.last_frame_meta.lock() = None;
+        self.pending_frame_work
+            .lock()
+            .mark_full_repaint("clear_scrollback");
+        self.dirty.store(true, Ordering::SeqCst);
+        Ok(true)
+    }
+
+    pub fn export_scrollback_text(&self, max_lines: Option<usize>) -> String {
+        let state = self.state.lock();
+        state
+            .terminal
+            .export_scrollback(ExportFormat::Plain, max_lines)
     }
 
     pub fn take_frame_diff(&self) -> Result<Option<TerminalFrameDiff>, SessionError> {
@@ -2186,6 +2212,24 @@ pub fn selection_text_session(session_id: u64, request_json: &str) -> Result<Str
     Ok(STORE.get(session_id)?.selection_text(request))
 }
 
+pub fn clear_scrollback_session(session_id: u64) -> Result<String, SessionError> {
+    let cleared = STORE.get(session_id)?.clear_scrollback()?;
+    serde_json::to_string(&serde_json::json!({ "cleared": cleared }))
+        .map_err(|error| SessionError::Serialize(error.to_string()))
+}
+
+pub fn export_scrollback_session(
+    session_id: u64,
+    max_lines: Option<usize>,
+) -> Result<String, SessionError> {
+    let content = STORE.get(session_id)?.export_scrollback_text(max_lines);
+    serde_json::to_string(&serde_json::json!({
+        "content": content,
+        "scope": "historical-scrollback",
+    }))
+    .map_err(|error| SessionError::Serialize(error.to_string()))
+}
+
 pub fn request_session_json(
     session_id: u64,
     request_json: &str,
@@ -2227,6 +2271,15 @@ pub fn request_session_json(
             serde_json::to_string(&serde_json::json!({ "text": text }))
                 .map(Some)
                 .map_err(|error| SessionError::Serialize(error.to_string()))
+        }
+        "terminal.clear_scrollback" => clear_scrollback_session(session_id).map(Some),
+        "terminal.export_scrollback" => {
+            let max_lines = request
+                .get("maxLines")
+                .or_else(|| request.get("max_lines"))
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok());
+            export_scrollback_session(session_id, max_lines).map(Some)
         }
         _ => Ok(None),
     }

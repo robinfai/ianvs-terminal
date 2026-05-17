@@ -47,6 +47,29 @@
 - [ROADMAP.md](ROADMAP.md)：阶段目标、非目标、进入条件和完成条件。
 - [HYPER_LIKE_TARGET.md](HYPER_LIKE_TARGET.md)：Hyper-inspired 产品目标。
 - [HYPER_LIKE_GAP_MATRIX.md](HYPER_LIKE_GAP_MATRIX.md)：Hyper-inspired 缺口矩阵和阶段优先级。
+- [LOCAL_TERMINAL_MILESTONE_EXECUTION_INDEX_2026-05.md](LOCAL_TERMINAL_MILESTONE_EXECUTION_INDEX_2026-05.md)：P0-P5 执行计划索引，以及竞品可吸收功能到各里程碑的映射说明。
+- [LOCAL_TERMINAL_COMPETITOR_COVERAGE_MATRIX_2026-05.md](LOCAL_TERMINAL_COMPETITOR_COVERAGE_MATRIX_2026-05.md)：竞品可吸收功能到 P0-P5 计划、任务和当前 wiring 状态的覆盖矩阵。
+- [LOCAL_TERMINAL_COMPLETION_AUDIT_CHECKLIST_2026-05.md](LOCAL_TERMINAL_COMPLETION_AUDIT_CHECKLIST_2026-05.md)：P0-P5 完成审计清单，区分 foundation、wired 和 verified。
+- [LOCAL_TERMINAL_COMPLETION_AUDIT_SNAPSHOT_2026-05-16.md](LOCAL_TERMINAL_COMPLETION_AUDIT_SNAPSHOT_2026-05-16.md)：当前完成审计快照，记录哪些证据已存在、哪些验证仍阻塞最终关闭。
+- [LOCAL_TERMINAL_VERIFICATION_READINESS_CHECKLIST_2026-05.md](LOCAL_TERMINAL_VERIFICATION_READINESS_CHECKLIST_2026-05.md)：验证 readiness 清单，区分“已有执行入口”和“已有通过证据”。
+- [LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md](LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md)：验证 evidence ledger，用于记录后续真实命令输出和人工观察结果。
+- [LOCAL_TERMINAL_VERIFICATION_RECORD_EXAMPLES_2026-05.md](LOCAL_TERMINAL_VERIFICATION_RECORD_EXAMPLES_2026-05.md)：验证记录示例，说明 ledger 结果如何转换为 `LocalTerminalVerificationGateRecord`。
+- [LOCAL_TERMINAL_VERIFICATION_COMMAND_BATCHES_2026-05.md](LOCAL_TERMINAL_VERIFICATION_COMMAND_BATCHES_2026-05.md)：验证命令批次清单，用于后续按 gate 执行并记录结果。
+- [LOCAL_TERMINAL_VERIFICATION_FAILURE_TRIAGE_LOG_2026-05.md](LOCAL_TERMINAL_VERIFICATION_FAILURE_TRIAGE_LOG_2026-05.md)：验证失败 triage log，用于记录首个阻塞、归属里程碑和后续修复任务。
+- [LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md](LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md)：验证 helper 脚本索引，区分只读查看命令和会执行验证的命令。
+- [LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json](LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json)：机器可读验证 manifest，列出 gate、batch、helper 和 closure rules。
+- [LOCAL_TERMINAL_VERIFICATION_MANIFEST_MAINTENANCE_2026-05.md](LOCAL_TERMINAL_VERIFICATION_MANIFEST_MAINTENANCE_2026-05.md)：verification manifest 维护说明，明确 JSON 只是派生索引而不是完成证据。
+- [LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md](LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md)：验证授权 gate，明确哪些用户指令才允许运行最终验证批次。
+- [LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md](LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md)：当前验证阻塞状态，明确下一步应是恢复额度后复跑 broader、继续 integration/manual，或暂停。
+- [LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md](LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md)：最终验证 handoff，串联审计、命令批次、ledger、record examples、runbook 和 manual template。
+- [LOCAL_TERMINAL_MILESTONE_IMPLEMENTATION_STATUS_2026-05.md](LOCAL_TERMINAL_MILESTONE_IMPLEMENTATION_STATUS_2026-05.md)：P0-P5 实现状态总览，区分 `FOUNDATION`、`WIRED` 和 `DONE`。
+
+辅助脚本：
+
+- `tools/LOCAL_TERMINAL_VERIFICATION_HELPERS.md`：local terminal 验证 helper 的本地说明，解释脚本职责、调用方式和 evidence 边界。
+- `tools/local_terminal_verification_batches.sh`：列出、打印或显式运行 local terminal 验证命令批次；脚本不会自动更新 evidence ledger。
+- `tools/local_terminal_verification_capture.sh`：显式运行验证批次并把 `output.log`、`summary.txt`、`ledger-entry.md` 捕获到 `build/local-terminal-verification/`，仍需人工回填 evidence ledger。
+- `tools/local_terminal_verification_status.sh`：打印 local terminal 最终验证入口和当前阻塞状态；不会运行验证。
 
 路线图只写阶段目标；具体实现、验收和历史结果必须落到任务文档。
 

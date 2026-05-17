@@ -69,6 +69,7 @@ class SessionController extends Notifier<SessionState> {
       <String, TerminalViewportController>{};
   final Map<String, _AutomaticProfileBaseline> _automaticProfileBaselines =
       <String, _AutomaticProfileBaseline>{};
+  final List<TerminalTab> _recentlyClosedTabs = <TerminalTab>[];
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
   bool _preferencesLoadedFromDisk = false;
@@ -79,6 +80,8 @@ class SessionController extends Notifier<SessionState> {
 
   TerminalRuntimeController get _runtime =>
       ref.read(terminalRuntimeControllerProvider);
+
+  bool get canReopenClosedTab => _recentlyClosedTabs.isNotEmpty;
 
   void _setWindowTitle(String title) {
     unawaited(ref.read(sessionWindowTitleWriterProvider)(title));
@@ -316,6 +319,45 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  void swapActivePaneWithSibling() {
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    final tabIndex = _tabIndexContainingSession(activeSessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+
+    final activeTab = state.tabs[tabIndex];
+    final panes = activeTab.effectivePanes;
+    if (panes.length < 2) {
+      return;
+    }
+    final activeIndex = panes.indexWhere(
+      (pane) => pane.sessionId == activeSessionId,
+    );
+    if (activeIndex < 0) {
+      return;
+    }
+    final siblingIndex = activeIndex == panes.length - 1
+        ? activeIndex - 1
+        : activeIndex + 1;
+    final nextPanes = <TerminalPane>[...panes];
+    final activePane = nextPanes[activeIndex];
+    nextPanes[activeIndex] = nextPanes[siblingIndex];
+    nextPanes[siblingIndex] = activePane;
+
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[tabIndex] = activeTab.copyWith(
+      panes: nextPanes,
+      activePaneSessionId: activeSessionId == activeTab.sessionId
+          ? null
+          : activeSessionId,
+    );
+    state = state.copyWith(tabs: nextTabs);
+  }
+
   void closeSession(String sessionId) {
     if (ref.read(sessionDemoFixtureProvider) != null) {
       _removeSessionState(sessionId);
@@ -346,7 +388,7 @@ class SessionController extends Notifier<SessionState> {
         _demoViewports.remove(pane.sessionId)?.dispose();
       }
     }
-    _removeTabState(tabIndex);
+    _removeTabState(tabIndex, recordClosedTab: true);
     if (demoFixture != null) {
       if (state.tabs.isEmpty) {
         _publishTerminalContent(
@@ -369,6 +411,80 @@ class SessionController extends Notifier<SessionState> {
     if (activePane != null) {
       _setWindowTitle(activePane.title);
     }
+  }
+
+  void reopenClosedTab() {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
+      return;
+    }
+    if (_recentlyClosedTabs.isEmpty) {
+      return;
+    }
+    final closedTab = _recentlyClosedTabs.removeAt(0);
+    final sourcePanes = closedTab.effectivePanes;
+    final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
+    final reopenedPanes = <TerminalPane>[];
+    String? activeSessionId;
+
+    _ensureRuntimeSubscription();
+    for (final sourcePane in sourcePanes) {
+      final profile = _profileForClosedPane(sourcePane);
+      if (profile == null) {
+        continue;
+      }
+      final launchProfile = _profileWithSessionEnvironment(
+        profile,
+        environmentOverrides,
+      );
+      final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+      reopenedPanes.add(
+        TerminalPane(
+          sessionId: sessionId,
+          title: sourcePane.title,
+          profileId: profile.id,
+          profileSnapshot: launchProfile,
+        ),
+      );
+      if (sourcePane.sessionId == closedTab.activeSessionId) {
+        activeSessionId = sessionId;
+      }
+    }
+
+    if (reopenedPanes.isEmpty) {
+      return;
+    }
+    activeSessionId ??= reopenedPanes.first.sessionId;
+    final tabSessionId = reopenedPanes.first.sessionId;
+    final reopenedTab = TerminalTab(
+      sessionId: tabSessionId,
+      title: closedTab.title,
+      profileId: reopenedPanes.first.profileId,
+      profileSnapshot: reopenedPanes.first.profileSnapshot,
+      panes: reopenedPanes,
+      activePaneSessionId: activeSessionId == tabSessionId
+          ? null
+          : activeSessionId,
+      splitAxis: closedTab.splitAxis,
+    );
+
+    state = state.copyWith(
+      tabs: [...state.tabs, reopenedTab],
+      activeSessionId: activeSessionId,
+    );
+    final activePane = reopenedTab.paneFor(activeSessionId);
+    _setWindowTitle(activePane?.title ?? reopenedTab.title);
+  }
+
+  TerminalProfile? _profileForClosedPane(TerminalPane pane) {
+    if (pane.profileSnapshot != null) {
+      return pane.profileSnapshot;
+    }
+    for (final profile in state.profiles) {
+      if (profile.id == pane.profileId) {
+        return profile;
+      }
+    }
+    return null;
   }
 
   void resizeActiveSession(Size viewportSize, double devicePixelRatio) {
@@ -847,7 +963,7 @@ class SessionController extends Notifier<SessionState> {
     final tab = state.tabs[tabIndex];
     final tabHasMultiplePanes = tab.effectivePanes.length > 1;
     if (!tabHasMultiplePanes) {
-      _removeTabState(tabIndex);
+      _removeTabState(tabIndex, recordClosedTab: !runtimeAlreadyClosed);
     } else {
       final nextPanes = tab.effectivePanes
           .where((pane) => pane.sessionId != sessionId)
@@ -902,8 +1018,16 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
-  void _removeTabState(int tabIndex) {
+  void _removeTabState(int tabIndex, {bool recordClosedTab = false}) {
     final closingTab = state.tabs[tabIndex];
+    if (recordClosedTab) {
+      _recentlyClosedTabs
+        ..removeWhere((tab) => tab.sessionId == closingTab.sessionId)
+        ..insert(0, closingTab);
+      if (_recentlyClosedTabs.length > 10) {
+        _recentlyClosedTabs.removeRange(10, _recentlyClosedTabs.length);
+      }
+    }
     for (final pane in closingTab.effectivePanes) {
       _automaticProfileBaselines.remove(pane.sessionId);
     }

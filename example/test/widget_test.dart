@@ -770,11 +770,7 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {
-            'index': 0,
-            'text': 'Password:',
-            'style_runs': const [],
-          },
+          {'index': 0, 'text': 'Password:', 'style_runs': const []},
         ],
         'cursor': {'row': 0, 'col': 9, 'visible': true},
         'selection': null,
@@ -839,11 +835,7 @@ void main() {
             'wrapped': true,
             'style_runs': const [],
           },
-          {
-            'index': 1,
-            'text': 'host:',
-            'style_runs': const [],
-          },
+          {'index': 1, 'text': 'host:', 'style_runs': const []},
         ],
         'cursor': {'row': 1, 'col': 5, 'visible': true},
         'selection': null,
@@ -1433,11 +1425,7 @@ void main() {
             'wrapped': true,
             'style_runs': const [],
           },
-          {
-            'index': 1,
-            'text': 'done',
-            'style_runs': const [],
-          },
+          {'index': 1, 'text': 'done', 'style_runs': const []},
         ],
         'cursor': {'row': 1, 'col': 4, 'visible': true},
         'selection': null,
@@ -1617,28 +1605,15 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {
-            'index': 0,
-            'text': 'Pass',
-            'wrapped': true,
-            'style_runs': const [],
-          },
-          {
-            'index': 1,
-            'text': 'word:',
-            'style_runs': const [],
-          },
+          {'index': 0, 'text': 'Pass', 'wrapped': true, 'style_runs': const []},
+          {'index': 1, 'text': 'word:', 'style_runs': const []},
           {
             'index': 2,
             'text': 'ERROR 42 fa',
             'wrapped': true,
             'style_runs': const [],
           },
-          {
-            'index': 3,
-            'text': 'iled',
-            'style_runs': const [],
-          },
+          {'index': 3, 'text': 'iled', 'style_runs': const []},
         ],
         'cursor': {'row': 3, 'col': 4, 'visible': true},
         'selection': null,
@@ -1716,9 +1691,7 @@ void main() {
   ) async {
     final fakeBindings = FakePtyBackend();
     final profile = defaultTerminalProfile().copyWith(
-      triggers: const [
-        TerminalProfileTrigger(pattern: 'ERROR [0-9]+ failed'),
-      ],
+      triggers: const [TerminalProfileTrigger(pattern: 'ERROR [0-9]+ failed')],
     );
 
     await _pumpShellScreen(
@@ -1739,11 +1712,7 @@ void main() {
           'wrapped': true,
           'style_runs': const [],
         },
-        {
-          'index': 2,
-          'text': 'iled',
-          'style_runs': const [],
-        },
+        {'index': 2, 'text': 'iled', 'style_runs': const []},
       ],
       'cursor': {'row': 2, 'col': 4, 'visible': true},
       'selection': null,
@@ -2512,11 +2481,7 @@ void main() {
           'wrapped': true,
           'style_runs': const [],
         },
-        {
-          'index': 1,
-          'text': 'there?',
-          'style_runs': const [],
-        },
+        {'index': 1, 'text': 'there?', 'style_runs': const []},
       ],
       'cursor': {'row': 1, 'col': 6, 'visible': true},
       'selection': null,

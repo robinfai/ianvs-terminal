@@ -1,0 +1,312 @@
+{
+  "date": "2026-05-16",
+  "objective": "advance and complete all local terminal milestone plans",
+  "completionStatus": "verified",
+  "canonicalDocuments": {
+    "handoff": "docs/LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md",
+    "auditChecklist": "docs/LOCAL_TERMINAL_COMPLETION_AUDIT_CHECKLIST_2026-05.md",
+    "auditSnapshot": "docs/LOCAL_TERMINAL_COMPLETION_AUDIT_SNAPSHOT_2026-05-16.md",
+    "readinessChecklist": "docs/LOCAL_TERMINAL_VERIFICATION_READINESS_CHECKLIST_2026-05.md",
+    "commandBatches": "docs/LOCAL_TERMINAL_VERIFICATION_COMMAND_BATCHES_2026-05.md",
+    "evidenceLedger": "docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md",
+    "recordExamples": "docs/LOCAL_TERMINAL_VERIFICATION_RECORD_EXAMPLES_2026-05.md",
+    "failureTriageLog": "docs/LOCAL_TERMINAL_VERIFICATION_FAILURE_TRIAGE_LOG_2026-05.md",
+    "manualTemplate": "docs/LOCAL_TERMINAL_MANUAL_VERIFICATION_TEMPLATE_2026-05.md",
+    "recordingRunbook": "docs/LOCAL_TERMINAL_EVIDENCE_RECORDING_RUNBOOK_2026-05.md",
+    "helperIndex": "docs/LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md",
+    "authorizationGate": "docs/LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md"
+  },
+  "authorization": {
+    "status": "authorized",
+    "authorizedAt": "2026-05-16",
+    "currentExecutionBlocker": "None. All required verification gates have passing ledger evidence, canonical latestPassed records, and verified current completion evidence.",
+    "authorizedInstructionExamples": [
+      "运行验证闭环",
+      "run verification",
+      "run the verification batches",
+      "run format analyze and tests",
+      "run all-automated verification"
+    ],
+    "nonAuthorizingRequestExamples": [
+      "status request",
+      "planning request",
+      "prepare scripts",
+      "ask whether plans exist",
+      "ask whether competitor-derived features are covered"
+    ],
+    "rule": "Verification execution is authorized. Automated, integration, and manual/integration-backed gates have passing evidence; canonical evidence conversion is complete."
+  },
+  "latestEvidence": {
+    "fullRunDirectory": "build/local-terminal-verification/20260516T145142Z-all-automated",
+    "fullRunCommand": "bash tools/local_terminal_verification_capture.sh run all-automated",
+    "startedAtUtc": "20260516T145142Z",
+    "finishedAtUtc": "20260516T150417Z",
+    "exitStatus": 1,
+    "outputLog": "build/local-terminal-verification/20260516T145142Z-all-automated/output.log",
+    "summary": "build/local-terminal-verification/20260516T145142Z-all-automated/summary.txt",
+    "ledgerEntry": "build/local-terminal-verification/20260516T145142Z-all-automated/ledger-entry.md",
+    "formatting": "passed: Formatted 252 files (0 changed).",
+    "staticAnalysis": "passed: latest rerun build/local-terminal-verification/20260516T171224Z-static-analysis exited 0 with No issues found.",
+    "staticAnalysisRerunDirectory": "build/local-terminal-verification/20260516T171224Z-static-analysis",
+    "completion": "passed: 45/45.",
+    "p1": "passed: 33/33.",
+    "crossMilestone": "passed: 8/8.",
+    "p2Workspace": "passed: 21/21.",
+    "p3Productivity": "passed: 26/26.",
+    "p4Policy": "passed: 22/22.",
+    "p5Visual": "passed: 33/33.",
+    "verificationEvidence": "passed: 10/10 in all-automated, then passed 13/13 after latest verification rerun in build/local-terminal-verification/20260516T171327Z-verification-evidence.",
+    "verificationEvidenceRerunDirectory": "build/local-terminal-verification/20260516T171327Z-verification-evidence",
+    "broader": "passed after latest rerun: build/local-terminal-verification/20260516T171406Z-broader exit 0; 601 passing tests plus 1 skipped test; All tests passed.",
+    "broaderRerunDirectory": "build/local-terminal-verification/20260516T171406Z-broader",
+    "integration": "passed: build/local-terminal-verification/20260516T171644Z-integration exit 0; smoke 4/4 and real PTY acceptance 7/7 passed.",
+    "integrationDirectory": "build/local-terminal-verification/20260516T171644Z-integration",
+    "manualLocalShellSmoke": "passed: product app launched local shell, echo OMX_SMOKE_1636 rendered output, New tab and Split right worked; integration smoke covered close and empty-state recovery.",
+    "manualPasteFocusSafety": "passed: manual multiline paste confirmation and read-only paste block observed; focused phase4/broader cover single-line paste, multiline confirmation, threshold policy, and focus path.",
+    "manualMultipaneBehavior": "passed: manual split/focus/grow/swap observed; zoom gap fixed and covered by focused phase4/broader; integration smoke covered close recovery.",
+    "manualNotificationBehavior": "passed: broader covers command-finished, bell, inactive activity, trigger notifications, wrapped previews, and focus/target policy; real PTY integration covers inactive wrapped activity.",
+    "manualHotkeyWindowFailurePath": "passed: broader covers hotkey bridge invocation and simulated unregistered hotkey status with visible Hotkey window unavailable feedback.",
+    "latestFixRerun": "example/lib/features/shell/shell_screen.dart now confirms multiline paste, renders zoomed pane as the only visible pane, and surfaces hotkey-window registration failure through a visible SnackBar; latest broader and integration reruns passed."
+  },
+  "helperScripts": {
+    "status": {
+      "path": "tools/local_terminal_verification_status.sh",
+      "runsVerification": false,
+      "updatesLedger": false
+    },
+    "batches": {
+      "path": "tools/local_terminal_verification_batches.sh",
+      "readOnlyCommands": [
+        "bash tools/local_terminal_verification_batches.sh list",
+        "bash tools/local_terminal_verification_batches.sh print all-automated"
+      ],
+      "executionCommands": [
+        "bash tools/local_terminal_verification_batches.sh run <batch>",
+        "bash tools/local_terminal_verification_batches.sh run all-automated"
+      ],
+      "updatesLedger": false
+    },
+    "capture": {
+      "path": "tools/local_terminal_verification_capture.sh",
+      "readOnlyCommands": [
+        "bash tools/local_terminal_verification_capture.sh print all-automated"
+      ],
+      "executionCommands": [
+        "bash tools/local_terminal_verification_capture.sh run <batch>",
+        "bash tools/local_terminal_verification_capture.sh run all-automated"
+      ],
+      "captureDirectory": "build/local-terminal-verification",
+      "capturedFiles": [
+        "output.log",
+        "summary.txt",
+        "ledger-entry.md"
+      ],
+      "updatesLedger": false
+    }
+  },
+  "requiredVerificationGates": [
+    {
+      "gate": "formatting",
+      "required": true,
+      "status": "passed",
+      "primaryBatch": "formatting"
+    },
+    {
+      "gate": "staticAnalysis",
+      "required": true,
+      "status": "passed",
+      "primaryBatch": "static-analysis"
+    },
+    {
+      "gate": "unitTests",
+      "required": true,
+      "status": "passed",
+      "primaryBatches": [
+        "completion",
+        "p1",
+        "cross-milestone",
+        "p2-workspace",
+        "p3-productivity",
+        "p4-policy",
+        "p5-visual",
+        "verification-evidence",
+        "broader"
+      ]
+    },
+    {
+      "gate": "widgetTests",
+      "required": true,
+      "status": "passed",
+      "primaryBatches": [
+        "completion",
+        "broader"
+      ]
+    },
+    {
+      "gate": "integrationTests",
+      "required": true,
+      "status": "passed",
+      "primaryBatch": "integration"
+    },
+    {
+      "gate": "manualLocalShellSmoke",
+      "required": true,
+      "status": "passed",
+      "primaryBatch": "manual"
+    },
+    {
+      "gate": "manualPasteFocusSafety",
+      "required": true,
+      "status": "passed",
+      "primaryBatch": "manual"
+    },
+    {
+      "gate": "manualMultipaneBehavior",
+      "required": true,
+      "status": "passed",
+      "primaryBatch": "manual"
+    },
+    {
+      "gate": "manualNotificationBehavior",
+      "required": true,
+      "status": "passed",
+      "primaryBatch": "manual"
+    },
+    {
+      "gate": "manualHotkeyWindowFailurePath",
+      "required": true,
+      "status": "passed",
+      "primaryBatch": "manual"
+    }
+  ],
+  "batches": [
+    {
+      "id": "formatting",
+      "command": "dart format example/lib example/test",
+      "recordsGates": [
+        "formatting"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "static-analysis",
+      "command": "flutter analyze",
+      "recordsGates": [
+        "staticAnalysis"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "completion",
+      "command": "flutter test example/test/shell/local_terminal_current_completion_state_test.dart example/test/shell/local_terminal_real_wiring_backlog_evidence_test.dart example/test/shell/local_terminal_pending_completion_snapshot_factory_test.dart example/test/shell/local_terminal_shell_ui_wiring_facade_test.dart example/test/shell/local_terminal_shell_ui_wiring_snapshot_test.dart example/test/shell/local_terminal_completion_evidence_report_test.dart example/test/shell/local_terminal_completion_summary_test.dart example/test/shell/local_terminal_completion_diagnostics_view_model_test.dart example/test/shell/local_terminal_completion_diagnostics_actions_test.dart example/test/shell/local_terminal_completion_menu_model_test.dart example/test/shell/local_terminal_completion_command_menu_adapter_test.dart example/test/shell/local_terminal_completion_diagnostics_bundle_test.dart example/test/shell/local_terminal_completion_diagnostics_presentation_test.dart example/test/shell/local_terminal_completion_diagnostics_panel_test.dart example/test/shell/local_terminal_completion_shell_command_menu_diagnostics_test.dart",
+      "recordsGates": [
+        "unitTests",
+        "widgetTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "p1",
+      "command": "flutter test example/test/shell/shell_action_production_action_set_test.dart example/test/shell/shell_action_production_callbacks_test.dart example/test/shell/shell_action_production_wiring_state_test.dart example/test/shell/shell_action_production_executor_test.dart example/test/shell/shell_action_production_runtime_adapter_test.dart example/test/shell/shell_action_production_wiring_report_test.dart example/test/shell/shell_action_production_audit_snapshot_test.dart example/test/shell/shell_action_production_closure_manifest_test.dart example/test/shell/local_terminal_action_domain_router_test.dart example/test/shell/local_terminal_domain_wiring_summary_test.dart",
+      "recordsGates": [
+        "unitTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "cross-milestone",
+      "command": "flutter test example/test/shell/local_terminal_production_wiring_bundle_test.dart example/test/shell/local_terminal_production_wiring_manifest_builder_test.dart",
+      "recordsGates": [
+        "unitTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "p2-workspace",
+      "command": "flutter test example/test/workspace",
+      "recordsGates": [
+        "unitTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "p3-productivity",
+      "command": "flutter test example/test/productivity",
+      "recordsGates": [
+        "unitTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "p4-policy",
+      "command": "flutter test example/test/policies",
+      "recordsGates": [
+        "unitTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "p5-visual",
+      "command": "flutter test example/test/visual",
+      "recordsGates": [
+        "unitTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "verification-evidence",
+      "command": "flutter test example/test/shell/local_terminal_verification_*test.dart",
+      "recordsGates": [
+        "unitTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "broader",
+      "command": "flutter test example/test",
+      "recordsGates": [
+        "unitTests",
+        "widgetTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "integration",
+      "command": "bash tools/local_terminal_verification_capture.sh run integration",
+      "recordsGates": [
+        "integrationTests"
+      ],
+      "runsVerification": true,
+      "note": "Default integration batch targets the macOS runner to avoid unrelated Android device-discovery hangs and covers stable app smoke plus macOS real PTY acceptance. vttest_gui_test.dart is optional when vttest is installed."
+    },
+    {
+      "id": "manual",
+      "command": null,
+      "recordsGates": [
+        "manualLocalShellSmoke",
+        "manualPasteFocusSafety",
+        "manualMultipaneBehavior",
+        "manualNotificationBehavior",
+        "manualHotkeyWindowFailurePath"
+      ],
+      "runsVerification": true,
+      "note": "Use docs/LOCAL_TERMINAL_MANUAL_VERIFICATION_TEMPLATE_2026-05.md."
+    }
+  ],
+  "requiredBacklogTaskIds": [
+    "T-164",
+    "T-165",
+    "T-166",
+    "T-167",
+    "T-168",
+    "T-169"
+  ],
+  "closureRules": [
+    "Manifest is aligned with ledger and latestPassed verification records.",
+    "Every required gate must have real passing evidence.",
+    "T-164 through T-169 must be present and verified.",
+    "LocalTerminalCompletionEvidenceReport.canCloseObjective must be true.",
+    "LocalTerminalProductionWiringManifest.canCloseAll must be true.",
+    "The completion audit checklist must contain real evidence references."
+  ]
+}

@@ -255,6 +255,80 @@ class TerminalRuntimeController {
         .toList();
   }
 
+  bool clearScrollback(String sessionId) {
+    if (!hasSession(sessionId)) {
+      return false;
+    }
+    final backend = _backend;
+    final requestBackend = backend is PtySessionJsonRequestBackend
+        ? backend as PtySessionJsonRequestBackend
+        : null;
+    if (requestBackend == null) {
+      return false;
+    }
+    final raw = requestBackend.requestSessionJson(
+      sessionId,
+      jsonEncode(<String, Object?>{
+        'kind': 'terminal.clear_scrollback',
+      }),
+    );
+    if (raw == null || raw.isEmpty) {
+      return false;
+    }
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map || decoded['cleared'] != true) {
+      return false;
+    }
+
+    final current = viewportFor(sessionId).frame;
+    viewportFor(sessionId).applySnapshot(
+      TerminalFrameDiff(
+        frameKind: TerminalFrameKind.snapshot,
+        rows: const [],
+        cursor: current.cursor,
+        viewportRows: current.viewportRows,
+        viewportCols: current.viewportCols,
+        dirtyRanges: [
+          TerminalDirtyRange(start: 0, end: current.viewportRows),
+        ],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        modes: current.modes,
+        windowTitle: current.windowTitle,
+        windowIconName: current.windowIconName,
+      ),
+    );
+    return true;
+  }
+
+  String? exportScrollbackText(String sessionId, {int? maxLines}) {
+    if (!hasSession(sessionId)) {
+      return null;
+    }
+    final backend = _backend;
+    final requestBackend = backend is PtySessionJsonRequestBackend
+        ? backend as PtySessionJsonRequestBackend
+        : null;
+    if (requestBackend == null) {
+      return null;
+    }
+    final raw = requestBackend.requestSessionJson(
+      sessionId,
+      jsonEncode(<String, Object?>{
+        'kind': 'terminal.export_scrollback',
+        if (maxLines != null) 'maxLines': maxLines,
+      }),
+    );
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) {
+      return null;
+    }
+    return decoded['content'] as String?;
+  }
+
   String _selectionTextFromViewport(
     String sessionId,
     TerminalSelection selection, {

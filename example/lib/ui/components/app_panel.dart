@@ -27,8 +27,7 @@ class AppPanel extends StatelessWidget {
     final theme = context.appTheme;
     final decoration = BoxDecoration(
       color: _backgroundFor(theme),
-      borderRadius:
-          borderRadius ?? BorderRadius.circular(theme.radius.md),
+      borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.md),
       border: border ?? Border.all(color: theme.border),
       boxShadow: shadow ? theme.elevation.floating : const [],
     );
