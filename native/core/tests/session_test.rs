@@ -1129,6 +1129,49 @@ fn zsh_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
 }
 
 #[test]
+fn zsh_shell_hook_integration_preserves_prompt_substitution_from_zshrc() {
+    if !Path::new("/bin/zsh").exists() {
+        return;
+    }
+
+    let original_zdotdir = tempdir().unwrap();
+    fs::write(
+        original_zdotdir.path().join(".zshrc"),
+        "setopt prompt_subst\nPROMPT='$(print flutterm-subst)% '\n",
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    let session_id = session::create_session(
+        &serde_json::to_string(&local_profile(
+            "zsh-shell-integration-prompt-subst",
+            "Zsh Shell Integration Prompt Substitution",
+            "/bin/zsh",
+            vec![],
+            env,
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "flutterm-subst");
+    assert!(
+        !frame.contains("$(print flutterm-subst)"),
+        "prompt substitution should be evaluated, not displayed literally: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn bash_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     let Some(bash_path) = find_shell("bash") else {
         return;

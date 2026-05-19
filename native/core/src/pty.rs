@@ -386,7 +386,6 @@ __flutterm_original_zdotdir() {
 }
 
 __flutterm_source_original_zdotfile() {
-  emulate -L zsh
   local __flutterm_file="$1"
   local __flutterm_dir="$(__flutterm_original_zdotdir)"
   [[ -n "$__flutterm_dir" ]] || return 0
