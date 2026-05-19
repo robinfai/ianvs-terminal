@@ -10,7 +10,7 @@ use par_term_emu_core_rust::color::{Color, NamedColor};
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::{
-    snapshot::ExportFormat, Terminal, TerminalDamage, TerminalProcessDebugStats,
+    Terminal, TerminalDamage, TerminalProcessDebugStats, snapshot::ExportFormat,
 };
 use parking_lot::Mutex;
 use std::collections::{BTreeSet, HashMap, VecDeque};
