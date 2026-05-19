@@ -274,6 +274,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   int _lastObservedTabCount = 0;
   String? _zoomedPaneSessionId;
   String _searchQuery = '';
+  String? _searchErrorText;
   List<TerminalSearchMatch> _searchMatches = const [];
   int _activeSearchIndex = 0;
   bool _searchUseRegex = false;
@@ -1165,6 +1166,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _isCopyModeOpen = false;
       _isToolbeltOpen = false;
       _searchQuery = '';
+      _searchErrorText = null;
       _searchMatches = const [];
       _activeSearchIndex = 0;
       _autocompletePrefix = '';
@@ -2287,6 +2289,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       case _PasswordManagerSendResult(:final entry):
         final latestFrame = sessionController.viewportFor(sessionId).frame;
         if (!_frameHasPasswordPrompt(latestFrame)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Password send blocked: no password prompt is active.',
+              ),
+            ),
+          );
           return;
         }
         _sendPasswordToSession(sessionId, entry);
@@ -2421,13 +2430,21 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (activeSessionId == null) {
       return;
     }
+    String? errorText;
     final matches = _searchUseRegex
-        ? _regexSearchVisibleFrame(activeSessionId, query)
+        ? _regexSearchVisibleFrame(
+            activeSessionId,
+            query,
+            onError: () {
+              errorText = 'Invalid regular expression';
+            },
+          )
         : ref
               .read(terminalRuntimeControllerProvider)
               .searchText(activeSessionId, query);
     setState(() {
       _searchQuery = query;
+      _searchErrorText = errorText;
       _searchMatches = matches;
       _activeSearchIndex = 0;
     });
@@ -2440,8 +2457,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   List<TerminalSearchMatch> _regexSearchVisibleFrame(
     String sessionId,
-    String query,
-  ) {
+    String query, {
+    VoidCallback? onError,
+  }) {
     if (query.isEmpty) {
       return const <TerminalSearchMatch>[];
     }
@@ -2449,6 +2467,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     try {
       expression = RegExp(query);
     } on FormatException {
+      onError?.call();
       return const <TerminalSearchMatch>[];
     }
     final frame = ref
@@ -2493,6 +2512,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     setState(() {
       _searchUseRegex = value;
+      _searchErrorText = null;
       _searchMatches = const [];
       _activeSearchIndex = 0;
     });
@@ -3120,6 +3140,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               .activeSessionId,
         );
         return;
+      case CreateProfileResult():
+        final edited = await showDialog<TerminalProfile>(
+          context: context,
+          builder: (dialogContext) => ProfileEditorDialog(
+            initialValue: _newProfileTemplate(sessionState.profiles),
+          ),
+        );
+        if (edited != null) {
+          await sessionController.saveProfile(edited);
+        }
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+        return;
       case null:
         _restoreSessionFocus(
           activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
@@ -3129,6 +3166,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         );
         return;
     }
+  }
+
+  TerminalProfile _newProfileTemplate(List<TerminalProfile> existingProfiles) {
+    final existingIds = {for (final profile in existingProfiles) profile.id};
+    var suffix = 1;
+    var id = 'profile-$suffix';
+    while (existingIds.contains(id)) {
+      suffix += 1;
+      id = 'profile-$suffix';
+    }
+    return defaultTerminalProfile().copyWith(id: id, name: 'New Profile');
   }
 
   Future<void> _openDynamicProfiles(SessionController sessionController) async {
@@ -4498,6 +4546,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         matches: _searchMatches.length,
                         activeIndex: _activeSearchIndex,
                         regexEnabled: _searchUseRegex,
+                        errorText: _searchErrorText,
                         palette: palette,
                         onChanged: _searchScrollback,
                         onRegexChanged: _setSearchRegexEnabled,
@@ -5931,12 +5980,13 @@ class _TerminalSearchHighlights extends StatelessWidget {
   }
 }
 
-class _TerminalSearchBar extends StatelessWidget {
+class _TerminalSearchBar extends StatefulWidget {
   const _TerminalSearchBar({
     required this.query,
     required this.matches,
     required this.activeIndex,
     required this.regexEnabled,
+    required this.errorText,
     required this.palette,
     required this.onChanged,
     required this.onRegexChanged,
@@ -5949,6 +5999,7 @@ class _TerminalSearchBar extends StatelessWidget {
   final int matches;
   final int activeIndex;
   final bool regexEnabled;
+  final String? errorText;
   final AppThemeTokens palette;
   final ValueChanged<String> onChanged;
   final ValueChanged<bool> onRegexChanged;
@@ -5956,15 +6007,51 @@ class _TerminalSearchBar extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onClose;
 
-  String get _counterText {
-    if (matches == 0) {
-      return query.isEmpty ? '0 of 0' : 'No matches';
+  @override
+  State<_TerminalSearchBar> createState() => _TerminalSearchBarState();
+}
+
+class _TerminalSearchBarState extends State<_TerminalSearchBar> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.query);
+  }
+
+  @override
+  void didUpdateWidget(_TerminalSearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.query != _controller.text) {
+      _controller.value = _controller.value.copyWith(
+        text: widget.query,
+        selection: TextSelection.collapsed(offset: widget.query.length),
+        composing: TextRange.empty,
+      );
     }
-    return '${activeIndex + 1} of $matches';
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String get _counterText {
+    final errorText = widget.errorText;
+    if (errorText != null) {
+      return errorText;
+    }
+    if (widget.matches == 0) {
+      return widget.query.isEmpty ? '0 of 0' : 'No matches';
+    }
+    return '${widget.activeIndex + 1} of ${widget.matches}';
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = widget.palette;
     return Material(
       key: const Key('terminal-search-bar'),
       color: Colors.transparent,
@@ -5990,8 +6077,9 @@ class _TerminalSearchBar extends StatelessWidget {
               Expanded(
                 child: TextField(
                   key: const Key('terminal-search-field'),
+                  controller: _controller,
                   autofocus: true,
-                  onChanged: onChanged,
+                  onChanged: widget.onChanged,
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
@@ -6005,33 +6093,41 @@ class _TerminalSearchBar extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                _counterText,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: matches == 0 && query.isNotEmpty
-                      ? palette.textMuted
-                      : palette.textSubtle,
-                  fontWeight: FontWeight.w600,
+              SizedBox(
+                width: 76,
+                child: Text(
+                  _counterText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: widget.errorText != null
+                        ? Theme.of(context).colorScheme.error
+                        : widget.matches == 0 && widget.query.isNotEmpty
+                        ? palette.textMuted
+                        : palette.textSubtle,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               IconButton(
                 key: const Key('terminal-search-regex'),
                 tooltip: 'Regular expression',
-                isSelected: regexEnabled,
-                onPressed: () => onRegexChanged(!regexEnabled),
+                isSelected: widget.regexEnabled,
+                onPressed: () => widget.onRegexChanged(!widget.regexEnabled),
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 iconSize: 16,
                 selectedIcon: const Icon(Icons.code_rounded),
                 icon: Icon(
                   Icons.code_rounded,
-                  color: regexEnabled ? palette.accent : null,
+                  color: widget.regexEnabled ? palette.accent : null,
                 ),
               ),
               IconButton(
                 key: const Key('terminal-search-previous'),
                 tooltip: 'Previous match',
-                onPressed: matches == 0 ? null : onPrevious,
+                onPressed: widget.matches == 0 ? null : widget.onPrevious,
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 iconSize: 16,
@@ -6040,7 +6136,7 @@ class _TerminalSearchBar extends StatelessWidget {
               IconButton(
                 key: const Key('terminal-search-next'),
                 tooltip: 'Next match',
-                onPressed: matches == 0 ? null : onNext,
+                onPressed: widget.matches == 0 ? null : widget.onNext,
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 iconSize: 16,
@@ -6049,7 +6145,7 @@ class _TerminalSearchBar extends StatelessWidget {
               IconButton(
                 key: const Key('terminal-search-close'),
                 tooltip: 'Close search',
-                onPressed: onClose,
+                onPressed: widget.onClose,
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 iconSize: 16,
@@ -6865,7 +6961,8 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                         ),
                         if (integration.recentCommands.isEmpty)
                           _ShellIntegrationEmptyRow(
-                            message: 'No shell command history yet.',
+                            message:
+                                'Run a command after opening this tab to fill command history.',
                             palette: palette,
                           )
                         else
@@ -6898,7 +6995,8 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                         ),
                         if (integration.recentDirectories.isEmpty)
                           _ShellIntegrationEmptyRow(
-                            message: 'No recent directories yet.',
+                            message:
+                                'Change directories after opening this tab to fill this list.',
                             palette: palette,
                           )
                         else
@@ -6931,7 +7029,8 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                         ),
                         if (integration.promptMarks.isEmpty)
                           _ShellIntegrationEmptyRow(
-                            message: 'No prompt marks captured yet.',
+                            message:
+                                'Prompt marks appear after the shell draws new prompts.',
                             palette: palette,
                           )
                         else

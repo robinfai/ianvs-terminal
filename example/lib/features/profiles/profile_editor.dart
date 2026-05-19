@@ -1136,7 +1136,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     key: const Key('profile-editor-section-automation'),
                     title: 'Automation',
                     description:
-                        'Attach trigger responses and automatic profile switching rules.',
+                        'Match terminal output, then notify you or type a fixed reply.',
                     children: [
                       _ProfileFormGroup(
                         key: const Key('profile-editor-group-automation-rules'),
@@ -1151,7 +1151,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             decoration: const InputDecoration(
                               labelText: 'Triggers',
                               helperText:
-                                  'One per line: regex => notify or regex => send: text.',
+                                  'Examples: ERROR => notify, Password: => send: secret\\n',
                             ),
                             validator: (value) =>
                                 _triggerLinesError(value ?? ''),
@@ -1166,7 +1166,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             decoration: const InputDecoration(
                               labelText: 'Automatic profile switching',
                               helperText:
-                                  'One per line: host: pattern, user: root, or dir: /path.',
+                                  'Change this profile after host, user, or directory changes.',
                             ),
                             validator: (value) =>
                                 _switchRuleLinesError(value ?? ''),

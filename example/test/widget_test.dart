@@ -466,6 +466,48 @@ void main() {
     },
   );
 
+  testWidgets('command menu paste confirms carriage-return multiline text', (
+    tester,
+  ) async {
+    const clipboardText = 'first command\rsecond command';
+    final fakeBindings = FakePtyBackend();
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Paste clipboard'));
+    await tester.tap(find.text('Paste clipboard'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'command-shift-v opens saved paste history without leaking input',
     (tester) async {
@@ -735,6 +777,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakeBindings.writes, isEmpty);
+    expect(
+      find.text('Password send blocked: no password prompt is active.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -2931,6 +2977,46 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'shell search regex mode keeps text editable and reports errors',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Search scrollback'));
+      await tester.tap(find.text('Search scrollback'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'ERR',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('terminal-search-regex')));
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(field.controller?.text, 'ERR');
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        r'ERR \d+(',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Invalid regular expression'), findsOneWidget);
+    },
+  );
 
   testWidgets('global search searches all tabs and jumps to a match', (
     tester,

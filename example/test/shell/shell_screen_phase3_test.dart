@@ -400,6 +400,47 @@ void main() {
     expect(find.text('No matching profiles'), findsOneWidget);
   });
 
+  testWidgets('profiles sheet can create a new profile', (tester) async {
+    final profileRepository = MemoryProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      profileRepository: profileRepository,
+      preferencesRepository: MemoryAppPreferencesRepository(null),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Profiles…'));
+    await tester.tap(find.text('Profiles…'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('profiles-create')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-name')),
+      'Work Shell',
+    );
+    await tester.ensureVisible(find.byKey(const Key('profile-editor-save')));
+    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await tester.pumpAndSettle();
+
+    final savedDocument = await profileRepository.load();
+    expect(savedDocument.profiles, hasLength(2));
+    final created = savedDocument.profiles.singleWhere(
+      (profile) => profile.name == 'Work Shell',
+    );
+    expect(created.id, isNot('default'));
+    expect(created.shell, defaultTerminalProfile().shell);
+    expect(find.byKey(const Key('profiles-sheet')), findsNothing);
+  });
+
   testWidgets('editing a profile in the GUI only affects new sessions', (
     tester,
   ) async {

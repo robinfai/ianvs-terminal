@@ -30,7 +30,7 @@ class LocalTerminalPastePolicy {
   final int historySize;
 
   bool requiresConfirmation(String text) {
-    if (confirmMultilinePaste && text.contains('\n')) {
+    if (confirmMultilinePaste && _containsLineBreak(text)) {
       return true;
     }
     return confirmLargePaste && text.length >= largePasteThreshold;
@@ -60,7 +60,7 @@ class LocalTerminalPasteHistoryPolicy {
     if (!enabled || maxEntries <= 0) {
       return false;
     }
-    if (!captureMultiline && text.contains('\n')) {
+    if (!captureMultiline && _containsLineBreak(text)) {
       return false;
     }
     if (!captureLargePaste && largePaste) {
@@ -69,6 +69,9 @@ class LocalTerminalPasteHistoryPolicy {
     return text.isNotEmpty;
   }
 }
+
+bool _containsLineBreak(String text) =>
+    text.contains('\n') || text.contains('\r');
 
 class LocalTerminalPasteHistoryState {
   const LocalTerminalPasteHistoryState({

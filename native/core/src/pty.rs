@@ -172,12 +172,24 @@ fn shell_integration_kind(
     if !supports_unix_shell_integration()
         || !profile.shell_integration.enabled
         || profile.terminal.emulation != TerminalEmulation::Xterm256
-        || !profile.launch.args.is_empty()
         || !shell_hook_helpers_available(&profile.launch.env)
     {
         return None;
     }
-    ShellIntegrationKind::from_program(program)
+    let kind = ShellIntegrationKind::from_program(program)?;
+    if !shell_integration_args_supported(kind, &profile.launch.args) {
+        return None;
+    }
+    Some(kind)
+}
+
+fn shell_integration_args_supported(kind: ShellIntegrationKind, args: &[String]) -> bool {
+    match kind {
+        ShellIntegrationKind::Zsh => {
+            args.is_empty() || (args.len() == 1 && (args[0] == "-l" || args[0] == "--login"))
+        }
+        ShellIntegrationKind::Bash | ShellIntegrationKind::Fish => args.is_empty(),
+    }
 }
 
 #[cfg(unix)]
@@ -726,6 +738,35 @@ mod tests {
         assert!(zshrc.contains("add-zsh-hook precmd __flutterm_precmd"));
         assert!(zshrc.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
         assert!(zshrc.contains("__flutterm_source_original_zdotfile \".zshrc\""));
+    }
+
+    #[test]
+    fn zsh_login_shell_hook_integration_remains_eligible() {
+        if !supports_zdotdir_proxy() {
+            return;
+        }
+
+        let proxy_base = tempdir().unwrap();
+        let (_helper_dir, helper_path) = helper_path_env();
+        let mut env = BTreeMap::new();
+        env.insert("PATH".to_string(), helper_path);
+        let profile = profile(
+            "/bin/zsh",
+            vec!["-l".to_string()],
+            env,
+            TerminalEmulation::Xterm256,
+            true,
+        );
+
+        let plan = build_command_plan_with_proxy_factory(&profile, |kind, _profile, _program| {
+            assert_eq!(kind, ShellIntegrationKind::Zsh);
+            create_shell_integration_proxy_in(kind, proxy_base.path())
+        });
+
+        assert_eq!(plan.args, vec!["-l"]);
+        assert_eq!(plan.env["FLUTTERM_SHELL_INTEGRATION"], "1");
+        assert!(plan.env.contains_key("ZDOTDIR"));
+        assert!(plan.shell_integration_proxy.is_some());
     }
 
     #[test]

@@ -24,9 +24,10 @@ The logical hook names stay shell-agnostic. zsh, bash, and fish integrations
 emit `preexec`, `command_finished`, `precmd`, and `precmd.pwd`.
 
 `TerminalShellIntegrationConfig.enabled` controls whether eligible sessions may
-inject shell hooks. It defaults to `true`, but unsupported shells, custom shell
-arguments, VT220 emulation, or native proxy setup failures automatically fall
-back to the original shell launch path without emitting shell-hook events.
+inject shell hooks. It defaults to `true`, but unsupported shells, most custom
+shell arguments, VT220 emulation, or native proxy setup failures automatically
+fall back to the original shell launch path without emitting shell-hook events.
+The default zsh login shell arguments (`-l` or `--login`) remain eligible.
 
 Bash integration uses a `DEBUG` trap for `preexec` and wraps `PROMPT_COMMAND`
 for completion hooks. If a user already has a `DEBUG` trap, bash integration

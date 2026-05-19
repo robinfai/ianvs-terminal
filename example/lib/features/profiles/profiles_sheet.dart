@@ -19,6 +19,10 @@ final class EditProfileResult extends ProfilesSheetResult {
   final TerminalProfile profile;
 }
 
+final class CreateProfileResult extends ProfilesSheetResult {
+  const CreateProfileResult();
+}
+
 class ProfilesSheet extends StatefulWidget {
   const ProfilesSheet({
     super.key,
@@ -83,6 +87,15 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                         ),
                       ),
                     ),
+                    FilledButton.icon(
+                      key: const Key('profiles-create'),
+                      onPressed: () => Navigator.of(
+                        context,
+                      ).pop(const CreateProfileResult()),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('New'),
+                    ),
+                    const SizedBox(width: 6),
                     IconButton(
                       tooltip: 'Close profiles',
                       onPressed: () => Navigator.of(context).pop(),
