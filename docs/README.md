@@ -44,7 +44,7 @@
 
 ## 路线图
 
-- [ROADMAP.md](ROADMAP.md)：阶段目标、非目标、进入条件和完成条件。
+- [ROADMAP.md](ROADMAP.md)：当前 `M1-M5` 执行顺序、长期阶段方向、进入条件和完成条件。
 - [HYPER_LIKE_TARGET.md](HYPER_LIKE_TARGET.md)：Hyper-inspired 产品目标。
 - [HYPER_LIKE_GAP_MATRIX.md](HYPER_LIKE_GAP_MATRIX.md)：Hyper-inspired 缺口矩阵和阶段优先级。
 - [LOCAL_TERMINAL_MILESTONE_EXECUTION_INDEX_2026-05.md](LOCAL_TERMINAL_MILESTONE_EXECUTION_INDEX_2026-05.md)：P0-P5 执行计划索引，以及竞品可吸收功能到各里程碑的映射说明。
@@ -71,7 +71,7 @@
 - `tools/local_terminal_verification_capture.sh`：显式运行验证批次并把 `output.log`、`summary.txt`、`ledger-entry.md` 捕获到 `build/local-terminal-verification/`，仍需人工回填 evidence ledger。
 - `tools/local_terminal_verification_status.sh`：打印 local terminal 最终验证入口和当前阻塞状态；不会运行验证。
 
-路线图只写阶段目标；具体实现、验收和历史结果必须落到任务文档。
+路线图只写执行顺序和阶段目标；具体实现、验收和历史结果必须落到任务文档。
 
 ## 决策记录
 
@@ -93,6 +93,12 @@
 - [tasks/TEMPLATE.md](tasks/TEMPLATE.md)：新任务模板。
 
 任务文档按主题分目录，不按完成状态分目录。目录位置只表示主题归属，不表示任务已经完成或通过验收。
+
+## AI 学习日志
+
+- [ai/learning-log/](ai/learning-log/)：记录 AI 会话中有价值但尚不足以提升为 AGENTS 或 skill 规则的候选经验。
+
+这些日志只保留可复用判断和验证摘要，不作为产品需求、验收证据或当前任务状态来源。
 
 ## 维护规则
 
