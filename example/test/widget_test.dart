@@ -123,6 +123,17 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _openTabContextMenu(
+  WidgetTester tester, {
+  String sessionId = '1',
+}) async {
+  await tester.tap(
+    find.byKey(Key('shell-tab-$sessionId')),
+    buttons: kSecondaryButton,
+  );
+  await tester.pumpAndSettle();
+}
+
 Future<void> _sendMetaShortcut(
   WidgetTester tester,
   LogicalKeyboardKey key,
@@ -306,7 +317,7 @@ void main() {
   });
 
   testWidgets(
-    'command menu split right opens a second pane in the active tab',
+    'tab context menu split right opens a second pane in the active tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();
 
@@ -323,7 +334,11 @@ void main() {
       expect(find.byType(TerminalViewport), findsOneWidget);
 
       await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Split right'));
+      expect(find.text('Split right'), findsNothing);
+      await tester.tap(find.byTooltip('Close actions'));
+      await tester.pumpAndSettle();
+
+      await _openTabContextMenu(tester);
       await tester.tap(find.text('Split right'));
       await tester.pumpAndSettle();
 
@@ -351,8 +366,7 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Split right'));
+    await _openTabContextMenu(tester);
     await tester.tap(find.text('Split right'));
     await tester.pumpAndSettle();
 

@@ -856,14 +856,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return _usesMetaShortcuts ? '⌘T' : 'Ctrl+T';
   }
 
-  String _splitRightShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘D' : 'Ctrl+D';
-  }
-
-  String _splitDownShortcutLabel() {
-    return _usesMetaShortcuts ? '⌘⇧D' : 'Ctrl+Shift+D';
-  }
-
   String _hotkeyWindowShortcutLabel() {
     return _usesMetaShortcuts ? '⌥⌘Space' : 'Alt+Ctrl+Space';
   }
@@ -3341,19 +3333,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final activePaneBeforeOpen = activeSessionIdBeforeOpen == null
         ? null
         : _paneForSession(sessionState, activeSessionIdBeforeOpen);
-    final activeTabBeforeOpen = _tabForSession(
-      sessionState,
-      activeSessionIdBeforeOpen,
-    );
-    final hasMultiplePanes =
-        (activeTabBeforeOpen?.effectivePanes.length ?? 0) > 1;
     final isActiveSessionReadOnly =
         activeSessionIdBeforeOpen != null &&
         _isSessionReadOnly(activeSessionIdBeforeOpen);
-    final isActivePaneZoomed =
-        activeSessionIdBeforeOpen != null &&
-        _zoomedPaneSessionId == activeSessionIdBeforeOpen &&
-        (activeTabBeforeOpen?.paneFor(activeSessionIdBeforeOpen) != null);
     final canSelectCommandOutput =
         (activePaneBeforeOpen?.shellIntegration.promptMarks.length ?? 0) >= 2;
     final action = await showGeneralDialog<TerminalActionId>(
@@ -3375,8 +3357,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 child: _ShellCommandMenu(
                   launcherShortcutLabel: _launcherShortcutLabel(),
                   newTabShortcutLabel: _newTabShortcutLabel(),
-                  splitRightShortcutLabel: _splitRightShortcutLabel(),
-                  splitDownShortcutLabel: _splitDownShortcutLabel(),
                   hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
                   autocompleteShortcutLabel: _autocompleteShortcutLabel(),
                   copyModeShortcutLabel: _copyModeShortcutLabel(),
@@ -3386,10 +3366,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
                   hasActiveSession: hasActiveSession,
-                  hasMultiplePanes: hasMultiplePanes,
                   canReopenClosedTab: sessionController.canReopenClosedTab,
                   isActiveSessionReadOnly: isActiveSessionReadOnly,
-                  isActivePaneZoomed: isActivePaneZoomed,
                   commandFinishedNotificationsEnabled:
                       _commandFinishedNotificationsEnabled,
                   bellNotificationsEnabled: _bellNotificationsEnabled,
@@ -3419,8 +3397,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   child: _ShellCommandMenu(
                     launcherShortcutLabel: _launcherShortcutLabel(),
                     newTabShortcutLabel: _newTabShortcutLabel(),
-                    splitRightShortcutLabel: _splitRightShortcutLabel(),
-                    splitDownShortcutLabel: _splitDownShortcutLabel(),
                     hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
                     autocompleteShortcutLabel: _autocompleteShortcutLabel(),
                     copyModeShortcutLabel: _copyModeShortcutLabel(),
@@ -3430,10 +3406,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
                     hasActiveSession: hasActiveSession,
-                    hasMultiplePanes: hasMultiplePanes,
                     canReopenClosedTab: sessionController.canReopenClosedTab,
                     isActiveSessionReadOnly: isActiveSessionReadOnly,
-                    isActivePaneZoomed: isActivePaneZoomed,
                     commandFinishedNotificationsEnabled:
                         _commandFinishedNotificationsEnabled,
                     bellNotificationsEnabled: _bellNotificationsEnabled,
@@ -4397,6 +4371,286 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
   }
 
+  Future<void> _openTabContextMenu(
+    SessionController sessionController,
+    SessionState sessionState,
+    TerminalTab tab,
+    Offset position,
+  ) async {
+    final defaultProfile = _effectiveDefaultProfileFor(
+      sessionState.profiles,
+      sessionState.defaultProfileId,
+    );
+    final targetSessionId = tab.activeSessionId;
+    final hasMultiplePanes = tab.effectivePanes.length > 1;
+    final targetPane = tab.paneFor(targetSessionId);
+    final hasCurrentDirectory =
+        (targetPane?.shellIntegration.currentDirectory ?? '').isNotEmpty;
+    final isTargetPaneZoomed =
+        _zoomedPaneSessionId == targetSessionId && targetPane != null;
+    final overlay = Overlay.of(context).context.findRenderObject();
+    final overlaySize = overlay is RenderBox
+        ? overlay.size
+        : MediaQuery.sizeOf(context);
+
+    PopupMenuItem<TerminalActionId> item({
+      required TerminalActionId action,
+      required IconData icon,
+      required String title,
+      required bool enabled,
+    }) {
+      return PopupMenuItem<TerminalActionId>(
+        value: action,
+        enabled: enabled,
+        child: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title)),
+          ],
+        ),
+      );
+    }
+
+    final action = await showMenu<TerminalActionId>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(position.dx, position.dy, 1, 1),
+        Offset.zero & overlaySize,
+      ),
+      items: [
+        item(
+          action: TerminalActionId.duplicateCurrentCwd,
+          icon: Icons.create_new_folder_rounded,
+          title: 'Duplicate current directory',
+          enabled: defaultProfile != null && hasCurrentDirectory,
+        ),
+        item(
+          action: TerminalActionId.splitRight,
+          icon: Icons.vertical_split_rounded,
+          title: 'Split right',
+          enabled: defaultProfile != null,
+        ),
+        item(
+          action: TerminalActionId.splitDown,
+          icon: Icons.horizontal_split_rounded,
+          title: 'Split down',
+          enabled: defaultProfile != null,
+        ),
+        item(
+          action: TerminalActionId.applyLayoutTemplate,
+          icon: Icons.dashboard_customize_rounded,
+          title: 'Apply two-pane layout',
+          enabled: defaultProfile != null && !hasMultiplePanes,
+        ),
+        const PopupMenuDivider(),
+        item(
+          action: TerminalActionId.focusNextPane,
+          icon: Icons.keyboard_tab_rounded,
+          title: 'Focus next pane',
+          enabled: hasMultiplePanes,
+        ),
+        item(
+          action: TerminalActionId.focusPreviousPane,
+          icon: Icons.keyboard_tab_rounded,
+          title: 'Focus previous pane',
+          enabled: hasMultiplePanes,
+        ),
+        item(
+          action: TerminalActionId.resizePane,
+          icon: Icons.open_with_rounded,
+          title: 'Grow active pane',
+          enabled: hasMultiplePanes,
+        ),
+        item(
+          action: TerminalActionId.swapPane,
+          icon: Icons.swap_horiz_rounded,
+          title: 'Swap active pane',
+          enabled: hasMultiplePanes,
+        ),
+        item(
+          action: TerminalActionId.zoomPane,
+          icon: Icons.zoom_out_map_rounded,
+          title: '${isTargetPaneZoomed ? 'Unzoom' : 'Zoom'} active pane',
+          enabled: hasMultiplePanes,
+        ),
+        const PopupMenuDivider(),
+        item(
+          action: TerminalActionId.closePane,
+          icon: Icons.close_fullscreen_rounded,
+          title: 'Close active pane',
+          enabled: true,
+        ),
+        item(
+          action: TerminalActionId.closeActiveTab,
+          icon: Icons.close_rounded,
+          title: 'Close tab',
+          enabled: true,
+        ),
+      ],
+    );
+
+    if (!mounted || action == null) {
+      return;
+    }
+    await _runTabContextAction(
+      sessionController,
+      action,
+      targetTabSessionId: tab.sessionId,
+    );
+  }
+
+  Future<void> _runTabContextAction(
+    SessionController sessionController,
+    TerminalActionId action, {
+    required String targetTabSessionId,
+  }) async {
+    final defaultProfile = _effectiveDefaultProfileFor(
+      ref.read(sessionControllerProvider).profiles,
+      ref.read(sessionControllerProvider).defaultProfileId,
+    );
+    final initialState = ref.read(sessionControllerProvider);
+    TerminalTab? targetTab;
+    for (final candidate in initialState.tabs) {
+      if (candidate.sessionId == targetTabSessionId) {
+        targetTab = candidate;
+        break;
+      }
+    }
+    if (targetTab == null) {
+      return;
+    }
+    final targetSessionId = targetTab.activeSessionId;
+
+    if (action == TerminalActionId.closeActiveTab) {
+      _closeTab(sessionController, initialState, targetTab.sessionId);
+      return;
+    }
+
+    sessionController.activateSession(targetSessionId);
+    _focusSession(targetSessionId);
+    final currentState = ref.read(sessionControllerProvider);
+    final currentSessionId = currentState.activeSessionId;
+    if (currentSessionId == null) {
+      return;
+    }
+
+    switch (action) {
+      case TerminalActionId.duplicateCurrentCwd:
+        if (defaultProfile == null) {
+          return;
+        }
+        final currentPane = _paneForSession(currentState, currentSessionId);
+        final currentDirectory = currentPane?.shellIntegration.currentDirectory;
+        if (currentDirectory == null || currentDirectory.isEmpty) {
+          return;
+        }
+        _createSession(
+          sessionController,
+          defaultProfile,
+          returningToWorkspace: false,
+        );
+        final duplicateSessionId = ref
+            .read(sessionControllerProvider)
+            .activeSessionId;
+        if (duplicateSessionId != null) {
+          _sendPlainTextToSession(
+            duplicateSessionId,
+            'cd ${_shellQuotedPath(currentDirectory)}',
+          );
+        }
+        return;
+      case TerminalActionId.splitRight:
+        if (defaultProfile == null) {
+          return;
+        }
+        _splitActiveSession(
+          sessionController,
+          defaultProfile,
+          TerminalSplitAxis.horizontal,
+        );
+        return;
+      case TerminalActionId.splitDown:
+        if (defaultProfile == null) {
+          return;
+        }
+        _splitActiveSession(
+          sessionController,
+          defaultProfile,
+          TerminalSplitAxis.vertical,
+        );
+        return;
+      case TerminalActionId.applyLayoutTemplate:
+        if (defaultProfile == null) {
+          return;
+        }
+        final currentTab = _tabForSession(currentState, currentSessionId);
+        if (currentTab == null || currentTab.effectivePanes.length > 1) {
+          return;
+        }
+        _splitActiveSession(
+          sessionController,
+          defaultProfile,
+          TerminalSplitAxis.horizontal,
+        );
+        return;
+      case TerminalActionId.focusNextPane:
+        final currentTab = _tabForSession(currentState, currentSessionId);
+        if (currentTab != null) {
+          _focusRelativePane(
+            sessionController,
+            currentTab,
+            currentSessionId,
+            delta: 1,
+          );
+        }
+        return;
+      case TerminalActionId.focusPreviousPane:
+        final currentTab = _tabForSession(currentState, currentSessionId);
+        if (currentTab != null) {
+          _focusRelativePane(
+            sessionController,
+            currentTab,
+            currentSessionId,
+            delta: -1,
+          );
+        }
+        return;
+      case TerminalActionId.resizePane:
+        final currentTab = _tabForSession(currentState, currentSessionId);
+        if (currentTab != null &&
+            _growActivePane(currentTab, currentSessionId)) {
+          _focusSession(currentSessionId);
+        }
+        return;
+      case TerminalActionId.swapPane:
+        final currentTab = _tabForSession(currentState, currentSessionId);
+        if ((currentTab?.effectivePanes.length ?? 0) < 2) {
+          return;
+        }
+        sessionController.swapActivePaneWithSibling();
+        _focusSession(currentSessionId);
+        return;
+      case TerminalActionId.zoomPane:
+        final currentTab = _tabForSession(currentState, currentSessionId);
+        if ((currentTab?.effectivePanes.length ?? 0) < 2) {
+          return;
+        }
+        setState(() {
+          _zoomedPaneSessionId = _zoomedPaneSessionId == currentSessionId
+              ? null
+              : currentSessionId;
+        });
+        _focusSession(currentSessionId);
+        return;
+      case TerminalActionId.closePane:
+        _closeSession(sessionController, currentState, currentSessionId);
+        return;
+      default:
+        return;
+    }
+  }
+
   Widget _buildTerminalWorkspace({
     required BuildContext context,
     required SessionController sessionController,
@@ -5173,6 +5427,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       _activateSession(sessionController, sessionId),
                   onCloseSession: (sessionId) =>
                       _closeTab(sessionController, sessionState, sessionId),
+                  onShowTabContextMenu: (tab, position) => _openTabContextMenu(
+                    sessionController,
+                    ref.read(sessionControllerProvider),
+                    tab,
+                    position,
+                  ),
                   onShowCommandMenu: () =>
                       _openCommandMenu(sessionController, sessionState),
                 ),
@@ -5575,6 +5835,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.referenceDemoMode,
     required this.onActivateSession,
     required this.onCloseSession,
+    required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
   });
 
@@ -5584,6 +5845,7 @@ class _ShellChromeBar extends StatelessWidget {
   final bool referenceDemoMode;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onCloseSession;
+  final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
 
   @override
@@ -5613,6 +5875,7 @@ class _ShellChromeBar extends StatelessWidget {
                       activeSessionId: activeSessionId,
                       onActivateSession: onActivateSession,
                       onCloseSession: onCloseSession,
+                      onShowTabContextMenu: onShowTabContextMenu,
                     ),
             ),
             if (!referenceDemoMode) ...[
@@ -5829,6 +6092,7 @@ class _ShellTabStrip extends StatelessWidget {
     required this.activeSessionId,
     required this.onActivateSession,
     required this.onCloseSession,
+    required this.onShowTabContextMenu,
   });
 
   final AppThemeTokens palette;
@@ -5836,6 +6100,7 @@ class _ShellTabStrip extends StatelessWidget {
   final String? activeSessionId;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onCloseSession;
+  final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -5862,6 +6127,8 @@ class _ShellTabStrip extends StatelessWidget {
             isActive: isActive,
             onActivate: () => onActivateSession(tab.activeSessionId),
             onClose: () => onCloseSession(tab.sessionId),
+            onShowContextMenu: (position) =>
+                onShowTabContextMenu(tab, position),
           );
         },
       ),
@@ -5877,6 +6144,7 @@ class _ShellTabButton extends StatelessWidget {
     required this.isActive,
     required this.onActivate,
     required this.onClose,
+    required this.onShowContextMenu,
   });
 
   final AppThemeTokens palette;
@@ -5885,6 +6153,7 @@ class _ShellTabButton extends StatelessWidget {
   final bool isActive;
   final VoidCallback onActivate;
   final VoidCallback onClose;
+  final ValueChanged<Offset> onShowContextMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -5903,43 +6172,48 @@ class _ShellTabButton extends StatelessWidget {
           shape: const RoundedRectangleBorder(),
         ),
         onPressed: onActivate,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (shortcutIndex != null) ...[
-              Text(
-                '⌘$shortcutIndex',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: isActive ? palette.textMuted : palette.textSubtle,
-                  fontWeight: FontWeight.w500,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onSecondaryTapDown: (details) =>
+              onShowContextMenu(details.globalPosition),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (shortcutIndex != null) ...[
+                Text(
+                  '⌘$shortcutIndex',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: isActive ? palette.textMuted : palette.textSubtle,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 140),
+                style: Theme.of(context).textTheme.titleSmall!.copyWith(
+                  color: isActive ? palette.textPrimary : palette.textMuted,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                ),
+                child: Text(tab.title, overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(width: 4),
+              Tooltip(
+                message: 'Close ${tab.title}',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onClose,
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 11,
+                    color: isActive
+                        ? palette.textMuted
+                        : palette.textSubtle.withValues(alpha: 0.72),
+                  ),
                 ),
               ),
-              const SizedBox(width: 6),
             ],
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 140),
-              style: Theme.of(context).textTheme.titleSmall!.copyWith(
-                color: isActive ? palette.textPrimary : palette.textMuted,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-              ),
-              child: Text(tab.title, overflow: TextOverflow.ellipsis),
-            ),
-            const SizedBox(width: 4),
-            Tooltip(
-              message: 'Close ${tab.title}',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onClose,
-                child: Icon(
-                  Icons.close_rounded,
-                  size: 11,
-                  color: isActive
-                      ? palette.textMuted
-                      : palette.textSubtle.withValues(alpha: 0.72),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -9289,8 +9563,6 @@ class _ShellCommandMenu extends StatelessWidget {
   const _ShellCommandMenu({
     required this.launcherShortcutLabel,
     required this.newTabShortcutLabel,
-    required this.splitRightShortcutLabel,
-    required this.splitDownShortcutLabel,
     required this.hotkeyWindowShortcutLabel,
     required this.autocompleteShortcutLabel,
     required this.copyModeShortcutLabel,
@@ -9300,10 +9572,8 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.instantReplayShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
-    required this.hasMultiplePanes,
     required this.canReopenClosedTab,
     required this.isActiveSessionReadOnly,
-    required this.isActivePaneZoomed,
     required this.commandFinishedNotificationsEnabled,
     required this.bellNotificationsEnabled,
     required this.activityMonitorEnabled,
@@ -9312,8 +9582,6 @@ class _ShellCommandMenu extends StatelessWidget {
 
   final String launcherShortcutLabel;
   final String newTabShortcutLabel;
-  final String splitRightShortcutLabel;
-  final String splitDownShortcutLabel;
   final String hotkeyWindowShortcutLabel;
   final String autocompleteShortcutLabel;
   final String copyModeShortcutLabel;
@@ -9323,10 +9591,8 @@ class _ShellCommandMenu extends StatelessWidget {
   final String instantReplayShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
-  final bool hasMultiplePanes;
   final bool canReopenClosedTab;
   final bool isActiveSessionReadOnly;
-  final bool isActivePaneZoomed;
   final bool commandFinishedNotificationsEnabled;
   final bool bellNotificationsEnabled;
   final bool activityMonitorEnabled;
@@ -9417,17 +9683,6 @@ class _ShellCommandMenu extends StatelessWidget {
                     enabled: hasDefaultProfile,
                     onTap: () =>
                         Navigator.of(context).pop(TerminalActionId.newTab),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-duplicate-current-cwd'),
-                    icon: Icons.create_new_folder_rounded,
-                    title: 'Duplicate current directory',
-                    subtitle:
-                        'App action • Open a new tab and insert cd for this cwd.',
-                    enabled: hasDefaultProfile && hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.duplicateCurrentCwd),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-reopen-closed-tab'),
@@ -9750,101 +10005,6 @@ class _ShellCommandMenu extends StatelessWidget {
                     onTap: () => Navigator.of(
                       context,
                     ).pop(TerminalActionId.autoComposer),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-split-right'),
-                    icon: Icons.vertical_split_rounded,
-                    title: 'Split right',
-                    subtitle:
-                        'Pane action • Open the default profile beside this pane.',
-                    shortcutLabel: splitRightShortcutLabel,
-                    enabled: hasDefaultProfile && hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.splitRight),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-split-down'),
-                    icon: Icons.horizontal_split_rounded,
-                    title: 'Split down',
-                    subtitle:
-                        'Pane action • Open the default profile below this pane.',
-                    shortcutLabel: splitDownShortcutLabel,
-                    enabled: hasDefaultProfile && hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.splitDown),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-apply-layout-template'),
-                    icon: Icons.dashboard_customize_rounded,
-                    title: 'Apply two-pane layout',
-                    subtitle:
-                        'Pane action • Use the local split-right template.',
-                    enabled:
-                        hasDefaultProfile &&
-                        hasActiveSession &&
-                        !hasMultiplePanes,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.applyLayoutTemplate),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-focus-next-pane'),
-                    icon: Icons.keyboard_tab_rounded,
-                    title: 'Focus next pane',
-                    subtitle: 'Pane action • Move focus to the next split.',
-                    enabled: hasMultiplePanes,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.focusNextPane),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-focus-previous-pane'),
-                    icon: Icons.keyboard_tab_rounded,
-                    title: 'Focus previous pane',
-                    subtitle: 'Pane action • Move focus to the previous split.',
-                    enabled: hasMultiplePanes,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.focusPreviousPane),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-close-pane'),
-                    icon: Icons.close_fullscreen_rounded,
-                    title: 'Close active pane',
-                    subtitle: 'Pane action • Close the active split session.',
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.closePane),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-resize-pane'),
-                    icon: Icons.open_with_rounded,
-                    title: 'Grow active pane',
-                    subtitle: 'Pane action • Give this split more workspace.',
-                    enabled: hasMultiplePanes,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.resizePane),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-swap-pane'),
-                    icon: Icons.swap_horiz_rounded,
-                    title: 'Swap active pane',
-                    subtitle:
-                        'Pane action • Swap this split with its neighbor.',
-                    enabled: hasMultiplePanes,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.swapPane),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-zoom-pane'),
-                    icon: Icons.zoom_out_map_rounded,
-                    title:
-                        '${isActivePaneZoomed ? 'Unzoom' : 'Zoom'} active pane',
-                    subtitle:
-                        'Pane action • Toggle single-pane focus for this split.',
-                    enabled: hasMultiplePanes,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.zoomPane),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-hotkey-window'),
