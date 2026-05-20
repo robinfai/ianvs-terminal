@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/gestures.dart';
@@ -43,12 +44,37 @@ class _EventfulPtyBackend extends FakePtyBackend {
   }
 }
 
+class _DelayedNewTabPtyBackend extends FakePtyBackend {
+  bool releaseNewTabFrame = false;
+
+  @override
+  String? takeFrameDiffJson(String sessionId) {
+    if (sessionId == '2' && !releaseNewTabFrame) {
+      return null;
+    }
+    return super.takeFrameDiffJson(sessionId);
+  }
+}
+
+class _DelayedProfileRepository extends MemoryProfileRepository {
+  _DelayedProfileRepository(super.document, this.ready);
+
+  final Future<void> ready;
+
+  @override
+  Future<TerminalProfilesDocument> load() async {
+    await ready;
+    return super.load();
+  }
+}
+
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
   required PtySessionBackend bindings,
   required MemoryProfileRepository repository,
   PasteHistoryRepository? pasteHistoryRepository,
   ShellNotificationSender? notificationSender,
+  bool settle = true,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -67,7 +93,9 @@ Future<void> _pumpShellScreen(
       child: const MaterialApp(home: ShellScreen()),
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) {
+    await tester.pumpAndSettle();
+  }
 }
 
 Future<void> _openCommandMenu(WidgetTester tester) async {
@@ -136,6 +164,31 @@ void _expectSelectedTab(WidgetTester tester, String sessionId) {
 }
 
 void main() {
+  testWidgets('shell startup waits silently for bootstrap content', (
+    tester,
+  ) async {
+    final ready = Completer<void>();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: FakePtyBackend(),
+      repository: _DelayedProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ready.future,
+      ),
+      settle: false,
+    );
+
+    expect(find.byKey(const Key('shell-empty-state')), findsNothing);
+    expect(find.byType(TerminalViewport), findsNothing);
+
+    ready.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-empty-state')), findsNothing);
+    expect(find.byType(TerminalViewport), findsOneWidget);
+  });
+
   testWidgets('shell screen keeps line timestamp overlays hidden by default', (
     tester,
   ) async {
@@ -169,6 +222,37 @@ void main() {
 
     expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
+  });
+
+  testWidgets('new tab keeps current terminal visible until its first frame', (
+    tester,
+  ) async {
+    final fakeBindings = _DelayedNewTabPtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    _expectSelectedTab(tester, '2');
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+
+    fakeBindings.releaseNewTabFrame = true;
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
   });
 
   testWidgets(

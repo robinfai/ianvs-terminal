@@ -273,6 +273,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _activityNotificationsEnabled = true;
   int _lastObservedTabCount = 0;
   String? _zoomedPaneSessionId;
+  String? _lastRenderableSessionId;
   String _searchQuery = '';
   String? _searchErrorText;
   List<TerminalSearchMatch> _searchMatches = const [];
@@ -343,6 +344,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         _feedCoprocess(sessionId, frame, frameSequence: frameSequence);
         _runProfileTriggers(sessionId, frame, frameSequence: frameSequence);
         _notifyInactiveActivity(sessionId, frame);
+        _scheduleRenderableSessionSwap(sessionId);
       case terminal.TerminalSessionExitEvent():
         _terminalFrameSequenceBySession.remove(event.sessionId);
         _triggerMatchesBySession.remove(event.sessionId);
@@ -1213,6 +1215,53 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     }
     return null;
+  }
+
+  bool _sessionHasRenderableFrame(
+    SessionController sessionController,
+    String sessionId,
+  ) {
+    return sessionController.viewportFor(sessionId).frameVersion > 0;
+  }
+
+  String? _displayedSessionIdFor(
+    SessionController sessionController,
+    SessionState sessionState,
+    String? activeSessionId,
+  ) {
+    if (activeSessionId == null) {
+      _lastRenderableSessionId = null;
+      return null;
+    }
+    final activeTab = _tabForSession(sessionState, activeSessionId);
+    final retainedSessionId = _lastRenderableSessionId;
+    final retainedTab = _tabForSession(sessionState, retainedSessionId);
+    if (activeTab != null &&
+        retainedTab != null &&
+        activeTab.sessionId == retainedTab.sessionId) {
+      _lastRenderableSessionId = activeSessionId;
+      return activeSessionId;
+    }
+    if (_sessionHasRenderableFrame(sessionController, activeSessionId)) {
+      _lastRenderableSessionId = activeSessionId;
+      return activeSessionId;
+    }
+    if (retainedSessionId != null &&
+        retainedTab != null &&
+        _sessionHasRenderableFrame(sessionController, retainedSessionId)) {
+      return retainedSessionId;
+    }
+    return null;
+  }
+
+  void _scheduleRenderableSessionSwap(String sessionId) {
+    if (!mounted) {
+      return;
+    }
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == sessionId && _lastRenderableSessionId != sessionId) {
+      setState(() {});
+    }
   }
 
   bool _focusRelativePane(
@@ -4706,6 +4755,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
       }
     }
+    final displayedSessionId = _displayedSessionIdFor(
+      sessionController,
+      sessionState,
+      activeSessionId,
+    );
+    final displayedTab = _tabForSession(sessionState, displayedSessionId);
     final palette = context.appTheme;
     final activePane = activeSessionId == null
         ? null
@@ -5125,7 +5180,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         : Duration.zero,
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
-                    child: activeSessionId == null || activeTab == null
+                    child:
+                        !sessionState.isReady ||
+                            (activeSessionId != null &&
+                                displayedSessionId == null)
+                        ? _ShellStartupSurface(
+                            key: const Key('shell-startup-state'),
+                            palette: palette,
+                          )
+                        : activeSessionId == null || activeTab == null
                         ? _ShellEmptyState(
                             key: const Key('shell-empty-state'),
                             palette: palette,
@@ -5143,7 +5206,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                   },
                           )
                         : KeyedSubtree(
-                            key: ValueKey(activeTab.sessionId),
+                            key: ValueKey(
+                              (displayedTab ?? activeTab).sessionId,
+                            ),
                             child: Row(
                               children: [
                                 Expanded(
@@ -5151,8 +5216,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     context: context,
                                     sessionController: sessionController,
                                     sessionState: sessionState,
-                                    activeTab: activeTab,
-                                    activeSessionId: activeSessionId,
+                                    activeTab: displayedTab ?? activeTab,
+                                    activeSessionId:
+                                        displayedSessionId ?? activeSessionId,
                                     palette: palette,
                                     onHostKeyEvent: handleShellShortcut,
                                   ),
@@ -5863,6 +5929,23 @@ class _ShellTabButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ShellStartupSurface extends StatelessWidget {
+  const _ShellStartupSurface({super.key, required this.palette});
+
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.terminalSurface,
+        border: Border(top: BorderSide(color: palette.border)),
+      ),
+      child: const SizedBox.expand(),
     );
   }
 }
