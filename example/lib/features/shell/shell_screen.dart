@@ -1217,11 +1217,24 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return null;
   }
 
-  bool _sessionHasRenderableFrame(
+  bool _sessionHasRenderableContent(
     SessionController sessionController,
     String sessionId,
   ) {
-    return sessionController.viewportFor(sessionId).frameVersion > 0;
+    final viewport = sessionController.viewportFor(sessionId);
+    if (viewport.frameVersion <= 0) {
+      return false;
+    }
+    final frame = viewport.frame;
+    if (frame.inlineImages.isNotEmpty) {
+      return true;
+    }
+    for (final row in frame.rows) {
+      if (row.text.trim().isNotEmpty) {
+        return true;
+      }
+    }
+    return false;
   }
 
   String? _displayedSessionIdFor(
@@ -1242,13 +1255,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _lastRenderableSessionId = activeSessionId;
       return activeSessionId;
     }
-    if (_sessionHasRenderableFrame(sessionController, activeSessionId)) {
+    if (_sessionHasRenderableContent(sessionController, activeSessionId)) {
       _lastRenderableSessionId = activeSessionId;
       return activeSessionId;
     }
     if (retainedSessionId != null &&
         retainedTab != null &&
-        _sessionHasRenderableFrame(sessionController, retainedSessionId)) {
+        _sessionHasRenderableContent(sessionController, retainedSessionId)) {
       return retainedSessionId;
     }
     return null;

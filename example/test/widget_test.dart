@@ -46,9 +46,29 @@ class _EventfulPtyBackend extends FakePtyBackend {
 
 class _DelayedNewTabPtyBackend extends FakePtyBackend {
   bool releaseNewTabFrame = false;
+  bool emitPlaceholderFrame = false;
+  final Set<String> _placeholderFramesEmitted = <String>{};
 
   @override
   String? takeFrameDiffJson(String sessionId) {
+    if (sessionId == '2' &&
+        emitPlaceholderFrame &&
+        _placeholderFramesEmitted.add(sessionId)) {
+      return jsonEncode(<String, Object?>{
+        'rows': <Object?>[],
+        'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 24},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'window_title': null,
+        'window_icon_name': null,
+      });
+    }
     if (sessionId == '2' && !releaseNewTabFrame) {
       return null;
     }
@@ -238,6 +258,36 @@ void main() {
     );
 
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    _expectSelectedTab(tester, '2');
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+
+    fakeBindings.releaseNewTabFrame = true;
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+  });
+
+  testWidgets('new tab ignores placeholder frames before terminal content', (
+    tester,
+  ) async {
+    final fakeBindings = _DelayedNewTabPtyBackend()
+      ..emitPlaceholderFrame = true;
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
 
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
