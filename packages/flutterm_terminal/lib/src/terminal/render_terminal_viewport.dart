@@ -111,6 +111,7 @@ final TerminalRowTextMetrics terminalFallbackRowTextMetrics =
     );
 
 const double _smartCursorContrastRatio = 4.5;
+const double _defaultBackgroundContrastThreshold = 1.2;
 
 class RenderTerminalViewport extends RenderBox {
   RenderTerminalViewport({
@@ -808,33 +809,48 @@ class RenderTerminalViewport extends RenderBox {
   _ResolvedCellStyle _resolvedCellStyleFor(TerminalStyleRun run) {
     var rawForeground = run.foreground ?? _colors.foreground;
     var background = run.background ?? _colors.canvasBackground;
+    var paintBackground =
+        run.inverse ||
+        (run.background != null && !_isDefaultLikeBackground(background));
 
     if (run.inverse) {
       final swapped = background;
       background = rawForeground;
       rawForeground = swapped;
+      paintBackground = true;
     }
+    final contrastBackground = paintBackground
+        ? background
+        : _colors.canvasBackground;
     if (run.dim) {
       rawForeground = Color.alphaBlend(
         rawForeground.withValues(alpha: rawForeground.a * 0.65),
-        background,
+        contrastBackground,
       );
     }
     final foreground = _foregroundWithMinimumContrast(
       rawForeground,
-      background,
+      contrastBackground,
     );
 
     return _ResolvedCellStyle(
       rawForeground: rawForeground,
       foreground: foreground,
-      background: (run.background == null && !run.inverse) ? null : background,
+      background: paintBackground ? background : null,
       fontWeight: run.bold ? FontWeight.w700 : FontWeight.w400,
       fontStyle: run.italic ? FontStyle.italic : FontStyle.normal,
       decoration: run.underline
           ? TextDecoration.underline
           : TextDecoration.none,
     );
+  }
+
+  bool _isDefaultLikeBackground(Color background) {
+    if (background.toARGB32() == _colors.canvasBackground.toARGB32()) {
+      return true;
+    }
+    return _contrastRatio(background, _colors.canvasBackground) <
+        _defaultBackgroundContrastThreshold;
   }
 
   Color _foregroundWithMinimumContrast(Color foreground, Color background) {
