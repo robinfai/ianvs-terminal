@@ -505,6 +505,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
+    expect(find.text('Paste 28 characters across 2 lines?'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
 

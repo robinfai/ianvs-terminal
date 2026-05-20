@@ -1168,6 +1168,45 @@ void main() {
     },
   );
 
+  test('bootstrap publishes ready state with the initial session', () async {
+    final coreClient = FakePtyBackend();
+    final profileRepository = _TestProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultProfile]),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(profileRepository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final states = <SessionState>[];
+    container.listen<SessionState>(
+      sessionControllerProvider,
+      (_, next) => states.add(next),
+    );
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(states.any((state) => state.isReady), isTrue);
+    expect(
+      states.where((state) => state.isReady),
+      everyElement(
+        isA<SessionState>()
+            .having((state) => state.tabs, 'tabs', isNotEmpty)
+            .having(
+              (state) => state.activeSessionId,
+              'activeSessionId',
+              isNotNull,
+            ),
+      ),
+    );
+  });
+
   test(
     'bootstrap surfaces configuration warnings and starts sessions from recovered values',
     () async {

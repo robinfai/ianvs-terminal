@@ -1970,7 +1970,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   Future<bool> _confirmPaste(LocalTerminalPasteDecision decision) async {
-    final lineCount = '\n'.allMatches(decision.text).length + 1;
+    final lineCount = _lineCountForPasteConfirmation(decision.text);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -1994,6 +1994,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       },
     );
     return confirmed ?? false;
+  }
+
+  int _lineCountForPasteConfirmation(String text) {
+    if (text.isEmpty) {
+      return 0;
+    }
+    return RegExp(r'\r\n|\r|\n').allMatches(text).length + 1;
   }
 
   Future<void> _pasteTextToSession(String sessionId, String text) async {

@@ -180,21 +180,48 @@ class SessionController extends Notifier<SessionState> {
     if (!ref.mounted) {
       return;
     }
+    final effectiveDefaultProfileId = resolution.effectiveDefaultProfileId;
+    TerminalProfile? initialProfile;
+    TerminalProfile? initialLaunchProfile;
+    String? initialSessionId;
+    if (effectiveDefaultProfileId != null) {
+      initialProfile = runtimeProfiles.firstWhere(
+        (profile) => profile.id == effectiveDefaultProfileId,
+        orElse: () => runtimeProfiles.first,
+      );
+      final environmentOverrides = ref.read(
+        sessionEnvironmentOverridesProvider,
+      );
+      initialLaunchProfile = _profileWithSessionEnvironment(
+        initialProfile,
+        environmentOverrides,
+      );
+      initialSessionId = _runtime.createSession(
+        initialLaunchProfile.toSessionConfig(),
+      );
+    }
+
     state = state.copyWith(
       profiles: runtimeProfiles,
-      defaultProfileId: resolution.effectiveDefaultProfileId,
+      tabs: initialSessionId == null || initialLaunchProfile == null
+          ? state.tabs
+          : <TerminalTab>[
+              TerminalTab(
+                sessionId: initialSessionId,
+                title: initialLaunchProfile.name,
+                profileId: initialProfile!.id,
+                profileSnapshot: initialLaunchProfile,
+              ),
+            ],
+      activeSessionId: initialSessionId,
+      defaultProfileId: effectiveDefaultProfileId,
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
       configurationWarnings: profiles.loadWarnings,
       themeMode: _appPreferences.appearance.themeMode,
       isReady: true,
     );
-    if (resolution.effectiveDefaultProfileId != null) {
-      createSession(
-        runtimeProfiles.firstWhere(
-          (profile) => profile.id == resolution.effectiveDefaultProfileId,
-          orElse: () => runtimeProfiles.first,
-        ),
-      );
+    if (initialLaunchProfile != null) {
+      _setWindowTitle(initialLaunchProfile.name);
     }
   }
 
