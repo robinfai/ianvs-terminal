@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../foundation/app_theme_tokens.dart';
+import 'app_panel.dart';
 
 class AppEmptyState extends StatelessWidget {
   const AppEmptyState({
@@ -20,40 +21,50 @@ class AppEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 320),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: theme.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: theme.spacing.sm),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: theme.textMuted,
-              height: 1.35,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          if (supportingText != null) ...[
-            SizedBox(height: theme.spacing.lg),
+      constraints: const BoxConstraints(maxWidth: 360),
+      child: AppPanel(
+        tone: AppPanelTone.elevated,
+        padding: EdgeInsets.all(theme.spacing.xl),
+        borderRadius: BorderRadius.circular(theme.radius.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.terminal_rounded, size: 26, color: theme.accent),
+            SizedBox(height: theme.spacing.md),
             Text(
-              supportingText!,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: theme.textSubtle,
-                fontWeight: FontWeight.w600,
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: theme.textPrimary,
+                fontWeight: FontWeight.w800,
               ),
               textAlign: TextAlign.center,
             ),
+            SizedBox(height: theme.spacing.sm),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: theme.textMuted,
+                height: 1.35,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (supportingText != null) ...[
+              SizedBox(height: theme.spacing.lg),
+              Text(
+                supportingText!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: theme.textSubtle,
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            if (action != null) ...[
+              SizedBox(height: theme.spacing.lg),
+              action!,
+            ],
           ],
-          if (action != null) ...[SizedBox(height: theme.spacing.lg), action!],
-        ],
+        ),
       ),
     );
   }

@@ -19,28 +19,33 @@ class SettingsSection extends StatelessWidget {
     final theme = context.appTheme;
     return Padding(
       padding: EdgeInsets.only(bottom: theme.spacing.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: theme.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (description != null) ...[
-            SizedBox(height: theme.spacing.xs),
+      child: AppPanel(
+        tone: AppPanelTone.panel,
+        padding: EdgeInsets.all(theme.spacing.lg),
+        borderRadius: BorderRadius.circular(theme.radius.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              description!,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: theme.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
             ),
+            if (description != null) ...[
+              SizedBox(height: theme.spacing.xs),
+              Text(
+                description!,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+              ),
+            ],
+            SizedBox(height: theme.spacing.lg),
+            ...children,
           ],
-          SizedBox(height: theme.spacing.lg + 2),
-          ...children,
-        ],
+        ),
       ),
     );
   }

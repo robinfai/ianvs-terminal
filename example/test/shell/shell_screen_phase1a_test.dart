@@ -55,10 +55,12 @@ void main() {
 
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
+    expect(find.byKey(const Key('shell-chrome-new-tab')), findsOneWidget);
     expect(find.byKey(const Key('shell-terminal-surface')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
-      40,
+      44,
     );
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);

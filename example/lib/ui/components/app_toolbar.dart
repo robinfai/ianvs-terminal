@@ -29,7 +29,9 @@ class AppToolbar extends StatelessWidget {
     return AppPanel(
       tone: tone,
       borderRadius: BorderRadius.zero,
-      padding: padding ?? EdgeInsets.symmetric(horizontal: theme.spacing.lg),
+      border: Border(bottom: BorderSide(color: theme.borderStrong)),
+      padding:
+          padding ?? EdgeInsets.symmetric(horizontal: theme.spacing.lg + 2),
       child: SizedBox(
         height: height,
         child: Row(
@@ -47,7 +49,7 @@ class AppToolbar extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: theme.textPrimary,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                             ),
                       ),
                     if (subtitle != null)

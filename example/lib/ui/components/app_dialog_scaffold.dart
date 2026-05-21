@@ -45,9 +45,9 @@ class AppDialogScaffold extends StatelessWidget {
       padding:
           headerPadding ??
           EdgeInsets.fromLTRB(
-            theme.spacing.xl,
-            theme.spacing.xl - 2,
-            theme.spacing.xl,
+            theme.spacing.lg,
+            theme.spacing.md,
+            theme.spacing.lg,
             theme.spacing.sm,
           ),
       child: Row(
@@ -59,9 +59,10 @@ class AppDialogScaffold extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: theme.textPrimary,
                     fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
                   ),
                 ),
                 if (subtitle != null) ...[
@@ -70,7 +71,7 @@ class AppDialogScaffold extends StatelessWidget {
                     subtitle!,
                     style: Theme.of(
                       context,
-                    ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
+                    ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
                   ),
                 ],
               ],
@@ -97,9 +98,9 @@ class AppDialogScaffold extends StatelessWidget {
           bodyPadding ??
           EdgeInsets.fromLTRB(
             theme.spacing.xl,
-            theme.spacing.lg,
+            theme.spacing.md,
             theme.spacing.xl,
-            theme.spacing.lg,
+            theme.spacing.md,
           ),
       child: body,
     );
@@ -113,7 +114,7 @@ class AppDialogScaffold extends StatelessWidget {
                   theme.spacing.xl,
                   theme.spacing.md,
                   theme.spacing.xl,
-                  theme.spacing.lg,
+                  theme.spacing.md,
                 ),
             child: footer!,
           );
@@ -146,7 +147,7 @@ class AppDialogScaffold extends StatelessWidget {
       child: ConstrainedBox(
         constraints: constraints ?? const BoxConstraints(maxWidth: 720),
         child: AppPanel(
-          tone: AppPanelTone.panel,
+          tone: AppPanelTone.elevated,
           shadow: true,
           borderRadius: BorderRadius.circular(theme.radius.xl),
           child: contents,

@@ -121,12 +121,16 @@ void main() {
     expect(find.text('Create'), findsOneWidget);
     expect(find.text('Disabled'), findsOneWidget);
     expect(tapCount, 1);
-    expect(enabledButton.height, 40);
-    expect(denseIconButton.height, 32);
-    expect(denseIconButton.width, 32);
-    expect(iconOnlyButton.height, 36);
-    expect(iconOnlyButton.width, 36);
-    expect(disabledButton.height, 40);
+    expect(enabledButton.height, 42);
+    expect(denseIconButton.height, 34);
+    expect(denseIconButton.width, 34);
+    expect(iconOnlyButton.height, 38);
+    expect(iconOnlyButton.width, 38);
+    expect(disabledButton.height, 42);
+    expect(
+      tester.widget<IconButton>(find.byKey(const Key('dense-action'))).tooltip,
+      isNull,
+    );
   });
 
   testWidgets('app field row renders label hint control and message', (
@@ -147,6 +151,14 @@ void main() {
     expect(find.text('Leave empty to inherit'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
     expect(tester.widget<Text>(find.text('Font family')).style?.fontSize, 12.5);
+    expect(
+      tester
+          .widget<Text>(find.text('Used by new sessions'))
+          .style
+          ?.color
+          ?.toARGB32(),
+      const Color(0xFF6B7280).toARGB32(),
+    );
   });
 
   testWidgets('app empty state renders action affordance', (tester) async {
@@ -174,7 +186,7 @@ void main() {
     expect(find.text('Open a shell tab to get started.'), findsOneWidget);
     expect(find.text('Default profile: Local Shell'), findsOneWidget);
     expect(tapCount, 1);
-    expect(emptyStateSize.width, lessThanOrEqualTo(320));
+    expect(emptyStateSize.width, lessThanOrEqualTo(360));
   });
 
   testWidgets('app dialog scaffold uses compact shell-style geometry', (
@@ -205,8 +217,34 @@ void main() {
     final footerButtonSize = tester.getSize(
       find.byKey(const Key('dialog-cancel')),
     );
-    expect(closeButtonSize.height, 32);
-    expect(closeButtonSize.width, 32);
-    expect(footerButtonSize.height, 36);
+    expect(closeButtonSize.height, 34);
+    expect(closeButtonSize.width, 34);
+    expect(footerButtonSize.height, 38);
+  });
+
+  testWidgets('app panel selected tone exposes workstation selection surface', (
+    tester,
+  ) async {
+    await pumpHarness(
+      tester,
+      const AppPanel(
+        key: Key('selected-panel'),
+        tone: AppPanelTone.selected,
+        child: Text('Selected pane'),
+      ),
+    );
+
+    final panel = tester.widget<DecoratedBox>(
+      find.descendant(
+        of: find.byType(AppPanel),
+        matching: find.byType(DecoratedBox),
+      ),
+    );
+    final decoration = panel.decoration as BoxDecoration;
+    expect(decoration.color!.toARGB32(), const Color(0xFFE0F2FE).toARGB32());
+    expect(
+      (decoration.border! as Border).top.color.toARGB32(),
+      const Color(0xFF8EA0B4).toARGB32(),
+    );
   });
 }

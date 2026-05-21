@@ -149,7 +149,7 @@ void main() {
       final leftInsetPixel = await _readPixelColor(
         tester,
         shellExport.shellSurfaceImage,
-        x: scale(12),
+        x: scale(3),
         y: scale(28),
       );
       expect(leftInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
@@ -158,7 +158,7 @@ void main() {
         tester,
         shellExport.shellSurfaceImage,
         x: scale(120),
-        y: scale(8),
+        y: scale(5),
       );
       expect(topInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
 
@@ -210,7 +210,7 @@ void main() {
       final paddingPixel = await _readPixelColor(
         tester,
         shellExport.shellSurfaceImage,
-        x: scale(12),
+        x: scale(3),
         y: scale(28),
       );
       expect(paddingPixel.toARGB32(), innerCanvasColor.toARGB32());
@@ -404,6 +404,8 @@ Future<_ShellExport> _captureShellExport(
   required FakePtyBackend backend,
   ThemeMode themeMode = ThemeMode.dark,
 }) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -441,14 +443,17 @@ Future<_ShellExport> _captureShellExport(
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find.byKey(const Key('shell-terminal-surface')),
   );
+  final renderOffset =
+      renderObject.localToGlobal(Offset.zero) -
+      boundary.localToGlobal(Offset.zero);
   final devicePixelRatio = tester.view.devicePixelRatio;
   final cursorRect = renderObject.debugCursorRect!;
   final promptRow = (cursorRect.top / renderObject.debugCellSize.height)
       .floor();
   final promptRowTop = promptRow * renderObject.debugCellSize.height;
   final promptBoundsLogical = Rect.fromLTWH(
-    0,
-    promptRowTop,
+    renderOffset.dx,
+    renderOffset.dy + promptRowTop,
     cursorRect.left,
     renderObject.debugCellSize.height,
   );

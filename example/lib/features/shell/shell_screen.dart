@@ -235,7 +235,8 @@ class ShellScreen extends ConsumerStatefulWidget {
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _workspaceCueDuration = Duration(milliseconds: 1400);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
-  static const _terminalViewportPadding = EdgeInsets.fromLTRB(16, 10, 18, 14);
+  static const _terminalViewportPadding = EdgeInsets.fromLTRB(8, 8, 10, 10);
+  static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
   static const _pasteHistoryLimit = 30;
   static const _capturedOutputLimit = 80;
 
@@ -243,6 +244,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
+  final Map<String, Size> _measuredTerminalCellSizes = {};
   final Map<String, int> _paneFlexBySession = {};
   final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
@@ -1026,6 +1028,27 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           .clamp(1.0, double.infinity)
           .toDouble(),
     );
+  }
+
+  String? _viewportStatusLabelFor(String? sessionId) {
+    if (sessionId == null) {
+      return null;
+    }
+    final viewportSize =
+        _scheduledViewportSizes[sessionId] ??
+        _committedViewportSizes[sessionId];
+    final cellSize =
+        _measuredTerminalCellSizes[sessionId] ??
+        terminal.terminalFallbackCellSize;
+    if (viewportSize == null || cellSize.width <= 0 || cellSize.height <= 0) {
+      return null;
+    }
+    final cols = (viewportSize.width / cellSize.width).floor();
+    final rows = (viewportSize.height / cellSize.height).floor();
+    if (cols <= 0 || rows <= 0) {
+      return null;
+    }
+    return '$cols×$rows';
   }
 
   void _commitViewportResize(
@@ -3086,6 +3109,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
     final selection = await showDialog<DefaultsAndAppearanceSelection>(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.34),
       barrierDismissible: true,
       requestFocus: true,
       animationStyle: animationsEnabled ? null : AnimationStyle.noAnimation,
@@ -3127,6 +3151,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
       if (selection.themeMode != stateBeforeSave.themeMode) {
         await sessionController.setThemeMode(selection.themeMode);
+      }
+      final updatedProfile = selection.updatedProfile;
+      if (updatedProfile != null) {
+        await sessionController.saveProfile(updatedProfile);
       }
     }
 
@@ -3338,6 +3366,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         _isSessionReadOnly(activeSessionIdBeforeOpen);
     final canSelectCommandOutput =
         (activePaneBeforeOpen?.shellIntegration.promptMarks.length ?? 0) >= 2;
+    final activePaneZoomed =
+        activeSessionIdBeforeOpen != null &&
+        _zoomedPaneSessionId == activeSessionIdBeforeOpen;
     final action = await showGeneralDialog<TerminalActionId>(
       context: context,
       barrierDismissible: true,
@@ -3366,6 +3397,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                   hasDefaultProfile: defaultProfile != null,
                   hasActiveSession: hasActiveSession,
+                  activePaneZoomed: activePaneZoomed,
                   canReopenClosedTab: sessionController.canReopenClosedTab,
                   isActiveSessionReadOnly: isActiveSessionReadOnly,
                   commandFinishedNotificationsEnabled:
@@ -3406,6 +3438,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     instantReplayShortcutLabel: _instantReplayShortcutLabel(),
                     hasDefaultProfile: defaultProfile != null,
                     hasActiveSession: hasActiveSession,
+                    activePaneZoomed: activePaneZoomed,
                     canReopenClosedTab: sessionController.canReopenClosedTab,
                     isActiveSessionReadOnly: isActiveSessionReadOnly,
                     commandFinishedNotificationsEnabled:
@@ -4739,7 +4772,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       readOnly: () => _isSessionReadOnly(sessionId),
     );
     final annotations = _annotationsForSession(sessionId);
-    final sessionBadge = _sessionBadgeForPane(pane, profile);
     final activeCoprocess = _coprocesses[sessionId];
 
     return LayoutBuilder(
@@ -4751,6 +4783,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           _scheduledViewportSizes[sessionId] = viewportSize;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
+              setState(() {});
               _scheduleViewportResize(
                 sessionController,
                 sessionId,
@@ -4786,8 +4819,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               decoration: BoxDecoration(
                 border: Border.all(
                   color: isActive
-                      ? palette.accent.withValues(alpha: 0.46)
+                      ? palette.focusRing.withValues(alpha: 0.78)
                       : Colors.transparent,
+                  width: isActive ? 1.5 : 1,
                 ),
               ),
               child: Stack(
@@ -4799,9 +4833,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       selectionController: selectionController,
                       inputController: inputController,
                       contentPadding: _terminalViewportPadding,
-                      onMeasuredCellSizeChanged: (_) {
+                      onMeasuredCellSizeChanged: (cellSize) {
                         if (!mounted) {
                           return;
+                        }
+                        if (_measuredTerminalCellSizes[sessionId] != cellSize) {
+                          setState(() {
+                            _measuredTerminalCellSizes[sessionId] = cellSize;
+                          });
                         }
                         _scheduleViewportResize(
                           sessionController,
@@ -4856,14 +4895,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       child: IgnorePointer(
                         child: ColoredBox(
                           key: Key('shell-pane-dim-$sessionId'),
-                          color: Colors.black.withValues(alpha: 0.20),
+                          color: palette.inactiveScrim,
                         ),
                       ),
                     ),
                   if (isActive && _isSearchOpen)
                     Positioned(
-                      top: _terminalViewportPadding.top,
-                      right: _terminalViewportPadding.right,
+                      top: _terminalOverlayPadding.top,
+                      right: _terminalOverlayPadding.right,
                       child: _TerminalSearchBar(
                         query: _searchQuery,
                         matches: _searchMatches.length,
@@ -4880,8 +4919,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ),
                   if (isActive && _isAutocompleteOpen)
                     Positioned(
-                      top: _terminalViewportPadding.top,
-                      right: _terminalViewportPadding.right,
+                      top: _terminalOverlayPadding.top,
+                      right: _terminalOverlayPadding.right,
                       child: _TerminalAutocompleteMenu(
                         prefix: _autocompletePrefix,
                         suggestions: _autocompleteSuggestions,
@@ -4895,9 +4934,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ),
                   if (isActive && _isAutoComposerOpen)
                     Positioned(
-                      left: _terminalViewportPadding.left,
-                      right: _terminalViewportPadding.right,
-                      bottom: _terminalViewportPadding.bottom,
+                      left: _terminalOverlayPadding.left,
+                      right: _terminalOverlayPadding.right,
+                      bottom: _terminalOverlayPadding.bottom,
                       child: _TerminalAutoComposer(
                         controller: _autoComposerController,
                         focusNode: _autoComposerFocusNode,
@@ -4913,32 +4952,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       ),
                     ),
                   if (isActive &&
-                      sessionBadge != null &&
-                      !_isSearchOpen &&
-                      !_isAutocompleteOpen &&
-                      !_isAutoComposerOpen &&
-                      !_showWorkspaceCue)
-                    Positioned(
-                      top:
-                          _terminalViewportPadding.top +
-                          (activeCoprocess == null ? 0 : 34),
-                      right: _terminalViewportPadding.right,
-                      child: IgnorePointer(
-                        child: _TerminalSessionBadge(
-                          key: Key('terminal-session-badge-$sessionId'),
-                          content: sessionBadge,
-                          palette: palette,
-                        ),
-                      ),
-                    ),
-                  if (isActive &&
                       activeCoprocess != null &&
                       !_isSearchOpen &&
                       !_isAutocompleteOpen &&
                       !_isAutoComposerOpen)
                     Positioned(
-                      top: _terminalViewportPadding.top,
-                      right: _terminalViewportPadding.right,
+                      top: _terminalOverlayPadding.top,
+                      right: _terminalOverlayPadding.right,
                       child: _CoprocessIndicator(
                         key: Key('terminal-coprocess-indicator-$sessionId'),
                         command: activeCoprocess.command,
@@ -4947,8 +4967,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ),
                   if (isActive && _isCopyModeOpen)
                     Positioned(
-                      top: _terminalViewportPadding.top,
-                      left: _terminalViewportPadding.left,
+                      top: _terminalOverlayPadding.top,
+                      left: _terminalOverlayPadding.left,
                       child: IgnorePointer(
                         child: _ShellWorkspaceCue(
                           title: 'Copy mode',
@@ -4960,8 +4980,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       annotations.isNotEmpty &&
                       !_isAutoComposerOpen)
                     Positioned(
-                      left: _terminalViewportPadding.left,
-                      bottom: _terminalViewportPadding.bottom,
+                      left: _terminalOverlayPadding.left,
+                      bottom: _terminalOverlayPadding.bottom,
                       child: _TerminalAnnotationBadge(
                         key: Key('terminal-annotation-badge-$sessionId'),
                         count: annotations.length,
@@ -4977,8 +4997,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ),
                   if (isActive && _showWorkspaceCue)
                     Positioned(
-                      top: _terminalViewportPadding.top,
-                      right: _terminalViewportPadding.right,
+                      top: _terminalOverlayPadding.top,
+                      right: _terminalOverlayPadding.right,
                       child: IgnorePointer(
                         child: _ShellWorkspaceCue(
                           title: _workspaceCueTitle,
@@ -5034,6 +5054,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         : activeTab?.paneFor(activeSessionId);
     final activeShellIntegration =
         activePane?.shellIntegration ?? TerminalShellIntegrationSnapshot.empty;
+    final statusPane = displayedSessionId == null
+        ? activePane
+        : displayedTab?.paneFor(displayedSessionId) ?? activePane;
+    final statusProfile = statusPane == null
+        ? null
+        : _profileForPane(statusPane, sessionState.profiles);
+    final statusContent = statusPane == null
+        ? null
+        : _sessionBadgeForPane(statusPane, statusProfile);
+    final statusViewportLabel = _viewportStatusLabelFor(displayedSessionId);
 
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -5410,175 +5440,194 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         backgroundColor: palette.canvas,
         body: ColoredBox(
           color: palette.canvas,
-          child: Padding(
-            padding: EdgeInsets.only(
-              top: defaultTargetPlatform == TargetPlatform.macOS
-                  ? 8
-                  : MediaQuery.paddingOf(context).top + 8,
-            ),
-            child: Column(
-              children: [
-                _ShellChromeBar(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ShellChromeBar(
+                palette: palette,
+                tabs: sessionState.tabs,
+                activeSessionId: activeSessionId,
+                referenceDemoMode: referenceDemoMode,
+                onNewTab: defaultProfile == null
+                    ? null
+                    : () {
+                        _createSession(
+                          sessionController,
+                          defaultProfile,
+                          returningToWorkspace: activeSessionId == null,
+                        );
+                      },
+                onActivateSession: (sessionId) =>
+                    _activateSession(sessionController, sessionId),
+                onCloseSession: (sessionId) =>
+                    _closeTab(sessionController, sessionState, sessionId),
+                onShowTabContextMenu: (tab, position) => _openTabContextMenu(
+                  sessionController,
+                  ref.read(sessionControllerProvider),
+                  tab,
+                  position,
+                ),
+                onShowCommandMenu: () =>
+                    _openCommandMenu(sessionController, sessionState),
+              ),
+              if (sessionState.configurationWarnings.isNotEmpty)
+                _ShellConfigurationWarningsBanner(
                   palette: palette,
-                  tabs: sessionState.tabs,
-                  activeSessionId: activeSessionId,
-                  referenceDemoMode: referenceDemoMode,
-                  onActivateSession: (sessionId) =>
-                      _activateSession(sessionController, sessionId),
-                  onCloseSession: (sessionId) =>
-                      _closeTab(sessionController, sessionState, sessionId),
-                  onShowTabContextMenu: (tab, position) => _openTabContextMenu(
+                  warnings: sessionState.configurationWarnings,
+                  onReviewProfiles: () => _openProfilesSheet(
                     sessionController,
                     ref.read(sessionControllerProvider),
-                    tab,
-                    position,
                   ),
-                  onShowCommandMenu: () =>
-                      _openCommandMenu(sessionController, sessionState),
+                  onDismiss: sessionController.dismissConfigurationWarnings,
                 ),
-                if (sessionState.configurationWarnings.isNotEmpty)
-                  _ShellConfigurationWarningsBanner(
-                    palette: palette,
-                    warnings: sessionState.configurationWarnings,
-                    onReviewProfiles: () => _openProfilesSheet(
-                      sessionController,
-                      ref.read(sessionControllerProvider),
-                    ),
-                    onDismiss: sessionController.dismissConfigurationWarnings,
-                  ),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: animationsEnabled
-                        ? const Duration(milliseconds: 160)
-                        : Duration.zero,
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    child:
-                        !sessionState.isReady ||
-                            (activeSessionId != null &&
-                                displayedSessionId == null)
-                        ? _ShellStartupSurface(
-                            key: const Key('shell-startup-state'),
-                            palette: palette,
-                          )
-                        : activeSessionId == null || activeTab == null
-                        ? _ShellEmptyState(
-                            key: const Key('shell-empty-state'),
-                            palette: palette,
-                            title: _emptyStateTitle,
-                            message: _emptyStateMessage,
-                            defaultSummary: defaultSummary,
-                            onNewTab: defaultProfile == null
-                                ? null
-                                : () {
-                                    _createSession(
-                                      sessionController,
-                                      defaultProfile,
-                                      returningToWorkspace: true,
-                                    );
-                                  },
-                          )
-                        : KeyedSubtree(
-                            key: ValueKey(
-                              (displayedTab ?? activeTab).sessionId,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _buildTerminalWorkspace(
-                                    context: context,
-                                    sessionController: sessionController,
-                                    sessionState: sessionState,
-                                    activeTab: displayedTab ?? activeTab,
-                                    activeSessionId:
-                                        displayedSessionId ?? activeSessionId,
-                                    palette: palette,
-                                    onHostKeyEvent: handleShellShortcut,
-                                  ),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: animationsEnabled
+                      ? const Duration(milliseconds: 160)
+                      : Duration.zero,
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child:
+                      !sessionState.isReady ||
+                          (activeSessionId != null &&
+                              displayedSessionId == null)
+                      ? _ShellStartupSurface(
+                          key: const Key('shell-startup-state'),
+                          palette: palette,
+                        )
+                      : activeSessionId == null || activeTab == null
+                      ? _ShellEmptyState(
+                          key: const Key('shell-empty-state'),
+                          palette: palette,
+                          title: _emptyStateTitle,
+                          message: _emptyStateMessage,
+                          defaultSummary: defaultSummary,
+                          onNewTab: defaultProfile == null
+                              ? null
+                              : () {
+                                  _createSession(
+                                    sessionController,
+                                    defaultProfile,
+                                    returningToWorkspace: true,
+                                  );
+                                },
+                        )
+                      : KeyedSubtree(
+                          key: ValueKey((displayedTab ?? activeTab).sessionId),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _buildTerminalWorkspace(
+                                  context: context,
+                                  sessionController: sessionController,
+                                  sessionState: sessionState,
+                                  activeTab: displayedTab ?? activeTab,
+                                  activeSessionId:
+                                      displayedSessionId ?? activeSessionId,
+                                  palette: palette,
+                                  onHostKeyEvent: handleShellShortcut,
                                 ),
-                                if (_isToolbeltOpen)
-                                  _ShellToolbelt(
-                                    capturedOutputCount:
-                                        _capturedOutputForSession(
-                                          activeSessionId,
-                                        ).length,
-                                    pasteHistoryCount:
-                                        _pasteHistoryEntries.length,
-                                    commandHistoryCount: activeShellIntegration
-                                        .recentCommands
-                                        .length,
-                                    recentDirectoryCount: activeShellIntegration
-                                        .recentDirectories
-                                        .length,
-                                    promptMarkCount: activeShellIntegration
-                                        .promptMarks
-                                        .length,
-                                    tmuxControlModeActive:
-                                        _tmuxControlModeActive(activeSessionId),
-                                    coprocessActive: _coprocesses.containsKey(
-                                      activeSessionId,
-                                    ),
-                                    annotationCount: _annotationsForSession(
-                                      activeSessionId,
-                                    ).length,
-                                    completionDiagnosticsSnapshot:
-                                        _completionDiagnosticsSnapshot,
-                                    palette: palette,
-                                    onClose: () {
-                                      setState(() {
-                                        _isToolbeltOpen = false;
-                                      });
-                                    },
-                                    onOpenCapturedOutput: () => unawaited(
-                                      _openCapturedOutput(activeSessionId),
-                                    ),
-                                    onOpenPasteHistory: () => unawaited(
-                                      _openPasteHistory(sessionState),
-                                    ),
-                                    onOpenShellIntegrationUtilities: () =>
-                                        unawaited(
-                                          _openShellIntegrationUtilities(
-                                            sessionState,
-                                            activeSessionId,
-                                          ),
-                                        ),
-                                    onOpenTmuxIntegration: () => unawaited(
-                                      _openTmuxIntegration(activeSessionId),
-                                    ),
-                                    onOpenCoprocess: () => unawaited(
-                                      _openCoprocess(activeSessionId),
-                                    ),
-                                    onOpenAnnotations: () {
-                                      final selectionController =
-                                          _selectionControllers.putIfAbsent(
-                                            activeSessionId,
-                                            SelectionController.new,
-                                          );
+                              ),
+                              if (_isToolbeltOpen)
+                                _ShellToolbelt(
+                                  capturedOutputCount:
+                                      _capturedOutputForSession(
+                                        activeSessionId,
+                                      ).length,
+                                  pasteHistoryCount:
+                                      _pasteHistoryEntries.length,
+                                  commandHistoryCount: activeShellIntegration
+                                      .recentCommands
+                                      .length,
+                                  recentDirectoryCount: activeShellIntegration
+                                      .recentDirectories
+                                      .length,
+                                  promptMarkCount:
+                                      activeShellIntegration.promptMarks.length,
+                                  tmuxControlModeActive: _tmuxControlModeActive(
+                                    activeSessionId,
+                                  ),
+                                  coprocessActive: _coprocesses.containsKey(
+                                    activeSessionId,
+                                  ),
+                                  annotationCount: _annotationsForSession(
+                                    activeSessionId,
+                                  ).length,
+                                  completionDiagnosticsSnapshot:
+                                      _completionDiagnosticsSnapshot,
+                                  palette: palette,
+                                  onClose: () {
+                                    setState(() {
+                                      _isToolbeltOpen = false;
+                                    });
+                                  },
+                                  onOpenCapturedOutput: () => unawaited(
+                                    _openCapturedOutput(activeSessionId),
+                                  ),
+                                  onOpenPasteHistory: () => unawaited(
+                                    _openPasteHistory(sessionState),
+                                  ),
+                                  onOpenShellIntegrationUtilities: () =>
                                       unawaited(
-                                        _openAnnotations(
-                                          sessionController,
+                                        _openShellIntegrationUtilities(
+                                          sessionState,
                                           activeSessionId,
-                                          selectionController,
                                         ),
-                                      );
-                                    },
-                                    onOpenInstantReplay: () => unawaited(
-                                      _openInstantReplay(sessionState),
-                                    ),
-                                    onOpenPasswordManager: () => unawaited(
-                                      _openPasswordManager(
+                                      ),
+                                  onOpenTmuxIntegration: () => unawaited(
+                                    _openTmuxIntegration(activeSessionId),
+                                  ),
+                                  onOpenCoprocess: () => unawaited(
+                                    _openCoprocess(activeSessionId),
+                                  ),
+                                  onOpenAnnotations: () {
+                                    final selectionController =
+                                        _selectionControllers.putIfAbsent(
+                                          activeSessionId,
+                                          SelectionController.new,
+                                        );
+                                    unawaited(
+                                      _openAnnotations(
                                         sessionController,
                                         activeSessionId,
+                                        selectionController,
                                       ),
+                                    );
+                                  },
+                                  onOpenInstantReplay: () => unawaited(
+                                    _openInstantReplay(sessionState),
+                                  ),
+                                  onOpenPasswordManager: () => unawaited(
+                                    _openPasswordManager(
+                                      sessionController,
+                                      activeSessionId,
                                     ),
                                   ),
-                              ],
-                            ),
+                                ),
+                            ],
                           ),
-                  ),
+                        ),
                 ),
-              ],
-            ),
+              ),
+              if (statusPane != null)
+                _ShellStatusBar(
+                  key: const Key('shell-status-bar'),
+                  palette: palette,
+                  sessionName:
+                      statusContent?.title ?? statusProfile?.name ?? 'Shell',
+                  directory: statusContent?.detail ?? statusProfile?.cwd,
+                  shell:
+                      statusPane.shellIntegration.shell ?? statusProfile?.shell,
+                  connectionLabel: statusPane.isExited
+                      ? (statusPane.exitCode == null
+                            ? 'Exited'
+                            : 'Exit ${statusPane.exitCode}')
+                      : 'Connected',
+                  connected: !statusPane.isExited,
+                  viewportLabel: statusViewportLabel,
+                  encodingLabel: 'UTF-8',
+                ),
+            ],
           ),
         ),
       ),
@@ -5633,16 +5682,22 @@ class _ShellToolbelt extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       key: const Key('shell-toolbelt-panel'),
-      width: 280,
+      width: 304,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: palette.chrome,
-          border: Border(left: BorderSide(color: palette.border)),
+          color: palette.chromeElevated,
+          border: Border(left: BorderSide(color: palette.borderStrong)),
+          boxShadow: palette.elevation.floating,
         ),
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+            padding: EdgeInsets.fromLTRB(
+              palette.spacing.lg,
+              palette.spacing.lg,
+              palette.spacing.lg,
+              palette.spacing.xl,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -5668,7 +5723,7 @@ class _ShellToolbelt extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: palette.spacing.sm),
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
@@ -5803,8 +5858,17 @@ class _ToolbeltActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Icon(icon, color: palette.textMuted, size: 20),
+      minLeadingWidth: 24,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: palette.spacing.sm,
+        vertical: palette.spacing.xs,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(palette.radius.md),
+      ),
+      hoverColor: palette.selected.withValues(alpha: 0.44),
+      focusColor: palette.selected.withValues(alpha: 0.56),
+      leading: Icon(icon, color: palette.accent, size: 20),
       title: Text(
         title,
         maxLines: 1,
@@ -5827,12 +5891,229 @@ class _ToolbeltActionRow extends StatelessWidget {
   }
 }
 
+class _ShellStatusBar extends StatelessWidget {
+  const _ShellStatusBar({
+    super.key,
+    required this.palette,
+    required this.sessionName,
+    required this.directory,
+    required this.shell,
+    required this.connectionLabel,
+    required this.connected,
+    required this.viewportLabel,
+    required this.encodingLabel,
+  });
+
+  final AppThemeTokens palette;
+  final String sessionName;
+  final String? directory;
+  final String? shell;
+  final String connectionLabel;
+  final bool connected;
+  final String? viewportLabel;
+  final String encodingLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.chromeElevated.withValues(alpha: 0.86),
+        border: Border(top: BorderSide(color: palette.border)),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(palette.radius.lg),
+          bottomRight: Radius.circular(palette.radius.lg),
+        ),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        height: 44,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: palette.spacing.lg),
+            child: Row(
+              children: [
+                _ShellStatusItem(
+                  key: const Key('shell-status-session'),
+                  palette: palette,
+                  icon: Icons.terminal_rounded,
+                  label: sessionName,
+                  emphasized: true,
+                ),
+                if (directory != null && directory!.trim().isNotEmpty) ...[
+                  _ShellStatusDivider(palette: palette),
+                  _ShellStatusItem(
+                    key: const Key('shell-status-directory'),
+                    palette: palette,
+                    label: _statusPathLabel(directory!),
+                    minWidth: 176,
+                    maxWidth: 260,
+                  ),
+                ],
+                if (shell != null && shell!.trim().isNotEmpty) ...[
+                  _ShellStatusDivider(palette: palette),
+                  _ShellStatusItem(
+                    key: const Key('shell-status-shell'),
+                    palette: palette,
+                    label: _statusShellLabel(shell!),
+                    monospace: true,
+                  ),
+                ],
+                _ShellStatusDivider(palette: palette),
+                _ShellStatusItem(
+                  key: const Key('shell-status-connection'),
+                  palette: palette,
+                  label: connectionLabel,
+                  dotColor: connected ? palette.success : palette.warning,
+                ),
+                if (viewportLabel != null) ...[
+                  _ShellStatusDivider(palette: palette),
+                  _ShellStatusItem(
+                    key: const Key('shell-status-viewport'),
+                    palette: palette,
+                    label: viewportLabel!,
+                    monospace: true,
+                  ),
+                ],
+                _ShellStatusDivider(palette: palette),
+                _ShellStatusItem(
+                  key: const Key('shell-status-encoding'),
+                  palette: palette,
+                  label: encodingLabel,
+                  monospace: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _statusPathLabel(String path) {
+    final normalized = path.trim();
+    if (normalized.length <= 34) {
+      return normalized;
+    }
+    final parts = normalized
+        .split('/')
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length >= 2) {
+      return '.../${parts[parts.length - 2]}/${parts.last}';
+    }
+    return '...${normalized.substring(normalized.length - 31)}';
+  }
+
+  String _statusShellLabel(String shell) {
+    final normalized = shell.trim();
+    final lastSlash = normalized.lastIndexOf('/');
+    if (lastSlash == -1 || lastSlash == normalized.length - 1) {
+      return normalized;
+    }
+    return normalized.substring(lastSlash + 1);
+  }
+}
+
+class _ShellStatusDivider extends StatelessWidget {
+  const _ShellStatusDivider({required this.palette});
+
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 22,
+      margin: EdgeInsets.symmetric(horizontal: palette.spacing.lg),
+      color: palette.border.withValues(alpha: 0.62),
+    );
+  }
+}
+
+class _ShellStatusItem extends StatelessWidget {
+  const _ShellStatusItem({
+    super.key,
+    required this.palette,
+    required this.label,
+    this.icon,
+    this.dotColor,
+    this.emphasized = false,
+    this.monospace = false,
+    this.minWidth,
+    this.maxWidth,
+  });
+
+  final AppThemeTokens palette;
+  final String label;
+  final IconData? icon;
+  final Color? dotColor;
+  final bool emphasized;
+  final bool monospace;
+  final double? minWidth;
+  final double? maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: emphasized ? palette.textPrimary : palette.textMuted,
+      fontWeight: emphasized ? FontWeight.w700 : FontWeight.w600,
+      fontFamily: monospace ? 'monospace' : null,
+    );
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minWidth: minWidth ?? 0,
+        maxWidth: maxWidth ?? 180,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.selected.withValues(alpha: emphasized ? 0.34 : 0.22),
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          border: Border.all(color: palette.border.withValues(alpha: 0.46)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: palette.accent),
+                const SizedBox(width: 6),
+              ],
+              if (dotColor != null) ...[
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: dotColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textStyle,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ShellChromeBar extends StatelessWidget {
   const _ShellChromeBar({
     required this.palette,
     required this.tabs,
     required this.activeSessionId,
     required this.referenceDemoMode,
+    required this.onNewTab,
     required this.onActivateSession,
     required this.onCloseSession,
     required this.onShowTabContextMenu,
@@ -5843,6 +6124,7 @@ class _ShellChromeBar extends StatelessWidget {
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool referenceDemoMode;
+  final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onCloseSession;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
@@ -5853,14 +6135,22 @@ class _ShellChromeBar extends StatelessWidget {
     return DecoratedBox(
       key: const Key('shell-chrome-bar'),
       decoration: BoxDecoration(
-        color: palette.chrome,
-        border: Border(bottom: BorderSide(color: palette.border)),
+        color: palette.chromeElevated.withValues(alpha: 0.78),
+        border: Border.all(color: palette.border.withValues(alpha: 0.72)),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(palette.radius.lg),
+          topRight: Radius.circular(palette.radius.lg),
+        ),
       ),
       child: SizedBox(
-        height: 40,
+        height: 44,
         child: Row(
           children: [
-            const SizedBox(width: 72),
+            SizedBox(
+              width: defaultTargetPlatform == TargetPlatform.macOS
+                  ? 132
+                  : palette.spacing.md,
+            ),
             Expanded(
               child: referenceDemoMode
                   ? _ReferenceDemoTabStrip(
@@ -5886,13 +6176,27 @@ class _ShellChromeBar extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 constraints: const BoxConstraints.tightFor(
-                  width: 32,
-                  height: 32,
+                  width: 30,
+                  height: 30,
                 ),
                 iconSize: 16,
                 icon: Icon(Icons.tune_rounded, color: palette.textSubtle),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: palette.spacing.xs),
+              IconButton(
+                key: const Key('shell-chrome-new-tab'),
+                tooltip: 'New tab',
+                onPressed: onNewTab,
+                visualDensity: VisualDensity.compact,
+                splashRadius: 16,
+                constraints: const BoxConstraints.tightFor(
+                  width: 30,
+                  height: 30,
+                ),
+                iconSize: 18,
+                icon: Icon(Icons.add_rounded, color: palette.textSubtle),
+              ),
+              const SizedBox(width: 8),
             ] else
               const SizedBox(width: 20),
           ],
@@ -5920,8 +6224,8 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
     return DecoratedBox(
       key: const Key('shell-configuration-warnings'),
       decoration: BoxDecoration(
-        color: palette.overlay,
-        border: Border(bottom: BorderSide(color: palette.border)),
+        color: palette.warningContainer,
+        border: Border(bottom: BorderSide(color: palette.warning)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -5931,7 +6235,7 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.warning_amber_rounded, color: palette.accent),
+                Icon(Icons.warning_amber_rounded, color: palette.warning),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
@@ -6109,12 +6413,12 @@ class _ShellTabStrip extends StatelessWidget {
       height: double.infinity,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.zero,
+        padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: tabs.length,
         separatorBuilder: (_, _) => Container(
           width: 1,
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          color: palette.border,
+          margin: const EdgeInsets.symmetric(vertical: 9),
+          color: palette.border.withValues(alpha: 0.38),
         ),
         itemBuilder: (context, index) {
           final tab = tabs[index];
@@ -6161,30 +6465,67 @@ class _ShellTabButton extends StatelessWidget {
       label: 'shell-tab-${tab.sessionId}',
       selected: isActive,
       button: true,
-      child: TextButton(
-        key: Key('shell-tab-${tab.sessionId}'),
-        style: TextButton.styleFrom(
-          minimumSize: const Size(0, 30),
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
-          foregroundColor: isActive ? palette.textPrimary : palette.textMuted,
-          shape: const RoundedRectangleBorder(),
-        ),
-        onPressed: onActivate,
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onSecondaryTapDown: (details) =>
-              onShowContextMenu(details.globalPosition),
+      excludeSemantics: true,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) {
+          if (event.buttons & kSecondaryMouseButton != 0) {
+            onShowContextMenu(event.position);
+          }
+        },
+        child: TextButton(
+          key: Key('shell-tab-${tab.sessionId}'),
+          style: ButtonStyle(
+            minimumSize: const WidgetStatePropertyAll(Size(0, 32)),
+            padding: WidgetStatePropertyAll(
+              EdgeInsets.symmetric(horizontal: palette.spacing.md),
+            ),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+            foregroundColor: WidgetStatePropertyAll(
+              isActive ? palette.textPrimary : palette.textMuted,
+            ),
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (isActive) {
+                return palette.selected.withValues(alpha: 0.52);
+              }
+              if (states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.focused)) {
+                return palette.selected.withValues(alpha: 0.22);
+              }
+              return Colors.transparent;
+            }),
+            side: WidgetStatePropertyAll(
+              BorderSide(
+                color: isActive
+                    ? palette.focusRing.withValues(alpha: 0.36)
+                    : Colors.transparent,
+              ),
+            ),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(palette.radius.md),
+              ),
+            ),
+          ),
+          onPressed: onActivate,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Icon(
+                Icons.terminal_rounded,
+                size: 14,
+                color: isActive
+                    ? palette.accent
+                    : palette.accent.withValues(alpha: 0.72),
+              ),
+              const SizedBox(width: 7),
               if (shortcutIndex != null) ...[
                 Text(
                   '⌘$shortcutIndex',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: isActive ? palette.textMuted : palette.textSubtle,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -6192,7 +6533,9 @@ class _ShellTabButton extends StatelessWidget {
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 140),
                 style: Theme.of(context).textTheme.titleSmall!.copyWith(
-                  color: isActive ? palette.textPrimary : palette.textMuted,
+                  color: isActive
+                      ? palette.textPrimary
+                      : palette.textMuted.withValues(alpha: 0.76),
                   fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                 ),
                 child: Text(tab.title, overflow: TextOverflow.ellipsis),
@@ -6207,8 +6550,8 @@ class _ShellTabButton extends StatelessWidget {
                     Icons.close_rounded,
                     size: 11,
                     color: isActive
-                        ? palette.textMuted
-                        : palette.textSubtle.withValues(alpha: 0.72),
+                        ? palette.textMuted.withValues(alpha: 0.84)
+                        : palette.textSubtle.withValues(alpha: 0.36),
                   ),
                 ),
               ),
@@ -6230,7 +6573,7 @@ class _ShellStartupSurface extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: palette.terminalSurface,
-        border: Border(top: BorderSide(color: palette.border)),
+        border: Border(top: BorderSide(color: palette.terminalFrame)),
       ),
       child: const SizedBox.expand(),
     );
@@ -6258,7 +6601,7 @@ class _ShellEmptyState extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: palette.terminalSurface,
-        border: Border(top: BorderSide(color: palette.border)),
+        border: Border(top: BorderSide(color: palette.terminalFrame)),
       ),
       child: Center(
         child: Padding(
@@ -9337,82 +9680,6 @@ class _PasswordManagerEntryTile extends StatelessWidget {
   }
 }
 
-class _TerminalSessionBadge extends StatelessWidget {
-  const _TerminalSessionBadge({
-    super.key,
-    required this.content,
-    required this.palette,
-  });
-
-  final _SessionBadgeContent content;
-  final AppThemeTokens palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final status = content.status;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 260),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: palette.overlay.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(palette.radius.md),
-          border: Border.all(color: palette.border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                content.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: palette.textPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                content.detail,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: palette.textSubtle,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (status != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  status,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: palette.textMuted,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CoprocessIndicator extends StatelessWidget {
   const _CoprocessIndicator({
     super.key,
@@ -9431,7 +9698,8 @@ class _CoprocessIndicator extends StatelessWidget {
         decoration: BoxDecoration(
           color: palette.accent.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(palette.radius.md),
-          border: Border.all(color: palette.accent),
+          border: Border.all(color: palette.accent.withValues(alpha: 0.72)),
+          boxShadow: palette.elevation.floating,
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -9483,7 +9751,7 @@ class _TerminalAnnotationBadge extends StatelessWidget {
           decoration: BoxDecoration(
             color: palette.overlay.withValues(alpha: 0.92),
             borderRadius: BorderRadius.circular(palette.radius.md),
-            border: Border.all(color: palette.border),
+            border: Border.all(color: palette.borderStrong),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -9525,14 +9793,8 @@ class _ShellWorkspaceCue extends StatelessWidget {
       decoration: BoxDecoration(
         color: palette.overlay.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(palette.radius.lg),
-        border: Border.all(color: palette.accent.withValues(alpha: 0.38)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: palette.focusRing.withValues(alpha: 0.62)),
+        boxShadow: palette.elevation.floating,
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -9572,6 +9834,7 @@ class _ShellCommandMenu extends StatelessWidget {
     required this.instantReplayShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
+    required this.activePaneZoomed,
     required this.canReopenClosedTab,
     required this.isActiveSessionReadOnly,
     required this.commandFinishedNotificationsEnabled,
@@ -9591,6 +9854,7 @@ class _ShellCommandMenu extends StatelessWidget {
   final String instantReplayShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
+  final bool activePaneZoomed;
   final bool canReopenClosedTab;
   final bool isActiveSessionReadOnly;
   final bool commandFinishedNotificationsEnabled;
@@ -9630,15 +9894,9 @@ class _ShellCommandMenu extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: palette.overlay,
-            borderRadius: BorderRadius.circular(palette.radius.lg),
-            border: Border.all(color: palette.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.22),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(palette.radius.xl),
+            border: Border.all(color: palette.borderStrong),
+            boxShadow: palette.elevation.dialog,
           ),
           child: SingleChildScrollView(
             child: Padding(
@@ -9685,6 +9943,16 @@ class _ShellCommandMenu extends StatelessWidget {
                         Navigator.of(context).pop(TerminalActionId.newTab),
                   ),
                   _ShellCommandTile(
+                    key: const Key('shell-command-defaults'),
+                    icon: Icons.tune_rounded,
+                    title: 'Defaults & appearance',
+                    subtitle:
+                        'App action • Pick the default profile and theme.',
+                    enabled: true,
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.defaults),
+                  ),
+                  _ShellCommandTile(
                     key: const Key('shell-reopen-closed-tab'),
                     icon: Icons.restore_rounded,
                     title: 'Reopen closed tab',
@@ -9705,14 +9973,33 @@ class _ShellCommandMenu extends StatelessWidget {
                         Navigator.of(context).pop(TerminalActionId.toolbelt),
                   ),
                   _ShellCommandTile(
-                    key: const Key('shell-command-defaults'),
-                    icon: Icons.tune_rounded,
-                    title: 'Defaults & appearance',
-                    subtitle:
-                        'App action • Pick the default profile and theme.',
-                    enabled: true,
+                    key: const Key('shell-split-right'),
+                    icon: Icons.vertical_split_rounded,
+                    title: 'Split right',
+                    subtitle: 'Session action • Add a pane to the right.',
+                    enabled: hasDefaultProfile && hasActiveSession,
                     onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.defaults),
+                        Navigator.of(context).pop(TerminalActionId.splitRight),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-split-down'),
+                    icon: Icons.horizontal_split_rounded,
+                    title: 'Split down',
+                    subtitle: 'Session action • Add a pane below.',
+                    enabled: hasDefaultProfile && hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.splitDown),
+                  ),
+                  _ShellCommandTile(
+                    key: const Key('shell-zoom-pane'),
+                    icon: Icons.zoom_out_map_rounded,
+                    title: activePaneZoomed
+                        ? 'Unzoom active pane'
+                        : 'Zoom active pane',
+                    subtitle: 'Session action • Focus one pane temporarily.',
+                    enabled: hasActiveSession,
+                    onTap: () =>
+                        Navigator.of(context).pop(TerminalActionId.zoomPane),
                   ),
                   _ShellCommandTile(
                     key: const Key('shell-theme-picker'),
@@ -10075,10 +10362,9 @@ class _ShellCommandTile extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(palette.radius.lg),
       ),
-      leading: Icon(
-        icon,
-        color: enabled ? palette.textPrimary : palette.textSubtle,
-      ),
+      hoverColor: palette.selected.withValues(alpha: 0.44),
+      focusColor: palette.selected.withValues(alpha: 0.56),
+      leading: Icon(icon, color: enabled ? palette.accent : palette.textSubtle),
       title: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(

@@ -10,11 +10,22 @@ ThemeData buildFluttermTheme(Brightness brightness) {
         seedColor: tokens.accent,
         brightness: brightness,
       ).copyWith(
+        surfaceContainerLowest: tokens.canvas,
+        surfaceContainerLow: tokens.chrome,
+        surfaceContainer: tokens.panel,
+        surfaceContainerHigh: tokens.panelElevated,
+        surfaceContainerHighest: tokens.overlay,
         surface: tokens.panel,
         outline: tokens.border,
+        outlineVariant: tokens.borderStrong,
         primary: tokens.accent,
-        onPrimary: Colors.black,
+        onPrimary: brightness == Brightness.dark ? Colors.black : Colors.white,
+        primaryContainer: tokens.selected,
+        onPrimaryContainer: tokens.textPrimary,
+        error: tokens.danger,
+        errorContainer: tokens.dangerContainer,
         onSurface: tokens.textPrimary,
+        onSurfaceVariant: tokens.textMuted,
       );
 
   final outline = OutlineInputBorder(
@@ -46,15 +57,15 @@ ThemeData buildFluttermTheme(Brightness brightness) {
           fontWeight: FontWeight.w700,
         ),
         bodyLarge: baseTextTheme.bodyLarge?.copyWith(
-          fontSize: 13.5,
+          fontSize: 14,
           height: 1.32,
         ),
         bodyMedium: baseTextTheme.bodyMedium?.copyWith(
-          fontSize: 13,
+          fontSize: 13.5,
           height: 1.3,
         ),
         bodySmall: baseTextTheme.bodySmall?.copyWith(
-          fontSize: 11.5,
+          fontSize: 12,
           height: 1.28,
         ),
         labelLarge: baseTextTheme.labelLarge?.copyWith(
@@ -82,6 +93,9 @@ ThemeData buildFluttermTheme(Brightness brightness) {
     scaffoldBackgroundColor: tokens.canvas,
     dividerColor: tokens.border,
     splashFactory: InkSparkle.splashFactory,
+    focusColor: tokens.focusRing.withValues(alpha: 0.22),
+    hoverColor: tokens.accent.withValues(alpha: 0.10),
+    highlightColor: tokens.accent.withValues(alpha: 0.12),
     dialogTheme: DialogThemeData(
       backgroundColor: tokens.panel,
       surfaceTintColor: Colors.transparent,
@@ -91,57 +105,38 @@ ThemeData buildFluttermTheme(Brightness brightness) {
     ),
     extensions: <ThemeExtension<dynamic>>[tokens],
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: tokens.accent,
-        foregroundColor: Colors.black,
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
-        minimumSize: Size(0, controls.regular),
-        padding: EdgeInsets.symmetric(
-          horizontal: tokens.spacing.lg,
-          vertical: tokens.spacing.sm + 1,
-        ),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(tokens.radius.md),
-        ),
+      style: _buttonStyle(
+        tokens: tokens,
+        background: tokens.accent,
+        foreground: colorScheme.onPrimary,
+        minimumHeight: controls.regular,
+        horizontalPadding: tokens.spacing.xl,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: tokens.textPrimary,
-        side: BorderSide(color: tokens.border),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
-        minimumSize: Size(0, controls.regular),
-        padding: EdgeInsets.symmetric(
-          horizontal: tokens.spacing.lg,
-          vertical: tokens.spacing.sm + 1,
-        ),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(tokens.radius.md),
-        ),
+      style: _buttonStyle(
+        tokens: tokens,
+        background: Colors.transparent,
+        foreground: tokens.textPrimary,
+        minimumHeight: controls.regular,
+        horizontalPadding: tokens.spacing.xl,
+        side: BorderSide(color: tokens.borderStrong),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: tokens.textPrimary,
-        textStyle: const TextStyle(fontWeight: FontWeight.w600),
-        minimumSize: Size(0, controls.compact),
-        padding: EdgeInsets.symmetric(
-          horizontal: tokens.spacing.md,
-          vertical: tokens.spacing.sm,
-        ),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(tokens.radius.md),
-        ),
+      style: _buttonStyle(
+        tokens: tokens,
+        background: Colors.transparent,
+        foreground: tokens.textPrimary,
+        minimumHeight: controls.compact,
+        horizontalPadding: tokens.spacing.lg,
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         foregroundColor: tokens.textMuted,
         hoverColor: tokens.accent.withValues(alpha: 0.12),
-        focusColor: tokens.focus.withValues(alpha: 0.18),
+        focusColor: tokens.focusRing.withValues(alpha: 0.22),
         iconSize: 16,
         padding: EdgeInsets.all(tokens.spacing.sm),
         minimumSize: Size.square(controls.dense),
@@ -153,7 +148,7 @@ ThemeData buildFluttermTheme(Brightness brightness) {
       border: outline,
       enabledBorder: outline,
       focusedBorder: outline.copyWith(
-        borderSide: BorderSide(color: tokens.focus, width: 1.4),
+        borderSide: BorderSide(color: tokens.focusRing, width: 1.6),
       ),
       errorBorder: outline.copyWith(
         borderSide: BorderSide(color: tokens.danger),
@@ -173,7 +168,7 @@ ThemeData buildFluttermTheme(Brightness brightness) {
       ),
       helperStyle: TextStyle(
         color: tokens.textSubtle,
-        fontSize: 11.5,
+        fontSize: 12,
         height: 1.25,
       ),
       hintStyle: TextStyle(
@@ -207,5 +202,76 @@ ThemeData buildFluttermTheme(Brightness brightness) {
       }),
     ),
     textTheme: textTheme,
+  );
+}
+
+ButtonStyle _buttonStyle({
+  required AppThemeTokens tokens,
+  required Color background,
+  required Color foreground,
+  required double minimumHeight,
+  required double horizontalPadding,
+  BorderSide? side,
+}) {
+  return ButtonStyle(
+    backgroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return tokens.chrome.withValues(alpha: 0.54);
+      }
+      if (background == Colors.transparent) {
+        if (states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.focused)) {
+          return tokens.selected.withValues(alpha: 0.44);
+        }
+        return Colors.transparent;
+      }
+      if (states.contains(WidgetState.pressed)) {
+        return Color.alphaBlend(
+          Colors.black.withValues(alpha: 0.14),
+          background,
+        );
+      }
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return Color.alphaBlend(
+          Colors.white.withValues(alpha: 0.12),
+          background,
+        );
+      }
+      return background;
+    }),
+    foregroundColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.disabled)) {
+        return tokens.textSubtle;
+      }
+      return foreground;
+    }),
+    overlayColor: WidgetStatePropertyAll(
+      tokens.focusRing.withValues(alpha: 0.12),
+    ),
+    side: side == null
+        ? null
+        : WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.focused)) {
+              return BorderSide(color: tokens.focusRing, width: 1.5);
+            }
+            return side;
+          }),
+    textStyle: const WidgetStatePropertyAll(
+      TextStyle(fontWeight: FontWeight.w700),
+    ),
+    minimumSize: WidgetStatePropertyAll(Size(0, minimumHeight)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: tokens.spacing.sm + 1,
+      ),
+    ),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(tokens.radius.md),
+      ),
+    ),
   );
 }

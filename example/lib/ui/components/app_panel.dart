@@ -2,7 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../foundation/app_theme_tokens.dart';
 
-enum AppPanelTone { canvas, chrome, panel, overlay, terminal, warning }
+enum AppPanelTone {
+  canvas,
+  chrome,
+  elevated,
+  panel,
+  overlay,
+  terminal,
+  selected,
+  warning,
+  danger,
+  success,
+}
 
 class AppPanel extends StatelessWidget {
   const AppPanel({
@@ -28,8 +39,10 @@ class AppPanel extends StatelessWidget {
     final decoration = BoxDecoration(
       color: _backgroundFor(theme),
       borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.md),
-      border: border ?? Border.all(color: theme.border),
-      boxShadow: shadow ? theme.elevation.floating : const [],
+      border: border ?? Border.all(color: _borderFor(theme)),
+      boxShadow: shadow || tone == AppPanelTone.elevated
+          ? theme.elevation.floating
+          : const [],
     );
 
     return DecoratedBox(
@@ -43,10 +56,24 @@ class AppPanel extends StatelessWidget {
     return switch (tone) {
       AppPanelTone.canvas => theme.canvas,
       AppPanelTone.chrome => theme.chrome,
+      AppPanelTone.elevated => theme.panelElevated,
       AppPanelTone.panel => theme.panel,
       AppPanelTone.overlay => theme.overlay,
       AppPanelTone.terminal => theme.terminalSurface,
-      AppPanelTone.warning => theme.warning.withValues(alpha: 0.10),
+      AppPanelTone.selected => theme.selected,
+      AppPanelTone.warning => theme.warningContainer,
+      AppPanelTone.danger => theme.dangerContainer,
+      AppPanelTone.success => theme.successContainer,
+    };
+  }
+
+  Color _borderFor(AppThemeTokens theme) {
+    return switch (tone) {
+      AppPanelTone.selected => theme.borderStrong,
+      AppPanelTone.warning => theme.warning.withValues(alpha: 0.42),
+      AppPanelTone.danger => theme.danger.withValues(alpha: 0.42),
+      AppPanelTone.success => theme.success.withValues(alpha: 0.42),
+      _ => theme.border,
     };
   }
 }

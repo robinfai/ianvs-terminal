@@ -334,7 +334,7 @@ void main() {
       expect(find.byType(TerminalViewport), findsOneWidget);
 
       await _openCommandMenu(tester);
-      expect(find.text('Split right'), findsNothing);
+      expect(find.text('Split right'), findsOneWidget);
       await tester.tap(find.byTooltip('Close actions'));
       await tester.pumpAndSettle();
 
@@ -2155,9 +2155,7 @@ void main() {
     expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
   });
 
-  testWidgets('shell integration badge shows current session context', (
-    tester,
-  ) async {
+  testWidgets('shell status bar shows current session context', (tester) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -2186,10 +2184,19 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
-    expect(find.byKey(const Key('terminal-session-badge-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-session')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-directory')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-shell')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-connection')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-viewport')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-encoding')), findsOneWidget);
+    expect(find.byKey(const Key('terminal-session-badge-1')), findsNothing);
     expect(find.text('dev@workstation.local'), findsOneWidget);
     expect(find.text('/tmp/project'), findsOneWidget);
-    expect(find.text('git status ok'), findsOneWidget);
+    expect(find.text('zsh'), findsOneWidget);
+    expect(find.text('Connected'), findsOneWidget);
+    expect(find.text('UTF-8'), findsOneWidget);
   });
 
   testWidgets(

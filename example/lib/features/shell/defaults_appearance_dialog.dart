@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
+import '../terminal/terminal_viewport_colors.dart';
 import '../../ui/app_ui.dart';
 
 class DefaultsAndAppearanceSelection {
   const DefaultsAndAppearanceSelection({
     required this.configuredDefaultProfileId,
     required this.themeMode,
+    this.updatedProfile,
     this.openProfiles = false,
   });
 
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
 
@@ -38,6 +41,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
 class _DefaultsAndAppearanceDialogState
     extends State<DefaultsAndAppearanceDialog> {
   late String? _selectedProfileId;
+  late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
 
   @override
@@ -45,6 +49,12 @@ class _DefaultsAndAppearanceDialogState
     super.initState();
     _selectedProfileId = widget.configuredDefaultProfileId;
     _selectedThemeMode = widget.themeMode;
+    _selectedTerminalPresetId = _matchingPresetIdFor(
+      _effectiveProfileFor(
+        configuredProfileId: _selectedProfileId,
+        effectiveProfileId: widget.effectiveDefaultProfileId,
+      ),
+    );
   }
 
   TerminalProfile? _effectiveProfileFor({
@@ -67,6 +77,44 @@ class _DefaultsAndAppearanceDialogState
     return widget.profiles.first;
   }
 
+  String? _matchingPresetIdFor(TerminalProfile? profile) {
+    if (profile == null) {
+      return null;
+    }
+    for (final preset in terminalThemePresets) {
+      if (preset.matchesColors(profile.appearance.colors)) {
+        return preset.id;
+      }
+    }
+    return null;
+  }
+
+  TerminalThemePreset? get _selectedPreset {
+    final selectedPresetId = _selectedTerminalPresetId;
+    if (selectedPresetId == null) {
+      return null;
+    }
+    for (final preset in terminalThemePresets) {
+      if (preset.id == selectedPresetId) {
+        return preset;
+      }
+    }
+    return null;
+  }
+
+  TerminalProfile? _updatedProfileForPreset(TerminalProfile? effectiveProfile) {
+    final preset = _selectedPreset;
+    if (preset == null || effectiveProfile == null) {
+      return null;
+    }
+    if (preset.matchesColors(effectiveProfile.appearance.colors)) {
+      return null;
+    }
+    return effectiveProfile.copyWith(
+      appearance: effectiveProfile.appearance.copyWith(colors: preset.palette),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
@@ -75,6 +123,7 @@ class _DefaultsAndAppearanceDialogState
       effectiveProfileId: widget.effectiveDefaultProfileId,
     );
     final isUsingFallback = _selectedProfileId == null;
+    final selectedPreset = _selectedPreset;
 
     return AppDialogScaffold(
       key: const Key('defaults-dialog'),
@@ -98,7 +147,7 @@ class _DefaultsAndAppearanceDialogState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AppPanel(
-              tone: AppPanelTone.panel,
+              tone: AppPanelTone.elevated,
               padding: EdgeInsets.all(theme.spacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,6 +179,7 @@ class _DefaultsAndAppearanceDialogState
                           DefaultsAndAppearanceSelection(
                             configuredDefaultProfileId: _selectedProfileId,
                             themeMode: _selectedThemeMode,
+                            updatedProfile: null,
                             openProfiles: true,
                           ),
                         );
@@ -147,6 +197,12 @@ class _DefaultsAndAppearanceDialogState
               onChanged: (value) {
                 setState(() {
                   _selectedProfileId = value;
+                  _selectedTerminalPresetId = _matchingPresetIdFor(
+                    _effectiveProfileFor(
+                      configuredProfileId: value,
+                      effectiveProfileId: widget.effectiveDefaultProfileId,
+                    ),
+                  );
                 });
               },
               child: Column(
@@ -184,7 +240,7 @@ class _DefaultsAndAppearanceDialogState
               ),
             ),
             AppPanel(
-              tone: AppPanelTone.panel,
+              tone: AppPanelTone.selected,
               padding: EdgeInsets.all(theme.spacing.md),
               child: Text(
                 isUsingFallback
@@ -195,6 +251,53 @@ class _DefaultsAndAppearanceDialogState
                   fontWeight: FontWeight.w600,
                 ),
               ),
+            ),
+            SizedBox(height: theme.spacing.xl),
+            AppSectionHeader(
+              title: 'Terminal preset',
+              description: effectiveProfile == null
+                  ? 'Create a profile before choosing terminal colors.'
+                  : 'Apply a curated terminal color palette to ${effectiveProfile.name}.',
+            ),
+            SizedBox(height: theme.spacing.sm),
+            Wrap(
+              spacing: theme.spacing.sm,
+              runSpacing: theme.spacing.sm,
+              children: [
+                _TerminalPresetChoice(
+                  key: const Key('defaults-terminal-preset-current'),
+                  label: 'Keep current',
+                  subtitle: selectedPreset == null
+                      ? 'Custom colors'
+                      : 'Currently ${selectedPreset.name}',
+                  selected: _selectedTerminalPresetId == null,
+                  enabled: effectiveProfile != null,
+                  previewColors: effectiveProfile == null
+                      ? const <String>[]
+                      : _previewColorsForPalette(
+                          effectiveProfile.appearance.colors,
+                        ),
+                  onPressed: () {
+                    setState(() {
+                      _selectedTerminalPresetId = null;
+                    });
+                  },
+                ),
+                for (final preset in terminalThemePresets)
+                  _TerminalPresetChoice(
+                    key: Key('defaults-terminal-preset-${preset.id}'),
+                    label: preset.name,
+                    subtitle: preset.tone.label,
+                    selected: _selectedTerminalPresetId == preset.id,
+                    enabled: effectiveProfile != null,
+                    previewColors: preset.previewColors,
+                    onPressed: () {
+                      setState(() {
+                        _selectedTerminalPresetId = preset.id;
+                      });
+                    },
+                  ),
+              ],
             ),
             SizedBox(height: theme.spacing.xl),
             const AppSectionHeader(title: 'Appearance'),
@@ -245,6 +348,12 @@ class _DefaultsAndAppearanceDialogState
                 : () {
                     setState(() {
                       _selectedProfileId = null;
+                      _selectedTerminalPresetId = _matchingPresetIdFor(
+                        _effectiveProfileFor(
+                          configuredProfileId: null,
+                          effectiveProfileId: widget.effectiveDefaultProfileId,
+                        ),
+                      );
                     });
                   },
           ),
@@ -275,6 +384,7 @@ class _DefaultsAndAppearanceDialogState
                 DefaultsAndAppearanceSelection(
                   configuredDefaultProfileId: _selectedProfileId,
                   themeMode: _selectedThemeMode,
+                  updatedProfile: _updatedProfileForPreset(effectiveProfile),
                   openProfiles: false,
                 ),
               );
@@ -300,4 +410,138 @@ String _themeModeDescription(TerminalThemeMode mode) {
     TerminalThemeMode.light => 'Keep the shell app in light mode.',
     TerminalThemeMode.dark => 'Keep the shell app in dark mode.',
   };
+}
+
+List<String> _previewColorsForPalette(TerminalColorPalette palette) {
+  final resolved = palette.resolveWith();
+  return <String>[
+    resolved.special.foreground!,
+    resolved.special.background!,
+    resolved.normal.red!,
+    resolved.normal.green!,
+    resolved.normal.blue!,
+    resolved.bright.yellow!,
+    resolved.special.cursor!,
+    resolved.special.selection!,
+  ];
+}
+
+class _TerminalPresetChoice extends StatelessWidget {
+  const _TerminalPresetChoice({
+    super.key,
+    required this.label,
+    required this.subtitle,
+    required this.selected,
+    required this.enabled,
+    required this.previewColors,
+    required this.onPressed,
+  });
+
+  final String label;
+  final String subtitle;
+  final bool selected;
+  final bool enabled;
+  final List<String> previewColors;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final textTheme = Theme.of(context).textTheme;
+    final foreground = enabled ? theme.textPrimary : theme.textMuted;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: 'terminal-preset-$label',
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        borderRadius: BorderRadius.circular(theme.radius.md),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: 150,
+          padding: EdgeInsets.all(theme.spacing.sm),
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.selected.withValues(alpha: 0.72)
+                : theme.overlay.withValues(alpha: enabled ? 0.82 : 0.38),
+            borderRadius: BorderRadius.circular(theme.radius.md),
+            border: Border.all(
+              color: selected ? theme.focusRing : theme.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.labelLarge?.copyWith(
+                        color: foreground,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (selected)
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 15,
+                      color: theme.focusRing,
+                    ),
+                ],
+              ),
+              SizedBox(height: theme.spacing.xs),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.labelSmall?.copyWith(
+                  color: enabled ? theme.textSubtle : theme.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: theme.spacing.sm),
+              Row(
+                children: [
+                  for (final color in previewColors.take(6))
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(right: theme.spacing.xs / 2),
+                        child: _TerminalPresetSwatch(color: color),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TerminalPresetSwatch extends StatelessWidget {
+  const _TerminalPresetSwatch({required this.color});
+
+  final String color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: terminalViewportColorFromHex(color) ?? Colors.transparent,
+        borderRadius: BorderRadius.circular(theme.radius.sm / 2),
+        border: Border.all(color: theme.borderStrong.withValues(alpha: 0.56)),
+      ),
+      child: const SizedBox(height: 12),
+    );
+  }
 }

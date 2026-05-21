@@ -1855,26 +1855,24 @@ class _ProfileFormGroup extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.only(bottom: theme.spacing.lg),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: theme.border)),
-        ),
-        child: Padding(
-          padding: EdgeInsets.only(left: theme.spacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: textTheme.labelLarge?.copyWith(
-                  color: theme.textPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
+      child: AppPanel(
+        tone: AppPanelTone.chrome,
+        padding: EdgeInsets.all(theme.spacing.lg),
+        borderRadius: BorderRadius.circular(theme.radius.lg),
+        border: Border(left: BorderSide(color: theme.borderStrong, width: 2)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: textTheme.labelLarge?.copyWith(
+                color: theme.textPrimary,
+                fontWeight: FontWeight.w800,
               ),
-              SizedBox(height: theme.spacing.md),
-              ...children,
-            ],
-          ),
+            ),
+            SizedBox(height: theme.spacing.md),
+            ...children,
+          ],
         ),
       ),
     );
@@ -1908,7 +1906,7 @@ class _TerminalThemePresetButton extends StatelessWidget {
       fontWeight: FontWeight.w700,
     );
     final toneBackground = selected
-        ? theme.focus.withValues(alpha: 0.18)
+        ? theme.selected
         : theme.chrome.withValues(alpha: 0.65);
     final toneColor = selected ? theme.textPrimary : theme.textMuted;
 
@@ -1925,12 +1923,10 @@ class _TerminalThemePresetButton extends StatelessWidget {
             width: 168,
             padding: EdgeInsets.all(theme.spacing.md),
             decoration: BoxDecoration(
-              color: selected
-                  ? theme.panel
-                  : theme.chrome.withValues(alpha: 0.30),
+              color: selected ? theme.panelElevated : theme.chrome,
               borderRadius: BorderRadius.circular(theme.radius.lg),
               border: Border.all(
-                color: selected ? theme.focus : theme.border,
+                color: selected ? theme.focusRing : theme.border,
                 width: selected ? 1.5 : 1,
               ),
               boxShadow: selected ? theme.elevation.floating : const [],

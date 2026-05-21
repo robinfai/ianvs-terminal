@@ -131,13 +131,54 @@ class AppActionButton extends StatelessWidget {
     Color? foregroundColor,
   }) {
     final height = _height(theme);
+    final isOutlinedTone = tone == AppActionTone.secondary;
+    final isGhostTone = tone == AppActionTone.ghost;
+    final baseBackground = backgroundColor;
+    final baseForeground =
+        foregroundColor ??
+        switch (tone) {
+          AppActionTone.danger => theme.danger,
+          AppActionTone.primary => Colors.white,
+          _ => theme.textPrimary,
+        };
+
     return ButtonStyle(
-      backgroundColor: backgroundColor == null
-          ? null
-          : WidgetStatePropertyAll(backgroundColor),
-      foregroundColor: foregroundColor == null
-          ? null
-          : WidgetStatePropertyAll(foregroundColor),
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return theme.chrome.withValues(alpha: 0.50);
+        }
+        if (baseBackground != null) {
+          return states.contains(WidgetState.pressed)
+              ? Color.alphaBlend(
+                  Colors.black.withValues(alpha: 0.14),
+                  baseBackground,
+                )
+              : baseBackground;
+        }
+        if (states.contains(WidgetState.focused) ||
+            states.contains(WidgetState.hovered)) {
+          return theme.selected.withValues(alpha: isGhostTone ? 0.34 : 0.46);
+        }
+        return null;
+      }),
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return theme.textSubtle;
+        }
+        return baseForeground;
+      }),
+      overlayColor: WidgetStatePropertyAll(
+        theme.focusRing.withValues(alpha: 0.12),
+      ),
+      side: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.focused)) {
+          return BorderSide(color: theme.focusRing, width: 1.5);
+        }
+        if (isOutlinedTone) {
+          return BorderSide(color: theme.borderStrong);
+        }
+        return BorderSide.none;
+      }),
       minimumSize: WidgetStatePropertyAll(Size(0, height)),
       padding: WidgetStatePropertyAll(
         EdgeInsets.symmetric(
@@ -152,6 +193,9 @@ class AppActionButton extends StatelessWidget {
             AppActionSize.regular => theme.spacing.sm + 1,
           },
         ),
+      ),
+      textStyle: const WidgetStatePropertyAll(
+        TextStyle(fontWeight: FontWeight.w700),
       ),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
@@ -170,7 +214,7 @@ class AppActionButton extends StatelessWidget {
         AppActionSize.regular => theme.spacing.md,
       }),
       side: tone == AppActionTone.secondary
-          ? BorderSide(color: theme.border)
+          ? BorderSide(color: theme.borderStrong)
           : null,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );

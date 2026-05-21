@@ -11,6 +11,7 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
+import 'package:app/ui/app_ui.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -234,9 +235,12 @@ void main() {
       final defaultsVersion = shellAcceptanceProbe.current.snapshotVersion;
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
       expect(find.text('No configured default'), findsOneWidget);
-      expect(find.text('Dark'), findsOneWidget);
+      expect(
+        find.byKey(const Key('default-theme-option-dark')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
-      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 40);
+      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 42);
 
       await tester.ensureVisible(
         find.byKey(const Key('default-profile-option-ssh')),
@@ -244,8 +248,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('default-profile-option-ssh')));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Dark'));
-      await tester.tap(find.text('Dark'));
+      await tester.ensureVisible(
+        find.byKey(const Key('default-theme-option-dark')),
+      );
+      await tester.tap(find.byKey(const Key('default-theme-option-dark')));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Save changes'));
       await tester.tap(find.text('Save changes'));
@@ -592,6 +598,46 @@ void main() {
     expect(savedProfiles.profiles.single.appearance.colors.foreground, isNull);
     expect(savedProfiles.profiles.single.scrollbackLines, 8000);
   });
+
+  testWidgets(
+    'defaults dialog can apply a terminal preset to the new-tab profile',
+    (tester) async {
+      final preferencesRepository = MemoryAppPreferencesRepository(null);
+      final profileRepository = MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      );
+      final preset = terminalThemePresets.first;
+
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        profileRepository: profileRepository,
+        preferencesRepository: preferencesRepository,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+
+      final presetFinder = find.byKey(
+        Key('defaults-terminal-preset-${preset.id}'),
+      );
+      await tester.ensureVisible(presetFinder);
+      await tester.tap(presetFinder);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('defaults-save')));
+      await tester.tap(find.byKey(const Key('defaults-save')));
+      await tester.pumpAndSettle();
+
+      final savedProfiles = await profileRepository.load();
+      final savedColors = savedProfiles.profiles.single.appearance.colors;
+      expect(savedColors.special.foreground, preset.palette.special.foreground);
+      expect(savedColors.special.background, preset.palette.special.background);
+      expect(savedColors.special.cursor, preset.palette.special.cursor);
+      expect(savedColors.normal.blue, preset.palette.normal.blue);
+    },
+  );
 
   test(
     'driver acceptance probe returns the latest shell snapshot as json',

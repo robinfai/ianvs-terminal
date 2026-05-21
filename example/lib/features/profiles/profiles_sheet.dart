@@ -68,10 +68,16 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
         key: const Key('profiles-sheet'),
         color: palette.overlay,
         borderRadius: BorderRadius.circular(palette.radius.xl),
+        elevation: 0,
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            padding: EdgeInsets.fromLTRB(
+              palette.spacing.xl,
+              palette.spacing.lg,
+              palette.spacing.xl,
+              palette.spacing.lg,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,7 +115,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: palette.spacing.md),
                 TextField(
                   key: const Key('profiles-search-field'),
                   controller: _searchController,
@@ -123,15 +129,17 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                     });
                   },
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: palette.spacing.md),
                 Flexible(
                   child: filteredProfiles.isEmpty
                       ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          child: Text(
-                            'No matching profiles',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: palette.textSubtle),
+                          padding: EdgeInsets.symmetric(
+                            vertical: palette.spacing.xl,
+                          ),
+                          child: AppEmptyState(
+                            title: 'No matching profiles',
+                            message:
+                                'Try a different profile name, shell, or tag.',
                           ),
                         )
                       : ListView.separated(
@@ -149,7 +157,21 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                             );
                             return ListTile(
                               key: Key('profile-entry-${profile.id}'),
-                              contentPadding: EdgeInsets.zero,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: palette.spacing.md,
+                                vertical: palette.spacing.xs,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  palette.radius.md,
+                                ),
+                              ),
+                              hoverColor: palette.selected.withValues(
+                                alpha: 0.44,
+                              ),
+                              focusColor: palette.selected.withValues(
+                                alpha: 0.56,
+                              ),
                               title: Text(
                                 profile.name,
                                 style: Theme.of(context).textTheme.titleMedium

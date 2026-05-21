@@ -101,7 +101,7 @@ void main() {
       }
       expect(
         tester.getSize(find.byKey(const Key('profile-editor-save'))).height,
-        40,
+        42,
       );
       final shellFieldHeight = tester
           .getSize(find.byKey(const Key('profile-editor-shell')))
@@ -109,7 +109,7 @@ void main() {
       expect(shellFieldHeight, greaterThanOrEqualTo(48));
       expect(
         tester.getSize(find.byKey(const Key('profile-editor-add-arg'))).height,
-        36,
+        38,
       );
 
       await tester.enterText(
@@ -217,7 +217,7 @@ void main() {
         tester
             .getSize(find.byKey(const Key('profile-editor-fallback-1-remove')))
             .height,
-        32,
+        34,
       );
       await tester.tap(
         find.byKey(const Key('profile-editor-fallback-1-remove')),
@@ -364,7 +364,7 @@ void main() {
         tester
             .getSize(find.byKey(const Key('profile-editor-cursor-blink')))
             .height,
-        lessThanOrEqualTo(40),
+        lessThanOrEqualTo(42),
       );
       await tester.tap(find.byKey(const Key('profile-editor-cursor-blink')));
       await tester.pump();

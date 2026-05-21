@@ -5,34 +5,64 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/ui/app_ui.dart';
 
 void main() {
+  double contrastRatio(Color foreground, Color background) {
+    final foregroundLuminance = foreground.computeLuminance();
+    final backgroundLuminance = background.computeLuminance();
+    final lighter = foregroundLuminance > backgroundLuminance
+        ? foregroundLuminance
+        : backgroundLuminance;
+    final darker = foregroundLuminance > backgroundLuminance
+        ? backgroundLuminance
+        : foregroundLuminance;
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
   testWidgets('light and dark flutterm themes expose stable brand tokens', (
     tester,
   ) async {
     final lightTheme = buildFluttermTheme(Brightness.light);
     final lightTokens = lightTheme.extension<AppThemeTokens>()!;
-    expect(lightTokens.canvas.toARGB32(), const Color(0xFFF4F4F4).toARGB32());
-    expect(lightTokens.chrome.toARGB32(), const Color(0xFFEDEDED).toARGB32());
+    expect(lightTokens.canvas.toARGB32(), const Color(0xFFF3F6F8).toARGB32());
+    expect(lightTokens.chrome.toARGB32(), const Color(0xFFE7EDF2).toARGB32());
     expect(lightTokens.panel.toARGB32(), const Color(0xFFFFFFFF).toARGB32());
-    expect(lightTokens.border.toARGB32(), const Color(0xFFD2D2D2).toARGB32());
+    expect(
+      lightTokens.panelElevated.toARGB32(),
+      const Color(0xFFFFFFFF).toARGB32(),
+    );
+    expect(lightTokens.border.toARGB32(), const Color(0xFFC7D0DA).toARGB32());
+    expect(
+      lightTokens.borderStrong.toARGB32(),
+      const Color(0xFF8EA0B4).toARGB32(),
+    );
     expect(
       lightTokens.textPrimary.toARGB32(),
-      const Color(0xFF111111).toARGB32(),
+      const Color(0xFF111827).toARGB32(),
     );
-    expect(lightTokens.spacing.xs, 3);
+    expect(lightTokens.accent.toARGB32(), const Color(0xFF0E7490).toARGB32());
+    expect(lightTokens.selected.toARGB32(), const Color(0xFFE0F2FE).toARGB32());
+    expect(
+      lightTokens.terminalFrame.toARGB32(),
+      const Color(0xFFCBD5E1).toARGB32(),
+    );
+    expect(
+      lightTokens.inactiveScrim.toARGB32(),
+      const Color(0x660F172A).toARGB32(),
+    );
+    expect(lightTokens.spacing.xs, 4);
     expect(lightTokens.spacing.sm, 6);
     expect(lightTokens.spacing.md, 10);
-    expect(lightTokens.spacing.lg, 12);
-    expect(lightTokens.spacing.xl, 16);
-    expect(lightTokens.spacing.xxl, 20);
+    expect(lightTokens.spacing.lg, 14);
+    expect(lightTokens.spacing.xl, 18);
+    expect(lightTokens.spacing.xxl, 24);
     expect(lightTokens.radius.sm, 6);
     expect(lightTokens.radius.md, 8);
-    expect(lightTokens.radius.lg, 10);
-    expect(lightTokens.radius.xl, 12);
-    expect(lightTokens.controls.dense, 32);
-    expect(lightTokens.controls.compact, 36);
-    expect(lightTokens.controls.regular, 40);
-    expect(lightTheme.textTheme.bodyMedium?.fontSize, 13);
-    expect(lightTheme.textTheme.bodySmall?.fontSize, 11.5);
+    expect(lightTokens.radius.lg, 12);
+    expect(lightTokens.radius.xl, 14);
+    expect(lightTokens.controls.dense, 34);
+    expect(lightTokens.controls.compact, 38);
+    expect(lightTokens.controls.regular, 42);
+    expect(lightTheme.textTheme.bodyMedium?.fontSize, 13.5);
+    expect(lightTheme.textTheme.bodySmall?.fontSize, 12);
     expect(lightTheme.textTheme.titleMedium?.fontSize, 15);
     final lightInputPadding =
         lightTheme.inputDecorationTheme.contentPadding! as EdgeInsets;
@@ -49,30 +79,42 @@ void main() {
     );
     expect(
       lightTheme.iconButtonTheme.style?.minimumSize?.resolve({}),
-      const Size.square(32),
+      const Size.square(34),
     );
     expect(
       lightTheme.filledButtonTheme.style?.minimumSize?.resolve({}),
-      const Size(0, 40),
+      const Size(0, 42),
     );
     expect(
       lightTheme.outlinedButtonTheme.style?.minimumSize?.resolve({}),
-      const Size(0, 40),
+      const Size(0, 42),
     );
     expect(
       lightTheme.textButtonTheme.style?.minimumSize?.resolve({}),
-      const Size(0, 36),
+      const Size(0, 38),
+    );
+    expect(
+      contrastRatio(lightTokens.textPrimary, lightTokens.panel),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      contrastRatio(lightTokens.focusRing, lightTokens.panel),
+      greaterThanOrEqualTo(3),
     );
 
     final darkTheme = buildFluttermTheme(Brightness.dark);
     final darkTokens = darkTheme.extension<AppThemeTokens>()!;
-    expect(darkTokens.canvas.toARGB32(), const Color(0xFF17161D).toARGB32());
-    expect(darkTokens.overlay.toARGB32(), const Color(0xFF201E28).toARGB32());
+    expect(darkTokens.canvas.toARGB32(), const Color(0xFF0F131A).toARGB32());
+    expect(darkTokens.overlay.toARGB32(), const Color(0xFF222936).toARGB32());
     expect(
       darkTokens.textPrimary.toARGB32(),
-      const Color(0xFFF1EFF7).toARGB32(),
+      const Color(0xFFF2F5F8).toARGB32(),
     );
-    expect(darkTokens.accent.toARGB32(), const Color(0xFFF6C344).toARGB32());
+    expect(darkTokens.accent.toARGB32(), const Color(0xFF7DD3FC).toARGB32());
+    expect(
+      darkTokens.borderStrong.toARGB32(),
+      const Color(0xFF455064).toARGB32(),
+    );
     expect(
       darkTheme.scaffoldBackgroundColor.toARGB32(),
       darkTokens.canvas.toARGB32(),
@@ -81,8 +123,16 @@ void main() {
       darkTheme.dialogTheme.backgroundColor!.toARGB32(),
       darkTokens.panel.toARGB32(),
     );
-    expect(darkTheme.textTheme.bodyMedium?.fontSize, 13);
-    expect(darkTheme.textTheme.bodySmall?.fontSize, 11.5);
+    expect(darkTheme.textTheme.bodyMedium?.fontSize, 13.5);
+    expect(darkTheme.textTheme.bodySmall?.fontSize, 12);
+    expect(
+      contrastRatio(darkTokens.textPrimary, darkTokens.panel),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      contrastRatio(darkTokens.focusRing, darkTokens.panel),
+      greaterThanOrEqualTo(3),
+    );
 
     await tester.pumpWidget(
       Theme(
@@ -97,7 +147,7 @@ void main() {
     final hydratedLightTokens = AppThemeTokens.of(lightContext);
     expect(
       hydratedLightTokens.canvas.toARGB32(),
-      const Color(0xFFF4F4F4).toARGB32(),
+      const Color(0xFFF3F6F8).toARGB32(),
     );
   });
 

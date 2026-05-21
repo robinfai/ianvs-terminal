@@ -45,7 +45,7 @@ class ColorSettingRow extends StatelessWidget {
     );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stackedActions = constraints.maxWidth < 640;
+        final stackedActions = constraints.maxWidth < 520;
         final field = _buildField(context);
         final swatch = ColorSwatchButton(
           key: swatchKey,
