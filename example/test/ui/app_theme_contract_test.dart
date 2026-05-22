@@ -69,6 +69,11 @@ void main() {
     expect(lightInputPadding.top, 8);
     expect(lightInputPadding.bottom, 8);
     expect(lightTheme.inputDecorationTheme.constraints?.minHeight, 42);
+    expect(lightTheme.inputDecorationTheme.filled, isTrue);
+    expect(
+      lightTheme.inputDecorationTheme.fillColor?.toARGB32(),
+      lightTokens.chrome.toARGB32(),
+    );
     expect(
       lightTheme.scaffoldBackgroundColor.toARGB32(),
       lightTokens.canvas.toARGB32(),
@@ -93,6 +98,18 @@ void main() {
       lightTheme.textButtonTheme.style?.minimumSize?.resolve({}),
       const Size(0, 36),
     );
+    expect(
+      lightTheme.dividerTheme.color?.toARGB32(),
+      lightTokens.border.toARGB32(),
+    );
+    expect(lightTheme.dividerTheme.thickness, 1);
+    final lightListTilePadding = lightTheme.listTileTheme.contentPadding!;
+    final lightListTileInsets = lightListTilePadding as EdgeInsets;
+    expect(lightListTileInsets.left, 8);
+    expect(lightListTileInsets.top, 4);
+    final lightListTileShape =
+        lightTheme.listTileTheme.shape! as RoundedRectangleBorder;
+    expect(lightListTileShape.borderRadius, BorderRadius.circular(7));
     expect(
       contrastRatio(lightTokens.textPrimary, lightTokens.panel),
       greaterThanOrEqualTo(4.5),

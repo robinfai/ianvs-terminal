@@ -84,6 +84,45 @@ void main() {
     },
   );
 
+  testWidgets(
+    'profiles and dynamic profile sheets inherit shared list and input theming',
+    (tester) async {
+      final profile = defaultTerminalProfile().copyWith(
+        name: 'Workspace Shell',
+        tags: const ['work'],
+      );
+
+      await _pumpProfilesSheetHarness(
+        tester,
+        profiles: [profile],
+        effectiveDefaultProfileId: profile.id,
+        onClosed: (_) {},
+      );
+
+      final tileContext = tester.element(find.text('Workspace Shell'));
+      final themedTile = ListTileTheme.of(tileContext);
+      final shape = themedTile.shape! as RoundedRectangleBorder;
+      final contentPadding = themedTile.contentPadding! as EdgeInsets;
+      expect(contentPadding.left, 8);
+      expect(contentPadding.top, 4);
+      expect(shape.borderRadius, BorderRadius.circular(7));
+
+      await tester.tap(find.byTooltip('Close profiles'));
+      await tester.pumpAndSettle();
+
+      await _pumpDynamicProfilesSheetHarness(
+        tester,
+        onClosed: (_) {},
+      );
+
+      final jsonField = tester.widget<TextField>(
+        find.byKey(const Key('dynamic-profiles-json-field')),
+      );
+      expect(jsonField.decoration?.filled, isNull);
+      expect(jsonField.decoration?.fillColor, isNull);
+    },
+  );
+
   testWidgets('dynamic profiles sheet validates top-level JSON before import', (
     tester,
   ) async {

@@ -243,6 +243,14 @@ void main() {
         find.byKey(const Key('default-theme-option-dark')),
         findsOneWidget,
       );
+      final fallbackProfileOption = tester.widget<RadioListTile<String?>>(
+        find.byKey(const Key('default-profile-option-fallback')),
+      );
+      expect(fallbackProfileOption.contentPadding, EdgeInsets.zero);
+      final darkThemeOption = tester.widget<RadioListTile<TerminalThemeMode>>(
+        find.byKey(const Key('default-theme-option-dark')),
+      );
+      expect(darkThemeOption.contentPadding, EdgeInsets.zero);
       expect(
         find.byKey(const Key('default-terminal-viewport-padding')),
         findsOneWidget,

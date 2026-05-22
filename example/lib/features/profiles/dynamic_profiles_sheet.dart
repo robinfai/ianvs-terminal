@@ -116,13 +116,12 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                               ),
                         ),
                       ),
-                      IconButton(
+                      AppActionButton(
                         tooltip: 'Close dynamic profiles',
+                        tone: AppActionTone.ghost,
+                        size: AppActionSize.dense,
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.textMuted,
-                        ),
+                        icon: Icons.close_rounded,
                       ),
                     ],
                   ),
@@ -141,14 +140,6 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                         alignLabelWithHint: true,
                         labelText: 'JSON',
                         errorText: _errorText,
-                        filled: true,
-                        fillColor: palette.chrome,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            palette.radius.sm,
-                          ),
-                          borderSide: BorderSide(color: palette.border),
-                        ),
                       ),
                     ),
                   ),

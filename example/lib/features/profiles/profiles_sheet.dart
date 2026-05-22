@@ -102,10 +102,12 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                       label: const Text('New'),
                     ),
                     const SizedBox(width: 6),
-                    IconButton(
+                    AppActionButton(
                       tooltip: 'Close profiles',
+                      tone: AppActionTone.ghost,
+                      size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                      icon: Icons.close_rounded,
                     ),
                   ],
                 ),
@@ -145,8 +147,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                       : ListView.separated(
                           shrinkWrap: true,
                           itemCount: filteredProfiles.length,
-                          separatorBuilder: (_, _) =>
-                              Divider(color: palette.border, height: 1),
+                          separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final profile = filteredProfiles[index];
                             final isDefault =
@@ -157,21 +158,6 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                             );
                             return ListTile(
                               key: Key('profile-entry-${profile.id}'),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: palette.spacing.md,
-                                vertical: palette.spacing.xs,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  palette.radius.md,
-                                ),
-                              ),
-                              hoverColor: palette.selected.withValues(
-                                alpha: 0.44,
-                              ),
-                              focusColor: palette.selected.withValues(
-                                alpha: 0.56,
-                              ),
                               title: Text(
                                 profile.name,
                                 style: Theme.of(context).textTheme.titleMedium
@@ -184,15 +170,14 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                                 summary: summary,
                                 tags: profile.tags,
                               ),
-                              trailing: IconButton(
+                              trailing: AppActionButton(
                                 tooltip: 'Edit ${profile.name}',
+                                tone: AppActionTone.ghost,
+                                size: AppActionSize.dense,
                                 onPressed: () => Navigator.of(
                                   context,
                                 ).pop(EditProfileResult(profile)),
-                                icon: Icon(
-                                  Icons.edit_outlined,
-                                  color: palette.textMuted,
-                                ),
+                                icon: Icons.edit_outlined,
                               ),
                               onTap: () => Navigator.of(
                                 context,

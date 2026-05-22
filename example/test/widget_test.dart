@@ -252,6 +252,14 @@ void main() {
     );
 
     expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('shell-chrome-menu'))),
+      const Size(28, 22),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('shell-chrome-new-tab'))),
+      const Size(30, 22),
+    );
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
@@ -477,6 +485,18 @@ void main() {
         find.byKey(const Key('advanced-paste-text-field')),
       );
       expect(field.controller?.text, clipboardText);
+      expect(
+        tester.getSize(find.byTooltip('Close advanced paste')),
+        const Size.square(32),
+      );
+      final escapeToggle = tester.widget<SwitchListTile>(
+        find.byKey(const Key('advanced-paste-escape')),
+      );
+      expect(escapeToggle.contentPadding, EdgeInsets.zero);
+      expect(
+        tester.widget<Text>(find.text('Escape special characters')).style?.fontWeight,
+        FontWeight.w600,
+      );
 
       await tester.enterText(
         find.byKey(const Key('advanced-paste-text-field')),
@@ -601,6 +621,14 @@ void main() {
 
       expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
       expect(find.text(clipboardText), findsOneWidget);
+      final persistToggle = tester.widget<SwitchListTile>(
+        find.byKey(const Key('paste-history-persist')),
+      );
+      expect(persistToggle.contentPadding, EdgeInsets.zero);
+      expect(
+        tester.widget<Text>(find.text('Save History to Disk')).style?.fontWeight,
+        FontWeight.w600,
+      );
 
       await tester.tap(find.byKey(const Key('paste-history-persist')));
       await tester.pumpAndSettle();
@@ -694,6 +722,13 @@ void main() {
 
       expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
       expect(find.text(savedText), findsOneWidget);
+      final savedPasteTile = tester.widget<ListTile>(
+        find.descendant(
+          of: find.byKey(const Key('paste-history-entry-0')),
+          matching: find.byType(ListTile),
+        ),
+      );
+      expect(savedPasteTile.contentPadding, EdgeInsets.zero);
       expect(fakeBindings.writes, isEmpty);
 
       await tester.tap(find.byKey(const Key('paste-history-entry-0')));
@@ -816,6 +851,13 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('password-manager-add')));
     await tester.pumpAndSettle();
+    final passwordEntryTile = tester.widget<ListTile>(
+      find.descendant(
+        of: find.byKey(const Key('password-manager-entry-0')),
+        matching: find.byType(ListTile),
+      ),
+    );
+    expect(passwordEntryTile.contentPadding, EdgeInsets.zero);
 
     await tester.tap(find.byKey(const Key('password-manager-send-0')));
     await tester.pumpAndSettle();
@@ -853,6 +895,43 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(fakeBindings.writes.single, utf8.encode('s3cr3t!\n'));
+  });
+
+  testWidgets('password manager can remove a saved password entry', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Password manager'));
+    await tester.tap(find.text('Password manager'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('password-manager-label-field')),
+      'staging sudo',
+    );
+    await tester.enterText(
+      find.byKey(const Key('password-manager-password-field')),
+      's3cr3t!',
+    );
+    await tester.tap(find.byKey(const Key('password-manager-add')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('password-manager-entry-0')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('password-manager-remove-0')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('password-manager-entry-0')), findsNothing);
+    expect(find.text('No saved passwords in this session.'), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
   });
 
   testWidgets('password manager rechecks the prompt before sending', (
@@ -1160,6 +1239,13 @@ void main() {
 
     expect(find.text('Check startup output'), findsOneWidget);
     expect(find.byKey(const Key('annotation-entry-0')), findsOneWidget);
+    final annotationTile = tester.widget<ListTile>(
+      find.descendant(
+        of: find.byKey(const Key('annotation-entry-0')),
+        matching: find.byType(ListTile),
+      ),
+    );
+    expect(annotationTile.contentPadding, EdgeInsets.zero);
 
     await tester.tap(find.byKey(const Key('annotations-close')));
     await tester.pumpAndSettle();
@@ -1842,6 +1928,18 @@ void main() {
     final profile = defaultTerminalProfile().copyWith(
       triggers: const [TerminalProfileTrigger(pattern: 'ERROR [0-9]+')],
     );
+    String? copiedText;
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.setData') {
+          copiedText = (methodCall.arguments as Map<Object?, Object?>)['text']
+              as String?;
+        }
+        return null;
+      },
+    );
 
     await _pumpShellScreen(
       tester,
@@ -1878,6 +1976,9 @@ void main() {
     expect(find.byKey(const Key('captured-output-entry-0')), findsOneWidget);
     expect(find.text('ERROR 42 failed'), findsOneWidget);
     expect(find.textContaining('Pattern ERROR [0-9]+'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('captured-output-copy-0')));
+    await tester.pumpAndSettle();
+    expect(copiedText, 'ERROR 42 failed');
 
     await tester.tap(find.byKey(const Key('captured-output-clear')));
     await tester.pumpAndSettle();
@@ -2149,6 +2250,10 @@ void main() {
       find.byKey(const Key('terminal-auto-composer-field')),
     );
     expect(composerField.controller?.text, 'git checkout feature/login');
+    expect(
+      tester.getSize(find.byKey(const Key('terminal-auto-composer-close'))),
+      const Size(30, 24),
+    );
 
     await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
     await tester.pumpAndSettle();
@@ -2527,6 +2632,11 @@ void main() {
 
     await showTmuxControlMenuFrame();
     await openTmuxIntegration();
+    final tmuxField = tester.widget<TextField>(
+      find.byKey(const Key('tmux-command-field')),
+    );
+    expect(tmuxField.decoration?.fillColor, isNull);
+    expect(tmuxField.decoration?.filled, isNull);
     await tester.ensureVisible(find.byKey(const Key('tmux-command-field')));
     await tester.enterText(
       find.byKey(const Key('tmux-command-field')),
@@ -2561,6 +2671,11 @@ void main() {
 
     expect(find.byKey(const Key('coprocess-sheet')), findsOneWidget);
     expect(find.text('Run Coprocess'), findsOneWidget);
+    final coprocessField = tester.widget<TextField>(
+      find.byKey(const Key('coprocess-command-field')),
+    );
+    expect(coprocessField.decoration?.fillColor, isNull);
+    expect(coprocessField.decoration?.filled, isNull);
 
     await tester.enterText(
       find.byKey(const Key('coprocess-command-field')),
@@ -2988,6 +3103,10 @@ void main() {
       expect(find.text('1 of 2'), findsOneWidget);
       expect(fakeBindings.searchCalls.last, [1, 'needle']);
       expect(fakeBindings.scrollToCalls.last, [1, 42]);
+      expect(
+        tester.getSize(find.byKey(const Key('terminal-search-close'))),
+        const Size(28, 24),
+      );
 
       await tester.tap(find.byKey(const Key('terminal-search-next')));
       await tester.pumpAndSettle();
@@ -3229,6 +3348,20 @@ void main() {
     expect(fakeBindings.searchCalls, contains(equals([2, 'needle'])));
     expect(find.text('first tab needle'), findsOneWidget);
     expect(find.text('second tab needle'), findsOneWidget);
+    final globalSearchResultTile = tester.widget<ListTile>(
+      find.descendant(
+        of: find.byKey(const Key('terminal-global-search-result-2-1')),
+        matching: find.byType(ListTile),
+      ),
+    );
+    expect(globalSearchResultTile.contentPadding, EdgeInsets.zero);
+    final globalSearchDivider = tester.widget<Divider>(
+      find.descendant(
+        of: find.byKey(const Key('terminal-global-search-sheet')),
+        matching: find.byType(Divider),
+      ).first,
+    );
+    expect(globalSearchDivider.color, isNull);
 
     await tester.tap(
       find.byKey(const Key('terminal-global-search-result-2-1')),

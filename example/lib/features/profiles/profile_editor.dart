@@ -1786,11 +1786,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       child: Column(
         children: [
           for (final mode in modes)
-            RadioListTile<TerminalOptionDragMode>(
-              key: Key('profile-editor-option-drag-${mode.name}'),
-              dense: true,
-              visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-              contentPadding: EdgeInsets.zero,
+            AppCompactRadioTile<TerminalOptionDragMode>(
+              tileKey: Key('profile-editor-option-drag-${mode.name}'),
               value: mode,
               title: Text(terminalOptionDragModeLabel(mode)),
             ),
@@ -1837,6 +1834,7 @@ class _EnvEntryControllers {
     keyFocusNode.dispose();
   }
 }
+
 
 class _ProfileFormGroup extends StatelessWidget {
   const _ProfileFormGroup({

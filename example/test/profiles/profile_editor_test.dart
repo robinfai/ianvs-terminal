@@ -383,6 +383,10 @@ void main() {
         find.byKey(const Key('profile-editor-option-drag-blockSelection')),
       );
       await tester.pump();
+      final blockSelectionTile = tester.widget<RadioListTile>(
+        find.byKey(const Key('profile-editor-option-drag-blockSelection')),
+      );
+      expect(blockSelectionTile.contentPadding, EdgeInsets.zero);
 
       await _ensureVisible(
         tester,

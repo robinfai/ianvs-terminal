@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_action_button.dart';
 import '../foundation/app_theme_tokens.dart';
 import 'app_panel.dart';
 
@@ -40,7 +41,6 @@ class AppDialogScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    final closeButtonSize = theme.controls.dense;
     final header = Padding(
       padding:
           headerPadding ??
@@ -78,16 +78,12 @@ class AppDialogScaffold extends StatelessWidget {
             ),
           ),
           if (onClose != null)
-            IconButton(
+            AppActionButton(
               tooltip: closeTooltip,
+              tone: AppActionTone.ghost,
+              size: AppActionSize.dense,
               onPressed: onClose,
-              padding: EdgeInsets.zero,
-              splashRadius: closeButtonSize / 2,
-              constraints: BoxConstraints.tightFor(
-                width: closeButtonSize,
-                height: closeButtonSize,
-              ),
-              icon: Icon(Icons.close_rounded, color: theme.textMuted),
+              icon: Icons.close_rounded,
             ),
         ],
       ),
@@ -123,10 +119,10 @@ class AppDialogScaffold extends StatelessWidget {
       mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
       children: [
         header,
-        Divider(height: 1, color: theme.border),
+        const Divider(height: 1),
         if (expandBody) Expanded(child: paddedBody) else paddedBody,
         if (paddedFooter != null) ...[
-          Divider(height: 1, color: theme.border),
+          const Divider(height: 1),
           paddedFooter,
         ],
       ],

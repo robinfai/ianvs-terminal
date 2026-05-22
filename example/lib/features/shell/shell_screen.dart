@@ -5732,16 +5732,10 @@ class _ShellToolbelt extends StatelessWidget {
                               ),
                         ),
                       ),
-                      IconButton(
-                        key: const Key('toolbelt-close'),
+                      _buildSheetCloseButton(
                         tooltip: 'Close toolbelt',
                         onPressed: onClose,
-                        visualDensity: VisualDensity.compact,
-                        splashRadius: 16,
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.textMuted,
-                        ),
+                        buttonKey: const Key('toolbelt-close'),
                       ),
                     ],
                   ),
@@ -5889,8 +5883,8 @@ class _ToolbeltActionRow extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(palette.radius.md),
       ),
-      hoverColor: palette.selected.withValues(alpha: 0.44),
-      focusColor: palette.selected.withValues(alpha: 0.56),
+      hoverColor: _shellTileHoverColor(palette),
+      focusColor: _shellTileFocusColor(palette),
       leading: Icon(icon, color: palette.accent, size: 20),
       title: Text(
         title,
@@ -6193,16 +6187,10 @@ class _ShellChromeBar extends StatelessWidget {
                     ),
             ),
             if (!referenceDemoMode) ...[
-              IconButton(
+              _buildChromeIconButton(
                 key: const Key('shell-chrome-menu'),
                 tooltip: 'Open command menu',
                 onPressed: onShowCommandMenu,
-                visualDensity: VisualDensity.compact,
-                splashRadius: 16,
-                constraints: const BoxConstraints.tightFor(
-                  width: 30,
-                  height: 30,
-                ),
                 iconSize: 16,
                 icon: Icon(Icons.tune_rounded, color: palette.textSubtle),
               ),
@@ -6272,11 +6260,10 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
+                _buildCompactActionButton(
                   key: const Key('shell-configuration-warnings-dismiss'),
                   tooltip: 'Dismiss configuration warnings',
                   onPressed: onDismiss,
-                  visualDensity: VisualDensity.compact,
                   icon: Icon(Icons.close_rounded, color: palette.textSubtle),
                 ),
               ],
@@ -6465,13 +6452,10 @@ class _ShellNewTabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: IconButton(
+      child: _buildChromeIconButton(
         key: const Key('shell-chrome-new-tab'),
         tooltip: 'New tab',
         onPressed: onPressed,
-        visualDensity: VisualDensity.compact,
-        splashRadius: 16,
-        constraints: const BoxConstraints.tightFor(width: 30, height: 30),
         iconSize: 18,
         icon: Icon(Icons.add_rounded, color: palette.textSubtle),
       ),
@@ -6874,12 +6858,11 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                   ),
                 ),
               ),
-              IconButton(
+              _buildCompactActionButton(
                 key: const Key('terminal-search-regex'),
                 tooltip: 'Regular expression',
                 isSelected: widget.regexEnabled,
                 onPressed: () => widget.onRegexChanged(!widget.regexEnabled),
-                visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 iconSize: 16,
                 selectedIcon: const Icon(Icons.code_rounded),
@@ -6888,29 +6871,26 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                   color: widget.regexEnabled ? palette.accent : null,
                 ),
               ),
-              IconButton(
+              _buildCompactActionButton(
                 key: const Key('terminal-search-previous'),
                 tooltip: 'Previous match',
                 onPressed: widget.matches == 0 ? null : widget.onPrevious,
-                visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 iconSize: 16,
                 icon: const Icon(Icons.keyboard_arrow_up_rounded),
               ),
-              IconButton(
+              _buildCompactActionButton(
                 key: const Key('terminal-search-next'),
                 tooltip: 'Next match',
                 onPressed: widget.matches == 0 ? null : widget.onNext,
-                visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 iconSize: 16,
                 icon: const Icon(Icons.keyboard_arrow_down_rounded),
               ),
-              IconButton(
+              _buildCompactActionButton(
                 key: const Key('terminal-search-close'),
                 tooltip: 'Close search',
                 onPressed: widget.onClose,
-                visualDensity: VisualDensity.compact,
                 splashRadius: 16,
                 iconSize: 16,
                 icon: const Icon(Icons.close_rounded),
@@ -6921,6 +6901,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       ),
     );
   }
+
 }
 
 class _GlobalSearchSheet extends StatefulWidget {
@@ -7027,29 +7008,18 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
                             shrinkWrap: true,
                             itemCount: resultCount,
                             separatorBuilder: (_, _) =>
-                                Divider(height: 1, color: palette.border),
+                                const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final result = _results[index];
-                              return ListTile(
+                              return _ShellEntryTile(
                                 key: Key(
                                   'terminal-global-search-result-${result.session.sessionId}-$index',
                                 ),
                                 dense: true,
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(
-                                  result.match.text,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(color: palette.textPrimary),
-                                ),
-                                subtitle: Text(
-                                  '${result.session.title} • row ${result.match.row + 1}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(color: palette.textSubtle),
-                                ),
+                                title: result.match.text,
+                                subtitle:
+                                    '${result.session.title} • row ${result.match.row + 1}',
+                                subtitleMaxLines: 1,
                                 trailing: const Icon(
                                   Icons.keyboard_return_rounded,
                                   size: 18,
@@ -7162,13 +7132,9 @@ class _CoprocessSheetState extends State<_CoprocessSheet> {
                               ),
                         ),
                       ),
-                      IconButton(
+                      _buildSheetCloseButton(
                         tooltip: 'Close coprocess',
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.textMuted,
-                        ),
                       ),
                     ],
                   ),
@@ -7274,13 +7240,6 @@ class _CoprocessTextField extends StatelessWidget {
       decoration: InputDecoration(
         prefixIcon: Icon(icon),
         labelText: label,
-        isDense: true,
-        filled: true,
-        fillColor: palette.chrome,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(palette.radius.sm),
-          borderSide: BorderSide(color: palette.border),
-        ),
       ),
     );
   }
@@ -7417,13 +7376,9 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                               ),
                         ),
                       ),
-                      IconButton(
+                      _buildSheetCloseButton(
                         tooltip: 'Close tmux integration',
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.textMuted,
-                        ),
                       ),
                     ],
                   ),
@@ -7523,15 +7478,6 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                                 icon: const Icon(Icons.keyboard_return_rounded),
                               ),
                               hintText: 'tmux command',
-                              isDense: true,
-                              filled: true,
-                              fillColor: palette.chrome,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(
-                                  palette.radius.sm,
-                                ),
-                                borderSide: BorderSide(color: palette.border),
-                              ),
                             ),
                           ),
                         ],
@@ -7697,13 +7643,12 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                               ),
                         ),
                       ),
-                      IconButton(
+                      AppActionButton(
                         tooltip: 'Close shell integration',
+                        tone: AppActionTone.ghost,
+                        size: AppActionSize.dense,
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.textMuted,
-                        ),
+                        icon: Icons.close_rounded,
                       ),
                     ],
                   ),
@@ -8012,27 +7957,12 @@ class _ShellIntegrationActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return _ShellEntryTile(
       dense: true,
-      contentPadding: EdgeInsets.zero,
       leading: Icon(icon, color: palette.textMuted, size: 20),
-      title: Text(
-        title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: palette.textPrimary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
-      ),
+      title: title,
+      subtitle: subtitle,
+      subtitleMaxLines: 1,
       onTap: onTap,
     );
   }
@@ -8057,29 +7987,16 @@ class _ShellPromptMarkTile extends StatelessWidget {
     final compactCwd = cwd == null ? null : _compactText(cwd, 42);
     final subtitle = [?command, ?compactCwd].join(' • ');
 
-    return ListTile(
+    return _ShellEntryTile(
       dense: true,
-      contentPadding: EdgeInsets.zero,
       leading: Icon(
         Icons.assistant_direction_rounded,
         color: palette.textMuted,
         size: 20,
       ),
-      title: Text(
-        'Offset ${mark.scrollbackOffset}',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: palette.textPrimary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(
-        subtitle.isEmpty ? 'Shell prompt mark' : subtitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
-      ),
+      title: 'Offset ${mark.scrollbackOffset}',
+      subtitle: subtitle.isEmpty ? 'Shell prompt mark' : subtitle,
+      subtitleMaxLines: 1,
       onTap: onTap,
     );
   }
@@ -8157,29 +8074,26 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
                         ),
                       ),
                     ),
-                    IconButton(
+                    _buildCompactActionButton(
                       key: const Key('terminal-autocomplete-previous'),
                       tooltip: 'Previous completion',
                       onPressed: suggestions.length < 2 ? null : onPrevious,
-                      visualDensity: VisualDensity.compact,
                       splashRadius: 14,
                       iconSize: 16,
                       icon: const Icon(Icons.keyboard_arrow_up_rounded),
                     ),
-                    IconButton(
+                    _buildCompactActionButton(
                       key: const Key('terminal-autocomplete-next'),
                       tooltip: 'Next completion',
                       onPressed: suggestions.length < 2 ? null : onNext,
-                      visualDensity: VisualDensity.compact,
                       splashRadius: 14,
                       iconSize: 16,
                       icon: const Icon(Icons.keyboard_arrow_down_rounded),
                     ),
-                    IconButton(
+                    _buildCompactActionButton(
                       key: const Key('terminal-autocomplete-close'),
                       tooltip: 'Close completions',
                       onPressed: onClose,
-                      visualDensity: VisualDensity.compact,
                       splashRadius: 14,
                       iconSize: 16,
                       icon: const Icon(Icons.close_rounded),
@@ -8187,7 +8101,7 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
                   ],
                 ),
               ),
-              Divider(color: palette.border, height: 1),
+              const Divider(height: 1),
               for (var index = 0; index < suggestions.length; index++)
                 _AutocompleteSuggestionTile(
                   suggestion: suggestions[index],
@@ -8292,38 +8206,34 @@ class _TerminalAutoComposer extends StatelessWidget {
                           },
                         ),
                       ),
-                      IconButton(
+                      _buildCompactActionButton(
                         key: const Key('terminal-auto-composer-previous'),
                         tooltip: 'Previous completion',
                         onPressed: suggestions.length < 2 ? null : onPrevious,
-                        visualDensity: VisualDensity.compact,
                         splashRadius: 16,
                         iconSize: 18,
                         icon: const Icon(Icons.keyboard_arrow_up_rounded),
                       ),
-                      IconButton(
+                      _buildCompactActionButton(
                         key: const Key('terminal-auto-composer-next'),
                         tooltip: 'Next completion',
                         onPressed: suggestions.length < 2 ? null : onNext,
-                        visualDensity: VisualDensity.compact,
                         splashRadius: 16,
                         iconSize: 18,
                         icon: const Icon(Icons.keyboard_arrow_down_rounded),
                       ),
-                      IconButton(
+                      _buildCompactActionButton(
                         key: const Key('terminal-auto-composer-send'),
                         tooltip: 'Send command',
                         onPressed: canSend ? onSend : null,
-                        visualDensity: VisualDensity.compact,
                         splashRadius: 16,
                         iconSize: 18,
                         icon: const Icon(Icons.send_rounded),
                       ),
-                      IconButton(
+                      _buildCompactActionButton(
                         key: const Key('terminal-auto-composer-close'),
                         tooltip: 'Close composer',
                         onPressed: onClose,
-                        visualDensity: VisualDensity.compact,
                         splashRadius: 16,
                         iconSize: 18,
                         icon: const Icon(Icons.close_rounded),
@@ -8332,7 +8242,7 @@ class _TerminalAutoComposer extends StatelessWidget {
                   ),
                   if (suggestions.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Divider(color: palette.border, height: 1),
+                    const Divider(height: 1),
                     const SizedBox(height: 4),
                     for (
                       var index = 0;
@@ -8505,10 +8415,9 @@ class _InstantReplaySheetState extends State<_InstantReplaySheet> {
                         ),
                       ),
                     ),
-                    IconButton(
+                    _buildSheetCloseButton(
                       tooltip: 'Close instant replay',
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
                     ),
                   ],
                 ),
@@ -8735,13 +8644,12 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                               ),
                         ),
                       ),
-                      IconButton(
+                      AppActionButton(
                         tooltip: 'Close advanced paste',
+                        tone: AppActionTone.ghost,
+                        size: AppActionSize.dense,
                         onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(
-                          Icons.close_rounded,
-                          color: palette.textMuted,
-                        ),
+                        icon: Icons.close_rounded,
                       ),
                     ],
                   ),
@@ -8758,16 +8666,9 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  SwitchListTile(
-                    key: const Key('advanced-paste-escape'),
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Escape special characters',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  _ShellSwitchTile(
+                    tileKey: const Key('advanced-paste-escape'),
+                    title: 'Escape special characters',
                     value: _escapeSpecialCharacters,
                     onChanged: (value) {
                       setState(() {
@@ -8775,16 +8676,9 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                       });
                     },
                   ),
-                  SwitchListTile(
-                    key: const Key('advanced-paste-base64'),
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Base64 encode',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  _ShellSwitchTile(
+                    tileKey: const Key('advanced-paste-base64'),
+                    title: 'Base64 encode',
                     value: _base64Encode,
                     onChanged: (value) {
                       setState(() {
@@ -8792,16 +8686,9 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                       });
                     },
                   ),
-                  SwitchListTile(
-                    key: const Key('advanced-paste-newline'),
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      'Append newline',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                  _ShellSwitchTile(
+                    tileKey: const Key('advanced-paste-newline'),
+                    title: 'Append newline',
                     value: _appendNewline,
                     onChanged: (value) {
                       setState(() {
@@ -8892,10 +8779,12 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                         ),
                       ),
                     ),
-                    IconButton(
+                    AppActionButton(
                       tooltip: 'Close captured output',
+                      tone: AppActionTone.ghost,
+                      size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                      icon: Icons.close_rounded,
                     ),
                   ],
                 ),
@@ -8941,7 +8830,7 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                           shrinkWrap: true,
                           itemCount: _entries.length,
                           separatorBuilder: (_, _) =>
-                              Divider(color: palette.border, height: 1),
+                              const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final entry = _entries[index];
                             return _CapturedOutputEntryTile(
@@ -8977,32 +8866,18 @@ class _CapturedOutputEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return _ShellEntryTile(
       key: Key('captured-output-entry-$index'),
-      contentPadding: EdgeInsets.zero,
       leading: Icon(Icons.outbox_rounded, color: palette.textMuted),
-      title: Text(
-        entry.text,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: palette.textPrimary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(
-        'Pattern ${entry.pattern} • Row ${entry.rowIndex}',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
-      ),
-      trailing: IconButton(
+      title: entry.text,
+      titleMaxLines: 2,
+      subtitle: 'Pattern ${entry.pattern} • Row ${entry.rowIndex}',
+      subtitleMaxLines: 1,
+      trailing: _buildEntryActionButton(
         key: Key('captured-output-copy-$index'),
         tooltip: 'Copy captured output',
         onPressed: onCopy,
-        icon: Icon(Icons.copy_rounded, color: palette.textMuted),
+        icon: Icons.copy_rounded,
       ),
     );
   }
@@ -9108,11 +8983,13 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                         ),
                       ),
                     ),
-                    IconButton(
-                      key: const Key('annotations-close'),
+                    AppActionButton(
+                      buttonKey: const Key('annotations-close'),
                       tooltip: 'Close annotations',
+                      tone: AppActionTone.ghost,
+                      size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                      icon: Icons.close_rounded,
                     ),
                   ],
                 ),
@@ -9202,7 +9079,7 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                           shrinkWrap: true,
                           itemCount: _entries.length,
                           separatorBuilder: (_, _) =>
-                              Divider(color: palette.border, height: 1),
+                              const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final annotation = _entries[index];
                             return _AnnotationEntryTile(
@@ -9238,32 +9115,18 @@ class _AnnotationEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return _ShellEntryTile(
       key: Key('annotation-entry-$index'),
-      contentPadding: EdgeInsets.zero,
       leading: Icon(Icons.sticky_note_2_rounded, color: palette.textMuted),
-      title: Text(
-        annotation.note,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: palette.textPrimary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(
-        annotation.selectedText.replaceAll('\n', ' ⏎ '),
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
-      ),
-      trailing: IconButton(
+      title: annotation.note,
+      titleMaxLines: 2,
+      subtitle: annotation.selectedText.replaceAll('\n', ' ⏎ '),
+      subtitleMaxLines: 2,
+      trailing: _buildEntryActionButton(
         key: Key('annotation-remove-$index'),
         tooltip: 'Remove annotation',
         onPressed: onRemove,
-        icon: Icon(Icons.delete_outline_rounded, color: palette.textMuted),
+        icon: Icons.delete_outline_rounded,
       ),
     );
   }
@@ -9325,29 +9188,19 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                         ),
                       ),
                     ),
-                    IconButton(
+                    AppActionButton(
                       tooltip: 'Close paste history',
+                      tone: AppActionTone.ghost,
+                      size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                      icon: Icons.close_rounded,
                     ),
                   ],
                 ),
-                SwitchListTile(
-                  key: const Key('paste-history-persist'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    'Save History to Disk',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: palette.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Keep recent copied and pasted text across launches.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
-                  ),
+                _ShellSwitchTile(
+                  tileKey: const Key('paste-history-persist'),
+                  title: 'Save History to Disk',
+                  subtitle: 'Keep recent copied and pasted text across launches.',
                   value: _persistToDisk,
                   onChanged: (value) {
                     setState(() {
@@ -9398,7 +9251,7 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                           shrinkWrap: true,
                           itemCount: _entries.length,
                           separatorBuilder: (_, _) =>
-                              Divider(color: palette.border, height: 1),
+                              const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final entry = _entries[index];
                             return _PasteHistoryEntryTile(
@@ -9444,18 +9297,54 @@ class _PasteHistoryEntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final preview = entry.text.replaceAll('\n', ' ⏎ ');
-    return ListTile(
+    return _ShellEntryTile(
       key: Key('paste-history-entry-$index'),
-      contentPadding: EdgeInsets.zero,
       leading: Icon(
         entry.kind == PasteHistoryKind.copy
             ? Icons.copy_rounded
             : Icons.content_paste_rounded,
         color: palette.textMuted,
       ),
+      title: preview,
+      titleMaxLines: 2,
+      subtitle: _kindLabel,
+      onTap: onTap,
+    );
+  }
+}
+
+class _ShellEntryTile extends StatelessWidget {
+  const _ShellEntryTile({
+    super.key,
+    this.leading,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    this.onTap,
+    this.dense = false,
+    this.titleMaxLines = 1,
+    this.subtitleMaxLines = 1,
+  });
+
+  final Widget? leading;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final bool dense;
+  final int titleMaxLines;
+  final int subtitleMaxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    return ListTile(
+      dense: dense,
+      contentPadding: EdgeInsets.zero,
+      leading: leading,
       title: Text(
-        preview,
-        maxLines: 2,
+        title,
+        maxLines: titleMaxLines,
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: palette.textPrimary,
@@ -9463,12 +9352,57 @@ class _PasteHistoryEntryTile extends StatelessWidget {
         ),
       ),
       subtitle: Text(
-        _kindLabel,
+        subtitle,
+        maxLines: subtitleMaxLines,
+        overflow: TextOverflow.ellipsis,
         style: Theme.of(
           context,
         ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
       ),
+      trailing: trailing,
       onTap: onTap,
+    );
+  }
+}
+
+class _ShellSwitchTile extends StatelessWidget {
+  const _ShellSwitchTile({
+    required this.tileKey,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+    this.subtitle,
+  });
+
+  final Key tileKey;
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    return SwitchListTile(
+      key: tileKey,
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: subtitle == null
+          ? null
+          : Text(
+              subtitle!,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+            ),
+      value: value,
+      onChanged: onChanged,
     );
   }
 }
@@ -9579,10 +9513,12 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                         ),
                       ),
                     ),
-                    IconButton(
+                    AppActionButton(
                       tooltip: 'Close password manager',
+                      tone: AppActionTone.ghost,
+                      size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
+                      icon: Icons.close_rounded,
                     ),
                   ],
                 ),
@@ -9641,7 +9577,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                           shrinkWrap: true,
                           itemCount: _entries.length,
                           separatorBuilder: (_, _) =>
-                              Divider(color: palette.border, height: 1),
+                              const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final entry = _entries[index];
                             return _PasswordManagerEntryTile(
@@ -9685,33 +9621,19 @@ class _PasswordManagerEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return _ShellEntryTile(
       key: Key('password-manager-entry-$index'),
-      contentPadding: EdgeInsets.zero,
       leading: Icon(Icons.key_rounded, color: palette.textMuted),
-      title: Text(
-        entry.label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: palette.textPrimary,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(
-        promptDetected ? 'Ready to send' : 'Waiting for password prompt',
-        style: Theme.of(
-          context,
-        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
-      ),
+      title: entry.label,
+      subtitle: promptDetected ? 'Ready to send' : 'Waiting for password prompt',
       trailing: Wrap(
         spacing: 4,
         children: [
-          IconButton(
+          _buildEntryActionButton(
             key: Key('password-manager-remove-$index'),
             tooltip: 'Remove password',
             onPressed: onRemove,
-            icon: Icon(Icons.delete_outline_rounded, color: palette.textMuted),
+            icon: Icons.delete_outline_rounded,
           ),
           FilledButton(
             key: Key('password-manager-send-$index'),
@@ -9964,15 +9886,9 @@ class _ShellCommandMenu extends StatelessWidget {
                                   ),
                             ),
                           ),
-                          IconButton(
+                          _buildSheetCloseButton(
                             tooltip: 'Close actions',
                             onPressed: () => Navigator.of(context).pop(),
-                            visualDensity: VisualDensity.compact,
-                            splashRadius: 16,
-                            icon: Icon(
-                              Icons.close_rounded,
-                              color: palette.textMuted,
-                            ),
                           ),
                         ],
                       ),
@@ -10413,8 +10329,8 @@ class _ShellCommandTile extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(palette.radius.lg),
       ),
-      hoverColor: palette.selected.withValues(alpha: 0.44),
-      focusColor: palette.selected.withValues(alpha: 0.56),
+      hoverColor: _shellTileHoverColor(palette),
+      focusColor: _shellTileFocusColor(palette),
       leading: Icon(icon, color: enabled ? palette.accent : palette.textSubtle),
       title: Text(
         title,
@@ -10442,4 +10358,87 @@ class _ShellCommandTile extends StatelessWidget {
       onTap: enabled ? onTap : null,
     );
   }
+}
+
+Color _shellTileHoverColor(AppThemeTokens palette) {
+  return palette.selected.withValues(alpha: 0.44);
+}
+
+Color _shellTileFocusColor(AppThemeTokens palette) {
+  return palette.selected.withValues(alpha: 0.56);
+}
+
+Widget _buildSheetCloseButton({
+  required String tooltip,
+  required VoidCallback onPressed,
+  Key? buttonKey,
+}) {
+  return AppActionButton(
+    buttonKey: buttonKey,
+    tooltip: tooltip,
+    tone: AppActionTone.ghost,
+    size: AppActionSize.dense,
+    onPressed: onPressed,
+    icon: Icons.close_rounded,
+  );
+}
+
+Widget _buildCompactActionButton({
+  required Key key,
+  required String tooltip,
+  required Widget icon,
+  required VoidCallback? onPressed,
+  double? splashRadius,
+  double? iconSize,
+  bool isSelected = false,
+  Widget? selectedIcon,
+}) {
+  return IconButton(
+    key: key,
+    tooltip: tooltip,
+    isSelected: isSelected,
+    onPressed: onPressed,
+    visualDensity: VisualDensity.compact,
+    splashRadius: splashRadius,
+    iconSize: iconSize,
+    selectedIcon: selectedIcon,
+    icon: icon,
+  );
+}
+
+Widget _buildEntryActionButton({
+  required Key key,
+  required String tooltip,
+  required IconData icon,
+  required VoidCallback? onPressed,
+}) {
+  return Builder(
+    builder: (context) {
+      return IconButton(
+        key: key,
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon, color: context.appTheme.textMuted),
+      );
+    },
+  );
+}
+
+Widget _buildChromeIconButton({
+  required Key key,
+  required String tooltip,
+  required Widget icon,
+  required VoidCallback? onPressed,
+  required double iconSize,
+}) {
+  return IconButton(
+    key: key,
+    tooltip: tooltip,
+    onPressed: onPressed,
+    visualDensity: VisualDensity.compact,
+    splashRadius: 16,
+    constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+    iconSize: iconSize,
+    icon: icon,
+  );
 }

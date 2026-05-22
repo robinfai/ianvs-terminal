@@ -215,15 +215,9 @@ class _DefaultsAndAppearanceDialogState
               },
               child: Column(
                 children: [
-                  RadioListTile<String?>(
-                    key: const Key('default-profile-option-fallback'),
+                  AppCompactRadioTile<String?>(
+                    tileKey: const Key('default-profile-option-fallback'),
                     value: null,
-                    dense: true,
-                    visualDensity: const VisualDensity(
-                      horizontal: -2,
-                      vertical: -2,
-                    ),
-                    contentPadding: EdgeInsets.zero,
                     title: const Text('No configured default'),
                     subtitle: Text(
                       effectiveProfile == null
@@ -232,15 +226,9 @@ class _DefaultsAndAppearanceDialogState
                     ),
                   ),
                   for (final profile in widget.profiles)
-                    RadioListTile<String?>(
-                      key: Key('default-profile-option-${profile.id}'),
+                    AppCompactRadioTile<String?>(
+                      tileKey: Key('default-profile-option-${profile.id}'),
                       value: profile.id,
-                      dense: true,
-                      visualDensity: const VisualDensity(
-                        horizontal: -2,
-                        vertical: -2,
-                      ),
-                      contentPadding: EdgeInsets.zero,
                       title: Text(profile.name),
                       subtitle: Text(profile.shell),
                     ),
@@ -323,15 +311,9 @@ class _DefaultsAndAppearanceDialogState
               child: Column(
                 children: [
                   for (final themeMode in TerminalThemeMode.values)
-                    RadioListTile<TerminalThemeMode>(
-                      key: Key('default-theme-option-${themeMode.name}'),
+                    AppCompactRadioTile<TerminalThemeMode>(
+                      tileKey: Key('default-theme-option-${themeMode.name}'),
                       value: themeMode,
-                      dense: true,
-                      visualDensity: const VisualDensity(
-                        horizontal: -2,
-                        vertical: -2,
-                      ),
-                      contentPadding: EdgeInsets.zero,
                       title: Text(themeModeLabel(themeMode)),
                       subtitle: Text(_themeModeDescription(themeMode)),
                     ),
@@ -602,6 +584,7 @@ class _TerminalPresetChoice extends StatelessWidget {
     );
   }
 }
+
 
 class _TerminalPresetSwatch extends StatelessWidget {
   const _TerminalPresetSwatch({required this.color});

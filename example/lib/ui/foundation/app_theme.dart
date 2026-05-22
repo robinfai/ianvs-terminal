@@ -145,6 +145,8 @@ ThemeData buildFluttermTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       isDense: true,
+      filled: true,
+      fillColor: tokens.chrome,
       border: outline,
       enabledBorder: outline,
       focusedBorder: outline.copyWith(
@@ -172,6 +174,21 @@ ThemeData buildFluttermTheme(Brightness brightness) {
         fontSize: 12,
         height: 1.18,
       ),
+    ),
+    dividerTheme: DividerThemeData(
+      color: tokens.border,
+      thickness: 1,
+      space: 1,
+    ),
+    listTileTheme: ListTileThemeData(
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: tokens.spacing.md,
+        vertical: tokens.spacing.xs,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(tokens.radius.md),
+      ),
+      iconColor: tokens.textMuted,
     ),
     radioTheme: RadioThemeData(
       fillColor: WidgetStateProperty.resolveWith((states) {
