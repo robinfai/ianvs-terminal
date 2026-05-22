@@ -392,7 +392,16 @@ __flutterm_source_original_zdotfile() {
   local __flutterm_path="$__flutterm_dir/$__flutterm_file"
   [[ -r "$__flutterm_path" ]] || return 0
   [[ "$__flutterm_path" != "${ZDOTDIR:-}/$__flutterm_file" ]] || return 0
+  local __flutterm_proxy_zdotdir="${ZDOTDIR:-}"
+  local __flutterm_proxy_zdotdir_was_set=0
+  (( $+ZDOTDIR )) && __flutterm_proxy_zdotdir_was_set=1
+  __flutterm_restore_zdotdir
   source "$__flutterm_path" || true
+  if [[ "$__flutterm_proxy_zdotdir_was_set" == "1" ]]; then
+    export ZDOTDIR="$__flutterm_proxy_zdotdir"
+  else
+    unset ZDOTDIR
+  fi
 }
 
 __flutterm_restore_zdotdir() {

@@ -1172,6 +1172,119 @@ fn zsh_shell_hook_integration_preserves_prompt_substitution_from_zshrc() {
 }
 
 #[test]
+fn zsh_shell_hook_integration_sources_zshrc_with_original_zdotdir() {
+    if !Path::new("/bin/zsh").exists() {
+        return;
+    }
+
+    let original_zdotdir = tempdir().unwrap();
+    fs::write(
+        original_zdotdir.path().join(".zshrc"),
+        r#"if [[ "${ZDOTDIR:-}" == "${HOME:-}" ]]; then
+  PROMPT='flutterm-zdot-ok% '
+else
+  PROMPT='flutterm-zdot-bad% '
+fi
+"#,
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    let session_id = session::create_session(
+        &serde_json::to_string(&local_profile(
+            "zsh-shell-integration-original-zdotdir",
+            "Zsh Shell Integration Original ZDOTDIR",
+            "/bin/zsh",
+            vec![],
+            env,
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "flutterm-zdot-ok");
+    assert!(
+        !frame.contains("flutterm-zdot-bad"),
+        "original .zshrc should see the user's ZDOTDIR, not the flutterm proxy: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn zsh_shell_hook_integration_preserves_postdisplay_redraws() {
+    if !Path::new("/bin/zsh").exists() {
+        return;
+    }
+
+    let original_zdotdir = tempdir().unwrap();
+    fs::write(
+        original_zdotdir.path().join(".zshrc"),
+        "PROMPT='flutterm-postdisplay% '\n\
+         __flutterm_test_self_insert() {\n\
+           zle .self-insert\n\
+           POSTDISPLAY=' ghost-suggestion'\n\
+           region_highlight+=(\"$#BUFFER $(($#BUFFER + $#POSTDISPLAY)) fg=8\")\n\
+           zle -R\n\
+         }\n\
+         zle -N self-insert __flutterm_test_self_insert\n",
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    let session_id = session::create_session(
+        &serde_json::to_string(&local_profile(
+            "zsh-shell-integration-postdisplay",
+            "Zsh Shell Integration POSTDISPLAY",
+            "/bin/zsh",
+            vec![],
+            env,
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "flutterm-postdisplay");
+    session::write_session(session_id, b"g").unwrap();
+    let frame = wait_for_frame_containing(session_id, "ghost-suggestion");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let row = frame_row_with_text(&parsed, "ghost-suggestion");
+    let ghost_style = row["style_runs"]
+        .as_array()
+        .expect("expected style runs")
+        .iter()
+        .find(|run| run["foreground"].as_str() == Some("#687378"))
+        .expect("expected fg=8 autosuggestion style run");
+    assert!(
+        frame.contains("ghost-suggestion"),
+        "zsh POSTDISPLAY redraws should remain visible with shell integration: {frame}"
+    );
+    assert!(
+        ghost_style["start"].as_u64().unwrap_or_default()
+            < ghost_style["end"].as_u64().unwrap_or_default(),
+        "autosuggestion style run should cover visible cells: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn bash_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     let Some(bash_path) = find_shell("bash") else {
         return;

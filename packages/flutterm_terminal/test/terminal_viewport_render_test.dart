@@ -49,11 +49,52 @@ void main() {
     expect(spans, hasLength(1));
     expect(spans.single.background, const Color(0xFF00FF00));
   });
+
+  testWidgets('autosuggestion foreground renders as a visible ghost run', (
+    tester,
+  ) async {
+    final renderObject = await _pumpRenderViewport(
+      tester,
+      row: const TerminalRow(
+        index: 0,
+        text: 'g ghost-suggestion',
+        styleRuns: [
+          TerminalStyleRun(start: 0, end: 1),
+          TerminalStyleRun(start: 1, end: 18, foreground: Color(0xFF687378)),
+        ],
+      ),
+      colors: const TerminalViewportColors(
+        canvasBackground: Color(0xFF10141A),
+        foreground: Color(0xFFE5E7EB),
+        cursor: Color(0xFFE5E7EB),
+        selection: Color(0x663B82F6),
+        scrollbarTrack: Color(0x00000000),
+        scrollbarThumb: Color(0x00000000),
+        minimumContrastRatio: 4.5,
+      ),
+    );
+
+    final ghostStyle = renderObject
+        .debugResolvedStylesForRow(0)
+        .singleWhere((style) => style.start == 1 && style.end == 18);
+
+    expect(ghostStyle.foreground, isNot(const Color(0xFF10141A)));
+    expect(ghostStyle.foreground, isNot(const Color(0xFFE5E7EB)));
+    expect(ghostStyle.background, isNull);
+  });
 }
 
 Future<RenderTerminalViewport> _pumpRenderViewport(
   WidgetTester tester, {
   required TerminalRow row,
+  TerminalViewportColors colors = const TerminalViewportColors(
+    canvasBackground: Color(0xFF10141A),
+    foreground: Color(0xFFE5E7EB),
+    cursor: Color(0xFFE5E7EB),
+    selection: Color(0x663B82F6),
+    scrollbarTrack: Color(0x00000000),
+    scrollbarThumb: Color(0x00000000),
+  ),
 }) async {
   final controller = TerminalViewportController()
     ..updateFrame(
@@ -79,6 +120,7 @@ Future<RenderTerminalViewport> _pumpRenderViewport(
           child: _RenderViewportHarness(
             controller: controller,
             selectionController: selectionController,
+            colors: colors,
           ),
         ),
       ),
@@ -94,10 +136,12 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
   const _RenderViewportHarness({
     required this.controller,
     required this.selectionController,
+    required this.colors,
   });
 
   final TerminalViewportController controller;
   final SelectionController selectionController;
+  final TerminalViewportColors colors;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -108,14 +152,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
       font: const TerminalFontConfig(),
       cursor: const TerminalCursorConfig(),
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
-      colors: const TerminalViewportColors(
-        canvasBackground: Color(0xFF10141A),
-        foreground: Color(0xFFE5E7EB),
-        cursor: Color(0xFFE5E7EB),
-        selection: Color(0x663B82F6),
-        scrollbarTrack: Color(0x00000000),
-        scrollbarThumb: Color(0x00000000),
-      ),
+      colors: colors,
     );
   }
 
@@ -130,6 +167,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
       ..cursorVisible = false
       ..font = const TerminalFontConfig()
       ..cursor = const TerminalCursorConfig()
-      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
+      ..colors = colors;
   }
 }

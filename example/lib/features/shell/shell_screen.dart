@@ -6186,6 +6186,7 @@ class _ShellChromeBar extends StatelessWidget {
                       palette: palette,
                       tabs: tabs,
                       activeSessionId: activeSessionId,
+                      onNewTab: onNewTab,
                       onActivateSession: onActivateSession,
                       onCloseSession: onCloseSession,
                       onShowTabContextMenu: onShowTabContextMenu,
@@ -6206,19 +6207,6 @@ class _ShellChromeBar extends StatelessWidget {
                 icon: Icon(Icons.tune_rounded, color: palette.textSubtle),
               ),
               SizedBox(width: palette.spacing.xs),
-              IconButton(
-                key: const Key('shell-chrome-new-tab'),
-                tooltip: 'New tab',
-                onPressed: onNewTab,
-                visualDensity: VisualDensity.compact,
-                splashRadius: 16,
-                constraints: const BoxConstraints.tightFor(
-                  width: 30,
-                  height: 30,
-                ),
-                iconSize: 18,
-                icon: Icon(Icons.add_rounded, color: palette.textSubtle),
-              ),
               const SizedBox(width: 8),
             ] else
               const SizedBox(width: 20),
@@ -6417,6 +6405,7 @@ class _ShellTabStrip extends StatelessWidget {
     required this.palette,
     required this.tabs,
     required this.activeSessionId,
+    required this.onNewTab,
     required this.onActivateSession,
     required this.onCloseSession,
     required this.onShowTabContextMenu,
@@ -6425,6 +6414,7 @@ class _ShellTabStrip extends StatelessWidget {
   final AppThemeTokens palette;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
+  final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onCloseSession;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
@@ -6437,13 +6427,16 @@ class _ShellTabStrip extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(vertical: 3),
-        itemCount: tabs.length,
+        itemCount: tabs.length + 1,
         separatorBuilder: (_, _) => Container(
           width: 1,
           margin: const EdgeInsets.symmetric(vertical: 12),
           color: palette.border.withValues(alpha: 0.28),
         ),
         itemBuilder: (context, index) {
+          if (index == tabs.length) {
+            return _ShellNewTabButton(palette: palette, onPressed: onNewTab);
+          }
           final tab = tabs[index];
           final isActive =
               activeSessionId != null && tab.containsSession(activeSessionId!);
@@ -6458,6 +6451,29 @@ class _ShellTabStrip extends StatelessWidget {
                 onShowTabContextMenu(tab, position),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ShellNewTabButton extends StatelessWidget {
+  const _ShellNewTabButton({required this.palette, required this.onPressed});
+
+  final AppThemeTokens palette;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: IconButton(
+        key: const Key('shell-chrome-new-tab'),
+        tooltip: 'New tab',
+        onPressed: onPressed,
+        visualDensity: VisualDensity.compact,
+        splashRadius: 16,
+        constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+        iconSize: 18,
+        icon: Icon(Icons.add_rounded, color: palette.textSubtle),
       ),
     );
   }
