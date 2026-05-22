@@ -6488,7 +6488,7 @@ class _ShellTabButton extends StatelessWidget {
       color: isActive
           ? palette.textPrimary
           : palette.textMuted.withValues(alpha: 0.82),
-      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+      fontWeight: FontWeight.w500,
     );
 
     return Semantics(
@@ -6505,78 +6505,84 @@ class _ShellTabButton extends StatelessWidget {
         },
         child: ConstrainedBox(
           constraints: const BoxConstraints(minWidth: 92, maxWidth: 220),
-          child: TextButton(
-            key: Key('shell-tab-${tab.sessionId}'),
-            style: ButtonStyle(
-              minimumSize: const WidgetStatePropertyAll(Size(0, 34)),
-              padding: WidgetStatePropertyAll(
-                EdgeInsets.symmetric(horizontal: palette.spacing.md),
-              ),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
-              foregroundColor: WidgetStatePropertyAll(
-                isActive ? palette.textPrimary : palette.textMuted,
-              ),
-              backgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (isActive) {
-                  return palette.chromeElevated.withValues(alpha: 0.92);
-                }
-                if (states.contains(WidgetState.hovered) ||
-                    states.contains(WidgetState.focused)) {
-                  return palette.selected.withValues(alpha: 0.18);
-                }
-                return Colors.transparent;
-              }),
-              side: WidgetStatePropertyAll(
-                BorderSide(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.symmetric(
+                vertical: BorderSide(
                   color: isActive
-                      ? palette.borderStrong.withValues(alpha: 0.64)
+                      ? palette.borderStrong.withValues(alpha: 0.6)
                       : Colors.transparent,
                 ),
               ),
-              shape: WidgetStatePropertyAll(
-                RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(palette.radius.md),
-                ),
-              ),
             ),
-            onPressed: onActivate,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (shortcutIndex != null) ...[
-                  Text(
-                    '⌘$shortcutIndex',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isActive ? palette.textMuted : palette.textSubtle,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+            child: TextButton(
+              key: Key('shell-tab-${tab.sessionId}'),
+              style: ButtonStyle(
+                minimumSize: const WidgetStatePropertyAll(Size(0, 34)),
+                padding: WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: palette.spacing.md),
+                ),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: const VisualDensity(
+                  horizontal: -1,
+                  vertical: -2,
+                ),
+                foregroundColor: WidgetStatePropertyAll(
+                  isActive ? palette.textPrimary : palette.textMuted,
+                ),
+                backgroundColor: WidgetStateProperty.resolveWith((states) {
+                  if (isActive) {
+                    return palette.selected.withValues(alpha: 0.46);
+                  }
+                  if (states.contains(WidgetState.hovered) ||
+                      states.contains(WidgetState.focused)) {
+                    return palette.selected.withValues(alpha: 0.18);
+                  }
+                  return Colors.transparent;
+                }),
+                side: const WidgetStatePropertyAll(BorderSide.none),
+                shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
+              ),
+              onPressed: onActivate,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (shortcutIndex != null) ...[
+                    Text(
+                      '⌘$shortcutIndex',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: isActive
+                            ? palette.textMuted
+                            : palette.textSubtle,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Flexible(
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 140),
+                      style: tabTextStyle,
+                      child: Text(tab.title, overflow: TextOverflow.ellipsis),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 5),
+                  Tooltip(
+                    message: 'Close ${tab.title}',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: onClose,
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 12,
+                        color: isActive
+                            ? palette.textMuted.withValues(alpha: 0.78)
+                            : palette.textSubtle.withValues(alpha: 0.34),
+                      ),
+                    ),
+                  ),
                 ],
-                Flexible(
-                  child: AnimatedDefaultTextStyle(
-                    duration: const Duration(milliseconds: 140),
-                    style: tabTextStyle,
-                    child: Text(tab.title, overflow: TextOverflow.ellipsis),
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Tooltip(
-                  message: 'Close ${tab.title}',
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onClose,
-                    child: Icon(
-                      Icons.close_rounded,
-                      size: 12,
-                      color: isActive
-                          ? palette.textMuted.withValues(alpha: 0.78)
-                          : palette.textSubtle.withValues(alpha: 0.34),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
