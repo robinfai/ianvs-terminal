@@ -13,6 +13,7 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/paste_history_repository.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
+import 'package:app/ui/app_ui.dart';
 import 'support/fake_pty_backend.dart';
 import 'support/memory_app_preferences_repository.dart';
 import 'support/memory_paste_history_repository.dart';
@@ -110,7 +111,11 @@ Future<void> _pumpShellScreen(
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
       ],
-      child: const MaterialApp(home: ShellScreen()),
+      child: MaterialApp(
+        theme: buildFluttermTheme(Brightness.light),
+        darkTheme: buildFluttermTheme(Brightness.dark),
+        home: const ShellScreen(),
+      ),
     ),
   );
   if (settle) {

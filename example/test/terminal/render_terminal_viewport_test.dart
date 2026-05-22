@@ -4969,8 +4969,10 @@ Future<void> _pumpTerminalViewportWithController(
 
   await tester.pumpWidget(
     MaterialApp(
-      theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
+      theme: ThemeData.light().copyWith(splashFactory: NoSplash.splashFactory),
+      darkTheme: ThemeData.dark().copyWith(
+        splashFactory: NoSplash.splashFactory,
+      ),
       themeMode: themeMode,
       themeAnimationDuration: Duration.zero,
       home: Scaffold(

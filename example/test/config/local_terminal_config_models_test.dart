@@ -13,6 +13,10 @@ void main() {
         LocalTerminalConfigDocument.currentSchemaVersion,
       );
       expect(config.appearance.themeMode, TerminalThemeMode.system);
+      expect(
+        config.appearance.terminalViewportPadding,
+        TerminalAppAppearance.defaultTerminalViewportPadding,
+      );
       expect(config.keybindings.disabledDefaultActions, isEmpty);
       expect(config.clipboard.osc52, LocalTerminalOsc52Policy.profile);
       expect(
@@ -61,6 +65,16 @@ void main() {
       expect(override.scope, TerminalKeyBindingScope.focusedApp);
       expect(override.key, 'KeyN');
       expect(override.meta, isTrue);
+    });
+
+    test('appearance viewport padding roundtrips through json', () {
+      const config = LocalTerminalConfigDocument(
+        appearance: TerminalAppAppearance(terminalViewportPadding: 16),
+      );
+
+      final decoded = LocalTerminalConfigDocument.decode(config.encode());
+
+      expect(decoded.appearance.terminalViewportPadding, 16);
     });
   });
 }

@@ -32,7 +32,10 @@ void main() {
 
     const document = TerminalAppPreferencesDocument(
       defaults: TerminalAppDefaults(defaultProfileId: 'ssh'),
-      appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.dark),
+      appearance: TerminalAppAppearance(
+        themeMode: TerminalThemeMode.dark,
+        terminalViewportPadding: 14,
+      ),
     );
 
     await repository.save(document);
@@ -45,6 +48,7 @@ void main() {
     );
     expect(loaded.defaults.defaultProfileId, 'ssh');
     expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
+    expect(loaded.appearance.terminalViewportPadding, 14);
   });
 
   test(
@@ -65,6 +69,10 @@ void main() {
       expect(loaded, isNotNull);
       expect(loaded!.defaults.defaultProfileId, isNull);
       expect(loaded.appearance.themeMode, TerminalThemeMode.system);
+      expect(
+        loaded.appearance.terminalViewportPadding,
+        TerminalAppAppearance.defaultTerminalViewportPadding,
+      );
     },
   );
 
@@ -86,6 +94,10 @@ void main() {
       expect(loaded, isNotNull);
       expect(loaded!.defaults.defaultProfileId, isNull);
       expect(loaded.appearance.themeMode, TerminalThemeMode.system);
+      expect(
+        loaded.appearance.terminalViewportPadding,
+        TerminalAppAppearance.defaultTerminalViewportPadding,
+      );
       expect(await file.exists(), isTrue);
       expect(
         directory

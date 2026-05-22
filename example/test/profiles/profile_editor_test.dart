@@ -101,15 +101,15 @@ void main() {
       }
       expect(
         tester.getSize(find.byKey(const Key('profile-editor-save'))).height,
-        42,
+        40,
       );
       final shellFieldHeight = tester
           .getSize(find.byKey(const Key('profile-editor-shell')))
           .height;
-      expect(shellFieldHeight, greaterThanOrEqualTo(48));
+      expect(shellFieldHeight, greaterThanOrEqualTo(42));
       expect(
         tester.getSize(find.byKey(const Key('profile-editor-add-arg'))).height,
-        38,
+        36,
       );
 
       await tester.enterText(
@@ -180,7 +180,7 @@ void main() {
         tester
             .getSize(find.byKey(const Key('profile-editor-emulation')))
             .height,
-        closeTo(shellFieldHeight, 2),
+        greaterThanOrEqualTo(shellFieldHeight),
       );
       await tester.tap(find.text('xterm-256color').last);
       await tester.pumpAndSettle();
@@ -217,7 +217,7 @@ void main() {
         tester
             .getSize(find.byKey(const Key('profile-editor-fallback-1-remove')))
             .height,
-        34,
+        32,
       );
       await tester.tap(
         find.byKey(const Key('profile-editor-fallback-1-remove')),

@@ -36,7 +36,11 @@ Future<void> _pumpShellScreen(
           preferencesRepository,
         ),
       ],
-      child: const MaterialApp(home: ShellScreen()),
+      child: MaterialApp(
+        theme: buildFluttermTheme(Brightness.light),
+        darkTheme: buildFluttermTheme(Brightness.dark),
+        home: const ShellScreen(),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -239,8 +243,12 @@ void main() {
         find.byKey(const Key('default-theme-option-dark')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const Key('default-terminal-viewport-padding')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
-      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 42);
+      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 40);
 
       await tester.ensureVisible(
         find.byKey(const Key('default-profile-option-ssh')),
@@ -253,6 +261,14 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('default-theme-option-dark')));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('default-terminal-viewport-padding')),
+      );
+      final paddingSlider = tester.widget<Slider>(
+        find.byKey(const Key('default-terminal-viewport-padding')),
+      );
+      paddingSlider.onChanged!(18);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Save changes'));
       await tester.tap(find.text('Save changes'));
       await tester.pumpAndSettle();
@@ -261,6 +277,7 @@ void main() {
       expect(savedPreferences, isNotNull);
       expect(savedPreferences!.defaults.defaultProfileId, 'ssh');
       expect(savedPreferences.appearance.themeMode, TerminalThemeMode.dark);
+      expect(savedPreferences.appearance.terminalViewportPadding, 18);
 
       expect(find.byKey(const Key('shell-chrome-menu')), findsOneWidget);
       expect(shellAcceptanceProbe.current.visibleOverlay, 'none');

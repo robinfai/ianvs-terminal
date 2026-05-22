@@ -342,4 +342,41 @@ void main() {
       );
     },
   );
+
+  test('setTerminalViewportPadding persists the shell inset', () async {
+    final preferencesRepository = _TestAppPreferencesRepository(null);
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          preferencesRepository,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await container
+        .read(sessionControllerProvider.notifier)
+        .setTerminalViewportPadding(22);
+
+    expect(
+      container.read(sessionControllerProvider).terminalViewportPadding,
+      22,
+    );
+    expect(
+      preferencesRepository
+          .savedDocuments
+          .last
+          .appearance
+          .terminalViewportPadding,
+      22,
+    );
+  });
 }

@@ -23,7 +23,10 @@ void main() {
     test('migrates legacy app preferences when local config is absent', () {
       const legacy = TerminalAppPreferencesDocument(
         defaults: TerminalAppDefaults(defaultProfileId: 'legacy'),
-        appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.dark),
+        appearance: TerminalAppAppearance(
+          themeMode: TerminalThemeMode.dark,
+          terminalViewportPadding: 18,
+        ),
       );
 
       final result = LocalTerminalConfigBootstrap.resolve(
@@ -37,6 +40,7 @@ void main() {
       );
       expect(result.config.defaultProfileId, 'legacy');
       expect(result.config.appearance.themeMode, TerminalThemeMode.dark);
+      expect(result.config.appearance.terminalViewportPadding, 18);
     });
 
     test('falls back to defaults when no config sources exist', () {
@@ -48,6 +52,10 @@ void main() {
       expect(result.source, LocalTerminalConfigBootstrapSource.defaults);
       expect(result.config.defaultProfileId, isNull);
       expect(result.config.appearance.themeMode, TerminalThemeMode.system);
+      expect(
+        result.config.appearance.terminalViewportPadding,
+        TerminalAppAppearance.defaultTerminalViewportPadding,
+      );
     });
   });
 }

@@ -41,22 +41,54 @@ class TerminalAppDefaults {
 }
 
 class TerminalAppAppearance {
-  const TerminalAppAppearance({this.themeMode = TerminalThemeMode.system});
+  const TerminalAppAppearance({
+    this.themeMode = TerminalThemeMode.system,
+    this.terminalViewportPadding = defaultTerminalViewportPadding,
+  });
+
+  static const double defaultTerminalViewportPadding = 8;
+  static const double minTerminalViewportPadding = 0;
+  static const double maxTerminalViewportPadding = 48;
 
   final TerminalThemeMode themeMode;
+  final double terminalViewportPadding;
 
-  TerminalAppAppearance copyWith({TerminalThemeMode? themeMode}) {
-    return TerminalAppAppearance(themeMode: themeMode ?? this.themeMode);
+  TerminalAppAppearance copyWith({
+    TerminalThemeMode? themeMode,
+    double? terminalViewportPadding,
+  }) {
+    return TerminalAppAppearance(
+      themeMode: themeMode ?? this.themeMode,
+      terminalViewportPadding:
+          terminalViewportPadding ?? this.terminalViewportPadding,
+    );
   }
 
   Map<String, Object?> toJson() {
-    return {'themeMode': themeMode.name};
+    return {
+      'themeMode': themeMode.name,
+      'terminalViewportPadding': terminalViewportPadding,
+    };
   }
 
   static TerminalAppAppearance fromJson(Map<Object?, Object?>? json) {
     return TerminalAppAppearance(
       themeMode: TerminalThemeMode.fromJsonValue(json?['themeMode']),
+      terminalViewportPadding: _paddingFromJson(
+        json?['terminalViewportPadding'],
+      ),
     );
+  }
+
+  static double _paddingFromJson(Object? value) {
+    final parsed = switch (value) {
+      num() => value.toDouble(),
+      String() => double.tryParse(value),
+      _ => null,
+    };
+    return (parsed ?? defaultTerminalViewportPadding)
+        .clamp(minTerminalViewportPadding, maxTerminalViewportPadding)
+        .toDouble();
   }
 }
 

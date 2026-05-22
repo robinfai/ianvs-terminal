@@ -424,8 +424,12 @@ Future<_ShellExport> _captureShellExport(
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
       child: MaterialApp(
-        theme: ThemeData.light(),
-        darkTheme: ThemeData.dark(),
+        theme: ThemeData.light().copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
+        darkTheme: ThemeData.dark().copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
         themeMode: themeMode,
         home: const ShellScreen(),
       ),

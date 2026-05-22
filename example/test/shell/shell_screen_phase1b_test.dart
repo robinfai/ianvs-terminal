@@ -8,6 +8,7 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/shell/reference_demo.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/ui/app_ui.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -35,7 +36,11 @@ Future<void> pumpShellScreen(
           referenceDemoMode ? referenceDemoFixture : null,
         ),
       ],
-      child: const MaterialApp(home: ShellScreen()),
+      child: MaterialApp(
+        theme: buildFluttermTheme(Brightness.light),
+        darkTheme: buildFluttermTheme(Brightness.dark),
+        home: const ShellScreen(),
+      ),
     ),
   );
   await tester.pumpAndSettle();

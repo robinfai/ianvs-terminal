@@ -9,12 +9,14 @@ class DefaultsAndAppearanceSelection {
   const DefaultsAndAppearanceSelection({
     required this.configuredDefaultProfileId,
     required this.themeMode,
+    required this.terminalViewportPadding,
     this.updatedProfile,
     this.openProfiles = false,
   });
 
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final double terminalViewportPadding;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -26,12 +28,14 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.configuredDefaultProfileId,
     required this.effectiveDefaultProfileId,
     required this.themeMode,
+    required this.terminalViewportPadding,
   });
 
   final List<TerminalProfile> profiles;
   final String? configuredDefaultProfileId;
   final String? effectiveDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final double terminalViewportPadding;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -43,12 +47,14 @@ class _DefaultsAndAppearanceDialogState
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
+  late double _selectedTerminalViewportPadding;
 
   @override
   void initState() {
     super.initState();
     _selectedProfileId = widget.configuredDefaultProfileId;
     _selectedThemeMode = widget.themeMode;
+    _selectedTerminalViewportPadding = widget.terminalViewportPadding;
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
@@ -133,7 +139,7 @@ class _DefaultsAndAppearanceDialogState
       onClose: () => Navigator.of(context).pop(),
       closeTooltip: 'Close defaults',
       constraints: const BoxConstraints(maxWidth: 520),
-      height: 520,
+      height: 580,
       expandBody: true,
       bodyPadding: EdgeInsets.fromLTRB(
         theme.spacing.lg,
@@ -179,6 +185,8 @@ class _DefaultsAndAppearanceDialogState
                           DefaultsAndAppearanceSelection(
                             configuredDefaultProfileId: _selectedProfileId,
                             themeMode: _selectedThemeMode,
+                            terminalViewportPadding:
+                                _selectedTerminalViewportPadding,
                             updatedProfile: null,
                             openProfiles: true,
                           ),
@@ -330,6 +338,68 @@ class _DefaultsAndAppearanceDialogState
                 ],
               ),
             ),
+            SizedBox(height: theme.spacing.xl),
+            const AppSectionHeader(
+              title: 'Terminal canvas inset',
+              description:
+                  'Adjust the empty space between the shell frame and terminal text.',
+            ),
+            SizedBox(height: theme.spacing.sm),
+            AppPanel(
+              tone: AppPanelTone.elevated,
+              padding: EdgeInsets.all(theme.spacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Viewport padding',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: theme.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                      Text(
+                        '${_selectedTerminalViewportPadding.round()} px',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: theme.textMuted,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    key: const Key('default-terminal-viewport-padding'),
+                    value: _selectedTerminalViewportPadding,
+                    min: TerminalAppAppearance.minTerminalViewportPadding,
+                    max: TerminalAppAppearance.maxTerminalViewportPadding,
+                    divisions:
+                        (TerminalAppAppearance.maxTerminalViewportPadding -
+                                TerminalAppAppearance
+                                    .minTerminalViewportPadding)
+                            .round(),
+                    label: '${_selectedTerminalViewportPadding.round()} px',
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedTerminalViewportPadding = value
+                            .roundToDouble();
+                      });
+                    },
+                  ),
+                  Text(
+                    'Lower values keep the prompt close to the edges; higher values create a larger terminal gutter.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -361,11 +431,16 @@ class _DefaultsAndAppearanceDialogState
             tone: AppActionTone.ghost,
             size: AppActionSize.compact,
             label: 'Reset theme',
-            onPressed: _selectedThemeMode == TerminalThemeMode.system
+            onPressed:
+                _selectedThemeMode == TerminalThemeMode.system &&
+                    _selectedTerminalViewportPadding ==
+                        TerminalAppAppearance.defaultTerminalViewportPadding
                 ? null
                 : () {
                     setState(() {
                       _selectedThemeMode = TerminalThemeMode.system;
+                      _selectedTerminalViewportPadding =
+                          TerminalAppAppearance.defaultTerminalViewportPadding;
                     });
                   },
           ),
@@ -384,6 +459,7 @@ class _DefaultsAndAppearanceDialogState
                 DefaultsAndAppearanceSelection(
                   configuredDefaultProfileId: _selectedProfileId,
                   themeMode: _selectedThemeMode,
+                  terminalViewportPadding: _selectedTerminalViewportPadding,
                   updatedProfile: _updatedProfileForPreset(effectiveProfile),
                   openProfiles: false,
                 ),

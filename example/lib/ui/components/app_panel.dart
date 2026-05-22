@@ -48,7 +48,12 @@ class AppPanel extends StatelessWidget {
     return DecoratedBox(
       key: key,
       decoration: decoration,
-      child: padding == null ? child : Padding(padding: padding!, child: child),
+      child: Material(
+        type: MaterialType.transparency,
+        child: padding == null
+            ? child
+            : Padding(padding: padding!, child: child),
+      ),
     );
   }
 

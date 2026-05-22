@@ -218,6 +218,7 @@ class SessionState {
     required this.configuredDefaultProfileId,
     required this.configurationWarnings,
     required this.themeMode,
+    required this.terminalViewportPadding,
     required this.isReady,
     this.lastError,
   });
@@ -229,6 +230,7 @@ class SessionState {
   final String? configuredDefaultProfileId;
   final List<TerminalProfileLoadWarning> configurationWarnings;
   final TerminalThemeMode themeMode;
+  final double terminalViewportPadding;
   final bool isReady;
   final String? lastError;
 
@@ -241,6 +243,8 @@ class SessionState {
       configuredDefaultProfileId: null,
       configurationWarnings: [],
       themeMode: TerminalThemeMode.system,
+      terminalViewportPadding:
+          TerminalAppAppearance.defaultTerminalViewportPadding,
       isReady: false,
     );
   }
@@ -253,6 +257,7 @@ class SessionState {
     Object? configuredDefaultProfileId = _sessionStateNoChange,
     List<TerminalProfileLoadWarning>? configurationWarnings,
     TerminalThemeMode? themeMode,
+    double? terminalViewportPadding,
     bool? isReady,
     Object? lastError = _sessionStateNoChange,
   }) {
@@ -272,6 +277,8 @@ class SessionState {
       configurationWarnings:
           configurationWarnings ?? this.configurationWarnings,
       themeMode: themeMode ?? this.themeMode,
+      terminalViewportPadding:
+          terminalViewportPadding ?? this.terminalViewportPadding,
       isReady: isReady ?? this.isReady,
       lastError: identical(lastError, _sessionStateNoChange)
           ? this.lastError

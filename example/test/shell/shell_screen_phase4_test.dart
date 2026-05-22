@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
@@ -19,6 +20,7 @@ Future<void> _pumpShellScreen(
   WidgetTester tester, {
   required FakePtyBackend fakeBindings,
   ThemeMode themeMode = ThemeMode.light,
+  TerminalAppPreferencesDocument? preferences,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -33,12 +35,16 @@ Future<void> _pumpShellScreen(
           MemoryPasteHistoryRepository(),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
-          MemoryAppPreferencesRepository(null),
+          MemoryAppPreferencesRepository(preferences),
         ),
       ],
       child: MaterialApp(
-        theme: ThemeData.light(),
-        darkTheme: ThemeData.dark(),
+        theme: ThemeData.light().copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
+        darkTheme: ThemeData.dark().copyWith(
+          splashFactory: NoSplash.splashFactory,
+        ),
         themeMode: themeMode,
         home: const ShellScreen(),
       ),
@@ -82,6 +88,27 @@ void main() {
       (viewportSize.height * tester.view.devicePixelRatio).round(),
     );
     expect(fakeBindings.resizeCalls.length, greaterThanOrEqualTo(2));
+  });
+
+  testWidgets('shell applies configured terminal viewport padding', (
+    tester,
+  ) async {
+    const preferences = TerminalAppPreferencesDocument(
+      appearance: TerminalAppAppearance(terminalViewportPadding: 20),
+    );
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      preferences: preferences,
+    );
+
+    final viewport = tester.widget<TerminalViewport>(
+      find.byType(TerminalViewport),
+    );
+
+    expect(viewport.contentPadding, const EdgeInsets.all(20));
   });
 
   testWidgets('paste clipboard confirms multiline text before sending', (

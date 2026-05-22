@@ -8,7 +8,10 @@ void main() {
     test('maps local config defaults and appearance to app preferences', () {
       const config = LocalTerminalConfigDocument(
         defaultProfileId: 'local',
-        appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.dark),
+        appearance: TerminalAppAppearance(
+          themeMode: TerminalThemeMode.dark,
+          terminalViewportPadding: 18,
+        ),
       );
 
       final preferences =
@@ -16,6 +19,7 @@ void main() {
 
       expect(preferences.defaults.defaultProfileId, 'local');
       expect(preferences.appearance.themeMode, TerminalThemeMode.dark);
+      expect(preferences.appearance.terminalViewportPadding, 18);
     });
   });
 }

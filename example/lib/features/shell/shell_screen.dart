@@ -235,7 +235,6 @@ class ShellScreen extends ConsumerStatefulWidget {
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _workspaceCueDuration = Duration(milliseconds: 1400);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
-  static const _terminalViewportPadding = EdgeInsets.fromLTRB(8, 8, 10, 10);
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
   static const _pasteHistoryLimit = 30;
   static const _capturedOutputLimit = 80;
@@ -1019,12 +1018,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     };
   }
 
-  Size _terminalContentSizeFor(BoxConstraints constraints) {
+  EdgeInsets _terminalViewportPaddingFor(SessionState sessionState) {
+    return EdgeInsets.all(sessionState.terminalViewportPadding);
+  }
+
+  Size _terminalContentSizeFor(
+    BoxConstraints constraints,
+    EdgeInsets terminalViewportPadding,
+  ) {
     return Size(
-      (constraints.maxWidth - _terminalViewportPadding.horizontal)
+      (constraints.maxWidth - terminalViewportPadding.horizontal)
           .clamp(1.0, double.infinity)
           .toDouble(),
-      (constraints.maxHeight - _terminalViewportPadding.vertical)
+      (constraints.maxHeight - terminalViewportPadding.vertical)
           .clamp(1.0, double.infinity)
           .toDouble(),
     );
@@ -3118,6 +3124,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
         effectiveDefaultProfileId: sessionState.defaultProfileId,
         themeMode: sessionState.themeMode,
+        terminalViewportPadding: sessionState.terminalViewportPadding,
       ),
     );
 
@@ -3151,6 +3158,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
       if (selection.themeMode != stateBeforeSave.themeMode) {
         await sessionController.setThemeMode(selection.themeMode);
+      }
+      if (selection.terminalViewportPadding !=
+          stateBeforeSave.terminalViewportPadding) {
+        await sessionController.setTerminalViewportPadding(
+          selection.terminalViewportPadding,
+        );
       }
       final updatedProfile = selection.updatedProfile;
       if (updatedProfile != null) {
@@ -4773,11 +4786,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     final annotations = _annotationsForSession(sessionId);
     final activeCoprocess = _coprocesses[sessionId];
+    final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
 
     return LayoutBuilder(
       key: Key('shell-pane-$sessionId'),
       builder: (context, constraints) {
-        final viewportSize = _terminalContentSizeFor(constraints);
+        final viewportSize = _terminalContentSizeFor(
+          constraints,
+          terminalViewportPadding,
+        );
         final scheduledSize = _scheduledViewportSizes[sessionId];
         if (scheduledSize != viewportSize) {
           _scheduledViewportSizes[sessionId] = viewportSize;
@@ -4832,7 +4849,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       controller: viewportController,
                       selectionController: selectionController,
                       inputController: inputController,
-                      contentPadding: _terminalViewportPadding,
+                      contentPadding: terminalViewportPadding,
                       onMeasuredCellSizeChanged: (cellSize) {
                         if (!mounted) {
                           return;
@@ -4886,7 +4903,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         cellSize:
                             viewportController.measuredCellSize ??
                             terminal.terminalFallbackCellSize,
-                        contentPadding: _terminalViewportPadding,
+                        contentPadding: terminalViewportPadding,
                         palette: palette,
                       ),
                     ),
@@ -5689,147 +5706,153 @@ class _ShellToolbelt extends StatelessWidget {
           border: Border(left: BorderSide(color: palette.borderStrong)),
           boxShadow: palette.elevation.floating,
         ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              palette.spacing.lg,
-              palette.spacing.lg,
-              palette.spacing.lg,
-              palette.spacing.xl,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Toolbelt',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: palette.textPrimary,
-                              fontWeight: FontWeight.w800,
-                            ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                palette.spacing.lg,
+                palette.spacing.lg,
+                palette.spacing.lg,
+                palette.spacing.xl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Toolbelt',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        key: const Key('toolbelt-close'),
+                        tooltip: 'Close toolbelt',
+                        onPressed: onClose,
+                        visualDensity: VisualDensity.compact,
+                        splashRadius: 16,
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: palette.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: palette.spacing.sm),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-captured-output'),
+                            icon: Icons.outbox_rounded,
+                            title: 'Captured output',
+                            countLabel:
+                                '$capturedOutputCount captured line${capturedOutputCount == 1 ? '' : 's'}',
+                            palette: palette,
+                            onTap: onOpenCapturedOutput,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-paste-history'),
+                            icon: Icons.history_rounded,
+                            title: 'Paste history',
+                            countLabel:
+                                '$pasteHistoryCount recent item${pasteHistoryCount == 1 ? '' : 's'}',
+                            palette: palette,
+                            onTap: onOpenPasteHistory,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-command-history'),
+                            icon: Icons.list_alt_rounded,
+                            title: 'Command history',
+                            countLabel:
+                                '$commandHistoryCount command${commandHistoryCount == 1 ? '' : 's'}',
+                            palette: palette,
+                            onTap: onOpenShellIntegrationUtilities,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-recent-directories'),
+                            icon: Icons.folder_rounded,
+                            title: 'Recent directories',
+                            countLabel:
+                                '$recentDirectoryCount director${recentDirectoryCount == 1 ? 'y' : 'ies'}',
+                            palette: palette,
+                            onTap: onOpenShellIntegrationUtilities,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-prompt-marks'),
+                            icon: Icons.assistant_direction_rounded,
+                            title: 'Prompt marks',
+                            countLabel:
+                                '$promptMarkCount mark${promptMarkCount == 1 ? '' : 's'}',
+                            palette: palette,
+                            onTap: onOpenShellIntegrationUtilities,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-tmux-integration'),
+                            icon: Icons.account_tree_rounded,
+                            title: 'tmux integration',
+                            countLabel: tmuxControlModeActive
+                                ? 'Control mode active'
+                                : 'Start or attach',
+                            palette: palette,
+                            onTap: onOpenTmuxIntegration,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-coprocess'),
+                            icon: Icons.hub_rounded,
+                            title: 'Coprocess',
+                            countLabel: coprocessActive
+                                ? 'Automation active'
+                                : 'Run automation',
+                            palette: palette,
+                            onTap: onOpenCoprocess,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-annotations'),
+                            icon: Icons.sticky_note_2_rounded,
+                            title: 'Annotations',
+                            countLabel:
+                                '$annotationCount note${annotationCount == 1 ? '' : 's'}',
+                            palette: palette,
+                            onTap: onOpenAnnotations,
+                          ),
+                          Divider(color: palette.border, height: 18),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-instant-replay'),
+                            icon: Icons.replay_rounded,
+                            title: 'Instant replay',
+                            countLabel: 'Recent frames',
+                            palette: palette,
+                            onTap: onOpenInstantReplay,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-password-manager'),
+                            icon: Icons.password_rounded,
+                            title: 'Password manager',
+                            countLabel: 'Prompt-gated sends',
+                            palette: palette,
+                            onTap: onOpenPasswordManager,
+                          ),
+                          Divider(color: palette.border, height: 18),
+                          LocalTerminalCompletionDiagnosticsPanel(
+                            key: const Key('toolbelt-completion-diagnostics'),
+                            snapshot: completionDiagnosticsSnapshot,
+                            maxItemsPerSection: 4,
+                          ),
+                        ],
                       ),
                     ),
-                    IconButton(
-                      key: const Key('toolbelt-close'),
-                      tooltip: 'Close toolbelt',
-                      onPressed: onClose,
-                      visualDensity: VisualDensity.compact,
-                      splashRadius: 16,
-                      icon: Icon(Icons.close_rounded, color: palette.textMuted),
-                    ),
-                  ],
-                ),
-                SizedBox(height: palette.spacing.sm),
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-captured-output'),
-                          icon: Icons.outbox_rounded,
-                          title: 'Captured output',
-                          countLabel:
-                              '$capturedOutputCount captured line${capturedOutputCount == 1 ? '' : 's'}',
-                          palette: palette,
-                          onTap: onOpenCapturedOutput,
-                        ),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-paste-history'),
-                          icon: Icons.history_rounded,
-                          title: 'Paste history',
-                          countLabel:
-                              '$pasteHistoryCount recent item${pasteHistoryCount == 1 ? '' : 's'}',
-                          palette: palette,
-                          onTap: onOpenPasteHistory,
-                        ),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-command-history'),
-                          icon: Icons.list_alt_rounded,
-                          title: 'Command history',
-                          countLabel:
-                              '$commandHistoryCount command${commandHistoryCount == 1 ? '' : 's'}',
-                          palette: palette,
-                          onTap: onOpenShellIntegrationUtilities,
-                        ),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-recent-directories'),
-                          icon: Icons.folder_rounded,
-                          title: 'Recent directories',
-                          countLabel:
-                              '$recentDirectoryCount director${recentDirectoryCount == 1 ? 'y' : 'ies'}',
-                          palette: palette,
-                          onTap: onOpenShellIntegrationUtilities,
-                        ),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-prompt-marks'),
-                          icon: Icons.assistant_direction_rounded,
-                          title: 'Prompt marks',
-                          countLabel:
-                              '$promptMarkCount mark${promptMarkCount == 1 ? '' : 's'}',
-                          palette: palette,
-                          onTap: onOpenShellIntegrationUtilities,
-                        ),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-tmux-integration'),
-                          icon: Icons.account_tree_rounded,
-                          title: 'tmux integration',
-                          countLabel: tmuxControlModeActive
-                              ? 'Control mode active'
-                              : 'Start or attach',
-                          palette: palette,
-                          onTap: onOpenTmuxIntegration,
-                        ),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-coprocess'),
-                          icon: Icons.hub_rounded,
-                          title: 'Coprocess',
-                          countLabel: coprocessActive
-                              ? 'Automation active'
-                              : 'Run automation',
-                          palette: palette,
-                          onTap: onOpenCoprocess,
-                        ),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-annotations'),
-                          icon: Icons.sticky_note_2_rounded,
-                          title: 'Annotations',
-                          countLabel:
-                              '$annotationCount note${annotationCount == 1 ? '' : 's'}',
-                          palette: palette,
-                          onTap: onOpenAnnotations,
-                        ),
-                        Divider(color: palette.border, height: 18),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-instant-replay'),
-                          icon: Icons.replay_rounded,
-                          title: 'Instant replay',
-                          countLabel: 'Recent frames',
-                          palette: palette,
-                          onTap: onOpenInstantReplay,
-                        ),
-                        _ToolbeltActionRow(
-                          key: const Key('toolbelt-password-manager'),
-                          icon: Icons.password_rounded,
-                          title: 'Password manager',
-                          countLabel: 'Prompt-gated sends',
-                          palette: palette,
-                          onTap: onOpenPasswordManager,
-                        ),
-                        Divider(color: palette.border, height: 18),
-                        LocalTerminalCompletionDiagnosticsPanel(
-                          key: const Key('toolbelt-completion-diagnostics'),
-                          snapshot: completionDiagnosticsSnapshot,
-                          maxItemsPerSection: 4,
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -6413,12 +6436,12 @@ class _ShellTabStrip extends StatelessWidget {
       height: double.infinity,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 3),
         itemCount: tabs.length,
         separatorBuilder: (_, _) => Container(
           width: 1,
-          margin: const EdgeInsets.symmetric(vertical: 9),
-          color: palette.border.withValues(alpha: 0.38),
+          margin: const EdgeInsets.symmetric(vertical: 12),
+          color: palette.border.withValues(alpha: 0.28),
         ),
         itemBuilder: (context, index) {
           final tab = tabs[index];
@@ -6461,6 +6484,13 @@ class _ShellTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tabTextStyle = Theme.of(context).textTheme.titleSmall!.copyWith(
+      color: isActive
+          ? palette.textPrimary
+          : palette.textMuted.withValues(alpha: 0.82),
+      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+    );
+
     return Semantics(
       label: 'shell-tab-${tab.sessionId}',
       selected: isActive,
@@ -6473,89 +6503,81 @@ class _ShellTabButton extends StatelessWidget {
             onShowContextMenu(event.position);
           }
         },
-        child: TextButton(
-          key: Key('shell-tab-${tab.sessionId}'),
-          style: ButtonStyle(
-            minimumSize: const WidgetStatePropertyAll(Size(0, 32)),
-            padding: WidgetStatePropertyAll(
-              EdgeInsets.symmetric(horizontal: palette.spacing.md),
-            ),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
-            foregroundColor: WidgetStatePropertyAll(
-              isActive ? palette.textPrimary : palette.textMuted,
-            ),
-            backgroundColor: WidgetStateProperty.resolveWith((states) {
-              if (isActive) {
-                return palette.selected.withValues(alpha: 0.52);
-              }
-              if (states.contains(WidgetState.hovered) ||
-                  states.contains(WidgetState.focused)) {
-                return palette.selected.withValues(alpha: 0.22);
-              }
-              return Colors.transparent;
-            }),
-            side: WidgetStatePropertyAll(
-              BorderSide(
-                color: isActive
-                    ? palette.focusRing.withValues(alpha: 0.36)
-                    : Colors.transparent,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 92, maxWidth: 220),
+          child: TextButton(
+            key: Key('shell-tab-${tab.sessionId}'),
+            style: ButtonStyle(
+              minimumSize: const WidgetStatePropertyAll(Size(0, 34)),
+              padding: WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: palette.spacing.md),
               ),
-            ),
-            shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(palette.radius.md),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: const VisualDensity(horizontal: -1, vertical: -2),
+              foregroundColor: WidgetStatePropertyAll(
+                isActive ? palette.textPrimary : palette.textMuted,
               ),
-            ),
-          ),
-          onPressed: onActivate,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.terminal_rounded,
-                size: 14,
-                color: isActive
-                    ? palette.accent
-                    : palette.accent.withValues(alpha: 0.72),
-              ),
-              const SizedBox(width: 7),
-              if (shortcutIndex != null) ...[
-                Text(
-                  '⌘$shortcutIndex',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: isActive ? palette.textMuted : palette.textSubtle,
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 140),
-                style: Theme.of(context).textTheme.titleSmall!.copyWith(
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                if (isActive) {
+                  return palette.chromeElevated.withValues(alpha: 0.92);
+                }
+                if (states.contains(WidgetState.hovered) ||
+                    states.contains(WidgetState.focused)) {
+                  return palette.selected.withValues(alpha: 0.18);
+                }
+                return Colors.transparent;
+              }),
+              side: WidgetStatePropertyAll(
+                BorderSide(
                   color: isActive
-                      ? palette.textPrimary
-                      : palette.textMuted.withValues(alpha: 0.76),
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      ? palette.borderStrong.withValues(alpha: 0.64)
+                      : Colors.transparent,
                 ),
-                child: Text(tab.title, overflow: TextOverflow.ellipsis),
               ),
-              const SizedBox(width: 4),
-              Tooltip(
-                message: 'Close ${tab.title}',
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onClose,
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 11,
-                    color: isActive
-                        ? palette.textMuted.withValues(alpha: 0.84)
-                        : palette.textSubtle.withValues(alpha: 0.36),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(palette.radius.md),
+                ),
+              ),
+            ),
+            onPressed: onActivate,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (shortcutIndex != null) ...[
+                  Text(
+                    '⌘$shortcutIndex',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: isActive ? palette.textMuted : palette.textSubtle,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 140),
+                    style: tabTextStyle,
+                    child: Text(tab.title, overflow: TextOverflow.ellipsis),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 5),
+                Tooltip(
+                  message: 'Close ${tab.title}',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onClose,
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 12,
+                      color: isActive
+                          ? palette.textMuted.withValues(alpha: 0.78)
+                          : palette.textSubtle.withValues(alpha: 0.34),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -9898,433 +9920,440 @@ class _ShellCommandMenu extends StatelessWidget {
             border: Border.all(color: palette.borderStrong),
             boxShadow: palette.elevation.dialog,
           ),
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(6, 2, 2, 2),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Top actions',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: palette.textPrimary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Close actions',
-                          onPressed: () => Navigator.of(context).pop(),
-                          visualDensity: VisualDensity.compact,
-                          splashRadius: 16,
-                          icon: Icon(
-                            Icons.close_rounded,
-                            color: palette.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  sectionLabel('App actions'),
-                  _ShellCommandTile(
-                    key: const Key('shell-new-tab'),
-                    icon: Icons.add_box_outlined,
-                    title: 'New tab',
-                    subtitle: 'App action • Open the default shell profile.',
-                    shortcutLabel: newTabShortcutLabel,
-                    enabled: hasDefaultProfile,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.newTab),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-command-defaults'),
-                    icon: Icons.tune_rounded,
-                    title: 'Defaults & appearance',
-                    subtitle:
-                        'App action • Pick the default profile and theme.',
-                    enabled: true,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.defaults),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-reopen-closed-tab'),
-                    icon: Icons.restore_rounded,
-                    title: 'Reopen closed tab',
-                    subtitle:
-                        'App action • Recreate the most recently closed tab.',
-                    enabled: canReopenClosedTab,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.reopenClosedTab),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-toolbelt'),
-                    icon: Icons.view_sidebar_rounded,
-                    title: 'Toolbelt',
-                    subtitle: 'App action • Keep terminal tools in a sidebar.',
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.toolbelt),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-split-right'),
-                    icon: Icons.vertical_split_rounded,
-                    title: 'Split right',
-                    subtitle: 'Session action • Add a pane to the right.',
-                    enabled: hasDefaultProfile && hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.splitRight),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-split-down'),
-                    icon: Icons.horizontal_split_rounded,
-                    title: 'Split down',
-                    subtitle: 'Session action • Add a pane below.',
-                    enabled: hasDefaultProfile && hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.splitDown),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-zoom-pane'),
-                    icon: Icons.zoom_out_map_rounded,
-                    title: activePaneZoomed
-                        ? 'Unzoom active pane'
-                        : 'Zoom active pane',
-                    subtitle: 'Session action • Focus one pane temporarily.',
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.zoomPane),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-theme-picker'),
-                    icon: Icons.palette_rounded,
-                    title: 'Theme picker',
-                    subtitle: 'App action • Open appearance controls.',
-                    enabled: true,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.openThemePicker),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-export-scrollback'),
-                    icon: Icons.ios_share_rounded,
-                    title: 'Export scrollback',
-                    subtitle:
-                        'App action • Save historical scrollback when available.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.exportScrollback),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-toggle-command-finished-notify'),
-                    icon: Icons.notifications_active_rounded,
-                    title:
-                        '${commandFinishedNotificationsEnabled ? 'Disable' : 'Enable'} command-finished notifications',
-                    subtitle:
-                        'App action • Toggle shell hook completion alerts.',
-                    enabled: true,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.toggleCommandFinishedNotify),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-toggle-bell-notify'),
-                    icon: Icons.notifications_rounded,
-                    title:
-                        '${bellNotificationsEnabled ? 'Disable' : 'Enable'} bell notifications',
-                    subtitle: 'App action • Toggle terminal bell alerts.',
-                    enabled: true,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.toggleBellNotify),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-toggle-activity-monitor'),
-                    icon: Icons.notification_important_rounded,
-                    title:
-                        '${activityMonitorEnabled ? 'Disable' : 'Enable'} activity monitor',
-                    subtitle:
-                        'App action • Toggle inactive-session activity alerts.',
-                    enabled: true,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.toggleActivityMonitor),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-command-profiles'),
-                    icon: Icons.folder_open_rounded,
-                    title: 'Profiles…',
-                    subtitle: 'App action • Open or edit shell profiles.',
-                    enabled: true,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.profiles),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-dynamic-profiles'),
-                    icon: Icons.data_object_rounded,
-                    title: 'Dynamic profiles',
-                    subtitle: 'App action • Import iTerm-style JSON profiles.',
-                    enabled: true,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.dynamicProfiles),
-                  ),
-                  sectionLabel('Session actions'),
-                  if (!hasActiveSession)
+          child: Material(
+            type: MaterialType.transparency,
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Requires an active shell session.',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: palette.textSubtle),
-                        ),
+                      padding: const EdgeInsets.fromLTRB(6, 2, 2, 2),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Top actions',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: palette.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Close actions',
+                            onPressed: () => Navigator.of(context).pop(),
+                            visualDensity: VisualDensity.compact,
+                            splashRadius: 16,
+                            icon: Icon(
+                              Icons.close_rounded,
+                              color: palette.textMuted,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  _ShellCommandTile(
-                    icon: Icons.copy_rounded,
-                    title: 'Copy selection',
-                    subtitle: 'Session action • Copy the current selection.',
-                    shortcutLabel: sessionCopyShortcutLabel,
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.copy),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-copy-mode'),
-                    icon: Icons.select_all_rounded,
-                    title: 'Copy mode',
-                    subtitle:
-                        'Session action • Select terminal text from the keyboard.',
-                    shortcutLabel: copyModeShortcutLabel,
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.copyMode),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-toggle-read-only'),
-                    icon: Icons.lock_outline_rounded,
-                    title:
-                        '${isActiveSessionReadOnly ? 'Disable' : 'Enable'} read-only mode',
-                    subtitle:
-                        'Session action • Block terminal input for this pane.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.toggleReadOnly),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-clear-scrollback'),
-                    icon: Icons.clear_all_rounded,
-                    title: 'Clear scrollback',
-                    subtitle:
-                        'Session action • Clear local scrollback when supported.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.clearScrollback),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-annotations'),
-                    icon: Icons.sticky_note_2_rounded,
-                    title: 'Annotations',
-                    subtitle:
-                        'Session action • Attach notes to selected output.',
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.annotations),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-captured-output'),
-                    icon: Icons.outbox_rounded,
-                    title: 'Captured output',
-                    subtitle:
-                        'Session action • Review lines matched by triggers.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.capturedOutput),
-                  ),
-                  _ShellCommandTile(
-                    icon: Icons.content_paste_rounded,
-                    title: 'Paste clipboard',
-                    subtitle:
-                        'Session action • Paste clipboard into the shell.',
-                    shortcutLabel: sessionPasteShortcutLabel,
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.paste),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-advanced-paste'),
-                    icon: Icons.assignment_rounded,
-                    title: 'Advanced paste',
-                    subtitle:
-                        'Session action • Edit and transform text before pasting.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.advancedPaste),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-paste-history'),
-                    icon: Icons.history_rounded,
-                    title: 'Paste history',
-                    subtitle:
-                        'Session action • Revisit recently copied or pasted text.',
-                    shortcutLabel: pasteHistoryShortcutLabel,
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.pasteHistory),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-integration-utilities'),
-                    icon: Icons.integration_instructions_rounded,
-                    title: 'Shell integration',
-                    subtitle:
-                        'Session action • Command history, directories, and marks.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.shellIntegrationUtilities),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-select-command-output'),
-                    icon: Icons.fact_check_rounded,
-                    title: 'Select command output',
-                    subtitle:
-                        'Session action • Select output between prompt marks.',
-                    enabled: hasActiveSession && canSelectCommandOutput,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.selectCommandOutput),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-tmux-integration'),
-                    icon: Icons.account_tree_rounded,
-                    title: 'tmux integration',
-                    subtitle:
-                        'Session action • Start or drive tmux control mode.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.tmuxIntegration),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-coprocess'),
-                    icon: Icons.hub_rounded,
-                    title: 'Coprocess',
-                    subtitle:
-                        'Session action • Automate replies from terminal output.',
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.coprocess),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-password-manager'),
-                    icon: Icons.password_rounded,
-                    title: 'Password manager',
-                    subtitle:
-                        'Session action • Send saved passwords at prompts.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.passwordManager),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-instant-replay'),
-                    icon: Icons.replay_rounded,
-                    title: 'Instant replay',
-                    subtitle:
-                        'Session action • Recover text from recent terminal frames.',
-                    shortcutLabel: instantReplayShortcutLabel,
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.instantReplay),
-                  ),
-                  _ShellCommandTile(
-                    icon: Icons.search_rounded,
-                    title: 'Search scrollback',
-                    subtitle: 'Session action • Find text in local output.',
-                    enabled: hasActiveSession,
-                    onTap: () =>
-                        Navigator.of(context).pop(TerminalActionId.search),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-global-search'),
-                    icon: Icons.manage_search_rounded,
-                    title: 'Global search',
-                    subtitle: 'Workspace action • Search all tabs at once.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.globalSearch),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-autocomplete'),
-                    icon: Icons.auto_fix_high_rounded,
-                    title: 'Autocomplete',
-                    subtitle:
-                        'Session action • Complete a word from visible output.',
-                    shortcutLabel: autocompleteShortcutLabel,
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.autocomplete),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-auto-composer'),
-                    icon: Icons.edit_note_rounded,
-                    title: 'Auto Composer',
-                    subtitle:
-                        'Session action • Native command editor with completions.',
-                    enabled: hasActiveSession,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.autoComposer),
-                  ),
-                  _ShellCommandTile(
-                    key: const Key('shell-hotkey-window'),
-                    icon: Icons.keyboard_rounded,
-                    title: 'Hotkey window',
-                    subtitle: 'App action • Hide or summon the shell window.',
-                    shortcutLabel: hotkeyWindowShortcutLabel,
-                    enabled: true,
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(TerminalActionId.hotkeyWindow),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.keyboard_command_key_rounded,
-                          size: 16,
-                          color: palette.textSubtle,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
+                    sectionLabel('App actions'),
+                    _ShellCommandTile(
+                      key: const Key('shell-new-tab'),
+                      icon: Icons.add_box_outlined,
+                      title: 'New tab',
+                      subtitle: 'App action • Open the default shell profile.',
+                      shortcutLabel: newTabShortcutLabel,
+                      enabled: hasDefaultProfile,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.newTab),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-command-defaults'),
+                      icon: Icons.tune_rounded,
+                      title: 'Defaults & appearance',
+                      subtitle:
+                          'App action • Pick the default profile and theme.',
+                      enabled: true,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.defaults),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-reopen-closed-tab'),
+                      icon: Icons.restore_rounded,
+                      title: 'Reopen closed tab',
+                      subtitle:
+                          'App action • Recreate the most recently closed tab.',
+                      enabled: canReopenClosedTab,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.reopenClosedTab),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-toolbelt'),
+                      icon: Icons.view_sidebar_rounded,
+                      title: 'Toolbelt',
+                      subtitle:
+                          'App action • Keep terminal tools in a sidebar.',
+                      enabled: hasActiveSession,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.toolbelt),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-split-right'),
+                      icon: Icons.vertical_split_rounded,
+                      title: 'Split right',
+                      subtitle: 'Session action • Add a pane to the right.',
+                      enabled: hasDefaultProfile && hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.splitRight),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-split-down'),
+                      icon: Icons.horizontal_split_rounded,
+                      title: 'Split down',
+                      subtitle: 'Session action • Add a pane below.',
+                      enabled: hasDefaultProfile && hasActiveSession,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.splitDown),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-zoom-pane'),
+                      icon: Icons.zoom_out_map_rounded,
+                      title: activePaneZoomed
+                          ? 'Unzoom active pane'
+                          : 'Zoom active pane',
+                      subtitle: 'Session action • Focus one pane temporarily.',
+                      enabled: hasActiveSession,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.zoomPane),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-theme-picker'),
+                      icon: Icons.palette_rounded,
+                      title: 'Theme picker',
+                      subtitle: 'App action • Open appearance controls.',
+                      enabled: true,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.openThemePicker),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-export-scrollback'),
+                      icon: Icons.ios_share_rounded,
+                      title: 'Export scrollback',
+                      subtitle:
+                          'App action • Save historical scrollback when available.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.exportScrollback),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-toggle-command-finished-notify'),
+                      icon: Icons.notifications_active_rounded,
+                      title:
+                          '${commandFinishedNotificationsEnabled ? 'Disable' : 'Enable'} command-finished notifications',
+                      subtitle:
+                          'App action • Toggle shell hook completion alerts.',
+                      enabled: true,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.toggleCommandFinishedNotify),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-toggle-bell-notify'),
+                      icon: Icons.notifications_rounded,
+                      title:
+                          '${bellNotificationsEnabled ? 'Disable' : 'Enable'} bell notifications',
+                      subtitle: 'App action • Toggle terminal bell alerts.',
+                      enabled: true,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.toggleBellNotify),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-toggle-activity-monitor'),
+                      icon: Icons.notification_important_rounded,
+                      title:
+                          '${activityMonitorEnabled ? 'Disable' : 'Enable'} activity monitor',
+                      subtitle:
+                          'App action • Toggle inactive-session activity alerts.',
+                      enabled: true,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.toggleActivityMonitor),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-command-profiles'),
+                      icon: Icons.folder_open_rounded,
+                      title: 'Profiles…',
+                      subtitle: 'App action • Open or edit shell profiles.',
+                      enabled: true,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.profiles),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-dynamic-profiles'),
+                      icon: Icons.data_object_rounded,
+                      title: 'Dynamic profiles',
+                      subtitle:
+                          'App action • Import iTerm-style JSON profiles.',
+                      enabled: true,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.dynamicProfiles),
+                    ),
+                    sectionLabel('Session actions'),
+                    if (!hasActiveSession)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
                           child: Text(
-                            'Open command menu with $launcherShortcutLabel',
-                            style: Theme.of(context).textTheme.labelMedium
+                            'Requires an active shell session.',
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: palette.textSubtle),
                           ),
                         ),
-                      ],
+                      ),
+                    _ShellCommandTile(
+                      icon: Icons.copy_rounded,
+                      title: 'Copy selection',
+                      subtitle: 'Session action • Copy the current selection.',
+                      shortcutLabel: sessionCopyShortcutLabel,
+                      enabled: hasActiveSession,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.copy),
                     ),
-                  ),
-                ],
+                    _ShellCommandTile(
+                      key: const Key('shell-copy-mode'),
+                      icon: Icons.select_all_rounded,
+                      title: 'Copy mode',
+                      subtitle:
+                          'Session action • Select terminal text from the keyboard.',
+                      shortcutLabel: copyModeShortcutLabel,
+                      enabled: hasActiveSession,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.copyMode),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-toggle-read-only'),
+                      icon: Icons.lock_outline_rounded,
+                      title:
+                          '${isActiveSessionReadOnly ? 'Disable' : 'Enable'} read-only mode',
+                      subtitle:
+                          'Session action • Block terminal input for this pane.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.toggleReadOnly),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-clear-scrollback'),
+                      icon: Icons.clear_all_rounded,
+                      title: 'Clear scrollback',
+                      subtitle:
+                          'Session action • Clear local scrollback when supported.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.clearScrollback),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-annotations'),
+                      icon: Icons.sticky_note_2_rounded,
+                      title: 'Annotations',
+                      subtitle:
+                          'Session action • Attach notes to selected output.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.annotations),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-captured-output'),
+                      icon: Icons.outbox_rounded,
+                      title: 'Captured output',
+                      subtitle:
+                          'Session action • Review lines matched by triggers.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.capturedOutput),
+                    ),
+                    _ShellCommandTile(
+                      icon: Icons.content_paste_rounded,
+                      title: 'Paste clipboard',
+                      subtitle:
+                          'Session action • Paste clipboard into the shell.',
+                      shortcutLabel: sessionPasteShortcutLabel,
+                      enabled: hasActiveSession,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.paste),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-advanced-paste'),
+                      icon: Icons.assignment_rounded,
+                      title: 'Advanced paste',
+                      subtitle:
+                          'Session action • Edit and transform text before pasting.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.advancedPaste),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-paste-history'),
+                      icon: Icons.history_rounded,
+                      title: 'Paste history',
+                      subtitle:
+                          'Session action • Revisit recently copied or pasted text.',
+                      shortcutLabel: pasteHistoryShortcutLabel,
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.pasteHistory),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-integration-utilities'),
+                      icon: Icons.integration_instructions_rounded,
+                      title: 'Shell integration',
+                      subtitle:
+                          'Session action • Command history, directories, and marks.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.shellIntegrationUtilities),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-select-command-output'),
+                      icon: Icons.fact_check_rounded,
+                      title: 'Select command output',
+                      subtitle:
+                          'Session action • Select output between prompt marks.',
+                      enabled: hasActiveSession && canSelectCommandOutput,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.selectCommandOutput),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-tmux-integration'),
+                      icon: Icons.account_tree_rounded,
+                      title: 'tmux integration',
+                      subtitle:
+                          'Session action • Start or drive tmux control mode.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.tmuxIntegration),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-coprocess'),
+                      icon: Icons.hub_rounded,
+                      title: 'Coprocess',
+                      subtitle:
+                          'Session action • Automate replies from terminal output.',
+                      enabled: hasActiveSession,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.coprocess),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-password-manager'),
+                      icon: Icons.password_rounded,
+                      title: 'Password manager',
+                      subtitle:
+                          'Session action • Send saved passwords at prompts.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.passwordManager),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-instant-replay'),
+                      icon: Icons.replay_rounded,
+                      title: 'Instant replay',
+                      subtitle:
+                          'Session action • Recover text from recent terminal frames.',
+                      shortcutLabel: instantReplayShortcutLabel,
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.instantReplay),
+                    ),
+                    _ShellCommandTile(
+                      icon: Icons.search_rounded,
+                      title: 'Search scrollback',
+                      subtitle: 'Session action • Find text in local output.',
+                      enabled: hasActiveSession,
+                      onTap: () =>
+                          Navigator.of(context).pop(TerminalActionId.search),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-global-search'),
+                      icon: Icons.manage_search_rounded,
+                      title: 'Global search',
+                      subtitle: 'Workspace action • Search all tabs at once.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.globalSearch),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-autocomplete'),
+                      icon: Icons.auto_fix_high_rounded,
+                      title: 'Autocomplete',
+                      subtitle:
+                          'Session action • Complete a word from visible output.',
+                      shortcutLabel: autocompleteShortcutLabel,
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.autocomplete),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-auto-composer'),
+                      icon: Icons.edit_note_rounded,
+                      title: 'Auto Composer',
+                      subtitle:
+                          'Session action • Native command editor with completions.',
+                      enabled: hasActiveSession,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.autoComposer),
+                    ),
+                    _ShellCommandTile(
+                      key: const Key('shell-hotkey-window'),
+                      icon: Icons.keyboard_rounded,
+                      title: 'Hotkey window',
+                      subtitle: 'App action • Hide or summon the shell window.',
+                      shortcutLabel: hotkeyWindowShortcutLabel,
+                      enabled: true,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.hotkeyWindow),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.keyboard_command_key_rounded,
+                            size: 16,
+                            color: palette.textSubtle,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Open command menu with $launcherShortcutLabel',
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(color: palette.textSubtle),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

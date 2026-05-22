@@ -218,6 +218,8 @@ class SessionController extends Notifier<SessionState> {
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
       configurationWarnings: profiles.loadWarnings,
       themeMode: _appPreferences.appearance.themeMode,
+      terminalViewportPadding:
+          _appPreferences.appearance.terminalViewportPadding,
       isReady: true,
     );
     if (initialLaunchProfile != null) {
@@ -1149,6 +1151,26 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> resetThemeMode() async {
     await setThemeMode(TerminalThemeMode.system);
+  }
+
+  Future<void> setTerminalViewportPadding(double padding) async {
+    final nextPadding = padding
+        .clamp(
+          TerminalAppAppearance.minTerminalViewportPadding,
+          TerminalAppAppearance.maxTerminalViewportPadding,
+        )
+        .toDouble();
+    _appPreferences = _appPreferences.copyWith(
+      appearance: _appPreferences.appearance.copyWith(
+        terminalViewportPadding: nextPadding,
+      ),
+    );
+    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+    _preferencesLoadedFromDisk = true;
+    state = state.copyWith(
+      terminalViewportPadding:
+          _appPreferences.appearance.terminalViewportPadding,
+    );
   }
 
   Future<void> deleteProfile(String profileId) async {
