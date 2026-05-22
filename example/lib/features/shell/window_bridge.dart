@@ -101,6 +101,16 @@ class WindowBridge {
         arguments['identifier'] = identifier;
       }
       await _channel.invokeMethod<void>('showNotification', arguments);
+    } on PlatformException catch (error) {
+      if (kDebugMode &&
+          error.code != 'notification_authorization_failed' &&
+          error.code != 'notification_delivery_failed') {
+        // ignore in release; keep diagnostics available in debug only
+        print(
+          'Failed to send notification '
+          '[${error.code}] ${error.message ?? ''}',
+        );
+      }
     } on MissingPluginException {
       return;
     }

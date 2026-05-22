@@ -2295,7 +2295,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 40));
 
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-session')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-directory')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-shell')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-connection')), findsOneWidget);

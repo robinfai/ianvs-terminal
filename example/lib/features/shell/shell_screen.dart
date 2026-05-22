@@ -5074,6 +5074,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final statusPane = displayedSessionId == null
         ? activePane
         : displayedTab?.paneFor(displayedSessionId) ?? activePane;
+    final statusDirectory = statusPane?.shellIntegration.currentDirectory;
     final statusProfile = statusPane == null
         ? null
         : _profileForPane(statusPane, sessionState.profiles);
@@ -5630,9 +5631,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 _ShellStatusBar(
                   key: const Key('shell-status-bar'),
                   palette: palette,
-                  sessionName:
-                      statusContent?.title ?? statusProfile?.name ?? 'Shell',
-                  directory: statusContent?.detail ?? statusProfile?.cwd,
+                  directory: statusDirectory?.trim().isNotEmpty == true
+                      ? statusDirectory!.trim()
+                      : (statusContent?.detail ?? statusProfile?.cwd),
                   shell:
                       statusPane.shellIntegration.shell ?? statusProfile?.shell,
                   connectionLabel: statusPane.isExited
@@ -5912,7 +5913,6 @@ class _ShellStatusBar extends StatelessWidget {
   const _ShellStatusBar({
     super.key,
     required this.palette,
-    required this.sessionName,
     required this.directory,
     required this.shell,
     required this.connectionLabel,
@@ -5922,7 +5922,6 @@ class _ShellStatusBar extends StatelessWidget {
   });
 
   final AppThemeTokens palette;
-  final String sessionName;
   final String? directory;
   final String? shell;
   final String connectionLabel;
@@ -5946,23 +5945,20 @@ class _ShellStatusBar extends StatelessWidget {
         height: 44,
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          reverse: true,
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: palette.spacing.lg),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _ShellStatusItem(
-                  key: const Key('shell-status-session'),
-                  palette: palette,
-                  icon: Icons.terminal_rounded,
-                  label: sessionName,
-                  emphasized: true,
-                ),
                 if (directory != null && directory!.trim().isNotEmpty) ...[
                   _ShellStatusDivider(palette: palette),
-                  _ShellStatusItem(
+                  _ShellStatusDirectoryItem(
                     key: const Key('shell-status-directory'),
                     palette: palette,
                     label: _statusPathLabel(directory!),
+                    fullPath: directory!.trim(),
                     minWidth: 176,
                     maxWidth: 260,
                   ),
@@ -6029,6 +6025,51 @@ class _ShellStatusBar extends StatelessWidget {
       return normalized;
     }
     return normalized.substring(lastSlash + 1);
+  }
+}
+
+class _ShellStatusDirectoryItem extends StatelessWidget {
+  const _ShellStatusDirectoryItem({
+    super.key,
+    required this.palette,
+    required this.label,
+    required this.fullPath,
+    this.minWidth,
+    this.maxWidth,
+  });
+
+  final AppThemeTokens palette;
+  final String label;
+  final String fullPath;
+  final double? minWidth;
+  final double? maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: fullPath,
+      padding: EdgeInsets.zero,
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: 'copyPath',
+          child: Text('Copy full path'),
+        ),
+      ],
+      onSelected: (value) {
+        if (value == 'copyPath') {
+          unawaited(ClipboardBridge.copy(fullPath));
+        }
+      },
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(palette.radius.md),
+      ),
+      child: _ShellStatusItem(
+        palette: palette,
+        label: label,
+        minWidth: minWidth,
+        maxWidth: maxWidth,
+      ),
+    );
   }
 }
 
