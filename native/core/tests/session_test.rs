@@ -195,6 +195,20 @@ fn scrollback_profile() -> TerminalProfile {
     )
 }
 
+fn search_modes_profile() -> TerminalProfile {
+    local_profile(
+        "search-modes",
+        "Search Modes",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf 'Alpha\\nalpha\\nERR 100\\nerr 200\\n'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn limited_scrollback_profile() -> TerminalProfile {
     local_profile_with_scrollback(
         "scrollback-limited",
@@ -1997,6 +2011,95 @@ fn session_search_empty_query_returns_no_matches() {
     assert_eq!(matches.as_array().map(Vec::len), Some(0));
 
     session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_search_request_supports_substring_case_modes() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&search_modes_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "err 200");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    assert_eq!(parsed["scrollback_offset"].as_u64(), Some(0));
+
+    let smart_lower = search_request(session_id, "alpha", "smart_case_substring");
+    assert_eq!(smart_lower["error_text"].as_str(), None);
+    assert_eq!(smart_lower["matches"].as_array().map(Vec::len), Some(2));
+
+    let smart_upper = search_request(session_id, "Alpha", "smart_case_substring");
+    assert_eq!(smart_upper["matches"].as_array().map(Vec::len), Some(1));
+    assert_eq!(smart_upper["matches"][0]["text"].as_str(), Some("Alpha"));
+
+    let case_sensitive = search_request(session_id, "alpha", "case_sensitive_substring");
+    assert_eq!(case_sensitive["matches"].as_array().map(Vec::len), Some(1));
+    assert_eq!(case_sensitive["matches"][0]["text"].as_str(), Some("alpha"));
+
+    let case_insensitive = search_request(session_id, "alpha", "case_insensitive_substring");
+    assert_eq!(
+        case_insensitive["matches"].as_array().map(Vec::len),
+        Some(2)
+    );
+
+    let frame_after = session::take_frame_diff(session_id).unwrap();
+    assert!(
+        frame_after.is_none(),
+        "search should not dirty or scroll the terminal"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_search_request_supports_regex_modes_and_errors() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&search_modes_profile()).unwrap()).unwrap();
+
+    wait_for_frame_containing(session_id, "err 200");
+
+    let case_sensitive = search_request(session_id, r"ERR \d+", "case_sensitive_regex");
+    assert_eq!(case_sensitive["error_text"].as_str(), None);
+    assert_eq!(case_sensitive["matches"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        case_sensitive["matches"][0]["text"].as_str(),
+        Some("ERR 100")
+    );
+
+    let case_insensitive = search_request(session_id, r"ERR \d+", "case_insensitive_regex");
+    assert_eq!(
+        case_insensitive["matches"].as_array().map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(
+        case_insensitive["matches"][1]["text"].as_str(),
+        Some("err 200")
+    );
+
+    let invalid = search_request(session_id, r"ERR \d+(", "case_sensitive_regex");
+    assert_eq!(invalid["matches"].as_array().map(Vec::len), Some(0));
+    assert_eq!(
+        invalid["error_text"].as_str(),
+        Some("Invalid regular expression")
+    );
+
+    let frame_after = session::take_frame_diff(session_id).unwrap();
+    assert!(
+        frame_after.is_none(),
+        "search should not dirty or scroll the terminal"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+fn search_request(session_id: u64, query: &str, mode: &str) -> serde_json::Value {
+    let request = serde_json::json!({
+        "kind": "terminal.search_text",
+        "query": query,
+        "mode": mode,
+    });
+    let response = session::request_session_json(session_id, &request.to_string())
+        .unwrap()
+        .expect("expected search response");
+    serde_json::from_str(&response).unwrap()
 }
 
 #[test]

@@ -1,5 +1,46 @@
 import 'package:flutter/material.dart';
 
+class TerminalSearchHighlightStyle {
+  const TerminalSearchHighlightStyle({
+    this.activeFill = const Color(0x570A84FF),
+    this.inactiveFill = const Color(0x38FFB000),
+    this.activeBorder = const Color(0xD10A84FF),
+    this.radius = 3,
+  });
+
+  final Color activeFill;
+  final Color inactiveFill;
+  final Color activeBorder;
+  final double radius;
+
+  TerminalSearchHighlightStyle copyWith({
+    Color? activeFill,
+    Color? inactiveFill,
+    Color? activeBorder,
+    double? radius,
+  }) {
+    return TerminalSearchHighlightStyle(
+      activeFill: activeFill ?? this.activeFill,
+      inactiveFill: inactiveFill ?? this.inactiveFill,
+      activeBorder: activeBorder ?? this.activeBorder,
+      radius: radius ?? this.radius,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TerminalSearchHighlightStyle &&
+        other.activeFill == activeFill &&
+        other.inactiveFill == inactiveFill &&
+        other.activeBorder == activeBorder &&
+        other.radius == radius;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(activeFill, inactiveFill, activeBorder, radius);
+}
+
 class TerminalViewportColors {
   const TerminalViewportColors({
     required this.canvasBackground,

@@ -517,6 +517,7 @@ dependencies = [
  "par-term-emu-core-rust",
  "parking_lot",
  "portable-pty",
+ "regex",
  "serde",
  "serde_json",
  "strip-ansi-escapes",

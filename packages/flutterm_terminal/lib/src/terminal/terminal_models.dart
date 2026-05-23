@@ -293,6 +293,34 @@ class TerminalInlineImage {
   }
 }
 
+enum TerminalSearchMode {
+  smartCaseSubstring,
+  caseSensitiveSubstring,
+  caseInsensitiveSubstring,
+  caseSensitiveRegex,
+  caseInsensitiveRegex;
+
+  String get wireName {
+    return switch (this) {
+      TerminalSearchMode.smartCaseSubstring => 'smart_case_substring',
+      TerminalSearchMode.caseSensitiveSubstring => 'case_sensitive_substring',
+      TerminalSearchMode.caseInsensitiveSubstring =>
+        'case_insensitive_substring',
+      TerminalSearchMode.caseSensitiveRegex => 'case_sensitive_regex',
+      TerminalSearchMode.caseInsensitiveRegex => 'case_insensitive_regex',
+    };
+  }
+}
+
+class TerminalSearchResult {
+  const TerminalSearchResult({required this.matches, this.errorText});
+
+  final List<TerminalSearchMatch> matches;
+  final String? errorText;
+
+  static const empty = TerminalSearchResult(matches: <TerminalSearchMatch>[]);
+}
+
 class TerminalSearchMatch {
   const TerminalSearchMatch({
     required this.row,

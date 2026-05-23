@@ -649,11 +649,17 @@ void main() {
     );
     runtimeBackend.jsonRequests.clear();
 
-    final matches = runtime.searchText(sessionId, 'ready');
-    expect(matches.single.text, 'ready');
+    final search = runtime.searchTextResult(
+      sessionId,
+      'ready',
+      mode: TerminalSearchMode.caseInsensitiveRegex,
+    );
+    expect(search.matches.single.text, 'ready');
+    expect(search.errorText, isNull);
     expect(runtimeBackend.jsonRequests.single, <String, Object?>{
       'kind': 'terminal.search_text',
       'query': 'ready',
+      'mode': 'case_insensitive_regex',
     });
 
     final text = runtime.selectionText(
@@ -1382,6 +1388,7 @@ class _FakePtyBackend
   final List<(String, int)> scrollToCalls = <(String, int)>[];
   final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
   List<Map<String, Object?>> searchResponse = const <Map<String, Object?>>[];
+  String? searchErrorText;
   String selectionResponse = '';
   bool returnNullJsonRequests = false;
 
@@ -1485,7 +1492,10 @@ class _FakePtyBackend
       return null;
     }
     return switch (request['kind']) {
-      'terminal.search_text' => jsonEncode(searchResponse),
+      'terminal.search_text' => jsonEncode(<String, Object?>{
+        'matches': searchResponse,
+        'error_text': searchErrorText,
+      }),
       'terminal.selection_text' => jsonEncode(<String, Object?>{
         'text': selectionResponse,
       }),

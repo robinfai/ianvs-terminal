@@ -128,6 +128,12 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _openShellSearch(WidgetTester tester) async {
+  await tester.tap(find.byType(TerminalViewport));
+  await tester.pump();
+  await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
+}
+
 Future<void> _openTabContextMenu(
   WidgetTester tester, {
   String sessionId = '1',
@@ -168,6 +174,20 @@ Future<void> _sendMetaShiftShortcut(
   await tester.pump();
 }
 
+Future<void> _sendMetaAltShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key,
+) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft, platform: 'macos');
+  await tester.sendKeyDownEvent(key, platform: 'macos');
+  await tester.pumpAndSettle();
+  await tester.sendKeyUpEvent(key, platform: 'macos');
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft, platform: 'macos');
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.pump();
+}
+
 Future<void> _sendControlShortcut(
   WidgetTester tester,
   LogicalKeyboardKey key, {
@@ -185,6 +205,24 @@ Future<void> _sendControlShortcut(
     platform: platform,
   );
   await tester.pump();
+}
+
+Future<void> _selectSearchMode(WidgetTester tester, String modeWireName) async {
+  await tester.tap(find.byKey(const Key('terminal-search-mode')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('terminal-search-mode-$modeWireName')));
+  await tester.pumpAndSettle();
+}
+
+RenderTerminalViewport _terminalRenderObject(WidgetTester tester) {
+  return tester.allRenderObjects.whereType<RenderTerminalViewport>().last;
+}
+
+void _expectRectClose(Rect actual, Rect expected) {
+  expect(actual.left, moreOrLessEquals(expected.left, epsilon: 0.001));
+  expect(actual.top, moreOrLessEquals(expected.top, epsilon: 0.001));
+  expect(actual.width, moreOrLessEquals(expected.width, epsilon: 0.001));
+  expect(actual.height, moreOrLessEquals(expected.height, epsilon: 0.001));
 }
 
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
@@ -366,6 +404,139 @@ void main() {
     },
   );
 
+  testWidgets(
+    'command menu disables incompatible split direction for mixed pane layouts',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TerminalViewport), findsNWidgets(2));
+
+      await _openCommandMenu(tester);
+
+      expect(find.text('Split down'), findsOneWidget);
+      expect(
+        find.textContaining('Mixed pane layouts are not supported yet.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'tab context menu explains unavailable split and layout actions',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      expect(
+        find.text('Unavailable: Add another pane to use this action.'),
+        findsNWidgets(5),
+      );
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      await _openTabContextMenu(tester);
+      expect(
+        find.textContaining(
+          'Unavailable: Mixed pane layouts are not supported yet.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Unavailable: This tab already has multiple panes.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'tab context menu stops growing a pane before a sibling becomes too small',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      var foundLimitReason = false;
+      for (var attempt = 0; attempt < 10; attempt++) {
+        await _openTabContextMenu(tester);
+        final limitReason = find.textContaining(
+          'Unavailable: Another pane would become narrower than 24 columns.',
+        );
+        if (limitReason.evaluate().isNotEmpty) {
+          foundLimitReason = true;
+          break;
+        }
+        await tester.tap(find.text('Grow active pane'));
+        await tester.pumpAndSettle();
+      }
+
+      expect(foundLimitReason, isTrue);
+    },
+  );
+
+  testWidgets(
+    'tab context menu disables pane management actions while zoomed',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Zoom active pane'));
+      await tester.pumpAndSettle();
+
+      await _openTabContextMenu(tester);
+      expect(
+        find.text('Unavailable: Unzoom the active pane to manage other panes.'),
+        findsNWidgets(4),
+      );
+      expect(find.text('Unzoom active pane'), findsOneWidget);
+    },
+  );
+
   testWidgets('hovering a split pane activates it without a click', (
     tester,
   ) async {
@@ -494,7 +665,10 @@ void main() {
       );
       expect(escapeToggle.contentPadding, EdgeInsets.zero);
       expect(
-        tester.widget<Text>(find.text('Escape special characters')).style?.fontWeight,
+        tester
+            .widget<Text>(find.text('Escape special characters'))
+            .style
+            ?.fontWeight,
         FontWeight.w600,
       );
 
@@ -626,7 +800,10 @@ void main() {
       );
       expect(persistToggle.contentPadding, EdgeInsets.zero);
       expect(
-        tester.widget<Text>(find.text('Save History to Disk')).style?.fontWeight,
+        tester
+            .widget<Text>(find.text('Save History to Disk'))
+            .style
+            ?.fontWeight,
         FontWeight.w600,
       );
 
@@ -646,6 +823,33 @@ void main() {
       expect(fakeBindings.writes.last, utf8.encode(clipboardText));
     },
   );
+
+  testWidgets('empty paste history disables clear action', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      pasteHistoryRepository: MemoryPasteHistoryRepository(),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Paste history'));
+    await tester.tap(find.text('Paste history'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('0 recent items'), findsOneWidget);
+    expect(find.text('No copied or pasted text yet.'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('paste-history-clear')))
+          .onPressed,
+      isNull,
+    );
+  });
 
   testWidgets('command menu paste confirms carriage-return multiline text', (
     tester,
@@ -687,11 +891,16 @@ void main() {
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
     expect(find.text('Paste 28 characters across 2 lines?'), findsOneWidget);
+    expect(find.text('Preview'), findsOneWidget);
+    final preview = tester.widget<Text>(
+      find.byKey(const Key('paste-confirmation-preview')),
+    );
+    expect(preview.data, 'first command\nsecond command');
     expect(fakeBindings.writes, isEmpty);
   });
 
   testWidgets(
-    'command-shift-v opens saved paste history without leaking input',
+    'command-shift-h opens saved paste history without leaking input',
     (tester) async {
       const savedText = 'saved paste';
       final fakeBindings = FakePtyBackend();
@@ -718,7 +927,7 @@ void main() {
 
       await tester.tap(find.byType(TerminalViewport));
       await tester.pump();
-      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyV);
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyH);
 
       expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
       expect(find.text(savedText), findsOneWidget);
@@ -740,8 +949,56 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets('paste history confirms multiline entries before sending', (
+    tester,
+  ) async {
+    const savedText = 'history line one\nhistory line two';
+    final fakeBindings = FakePtyBackend();
+    final pasteHistoryRepository = MemoryPasteHistoryRepository(
+      PasteHistoryDocument(
+        entries: [
+          PasteHistoryEntry(
+            text: savedText,
+            kind: PasteHistoryKind.paste,
+            createdAt: DateTime.utc(2026, 5, 14),
+          ),
+        ],
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      pasteHistoryRepository: pasteHistoryRepository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Paste history'));
+    await tester.tap(find.text('Paste history'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('paste-history-entry-0')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
+    expect(find.text('Paste 33 characters across 2 lines?'), findsOneWidget);
+    final preview = tester.widget<Text>(
+      find.byKey(const Key('paste-confirmation-preview')),
+    );
+    expect(preview.data, savedText);
+    expect(fakeBindings.writes, isEmpty);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
-    'command-shift-r copies erased text from instant replay',
+    'command-option-b copies erased text from instant replay',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       String? copiedText;
@@ -807,7 +1064,7 @@ void main() {
 
       await tester.tap(find.byType(TerminalViewport));
       await tester.pump();
-      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyR);
+      await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
 
       expect(find.byKey(const Key('instant-replay-sheet')), findsOneWidget);
       expect(find.text('important output'), findsOneWidget);
@@ -897,7 +1154,9 @@ void main() {
     expect(fakeBindings.writes.single, utf8.encode('s3cr3t!\n'));
   });
 
-  testWidgets('password manager can remove a saved password entry', (tester) async {
+  testWidgets('password manager can remove a saved password entry', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -932,6 +1191,58 @@ void main() {
     expect(find.byKey(const Key('password-manager-entry-0')), findsNothing);
     expect(find.text('No saved passwords in this session.'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('password manager disables add until a password is entered', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Password manager'));
+    await tester.tap(find.text('Password manager'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('password-manager-add')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('password-manager-label-field')),
+      'staging sudo',
+    );
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('password-manager-add')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('password-manager-password-field')),
+      's3cr3t!',
+    );
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('password-manager-add')))
+          .onPressed,
+      isNotNull,
+    );
   });
 
   testWidgets('password manager rechecks the prompt before sending', (
@@ -1494,6 +1805,174 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets('command menu explains disabled actions inline', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+
+    expect(find.textContaining('No recently closed tab'), findsOneWidget);
+    expect(find.text('Terminal color presets'), findsOneWidget);
+    expect(find.text('Theme picker'), findsNothing);
+
+    await tester.ensureVisible(
+      find.byKey(const Key('shell-export-scrollback')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining(
+        'Save a terminal text snapshot to Application Support',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.ensureVisible(
+      find.byKey(const Key('shell-select-command-output')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('No prompt-marked command output is available yet'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('command menu notification toggles update labels and feedback', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    final toggles = [
+      (
+        key: const Key('shell-toggle-command-finished-notify'),
+        disableLabel: 'Disable command-finished notifications',
+        disabledFeedback: 'Command-finished notifications disabled and saved.',
+        enableLabel: 'Enable command-finished notifications',
+        enabledFeedback: 'Command-finished notifications enabled and saved.',
+      ),
+      (
+        key: const Key('shell-toggle-bell-notify'),
+        disableLabel: 'Disable bell notifications',
+        disabledFeedback: 'Bell notifications disabled and saved.',
+        enableLabel: 'Enable bell notifications',
+        enabledFeedback: 'Bell notifications enabled and saved.',
+      ),
+      (
+        key: const Key('shell-toggle-activity-monitor'),
+        disableLabel: 'Disable activity monitor',
+        disabledFeedback: 'Activity monitor disabled and saved.',
+        enableLabel: 'Enable activity monitor',
+        enabledFeedback: 'Activity monitor enabled and saved.',
+      ),
+    ];
+
+    for (final toggle in toggles) {
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(toggle.key));
+      await tester.pumpAndSettle();
+
+      expect(find.text(toggle.disableLabel), findsOneWidget);
+
+      await tester.tap(find.byKey(toggle.key));
+      await tester.pumpAndSettle();
+
+      expect(find.text(toggle.disabledFeedback), findsOneWidget);
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(toggle.key));
+      await tester.pumpAndSettle();
+
+      expect(find.text(toggle.enableLabel), findsOneWidget);
+
+      await tester.tap(find.byKey(toggle.key));
+      await tester.pumpAndSettle();
+
+      expect(find.text(toggle.enabledFeedback), findsOneWidget);
+    }
+  });
+
+  testWidgets('read-only mode disables paste actions in the command menu', (
+    tester,
+  ) async {
+    const clipboardText = 'blocked paste';
+    final fakeBindings = FakePtyBackend();
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-paste-clipboard')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Disable read-only mode to send text'),
+      findsAtLeastNWidgets(1),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-paste-clipboard')));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes, isEmpty);
+
+    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-paste-clipboard')));
+    await tester.tap(find.byKey(const Key('shell-paste-clipboard')));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+  });
+
   testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {
@@ -1677,6 +2156,168 @@ void main() {
     expect(notifications.single['body'], 'background build done');
     expect(notifications.single['identifier'], 'flutterm.activity.1');
   });
+
+  testWidgets(
+    'notification authorization failures surface actionable feedback once',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        notificationSender: ({required title, body, identifier}) async {
+          throw PlatformException(
+            code: 'notification_authorization_failed',
+            message: 'Denied by system',
+          );
+        },
+      );
+
+      fakeBindings.setFrame(1, <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'pwd',
+            'style_runs': const <Object?>[],
+          },
+          <String, Object?>{
+            'index': 1,
+            'text': '/tmp/project',
+            'style_runs': const <Object?>[],
+          },
+          <String, Object?>{
+            'index': 2,
+            'text': 'dev@host %',
+            'style_runs': const <Object?>[],
+          },
+          <String, Object?>{
+            'index': 3,
+            'text': '',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 3, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 4},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 3,
+        'window_title': null,
+        'window_icon_name': null,
+      });
+
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'echo ok',
+            'exit_code': 0,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'macOS notifications are blocked for Flutterm. Enable them in System Settings > Notifications.',
+        ),
+        findsOneWidget,
+      );
+
+      await _openCommandMenu(tester);
+      expect(
+        find.textContaining(
+          'macOS notifications are currently blocked in System Settings.',
+        ),
+        findsNWidgets(3),
+      );
+      await tester.tap(find.byTooltip('Close actions'));
+      await tester.pumpAndSettle();
+
+      fakeBindings.enqueueEvent(1, PtyEvent(kind: 'bell', sessionId: '1'));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'macOS notifications are blocked for Flutterm. Enable them in System Settings > Notifications.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'notification warning clears from the command menu after a successful send',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      var shouldFail = true;
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        notificationSender: ({required title, body, identifier}) async {
+          if (shouldFail) {
+            throw PlatformException(
+              code: 'notification_authorization_failed',
+              message: 'Denied by system',
+            );
+          }
+        },
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'echo ok',
+            'exit_code': 0,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      await _openCommandMenu(tester);
+      expect(
+        find.textContaining(
+          'macOS notifications are currently blocked in System Settings.',
+        ),
+        findsNWidgets(3),
+      );
+      await tester.tap(find.byTooltip('Close actions'));
+      await tester.pumpAndSettle();
+
+      shouldFail = false;
+      fakeBindings.enqueueEvent(1, PtyEvent(kind: 'bell', sessionId: '1'));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      await _openCommandMenu(tester);
+      expect(
+        find.textContaining(
+          'macOS notifications are currently blocked in System Settings.',
+        ),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets(
     'inactive session activity notification uses wrapped logical rows as its preview',
@@ -1934,8 +2575,9 @@ void main() {
       SystemChannels.platform,
       (methodCall) async {
         if (methodCall.method == 'Clipboard.setData') {
-          copiedText = (methodCall.arguments as Map<Object?, Object?>)['text']
-              as String?;
+          copiedText =
+              (methodCall.arguments as Map<Object?, Object?>)['text']
+                  as String?;
         }
         return null;
       },
@@ -2083,8 +2725,62 @@ void main() {
     await tester.tap(find.byKey(const Key('toolbelt-captured-output')));
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const Key('shell-toolbelt-panel')), findsNothing);
     expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
     expect(find.text('ERROR 42 failed'), findsOneWidget);
+  });
+
+  testWidgets('switching panes does not show the return-to-shell cue', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Back in shell'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('shell-pane-1')));
+    await tester.pump();
+
+    expect(find.text('Back in shell'), findsNothing);
+  });
+
+  testWidgets('focusing another pane shows a pane position cue', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('shell-pane-2')));
+    await tester.pumpAndSettle();
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Focus previous pane'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pane 1 of 2'), findsOneWidget);
+    expect(find.text('Back in shell'), findsNothing);
   });
 
   testWidgets(
@@ -2301,12 +2997,61 @@ void main() {
     expect(find.byKey(const Key('shell-status-viewport')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-encoding')), findsOneWidget);
     expect(find.byKey(const Key('terminal-session-badge-1')), findsNothing);
-    expect(find.text('dev@workstation.local'), findsOneWidget);
     expect(find.text('/tmp/project'), findsOneWidget);
     expect(find.text('zsh'), findsOneWidget);
     expect(find.text('Connected'), findsOneWidget);
     expect(find.text('UTF-8'), findsOneWidget);
   });
+
+  testWidgets(
+    'shell status bar keeps the directory item visible in a narrow window',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(560, 420);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'git status',
+            'pwd': '/Users/luobinghui/projects/flutter/flutterm/example',
+            'shell': 'zsh',
+            'host': 'workstation.local',
+            'user': 'dev',
+            'exit_code': 0,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      final statusBarRect = tester.getRect(
+        find.byKey(const Key('shell-status-bar')),
+      );
+      final directoryRect = tester.getRect(
+        find.byKey(const Key('shell-status-directory')),
+      );
+
+      expect(directoryRect.left >= statusBarRect.left, isTrue);
+      expect(directoryRect.right <= statusBarRect.right, isTrue);
+    },
+  );
 
   testWidgets(
     'shift-command arrows navigate shell integration prompt marks',
@@ -2372,6 +3117,51 @@ void main() {
       await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.arrowDown);
 
       expect(fakeBindings.scrollToCalls.last, [1, 9]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell integration utilities synthesize a visible prompt mark from shell context',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'pwd',
+            'pwd': '/tmp/project',
+            'shell': 'zsh',
+            'host': 'host',
+            'user': 'dev',
+            'exit_code': 0,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(
+        find.byKey(const Key('shell-integration-utilities')),
+      );
+      await tester.tap(find.byKey(const Key('shell-integration-utilities')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Prompt Marks'), findsOneWidget);
+      expect(find.text('1 mark'), findsOneWidget);
+      expect(find.byKey(const Key('shell-prompt-mark-0')), findsOneWidget);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
@@ -2896,6 +3686,10 @@ void main() {
 
     await _openCommandMenu(tester);
     await tester.ensureVisible(find.text('Hotkey window'));
+    expect(
+      find.textContaining('Hide this window. Reopen with'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Hotkey window'));
     await tester.pumpAndSettle();
 
@@ -2999,6 +3793,33 @@ void main() {
     expect(find.text('Back in shell'), findsOneWidget);
   });
 
+  testWidgets('closing the last tab can recover via Reopen closed tab', (
+    tester,
+  ) async {
+    await _pumpShellScreen(
+      tester,
+      bindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Close Local Shell'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+    expect(find.byType(TerminalViewport), findsNothing);
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.byKey(const Key('shell-reopen-closed-tab')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-empty-state')), findsNothing);
+    expect(find.byType(TerminalViewport), findsOneWidget);
+    expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+  });
+
   testWidgets('terminal exit returns the shell to the empty state', (
     tester,
   ) async {
@@ -3072,7 +3893,7 @@ void main() {
   });
 
   testWidgets(
-    'shell search opens from the command menu and scrolls to matches',
+    'shell search opens and scrolls to matches',
     (tester) async {
       final fakeBindings = FakePtyBackend();
 
@@ -3089,173 +3910,768 @@ void main() {
         {'row': 3, 'start_col': 0, 'end_col': 6, 'text': 'needle visible'},
       ]);
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Search scrollback'));
-      await tester.tap(find.text('Search scrollback'));
-      await tester.pumpAndSettle();
+      await _openShellSearch(tester);
       await tester.enterText(
         find.byKey(const Key('terminal-search-field')),
         'needle',
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('1 of 2'), findsOneWidget);
-      expect(fakeBindings.searchCalls.last, [1, 'needle']);
-      expect(fakeBindings.scrollToCalls.last, [1, 42]);
+      expect(find.text('2/2'), findsOneWidget);
+      expect(fakeBindings.searchCalls.last, [
+        1,
+        'needle',
+        'smart_case_substring',
+      ]);
+      expect(fakeBindings.scrollToCalls.last, [1, 3]);
       expect(
         tester.getSize(find.byKey(const Key('terminal-search-close'))),
-        const Size(28, 24),
+        const Size(34, 40),
       );
+      final inputRect = tester.getRect(
+        find.byKey(const Key('terminal-search-input')),
+      );
+      final clearRect = tester.getRect(
+        find.byKey(const Key('terminal-search-clear')),
+      );
+      expect(inputRect.width, greaterThanOrEqualTo(300));
+      expect(clearRect.left, greaterThanOrEqualTo(inputRect.left));
+      expect(clearRect.right, lessThanOrEqualTo(inputRect.right));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('terminal-search-input')),
+          matching: find.byIcon(Icons.close_rounded),
+        ),
+        findsNothing,
+      );
+      expect(find.byIcon(Icons.cancel_rounded), findsOneWidget);
+      expect(find.byKey(const Key('terminal-search-close')), findsOneWidget);
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(field.decoration?.isCollapsed, isTrue);
+      expect(field.decoration?.filled, isFalse);
+      expect(field.decoration?.fillColor, Colors.transparent);
+      expect(field.decoration?.contentPadding, EdgeInsets.zero);
+      expect(field.decoration?.hintText, 'Search');
+      expect(field.decoration?.border, InputBorder.none);
+      expect(field.decoration?.enabledBorder, InputBorder.none);
+      expect(field.decoration?.focusedBorder, InputBorder.none);
+      expect(find.textContaining('Type to search'), findsNothing);
 
       await tester.tap(find.byKey(const Key('terminal-search-next')));
       await tester.pumpAndSettle();
 
-      expect(find.text('2 of 2'), findsOneWidget);
-      expect(fakeBindings.scrollToCalls.last, [1, 3]);
+      expect(find.text('1/2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [1, 42]);
 
       await tester.tap(find.byKey(const Key('terminal-search-close')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('terminal-search-bar')), findsNothing);
-      expect(fakeBindings.scrollToCalls.last, [1, 0]);
+      expect(fakeBindings.scrollToCalls.last, [1, 42]);
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('shell search highlights visible matches', (tester) async {
-    final fakeBindings = FakePtyBackend();
+  testWidgets(
+    'shell search keeps vertical padding balanced',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    fakeBindings.setFrame(1, {
-      'rows': [
-        {'index': 0, 'text': 'alpha', 'style_runs': const []},
-        {'index': 1, 'text': '  ERR one', 'style_runs': const []},
-        {'index': 2, 'text': 'middle', 'style_runs': const []},
-        {'index': 3, 'text': 'xxERR two', 'style_runs': const []},
-        {'index': 4, 'text': 'omega', 'style_runs': const []},
-      ],
-      'cursor': {'row': 4, 'col': 5, 'visible': true},
-      'selection': null,
-      'viewport_rows': 5,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 0, 'end': 5},
-      ],
-      'viewport_start_row': 10,
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 20,
-    });
-    fakeBindings.setSearchMatches(1, 'ERR', [
-      {
-        'row': 11,
-        'start_col': 2,
-        'end_col': 5,
-        'text': 'ERR',
-        'scrollback_offset': 9,
-      },
-      {
-        'row': 13,
-        'start_col': 2,
-        'end_col': 5,
-        'text': 'ERR',
-        'scrollback_offset': 7,
-      },
-      {
-        'row': 20,
-        'start_col': 0,
-        'end_col': 3,
-        'text': 'ERR',
+      await _openShellSearch(tester);
+
+      final barRect = tester.getRect(
+        find.byKey(const Key('terminal-search-bar')),
+      );
+      final inputRect = tester.getRect(
+        find.byKey(const Key('terminal-search-input')),
+      );
+      final fieldRect = tester.getRect(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      final modeRect = tester.getRect(
+        find.byKey(const Key('terminal-search-mode')),
+      );
+
+      expect(barRect.height, 56);
+      expect(modeRect.size, const Size(40, 40));
+      expect(inputRect.height, 40);
+      expect(fieldRect.height, 24);
+      expect(inputRect.top - barRect.top, moreOrLessEquals(8));
+      expect(barRect.bottom - inputRect.bottom, moreOrLessEquals(8));
+      expect(fieldRect.center.dy, moreOrLessEquals(inputRect.center.dy));
+
+      await tester.tap(find.byKey(const Key('terminal-search-mode')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Filter'), findsOneWidget);
+      expect(
+        find.byKey(const Key('terminal-search-mode-smart_case_substring')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('terminal-search-mode-smart_case_substring'),
+          ),
+          matching: find.byIcon(Icons.check_rounded),
+        ),
+        findsOneWidget,
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search compacts inside a narrow terminal pane',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(360, 420);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'missing',
+      );
+      await tester.pumpAndSettle();
+
+      final barRect = tester.getRect(
+        find.byKey(const Key('terminal-search-bar')),
+      );
+      final fieldRect = tester.getRect(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      final statusRect = tester.getRect(
+        find.byKey(const Key('terminal-search-status')),
+      );
+
+      expect(barRect.left, greaterThanOrEqualTo(12));
+      expect(barRect.right, lessThanOrEqualTo(346));
+      expect(barRect.height, 56);
+      expect(fieldRect.width, greaterThan(110));
+      expect(statusRect.left, greaterThanOrEqualTo(barRect.left));
+      expect(statusRect.right, lessThanOrEqualTo(barRect.right));
+      expect(find.text('No matches'), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'cmd-f opens shell search without writing to terminal',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
+
+      expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
+      expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, isEmpty);
+      expect(fakeBindings.searchCalls.last, [
+        1,
+        'needle',
+        'smart_case_substring',
+      ]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search opening and clearing keeps input focused',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openShellSearch(tester);
+
+      var field = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(field.focusNode?.hasFocus, isTrue);
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      field = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(field.focusNode?.hasFocus, isTrue);
+
+      await tester.tap(find.byKey(const Key('terminal-search-clear')));
+      await tester.pumpAndSettle();
+
+      field = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(field.controller?.text, isEmpty);
+      expect(field.focusNode?.hasFocus, isTrue);
+      expect(
+        field.controller?.selection,
+        const TextSelection.collapsed(offset: 0),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search mode and navigation do not force input focus',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {
+          'row': 2,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'needle',
+          'scrollback_offset': 2,
+        },
+        {
+          'row': 3,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'needle',
+          'scrollback_offset': 3,
+        },
+      ]);
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      final focusNode = tester
+          .widget<TextField>(find.byKey(const Key('terminal-search-field')))
+          .focusNode!;
+      focusNode.unfocus();
+      await tester.pump();
+      expect(focusNode.hasFocus, isFalse);
+
+      await tester.tap(find.byKey(const Key('terminal-search-next')));
+      await tester.pumpAndSettle();
+      expect(focusNode.hasFocus, isFalse);
+
+      await _selectSearchMode(tester, 'case_sensitive_substring');
+      expect(focusNode.hasFocus, isFalse);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search highlights visible matches',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'alpha', 'style_runs': const []},
+          {'index': 1, 'text': '  ERR one', 'style_runs': const []},
+          {'index': 2, 'text': 'middle', 'style_runs': const []},
+          {'index': 3, 'text': 'xxERR two', 'style_runs': const []},
+          {'index': 4, 'text': 'omega', 'style_runs': const []},
+        ],
+        'cursor': {'row': 4, 'col': 5, 'visible': true},
+        'selection': null,
+        'viewport_rows': 5,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 5},
+        ],
+        'viewport_start_row': 10,
         'scrollback_offset': 0,
-      },
-    ]);
-    await tester.pump(const Duration(milliseconds: 40));
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.setSearchMatches(1, 'ERR', [
+        {
+          'row': 11,
+          'start_col': 2,
+          'end_col': 5,
+          'text': 'ERR',
+          'scrollback_offset': 9,
+        },
+        {
+          'row': 13,
+          'start_col': 2,
+          'end_col': 5,
+          'text': 'ERR',
+          'scrollback_offset': 7,
+        },
+        {
+          'row': 20,
+          'start_col': 0,
+          'end_col': 3,
+          'text': 'ERR',
+          'scrollback_offset': 0,
+        },
+      ]);
+      await tester.pump(const Duration(milliseconds: 40));
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Search scrollback'));
-    await tester.tap(find.text('Search scrollback'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('terminal-search-field')),
-      'ERR',
-    );
-    await tester.pumpAndSettle();
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'ERR',
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('terminal-search-highlights')), findsOneWidget);
-    expect(
-      find.byKey(const Key('terminal-search-highlight-0')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('terminal-search-highlight-1')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('terminal-search-highlight-2')), findsNothing);
-  });
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      final rects = renderObject.debugSearchHighlightRects;
 
-  testWidgets('shell search regex mode matches visible terminal output', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+      expect(rects, hasLength(2));
+      _expectRectClose(
+        rects[0],
+        Rect.fromLTWH(
+          cellSize.width * 2,
+          cellSize.height,
+          cellSize.width * 3,
+          cellSize.height,
+        ),
+      );
+      _expectRectClose(
+        rects[1],
+        Rect.fromLTWH(
+          cellSize.width * 2,
+          cellSize.height * 3,
+          cellSize.width * 3,
+          cellSize.height,
+        ),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+  testWidgets(
+    'shell search recomputes selected highlight geometry after resize',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-    fakeBindings.setFrame(1, {
-      'rows': [
-        {'index': 0, 'text': 'alpha', 'style_runs': const []},
-        {'index': 1, 'text': 'ERR 100 one', 'style_runs': const []},
-        {'index': 2, 'text': 'WARN two', 'style_runs': const []},
-        {'index': 3, 'text': 'ERR 200 three', 'style_runs': const []},
-      ],
-      'cursor': {'row': 3, 'col': 13, 'visible': true},
-      'selection': null,
-      'viewport_rows': 4,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 0, 'end': 4},
-      ],
-      'viewport_start_row': 10,
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 20,
-    });
-    await tester.pump(const Duration(milliseconds: 40));
+      final fakeBindings = FakePtyBackend();
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Search scrollback'));
-    await tester.tap(find.text('Search scrollback'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('terminal-search-regex')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('terminal-search-field')),
-      r'ERR \d+',
-    );
-    await tester.pumpAndSettle();
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    expect(fakeBindings.searchCalls, isEmpty);
-    expect(find.text('1 of 2'), findsOneWidget);
-    expect(fakeBindings.scrollToCalls.last, [1, 9]);
-    expect(find.byKey(const Key('terminal-search-highlights')), findsOneWidget);
-    expect(
-      find.byKey(const Key('terminal-search-highlight-0')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('terminal-search-highlight-1')),
-      findsOneWidget,
-    );
-  });
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'alpha', 'style_runs': const []},
+          {'index': 1, 'text': '  ERR one', 'style_runs': const []},
+          {'index': 2, 'text': 'middle', 'style_runs': const []},
+          {'index': 3, 'text': 'xxxxxxERR two', 'style_runs': const []},
+          {'index': 4, 'text': 'omega', 'style_runs': const []},
+        ],
+        'cursor': {'row': 4, 'col': 5, 'visible': true},
+        'selection': null,
+        'viewport_rows': 5,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 5},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.setSearchMatches(1, 'ERR', [
+        {
+          'row': 11,
+          'start_col': 2,
+          'end_col': 5,
+          'text': 'ERR',
+          'scrollback_offset': 9,
+        },
+        {
+          'row': 13,
+          'start_col': 6,
+          'end_col': 9,
+          'text': 'ERR',
+          'scrollback_offset': 7,
+        },
+      ]);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'ERR',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('2/2'), findsOneWidget);
+      expect(
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .activeSearchMatchIndex,
+        1,
+      );
+      final searchCallCountBeforeResize = fakeBindings.searchCalls.length;
+
+      fakeBindings.setSearchMatches(1, 'ERR', [
+        {
+          'row': 10,
+          'start_col': 1,
+          'end_col': 4,
+          'text': 'ERR',
+          'scrollback_offset': 9,
+        },
+        {
+          'row': 12,
+          'start_col': 9,
+          'end_col': 12,
+          'text': 'ERR',
+          'scrollback_offset': 7,
+        },
+      ]);
+      tester.view.physicalSize = const Size(980, 900);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 260));
+      await tester.pumpAndSettle();
+
+      expect(
+        fakeBindings.searchCalls.length,
+        greaterThanOrEqualTo(searchCallCountBeforeResize + 1),
+      );
+      expect(fakeBindings.searchCalls.last, [1, 'ERR', 'smart_case_substring']);
+      expect(find.text('2/2'), findsOneWidget);
+      expect(
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .activeSearchMatchIndex,
+        1,
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      final rects = renderObject.debugSearchHighlightRects;
+
+      expect(rects, hasLength(2));
+      _expectRectClose(
+        rects[0],
+        Rect.fromLTWH(
+          1 * cellSize.width,
+          0,
+          3 * cellSize.width,
+          cellSize.height,
+        ),
+      );
+      _expectRectClose(
+        rects[1],
+        Rect.fromLTWH(
+          9 * cellSize.width,
+          2 * cellSize.height,
+          3 * cellSize.width,
+          cellSize.height,
+        ),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search recomputes selected highlight geometry after output updates',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'alpha', 'style_runs': const []},
+          {'index': 1, 'text': '  ERR one', 'style_runs': const []},
+          {'index': 2, 'text': 'middle', 'style_runs': const []},
+          {'index': 3, 'text': 'xxxxxxERR two', 'style_runs': const []},
+          {'index': 4, 'text': 'omega', 'style_runs': const []},
+        ],
+        'cursor': {'row': 4, 'col': 5, 'visible': true},
+        'selection': null,
+        'viewport_rows': 5,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 5},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.setSearchMatches(1, 'ERR', [
+        {
+          'row': 11,
+          'start_col': 2,
+          'end_col': 5,
+          'text': 'ERR',
+          'scrollback_offset': 9,
+        },
+        {
+          'row': 13,
+          'start_col': 6,
+          'end_col': 9,
+          'text': 'ERR',
+          'scrollback_offset': 7,
+        },
+      ]);
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'ERR',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('2/2'), findsOneWidget);
+      expect(
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .activeSearchMatchIndex,
+        1,
+      );
+      final searchCallCountBeforeOutput = fakeBindings.searchCalls.length;
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'alpha', 'style_runs': const []},
+          {'index': 1, 'text': '  ERR one', 'style_runs': const []},
+          {
+            'index': 2,
+            'text': 'output shifted ERR two',
+            'style_runs': const [],
+          },
+          {'index': 3, 'text': 'middle', 'style_runs': const []},
+          {'index': 4, 'text': 'omega', 'style_runs': const []},
+        ],
+        'cursor': {'row': 4, 'col': 5, 'visible': true},
+        'selection': null,
+        'viewport_rows': 5,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 5},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 21,
+      });
+      fakeBindings.setSearchMatches(1, 'ERR', [
+        {
+          'row': 11,
+          'start_col': 2,
+          'end_col': 5,
+          'text': 'ERR',
+          'scrollback_offset': 9,
+        },
+        {
+          'row': 12,
+          'start_col': 15,
+          'end_col': 18,
+          'text': 'ERR',
+          'scrollback_offset': 7,
+        },
+      ]);
+      await tester.pump(const Duration(milliseconds: 80));
+
+      expect(fakeBindings.searchCalls.length, searchCallCountBeforeOutput + 1);
+      expect(fakeBindings.searchCalls.last, [1, 'ERR', 'smart_case_substring']);
+      expect(find.text('2/2'), findsOneWidget);
+      expect(
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .activeSearchMatchIndex,
+        1,
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      final rects = renderObject.debugSearchHighlightRects;
+
+      expect(rects, hasLength(2));
+      _expectRectClose(
+        rects[0],
+        Rect.fromLTWH(
+          2 * cellSize.width,
+          1 * cellSize.height,
+          3 * cellSize.width,
+          cellSize.height,
+        ),
+      );
+      _expectRectClose(
+        rects[1],
+        Rect.fromLTWH(
+          15 * cellSize.width,
+          2 * cellSize.height,
+          3 * cellSize.width,
+          cellSize.height,
+        ),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search regex mode matches visible terminal output',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'alpha', 'style_runs': const []},
+          {'index': 1, 'text': 'ERR 100 one', 'style_runs': const []},
+          {'index': 2, 'text': 'WARN two', 'style_runs': const []},
+          {'index': 3, 'text': 'ERR 200 three', 'style_runs': const []},
+        ],
+        'cursor': {'row': 3, 'col': 13, 'visible': true},
+        'selection': null,
+        'viewport_rows': 4,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 4},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.setSearchMatches(1, r'ERR \d+', [
+        {
+          'row': 11,
+          'start_col': 0,
+          'end_col': 7,
+          'text': 'ERR 100',
+          'scrollback_offset': 9,
+        },
+        {
+          'row': 13,
+          'start_col': 0,
+          'end_col': 7,
+          'text': 'ERR 200',
+          'scrollback_offset': 7,
+        },
+      ], mode: 'case_sensitive_regex');
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openShellSearch(tester);
+      await _selectSearchMode(tester, 'case_sensitive_regex');
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        r'ERR \d+',
+      );
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.searchCalls.last, [
+        1,
+        r'ERR \d+',
+        'case_sensitive_regex',
+      ]);
+      expect(find.text('2/2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [1, 7]);
+
+      final renderObject = _terminalRenderObject(tester);
+      final cellSize = renderObject.debugCellSize;
+      final rects = renderObject.debugSearchHighlightRects;
+
+      expect(rects, hasLength(2));
+      _expectRectClose(
+        rects[0],
+        Rect.fromLTWH(0, cellSize.height, cellSize.width * 7, cellSize.height),
+      );
+      _expectRectClose(
+        rects[1],
+        Rect.fromLTWH(
+          0,
+          cellSize.height * 3,
+          cellSize.width * 7,
+          cellSize.height,
+        ),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets(
     'shell search regex mode keeps text editable and reports errors',
@@ -3270,17 +4686,13 @@ void main() {
         ),
       );
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.text('Search scrollback'));
-      await tester.tap(find.text('Search scrollback'));
-      await tester.pumpAndSettle();
+      await _openShellSearch(tester);
       await tester.enterText(
         find.byKey(const Key('terminal-search-field')),
         'ERR',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('terminal-search-regex')));
-      await tester.pumpAndSettle();
+      await _selectSearchMode(tester, 'case_sensitive_regex');
 
       final field = tester.widget<TextField>(
         find.byKey(const Key('terminal-search-field')),
@@ -3295,6 +4707,7 @@ void main() {
 
       expect(find.text('Invalid regular expression'), findsOneWidget);
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets('global search searches all tabs and jumps to a match', (
@@ -3337,14 +4750,24 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('shell-global-search')));
     await tester.tap(find.byKey(const Key('shell-global-search')));
     await tester.pumpAndSettle();
+
+    expect(find.text('Searching across 2 sessions'), findsOneWidget);
+    expect(find.textContaining('Type to search'), findsNothing);
+
     await tester.enterText(
       find.byKey(const Key('terminal-global-search-field')),
       'needle',
     );
     await tester.pump();
 
-    expect(fakeBindings.searchCalls, contains(equals([1, 'needle'])));
-    expect(fakeBindings.searchCalls, contains(equals([2, 'needle'])));
+    expect(
+      fakeBindings.searchCalls,
+      contains(equals([1, 'needle', 'smart_case_substring'])),
+    );
+    expect(
+      fakeBindings.searchCalls,
+      contains(equals([2, 'needle', 'smart_case_substring'])),
+    );
     expect(find.text('first tab needle'), findsOneWidget);
     expect(find.text('second tab needle'), findsOneWidget);
     final globalSearchResultTile = tester.widget<ListTile>(
@@ -3355,10 +4778,12 @@ void main() {
     );
     expect(globalSearchResultTile.contentPadding, EdgeInsets.zero);
     final globalSearchDivider = tester.widget<Divider>(
-      find.descendant(
-        of: find.byKey(const Key('terminal-global-search-sheet')),
-        matching: find.byType(Divider),
-      ).first,
+      find
+          .descendant(
+            of: find.byKey(const Key('terminal-global-search-sheet')),
+            matching: find.byType(Divider),
+          )
+          .first,
     );
     expect(globalSearchDivider.color, isNull);
 

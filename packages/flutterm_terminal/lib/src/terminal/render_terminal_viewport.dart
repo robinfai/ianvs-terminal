@@ -122,13 +122,20 @@ class RenderTerminalViewport extends RenderBox {
     required TerminalCursorConfig cursor,
     required double devicePixelRatio,
     required TerminalViewportColors colors,
+    List<TerminalSearchMatch> searchMatches = const [],
+    int activeSearchMatchIndex = -1,
+    TerminalSearchHighlightStyle searchHighlightStyle =
+        const TerminalSearchHighlightStyle(),
   }) : _controller = controller,
        _selectionController = selectionController,
        _cursorVisible = cursorVisible,
        _font = font,
        _cursor = cursor,
        _devicePixelRatio = devicePixelRatio,
-       _colors = colors {
+       _colors = colors,
+       _searchMatches = searchMatches,
+       _activeSearchMatchIndex = activeSearchMatchIndex,
+       _searchHighlightStyle = searchHighlightStyle {
     _controller.addListener(markNeedsPaint);
     _selectionController.addListener(markNeedsPaint);
   }
@@ -140,6 +147,9 @@ class RenderTerminalViewport extends RenderBox {
   double _devicePixelRatio;
   bool _cursorVisible = true;
   TerminalViewportColors _colors;
+  List<TerminalSearchMatch> _searchMatches;
+  int _activeSearchMatchIndex;
+  TerminalSearchHighlightStyle _searchHighlightStyle;
   final Map<int, _CachedRowLayout> _rowLayoutCache = {};
   final Map<int, _CachedGlyphParagraph> _glyphParagraphCache = {};
   final Map<int, _CachedRowVisual> _rowVisualCache = {};
@@ -154,6 +164,7 @@ class RenderTerminalViewport extends RenderBox {
   TerminalRowTextMetrics _rowTextMetrics = terminalFallbackRowTextMetrics;
   List<String> _debugLastPaintedRowTexts = const [];
   List<int> _debugLastRebuiltRowIndexes = const [];
+  final List<Rect> _debugSearchHighlightRects = <Rect>[];
   Rect? _debugCursorRect;
   Color? _debugCursorColor;
   _MeasuredCellMetrics? _cachedCellMetrics;
@@ -229,6 +240,30 @@ class RenderTerminalViewport extends RenderBox {
     markNeedsPaint();
   }
 
+  set searchMatches(List<TerminalSearchMatch> value) {
+    if (_sameSearchMatches(value, _searchMatches)) {
+      return;
+    }
+    _searchMatches = value;
+    markNeedsPaint();
+  }
+
+  set activeSearchMatchIndex(int value) {
+    if (value == _activeSearchMatchIndex) {
+      return;
+    }
+    _activeSearchMatchIndex = value;
+    markNeedsPaint();
+  }
+
+  set searchHighlightStyle(TerminalSearchHighlightStyle value) {
+    if (value == _searchHighlightStyle) {
+      return;
+    }
+    _searchHighlightStyle = value;
+    markNeedsPaint();
+  }
+
   @override
   bool hitTestSelf(Offset position) => true;
 
@@ -269,6 +304,8 @@ class RenderTerminalViewport extends RenderBox {
     final dirtyRowIndexes = shouldRebuildAllRows
         ? <int>{}
         : (hasNewFrame ? _dirtyRowIndexesFor(frame) : const <int>{});
+    final searchHighlightsByRow = _searchHighlightsByRow(frame);
+    _debugSearchHighlightRects.clear();
 
     for (final row in frame.rows) {
       activeRowIndexes.add(row.index);
@@ -305,6 +342,10 @@ class RenderTerminalViewport extends RenderBox {
             ..isAntiAlias = false,
         );
       }
+      _paintSearchHighlightsForRow(
+        canvas,
+        searchHighlightsByRow[row.index] ?? const <_SearchHighlightSpan>[],
+      );
       if (selectionTouchesRow) {
         final rowCellCount = rowVisual?.cellCount ?? rowLayout?.cellCount ?? 0;
         final selectedStart = _selectionController.isBlockSelection
@@ -372,6 +413,8 @@ class RenderTerminalViewport extends RenderBox {
       List<String>.unmodifiable(_debugLastPaintedRowTexts);
   List<int> get debugLastRebuiltRowIndexes =>
       List<int>.unmodifiable(_debugLastRebuiltRowIndexes);
+  List<Rect> get debugSearchHighlightRects =>
+      List<Rect>.unmodifiable(_debugSearchHighlightRects);
   bool get debugCursorVisible {
     final frame = _controller.frame;
     return frame.cursor.visible && _cursorVisible;
@@ -467,6 +510,81 @@ class RenderTerminalViewport extends RenderBox {
       viewportRows,
     );
     _shiftIndexedCache<int>(_rowPictureBuildCounts, rowShift, viewportRows);
+  }
+
+  Map<int, List<_SearchHighlightSpan>> _searchHighlightsByRow(
+    TerminalFrameDiff frame,
+  ) {
+    if (_searchMatches.isEmpty ||
+        frame.viewportRows <= 0 ||
+        frame.viewportCols <= 0 ||
+        _cellSize.width <= 0 ||
+        _cellSize.height <= 0) {
+      return const <int, List<_SearchHighlightSpan>>{};
+    }
+
+    final highlightsByRow = <int, List<_SearchHighlightSpan>>{};
+    for (var index = 0; index < _searchMatches.length; index += 1) {
+      final match = _searchMatches[index];
+      final relativeRow = match.row - frame.viewportStartRow;
+      if (relativeRow < 0 || relativeRow >= frame.viewportRows) {
+        continue;
+      }
+      final startCol = match.startCol.clamp(0, frame.viewportCols).toInt();
+      if (startCol >= frame.viewportCols) {
+        continue;
+      }
+      final endCol = match.endCol
+          .clamp(startCol + 1, frame.viewportCols)
+          .toInt();
+      if (endCol <= startCol) {
+        continue;
+      }
+      final rect = _snapRect(
+        Rect.fromLTWH(
+          startCol * _cellSize.width,
+          relativeRow * _cellSize.height,
+          (endCol - startCol) * _cellSize.width,
+          _cellSize.height,
+        ),
+      );
+      highlightsByRow
+          .putIfAbsent(relativeRow, () => <_SearchHighlightSpan>[])
+          .add(_SearchHighlightSpan(index: index, rect: rect));
+    }
+    return highlightsByRow;
+  }
+
+  void _paintSearchHighlightsForRow(
+    Canvas canvas,
+    List<_SearchHighlightSpan> highlights,
+  ) {
+    if (highlights.isEmpty) {
+      return;
+    }
+    final style = _searchHighlightStyle;
+    final radius = Radius.circular(math.max(0, style.radius));
+    for (final highlight in highlights) {
+      final isActive = highlight.index == _activeSearchMatchIndex;
+      final rrect = RRect.fromRectAndRadius(highlight.rect, radius);
+      _debugSearchHighlightRects.add(highlight.rect);
+      canvas.drawRRect(
+        rrect,
+        Paint()
+          ..color = isActive ? style.activeFill : style.inactiveFill
+          ..isAntiAlias = true,
+      );
+      if (isActive) {
+        canvas.drawRRect(
+          rrect,
+          Paint()
+            ..color = style.activeBorder
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = _snapLogical(1)
+            ..isAntiAlias = true,
+        );
+      }
+    }
   }
 
   _CachedRowLayout _rowLayoutFor(TerminalRow row) {
@@ -1433,6 +1551,37 @@ bool _sameStringList(List<String> left, List<String> right) {
     }
   }
   return true;
+}
+
+bool _sameSearchMatches(
+  List<TerminalSearchMatch> left,
+  List<TerminalSearchMatch> right,
+) {
+  if (identical(left, right)) {
+    return true;
+  }
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    final leftMatch = left[index];
+    final rightMatch = right[index];
+    if (leftMatch.row != rightMatch.row ||
+        leftMatch.startCol != rightMatch.startCol ||
+        leftMatch.endCol != rightMatch.endCol ||
+        leftMatch.text != rightMatch.text ||
+        leftMatch.scrollbackOffset != rightMatch.scrollbackOffset) {
+      return false;
+    }
+  }
+  return true;
+}
+
+class _SearchHighlightSpan {
+  const _SearchHighlightSpan({required this.index, required this.rect});
+
+  final int index;
+  final Rect rect;
 }
 
 class _ResolvedCellStyle {

@@ -13,6 +13,7 @@ use par_term_emu_core_rust::terminal::{
     Terminal, TerminalDamage, TerminalProcessDebugStats, snapshot::ExportFormat,
 };
 use parking_lot::Mutex;
+use regex::RegexBuilder;
 use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
@@ -28,6 +29,45 @@ const DEFAULT_COLS: u16 = 120;
 const MAX_TRANSCRIPT_BYTES: usize = 256 * 1024;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TerminalSearchMode {
+    SmartCaseSubstring,
+    CaseSensitiveSubstring,
+    CaseInsensitiveSubstring,
+    CaseSensitiveRegex,
+    CaseInsensitiveRegex,
+}
+
+impl TerminalSearchMode {
+    fn from_wire(value: Option<&str>) -> Self {
+        match value {
+            Some("case_sensitive_substring") => Self::CaseSensitiveSubstring,
+            Some("case_insensitive_substring") => Self::CaseInsensitiveSubstring,
+            Some("case_sensitive_regex") => Self::CaseSensitiveRegex,
+            Some("case_insensitive_regex") => Self::CaseInsensitiveRegex,
+            Some("smart_case_substring") | _ => Self::SmartCaseSubstring,
+        }
+    }
+
+    fn case_sensitive(self, query: &str) -> bool {
+        match self {
+            Self::SmartCaseSubstring => query.chars().any(char::is_uppercase),
+            Self::CaseSensitiveSubstring | Self::CaseSensitiveRegex => true,
+            Self::CaseInsensitiveSubstring | Self::CaseInsensitiveRegex => false,
+        }
+    }
+
+    fn is_regex(self) -> bool {
+        matches!(self, Self::CaseSensitiveRegex | Self::CaseInsensitiveRegex)
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+struct TerminalSearchResponse {
+    matches: Vec<TerminalSearchMatch>,
+    error_text: Option<&'static str>,
+}
 
 static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
 
@@ -939,10 +979,15 @@ impl TerminalSession {
         }))
     }
 
-    pub fn search(&self, query: &str) -> Vec<TerminalSearchMatch> {
+    fn search(
+        &self,
+        query: &str,
+        mode: TerminalSearchMode,
+    ) -> Result<Vec<TerminalSearchMatch>, String> {
         if query.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
+        let pattern = TerminalSearchPattern::new(query, mode)?;
 
         let state = self.state.lock();
         let terminal = &state.terminal;
@@ -957,9 +1002,9 @@ impl TerminalSession {
                     terminal.alt_grid().is_line_wrapped(row),
                     &theme,
                 );
-                collect_text_matches(&mut matches, &extracted.text, query, row, 0);
+                collect_text_matches(&mut matches, &extracted.text, &pattern, row, 0);
             }
-            return matches;
+            return Ok(matches);
         }
 
         let grid = terminal.grid();
@@ -985,13 +1030,13 @@ impl TerminalSession {
             collect_text_matches(
                 &mut matches,
                 &extracted.text,
-                query,
+                &pattern,
                 visible_index,
                 scrollback_offset,
             );
         }
 
-        matches
+        Ok(matches)
     }
 
     pub fn selection_text(&self, request: TerminalSelectionRequest) -> String {
@@ -1640,28 +1685,43 @@ fn extract_row(
     }
 }
 
+struct TerminalSearchPattern {
+    regex: regex::Regex,
+}
+
+impl TerminalSearchPattern {
+    fn new(query: &str, mode: TerminalSearchMode) -> Result<Self, String> {
+        let pattern = if mode.is_regex() {
+            query.to_string()
+        } else {
+            regex::escape(query)
+        };
+        let mut builder = RegexBuilder::new(&pattern);
+        builder.case_insensitive(!mode.case_sensitive(query));
+        builder
+            .build()
+            .map(|regex| Self { regex })
+            .map_err(|error| error.to_string())
+    }
+}
+
 fn collect_text_matches(
     matches: &mut Vec<TerminalSearchMatch>,
     text: &str,
-    query: &str,
+    pattern: &TerminalSearchPattern,
     row: usize,
     scrollback_offset: usize,
 ) {
-    let mut search_from = 0usize;
-    while search_from <= text.len() {
-        let Some(relative) = text[search_from..].find(query) else {
-            break;
-        };
-        let start = search_from + relative;
-        let end = start + query.len();
+    for result in pattern.regex.find_iter(text) {
+        let start = result.start();
+        let end = result.end();
         matches.push(TerminalSearchMatch {
             row,
             start_col: column_for_byte_index(text, start),
             end_col: column_for_byte_index(text, end),
-            text: query.to_string(),
+            text: result.as_str().to_string(),
             scrollback_offset,
         });
-        search_from = end;
     }
 }
 
@@ -2202,8 +2262,30 @@ pub fn scroll_to_session(session_id: u64, offset: usize) -> Result<(), SessionEr
 }
 
 pub fn search_session(session_id: u64, query: &str) -> Result<String, SessionError> {
-    let matches = STORE.get(session_id)?.search(query);
+    let matches = STORE
+        .get(session_id)?
+        .search(query, TerminalSearchMode::CaseSensitiveSubstring)
+        .unwrap_or_default();
     serde_json::to_string(&matches).map_err(|error| SessionError::Serialize(error.to_string()))
+}
+
+pub fn search_session_with_mode(
+    session_id: u64,
+    query: &str,
+    mode: Option<&str>,
+) -> Result<String, SessionError> {
+    let mode = TerminalSearchMode::from_wire(mode);
+    let response = match STORE.get(session_id)?.search(query, mode) {
+        Ok(matches) => TerminalSearchResponse {
+            matches,
+            error_text: None,
+        },
+        Err(_) => TerminalSearchResponse {
+            matches: Vec::new(),
+            error_text: Some("Invalid regular expression"),
+        },
+    };
+    serde_json::to_string(&response).map_err(|error| SessionError::Serialize(error.to_string()))
 }
 
 pub fn selection_text_session(session_id: u64, request_json: &str) -> Result<String, SessionError> {
@@ -2246,7 +2328,8 @@ pub fn request_session_json(
                 .get("query")
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or_default();
-            search_session(session_id, query).map(Some)
+            let mode = request.get("mode").and_then(serde_json::Value::as_str);
+            search_session_with_mode(session_id, query, mode).map(Some)
         }
         "terminal.selection_text" => {
             let Some(selection) = request.get("selection") else {

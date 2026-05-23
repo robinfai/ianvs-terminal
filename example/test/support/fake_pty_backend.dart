@@ -38,12 +38,13 @@ class FakePtyBackend
   void setSearchMatches(
     Object sessionId,
     String query,
-    List<Map<String, Object?>> matches,
-  ) {
+    List<Map<String, Object?>> matches, {
+    String mode = 'smart_case_substring',
+  }) {
     _searchMatches.putIfAbsent(
       _sessionKey(sessionId),
       () => <String, List<Map<String, Object?>>>{},
-    )[query] = matches;
+    )[_searchKey(query, mode)] = matches;
   }
 
   void enqueueEvent(Object sessionId, PtyEvent event) {
@@ -153,31 +154,51 @@ class FakePtyBackend
   }
 
   @override
-  @override
   String? requestSessionJson(String sessionId, String requestJson) {
     final request = jsonDecode(requestJson) as Map<String, Object?>;
     return switch (request['kind']) {
       'terminal.search_text' => _searchTextJson(
         sessionId,
         request['query'] as String? ?? '',
+        request['mode'] as String? ?? 'smart_case_substring',
       ),
       'terminal.selection_text' => _selectionTextJson(sessionId, request),
       _ => null,
     };
   }
 
-  String _searchTextJson(String sessionId, String query) {
-    searchCalls.add([_numericSessionId(sessionId), query]);
-    final matches =
-        _searchMatches[sessionId]?[query] ?? const <Map<String, Object?>>[];
-    return jsonEncode(
-      matches.map((match) {
+  String _searchTextJson(String sessionId, String query, String mode) {
+    searchCalls.add([_numericSessionId(sessionId), query, mode]);
+    final errorText = _searchErrorText(query, mode);
+    final configuredMatches = _searchMatches[sessionId];
+    final matches = errorText == null
+        ? (configuredMatches?[_searchKey(query, mode)] ??
+              configuredMatches?[_searchKey(query, 'smart_case_substring')] ??
+              const <Map<String, Object?>>[])
+        : const <Map<String, Object?>>[];
+    return jsonEncode(<String, Object?>{
+      'matches': matches.map((match) {
         return <String, Object?>{
           ...match,
           'scrollback_offset': match['scrollback_offset'] ?? match['row'] ?? 0,
         };
       }).toList(),
-    );
+      'error_text': errorText,
+    });
+  }
+
+  String _searchKey(String query, String mode) => '$mode\u0000$query';
+
+  String? _searchErrorText(String query, String mode) {
+    if (!mode.endsWith('_regex') || query.isEmpty) {
+      return null;
+    }
+    try {
+      RegExp(query);
+      return null;
+    } on FormatException {
+      return 'Invalid regular expression';
+    }
   }
 
   String? _selectionTextJson(String sessionId, Map<String, Object?> request) {

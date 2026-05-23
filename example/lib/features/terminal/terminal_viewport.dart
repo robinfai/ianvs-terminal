@@ -56,6 +56,9 @@ class TerminalViewport extends StatelessWidget {
     this.focusNode,
     this.onHostKeyEvent,
     this.onOpenLink,
+    this.searchMatches = const [],
+    this.activeSearchMatchIndex = -1,
+    this.searchHighlightStyle,
   });
 
   final TerminalViewportController controller;
@@ -76,6 +79,9 @@ class TerminalViewport extends StatelessWidget {
   final FocusNode? focusNode;
   final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
   final ValueChanged<String>? onOpenLink;
+  final List<terminal.TerminalSearchMatch> searchMatches;
+  final int activeSearchMatchIndex;
+  final terminal.TerminalSearchHighlightStyle? searchHighlightStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +104,9 @@ class TerminalViewport extends StatelessWidget {
       focusNode: focusNode,
       onHostKeyEvent: onHostKeyEvent,
       onOpenLink: onOpenLink,
+      searchMatches: searchMatches,
+      activeSearchMatchIndex: activeSearchMatchIndex,
+      searchHighlightStyle: searchHighlightStyle,
     );
   }
 }

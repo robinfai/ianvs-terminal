@@ -224,29 +224,62 @@ class TerminalRuntimeController {
     return _selectionTextFromViewport(sessionId, selection, block: block);
   }
 
-  List<TerminalSearchMatch> searchText(String sessionId, String query) {
+  TerminalSearchResult searchTextResult(
+    String sessionId,
+    String query, {
+    TerminalSearchMode mode = TerminalSearchMode.smartCaseSubstring,
+  }) {
     if (query.isEmpty) {
-      return const <TerminalSearchMatch>[];
+      return TerminalSearchResult.empty;
     }
     final backend = _backend;
     final requestBackend = backend is PtySessionJsonRequestBackend
         ? backend as PtySessionJsonRequestBackend
         : null;
     if (requestBackend == null) {
-      return const <TerminalSearchMatch>[];
+      return TerminalSearchResult.empty;
     }
     final raw = requestBackend.requestSessionJson(
       sessionId,
       jsonEncode(<String, Object?>{
         'kind': 'terminal.search_text',
         'query': query,
+        'mode': mode.wireName,
       }),
     );
     if (raw == null || raw.isEmpty) {
-      return const <TerminalSearchMatch>[];
+      return TerminalSearchResult.empty;
     }
-    final decoded = jsonDecode(raw) as List<dynamic>;
-    return decoded
+    return _decodeSearchResult(jsonDecode(raw));
+  }
+
+  List<TerminalSearchMatch> searchText(
+    String sessionId,
+    String query, {
+    TerminalSearchMode mode = TerminalSearchMode.smartCaseSubstring,
+  }) {
+    return searchTextResult(sessionId, query, mode: mode).matches;
+  }
+
+  TerminalSearchResult _decodeSearchResult(Object? decoded) {
+    if (decoded is Map) {
+      final json = decoded.cast<String, Object?>();
+      final rawMatches = json['matches'];
+      final errorText = json['error_text'] ?? json['errorText'];
+      return TerminalSearchResult(
+        matches: rawMatches is List
+            ? _decodeSearchMatches(rawMatches)
+            : const <TerminalSearchMatch>[],
+        errorText: errorText is String && errorText.isNotEmpty
+            ? errorText
+            : null,
+      );
+    }
+    return TerminalSearchResult.empty;
+  }
+
+  List<TerminalSearchMatch> _decodeSearchMatches(List<dynamic> entries) {
+    return entries
         .map(
           (entry) => TerminalSearchMatch.fromJson(
             (entry as Map).cast<String, Object?>(),
@@ -268,9 +301,7 @@ class TerminalRuntimeController {
     }
     final raw = requestBackend.requestSessionJson(
       sessionId,
-      jsonEncode(<String, Object?>{
-        'kind': 'terminal.clear_scrollback',
-      }),
+      jsonEncode(<String, Object?>{'kind': 'terminal.clear_scrollback'}),
     );
     if (raw == null || raw.isEmpty) {
       return false;
@@ -288,9 +319,7 @@ class TerminalRuntimeController {
         cursor: current.cursor,
         viewportRows: current.viewportRows,
         viewportCols: current.viewportCols,
-        dirtyRanges: [
-          TerminalDirtyRange(start: 0, end: current.viewportRows),
-        ],
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: current.viewportRows)],
         scrollbackOffset: 0,
         scrollbackMaxOffset: 0,
         modes: current.modes,

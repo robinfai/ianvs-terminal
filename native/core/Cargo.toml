@@ -12,6 +12,7 @@ libc = "0.2"
 parking_lot = "0.12"
 portable-pty = "0.9.0"
 par-term-emu-core-rust = { path = "../vendor/par-term-emu-core-rust", default-features = false, features = ["rust-only"] }
+regex = "1.12.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 strip-ansi-escapes = "0.2.1"

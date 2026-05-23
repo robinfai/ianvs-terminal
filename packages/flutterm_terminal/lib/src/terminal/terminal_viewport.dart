@@ -92,6 +92,9 @@ class TerminalViewport extends StatefulWidget {
     this.focusNode,
     this.onHostKeyEvent,
     this.onOpenLink,
+    this.searchMatches = const [],
+    this.activeSearchMatchIndex = -1,
+    this.searchHighlightStyle,
   });
 
   final TerminalViewportController controller;
@@ -112,6 +115,9 @@ class TerminalViewport extends StatefulWidget {
   final FocusNode? focusNode;
   final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
   final ValueChanged<String>? onOpenLink;
+  final List<TerminalSearchMatch> searchMatches;
+  final int activeSearchMatchIndex;
+  final TerminalSearchHighlightStyle? searchHighlightStyle;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -1325,6 +1331,12 @@ class _TerminalViewportState extends State<TerminalViewport>
                               font: widget.font,
                               cursor: widget.cursor,
                               colors: colors,
+                              searchMatches: widget.searchMatches,
+                              activeSearchMatchIndex:
+                                  widget.activeSearchMatchIndex,
+                              searchHighlightStyle:
+                                  widget.searchHighlightStyle ??
+                                  const TerminalSearchHighlightStyle(),
                             ),
                           ),
                         ),
@@ -1888,6 +1900,9 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.font,
     required this.cursor,
     required this.colors,
+    required this.searchMatches,
+    required this.activeSearchMatchIndex,
+    required this.searchHighlightStyle,
   });
 
   final TerminalViewportController controller;
@@ -1896,6 +1911,9 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
   final TerminalFontConfig font;
   final TerminalCursorConfig cursor;
   final TerminalViewportColors colors;
+  final List<TerminalSearchMatch> searchMatches;
+  final int activeSearchMatchIndex;
+  final TerminalSearchHighlightStyle searchHighlightStyle;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -1907,6 +1925,9 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       cursor: cursor,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       colors: colors,
+      searchMatches: searchMatches,
+      activeSearchMatchIndex: activeSearchMatchIndex,
+      searchHighlightStyle: searchHighlightStyle,
     );
   }
 
@@ -1922,6 +1943,9 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..font = font
       ..cursor = cursor
       ..colors = colors
+      ..searchMatches = searchMatches
+      ..activeSearchMatchIndex = activeSearchMatchIndex
+      ..searchHighlightStyle = searchHighlightStyle
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
   }
 }
