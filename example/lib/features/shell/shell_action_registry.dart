@@ -55,6 +55,7 @@ enum TerminalActionId {
   toggleBellNotify,
   toggleActivityMonitor,
   exportScrollback,
+  exportDiagnostics,
   openThemePicker,
   applyTheme,
   applyLayoutTemplate,
@@ -663,6 +664,13 @@ class ShellActionRegistry {
       label: 'export_scrollback',
       category: TerminalActionCategory.workspace,
       icon: Icons.ios_share,
+      requiresActiveSession: true,
+    ),
+    TerminalActionId.exportDiagnostics: TerminalActionDescriptor(
+      id: TerminalActionId.exportDiagnostics,
+      label: 'export_diagnostics',
+      category: TerminalActionCategory.workspace,
+      icon: Icons.bug_report,
       requiresActiveSession: true,
     ),
     TerminalActionId.openThemePicker: TerminalActionDescriptor(

@@ -22,11 +22,14 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
 const MAX_TRANSCRIPT_BYTES: usize = 256 * 1024;
+const RESOURCE_SAMPLE_CAPACITY: usize = 60;
+const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
+const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
 
@@ -222,6 +225,70 @@ struct SessionDebugScrollRegion {
     top: usize,
     bottom_exclusive: usize,
     delta_rows: i32,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct ResourceSample {
+    timestamp_micros: u64,
+    session_id: u64,
+    child_pid: Option<u32>,
+    process_name: String,
+    cpu_percent: Option<f64>,
+    rss_bytes: Option<u64>,
+    virtual_bytes: Option<u64>,
+    thread_count: Option<i32>,
+    total_user_micros: Option<u64>,
+    total_system_micros: Option<u64>,
+    sample_error: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct ResourceSamplerState {
+    previous_total_cpu_micros: Option<u64>,
+    previous_sampled_at: Option<Instant>,
+    consecutive_failures: u64,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct TerminalDiagnosticEvent {
+    timestamp_micros: u64,
+    session_id: u64,
+    kind: String,
+    payload: Option<serde_json::Value>,
+}
+
+#[derive(Clone, Debug)]
+struct ProcessResourceSnapshot {
+    rss_bytes: u64,
+    virtual_bytes: u64,
+    total_user_micros: u64,
+    total_system_micros: u64,
+    thread_count: i32,
+}
+
+#[derive(Clone, Debug)]
+struct TerminalDiagnosticsRequest {
+    max_samples: usize,
+    include_content: bool,
+    redaction_mode: String,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct TerminalDiagnosticsSummary {
+    conclusion: String,
+    attribution_scores: TerminalDiagnosticsScores,
+    evidence: Vec<String>,
+    privacy: Vec<String>,
+    next_steps: Vec<String>,
+    markdown: String,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct TerminalDiagnosticsScores {
+    user_command: f64,
+    native_parser_pty: f64,
+    flutter_ui_render: f64,
+    insufficient_evidence: f64,
 }
 
 #[derive(Default)]
@@ -532,7 +599,12 @@ pub struct TerminalSession {
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
+    child_pid: Option<u32>,
+    process_name: String,
     events: Mutex<VecDeque<TerminalEvent>>,
+    diagnostic_events: Mutex<VecDeque<TerminalDiagnosticEvent>>,
+    resource_samples: Mutex<VecDeque<ResourceSample>>,
+    resource_sampler_state: Mutex<ResourceSamplerState>,
     dirty: AtomicBool,
     pending_frame_work: Mutex<PendingFrameWork>,
     session_debug_stats: Mutex<SessionDebugStats>,
@@ -549,6 +621,8 @@ impl TerminalSession {
         let profile_colors = profile.appearance.colors.clone();
         let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
+        let child_pid = runtime.child_pid;
+        let process_name = process_name_for_profile(&profile);
         let reader = runtime.reader;
         let shell_integration_proxy = runtime.shell_integration_proxy;
 
@@ -577,11 +651,21 @@ impl TerminalSession {
             writer: Mutex::new(runtime.writer),
             master: Mutex::new(runtime.master),
             child: Mutex::new(runtime.child),
+            child_pid,
+            process_name,
             events: Mutex::new(VecDeque::from([TerminalEvent {
                 kind: "started".to_string(),
                 session_id,
                 payload: None,
             }])),
+            diagnostic_events: Mutex::new(VecDeque::from([TerminalDiagnosticEvent {
+                timestamp_micros: unix_timestamp_micros(),
+                session_id,
+                kind: "started".to_string(),
+                payload: None,
+            }])),
+            resource_samples: Mutex::new(VecDeque::new()),
+            resource_sampler_state: Mutex::new(ResourceSamplerState::default()),
             dirty: AtomicBool::new(true),
             pending_frame_work: Mutex::new(PendingFrameWork::default()),
             session_debug_stats: Mutex::new(SessionDebugStats::default()),
@@ -674,6 +758,7 @@ impl TerminalSession {
                 }
             }
         });
+        Self::start_resource_sampler(&session);
 
         Ok(session)
     }
@@ -683,8 +768,122 @@ impl TerminalSession {
     }
 
     pub fn close(&self) -> Result<(), SessionError> {
+        self.exited.store(true, Ordering::SeqCst);
         let _ = self.child.lock().kill();
         Ok(())
+    }
+
+    fn start_resource_sampler(session: &Arc<Self>) {
+        let resource_session = Arc::clone(session);
+        thread::spawn(move || {
+            loop {
+                if resource_session.exited.load(Ordering::SeqCst) {
+                    break;
+                }
+                let keep_sampling = resource_session.record_resource_sample();
+                let failures = resource_session
+                    .resource_sampler_state
+                    .lock()
+                    .consecutive_failures;
+                if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
+                    break;
+                }
+                thread::sleep(RESOURCE_SAMPLE_INTERVAL);
+            }
+        });
+    }
+
+    fn record_resource_sample(&self) -> bool {
+        let timestamp_micros = unix_timestamp_micros();
+        let Some(pid) = self.child_pid else {
+            self.resource_sampler_state.lock().consecutive_failures = RESOURCE_SAMPLER_MAX_FAILURES;
+            self.push_resource_sample(ResourceSample {
+                timestamp_micros,
+                session_id: self.session_id,
+                child_pid: None,
+                process_name: self.process_name.clone(),
+                cpu_percent: None,
+                rss_bytes: None,
+                virtual_bytes: None,
+                thread_count: None,
+                total_user_micros: None,
+                total_system_micros: None,
+                sample_error: Some("child_pid_unavailable".to_string()),
+            });
+            return false;
+        };
+
+        let sampled_at = Instant::now();
+        match sample_process_resource(pid) {
+            Ok(snapshot) => {
+                let total_cpu_micros = snapshot
+                    .total_user_micros
+                    .saturating_add(snapshot.total_system_micros);
+                let cpu_percent = {
+                    let mut sampler_state = self.resource_sampler_state.lock();
+                    let previous_total = sampler_state.previous_total_cpu_micros;
+                    let previous_sampled_at = sampler_state.previous_sampled_at;
+                    sampler_state.previous_total_cpu_micros = Some(total_cpu_micros);
+                    sampler_state.previous_sampled_at = Some(sampled_at);
+                    sampler_state.consecutive_failures = 0;
+
+                    previous_total.zip(previous_sampled_at).and_then(
+                        |(previous_total, previous_sampled_at)| {
+                            let elapsed_micros =
+                                sampled_at.duration_since(previous_sampled_at).as_micros() as f64;
+                            if elapsed_micros <= 0.0 || total_cpu_micros < previous_total {
+                                return None;
+                            }
+                            let used_micros = total_cpu_micros - previous_total;
+                            Some(((used_micros as f64 / elapsed_micros) * 100.0).max(0.0))
+                        },
+                    )
+                };
+                self.push_resource_sample(ResourceSample {
+                    timestamp_micros,
+                    session_id: self.session_id,
+                    child_pid: Some(pid),
+                    process_name: self.process_name.clone(),
+                    cpu_percent,
+                    rss_bytes: Some(snapshot.rss_bytes),
+                    virtual_bytes: Some(snapshot.virtual_bytes),
+                    thread_count: Some(snapshot.thread_count),
+                    total_user_micros: Some(snapshot.total_user_micros),
+                    total_system_micros: Some(snapshot.total_system_micros),
+                    sample_error: None,
+                });
+                true
+            }
+            Err(error) => {
+                {
+                    let mut sampler_state = self.resource_sampler_state.lock();
+                    sampler_state.consecutive_failures =
+                        sampler_state.consecutive_failures.saturating_add(1);
+                }
+                self.push_resource_sample(ResourceSample {
+                    timestamp_micros,
+                    session_id: self.session_id,
+                    child_pid: Some(pid),
+                    process_name: self.process_name.clone(),
+                    cpu_percent: None,
+                    rss_bytes: None,
+                    virtual_bytes: None,
+                    thread_count: None,
+                    total_user_micros: None,
+                    total_system_micros: None,
+                    sample_error: Some(error),
+                });
+                false
+            }
+        }
+    }
+
+    fn push_resource_sample(&self, sample: ResourceSample) {
+        let mut samples = self.resource_samples.lock();
+        samples.push_back(sample);
+        while samples.len() > RESOURCE_SAMPLE_CAPACITY {
+            samples.pop_front();
+        }
     }
 
     pub fn resize(
@@ -1086,6 +1285,13 @@ impl TerminalSession {
     }
 
     pub fn take_session_debug_stats_json(&self) -> Result<Option<String>, SessionError> {
+        let stats = self.session_debug_stats_snapshot();
+        serde_json::to_string(&stats)
+            .map(Some)
+            .map_err(|error| SessionError::Serialize(error.to_string()))
+    }
+
+    fn session_debug_stats_snapshot(&self) -> SessionDebugStats {
         let mut stats = self.session_debug_stats.lock().clone();
         {
             let state = self.state.lock();
@@ -1105,9 +1311,50 @@ impl TerminalSession {
                         delta_rows: scroll_region.delta_rows,
                     });
         }
-        serde_json::to_string(&stats)
-            .map(Some)
-            .map_err(|error| SessionError::Serialize(error.to_string()))
+        stats
+    }
+
+    fn export_diagnostics_json(
+        &self,
+        request: TerminalDiagnosticsRequest,
+    ) -> Result<String, SessionError> {
+        let _ = self.record_resource_sample();
+        let max_samples = request.max_samples.min(RESOURCE_SAMPLE_CAPACITY);
+        let samples = tail_vec(&self.resource_samples.lock(), max_samples);
+        let terminal_stats = self.session_debug_stats_snapshot();
+        let frame_stats = self.last_frame_debug_stats.lock().clone();
+        let events = tail_vec(&self.diagnostic_events.lock(), 256);
+        let summary = diagnostics_summary(
+            self.child_pid,
+            &samples,
+            &terminal_stats,
+            frame_stats.as_ref(),
+        );
+
+        let manifest = serde_json::json!({
+            "schema_version": "terminal-diagnostics-session-v1",
+            "generated_at_micros": unix_timestamp_micros(),
+            "session_id": self.session_id,
+            "child_pid": self.child_pid,
+            "process_name": &self.process_name,
+            "sample_count": samples.len(),
+            "include_content_requested": request.include_content,
+            "content_included": false,
+            "redaction_mode": request.redaction_mode,
+            "platform": std::env::consts::OS,
+        });
+
+        serde_json::to_string(&serde_json::json!({
+            "manifest": manifest,
+            "resource_samples": samples,
+            "terminal_stats": {
+                "session": terminal_stats,
+                "frame": frame_stats,
+            },
+            "events": events,
+            "summary": summary,
+        }))
+        .map_err(|error| SessionError::Serialize(error.to_string()))
     }
 
     fn record_input_debug_stats(
@@ -1166,11 +1413,22 @@ impl TerminalSession {
     }
 
     fn push_event(&self, kind: &str, payload: Option<serde_json::Value>) {
+        let diagnostic_payload = sanitize_diagnostic_event_payload(kind, payload.as_ref());
         self.events.lock().push_back(TerminalEvent {
             kind: kind.to_string(),
             session_id: self.session_id,
             payload,
         });
+        let mut events = self.diagnostic_events.lock();
+        events.push_back(TerminalDiagnosticEvent {
+            timestamp_micros: unix_timestamp_micros(),
+            session_id: self.session_id,
+            kind: kind.to_string(),
+            payload: diagnostic_payload,
+        });
+        while events.len() > 256 {
+            events.pop_front();
+        }
     }
 }
 
@@ -1212,6 +1470,410 @@ fn append_transcript(state: &mut TerminalState, bytes: &[u8]) {
     let overflow = state.transcript.len() - MAX_TRANSCRIPT_BYTES;
     state.transcript.drain(..overflow);
     state.transcript_truncated = true;
+}
+
+fn unix_timestamp_micros() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_micros().min(u128::from(u64::MAX)) as u64)
+        .unwrap_or(0)
+}
+
+fn process_name_for_profile(profile: &TerminalProfile) -> String {
+    executable_basename(&profile.launch.program)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "shell".to_string())
+}
+
+fn executable_basename(value: &str) -> Option<String> {
+    value
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|part| !part.is_empty())
+        .map(str::to_string)
+}
+
+fn diagnostic_hash(value: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    "flutterm-terminal-diagnostics-v1".hash(&mut hasher);
+    value.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+fn command_diagnostic_summary(value: &str) -> serde_json::Value {
+    let parts = value.split_whitespace().collect::<Vec<_>>();
+    let executable = parts
+        .first()
+        .and_then(|value| executable_basename(value))
+        .unwrap_or_default();
+    serde_json::json!({
+        "executable_basename": executable,
+        "arg_count": parts.len().saturating_sub(1),
+        "hash": diagnostic_hash(value),
+    })
+}
+
+fn cwd_diagnostic_summary(value: &str) -> serde_json::Value {
+    let path_class = if value.starts_with("/Users/") || value == "~" || value.starts_with("~/") {
+        "home"
+    } else if value.starts_with("/tmp/") || value.starts_with("/var/folders/") {
+        "temporary"
+    } else if value.starts_with('/') {
+        "absolute"
+    } else if value.is_empty() {
+        "empty"
+    } else {
+        "relative_or_other"
+    };
+    let depth = value
+        .split('/')
+        .filter(|component| !component.is_empty() && *component != ".")
+        .count();
+    serde_json::json!({
+        "path_class": path_class,
+        "depth": depth,
+        "hash": diagnostic_hash(value),
+    })
+}
+
+fn sanitize_diagnostic_event_payload(
+    kind: &str,
+    payload: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    let payload = payload?;
+    match kind {
+        "resize" => Some(serde_json::json!({
+            "rows": payload.get("rows").and_then(serde_json::Value::as_u64),
+            "cols": payload.get("cols").and_then(serde_json::Value::as_u64),
+        })),
+        "exit" => Some(serde_json::json!({
+            "code": payload.get("code").and_then(serde_json::Value::as_i64),
+            "success": payload.get("success").and_then(serde_json::Value::as_bool),
+            "signal": payload.get("signal").and_then(serde_json::Value::as_i64),
+        })),
+        "clipboard_copy" => Some(serde_json::json!({
+            "selection": payload.get("selection").and_then(serde_json::Value::as_str),
+            "data_bytes": payload
+                .get("data")
+                .and_then(serde_json::Value::as_str)
+                .map(str::len),
+        })),
+        "clipboard_paste_request" => Some(serde_json::json!({
+            "selection": payload.get("selection").and_then(serde_json::Value::as_str),
+        })),
+        "shell_hook" => sanitize_shell_hook_payload(payload),
+        _ => None,
+    }
+}
+
+fn sanitize_shell_hook_payload(payload: &serde_json::Value) -> Option<serde_json::Value> {
+    let object = payload.as_object()?;
+    let mut sanitized = serde_json::Map::new();
+    if let Some(hook) = object.get("hook").and_then(serde_json::Value::as_str) {
+        sanitized.insert(
+            "hook".to_string(),
+            serde_json::Value::String(hook.to_string()),
+        );
+    }
+    if let Some(command) = object.get("command").and_then(serde_json::Value::as_str) {
+        sanitized.insert("command".to_string(), command_diagnostic_summary(command));
+    }
+    if let Some(cwd) = object
+        .get("cwd")
+        .or_else(|| object.get("pwd"))
+        .and_then(serde_json::Value::as_str)
+    {
+        sanitized.insert("cwd".to_string(), cwd_diagnostic_summary(cwd));
+    }
+    if let Some(shell) = object.get("shell").and_then(serde_json::Value::as_str) {
+        sanitized.insert(
+            "shell_basename".to_string(),
+            serde_json::Value::String(executable_basename(shell).unwrap_or_default()),
+        );
+    }
+    if let Some(username) = object
+        .get("username")
+        .or_else(|| object.get("user"))
+        .and_then(serde_json::Value::as_str)
+    {
+        sanitized.insert(
+            "username_hash".to_string(),
+            serde_json::Value::String(diagnostic_hash(username)),
+        );
+    }
+    if let Some(hostname) = object
+        .get("hostname")
+        .or_else(|| object.get("host"))
+        .and_then(serde_json::Value::as_str)
+    {
+        sanitized.insert(
+            "hostname_hash".to_string(),
+            serde_json::Value::String(diagnostic_hash(hostname)),
+        );
+    }
+    if let Some(exit_code) = object
+        .get("exitCode")
+        .or_else(|| object.get("exit_code"))
+        .and_then(serde_json::Value::as_i64)
+    {
+        sanitized.insert("exit_code".to_string(), serde_json::Value::from(exit_code));
+    }
+    if let Some(prompt_offset) = object
+        .get("promptScrollbackOffset")
+        .or_else(|| object.get("prompt_scrollback_offset"))
+        .or_else(|| object.get("scrollback_offset"))
+        .and_then(serde_json::Value::as_i64)
+    {
+        sanitized.insert(
+            "prompt_scrollback_offset".to_string(),
+            serde_json::Value::from(prompt_offset),
+        );
+    }
+    Some(serde_json::Value::Object(sanitized))
+}
+
+fn tail_vec<T: Clone>(values: &VecDeque<T>, max_entries: usize) -> Vec<T> {
+    let skip = values.len().saturating_sub(max_entries);
+    values.iter().skip(skip).cloned().collect()
+}
+
+#[cfg(target_os = "macos")]
+fn sample_process_resource(pid: u32) -> Result<ProcessResourceSnapshot, String> {
+    let mut info: libc::proc_taskinfo = unsafe { std::mem::zeroed() };
+    let expected = std::mem::size_of::<libc::proc_taskinfo>() as libc::c_int;
+    let result = unsafe {
+        libc::proc_pidinfo(
+            pid as libc::c_int,
+            libc::PROC_PIDTASKINFO,
+            0,
+            &mut info as *mut _ as *mut libc::c_void,
+            expected,
+        )
+    };
+    if result != expected {
+        return Err("process_resource_unavailable".to_string());
+    }
+    Ok(ProcessResourceSnapshot {
+        rss_bytes: info.pti_resident_size,
+        virtual_bytes: info.pti_virtual_size,
+        total_user_micros: info.pti_total_user / 1_000,
+        total_system_micros: info.pti_total_system / 1_000,
+        thread_count: info.pti_threadnum,
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn sample_process_resource(_pid: u32) -> Result<ProcessResourceSnapshot, String> {
+    Err("resource_sampling_unsupported".to_string())
+}
+
+fn diagnostics_summary(
+    child_pid: Option<u32>,
+    samples: &[ResourceSample],
+    terminal_stats: &SessionDebugStats,
+    frame_stats: Option<&FrameDebugStats>,
+) -> TerminalDiagnosticsSummary {
+    let sample_count = samples
+        .iter()
+        .filter(|sample| sample.sample_error.is_none())
+        .count();
+    let max_cpu = samples
+        .iter()
+        .filter_map(|sample| sample.cpu_percent)
+        .fold(0.0_f64, f64::max);
+    let max_rss = samples
+        .iter()
+        .filter_map(|sample| sample.rss_bytes)
+        .max()
+        .unwrap_or(0);
+    let parser_micros = terminal_stats.terminal_process_micros;
+    let parser_breakdown = &terminal_stats.terminal_process_breakdown;
+    let scroll_micros = parser_breakdown
+        .scroll_micros
+        .saturating_add(parser_breakdown.scrollback_push_micros);
+    let frame_build_micros = frame_stats
+        .map(|stats| stats.frame_build_micros)
+        .unwrap_or_default();
+    let json_encode_micros = frame_stats
+        .map(|stats| stats.json_encode_micros)
+        .unwrap_or_default();
+    let rows_scanned = frame_stats
+        .map(|stats| stats.rows_scanned)
+        .unwrap_or_default();
+
+    let mut user_command = 0.0_f64;
+    if max_cpu >= 50.0 {
+        user_command += 0.7;
+    } else if max_cpu >= 20.0 {
+        user_command += 0.4;
+    }
+    if max_rss >= 512 * 1024 * 1024 {
+        user_command += 0.5;
+    } else if max_rss >= 128 * 1024 * 1024 {
+        user_command += 0.25;
+    }
+
+    let mut native_parser_pty = 0.0_f64;
+    if parser_micros >= 50_000 {
+        native_parser_pty += 0.6;
+    } else if parser_micros >= 10_000 {
+        native_parser_pty += 0.3;
+    }
+    if parser_breakdown.escape_or_control_bytes >= 4096 {
+        native_parser_pty += 0.25;
+    }
+    if scroll_micros >= 10_000 || parser_breakdown.scrollback_push_lines >= 1000 {
+        native_parser_pty += 0.35;
+    }
+
+    let mut flutter_ui_render = 0.0_f64;
+    if frame_build_micros >= 16_000 {
+        flutter_ui_render += 0.45;
+    }
+    if json_encode_micros >= 8_000 {
+        flutter_ui_render += 0.35;
+    }
+    if rows_scanned >= 500 {
+        flutter_ui_render += 0.25;
+    }
+
+    let insufficient_evidence = if child_pid.is_none() || sample_count < 2 {
+        1.0
+    } else if terminal_stats.transcript_truncated {
+        0.55
+    } else {
+        0.0
+    };
+
+    let user_command = user_command.min(1.0);
+    let native_parser_pty = native_parser_pty.min(1.0);
+    let flutter_ui_render = flutter_ui_render.min(1.0);
+    let active_scores = [
+        user_command >= 0.5,
+        native_parser_pty >= 0.5,
+        flutter_ui_render >= 0.5,
+    ]
+    .iter()
+    .filter(|active| **active)
+    .count();
+    let conclusion = if insufficient_evidence >= 1.0 && active_scores == 0 {
+        "insufficient-evidence"
+    } else if active_scores >= 2 {
+        "mixed"
+    } else if user_command >= native_parser_pty
+        && user_command >= flutter_ui_render
+        && user_command >= 0.5
+    {
+        "user-command"
+    } else if native_parser_pty >= flutter_ui_render && native_parser_pty >= 0.5 {
+        "native-parser-pty"
+    } else if flutter_ui_render >= 0.5 {
+        "flutter-ui-render"
+    } else {
+        "insufficient-evidence"
+    }
+    .to_string();
+
+    let evidence = vec![
+        format!("valid_resource_samples={sample_count}, max_child_cpu={max_cpu:.1}%"),
+        format!("max_child_rss_bytes={max_rss}"),
+        format!(
+            "terminal_process_micros={}, escape_or_control_bytes={}, scroll_micros={}",
+            parser_micros, parser_breakdown.escape_or_control_bytes, scroll_micros
+        ),
+        format!(
+            "frame_build_micros={}, json_encode_micros={}, rows_scanned={}",
+            frame_build_micros, json_encode_micros, rows_scanned
+        ),
+    ];
+    let privacy = vec![
+        "scrollback, env, raw command line, raw cwd, username, and hostname are excluded by default"
+            .to_string(),
+        "shell hook command/cwd/user/host fields are summarized or salted-hashed".to_string(),
+    ];
+    let next_steps = match conclusion.as_str() {
+        "user-command" => vec![
+            "inspect the direct child command workload and consider process-tree aggregation in V2"
+                .to_string(),
+        ],
+        "native-parser-pty" => vec![
+            "capture a short high-output reproduction and inspect parser, scroll, and scrollback costs"
+                .to_string(),
+        ],
+        "flutter-ui-render" => vec![
+            "profile frame build, JSON encode, row rebuild, and paint paths around the sampled period"
+                .to_string(),
+        ],
+        "mixed" => vec![
+            "separate command CPU/RSS load from terminal parser and Flutter frame costs with targeted repros"
+                .to_string(),
+        ],
+        _ => vec![
+            "reproduce while the session is active for at least two samples and export again".to_string(),
+        ],
+    };
+    let scores = TerminalDiagnosticsScores {
+        user_command,
+        native_parser_pty,
+        flutter_ui_render,
+        insufficient_evidence,
+    };
+    let markdown = diagnostics_markdown(&conclusion, &evidence, &scores, &privacy, &next_steps);
+
+    TerminalDiagnosticsSummary {
+        conclusion,
+        attribution_scores: scores,
+        evidence,
+        privacy,
+        next_steps,
+        markdown,
+    }
+}
+
+fn diagnostics_markdown(
+    conclusion: &str,
+    evidence: &[String],
+    scores: &TerminalDiagnosticsScores,
+    privacy: &[String],
+    next_steps: &[String],
+) -> String {
+    let mut markdown = String::new();
+    markdown.push_str("# Terminal diagnostics\n\n");
+    markdown.push_str("## Conclusion\n\n");
+    markdown.push_str(conclusion);
+    markdown.push_str("\n\n## Evidence summary\n\n");
+    for item in evidence {
+        markdown.push_str("- ");
+        markdown.push_str(item);
+        markdown.push('\n');
+    }
+    markdown.push_str("\n## Attribution scores\n\n");
+    markdown.push_str(&format!("- user-command: {:.2}\n", scores.user_command));
+    markdown.push_str(&format!(
+        "- native-parser-pty: {:.2}\n",
+        scores.native_parser_pty
+    ));
+    markdown.push_str(&format!(
+        "- flutter-ui-render: {:.2}\n",
+        scores.flutter_ui_render
+    ));
+    markdown.push_str(&format!(
+        "- insufficient-evidence: {:.2}\n",
+        scores.insufficient_evidence
+    ));
+    markdown.push_str("\n## Privacy handling\n\n");
+    for item in privacy {
+        markdown.push_str("- ");
+        markdown.push_str(item);
+        markdown.push('\n');
+    }
+    markdown.push_str("\n## Suggested next steps\n\n");
+    for item in next_steps {
+        markdown.push_str("- ");
+        markdown.push_str(item);
+        markdown.push('\n');
+    }
+    markdown
 }
 
 fn cached_row_state_for(entry: &ExtractedVisibleRow) -> CachedRowState {
@@ -2312,6 +2974,13 @@ pub fn export_scrollback_session(
     .map_err(|error| SessionError::Serialize(error.to_string()))
 }
 
+fn export_diagnostics_session(
+    session_id: u64,
+    request: TerminalDiagnosticsRequest,
+) -> Result<String, SessionError> {
+    STORE.get(session_id)?.export_diagnostics_json(request)
+}
+
 pub fn request_session_json(
     session_id: u64,
     request_json: &str,
@@ -2363,6 +3032,35 @@ pub fn request_session_json(
                 .and_then(serde_json::Value::as_u64)
                 .and_then(|value| usize::try_from(value).ok());
             export_scrollback_session(session_id, max_lines).map(Some)
+        }
+        "terminal.export_diagnostics" => {
+            let max_samples = request
+                .get("maxSamples")
+                .or_else(|| request.get("max_samples"))
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|value| usize::try_from(value).ok())
+                .unwrap_or(RESOURCE_SAMPLE_CAPACITY)
+                .min(RESOURCE_SAMPLE_CAPACITY);
+            let include_content = request
+                .get("includeContent")
+                .or_else(|| request.get("include_content"))
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            let redaction_mode = request
+                .get("redactionMode")
+                .or_else(|| request.get("redaction_mode"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("basic")
+                .to_string();
+            export_diagnostics_session(
+                session_id,
+                TerminalDiagnosticsRequest {
+                    max_samples,
+                    include_content,
+                    redaction_mode,
+                },
+            )
+            .map(Some)
         }
         _ => Ok(None),
     }
@@ -2569,5 +3267,94 @@ mod tests {
             event => panic!("expected shell hook event, got {event:?}"),
         }
         assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn diagnostics_summary_marks_missing_pid_as_insufficient_evidence() {
+        let stats = SessionDebugStats::default();
+        let summary = diagnostics_summary(None, &[], &stats, None);
+
+        assert_eq!(summary.conclusion, "insufficient-evidence");
+        assert_eq!(summary.attribution_scores.insufficient_evidence, 1.0);
+    }
+
+    #[test]
+    fn diagnostics_summary_labels_high_direct_child_cpu() {
+        let stats = SessionDebugStats::default();
+        let samples = vec![
+            ResourceSample {
+                timestamp_micros: 1,
+                session_id: 1,
+                child_pid: Some(42),
+                process_name: "sh".to_string(),
+                cpu_percent: Some(5.0),
+                rss_bytes: Some(16 * 1024 * 1024),
+                virtual_bytes: Some(32 * 1024 * 1024),
+                thread_count: Some(1),
+                total_user_micros: Some(100),
+                total_system_micros: Some(10),
+                sample_error: None,
+            },
+            ResourceSample {
+                timestamp_micros: 2,
+                session_id: 1,
+                child_pid: Some(42),
+                process_name: "sh".to_string(),
+                cpu_percent: Some(85.0),
+                rss_bytes: Some(16 * 1024 * 1024),
+                virtual_bytes: Some(32 * 1024 * 1024),
+                thread_count: Some(1),
+                total_user_micros: Some(900),
+                total_system_micros: Some(10),
+                sample_error: None,
+            },
+        ];
+
+        let summary = diagnostics_summary(Some(42), &samples, &stats, None);
+
+        assert_eq!(summary.conclusion, "user-command");
+        assert!(summary.attribution_scores.user_command >= 0.5);
+        assert_eq!(summary.attribution_scores.insufficient_evidence, 0.0);
+    }
+
+    #[test]
+    fn tail_vec_returns_recent_entries_in_order() {
+        let values = (0..70).collect::<VecDeque<_>>();
+
+        let tail = tail_vec(&values, RESOURCE_SAMPLE_CAPACITY);
+
+        assert_eq!(tail.len(), RESOURCE_SAMPLE_CAPACITY);
+        assert_eq!(tail.first(), Some(&10));
+        assert_eq!(tail.last(), Some(&69));
+    }
+
+    #[test]
+    fn diagnostic_event_payload_summarizes_shell_privacy_fields() {
+        let payload = serde_json::json!({
+            "hook": "command_finished",
+            "command": "/usr/bin/git status --short",
+            "pwd": "/Users/alice/project/flutterm",
+            "username": "alice",
+            "hostname": "alice-mac.local",
+            "exit_code": 0,
+        });
+
+        let sanitized = sanitize_diagnostic_event_payload("shell_hook", Some(&payload))
+            .expect("expected sanitized shell hook");
+
+        assert_eq!(sanitized["hook"].as_str(), Some("command_finished"));
+        assert_eq!(
+            sanitized["command"]["executable_basename"].as_str(),
+            Some("git")
+        );
+        assert_eq!(sanitized["command"]["arg_count"].as_u64(), Some(2));
+        assert!(sanitized["command"]["hash"].as_str().is_some());
+        assert_eq!(sanitized["cwd"]["path_class"].as_str(), Some("home"));
+        assert!(sanitized["cwd"]["hash"].as_str().is_some());
+        assert!(sanitized["username_hash"].as_str().is_some());
+        assert!(sanitized["hostname_hash"].as_str().is_some());
+        assert!(!sanitized.to_string().contains("alice"));
+        assert!(!sanitized.to_string().contains("/Users/alice"));
+        assert!(!sanitized.to_string().contains("status --short"));
     }
 }

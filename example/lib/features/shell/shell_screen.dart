@@ -27,6 +27,7 @@ import '../terminal/selection_controller.dart';
 import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
+import '../visual/local_terminal_diagnostics_exporter.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
 import 'advanced_paste_transformer.dart';
@@ -1639,6 +1640,38 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         },
       ),
       policy: const LocalTerminalScrollbackExportPolicy(),
+    );
+  }
+
+  Future<Directory?> _exportDiagnosticsBundle(SessionState state) async {
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final seenSessionIds = <String>{};
+    final exports = <terminal.TerminalDiagnosticsExport>[];
+    for (final tab in state.tabs) {
+      for (final pane in tab.effectivePanes) {
+        final sessionId = pane.sessionId;
+        if (!seenSessionIds.add(sessionId) || !runtime.hasSession(sessionId)) {
+          continue;
+        }
+        final export = runtime.exportSessionDiagnostics(sessionId);
+        if (export != null) {
+          exports.add(export);
+        }
+      }
+    }
+    if (exports.isEmpty) {
+      return null;
+    }
+
+    final supportDirectory = await getApplicationSupportDirectory();
+    final exportDirectory = Directory(
+      '${supportDirectory.path}/diagnostic_exports',
+    );
+    final basename = 'diagnostics-${DateTime.now().millisecondsSinceEpoch}';
+    return LocalTerminalDiagnosticsExporter.write(
+      directory: exportDirectory,
+      basename: basename,
+      exports: exports,
     );
   }
 
@@ -4041,6 +4074,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         'openThemePicker',
         'applyLayoutTemplate',
         'exportScrollback',
+        'exportDiagnostics',
         'toggleCommandFinishedNotify',
         'toggleBellNotify',
         'toggleActivityMonitor',
@@ -4728,6 +4762,38 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           }
           return const ShellActionBindingResult.completed(
             'Exported terminal scrollback.',
+          );
+        },
+        exportDiagnostics: (_) async {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Export diagnostics requires an active session.',
+            );
+          }
+          final directory = await _exportDiagnosticsBundle(currentState);
+          if (directory == null) {
+            return const ShellActionBindingResult.skipped(
+              'Diagnostics export is unavailable for the active sessions.',
+            );
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Diagnostics exported to ${directory.path}'),
+                duration: const Duration(seconds: 8),
+                action: SnackBarAction(
+                  label: 'Copy path',
+                  onPressed: () {
+                    unawaited(
+                      Clipboard.setData(ClipboardData(text: directory.path)),
+                    );
+                  },
+                ),
+              ),
+            );
+          }
+          return const ShellActionBindingResult.completed(
+            'Exported terminal diagnostics.',
           );
         },
         toggleCommandFinishedNotify: (_) {
@@ -12311,6 +12377,18 @@ class _ShellCommandMenu extends StatelessWidget {
                       ).pop(TerminalActionId.exportScrollback),
                     ),
                     _ShellCommandTile(
+                      key: const Key('shell-export-diagnostics'),
+                      icon: Icons.bug_report_rounded,
+                      title: 'Export diagnostics',
+                      subtitle:
+                          'Session action • Save a local resource evidence bundle.',
+                      enabled: hasActiveSession,
+                      disabledReason: activeSessionRequired,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.exportDiagnostics),
+                    ),
+                    _ShellCommandTile(
                       key: const Key('shell-annotations'),
                       icon: Icons.sticky_note_2_rounded,
                       title: 'Annotations',
@@ -12575,6 +12653,10 @@ TerminalActionId? _commandMenuActionForQuery(String query) {
     const MapEntry(
       'export scrollback save output',
       TerminalActionId.exportScrollback,
+    ),
+    const MapEntry(
+      'export diagnostics resource cpu memory evidence bundle',
+      TerminalActionId.exportDiagnostics,
     ),
     const MapEntry(
       'command finished notifications shell hook completion alerts',

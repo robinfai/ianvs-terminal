@@ -15,6 +15,7 @@ pub struct PtyRuntime {
     pub reader: Box<dyn Read + Send>,
     pub writer: Box<dyn Write + Send>,
     pub child: Box<dyn portable_pty::Child + Send + Sync>,
+    pub child_pid: Option<u32>,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
 }
 
@@ -108,6 +109,7 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
     }
 
     let child = pair.slave.spawn_command(command)?;
+    let child_pid = child.process_id();
     let reader = pair.master.try_clone_reader()?;
     let writer = pair.master.take_writer()?;
 
@@ -116,6 +118,7 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
         reader,
         writer,
         child,
+        child_pid,
         shell_integration_proxy: plan.shell_integration_proxy,
     })
 }

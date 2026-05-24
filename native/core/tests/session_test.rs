@@ -2452,6 +2452,84 @@ fn session_debug_stats_accumulate_input_processing_costs() {
 }
 
 #[test]
+fn diagnostics_export_returns_privacy_preserving_evidence_package() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(1100));
+
+    let request = serde_json::json!({
+        "kind": "terminal.export_diagnostics",
+        "maxSamples": 4,
+        "includeContent": true,
+        "redactionMode": "basic",
+    });
+    let response = session::request_session_json(session_id, &request.to_string())
+        .unwrap()
+        .expect("expected diagnostics export response");
+    let parsed: serde_json::Value = serde_json::from_str(&response).unwrap();
+
+    assert_eq!(
+        parsed["manifest"]["schema_version"].as_str(),
+        Some("terminal-diagnostics-session-v1")
+    );
+    assert_eq!(parsed["manifest"]["session_id"].as_u64(), Some(session_id));
+    assert_eq!(
+        parsed["manifest"]["content_included"].as_bool(),
+        Some(false)
+    );
+    assert_eq!(
+        parsed["manifest"]["include_content_requested"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(parsed["manifest"]["redaction_mode"].as_str(), Some("basic"));
+    assert!(
+        parsed["manifest"]["child_pid"].is_u64(),
+        "expected captured child pid: {parsed}"
+    );
+
+    let samples = parsed["resource_samples"]
+        .as_array()
+        .expect("expected resource samples");
+    assert!(!samples.is_empty());
+    assert!(samples.len() <= 4);
+    assert!(samples.windows(2).all(|window| {
+        window[0]["timestamp_micros"].as_u64().unwrap_or_default()
+            <= window[1]["timestamp_micros"].as_u64().unwrap_or_default()
+    }));
+    assert!(parsed["terminal_stats"]["session"].is_object());
+    assert!(parsed["events"].as_array().is_some());
+    assert_eq!(
+        parsed["summary"]["conclusion"].as_str(),
+        Some("insufficient-evidence")
+    );
+    assert!(
+        parsed["summary"]["markdown"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Privacy handling")
+    );
+    assert!(
+        !response.contains("USER="),
+        "diagnostics response should not include raw env"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn diagnostics_export_after_session_close_fails_stably() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    session::close_session(session_id).unwrap();
+
+    let request = serde_json::json!({
+        "kind": "terminal.export_diagnostics",
+    });
+
+    assert!(session::request_session_json(session_id, &request.to_string()).is_err());
+}
+
+#[test]
 fn transcript_is_bounded_and_resize_still_returns_snapshot() {
     let session_id =
         session::create_session(&serde_json::to_string(&large_transcript_profile()).unwrap())

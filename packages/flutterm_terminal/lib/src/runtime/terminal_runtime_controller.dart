@@ -99,6 +99,103 @@ final class TerminalSessionInputEvent {
   final Uint8List bytes;
 }
 
+final class TerminalDiagnosticsPolicy {
+  const TerminalDiagnosticsPolicy({
+    this.maxSamples = 60,
+    this.includeScrollback = false,
+    this.includeRawCommand = false,
+    this.includeRawCwd = false,
+    this.includeEnv = false,
+    this.redactionMode = 'basic',
+  });
+
+  final int maxSamples;
+  final bool includeScrollback;
+  final bool includeRawCommand;
+  final bool includeRawCwd;
+  final bool includeEnv;
+  final String redactionMode;
+
+  bool get includeContent =>
+      includeScrollback || includeRawCommand || includeRawCwd || includeEnv;
+
+  Map<String, Object?> toRequestJson() {
+    final effectiveMaxSamples = maxSamples.clamp(1, 60).toInt();
+    return <String, Object?>{
+      'kind': 'terminal.export_diagnostics',
+      'maxSamples': effectiveMaxSamples,
+      'includeContent': includeContent,
+      'redactionMode': redactionMode,
+      'policy': <String, Object?>{
+        'includeScrollback': includeScrollback,
+        'includeRawCommand': includeRawCommand,
+        'includeRawCwd': includeRawCwd,
+        'includeEnv': includeEnv,
+      },
+    };
+  }
+}
+
+final class TerminalDiagnosticsExport {
+  const TerminalDiagnosticsExport({
+    required this.manifest,
+    required this.resourceSamples,
+    required this.terminalStats,
+    required this.events,
+    required this.summary,
+  });
+
+  factory TerminalDiagnosticsExport.fromJson(Map<String, Object?> json) {
+    return TerminalDiagnosticsExport(
+      manifest: _mapValue(json['manifest']),
+      resourceSamples: _mapList(
+        json['resource_samples'] ?? json['resourceSamples'],
+      ),
+      terminalStats: _mapValue(json['terminal_stats'] ?? json['terminalStats']),
+      events: _mapList(json['events']),
+      summary: _mapValue(json['summary']),
+    );
+  }
+
+  final Map<String, Object?> manifest;
+  final List<Map<String, Object?>> resourceSamples;
+  final Map<String, Object?> terminalStats;
+  final List<Map<String, Object?>> events;
+  final Map<String, Object?> summary;
+
+  String? get conclusion => summary['conclusion'] as String?;
+  String? get summaryMarkdown => summary['markdown'] as String?;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'manifest': manifest,
+      'resource_samples': resourceSamples,
+      'terminal_stats': terminalStats,
+      'events': events,
+      'summary': summary,
+    };
+  }
+}
+
+Map<String, Object?> _mapValue(Object? value) {
+  if (value is Map) {
+    return Map<String, Object?>.unmodifiable(value.cast<String, Object?>());
+  }
+  return const <String, Object?>{};
+}
+
+List<Map<String, Object?>> _mapList(Object? value) {
+  if (value is! List) {
+    return const <Map<String, Object?>>[];
+  }
+  return List<Map<String, Object?>>.unmodifiable(
+    value.whereType<Map>().map(
+      (entry) =>
+          Map<String, Object?>.unmodifiable(entry.cast<String, Object?>()),
+    ),
+  );
+}
+
 class TerminalRuntimeController {
   TerminalRuntimeController({
     required PtySessionBackend backend,
@@ -356,6 +453,41 @@ class TerminalRuntimeController {
       return null;
     }
     return decoded['content'] as String?;
+  }
+
+  TerminalDiagnosticsExport? exportSessionDiagnostics(
+    String sessionId, {
+    TerminalDiagnosticsPolicy policy = const TerminalDiagnosticsPolicy(),
+  }) {
+    if (!hasSession(sessionId)) {
+      return null;
+    }
+    final backend = _backend;
+    final requestBackend = backend is PtySessionJsonRequestBackend
+        ? backend as PtySessionJsonRequestBackend
+        : null;
+    if (requestBackend == null) {
+      return null;
+    }
+
+    try {
+      final raw = requestBackend.requestSessionJson(
+        sessionId,
+        jsonEncode(policy.toRequestJson()),
+      );
+      if (raw == null || raw.isEmpty) {
+        return null;
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return null;
+      }
+      return TerminalDiagnosticsExport.fromJson(
+        decoded.cast<String, Object?>(),
+      );
+    } on Object {
+      return null;
+    }
   }
 
   String _selectionTextFromViewport(

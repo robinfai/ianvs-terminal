@@ -49,6 +49,7 @@ class ShellActionProductionCallbacks {
     this.openThemePicker,
     this.applyLayoutTemplate,
     this.exportScrollback,
+    this.exportDiagnostics,
     this.resizePaneLeft,
     this.resizePaneRight,
     this.resizePaneUp,
@@ -110,6 +111,7 @@ class ShellActionProductionCallbacks {
   final ShellActionBinding? openThemePicker;
   final ShellActionBinding? applyLayoutTemplate;
   final ShellActionBinding? exportScrollback;
+  final ShellActionBinding? exportDiagnostics;
   final ShellActionBinding? resizePaneLeft;
   final ShellActionBinding? resizePaneRight;
   final ShellActionBinding? resizePaneUp;
@@ -179,6 +181,7 @@ class ShellActionProductionCallbacks {
     add('openThemePicker', openThemePicker);
     add('applyLayoutTemplate', applyLayoutTemplate);
     add('exportScrollback', exportScrollback);
+    add('exportDiagnostics', exportDiagnostics);
     add('resizePaneLeft', resizePaneLeft);
     add('resizePaneRight', resizePaneRight);
     add('resizePaneUp', resizePaneUp);

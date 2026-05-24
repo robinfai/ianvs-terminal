@@ -71,6 +71,25 @@ void main() {
   );
 
   test(
+    'native pty backend leaves generic JSON response validation to callers',
+    () {
+      final bindings = _RequestRecordingPtyBindings();
+      final backend =
+          NativePtyBackend.fromBindings(bindings)
+              as PtySessionJsonRequestBackend;
+
+      bindings.response = null;
+      expect(backend.requestSessionJson('7', '{"kind":"diagnostics"}'), isNull);
+
+      bindings.response = '';
+      expect(backend.requestSessionJson('7', '{"kind":"diagnostics"}'), '');
+
+      bindings.response = '{';
+      expect(backend.requestSessionJson('7', '{"kind":"diagnostics"}'), '{');
+    },
+  );
+
+  test(
     'native pty backend can bridge to the real Rust core',
     () {
       final libraryPath = _workspaceCoreLibraryPath!;
@@ -164,11 +183,12 @@ class _NoopDebugPtyBindings extends _NoopPtyBindings {
 class _RequestRecordingPtyBindings extends _NoopPtyBindings {
   int? lastSessionId;
   String? lastRequestJson;
+  String? response = '{"ok":true}';
 
   @override
   String? sessionRequestJson(int sessionId, String requestJson) {
     lastSessionId = sessionId;
     lastRequestJson = requestJson;
-    return '{"ok":true}';
+    return response;
   }
 }

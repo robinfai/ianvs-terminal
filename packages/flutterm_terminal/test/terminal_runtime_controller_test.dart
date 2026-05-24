@@ -680,6 +680,117 @@ void main() {
     });
   });
 
+  test('terminal runtime exports diagnostics with private defaults', () {
+    final runtimeBackend = _FakePtyBackend()
+      ..diagnosticsResponse = <String, Object?>{
+        'manifest': <String, Object?>{
+          'schema_version': 'terminal-diagnostics-session-v1',
+          'session_id': 1,
+        },
+        'resource_samples': <Object?>[
+          <String, Object?>{'timestamp_micros': 1, 'rss_bytes': 100},
+          <String, Object?>{'timestamp_micros': 2, 'rss_bytes': 120},
+        ],
+        'terminal_stats': <String, Object?>{
+          'session': <String, Object?>{'bytes_read': 4},
+        },
+        'events': <Object?>[
+          <String, Object?>{'kind': 'started'},
+        ],
+        'summary': <String, Object?>{
+          'conclusion': 'insufficient-evidence',
+          'markdown': '# Terminal diagnostics',
+        },
+      };
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.jsonRequests.clear();
+
+    final export = runtime.exportSessionDiagnostics(sessionId);
+
+    expect(export, isNotNull);
+    expect(export!.conclusion, 'insufficient-evidence');
+    expect(export.resourceSamples.map((sample) => sample['rss_bytes']), [
+      100,
+      120,
+    ]);
+    expect(runtimeBackend.jsonRequests.single, <String, Object?>{
+      'kind': 'terminal.export_diagnostics',
+      'maxSamples': 60,
+      'includeContent': false,
+      'redactionMode': 'basic',
+      'policy': <String, Object?>{
+        'includeScrollback': false,
+        'includeRawCommand': false,
+        'includeRawCwd': false,
+        'includeEnv': false,
+      },
+    });
+  });
+
+  test(
+    'terminal runtime degrades diagnostics export to null on bad backend data',
+    () {
+      final runtimeBackend = _FakePtyBackend()..diagnosticsRawResponse = '{';
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      expect(runtime.exportSessionDiagnostics(sessionId), isNull);
+
+      runtimeBackend
+        ..diagnosticsRawResponse = ''
+        ..jsonRequests.clear();
+      expect(runtime.exportSessionDiagnostics(sessionId), isNull);
+
+      runtimeBackend
+        ..diagnosticsRawResponse = null
+        ..diagnosticsResponse = null
+        ..returnNullJsonRequests = true;
+      expect(runtime.exportSessionDiagnostics(sessionId), isNull);
+    },
+  );
+
+  test('terminal runtime returns null diagnostics for unsupported backend', () {
+    final runtimeBackend = _FrameOnlyPtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    expect(runtime.exportSessionDiagnostics(sessionId), isNull);
+  });
+
   testWidgets(
     'terminal runtime controller does not keep started-only refreshes in flight',
     (tester) async {
@@ -1390,6 +1501,8 @@ class _FakePtyBackend
   List<Map<String, Object?>> searchResponse = const <Map<String, Object?>>[];
   String? searchErrorText;
   String selectionResponse = '';
+  Map<String, Object?>? diagnosticsResponse;
+  String? diagnosticsRawResponse;
   bool returnNullJsonRequests = false;
 
   final Map<String, Map<String, Object?>> _frames =
@@ -1499,6 +1612,8 @@ class _FakePtyBackend
       'terminal.selection_text' => jsonEncode(<String, Object?>{
         'text': selectionResponse,
       }),
+      'terminal.export_diagnostics' =>
+        diagnosticsRawResponse ?? jsonEncode(diagnosticsResponse),
       _ => null,
     };
   }
@@ -1519,6 +1634,54 @@ class _FakePtyBackend
     pollEventsCalls += 1;
     return _queuedEvents.remove(sessionId) ?? const <PtyEvent>[];
   }
+}
+
+class _FrameOnlyPtyBackend implements PtySessionBackend {
+  final Map<String, Map<String, Object?>> _frames =
+      <String, Map<String, Object?>>{};
+  int _nextSessionId = 0;
+
+  @override
+  int ping() => 1;
+
+  @override
+  String createSession(String sessionConfigJson) {
+    final sessionId = (++_nextSessionId).toString();
+    _frames[sessionId] = _singleRowSnapshot('demo');
+    return sessionId;
+  }
+
+  @override
+  void closeSession(String sessionId) {
+    _frames.remove(sessionId);
+  }
+
+  @override
+  void resizeSession(
+    String sessionId, {
+    required int cols,
+    required int rows,
+    required int pixelWidth,
+    required int pixelHeight,
+  }) {}
+
+  @override
+  void writeInput(String sessionId, List<int> bytes) {}
+
+  @override
+  void scrollViewport(String sessionId, int deltaLines) {}
+
+  @override
+  void scrollViewportTo(String sessionId, int offset) {}
+
+  @override
+  String? takeFrameDiffJson(String sessionId) {
+    final frame = _frames[sessionId];
+    return frame == null ? null : jsonEncode(frame);
+  }
+
+  @override
+  List<PtyEvent> pollEvents(String sessionId) => const <PtyEvent>[];
 }
 
 class _StartedEventPtyBackend extends _FakePtyBackend {
