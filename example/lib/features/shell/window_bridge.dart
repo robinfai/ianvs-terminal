@@ -45,6 +45,17 @@ class WindowBridge {
     }
   }
 
+  static Future<void> beginWindowDrag() async {
+    if (BindingBase.debugBindingType() == null) {
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('beginWindowDrag');
+    } on MissingPluginException {
+      return;
+    }
+  }
+
   static Future<void> toggleHotkeyWindow() async {
     if (BindingBase.debugBindingType() == null) {
       return;
@@ -102,9 +113,11 @@ class WindowBridge {
       }
       await _channel.invokeMethod<void>('showNotification', arguments);
     } on PlatformException catch (error) {
-      if (kDebugMode &&
-          error.code != 'notification_authorization_failed' &&
-          error.code != 'notification_delivery_failed') {
+      if (error.code == 'notification_authorization_failed' ||
+          error.code == 'notification_delivery_failed') {
+        rethrow;
+      }
+      if (kDebugMode) {
         // ignore in release; keep diagnostics available in debug only
         print(
           'Failed to send notification '

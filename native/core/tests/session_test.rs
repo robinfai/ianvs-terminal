@@ -1299,6 +1299,108 @@ fn zsh_shell_hook_integration_preserves_postdisplay_redraws() {
 }
 
 #[test]
+fn zsh_initial_prompt_sp_marker_is_cleared_before_multiline_prompt() {
+    if !Path::new("/bin/zsh").exists() {
+        return;
+    }
+
+    let original_zdotdir = tempdir().unwrap();
+    fs::write(
+        original_zdotdir.path().join(".zshrc"),
+        "setopt prompt_sp\nPROMPT=$'\\nflutterm-prompt> '\n",
+    )
+    .unwrap();
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        original_zdotdir.path().to_string_lossy().into_owned(),
+    );
+    let session_id = session::create_session(
+        &serde_json::to_string(&local_profile(
+            "zsh-prompt-sp-marker",
+            "Zsh Prompt SP Marker",
+            "/bin/zsh",
+            vec![],
+            env,
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "flutterm-prompt");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let marker_row = parsed["rows"]
+        .as_array()
+        .expect("expected rows")
+        .iter()
+        .find(|row| row["text"].as_str().unwrap_or_default().starts_with('%'));
+    assert!(
+        marker_row.is_none(),
+        "zsh PROMPT_SP marker should be cleared before the prompt frame: {frame}"
+    );
+    let prompt_row = frame_row_with_text(&parsed, "flutterm-prompt");
+    assert_eq!(
+        prompt_row["index"].as_u64(),
+        Some(0),
+        "the startup prompt should not leave a blank first row: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&local_profile(
+            "prompt-sp-clear-sequence",
+            "Prompt SP Clear Sequence",
+            "/bin/sh",
+            vec![
+                "-lc".to_string(),
+                "printf '\\033[1m\\033[7m%%\\033[27m\\033[1m\\033[0m                                                                               '; \
+                 sleep 0.2; \
+                 printf '\\r \\r\\033Phook;68656c6c6f\\033\\\\\\r\\033[0m\\033[27m\\033[24m\\033[J\\r\\nflutterm-prompt\\r\\n> '; \
+                 sleep 0.2"
+                    .to_string(),
+            ],
+            BTreeMap::new(),
+            TerminalEmulation::Xterm256,
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| {
+        let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+        parsed["rows"]
+            .as_array()
+            .expect("expected rows")
+            .iter()
+            .any(|row| {
+                row["index"].as_u64() == Some(0)
+                    && row["text"].as_str().unwrap_or_default().starts_with('%')
+            })
+    });
+    let frame = wait_for_frame_containing(session_id, "flutterm-prompt");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let row_zero = frame_row_at_index(&parsed, 0);
+    assert!(
+        !row_zero["text"]
+            .as_str()
+            .unwrap_or_default()
+            .starts_with('%'),
+        "clearing zsh's PROMPT_SP marker must dirty row 0: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn bash_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     let Some(bash_path) = find_shell("bash") else {
         return;

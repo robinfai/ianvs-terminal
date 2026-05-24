@@ -170,6 +170,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
+    expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pump();
@@ -180,6 +182,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.byType(TerminalViewport), findsOneWidget);
+    expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pump();
@@ -190,6 +194,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
+    expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
   });
 
   testWidgets('hotkey window failure is visible when registration is missing', (
@@ -223,12 +229,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 250));
     await tester.ensureVisible(find.text('Hotkey window'));
-    await tester.tap(find.text('Hotkey window'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
 
-    expect(find.textContaining('Hotkey window unavailable'), findsOneWidget);
-    expect(find.textContaining('Option+Command+Space'), findsOneWidget);
+    expect(find.textContaining('Hotkey window is unavailable.'), findsOneWidget);
+    expect(find.textContaining('Shortcut: Option+Command+Space.'), findsOneWidget);
+    expect(find.textContaining('Error: -9876.'), findsOneWidget);
     expect(
       windowBridgeCalls.map((call) => call.method),
       isNot(contains('toggleHotkeyWindow')),

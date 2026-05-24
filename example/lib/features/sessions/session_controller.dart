@@ -387,6 +387,21 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(tabs: nextTabs);
   }
 
+  void reorderTab({required int oldIndex, required int newIndex}) {
+    if (oldIndex < 0 || oldIndex >= state.tabs.length) {
+      return;
+    }
+    final targetIndex = newIndex.clamp(0, state.tabs.length - 1);
+    if (oldIndex == targetIndex) {
+      return;
+    }
+
+    final nextTabs = <TerminalTab>[...state.tabs];
+    final movingTab = nextTabs.removeAt(oldIndex);
+    nextTabs.insert(targetIndex, movingTab);
+    state = state.copyWith(tabs: nextTabs);
+  }
+
   void closeSession(String sessionId) {
     if (ref.read(sessionDemoFixtureProvider) != null) {
       _removeSessionState(sessionId);

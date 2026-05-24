@@ -34,6 +34,34 @@ void main() {
       expect(action, TerminalActionId.newTab);
     });
 
+    test('maps mac terminal-focused search shortcut to search action', () {
+      final action = ShellShortcutBridge.resolve(
+        key: LogicalKeyboardKey.keyF,
+        usesMetaShortcuts: true,
+        isMetaPressed: true,
+        isControlPressed: false,
+        isShiftPressed: false,
+        isAltPressed: false,
+        scope: TerminalKeyBindingScope.terminalFocused,
+      );
+
+      expect(action, TerminalActionId.search);
+    });
+
+    test('maps non-mac terminal-focused search shortcut to search action', () {
+      final action = ShellShortcutBridge.resolve(
+        key: LogicalKeyboardKey.keyF,
+        usesMetaShortcuts: false,
+        isMetaPressed: false,
+        isControlPressed: true,
+        isShiftPressed: false,
+        isAltPressed: false,
+        scope: TerminalKeyBindingScope.terminalFocused,
+      );
+
+      expect(action, TerminalActionId.search);
+    });
+
     test('maps config override to action', () {
       final action = ShellShortcutBridge.resolve(
         key: LogicalKeyboardKey.keyN,

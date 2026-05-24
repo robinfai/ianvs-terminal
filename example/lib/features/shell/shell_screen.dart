@@ -214,18 +214,6 @@ class _ShellCoprocess {
   }
 }
 
-class _SessionBadgeContent {
-  const _SessionBadgeContent({
-    required this.title,
-    required this.detail,
-    this.status,
-  });
-
-  final String title;
-  final String detail;
-  final String? status;
-}
-
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
@@ -252,12 +240,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
+  final Map<String, String?> _lastNewOutputFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
   final Map<String, int> _terminalFrameSequenceBySession = {};
   final Map<String, String> _searchRefreshFrameSignatures = {};
   final TextEditingController _autoComposerController = TextEditingController();
   final FocusNode _autoComposerFocusNode = FocusNode();
   final Set<String> _sessionsSeenForActivityNotifications = {};
+  final Set<String> _sessionsSeenForNewOutputBadges = {};
+  final Set<String> _sessionsWithNewOutput = {};
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   Timer? _workspaceCueTimer;
@@ -353,6 +344,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             (_terminalFrameSequenceBySession[sessionId] ?? 0) + 1;
         _terminalFrameSequenceBySession[sessionId] = frameSequence;
         ref.read(instantReplayStoreProvider).record(sessionId, frame);
+        _markNewOutputBadge(sessionId, frame);
         _feedCoprocess(sessionId, frame, frameSequence: frameSequence);
         _runProfileTriggers(sessionId, frame, frameSequence: frameSequence);
         _notifyInactiveActivity(sessionId, frame);
@@ -360,7 +352,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         _scheduleRenderableSessionSwap(sessionId);
       case terminal.TerminalSessionExitEvent():
         _terminalFrameSequenceBySession.remove(event.sessionId);
+        _lastNewOutputFramePreviews.remove(event.sessionId);
         _searchRefreshFrameSignatures.remove(event.sessionId);
+        _sessionsSeenForNewOutputBadges.remove(event.sessionId);
+        _sessionsWithNewOutput.remove(event.sessionId);
         _triggerMatchesBySession.remove(event.sessionId);
         _stopCoprocess(event.sessionId);
         _clearCapturedOutput(event.sessionId);
@@ -396,6 +391,28 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         identifier: 'flutterm.activity.$sessionId',
       );
     }
+  }
+
+  void _markNewOutputBadge(String sessionId, terminal.TerminalFrameDiff frame) {
+    final preview = _framePreview(frame);
+    final hasSeenSession = !_sessionsSeenForNewOutputBadges.add(sessionId);
+    final previousPreview = _lastNewOutputFramePreviews[sessionId];
+    _lastNewOutputFramePreviews[sessionId] = preview;
+    if (!hasSeenSession ||
+        previousPreview == preview ||
+        preview == null ||
+        !_sessionTabIsInactive(sessionId)) {
+      return;
+    }
+    if (_sessionsWithNewOutput.contains(sessionId)) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _sessionsWithNewOutput.add(sessionId);
+    });
   }
 
   void _notifySessionExit(String sessionId, int? exitCode) {
@@ -739,6 +756,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   bool _notificationSessionIsInactive(String sessionId) {
     return ref.read(sessionControllerProvider).activeSessionId != sessionId;
+  }
+
+  bool _sessionTabIsInactive(String sessionId) {
+    final sessionState = ref.read(sessionControllerProvider);
+    final activeSessionId = sessionState.activeSessionId;
+    if (activeSessionId == null) {
+      return true;
+    }
+    for (final tab in sessionState.tabs) {
+      if (tab.containsSession(sessionId)) {
+        return !tab.containsSession(activeSessionId);
+      }
+    }
+    return true;
   }
 
   bool _activityNotificationAllowed(String sessionId) {
@@ -1300,6 +1331,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   void _activateSession(SessionController sessionController, String sessionId) {
+    _clearNewOutputForTab(
+      _tabForSession(ref.read(sessionControllerProvider), sessionId),
+    );
     sessionController.activateSession(sessionId);
     _focusSession(sessionId);
   }
@@ -1314,6 +1348,42 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     }
     return null;
+  }
+
+  bool _tabHasNewOutput(TerminalTab tab) {
+    return tab.effectivePanes.any(
+      (pane) => _sessionsWithNewOutput.contains(pane.sessionId),
+    );
+  }
+
+  Color _tabTerminalBackgroundColor(
+    BuildContext context,
+    SessionState sessionState,
+    TerminalTab tab,
+  ) {
+    final profile = _profileForPane(tab.activePane, sessionState.profiles);
+    return _terminalColorsForProfile(context, profile).canvasBackground;
+  }
+
+  void _clearNewOutputForTab(TerminalTab? tab) {
+    if (tab == null) {
+      return;
+    }
+    var changed = false;
+    for (final pane in tab.effectivePanes) {
+      changed = _sessionsWithNewOutput.remove(pane.sessionId) || changed;
+    }
+    if (changed && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _clearNewOutputForSessions(Iterable<String> sessionIds) {
+    for (final sessionId in sessionIds) {
+      _sessionsWithNewOutput.remove(sessionId);
+      _sessionsSeenForNewOutputBadges.remove(sessionId);
+      _lastNewOutputFramePreviews.remove(sessionId);
+    }
   }
 
   String? _splitAxisConflictReason(
@@ -1615,6 +1685,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     _scheduledViewportSizes.remove(sessionId);
     _committedViewportSizes.remove(sessionId);
+    _clearNewOutputForSessions([sessionId]);
     sessionController.closeSession(sessionId);
     final nextActiveSessionId = ref
         .read(sessionControllerProvider)
@@ -1642,6 +1713,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _scheduledViewportSizes.remove(pane.sessionId);
       _committedViewportSizes.remove(pane.sessionId);
     }
+    _clearNewOutputForSessions(
+      closingTab.effectivePanes.map((pane) => pane.sessionId),
+    );
     sessionController.closeTab(tabSessionId);
     final nextActiveSessionId = ref
         .read(sessionControllerProvider)
@@ -1718,79 +1792,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       context,
       profileAppearance: profile?.appearance,
     ).viewport;
-  }
-
-  _SessionBadgeContent? _sessionBadgeForPane(
-    TerminalPane pane,
-    TerminalProfile? profile,
-  ) {
-    final integration = pane.shellIntegration;
-    final hasShellData =
-        integration.username != null ||
-        integration.hostname != null ||
-        integration.currentDirectory != null ||
-        integration.lastCommand != null ||
-        integration.shell != null;
-    if (!hasShellData) {
-      return null;
-    }
-
-    final identity = _sessionIdentityLabel(integration);
-    final directory = integration.currentDirectory == null
-        ? null
-        : _compactSessionPath(integration.currentDirectory!);
-    final title = identity ?? profile?.name ?? pane.title;
-    final detail =
-        directory ?? integration.shell ?? profile?.name ?? pane.title;
-    final status = _sessionStatusLabel(integration);
-    return _SessionBadgeContent(title: title, detail: detail, status: status);
-  }
-
-  String? _sessionIdentityLabel(TerminalShellIntegrationSnapshot integration) {
-    final username = integration.username;
-    final hostname = integration.hostname;
-    if (username != null && hostname != null) {
-      return '$username@$hostname';
-    }
-    return username ?? hostname;
-  }
-
-  String? _sessionStatusLabel(TerminalShellIntegrationSnapshot integration) {
-    final command = integration.lastCommand;
-    if (command == null) {
-      return integration.shell;
-    }
-    final exitCode = integration.lastExitCode;
-    if (exitCode == null) {
-      return _compactSessionCommand(command);
-    }
-    final status = exitCode == 0 ? 'ok' : 'exit $exitCode';
-    return '${_compactSessionCommand(command)} $status';
-  }
-
-  String _compactSessionCommand(String command) {
-    const maxLength = 34;
-    final normalized = command.trim();
-    if (normalized.length <= maxLength) {
-      return normalized;
-    }
-    return '${normalized.substring(0, maxLength - 3)}...';
-  }
-
-  String _compactSessionPath(String path) {
-    const maxLength = 34;
-    final normalized = path.trim();
-    if (normalized.length <= maxLength) {
-      return normalized;
-    }
-    final segments = normalized.split('/').where((part) => part.isNotEmpty);
-    final tail = segments.length <= 2
-        ? normalized.substring(normalized.length - (maxLength - 3))
-        : segments.skip(segments.length - 2).join('/');
-    final compact = '.../$tail';
-    return compact.length <= maxLength
-        ? compact
-        : compact.substring(compact.length - maxLength);
   }
 
   String _defaultSummary(
@@ -5420,14 +5421,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final direction = activeTab.splitAxis == TerminalSplitAxis.horizontal
         ? Axis.horizontal
         : Axis.vertical;
+    final terminalBackground = _tabTerminalBackgroundColor(
+      context,
+      sessionState,
+      activeTab,
+    );
 
     return RepaintBoundary(
       key: const Key('shell-terminal-surface'),
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: palette.terminalSurface,
-          border: Border(top: BorderSide(color: palette.border)),
-        ),
+        decoration: BoxDecoration(color: terminalBackground),
         child: Flex(
           direction: direction,
           children: [
@@ -5795,10 +5798,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final statusProfile = statusPane == null
         ? null
         : _profileForPane(statusPane, sessionState.profiles);
-    final statusContent = statusPane == null
-        ? null
-        : _sessionBadgeForPane(statusPane, statusProfile);
     final statusViewportLabel = _viewportStatusLabelFor(displayedSessionId);
+    final shellChromeBackground = statusProfile == null
+        ? activeTab == null
+              ? _terminalColorsForProfile(
+                  context,
+                  defaultProfile,
+                ).canvasBackground
+              : _tabTerminalBackgroundColor(context, sessionState, activeTab)
+        : _terminalColorsForProfile(context, statusProfile).canvasBackground;
 
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -6208,8 +6216,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             children: [
               _ShellChromeBar(
                 palette: palette,
+                terminalBackgroundColor: shellChromeBackground,
                 tabs: sessionState.tabs,
                 activeSessionId: activeSessionId,
+                tabHasNewOutput: _tabHasNewOutput,
+                tabBackgroundColor: (tab) =>
+                    _tabTerminalBackgroundColor(context, sessionState, tab),
                 referenceDemoMode: referenceDemoMode,
                 onNewTab: defaultProfile == null
                     ? null
@@ -6224,6 +6236,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     _activateSession(sessionController, sessionId),
                 onCloseSession: (sessionId) =>
                     _closeTab(sessionController, sessionState, sessionId),
+                onReorderTab:
+                    ({required int oldIndex, required int newIndex}) =>
+                        sessionController.reorderTab(
+                          oldIndex: oldIndex,
+                          newIndex: newIndex,
+                        ),
                 onShowTabContextMenu: (tab, position) => _openTabContextMenu(
                   sessionController,
                   ref.read(sessionControllerProvider),
@@ -6384,17 +6402,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 _ShellStatusBar(
                   key: const Key('shell-status-bar'),
                   palette: palette,
+                  terminalBackgroundColor: shellChromeBackground,
                   directory: statusDirectory?.trim().isNotEmpty == true
                       ? statusDirectory!.trim()
-                      : (statusContent?.detail ?? statusProfile?.cwd),
-                  shell:
-                      statusPane.shellIntegration.shell ?? statusProfile?.shell,
-                  connectionLabel: statusPane.isExited
-                      ? (statusPane.exitCode == null
-                            ? 'Exited'
-                            : 'Exit ${statusPane.exitCode}')
-                      : 'Connected',
-                  connected: !statusPane.isExited,
+                      : statusProfile?.cwd,
                   viewportLabel: statusViewportLabel,
                   encodingLabel: 'UTF-8',
                 ),
@@ -6666,28 +6677,28 @@ class _ShellStatusBar extends StatelessWidget {
   const _ShellStatusBar({
     super.key,
     required this.palette,
+    required this.terminalBackgroundColor,
     required this.directory,
-    required this.shell,
-    required this.connectionLabel,
-    required this.connected,
     required this.viewportLabel,
     required this.encodingLabel,
   });
 
   final AppThemeTokens palette;
+  final Color terminalBackgroundColor;
   final String? directory;
-  final String? shell;
-  final String connectionLabel;
-  final bool connected;
   final String? viewportLabel;
   final String encodingLabel;
 
   @override
   Widget build(BuildContext context) {
+    final tone = _ShellTabTone.fromTerminalBackground(
+      terminalBackground: terminalBackgroundColor,
+    );
     final statusItems = <Widget>[
       _ShellStatusItem(
         key: const Key('shell-status-encoding'),
         palette: palette,
+        tone: tone,
         label: encodingLabel,
         monospace: true,
       ),
@@ -6695,26 +6706,15 @@ class _ShellStatusBar extends StatelessWidget {
         _ShellStatusItem(
           key: const Key('shell-status-viewport'),
           palette: palette,
+          tone: tone,
           label: viewportLabel!,
-          monospace: true,
-        ),
-      _ShellStatusItem(
-        key: const Key('shell-status-connection'),
-        palette: palette,
-        label: connectionLabel,
-        dotColor: connected ? palette.success : palette.warning,
-      ),
-      if (shell != null && shell!.trim().isNotEmpty)
-        _ShellStatusItem(
-          key: const Key('shell-status-shell'),
-          palette: palette,
-          label: _statusShellLabel(shell!),
           monospace: true,
         ),
       if (directory != null && directory!.trim().isNotEmpty)
         _ShellStatusDirectoryItem(
           key: const Key('shell-status-directory'),
           palette: palette,
+          tone: tone,
           label: _statusPathLabel(directory!),
           fullPath: directory!.trim(),
           minWidth: 176,
@@ -6723,9 +6723,12 @@ class _ShellStatusBar extends StatelessWidget {
     ];
 
     return DecoratedBox(
+      key: const Key('shell-status-bar-surface'),
       decoration: BoxDecoration(
-        color: palette.chromeElevated.withValues(alpha: 0.86),
-        border: Border(top: BorderSide(color: palette.border)),
+        color: terminalBackgroundColor,
+        border: Border(
+          top: BorderSide(color: tone.border.withValues(alpha: 0.46)),
+        ),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(palette.radius.lg),
           bottomRight: Radius.circular(palette.radius.lg),
@@ -6744,7 +6747,8 @@ class _ShellStatusBar extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 for (var index = 0; index < statusItems.length; index++) ...[
-                  if (index > 0) _ShellStatusDivider(palette: palette),
+                  if (index > 0)
+                    _ShellStatusDivider(palette: palette, tone: tone),
                   statusItems[index],
                 ],
               ],
@@ -6769,21 +6773,13 @@ class _ShellStatusBar extends StatelessWidget {
     }
     return '...${normalized.substring(normalized.length - 31)}';
   }
-
-  String _statusShellLabel(String shell) {
-    final normalized = shell.trim();
-    final lastSlash = normalized.lastIndexOf('/');
-    if (lastSlash == -1 || lastSlash == normalized.length - 1) {
-      return normalized;
-    }
-    return normalized.substring(lastSlash + 1);
-  }
 }
 
-class _ShellStatusDirectoryItem extends StatelessWidget {
+class _ShellStatusDirectoryItem extends StatefulWidget {
   const _ShellStatusDirectoryItem({
     super.key,
     required this.palette,
+    required this.tone,
     required this.label,
     required this.fullPath,
     this.minWidth,
@@ -6791,41 +6787,100 @@ class _ShellStatusDirectoryItem extends StatelessWidget {
   });
 
   final AppThemeTokens palette;
+  final _ShellTabTone tone;
   final String label;
   final String fullPath;
   final double? minWidth;
   final double? maxWidth;
 
   @override
+  State<_ShellStatusDirectoryItem> createState() =>
+      _ShellStatusDirectoryItemState();
+}
+
+class _ShellStatusDirectoryItemState extends State<_ShellStatusDirectoryItem> {
+  bool _hovered = false;
+  bool _menuOpen = false;
+
+  @override
   Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      tooltip: fullPath,
-      padding: EdgeInsets.zero,
-      itemBuilder: (context) => const [
-        PopupMenuItem(value: 'copyPath', child: Text('Copy full path')),
-      ],
-      onSelected: (value) {
-        if (value == 'copyPath') {
-          unawaited(ClipboardBridge.copy(fullPath));
-        }
-      },
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(palette.radius.md),
+    final menuBackground = Color.alphaBlend(
+      widget.tone.hoverBackground.withValues(alpha: 0.42),
+      widget.tone.activeBackground,
+    );
+    final menuBorder = widget.tone.border.withValues(alpha: 0.58);
+    final menuTextStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: widget.tone.primaryText,
+      fontWeight: FontWeight.w600,
+    );
+    final menuShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(widget.palette.radius.md),
+      side: BorderSide(color: menuBorder),
+    );
+    final themedMenu = Theme.of(context).copyWith(
+      hoverColor: widget.tone.hoverBackground.withValues(alpha: 0.72),
+      highlightColor: widget.tone.hoverBackground.withValues(alpha: 0.72),
+      focusColor: widget.tone.hoverBackground.withValues(alpha: 0.72),
+      splashColor: Colors.transparent,
+      popupMenuTheme: PopupMenuThemeData(
+        color: menuBackground,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: menuShape,
+        textStyle: menuTextStyle,
       ),
-      child: _ShellStatusItem(
-        palette: palette,
-        label: label,
-        minWidth: minWidth,
-        maxWidth: maxWidth,
+    );
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Theme(
+        data: themedMenu,
+        child: PopupMenuButton<String>(
+          tooltip: widget.fullPath,
+          padding: EdgeInsets.zero,
+          position: PopupMenuPosition.under,
+          offset: Offset(0, widget.palette.spacing.xs),
+          color: menuBackground,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shape: menuShape,
+          onOpened: () => setState(() => _menuOpen = true),
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'copyPath',
+              height: 34,
+              child: Text('Copy full path', style: menuTextStyle),
+            ),
+          ],
+          onCanceled: () => setState(() => _menuOpen = false),
+          onSelected: (value) {
+            setState(() => _menuOpen = false);
+            if (value == 'copyPath') {
+              unawaited(ClipboardBridge.copy(widget.fullPath));
+            }
+          },
+          child: _ShellStatusItem(
+            palette: widget.palette,
+            tone: widget.tone,
+            label: widget.label,
+            minWidth: widget.minWidth,
+            maxWidth: widget.maxWidth,
+            highlighted: _hovered || _menuOpen,
+          ),
+        ),
       ),
     );
   }
 }
 
 class _ShellStatusDivider extends StatelessWidget {
-  const _ShellStatusDivider({required this.palette});
+  const _ShellStatusDivider({required this.palette, required this.tone});
 
   final AppThemeTokens palette;
+  final _ShellTabTone tone;
 
   @override
   Widget build(BuildContext context) {
@@ -6833,7 +6888,7 @@ class _ShellStatusDivider extends StatelessWidget {
       width: 1,
       height: 22,
       margin: EdgeInsets.symmetric(horizontal: palette.spacing.lg),
-      color: palette.border.withValues(alpha: 0.62),
+      color: tone.border.withValues(alpha: 0.34),
     );
   }
 }
@@ -6842,24 +6897,32 @@ class _ShellStatusItem extends StatelessWidget {
   const _ShellStatusItem({
     super.key,
     required this.palette,
+    required this.tone,
     required this.label,
-    this.dotColor,
     this.monospace = false,
     this.minWidth,
     this.maxWidth,
+    this.highlighted = false,
   });
 
   final AppThemeTokens palette;
+  final _ShellTabTone tone;
   final String label;
-  final Color? dotColor;
   final bool monospace;
   final double? minWidth;
   final double? maxWidth;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
+    final itemBackground = highlighted
+        ? tone.hoverBackground
+        : Color.alphaBlend(
+            tone.hoverBackground.withValues(alpha: 0.34),
+            tone.activeBackground,
+          );
     final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: palette.textMuted,
+      color: tone.mutedText,
       fontWeight: FontWeight.w600,
       fontFamily: monospace ? 'monospace' : null,
     );
@@ -6870,26 +6933,15 @@ class _ShellStatusItem extends StatelessWidget {
       ),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: palette.selected.withValues(alpha: 0.22),
+          color: itemBackground,
           borderRadius: BorderRadius.circular(palette.radius.md),
-          border: Border.all(color: palette.border.withValues(alpha: 0.46)),
+          border: Border.all(color: tone.border.withValues(alpha: 0.38)),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (dotColor != null) ...[
-                Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: dotColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
               Flexible(
                 child: Text(
                   label,
@@ -6909,33 +6961,44 @@ class _ShellStatusItem extends StatelessWidget {
 class _ShellChromeBar extends StatelessWidget {
   const _ShellChromeBar({
     required this.palette,
+    required this.terminalBackgroundColor,
     required this.tabs,
     required this.activeSessionId,
+    required this.tabHasNewOutput,
+    required this.tabBackgroundColor,
     required this.referenceDemoMode,
     required this.onNewTab,
     required this.onActivateSession,
     required this.onCloseSession,
+    required this.onReorderTab,
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
   });
 
   final AppThemeTokens palette;
+  final Color terminalBackgroundColor;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
+  final bool Function(TerminalTab tab) tabHasNewOutput;
+  final Color Function(TerminalTab tab) tabBackgroundColor;
   final bool referenceDemoMode;
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onCloseSession;
+  final void Function({required int oldIndex, required int newIndex})
+  onReorderTab;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
 
   @override
   Widget build(BuildContext context) {
+    final chromeTone = _ShellTabTone.fromTerminalBackground(
+      terminalBackground: terminalBackgroundColor,
+    );
     return DecoratedBox(
       key: const Key('shell-chrome-bar'),
       decoration: BoxDecoration(
-        color: palette.chromeElevated.withValues(alpha: 0.78),
-        border: Border.all(color: palette.border.withValues(alpha: 0.72)),
+        color: terminalBackgroundColor,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(palette.radius.lg),
           topRight: Radius.circular(palette.radius.lg),
@@ -6945,10 +7008,14 @@ class _ShellChromeBar extends StatelessWidget {
         height: 44,
         child: Row(
           children: [
-            SizedBox(
-              width: defaultTargetPlatform == TargetPlatform.macOS
-                  ? 132
-                  : palette.spacing.md,
+            _WindowDragHandle(
+              key: const Key('shell-window-drag-leading'),
+              child: SizedBox(
+                width: defaultTargetPlatform == TargetPlatform.macOS
+                    ? 132
+                    : palette.spacing.md,
+                height: double.infinity,
+              ),
             ),
             Expanded(
               child: referenceDemoMode
@@ -6960,11 +7027,15 @@ class _ShellChromeBar extends StatelessWidget {
                     )
                   : _ShellTabStrip(
                       palette: palette,
+                      chromeBackgroundColor: terminalBackgroundColor,
                       tabs: tabs,
                       activeSessionId: activeSessionId,
+                      tabHasNewOutput: tabHasNewOutput,
+                      tabBackgroundColor: tabBackgroundColor,
                       onNewTab: onNewTab,
                       onActivateSession: onActivateSession,
                       onCloseSession: onCloseSession,
+                      onReorderTab: onReorderTab,
                       onShowTabContextMenu: onShowTabContextMenu,
                     ),
             ),
@@ -6974,7 +7045,8 @@ class _ShellChromeBar extends StatelessWidget {
                 tooltip: 'Open command menu',
                 onPressed: onShowCommandMenu,
                 iconSize: 16,
-                icon: Icon(Icons.tune_rounded, color: palette.textSubtle),
+                hoverBackgroundColor: chromeTone.hoverBackground,
+                icon: Icon(Icons.tune_rounded, color: chromeTone.subtleText),
               ),
               SizedBox(width: palette.spacing.xs),
               const SizedBox(width: 8),
@@ -6982,6 +7054,60 @@ class _ShellChromeBar extends StatelessWidget {
               const SizedBox(width: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _WindowDragHandle extends StatelessWidget {
+  const _WindowDragHandle({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (defaultTargetPlatform != TargetPlatform.macOS) {
+      return child;
+    }
+    return _MacWindowDragHandle(child: child);
+  }
+}
+
+class _MacWindowDragHandle extends StatefulWidget {
+  const _MacWindowDragHandle({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_MacWindowDragHandle> createState() => _MacWindowDragHandleState();
+}
+
+class _MacWindowDragHandleState extends State<_MacWindowDragHandle> {
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: _dragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onPanStart: (_) {
+          setState(() {
+            _dragging = true;
+          });
+          unawaited(WindowBridge.beginWindowDrag());
+        },
+        onPanEnd: (_) {
+          setState(() {
+            _dragging = false;
+          });
+        },
+        onPanCancel: () {
+          setState(() {
+            _dragging = false;
+          });
+        },
+        child: Tooltip(message: 'Drag window', child: widget.child),
       ),
     );
   }
@@ -7169,77 +7295,797 @@ class _ReferenceDemoTab extends StatelessWidget {
   }
 }
 
-class _ShellTabStrip extends StatelessWidget {
+class _ShellTabStrip extends StatefulWidget {
   const _ShellTabStrip({
     required this.palette,
+    required this.chromeBackgroundColor,
     required this.tabs,
     required this.activeSessionId,
+    required this.tabHasNewOutput,
+    required this.tabBackgroundColor,
     required this.onNewTab,
     required this.onActivateSession,
     required this.onCloseSession,
+    required this.onReorderTab,
     required this.onShowTabContextMenu,
   });
 
   final AppThemeTokens palette;
+  final Color chromeBackgroundColor;
   final List<TerminalTab> tabs;
   final String? activeSessionId;
+  final bool Function(TerminalTab tab) tabHasNewOutput;
+  final Color Function(TerminalTab tab) tabBackgroundColor;
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onCloseSession;
+  final void Function({required int oldIndex, required int newIndex})
+  onReorderTab;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
 
   @override
+  State<_ShellTabStrip> createState() => _ShellTabStripState();
+}
+
+class _ShellTabStripState extends State<_ShellTabStrip> {
+  static const double _minReadableTabWidth = 112;
+  static const double _newTabButtonWidth = 30;
+  static const double _overflowButtonWidth = 120;
+
+  String? _draggingSessionId;
+
+  bool get _usesDelayedDragStart {
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android || TargetPlatform.iOS => true,
+      TargetPlatform.fuchsia ||
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows => false,
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final chromeTone = _ShellTabTone.fromTerminalBackground(
+      terminalBackground: widget.chromeBackgroundColor,
+    );
     return SizedBox(
       key: const Key('shell-tab-strip'),
       height: double.infinity,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(vertical: 3),
-        itemCount: tabs.length + 1,
-        separatorBuilder: (_, _) => Container(
-          width: 1,
-          margin: const EdgeInsets.symmetric(vertical: 12),
-          color: palette.border.withValues(alpha: 0.28),
-        ),
-        itemBuilder: (context, index) {
-          if (index == tabs.length) {
-            return _ShellNewTabButton(palette: palette, onPressed: onNewTab);
-          }
-          final tab = tabs[index];
-          final isActive =
-              activeSessionId != null && tab.containsSession(activeSessionId!);
-          return _ShellTabButton(
-            palette: palette,
-            tab: tab,
-            shortcutIndex: index < 9 ? index + 1 : null,
-            isActive: isActive,
-            onActivate: () => onActivateSession(tab.activeSessionId),
-            onClose: () => onCloseSession(tab.sessionId),
-            onShowContextMenu: (position) =>
-                onShowTabContextMenu(tab, position),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final totalWidth = constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : 0.0;
+          final tabsAreaWidth = math.max(0.0, totalWidth - _newTabButtonWidth);
+          final visibleTabCount = _visibleTabCountFor(tabsAreaWidth);
+          final hasOverflow = visibleTabCount < widget.tabs.length;
+          final hiddenTabs = hasOverflow
+              ? widget.tabs.skip(visibleTabCount).toList(growable: false)
+              : const <TerminalTab>[];
+          final overflowWidth = hasOverflow ? _overflowButtonWidth : 0.0;
+          final visibleTabsWidth = math.max(0.0, tabsAreaWidth - overflowWidth);
+          final tabWidth = visibleTabCount == 0
+              ? 0.0
+              : visibleTabsWidth / visibleTabCount;
+
+          return Row(
+            children: [
+              SizedBox(
+                width: visibleTabsWidth,
+                child: visibleTabCount == 0
+                    ? const SizedBox.expand()
+                    : ReorderableListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        buildDefaultDragHandles: false,
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        proxyDecorator: (child, index, animation) =>
+                            _ShellTabDragProxy(
+                              palette: widget.palette,
+                              animation: animation,
+                              child: child,
+                            ),
+                        onReorderStart: (index) {
+                          if (index >= visibleTabCount) {
+                            return;
+                          }
+                          unawaited(HapticFeedback.selectionClick());
+                          setState(() {
+                            _draggingSessionId = widget.tabs[index].sessionId;
+                          });
+                        },
+                        onReorderEnd: (_) {
+                          if (_draggingSessionId == null) {
+                            return;
+                          }
+                          setState(() {
+                            _draggingSessionId = null;
+                          });
+                        },
+                        onReorderItem: (oldIndex, newIndex) =>
+                            widget.onReorderTab(
+                              oldIndex: oldIndex,
+                              newIndex: newIndex,
+                            ),
+                        itemCount: visibleTabCount,
+                        itemBuilder: (context, index) {
+                          final tab = widget.tabs[index];
+                          final isActive =
+                              widget.activeSessionId != null &&
+                              tab.containsSession(widget.activeSessionId!);
+                          final isDragging =
+                              _draggingSessionId == tab.sessionId;
+                          return _ShellReorderableTabItem(
+                            key: ValueKey('shell-tab-reorder-${tab.sessionId}'),
+                            width: tabWidth,
+                            child: _ShellTabButton(
+                              palette: widget.palette,
+                              tab: tab,
+                              shortcutIndex: index < 9 ? index + 1 : null,
+                              isActive: isActive,
+                              hasNewOutput: widget.tabHasNewOutput(tab),
+                              terminalBackgroundColor: widget
+                                  .tabBackgroundColor(tab),
+                              dragRegionBuilder: (child) =>
+                                  _ShellTabDragStartRegion(
+                                    key: Key('shell-tab-drag-${tab.sessionId}'),
+                                    index: index,
+                                    useDelayedStart: _usesDelayedDragStart,
+                                    isDragging: isDragging,
+                                    child: child,
+                                  ),
+                              onActivate: () =>
+                                  widget.onActivateSession(tab.activeSessionId),
+                              onClose: () =>
+                                  widget.onCloseSession(tab.sessionId),
+                              onShowContextMenu: (position) =>
+                                  widget.onShowTabContextMenu(tab, position),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              if (hasOverflow)
+                _ShellTabOverflowMenu(
+                  palette: widget.palette,
+                  chromeBackgroundColor: widget.chromeBackgroundColor,
+                  tabs: hiddenTabs,
+                  activeSessionId: widget.activeSessionId,
+                  tabHasNewOutput: widget.tabHasNewOutput,
+                  tabBackgroundColor: widget.tabBackgroundColor,
+                  onActivateSession: widget.onActivateSession,
+                ),
+              _ShellNewTabButton(
+                palette: widget.palette,
+                tone: chromeTone,
+                onPressed: widget.onNewTab,
+              ),
+            ],
           );
         },
       ),
     );
   }
+
+  int _visibleTabCountFor(double tabsAreaWidth) {
+    final tabCount = widget.tabs.length;
+    if (tabCount == 0 || tabsAreaWidth <= 0) {
+      return 0;
+    }
+    final capacityWithoutOverflow = math.max(
+      1,
+      tabsAreaWidth ~/ _minReadableTabWidth,
+    );
+    if (tabCount <= capacityWithoutOverflow) {
+      return tabCount;
+    }
+    final capacityWithOverflow = math.max(
+      1,
+      (tabsAreaWidth - _overflowButtonWidth) ~/ _minReadableTabWidth,
+    );
+    return math.min(tabCount - 1, capacityWithOverflow);
+  }
+}
+
+class _ShellReorderableTabItem extends StatelessWidget {
+  const _ShellReorderableTabItem({
+    super.key,
+    required this.width,
+    required this.child,
+  });
+
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(width: width, child: child);
+  }
+}
+
+class _ShellTabDragProxy extends StatelessWidget {
+  const _ShellTabDragProxy({
+    required this.palette,
+    required this.animation,
+    required this.child,
+  });
+
+  final AppThemeTokens palette;
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      child: child,
+      builder: (context, child) {
+        final lift = Curves.easeOutCubic.transform(animation.value);
+        return Transform.scale(
+          scale: 1 + lift * 0.018,
+          child: Material(
+            color: palette.chromeElevated.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(palette.radius.md),
+            elevation: 6 * lift,
+            shadowColor: palette.elevation.floating.first.color,
+            child: child!,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ShellTabDragStartRegion extends StatelessWidget {
+  const _ShellTabDragStartRegion({
+    super.key,
+    required this.index,
+    required this.useDelayedStart,
+    required this.isDragging,
+    required this.child,
+  });
+
+  final int index;
+  final bool useDelayedStart;
+  final bool isDragging;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final dragStartListener = useDelayedStart
+        ? ReorderableDelayedDragStartListener(index: index, child: child)
+        : ReorderableDragStartListener(index: index, child: child);
+    return MouseRegion(
+      cursor: isDragging
+          ? SystemMouseCursors.grabbing
+          : SystemMouseCursors.grab,
+      child: dragStartListener,
+    );
+  }
 }
 
 class _ShellNewTabButton extends StatelessWidget {
-  const _ShellNewTabButton({required this.palette, required this.onPressed});
+  const _ShellNewTabButton({
+    required this.palette,
+    required this.tone,
+    required this.onPressed,
+  });
 
   final AppThemeTokens palette;
+  final _ShellTabTone tone;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: _buildChromeIconButton(
-        key: const Key('shell-chrome-new-tab'),
-        tooltip: 'New tab',
-        onPressed: onPressed,
-        iconSize: 18,
-        icon: Icon(Icons.add_rounded, color: palette.textSubtle),
+    return SizedBox(
+      width: _ShellTabStripState._newTabButtonWidth,
+      child: Center(
+        child: _buildChromeIconButton(
+          key: const Key('shell-chrome-new-tab'),
+          tooltip: 'New tab',
+          onPressed: onPressed,
+          iconSize: 18,
+          hoverBackgroundColor: tone.hoverBackground,
+          icon: Icon(Icons.add_rounded, color: tone.subtleText),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellTabTone {
+  const _ShellTabTone({
+    required this.activeBackground,
+    required this.hoverBackground,
+    required this.border,
+    required this.primaryText,
+    required this.mutedText,
+    required this.subtleText,
+    required this.menuSelectionBackground,
+    required this.menuSelectionText,
+  });
+
+  final Color activeBackground;
+  final Color hoverBackground;
+  final Color border;
+  final Color primaryText;
+  final Color mutedText;
+  final Color subtleText;
+  final Color menuSelectionBackground;
+  final Color menuSelectionText;
+
+  factory _ShellTabTone.fromTerminalBackground({
+    required Color terminalBackground,
+  }) {
+    final luminance = terminalBackground.computeLuminance();
+    final isDark = luminance < 0.5;
+    final contrastColor = isDark ? Colors.white : Colors.black;
+    final hoverBackground = _neutralHighlightFor(terminalBackground);
+    final border = Color.lerp(
+      terminalBackground,
+      contrastColor,
+      isDark ? 0.34 : 0.26,
+    )!;
+    final menuSelectionBackground = _neutralHighlightFor(
+      terminalBackground,
+      emphasis: true,
+    );
+    final primaryText = _readableTextOn(terminalBackground);
+    final inactiveText = _readableTextOn(terminalBackground);
+
+    return _ShellTabTone(
+      activeBackground: terminalBackground,
+      hoverBackground: hoverBackground,
+      border: border,
+      primaryText: primaryText,
+      mutedText: inactiveText.withValues(alpha: 0.82),
+      subtleText: inactiveText.withValues(alpha: 0.58),
+      menuSelectionBackground: menuSelectionBackground,
+      menuSelectionText: _readableTextOn(menuSelectionBackground),
+    );
+  }
+
+  static Color _readableTextOn(Color background) {
+    return background.computeLuminance() < 0.5
+        ? Colors.white
+        : const Color(0xFF111111);
+  }
+
+  static Color _neutralHighlightFor(Color background, {bool emphasis = false}) {
+    final hsl = HSLColor.fromColor(background);
+    final isDark = background.computeLuminance() < 0.5;
+    final delta = emphasis ? 0.24 : 0.16;
+    final lightness = isDark
+        ? math.min(1.0, hsl.lightness + delta)
+        : math.max(0.0, hsl.lightness - delta);
+    return hsl.withSaturation(0).withLightness(lightness).toColor();
+  }
+}
+
+class _ShellTabOverflowMenu extends StatefulWidget {
+  const _ShellTabOverflowMenu({
+    required this.palette,
+    required this.chromeBackgroundColor,
+    required this.tabs,
+    required this.activeSessionId,
+    required this.tabHasNewOutput,
+    required this.tabBackgroundColor,
+    required this.onActivateSession,
+  });
+
+  final AppThemeTokens palette;
+  final Color chromeBackgroundColor;
+  final List<TerminalTab> tabs;
+  final String? activeSessionId;
+  final bool Function(TerminalTab tab) tabHasNewOutput;
+  final Color Function(TerminalTab tab) tabBackgroundColor;
+  final ValueChanged<String> onActivateSession;
+
+  @override
+  State<_ShellTabOverflowMenu> createState() => _ShellTabOverflowMenuState();
+}
+
+class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
+  static const double _menuWidth = 176;
+  static const double _menuMaxHeight = 360;
+
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  bool _hovered = false;
+
+  @override
+  void didUpdateWidget(_ShellTabOverflowMenu oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_overlayEntry != null) {
+      if (widget.tabs.isEmpty) {
+        _closeMenu();
+      } else {
+        _overlayEntry!.markNeedsBuild();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeMenuEntry();
+    super.dispose();
+  }
+
+  void _toggleMenu() {
+    if (_overlayEntry == null) {
+      _openMenu();
+    } else {
+      _closeMenu();
+    }
+  }
+
+  void _openMenu() {
+    final overlay = Overlay.of(context);
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closeMenu,
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _layerLink,
+            showWhenUnlinked: false,
+            offset: const Offset(
+              _ShellTabStripState._overflowButtonWidth - _menuWidth,
+              38,
+            ),
+            child: _ShellTabOverflowPanel(
+              palette: widget.palette,
+              width: _menuWidth,
+              maxHeight: _menuMaxHeight,
+              tabs: widget.tabs,
+              activeSessionId: widget.activeSessionId,
+              tabHasNewOutput: widget.tabHasNewOutput,
+              tabBackgroundColor: widget.tabBackgroundColor,
+              onSelected: (sessionId) {
+                _closeMenu();
+                widget.onActivateSession(sessionId);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+    overlay.insert(_overlayEntry!);
+    setState(() {});
+  }
+
+  void _closeMenu() {
+    _removeMenuEntry();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _removeMenuEntry() {
+    final entry = _overlayEntry;
+    if (entry == null) {
+      return;
+    }
+    _overlayEntry = null;
+    entry.remove();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final activeHiddenTab = widget.activeSessionId == null
+        ? null
+        : widget.tabs.cast<TerminalTab?>().firstWhere(
+            (tab) => tab!.containsSession(widget.activeSessionId!),
+            orElse: () => null,
+          );
+    final isActive = activeHiddenTab != null;
+    final isOpen = _overlayEntry != null;
+    final hasHiddenNewOutput = widget.tabs.any(widget.tabHasNewOutput);
+    final label = activeHiddenTab?.title ?? '${widget.tabs.length} more';
+    final activeTone = activeHiddenTab == null
+        ? null
+        : _ShellTabTone.fromTerminalBackground(
+            terminalBackground: widget.tabBackgroundColor(activeHiddenTab),
+          );
+    final chromeTone = _ShellTabTone.fromTerminalBackground(
+      terminalBackground: widget.chromeBackgroundColor,
+    );
+    final background = isActive
+        ? activeTone!.activeBackground
+        : _hovered || isOpen
+        ? chromeTone.hoverBackground
+        : Colors.transparent;
+
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: Tooltip(
+        message: 'Show hidden tabs',
+        child: SizedBox(
+          width: _ShellTabStripState._overflowButtonWidth,
+          height: double.infinity,
+          child: Semantics(
+            label: 'shell-tab-overflow',
+            button: true,
+            selected: isActive,
+            expanded: isOpen,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onEnter: (_) => setState(() => _hovered = true),
+              onExit: (_) => setState(() => _hovered = false),
+              child: GestureDetector(
+                key: const Key('shell-tab-overflow-button'),
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggleMenu,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: background,
+                    border: Border(
+                      left: BorderSide(
+                        color:
+                            activeTone?.border.withValues(alpha: 0.72) ??
+                            chromeTone.border.withValues(alpha: 0.28),
+                      ),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: widget.palette.spacing.md,
+                    ),
+                    child: Row(
+                      children: [
+                        if (hasHiddenNewOutput) ...[
+                          _ShellTabNewOutputDot(
+                            key: const Key('shell-tab-overflow-new-output'),
+                            palette: widget.palette,
+                          ),
+                          const SizedBox(width: 7),
+                        ],
+                        Expanded(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: isActive
+                                      ? activeTone!.primaryText
+                                      : chromeTone.mutedText,
+                                  fontWeight: isActive
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                          ),
+                        ),
+                        AnimatedRotation(
+                          duration: const Duration(milliseconds: 120),
+                          turns: isOpen ? 0.5 : 0,
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 16,
+                            color: isActive
+                                ? activeTone!.subtleText
+                                : chromeTone.subtleText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellTabOverflowPanel extends StatelessWidget {
+  const _ShellTabOverflowPanel({
+    required this.palette,
+    required this.width,
+    required this.maxHeight,
+    required this.tabs,
+    required this.activeSessionId,
+    required this.tabHasNewOutput,
+    required this.tabBackgroundColor,
+    required this.onSelected,
+  });
+
+  final AppThemeTokens palette;
+  final double width;
+  final double maxHeight;
+  final List<TerminalTab> tabs;
+  final String? activeSessionId;
+  final bool Function(TerminalTab tab) tabHasNewOutput;
+  final Color Function(TerminalTab tab) tabBackgroundColor;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final menuRadius = BorderRadius.circular(palette.radius.sm);
+
+    return MediaQuery.removePadding(
+      context: context,
+      removeTop: true,
+      removeBottom: true,
+      child: Directionality(
+        textDirection: Directionality.of(context),
+        child: SizedBox(
+          width: width,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: DecoratedBox(
+              key: const Key('shell-tab-overflow-panel'),
+              decoration: BoxDecoration(
+                color: palette.panelElevated.withValues(alpha: 0.98),
+                border: Border.all(
+                  color: palette.borderStrong.withValues(alpha: 0.54),
+                ),
+                borderRadius: menuRadius,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.26),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: menuRadius,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final tab in tabs)
+                        _ShellTabOverflowRow(
+                          key: Key('shell-tab-overflow-item-${tab.sessionId}'),
+                          palette: palette,
+                          tab: tab,
+                          isActive:
+                              activeSessionId != null &&
+                              tab.containsSession(activeSessionId!),
+                          hasNewOutput: tabHasNewOutput(tab),
+                          terminalBackgroundColor: tabBackgroundColor(tab),
+                          onSelected: () => onSelected(tab.activeSessionId),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellTabOverflowRow extends StatefulWidget {
+  const _ShellTabOverflowRow({
+    super.key,
+    required this.palette,
+    required this.tab,
+    required this.isActive,
+    required this.hasNewOutput,
+    required this.terminalBackgroundColor,
+    required this.onSelected,
+  });
+
+  final AppThemeTokens palette;
+  final TerminalTab tab;
+  final bool isActive;
+  final bool hasNewOutput;
+  final Color terminalBackgroundColor;
+  final VoidCallback onSelected;
+
+  @override
+  State<_ShellTabOverflowRow> createState() => _ShellTabOverflowRowState();
+}
+
+class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = _ShellTabTone.fromTerminalBackground(
+      terminalBackground: widget.terminalBackgroundColor,
+    );
+    final background = widget.isActive
+        ? tone.menuSelectionBackground
+        : _hovered
+        ? tone.hoverBackground
+        : Colors.transparent;
+    final textColor = widget.isActive
+        ? tone.menuSelectionText
+        : widget.palette.textMuted;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onSelected,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 90),
+          height: 26,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: widget.isActive
+                          ? tone.menuSelectionText
+                          : Colors.transparent,
+                    ),
+                    if (!widget.isActive && widget.hasNewOutput)
+                      _ShellTabNewOutputDot(
+                        key: Key(
+                          'shell-tab-new-output-${widget.tab.sessionId}',
+                        ),
+                        palette: widget.palette,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.tab.title,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: textColor,
+                    fontSize: 13,
+                    height: 1,
+                    fontWeight: widget.isActive
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellTabNewOutputDot extends StatelessWidget {
+  const _ShellTabNewOutputDot({super.key, required this.palette});
+
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'New output',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.focus,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: palette.textPrimary.withValues(alpha: 0.36),
+          ),
+        ),
+        child: const SizedBox.square(dimension: 8),
       ),
     );
   }
@@ -7251,6 +8097,9 @@ class _ShellTabButton extends StatelessWidget {
     required this.tab,
     required this.shortcutIndex,
     required this.isActive,
+    required this.hasNewOutput,
+    required this.terminalBackgroundColor,
+    required this.dragRegionBuilder,
     required this.onActivate,
     required this.onClose,
     required this.onShowContextMenu,
@@ -7260,18 +8109,33 @@ class _ShellTabButton extends StatelessWidget {
   final TerminalTab tab;
   final int? shortcutIndex;
   final bool isActive;
+  final bool hasNewOutput;
+  final Color terminalBackgroundColor;
+  final Widget Function(Widget child) dragRegionBuilder;
   final VoidCallback onActivate;
   final VoidCallback onClose;
   final ValueChanged<Offset> onShowContextMenu;
 
   @override
   Widget build(BuildContext context) {
+    final tone = _ShellTabTone.fromTerminalBackground(
+      terminalBackground: terminalBackgroundColor,
+    );
     final tabTextStyle = Theme.of(context).textTheme.titleSmall!.copyWith(
-      color: isActive
-          ? palette.textPrimary
-          : palette.textMuted.withValues(alpha: 0.82),
+      color: isActive ? tone.primaryText : tone.mutedText,
       fontWeight: FontWeight.w500,
     );
+    final tabBorder = isActive
+        ? Border(
+            top: BorderSide(color: tone.border.withValues(alpha: 0.58)),
+            left: BorderSide(color: tone.border.withValues(alpha: 0.72)),
+            right: BorderSide(color: tone.border.withValues(alpha: 0.72)),
+          )
+        : Border(
+            left: BorderSide(color: tone.border.withValues(alpha: 0.34)),
+            right: BorderSide(color: tone.border.withValues(alpha: 0.34)),
+            bottom: BorderSide(color: tone.border.withValues(alpha: 0.34)),
+          );
 
     return Semantics(
       label: 'shell-tab-${tab.sessionId}',
@@ -7285,18 +8149,10 @@ class _ShellTabButton extends StatelessWidget {
             onShowContextMenu(event.position);
           }
         },
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 92, maxWidth: 220),
+        child: SizedBox.expand(
           child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.symmetric(
-                vertical: BorderSide(
-                  color: isActive
-                      ? palette.borderStrong.withValues(alpha: 0.6)
-                      : Colors.transparent,
-                ),
-              ),
-            ),
+            key: Key('shell-tab-border-${tab.sessionId}'),
+            decoration: BoxDecoration(border: tabBorder),
             child: TextButton(
               key: Key('shell-tab-${tab.sessionId}'),
               style: ButtonStyle(
@@ -7310,15 +8166,16 @@ class _ShellTabButton extends StatelessWidget {
                   vertical: -2,
                 ),
                 foregroundColor: WidgetStatePropertyAll(
-                  isActive ? palette.textPrimary : palette.textMuted,
+                  isActive ? tone.primaryText : tone.mutedText,
                 ),
+                overlayColor: const WidgetStatePropertyAll(Colors.transparent),
                 backgroundColor: WidgetStateProperty.resolveWith((states) {
                   if (isActive) {
-                    return palette.selected.withValues(alpha: 0.46);
+                    return tone.activeBackground;
                   }
                   if (states.contains(WidgetState.hovered) ||
                       states.contains(WidgetState.focused)) {
-                    return palette.selected.withValues(alpha: 0.18);
+                    return tone.hoverBackground;
                   }
                   return Colors.transparent;
                 }),
@@ -7329,23 +8186,43 @@ class _ShellTabButton extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (shortcutIndex != null) ...[
-                    Text(
-                      '⌘$shortcutIndex',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: isActive
-                            ? palette.textMuted
-                            : palette.textSubtle,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                  ],
                   Flexible(
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 140),
-                      style: tabTextStyle,
-                      child: Text(tab.title, overflow: TextOverflow.ellipsis),
+                    child: dragRegionBuilder(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (shortcutIndex != null) ...[
+                            Text(
+                              '⌘$shortcutIndex',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: isActive
+                                        ? tone.subtleText
+                                        : tone.subtleText,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          if (hasNewOutput && !isActive) ...[
+                            _ShellTabNewOutputDot(
+                              key: Key('shell-tab-new-output-${tab.sessionId}'),
+                              palette: palette,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Flexible(
+                            child: AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 140),
+                              style: tabTextStyle,
+                              child: Text(
+                                tab.title,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 5),
@@ -7358,8 +8235,8 @@ class _ShellTabButton extends StatelessWidget {
                         Icons.close_rounded,
                         size: 12,
                         color: isActive
-                            ? palette.textMuted.withValues(alpha: 0.78)
-                            : palette.textSubtle.withValues(alpha: 0.34),
+                            ? tone.subtleText.withValues(alpha: 0.78)
+                            : tone.subtleText.withValues(alpha: 0.48),
                       ),
                     ),
                   ),
@@ -11943,6 +12820,7 @@ Widget _buildChromeIconButton({
   required Widget icon,
   required VoidCallback? onPressed,
   required double iconSize,
+  Color? hoverBackgroundColor,
 }) {
   return IconButton(
     key: key,
@@ -11951,6 +12829,20 @@ Widget _buildChromeIconButton({
     visualDensity: VisualDensity.compact,
     splashRadius: 16,
     constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+    style: ButtonStyle(
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (hoverBackgroundColor == null) {
+          return Colors.transparent;
+        }
+        if (states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.focused) ||
+            states.contains(WidgetState.pressed)) {
+          return hoverBackgroundColor;
+        }
+        return Colors.transparent;
+      }),
+    ),
     iconSize: iconSize,
     icon: icon,
   );

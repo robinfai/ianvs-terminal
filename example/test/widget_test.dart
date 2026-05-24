@@ -2992,15 +2992,29 @@ void main() {
 
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-directory')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-shell')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-connection')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-shell')), findsNothing);
+    expect(find.byKey(const Key('shell-status-connection')), findsNothing);
     expect(find.byKey(const Key('shell-status-viewport')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-encoding')), findsOneWidget);
     expect(find.byKey(const Key('terminal-session-badge-1')), findsNothing);
     expect(find.text('/tmp/project'), findsOneWidget);
-    expect(find.text('zsh'), findsOneWidget);
-    expect(find.text('Connected'), findsOneWidget);
+    expect(find.text('zsh'), findsNothing);
+    expect(find.text('Connected'), findsNothing);
     expect(find.text('UTF-8'), findsOneWidget);
+
+    final directoryMenu = tester.widget<PopupMenuButton<String>>(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-directory')),
+        matching: find.byType(PopupMenuButton<String>),
+      ),
+    );
+    expect(directoryMenu.elevation, 0);
+    expect(directoryMenu.shadowColor, Colors.transparent);
+    expect(directoryMenu.surfaceTintColor, Colors.transparent);
+
+    await tester.tap(find.byKey(const Key('shell-status-directory')));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy full path'), findsOneWidget);
   });
 
   testWidgets(

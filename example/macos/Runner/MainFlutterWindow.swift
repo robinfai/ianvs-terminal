@@ -106,6 +106,7 @@ private final class HotkeyWindowController {
       }
 
       if window.isVisible && NSApp.isActive {
+        AppDelegate.suppressNextLastWindowTerminate = true
         window.orderOut(nil)
         return
       }
@@ -147,8 +148,11 @@ private func fourCharCode(_ value: String) -> OSType {
 }
 
 class MainFlutterWindow: NSWindow {
+  private static let chromeBarHeight: CGFloat = 44
+
   private var windowBridgeChannel: FlutterMethodChannel?
   private var hotkeyWindowController: HotkeyWindowController?
+  private var trafficLightCenteringWorkItem: DispatchWorkItem?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -157,8 +161,10 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
     self.titleVisibility = .hidden
     self.titlebarAppearsTransparent = true
-    self.isMovableByWindowBackground = true
+    self.isMovable = false
+    self.isMovableByWindowBackground = false
     self.styleMask.insert(.fullSizeContentView)
+    observeTrafficLightLayoutChanges()
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     windowBridgeChannel = FlutterMethodChannel(
@@ -210,6 +216,14 @@ class MainFlutterWindow: NSWindow {
       case "requestQuitConfirmation":
         NSApp.terminate(nil)
         result(nil)
+      case "beginWindowDrag":
+        if let event = NSApp.currentEvent {
+          let wasMovable = self.isMovable
+          self.isMovable = true
+          self.performDrag(with: event)
+          self.isMovable = wasMovable
+        }
+        result(nil)
       case "toggleHotkeyWindow":
         self.hotkeyWindowController?.toggleWindow()
         result(nil)
@@ -248,6 +262,82 @@ class MainFlutterWindow: NSWindow {
     }
 
     super.awakeFromNib()
+    scheduleTrafficLightCentering()
+  }
+
+  deinit {
+    trafficLightCenteringWorkItem?.cancel()
+    NotificationCenter.default.removeObserver(self)
+  }
+
+  override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+    super.setFrame(frameRect, display: flag)
+    scheduleTrafficLightCentering()
+  }
+
+  override func becomeKey() {
+    super.becomeKey()
+    scheduleTrafficLightCentering()
+  }
+
+  private func observeTrafficLightLayoutChanges() {
+    let notifications: [NSNotification.Name] = [
+      NSWindow.didResizeNotification,
+      NSWindow.didMoveNotification,
+      NSWindow.didChangeScreenNotification,
+      NSWindow.didChangeBackingPropertiesNotification,
+      NSWindow.didBecomeKeyNotification,
+      NSWindow.didResignKeyNotification,
+      NSWindow.didEnterFullScreenNotification,
+      NSWindow.didExitFullScreenNotification
+    ]
+    for notification in notifications {
+      NotificationCenter.default.addObserver(
+        self,
+        selector: #selector(handleTrafficLightLayoutChange(_:)),
+        name: notification,
+        object: self
+      )
+    }
+  }
+
+  @objc private func handleTrafficLightLayoutChange(_ notification: Notification) {
+    scheduleTrafficLightCentering()
+  }
+
+  private func scheduleTrafficLightCentering() {
+    trafficLightCenteringWorkItem?.cancel()
+    let workItem = DispatchWorkItem { [weak self] in
+      self?.centerTrafficLightButtonsInChromeBar()
+    }
+    trafficLightCenteringWorkItem = workItem
+    DispatchQueue.main.async(execute: workItem)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+      guard let self, self.trafficLightCenteringWorkItem === workItem else {
+        return
+      }
+      self.centerTrafficLightButtonsInChromeBar()
+    }
+  }
+
+  private func centerTrafficLightButtonsInChromeBar() {
+    let buttons = [
+      standardWindowButton(.closeButton),
+      standardWindowButton(.miniaturizeButton),
+      standardWindowButton(.zoomButton)
+    ].compactMap { $0 }
+    guard let buttonSuperview = buttons.first?.superview else {
+      return
+    }
+
+    for button in buttons {
+      var frame = button.frame
+      frame.origin.y =
+        buttonSuperview.bounds.height -
+        Self.chromeBarHeight +
+        (Self.chromeBarHeight - frame.height) / 2
+      button.setFrameOrigin(frame.origin)
+    }
   }
 
   private func showNotification(arguments: Any?, result: @escaping FlutterResult) {
@@ -271,19 +361,17 @@ class MainFlutterWindow: NSWindow {
     center.requestAuthorization(options: [.alert, .sound]) { granted, error in
       if let error {
         DispatchQueue.main.async {
-          result(
-            FlutterError(
-              code: "notification_authorization_failed",
-              message: error.localizedDescription,
-              details: nil
-            )
-          )
+          result(self.notificationAuthorizationFailedError(message: error.localizedDescription))
         }
         return
       }
       guard granted else {
         DispatchQueue.main.async {
-          result(nil)
+          result(
+            self.notificationAuthorizationFailedError(
+              message: "Notifications are disabled for Flutterm in System Settings."
+            )
+          )
         }
         return
       }
@@ -316,5 +404,13 @@ class MainFlutterWindow: NSWindow {
         }
       }
     }
+  }
+
+  fileprivate func notificationAuthorizationFailedError(message: String) -> FlutterError {
+    FlutterError(
+      code: "notification_authorization_failed",
+      message: message,
+      details: nil
+    )
   }
 }

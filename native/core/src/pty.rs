@@ -350,7 +350,7 @@ fn write_zsh_proxy_files(dir: &Path) -> std::io::Result<()> {
     fs::write(
         dir.join(".zshrc"),
         format!(
-            "{}\n{}\n__flutterm_source_original_zdotfile \".zshrc\"\n__flutterm_install_shell_hooks >/dev/null 2>&1 || true\n__flutterm_restore_zdotdir >/dev/null 2>&1 || true\n",
+            "{}\n{}\n__flutterm_source_original_zdotfile \".zshrc\"\n__flutterm_install_shell_hooks >/dev/null 2>&1 || true\n__flutterm_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__flutterm_restore_zdotdir >/dev/null 2>&1 || true\n",
             ZSH_PROXY_COMMON, ZSH_HOOK_INSTALLER
         ),
     )?;
@@ -425,6 +425,11 @@ __flutterm_install_shell_hooks() {
   typeset -g __FLUTTERM_SHELL_INTEGRATION_LOADED=1
   typeset -g __flutterm_command_active=0
   typeset -g __flutterm_last_command=""
+  typeset -g __flutterm_prompt_sp_suppressed=0
+  typeset -g __flutterm_prompt_sp_was_set=0
+  typeset -g __flutterm_startup_prompt_sp_checked=0
+  typeset -g __flutterm_startup_prompt_trimmed=0
+  typeset -g __flutterm_original_prompt=""
 
   __flutterm_json_escape() {
     emulate -L zsh
@@ -446,7 +451,47 @@ __flutterm_install_shell_hooks() {
     builtin printf '\ePhook;%s\e\\' "$__flutterm_hex" 2>/dev/null || true
   }
 
+  __flutterm_suspend_startup_prompt_sp() {
+    [[ "${__FLUTTERM_SHELL_INTEGRATION_LOADED:-}" == "1" ]] || return 0
+    [[ "${__flutterm_startup_prompt_sp_checked:-0}" == "0" ]] || return 0
+    builtin typeset -g __flutterm_startup_prompt_sp_checked=1
+    builtin typeset -g __flutterm_prompt_sp_was_set=0
+    [[ -o prompt_sp ]] && builtin typeset -g __flutterm_prompt_sp_was_set=1
+    unsetopt prompt_sp
+    builtin typeset -g __flutterm_prompt_sp_suppressed=1
+  }
+
+  __flutterm_trim_startup_prompt_newline() {
+    [[ "${__flutterm_startup_prompt_trimmed:-0}" == "0" ]] || return 0
+    builtin typeset -g __flutterm_original_prompt="$PROMPT"
+    if [[ "$PROMPT" == $'\n'* ]]; then
+      PROMPT="${PROMPT#$'\n'}"
+      builtin typeset -g __flutterm_startup_prompt_trimmed=1
+    elif [[ -o prompt_subst ]]; then
+      PROMPT='${${:-${(e)__flutterm_original_prompt}}#$'\''\n'\''}'
+      builtin typeset -g __flutterm_startup_prompt_trimmed=1
+    else
+      builtin typeset -g __flutterm_startup_prompt_trimmed=2
+    fi
+  }
+
+  __flutterm_restore_startup_prompt_state() {
+    if [[ "${__flutterm_startup_prompt_trimmed:-0}" == "1" ]]; then
+      PROMPT="${__flutterm_original_prompt:-}"
+      builtin typeset -g __flutterm_startup_prompt_trimmed=2
+    fi
+    if [[ "${__flutterm_prompt_sp_suppressed:-0}" == "1" ]]; then
+      if [[ "${__flutterm_prompt_sp_was_set:-0}" == "1" ]]; then
+        setopt prompt_sp
+      else
+        unsetopt prompt_sp
+      fi
+      builtin typeset -g __flutterm_prompt_sp_suppressed=0
+    fi
+  }
+
   __flutterm_preexec() {
+    __flutterm_restore_startup_prompt_state
     emulate -L zsh
     local __flutterm_command="$(__flutterm_json_escape "${1:-}")"
     typeset -g __flutterm_command_active=1
@@ -457,6 +502,7 @@ __flutterm_install_shell_hooks() {
 
   __flutterm_precmd() {
     local __flutterm_status=$?
+    __flutterm_trim_startup_prompt_newline
     emulate -L zsh
     if [[ "${__flutterm_command_active:-0}" == "1" ]]; then
       local __flutterm_command="$(__flutterm_json_escape "${__flutterm_last_command:-}")"
@@ -745,6 +791,10 @@ mod tests {
         assert!(zshrc.contains("add-zsh-hook preexec __flutterm_preexec"));
         assert!(zshrc.contains("add-zsh-hook precmd __flutterm_precmd"));
         assert!(zshrc.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
+        assert!(zshrc.contains("__flutterm_suspend_startup_prompt_sp"));
+        assert!(zshrc.contains("unsetopt prompt_sp"));
+        assert!(zshrc.contains("__flutterm_trim_startup_prompt_newline"));
+        assert!(zshrc.contains("__flutterm_restore_startup_prompt_state"));
         assert!(zshrc.contains("__flutterm_source_original_zdotfile \".zshrc\""));
     }
 

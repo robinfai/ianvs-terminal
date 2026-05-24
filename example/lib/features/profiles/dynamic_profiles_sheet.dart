@@ -34,10 +34,10 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
           '{\n'
           '  "Profiles": [\n'
           '    {\n'
-          '      "Name": "Example",\n'
-          '      "Guid": "example-dynamic-profile",\n'
+          '      "Name": "Local shell",\n'
+          '      "Guid": "example-local-shell-profile",\n'
           '      "Custom Command": "Yes",\n'
-          '      "Command": "ssh example.com"\n'
+          '      "Command": "/bin/zsh"\n'
           '    }\n'
           '  ]\n'
           '}',
@@ -124,6 +124,13 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                         icon: Icons.close_rounded,
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Paste an iTerm2 dynamic profile JSON document. This local build only launches local commands.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: palette.textSubtle,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Flexible(

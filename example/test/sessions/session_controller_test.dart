@@ -278,6 +278,54 @@ void main() {
     expect(afterCloseSecond.activeSessionId, isNull);
   });
 
+  test('reorderTab moves tabs without changing the active session', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-2'));
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-3'));
+
+    final initialTabs = container.read(sessionControllerProvider).tabs;
+    final first = initialTabs[0].sessionId;
+    final second = initialTabs[1].sessionId;
+    final third = initialTabs[2].sessionId;
+
+    controller.activateSession(second);
+    controller.reorderTab(oldIndex: 0, newIndex: 2);
+
+    var state = container.read(sessionControllerProvider);
+    expect(state.tabs.map((tab) => tab.sessionId), [second, third, first]);
+    expect(state.activeSessionId, second);
+
+    controller.reorderTab(oldIndex: 2, newIndex: 0);
+    state = container.read(sessionControllerProvider);
+    expect(state.tabs.map((tab) => tab.sessionId), [first, second, third]);
+    expect(state.activeSessionId, second);
+
+    controller.reorderTab(oldIndex: -1, newIndex: 2);
+    expect(
+      container
+          .read(sessionControllerProvider)
+          .tabs
+          .map((tab) => tab.sessionId),
+      [first, second, third],
+    );
+  });
+
   test('xterm sessions advertise 24-bit color support', () {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(
