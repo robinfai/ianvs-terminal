@@ -230,6 +230,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _capturedOutputLimit = 80;
   static const _minimumHorizontalPaneCols = 24;
   static const _minimumVerticalPaneRows = 8;
+  static const _paneGrowRatioStep = 0.08;
+  static const _minimumSiblingPaneRatio = 0.24;
+  static const _paneDividerDragThickness = 8.0;
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -237,7 +240,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
   final Map<String, Size> _measuredTerminalCellSizes = {};
-  final Map<String, int> _paneFlexBySession = {};
   final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
@@ -1412,18 +1414,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     String? sessionId,
     TerminalSplitAxis requestedAxis,
   ) {
-    final activeTab = _tabForSession(sessionState, sessionId);
-    if (activeTab == null ||
-        activeTab.effectivePanes.length <= 1 ||
-        activeTab.splitAxis == requestedAxis) {
-      return null;
-    }
-    final existingDirection =
-        activeTab.splitAxis == TerminalSplitAxis.horizontal ? 'right' : 'down';
-    final requestedDirection = requestedAxis == TerminalSplitAxis.horizontal
-        ? 'right'
-        : 'down';
-    return 'Mixed pane layouts are not supported yet. This tab is already using $existingDirection splits, so $requestedDirection split was not applied.';
+    return null;
   }
 
   bool _sessionHasRenderableContent(
@@ -1519,14 +1510,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (_growActivePaneUnavailableReason(activeTab, activeSessionId) != null) {
       return false;
     }
-    final panes = activeTab.effectivePanes;
-    setState(() {
-      for (final pane in panes) {
-        _paneFlexBySession.putIfAbsent(pane.sessionId, () => 1);
-      }
-      _paneFlexBySession[activeSessionId] =
-          (_paneFlexBySession[activeSessionId] ?? 1) + 1;
-    });
+    ref.read(sessionControllerProvider.notifier).growPane(activeSessionId);
     return true;
   }
 
@@ -1539,65 +1523,59 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       return 'Add another pane to use this action.';
     }
 
-    final sessionController = ref.read(sessionControllerProvider.notifier);
-    final primarySizeBySession = <String, int>{
-      for (final pane in panes)
-        pane.sessionId: math.max(
-          1,
-          activeTab.splitAxis == TerminalSplitAxis.horizontal
-              ? sessionController.viewportFor(pane.sessionId).frame.viewportCols
-              : sessionController
-                    .viewportFor(pane.sessionId)
-                    .frame
-                    .viewportRows,
-        ),
-    };
-    final totalPrimarySize = primarySizeBySession.values.fold<int>(
-      0,
-      (sum, value) => sum + value,
-    );
-    if (totalPrimarySize <= 0) {
-      return null;
-    }
-
-    final nextFlexBySession = <String, int>{
-      for (final pane in panes)
-        pane.sessionId: _paneFlexBySession[pane.sessionId] ?? 1,
-    };
-    nextFlexBySession[activeSessionId] =
-        (nextFlexBySession[activeSessionId] ?? 1) + 1;
-    final nextActiveFlex = nextFlexBySession[activeSessionId] ?? 1;
-    final otherFlexTotal = nextFlexBySession.entries.fold<int>(0, (sum, entry) {
-      return entry.key == activeSessionId ? sum : sum + entry.value;
-    });
-    if (otherFlexTotal > 0 && nextActiveFlex > otherFlexTotal * 2) {
+    if (_paneGrowthWouldShrinkSiblingTooFar(
+      activeTab.effectivePaneLayout,
+      activeSessionId,
+    )) {
       return activeTab.splitAxis == TerminalSplitAxis.horizontal
           ? 'Another pane would become narrower than $_minimumHorizontalPaneCols columns.'
           : 'Another pane would become shorter than $_minimumVerticalPaneRows rows.';
     }
-    final totalFlex = nextFlexBySession.values.fold<int>(
-      0,
-      (sum, value) => sum + value,
-    );
-    final minimumPrimarySize =
-        activeTab.splitAxis == TerminalSplitAxis.horizontal
-        ? _minimumHorizontalPaneCols
-        : _minimumVerticalPaneRows;
 
+    final sessionController = ref.read(sessionControllerProvider.notifier);
     for (final pane in panes) {
       if (pane.sessionId == activeSessionId) {
         continue;
       }
-      final projectedPrimarySize =
-          (totalPrimarySize * (nextFlexBySession[pane.sessionId] ?? 1)) ~/
-          totalFlex;
-      if (projectedPrimarySize < minimumPrimarySize) {
+      final frame = sessionController.viewportFor(pane.sessionId).frame;
+      final primarySize = activeTab.splitAxis == TerminalSplitAxis.horizontal
+          ? frame.viewportCols
+          : frame.viewportRows;
+      final minimumPrimarySize =
+          activeTab.splitAxis == TerminalSplitAxis.horizontal
+          ? _minimumHorizontalPaneCols
+          : _minimumVerticalPaneRows;
+      if (primarySize <= minimumPrimarySize) {
         return activeTab.splitAxis == TerminalSplitAxis.horizontal
             ? 'Another pane would become narrower than $_minimumHorizontalPaneCols columns.'
             : 'Another pane would become shorter than $_minimumVerticalPaneRows rows.';
       }
     }
     return null;
+  }
+
+  bool _paneGrowthWouldShrinkSiblingTooFar(
+    TerminalPaneLayoutNode node,
+    String activeSessionId,
+  ) {
+    if (node.isLeaf) {
+      return false;
+    }
+    final first = node.first!;
+    final second = node.second!;
+    if (first.containsSession(activeSessionId)) {
+      if (!first.isLeaf) {
+        return _paneGrowthWouldShrinkSiblingTooFar(first, activeSessionId);
+      }
+      return 1 - (node.ratio + _paneGrowRatioStep) < _minimumSiblingPaneRatio;
+    }
+    if (second.containsSession(activeSessionId)) {
+      if (!second.isLeaf) {
+        return _paneGrowthWouldShrinkSiblingTooFar(second, activeSessionId);
+      }
+      return node.ratio - _paneGrowRatioStep < _minimumSiblingPaneRatio;
+    }
+    return false;
   }
 
   String? _zoomedPaneManagementUnavailableReason(TerminalTab tab) {
@@ -5526,10 +5504,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final zoomedPane = zoomedPaneSessionId == null
         ? null
         : activeTab.paneFor(zoomedPaneSessionId);
-    final panes = zoomedPane == null ? activeTab.effectivePanes : [zoomedPane];
-    final direction = activeTab.splitAxis == TerminalSplitAxis.horizontal
-        ? Axis.horizontal
-        : Axis.vertical;
+    final paneLayout = zoomedPane == null
+        ? activeTab.effectivePaneLayout
+        : TerminalPaneLayoutNode.leaf(zoomedPane);
     final terminalBackground = _tabTerminalBackgroundColor(
       context,
       sessionState,
@@ -5540,32 +5517,105 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       key: const Key('shell-terminal-surface'),
       child: DecoratedBox(
         decoration: BoxDecoration(color: terminalBackground),
-        child: Flex(
-          direction: direction,
-          children: [
-            for (var index = 0; index < panes.length; index++) ...[
-              Expanded(
-                flex: _paneFlexBySession[panes[index].sessionId] ?? 1,
-                child: _buildTerminalPane(
-                  context: context,
-                  sessionController: sessionController,
-                  sessionState: sessionState,
-                  pane: panes[index],
-                  isActive: panes[index].sessionId == activeSessionId,
-                  palette: palette,
-                  onHostKeyEvent: onHostKeyEvent,
-                ),
-              ),
-              if (index < panes.length - 1)
-                SizedBox(
-                  width: direction == Axis.horizontal ? 1 : double.infinity,
-                  height: direction == Axis.horizontal ? double.infinity : 1,
-                  child: ColoredBox(color: palette.border),
-                ),
-            ],
-          ],
+        child: _buildTerminalPaneLayoutNode(
+          context: context,
+          sessionController: sessionController,
+          sessionState: sessionState,
+          node: paneLayout,
+          activeSessionId: activeSessionId,
+          palette: palette,
+          terminalBackground: terminalBackground,
+          onHostKeyEvent: onHostKeyEvent,
         ),
       ),
+    );
+  }
+
+  Widget _buildTerminalPaneLayoutNode({
+    required BuildContext context,
+    required SessionController sessionController,
+    required SessionState sessionState,
+    required TerminalPaneLayoutNode node,
+    required String activeSessionId,
+    required AppThemeTokens palette,
+    required Color terminalBackground,
+    required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
+  }) {
+    if (node.isLeaf) {
+      final pane = node.pane!;
+      return _buildTerminalPane(
+        context: context,
+        sessionController: sessionController,
+        sessionState: sessionState,
+        pane: pane,
+        isActive: pane.sessionId == activeSessionId,
+        palette: palette,
+        onHostKeyEvent: onHostKeyEvent,
+      );
+    }
+
+    final direction = node.splitAxis == TerminalSplitAxis.horizontal
+        ? Axis.horizontal
+        : Axis.vertical;
+    final first = node.first!;
+    final second = node.second!;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availablePrimarySize =
+            (direction == Axis.horizontal
+                ? constraints.maxWidth
+                : constraints.maxHeight) -
+            _paneDividerDragThickness;
+        return Flex(
+          direction: direction,
+          children: [
+            Expanded(
+              flex: math.max(1, (node.ratio * 1000).round()),
+              child: _buildTerminalPaneLayoutNode(
+                context: context,
+                sessionController: sessionController,
+                sessionState: sessionState,
+                node: first,
+                activeSessionId: activeSessionId,
+                palette: palette,
+                terminalBackground: terminalBackground,
+                onHostKeyEvent: onHostKeyEvent,
+              ),
+            ),
+            _PaneDividerHandle(
+              key: Key(
+                'shell-pane-divider-${first.firstLeafId}-${second.firstLeafId}',
+              ),
+              direction: direction,
+              thickness: _paneDividerDragThickness,
+              terminalBackground: terminalBackground,
+              palette: palette,
+              onDragUpdate: (primaryDelta) {
+                if (availablePrimarySize <= 0 ||
+                    !availablePrimarySize.isFinite) {
+                  return;
+                }
+                final nextRatio =
+                    node.ratio + (primaryDelta / availablePrimarySize);
+                sessionController.resizeActivePaneSplit(node.id, nextRatio);
+              },
+            ),
+            Expanded(
+              flex: math.max(1, ((1 - node.ratio) * 1000).round()),
+              child: _buildTerminalPaneLayoutNode(
+                context: context,
+                sessionController: sessionController,
+                sessionState: sessionState,
+                node: second,
+                activeSessionId: activeSessionId,
+                palette: palette,
+                terminalBackground: terminalBackground,
+                onHostKeyEvent: onHostKeyEvent,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -5631,229 +5681,215 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
         final viewportController = sessionController.viewportFor(sessionId);
 
-        return MouseRegion(
-          onEnter: (_) {
-            if (!isActive) {
+        return Listener(
+          onPointerDown: (event) {
+            if (!isActive && (event.buttons & kPrimaryMouseButton) != 0) {
               _activateSession(sessionController, sessionId);
             }
+            final frame = sessionController.viewportFor(sessionId).frame;
+            final shouldMiddlePaste =
+                frame.modes.mouseMode == 'off' &&
+                (event.buttons & kMiddleMouseButton) != 0;
+            if (shouldMiddlePaste) {
+              unawaited(_pasteToSession(sessionId));
+            }
           },
-          child: Listener(
-            onPointerDown: (event) {
-              if (!isActive) {
-                _activateSession(sessionController, sessionId);
-              }
-              final frame = sessionController.viewportFor(sessionId).frame;
-              final shouldMiddlePaste =
-                  frame.modes.mouseMode == 'off' &&
-                  (event.buttons & kMiddleMouseButton) != 0;
-              if (shouldMiddlePaste) {
-                unawaited(_pasteToSession(sessionId));
-              }
-            },
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: isActive
-                      ? palette.focusRing.withValues(alpha: 0.78)
-                      : Colors.transparent,
-                  width: isActive ? 1.5 : 1,
-                ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: isActive
+                    ? palette.focusRing.withValues(alpha: 0.78)
+                    : Colors.transparent,
+                width: isActive ? 1.5 : 1,
               ),
-              child: Stack(
-                children: [
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: TerminalViewport(
+                    focusNode: focusNode,
+                    controller: viewportController,
+                    selectionController: selectionController,
+                    inputController: inputController,
+                    contentPadding: terminalViewportPadding,
+                    onMeasuredCellSizeChanged: (cellSize) {
+                      if (!mounted) {
+                        return;
+                      }
+                      if (_measuredTerminalCellSizes[sessionId] != cellSize) {
+                        setState(() {
+                          _measuredTerminalCellSizes[sessionId] = cellSize;
+                        });
+                      }
+                      _scheduleViewportResize(
+                        sessionController,
+                        sessionId,
+                        viewportSize,
+                        MediaQuery.devicePixelRatioOf(context),
+                        immediate: true,
+                      );
+                    },
+                    colors: terminalColors,
+                    font:
+                        terminalConfig?.display.font ??
+                        const terminal.TerminalFontConfig(),
+                    cursor:
+                        terminalConfig?.display.cursor ??
+                        const terminal.TerminalCursorConfig(),
+                    copyOnSelect:
+                        terminalConfig?.interaction.copyOnSelect ?? false,
+                    optionDragMode:
+                        terminalConfig?.interaction.optionDragMode ??
+                        terminal.TerminalOptionDragMode.blockSelection,
+                    searchMatches: isActive && _isSearchOpen
+                        ? _searchMatches
+                        : const <terminal.TerminalSearchMatch>[],
+                    activeSearchMatchIndex: isActive && _isSearchOpen
+                        ? _activeSearchIndex
+                        : -1,
+                    searchHighlightStyle: terminal.TerminalSearchHighlightStyle(
+                      activeFill: palette.accent.withValues(alpha: 0.34),
+                      inactiveFill: palette.warning.withValues(alpha: 0.22),
+                      activeBorder: palette.accent.withValues(alpha: 0.82),
+                      radius: 3,
+                    ),
+                    onHostKeyEvent: onHostKeyEvent,
+                    onScrollLines: (delta) {
+                      ref
+                          .read(terminalRuntimeControllerProvider)
+                          .scrollViewport(sessionId, delta);
+                    },
+                    onScrollToOffset: (offset) {
+                      ref
+                          .read(terminalRuntimeControllerProvider)
+                          .scrollViewportTo(sessionId, offset);
+                    },
+                    onOpenLink: (url) =>
+                        unawaited(WindowBridge.openExternalUrl(url)),
+                  ),
+                ),
+                if (!isActive)
                   Positioned.fill(
-                    child: TerminalViewport(
-                      focusNode: focusNode,
-                      controller: viewportController,
-                      selectionController: selectionController,
-                      inputController: inputController,
-                      contentPadding: terminalViewportPadding,
-                      onMeasuredCellSizeChanged: (cellSize) {
-                        if (!mounted) {
-                          return;
-                        }
-                        if (_measuredTerminalCellSizes[sessionId] != cellSize) {
-                          setState(() {
-                            _measuredTerminalCellSizes[sessionId] = cellSize;
-                          });
-                        }
-                        _scheduleViewportResize(
-                          sessionController,
-                          sessionId,
-                          viewportSize,
-                          MediaQuery.devicePixelRatioOf(context),
-                          immediate: true,
-                        );
-                      },
-                      colors: terminalColors,
-                      font:
-                          terminalConfig?.display.font ??
-                          const terminal.TerminalFontConfig(),
-                      cursor:
-                          terminalConfig?.display.cursor ??
-                          const terminal.TerminalCursorConfig(),
-                      copyOnSelect:
-                          terminalConfig?.interaction.copyOnSelect ?? false,
-                      optionDragMode:
-                          terminalConfig?.interaction.optionDragMode ??
-                          terminal.TerminalOptionDragMode.blockSelection,
-                      searchMatches: isActive && _isSearchOpen
-                          ? _searchMatches
-                          : const <terminal.TerminalSearchMatch>[],
-                      activeSearchMatchIndex: isActive && _isSearchOpen
-                          ? _activeSearchIndex
-                          : -1,
-                      searchHighlightStyle:
-                          terminal.TerminalSearchHighlightStyle(
-                            activeFill: palette.accent.withValues(alpha: 0.34),
-                            inactiveFill: palette.warning.withValues(
-                              alpha: 0.22,
-                            ),
-                            activeBorder: palette.accent.withValues(
-                              alpha: 0.82,
-                            ),
-                            radius: 3,
-                          ),
-                      onHostKeyEvent: onHostKeyEvent,
-                      onScrollLines: (delta) {
-                        ref
-                            .read(terminalRuntimeControllerProvider)
-                            .scrollViewport(sessionId, delta);
-                      },
-                      onScrollToOffset: (offset) {
-                        ref
-                            .read(terminalRuntimeControllerProvider)
-                            .scrollViewportTo(sessionId, offset);
-                      },
-                      onOpenLink: (url) =>
-                          unawaited(WindowBridge.openExternalUrl(url)),
+                    child: IgnorePointer(
+                      child: ColoredBox(
+                        key: Key('shell-pane-dim-$sessionId'),
+                        color: palette.inactiveScrim,
+                      ),
                     ),
                   ),
-                  if (!isActive)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: ColoredBox(
-                          key: Key('shell-pane-dim-$sessionId'),
-                          color: palette.inactiveScrim,
-                        ),
-                      ),
-                    ),
-                  if (isActive && _isSearchOpen)
-                    Positioned(
-                      top: _terminalOverlayPadding.top,
-                      left: _terminalOverlayPadding.left,
-                      right: _terminalOverlayPadding.right,
-                      child: Align(
-                        alignment: Alignment.topRight,
-                        child: _TerminalSearchBar(
-                          query: _searchQuery,
-                          matches: _searchMatches.length,
-                          activeIndex: _activeSearchIndex,
-                          searchMode: _searchMode,
-                          errorText: _searchErrorText,
-                          palette: palette,
-                          focusNode: _searchFocusNode,
-                          focusRequestSerial: _searchFocusRequestSerial,
-                          onChanged: _searchScrollback,
-                          onClear: _clearSearch,
-                          onModeChanged: _setSearchMode,
-                          onPrevious: () => _moveSearchMatch(1),
-                          onNext: () => _moveSearchMatch(-1),
-                          onClose: _closeSearch,
-                        ),
-                      ),
-                    ),
-                  if (isActive && _isAutocompleteOpen)
-                    Positioned(
-                      top: _terminalOverlayPadding.top,
-                      right: _terminalOverlayPadding.right,
-                      child: _TerminalAutocompleteMenu(
-                        prefix: _autocompletePrefix,
-                        suggestions: _autocompleteSuggestions,
-                        activeIndex: _activeAutocompleteIndex,
+                if (isActive && _isSearchOpen)
+                  Positioned(
+                    top: _terminalOverlayPadding.top,
+                    left: _terminalOverlayPadding.left,
+                    right: _terminalOverlayPadding.right,
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: _TerminalSearchBar(
+                        query: _searchQuery,
+                        matches: _searchMatches.length,
+                        activeIndex: _activeSearchIndex,
+                        searchMode: _searchMode,
+                        errorText: _searchErrorText,
                         palette: palette,
-                        onPrevious: () => _moveAutocompleteSelection(-1),
-                        onNext: () => _moveAutocompleteSelection(1),
-                        onAccept: _acceptAutocomplete,
-                        onClose: _closeAutocomplete,
+                        focusNode: _searchFocusNode,
+                        focusRequestSerial: _searchFocusRequestSerial,
+                        onChanged: _searchScrollback,
+                        onClear: _clearSearch,
+                        onModeChanged: _setSearchMode,
+                        onPrevious: () => _moveSearchMatch(1),
+                        onNext: () => _moveSearchMatch(-1),
+                        onClose: _closeSearch,
                       ),
                     ),
-                  if (isActive && _isAutoComposerOpen)
-                    Positioned(
-                      left: _terminalOverlayPadding.left,
-                      right: _terminalOverlayPadding.right,
-                      bottom: _terminalOverlayPadding.bottom,
-                      child: _TerminalAutoComposer(
-                        controller: _autoComposerController,
-                        focusNode: _autoComposerFocusNode,
-                        suggestions: _autoComposerSuggestions,
-                        activeIndex: _activeAutoComposerIndex,
+                  ),
+                if (isActive && _isAutocompleteOpen)
+                  Positioned(
+                    top: _terminalOverlayPadding.top,
+                    right: _terminalOverlayPadding.right,
+                    child: _TerminalAutocompleteMenu(
+                      prefix: _autocompletePrefix,
+                      suggestions: _autocompleteSuggestions,
+                      activeIndex: _activeAutocompleteIndex,
+                      palette: palette,
+                      onPrevious: () => _moveAutocompleteSelection(-1),
+                      onNext: () => _moveAutocompleteSelection(1),
+                      onAccept: _acceptAutocomplete,
+                      onClose: _closeAutocomplete,
+                    ),
+                  ),
+                if (isActive && _isAutoComposerOpen)
+                  Positioned(
+                    left: _terminalOverlayPadding.left,
+                    right: _terminalOverlayPadding.right,
+                    bottom: _terminalOverlayPadding.bottom,
+                    child: _TerminalAutoComposer(
+                      controller: _autoComposerController,
+                      focusNode: _autoComposerFocusNode,
+                      suggestions: _autoComposerSuggestions,
+                      activeIndex: _activeAutoComposerIndex,
+                      palette: palette,
+                      onChanged: _updateAutoComposerSuggestions,
+                      onPrevious: () => _moveAutoComposerSuggestion(-1),
+                      onNext: () => _moveAutoComposerSuggestion(1),
+                      onAcceptSuggestion: _acceptAutoComposerSuggestion,
+                      onSend: _sendAutoComposerCommand,
+                      onClose: _closeAutoComposer,
+                    ),
+                  ),
+                if (isActive &&
+                    activeCoprocess != null &&
+                    !_isSearchOpen &&
+                    !_isAutocompleteOpen &&
+                    !_isAutoComposerOpen)
+                  Positioned(
+                    top: _terminalOverlayPadding.top,
+                    right: _terminalOverlayPadding.right,
+                    child: _CoprocessIndicator(
+                      key: Key('terminal-coprocess-indicator-$sessionId'),
+                      command: activeCoprocess.command,
+                      palette: palette,
+                    ),
+                  ),
+                if (isActive && _isCopyModeOpen)
+                  Positioned(
+                    top: _terminalOverlayPadding.top,
+                    left: _terminalOverlayPadding.left,
+                    child: IgnorePointer(
+                      child: _ShellWorkspaceCue(
+                        title: 'Copy mode',
                         palette: palette,
-                        onChanged: _updateAutoComposerSuggestions,
-                        onPrevious: () => _moveAutoComposerSuggestion(-1),
-                        onNext: () => _moveAutoComposerSuggestion(1),
-                        onAcceptSuggestion: _acceptAutoComposerSuggestion,
-                        onSend: _sendAutoComposerCommand,
-                        onClose: _closeAutoComposer,
                       ),
                     ),
-                  if (isActive &&
-                      activeCoprocess != null &&
-                      !_isSearchOpen &&
-                      !_isAutocompleteOpen &&
-                      !_isAutoComposerOpen)
-                    Positioned(
-                      top: _terminalOverlayPadding.top,
-                      right: _terminalOverlayPadding.right,
-                      child: _CoprocessIndicator(
-                        key: Key('terminal-coprocess-indicator-$sessionId'),
-                        command: activeCoprocess.command,
-                        palette: palette,
-                      ),
-                    ),
-                  if (isActive && _isCopyModeOpen)
-                    Positioned(
-                      top: _terminalOverlayPadding.top,
-                      left: _terminalOverlayPadding.left,
-                      child: IgnorePointer(
-                        child: _ShellWorkspaceCue(
-                          title: 'Copy mode',
-                          palette: palette,
+                  ),
+                if (isActive && annotations.isNotEmpty && !_isAutoComposerOpen)
+                  Positioned(
+                    left: _terminalOverlayPadding.left,
+                    bottom: _terminalOverlayPadding.bottom,
+                    child: _TerminalAnnotationBadge(
+                      key: Key('terminal-annotation-badge-$sessionId'),
+                      count: annotations.length,
+                      palette: palette,
+                      onTap: () => unawaited(
+                        _openAnnotations(
+                          sessionController,
+                          sessionId,
+                          selectionController,
                         ),
                       ),
                     ),
-                  if (isActive &&
-                      annotations.isNotEmpty &&
-                      !_isAutoComposerOpen)
-                    Positioned(
-                      left: _terminalOverlayPadding.left,
-                      bottom: _terminalOverlayPadding.bottom,
-                      child: _TerminalAnnotationBadge(
-                        key: Key('terminal-annotation-badge-$sessionId'),
-                        count: annotations.length,
+                  ),
+                if (isActive && _showWorkspaceCue)
+                  Positioned(
+                    top: _terminalOverlayPadding.top,
+                    right: _terminalOverlayPadding.right,
+                    child: IgnorePointer(
+                      child: _ShellWorkspaceCue(
+                        title: _workspaceCueTitle,
                         palette: palette,
-                        onTap: () => unawaited(
-                          _openAnnotations(
-                            sessionController,
-                            sessionId,
-                            selectionController,
-                          ),
-                        ),
                       ),
                     ),
-                  if (isActive && _showWorkspaceCue)
-                    Positioned(
-                      top: _terminalOverlayPadding.top,
-                      right: _terminalOverlayPadding.right,
-                      child: IgnorePointer(
-                        child: _ShellWorkspaceCue(
-                          title: _workspaceCueTitle,
-                          palette: palette,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         );
@@ -12933,6 +12969,108 @@ String _normalizeCommandMenuQuery(String value) {
       .replaceAll(RegExp('[^a-z0-9]+'), ' ')
       .trim()
       .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+class _PaneDividerHandle extends StatefulWidget {
+  const _PaneDividerHandle({
+    super.key,
+    required this.direction,
+    required this.thickness,
+    required this.terminalBackground,
+    required this.palette,
+    required this.onDragUpdate,
+  });
+
+  final Axis direction;
+  final double thickness;
+  final Color terminalBackground;
+  final AppThemeTokens palette;
+  final ValueChanged<double> onDragUpdate;
+
+  @override
+  State<_PaneDividerHandle> createState() => _PaneDividerHandleState();
+}
+
+class _PaneDividerHandleState extends State<_PaneDividerHandle> {
+  bool _hovered = false;
+  bool _dragging = false;
+
+  bool get _active => _hovered || _dragging;
+
+  void _setHovered(bool value) {
+    if (_hovered == value) {
+      return;
+    }
+    setState(() {
+      _hovered = value;
+    });
+  }
+
+  void _setDragging(bool value) {
+    if (_dragging == value) {
+      return;
+    }
+    setState(() {
+      _dragging = value;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final horizontal = widget.direction == Axis.horizontal;
+    final background = _active
+        ? widget.palette.accent.withValues(alpha: _dragging ? 0.16 : 0.09)
+        : widget.terminalBackground;
+    final lineColor = _active
+        ? widget.palette.accent.withValues(alpha: _dragging ? 0.86 : 0.68)
+        : widget.palette.borderStrong.withValues(alpha: 0.72);
+    final lineThickness = _active ? 2.0 : 1.0;
+
+    return SizedBox(
+      width: horizontal ? widget.thickness : double.infinity,
+      height: horizontal ? double.infinity : widget.thickness,
+      child: MouseRegion(
+        cursor: horizontal
+            ? SystemMouseCursors.resizeLeftRight
+            : SystemMouseCursors.resizeUpDown,
+        onEnter: (_) => _setHovered(true),
+        onExit: (_) => _setHovered(false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: horizontal ? (_) => _setDragging(true) : null,
+          onHorizontalDragEnd: horizontal ? (_) => _setDragging(false) : null,
+          onHorizontalDragCancel: horizontal ? () => _setDragging(false) : null,
+          onHorizontalDragUpdate: horizontal
+              ? (details) => widget.onDragUpdate(details.delta.dx)
+              : null,
+          onVerticalDragStart: horizontal ? null : (_) => _setDragging(true),
+          onVerticalDragEnd: horizontal ? null : (_) => _setDragging(false),
+          onVerticalDragCancel: horizontal ? null : () => _setDragging(false),
+          onVerticalDragUpdate: horizontal
+              ? null
+              : (details) => widget.onDragUpdate(details.delta.dy),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 90),
+            curve: Curves.easeOutCubic,
+            color: background,
+            child: Align(
+              alignment: Alignment.center,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 90),
+                curve: Curves.easeOutCubic,
+                width: horizontal ? lineThickness : double.infinity,
+                height: horizontal ? double.infinity : lineThickness,
+                decoration: BoxDecoration(
+                  color: lineColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ShellCommandTile extends StatelessWidget {

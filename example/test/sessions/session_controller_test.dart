@@ -499,6 +499,59 @@ void main() {
     expect(afterCloseSecond.activeSessionId, isNull);
   });
 
+  test('splitActiveSession supports nested mixed directions', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    final firstSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    final secondSessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    controller.splitActiveSession(profile, TerminalSplitAxis.vertical);
+
+    final splitState = container.read(sessionControllerProvider);
+    final tab = splitState.tabs.single;
+    expect(tab.effectivePanes, hasLength(3));
+    expect(tab.effectivePaneLayout.splitAxis, TerminalSplitAxis.horizontal);
+    expect(
+      tab.effectivePaneLayout.second!.splitAxis,
+      TerminalSplitAxis.vertical,
+    );
+    expect(tab.containsSession(firstSessionId), isTrue);
+    expect(tab.containsSession(secondSessionId), isTrue);
+    expect(splitState.activeSessionId, isNot(firstSessionId));
+    expect(splitState.activeSessionId, isNot(secondSessionId));
+
+    controller.closeSession(secondSessionId);
+    final afterCloseNestedPane = container.read(sessionControllerProvider);
+    expect(afterCloseNestedPane.tabs.single.effectivePanes, hasLength(2));
+    expect(
+      afterCloseNestedPane.tabs.single.effectivePaneLayout.splitAxis,
+      TerminalSplitAxis.horizontal,
+    );
+  });
+
   test('resizeActiveSession dedupes identical size requests', () {
     final coreBindings = FakePtyBackend();
     final coreClient = coreBindings;

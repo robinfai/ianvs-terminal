@@ -287,9 +287,15 @@ class SessionController extends Notifier<SessionState> {
       profileSnapshot: launchProfile,
     );
     final activeTab = state.tabs[activeTabIndex];
+    final nextPaneLayout = activeTab.effectivePaneLayout.splitPane(
+      sessionId: activeSessionId,
+      newPane: newPane,
+      axis: axis,
+    );
     final nextTabs = <TerminalTab>[...state.tabs];
     nextTabs[activeTabIndex] = activeTab.copyWith(
-      panes: <TerminalPane>[...activeTab.effectivePanes, newPane],
+      panes: nextPaneLayout.panes,
+      paneLayout: nextPaneLayout,
       activePaneSessionId: sessionId,
       splitAxis: axis,
     );
@@ -369,20 +375,59 @@ class SessionController extends Notifier<SessionState> {
     if (activeIndex < 0) {
       return;
     }
-    final siblingIndex = activeIndex == panes.length - 1
-        ? activeIndex - 1
-        : activeIndex + 1;
-    final nextPanes = <TerminalPane>[...panes];
-    final activePane = nextPanes[activeIndex];
-    nextPanes[activeIndex] = nextPanes[siblingIndex];
-    nextPanes[siblingIndex] = activePane;
+    final nextPaneLayout = activeTab.effectivePaneLayout.swapPaneWithSibling(
+      activeSessionId,
+    );
 
     final nextTabs = <TerminalTab>[...state.tabs];
     nextTabs[tabIndex] = activeTab.copyWith(
-      panes: nextPanes,
+      panes: nextPaneLayout.panes,
+      paneLayout: nextPaneLayout,
       activePaneSessionId: activeSessionId == activeTab.sessionId
           ? null
           : activeSessionId,
+    );
+    state = state.copyWith(tabs: nextTabs);
+  }
+
+  void resizeActivePaneSplit(String splitNodeId, double ratio) {
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    final tabIndex = _tabIndexContainingSession(activeSessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+
+    final activeTab = state.tabs[tabIndex];
+    final nextPaneLayout = activeTab.effectivePaneLayout.resizeSplit(
+      splitNodeId,
+      ratio,
+    );
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[tabIndex] = activeTab.copyWith(
+      panes: nextPaneLayout.panes,
+      paneLayout: nextPaneLayout,
+    );
+    state = state.copyWith(tabs: nextTabs);
+  }
+
+  void growPane(String sessionId) {
+    final tabIndex = _tabIndexContainingSession(sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+
+    final activeTab = state.tabs[tabIndex];
+    final nextPaneLayout = activeTab.effectivePaneLayout.growPane(
+      sessionId,
+      0.08,
+    );
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[tabIndex] = activeTab.copyWith(
+      panes: nextPaneLayout.panes,
+      paneLayout: nextPaneLayout,
     );
     state = state.copyWith(tabs: nextTabs);
   }
@@ -616,14 +661,8 @@ class SessionController extends Notifier<SessionState> {
         shellIntegration: nextIntegration,
       );
     } else {
-      nextTabs[tabIndex] = currentTab.copyWith(
-        panes: [
-          for (final pane in currentTab.effectivePanes)
-            if (pane.sessionId == event.sessionId)
-              pane.copyWith(shellIntegration: nextIntegration)
-            else
-              pane,
-        ],
+      nextTabs[tabIndex] = currentTab.replacePane(
+        currentPane.copyWith(shellIntegration: nextIntegration),
       );
     }
     state = state.copyWith(tabs: nextTabs);
@@ -758,23 +797,20 @@ class SessionController extends Notifier<SessionState> {
         shellIntegration: shellIntegration,
       );
     } else {
-      nextTabs[tabIndex] = currentTab.copyWith(
-        title: sessionId == currentTab.sessionId
-            ? profile.name
-            : currentTab.title,
-        panes: [
-          for (final pane in currentTab.effectivePanes)
-            if (pane.sessionId == sessionId)
-              pane.copyWith(
-                title: profile.name,
-                profileId: profile.id,
-                profileSnapshot: profile,
-                shellIntegration: shellIntegration,
-              )
-            else
-              pane,
-        ],
-      );
+      nextTabs[tabIndex] = currentTab
+          .replacePane(
+            currentPane.copyWith(
+              title: profile.name,
+              profileId: profile.id,
+              profileSnapshot: profile,
+              shellIntegration: shellIntegration,
+            ),
+          )
+          .copyWith(
+            title: sessionId == currentTab.sessionId
+                ? profile.name
+                : currentTab.title,
+          );
     }
     state = state.copyWith(tabs: nextTabs);
     if (sessionId == state.activeSessionId) {
@@ -810,31 +846,29 @@ class SessionController extends Notifier<SessionState> {
         isExited: currentTab.isExited,
         exitCode: currentTab.exitCode,
         panes: currentTab.panes,
+        paneLayout: currentTab.paneLayout,
         activePaneSessionId: currentTab.activePaneSessionId,
         splitAxis: currentTab.splitAxis,
         shellIntegration: shellIntegration,
       );
     } else {
-      nextTabs[tabIndex] = currentTab.copyWith(
-        title: sessionId == currentTab.sessionId
-            ? baseline.title
-            : currentTab.title,
-        panes: [
-          for (final pane in currentTab.effectivePanes)
-            if (pane.sessionId == sessionId)
-              TerminalPane(
-                sessionId: pane.sessionId,
-                title: baseline.title,
-                profileId: baseline.profileId,
-                profileSnapshot: baseline.profileSnapshot,
-                isExited: pane.isExited,
-                exitCode: pane.exitCode,
-                shellIntegration: shellIntegration,
-              )
-            else
-              pane,
-        ],
-      );
+      nextTabs[tabIndex] = currentTab
+          .replacePane(
+            TerminalPane(
+              sessionId: currentPane.sessionId,
+              title: baseline.title,
+              profileId: baseline.profileId,
+              profileSnapshot: baseline.profileSnapshot,
+              isExited: currentPane.isExited,
+              exitCode: currentPane.exitCode,
+              shellIntegration: shellIntegration,
+            ),
+          )
+          .copyWith(
+            title: sessionId == currentTab.sessionId
+                ? baseline.title
+                : currentTab.title,
+          );
     }
     state = state.copyWith(tabs: nextTabs);
     if (sessionId == state.activeSessionId) {
@@ -951,18 +985,14 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
 
-    final nextPanes = <TerminalPane>[
-      for (final pane in currentTab.effectivePanes)
-        if (pane.sessionId == sessionId)
-          pane.copyWith(title: nextTitle)
-        else
-          pane,
-    ];
     final nextTabs = <TerminalTab>[...state.tabs];
-    nextTabs[tabIndex] = currentTab.copyWith(
-      title: sessionId == currentTab.sessionId ? nextTitle : currentTab.title,
-      panes: nextPanes,
-    );
+    nextTabs[tabIndex] = currentTab
+        .replacePane(currentPane.copyWith(title: nextTitle))
+        .copyWith(
+          title: sessionId == currentTab.sessionId
+              ? nextTitle
+              : currentTab.title,
+        );
     state = state.copyWith(tabs: nextTabs);
     if (sessionId == state.activeSessionId) {
       _setWindowTitle(nextTitle);
@@ -1009,9 +1039,12 @@ class SessionController extends Notifier<SessionState> {
     if (!tabHasMultiplePanes) {
       _removeTabState(tabIndex, recordClosedTab: !runtimeAlreadyClosed);
     } else {
-      final nextPanes = tab.effectivePanes
-          .where((pane) => pane.sessionId != sessionId)
-          .toList();
+      final nextPaneLayout = tab.effectivePaneLayout.removePane(sessionId);
+      if (nextPaneLayout == null) {
+        _removeTabState(tabIndex, recordClosedTab: !runtimeAlreadyClosed);
+        return;
+      }
+      final nextPanes = nextPaneLayout.panes;
       final closingActivePane = state.activeSessionId == sessionId;
       final nextActivePaneId = closingActivePane
           ? nextPanes.last.sessionId
@@ -1019,6 +1052,7 @@ class SessionController extends Notifier<SessionState> {
       final nextTabs = <TerminalTab>[...state.tabs];
       nextTabs[tabIndex] = tab.copyWith(
         panes: nextPanes,
+        paneLayout: nextPaneLayout,
         activePaneSessionId: nextActivePaneId == tab.sessionId
             ? null
             : nextActivePaneId,

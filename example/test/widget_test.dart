@@ -399,34 +399,41 @@ void main() {
     },
   );
 
-  testWidgets(
-    'command menu disables incompatible split direction for mixed pane layouts',
-    (tester) async {
-      final fakeBindings = FakePtyBackend();
+  testWidgets('command menu allows splitting down after splitting right', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
 
-      await _pumpShellScreen(
-        tester,
-        bindings: fakeBindings,
-        repository: MemoryProfileRepository(
-          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-        ),
-      );
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
 
-      await _openTabContextMenu(tester);
-      await tester.tap(find.text('Split right'));
-      await tester.pumpAndSettle();
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
 
-      expect(find.byType(TerminalViewport), findsNWidgets(2));
+    expect(find.byType(TerminalViewport), findsNWidgets(2));
 
-      await _openCommandMenu(tester);
+    await _openCommandMenu(tester);
 
-      expect(find.text('Split down'), findsOneWidget);
-      expect(
-        find.textContaining('Mixed pane layouts are not supported yet.'),
-        findsOneWidget,
-      );
-    },
-  );
+    expect(find.text('Split down'), findsOneWidget);
+    expect(
+      find.textContaining('Mixed pane layouts are not supported yet.'),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('Split down'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TerminalViewport), findsNWidgets(3));
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-3')), findsOneWidget);
+  });
 
   testWidgets(
     'tab context menu explains unavailable split and layout actions',
@@ -455,11 +462,10 @@ void main() {
 
       await _openTabContextMenu(tester);
       expect(
-        find.textContaining(
-          'Unavailable: Mixed pane layouts are not supported yet.',
-        ),
-        findsOneWidget,
+        find.textContaining('Mixed pane layouts are not supported yet.'),
+        findsNothing,
       );
+      expect(find.text('Split down'), findsOneWidget);
       expect(
         find.text('Unavailable: This tab already has multiple panes.'),
         findsOneWidget,
@@ -532,7 +538,7 @@ void main() {
     },
   );
 
-  testWidgets('hovering a split pane activates it without a click', (
+  testWidgets('hovering a split pane does not activate it, but clicking does', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -558,8 +564,47 @@ void main() {
     );
     await tester.pump();
 
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('shell-pane-1')));
+    await tester.pump();
+
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('dragging a split pane divider resizes adjacent panes', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    final firstPane = find.byKey(const Key('shell-pane-1'));
+    final secondPane = find.byKey(const Key('shell-pane-2'));
+    final divider = find.byKey(const Key('shell-pane-divider-1-2'));
+    expect(divider, findsOneWidget);
+
+    final firstWidthBefore = tester.getSize(firstPane).width;
+    final secondWidthBefore = tester.getSize(secondPane).width;
+
+    await tester.drag(divider, const Offset(120, 0));
+    await tester.pump();
+
+    expect(tester.getSize(firstPane).width, greaterThan(firstWidthBefore));
+    expect(tester.getSize(secondPane).width, lessThan(secondWidthBefore));
     expect(fakeBindings.writes, isEmpty);
   });
 

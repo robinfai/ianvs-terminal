@@ -42,6 +42,285 @@ class TerminalPane {
   }
 }
 
+class TerminalPaneLayoutNode {
+  const TerminalPaneLayoutNode._({
+    required this.id,
+    required this.pane,
+    required this.splitAxis,
+    required this.first,
+    required this.second,
+    required this.ratio,
+  });
+
+  factory TerminalPaneLayoutNode.leaf(TerminalPane pane) {
+    return TerminalPaneLayoutNode._(
+      id: pane.sessionId,
+      pane: pane,
+      splitAxis: null,
+      first: null,
+      second: null,
+      ratio: 0.5,
+    );
+  }
+
+  factory TerminalPaneLayoutNode.split({
+    required String id,
+    required TerminalSplitAxis splitAxis,
+    required TerminalPaneLayoutNode first,
+    required TerminalPaneLayoutNode second,
+    double ratio = 0.5,
+  }) {
+    return TerminalPaneLayoutNode._(
+      id: id,
+      pane: null,
+      splitAxis: splitAxis,
+      first: first,
+      second: second,
+      ratio: ratio.clamp(0.1, 0.9).toDouble(),
+    );
+  }
+
+  factory TerminalPaneLayoutNode.fromPanes(
+    List<TerminalPane> panes,
+    TerminalSplitAxis splitAxis,
+  ) {
+    if (panes.isEmpty) {
+      throw ArgumentError.value(panes, 'panes', 'Must not be empty.');
+    }
+    var layout = TerminalPaneLayoutNode.leaf(panes.first);
+    for (var index = 1; index < panes.length; index++) {
+      layout = TerminalPaneLayoutNode.split(
+        id: _terminalPaneSplitNodeId(
+          layout.firstLeafId,
+          panes[index].sessionId,
+        ),
+        splitAxis: splitAxis,
+        first: layout,
+        second: TerminalPaneLayoutNode.leaf(panes[index]),
+        ratio: index / (index + 1),
+      );
+    }
+    return layout;
+  }
+
+  final String id;
+  final TerminalPane? pane;
+  final TerminalSplitAxis? splitAxis;
+  final TerminalPaneLayoutNode? first;
+  final TerminalPaneLayoutNode? second;
+  final double ratio;
+
+  bool get isLeaf => pane != null;
+
+  List<TerminalPane> get panes {
+    if (isLeaf) {
+      return [pane!];
+    }
+    return [...first!.panes, ...second!.panes];
+  }
+
+  String get firstLeafId {
+    if (isLeaf) {
+      return pane!.sessionId;
+    }
+    return first!.firstLeafId;
+  }
+
+  bool containsSession(String sessionId) {
+    return paneFor(sessionId) != null;
+  }
+
+  TerminalPane? paneFor(String sessionId) {
+    if (isLeaf) {
+      return pane!.sessionId == sessionId ? pane : null;
+    }
+    return first!.paneFor(sessionId) ?? second!.paneFor(sessionId);
+  }
+
+  TerminalPaneLayoutNode replacePane(TerminalPane replacement) {
+    if (isLeaf) {
+      return pane!.sessionId == replacement.sessionId
+          ? TerminalPaneLayoutNode.leaf(replacement)
+          : this;
+    }
+    return TerminalPaneLayoutNode.split(
+      id: id,
+      splitAxis: splitAxis!,
+      first: first!.replacePane(replacement),
+      second: second!.replacePane(replacement),
+      ratio: ratio,
+    );
+  }
+
+  TerminalPaneLayoutNode splitPane({
+    required String sessionId,
+    required TerminalPane newPane,
+    required TerminalSplitAxis axis,
+  }) {
+    if (isLeaf) {
+      if (pane!.sessionId != sessionId) {
+        return this;
+      }
+      return TerminalPaneLayoutNode.split(
+        id: _terminalPaneSplitNodeId(sessionId, newPane.sessionId),
+        splitAxis: axis,
+        first: this,
+        second: TerminalPaneLayoutNode.leaf(newPane),
+      );
+    }
+    return TerminalPaneLayoutNode.split(
+      id: id,
+      splitAxis: splitAxis!,
+      first: first!.splitPane(
+        sessionId: sessionId,
+        newPane: newPane,
+        axis: axis,
+      ),
+      second: second!.splitPane(
+        sessionId: sessionId,
+        newPane: newPane,
+        axis: axis,
+      ),
+      ratio: ratio,
+    );
+  }
+
+  TerminalPaneLayoutNode? removePane(String sessionId) {
+    if (isLeaf) {
+      return pane!.sessionId == sessionId ? null : this;
+    }
+    final nextFirst = first!.removePane(sessionId);
+    final nextSecond = second!.removePane(sessionId);
+    if (nextFirst == null) {
+      return nextSecond;
+    }
+    if (nextSecond == null) {
+      return nextFirst;
+    }
+    return TerminalPaneLayoutNode.split(
+      id: id,
+      splitAxis: splitAxis!,
+      first: nextFirst,
+      second: nextSecond,
+      ratio: ratio,
+    );
+  }
+
+  TerminalPaneLayoutNode swapPaneWithSibling(String sessionId) {
+    if (isLeaf) {
+      return this;
+    }
+    if (first!.containsSession(sessionId)) {
+      if (!first!.isLeaf) {
+        return TerminalPaneLayoutNode.split(
+          id: id,
+          splitAxis: splitAxis!,
+          first: first!.swapPaneWithSibling(sessionId),
+          second: second!,
+          ratio: ratio,
+        );
+      }
+      return TerminalPaneLayoutNode.split(
+        id: id,
+        splitAxis: splitAxis!,
+        first: second!,
+        second: first!,
+        ratio: 1 - ratio,
+      );
+    }
+    if (second!.containsSession(sessionId)) {
+      if (!second!.isLeaf) {
+        return TerminalPaneLayoutNode.split(
+          id: id,
+          splitAxis: splitAxis!,
+          first: first!,
+          second: second!.swapPaneWithSibling(sessionId),
+          ratio: ratio,
+        );
+      }
+      return TerminalPaneLayoutNode.split(
+        id: id,
+        splitAxis: splitAxis!,
+        first: second!,
+        second: first!,
+        ratio: 1 - ratio,
+      );
+    }
+    return TerminalPaneLayoutNode.split(
+      id: id,
+      splitAxis: splitAxis!,
+      first: first!.swapPaneWithSibling(sessionId),
+      second: second!.swapPaneWithSibling(sessionId),
+      ratio: ratio,
+    );
+  }
+
+  TerminalPaneLayoutNode resizeSplit(String splitNodeId, double nextRatio) {
+    if (isLeaf) {
+      return this;
+    }
+    if (id == splitNodeId) {
+      return TerminalPaneLayoutNode.split(
+        id: id,
+        splitAxis: splitAxis!,
+        first: first!,
+        second: second!,
+        ratio: nextRatio,
+      );
+    }
+    return TerminalPaneLayoutNode.split(
+      id: id,
+      splitAxis: splitAxis!,
+      first: first!.resizeSplit(splitNodeId, nextRatio),
+      second: second!.resizeSplit(splitNodeId, nextRatio),
+      ratio: ratio,
+    );
+  }
+
+  TerminalPaneLayoutNode growPane(String sessionId, double delta) {
+    if (isLeaf) {
+      return this;
+    }
+    if (first!.containsSession(sessionId)) {
+      if (!first!.isLeaf) {
+        return TerminalPaneLayoutNode.split(
+          id: id,
+          splitAxis: splitAxis!,
+          first: first!.growPane(sessionId, delta),
+          second: second!,
+          ratio: ratio,
+        );
+      }
+      return TerminalPaneLayoutNode.split(
+        id: id,
+        splitAxis: splitAxis!,
+        first: first!,
+        second: second!,
+        ratio: ratio + delta,
+      );
+    }
+    if (second!.containsSession(sessionId)) {
+      if (!second!.isLeaf) {
+        return TerminalPaneLayoutNode.split(
+          id: id,
+          splitAxis: splitAxis!,
+          first: first!,
+          second: second!.growPane(sessionId, delta),
+          ratio: ratio,
+        );
+      }
+      return TerminalPaneLayoutNode.split(
+        id: id,
+        splitAxis: splitAxis!,
+        first: first!,
+        second: second!,
+        ratio: ratio - delta,
+      );
+    }
+    return this;
+  }
+}
+
 class TerminalTab {
   const TerminalTab({
     required this.sessionId,
@@ -51,6 +330,7 @@ class TerminalTab {
     this.isExited = false,
     this.exitCode,
     this.panes = const [],
+    this.paneLayout,
     this.activePaneSessionId,
     this.splitAxis = TerminalSplitAxis.horizontal,
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
@@ -63,25 +343,36 @@ class TerminalTab {
   final bool isExited;
   final int? exitCode;
   final List<TerminalPane> panes;
+  final TerminalPaneLayoutNode? paneLayout;
   final String? activePaneSessionId;
   final TerminalSplitAxis splitAxis;
   final TerminalShellIntegrationSnapshot shellIntegration;
 
-  List<TerminalPane> get effectivePanes {
-    if (panes.isNotEmpty) {
-      return panes;
+  TerminalPane get rootPane {
+    return TerminalPane(
+      sessionId: sessionId,
+      title: title,
+      profileId: profileId,
+      profileSnapshot: profileSnapshot,
+      isExited: isExited,
+      exitCode: exitCode,
+      shellIntegration: shellIntegration,
+    );
+  }
+
+  TerminalPaneLayoutNode get effectivePaneLayout {
+    final layout = paneLayout;
+    if (layout != null) {
+      return layout;
     }
-    return [
-      TerminalPane(
-        sessionId: sessionId,
-        title: title,
-        profileId: profileId,
-        profileSnapshot: profileSnapshot,
-        isExited: isExited,
-        exitCode: exitCode,
-        shellIntegration: shellIntegration,
-      ),
-    ];
+    if (panes.isNotEmpty) {
+      return TerminalPaneLayoutNode.fromPanes(panes, splitAxis);
+    }
+    return TerminalPaneLayoutNode.leaf(rootPane);
+  }
+
+  List<TerminalPane> get effectivePanes {
+    return effectivePaneLayout.panes;
   }
 
   String get activeSessionId => activePaneSessionId ?? sessionId;
@@ -95,12 +386,28 @@ class TerminalTab {
   }
 
   TerminalPane? paneFor(String sessionId) {
-    for (final pane in effectivePanes) {
-      if (pane.sessionId == sessionId) {
-        return pane;
-      }
+    return effectivePaneLayout.paneFor(sessionId);
+  }
+
+  TerminalTab replacePane(TerminalPane replacement) {
+    if (paneLayout == null &&
+        panes.isEmpty &&
+        replacement.sessionId == sessionId) {
+      return copyWith(
+        title: replacement.title,
+        profileId: replacement.profileId,
+        profileSnapshot: replacement.profileSnapshot,
+        isExited: replacement.isExited,
+        exitCode: replacement.exitCode,
+        shellIntegration: replacement.shellIntegration,
+      );
     }
-    return null;
+    final nextLayout = effectivePaneLayout.replacePane(replacement);
+    return copyWith(
+      title: replacement.sessionId == sessionId ? replacement.title : title,
+      panes: nextLayout.panes,
+      paneLayout: nextLayout,
+    );
   }
 
   TerminalTab copyWith({
@@ -110,10 +417,19 @@ class TerminalTab {
     bool? isExited,
     int? exitCode,
     List<TerminalPane>? panes,
+    Object? paneLayout = _terminalTabNoChange,
     Object? activePaneSessionId = _terminalTabNoChange,
     TerminalSplitAxis? splitAxis,
     TerminalShellIntegrationSnapshot? shellIntegration,
   }) {
+    final nextSplitAxis = splitAxis ?? this.splitAxis;
+    final nextPaneLayout = identical(paneLayout, _terminalTabNoChange)
+        ? panes == null
+              ? this.paneLayout
+              : panes.isEmpty
+              ? null
+              : TerminalPaneLayoutNode.fromPanes(panes, nextSplitAxis)
+        : paneLayout as TerminalPaneLayoutNode?;
     return TerminalTab(
       sessionId: sessionId,
       title: title ?? this.title,
@@ -122,16 +438,21 @@ class TerminalTab {
       isExited: isExited ?? this.isExited,
       exitCode: exitCode ?? this.exitCode,
       panes: panes ?? this.panes,
+      paneLayout: nextPaneLayout,
       activePaneSessionId: identical(activePaneSessionId, _terminalTabNoChange)
           ? this.activePaneSessionId
           : activePaneSessionId as String?,
-      splitAxis: splitAxis ?? this.splitAxis,
+      splitAxis: nextSplitAxis,
       shellIntegration: shellIntegration ?? this.shellIntegration,
     );
   }
 }
 
 const Object _terminalTabNoChange = Object();
+
+String _terminalPaneSplitNodeId(String firstSessionId, String secondSessionId) {
+  return 'split-$firstSessionId-$secondSessionId';
+}
 
 class TerminalShellPromptMark {
   const TerminalShellPromptMark({
