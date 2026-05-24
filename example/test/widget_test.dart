@@ -227,13 +227,8 @@ void _expectRectClose(Rect actual, Rect expected) {
 
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
   expect(
-    tester.getSemantics(find.bySemanticsLabel('shell-tab-$sessionId')),
-    matchesSemantics(
-      label: 'shell-tab-$sessionId',
-      hasSelectedState: true,
-      isSelected: true,
-      isButton: true,
-    ),
+    tester.getSemantics(find.bySemanticsIdentifier('shell-tab-$sessionId')),
+    matchesSemantics(hasSelectedState: true, isSelected: true, isButton: true),
   );
 }
 
@@ -289,7 +284,7 @@ void main() {
       ),
     );
 
-    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-menu'))),
       const Size(28, 22),
@@ -302,7 +297,7 @@ void main() {
     await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
   });
 
@@ -325,7 +320,7 @@ void main() {
     await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-2')), findsNothing);
@@ -355,7 +350,7 @@ void main() {
     await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-2')), findsNothing);
@@ -380,8 +375,8 @@ void main() {
         ),
       );
 
-      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
-      expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
       expect(find.byType(TerminalViewport), findsOneWidget);
 
       await _openCommandMenu(tester);
@@ -393,8 +388,8 @@ void main() {
       await tester.tap(find.text('Split right'));
       await tester.pumpAndSettle();
 
-      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
-      expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
       expect(find.byType(TerminalViewport), findsNWidgets(2));
       expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
       expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
@@ -652,6 +647,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('advanced-paste-sheet')), findsOneWidget);
+      expect(find.bySemanticsLabel('Paste text'), findsOneWidget);
       final field = tester.widget<TextField>(
         find.byKey(const Key('advanced-paste-text-field')),
       );
@@ -1106,6 +1102,18 @@ void main() {
       find.byKey(const Key('password-manager-password-field')),
       's3cr3t!',
     );
+    await tester.pump();
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('Password')),
+      matchesSemantics(
+        label: 'Password',
+        value: 'Password entered',
+        isTextField: true,
+        isObscured: true,
+        hasTapAction: true,
+        hasSetTextAction: true,
+      ),
+    );
     await tester.tap(find.byKey(const Key('password-manager-add')));
     await tester.pumpAndSettle();
     final passwordEntryTile = tester.widget<ListTile>(
@@ -1180,6 +1188,7 @@ void main() {
       find.byKey(const Key('password-manager-password-field')),
       's3cr3t!',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('password-manager-add')));
     await tester.pumpAndSettle();
 
@@ -1189,7 +1198,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('password-manager-entry-0')), findsNothing);
-    expect(find.text('No saved passwords in this session.'), findsOneWidget);
+    expect(
+      find.text(
+        'No saved passwords in this session. Add one above, then open a password prompt before sending.',
+      ),
+      findsOneWidget,
+    );
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -1271,6 +1285,7 @@ void main() {
       find.byKey(const Key('password-manager-password-field')),
       's3cr3t!',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('password-manager-add')));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Close password manager'));
@@ -1353,6 +1368,7 @@ void main() {
         find.byKey(const Key('password-manager-password-field')),
         's3cr3t!',
       );
+      await tester.pump();
       await tester.tap(find.byKey(const Key('password-manager-add')));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Close password manager'));
@@ -1412,6 +1428,7 @@ void main() {
         find.byKey(const Key('password-manager-password-field')),
         's3cr3t!',
       );
+      await tester.pump();
       await tester.tap(find.byKey(const Key('password-manager-add')));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Close password manager'));
@@ -1714,7 +1731,7 @@ void main() {
         ),
       );
 
-      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
 
       await tester.sendKeyDownEvent(
         LogicalKeyboardKey.metaLeft,
@@ -1730,7 +1747,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Top actions'), findsNothing);
-      expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -1767,8 +1784,8 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
-      expect(find.bySemanticsLabel('shell-tab-3'), findsNothing);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-3'), findsNothing);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -1787,8 +1804,8 @@ void main() {
         ),
       );
 
-      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
-      expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
 
       await tester.tap(find.byType(TerminalViewport));
       await tester.pump();
@@ -1798,7 +1815,7 @@ void main() {
         platform: 'macos',
       );
 
-      expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
       expect(fakeBindings.writes, isNotEmpty);
       expect(fakeBindings.writes.last, equals(const [0x14]));
     },
@@ -1841,6 +1858,34 @@ void main() {
 
     expect(
       find.textContaining('No prompt-marked command output is available yet'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('export diagnostics explains when no bundle is available', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('shell-export-diagnostics')),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('shell-export-diagnostics')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Diagnostics export is unavailable for the active sessions.'),
       findsOneWidget,
     );
   });
@@ -1973,6 +2018,40 @@ void main() {
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));
   });
 
+  testWidgets('command menu accepts hyphenated read-only query', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    expect(find.bySemanticsLabel('Search actions'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'read-only',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Read-only mode enabled. Input is blocked'),
+      findsOneWidget,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Disable read-only mode'), findsOneWidget);
+  });
+
   testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {
@@ -1986,7 +2065,7 @@ void main() {
         ),
       );
 
-      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
 
       await _sendControlShortcut(
         tester,
@@ -1995,7 +2074,7 @@ void main() {
       );
 
       expect(find.text('Top actions'), findsNothing);
-      expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.linux),
@@ -2626,7 +2705,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('captured-output-entry-0')), findsNothing);
-    expect(find.text('No trigger output captured yet.'), findsOneWidget);
+    expect(
+      find.text(
+        'No trigger output captured yet. Add profile triggers or coprocess patterns to collect matching terminal lines here.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('captured output stores wrapped logical trigger matches', (
@@ -2826,6 +2910,18 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('checkout'), findsOneWidget);
+      expect(
+        tester.getSemantics(
+          find.byKey(const Key('terminal-autocomplete-suggestion-checkout')),
+        ),
+        matchesSemantics(
+          label: 'checkout',
+          isButton: true,
+          hasTapAction: true,
+          hasSelectedState: true,
+          isSelected: true,
+        ),
+      );
 
       await tester.tap(find.text('checkout'));
       await tester.pumpAndSettle();
@@ -2937,6 +3033,20 @@ void main() {
     );
     await tester.pump();
 
+    expect(
+      tester.getSemantics(
+        find.byKey(
+          const Key('terminal-auto-composer-suggestion-feature/login'),
+        ),
+      ),
+      matchesSemantics(
+        label: 'feature/login',
+        isButton: true,
+        hasTapAction: true,
+        hasSelectedState: true,
+        isSelected: true,
+      ),
+    );
     await tester.tap(
       find.byKey(const Key('terminal-auto-composer-suggestion-feature/login')),
     );
@@ -3802,7 +3912,7 @@ void main() {
     await tester.tap(find.text('New Tab'));
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.text('Back in shell'), findsOneWidget);
   });
@@ -4767,6 +4877,11 @@ void main() {
 
     expect(find.text('Searching across 2 sessions'), findsOneWidget);
     expect(find.textContaining('Type to search'), findsNothing);
+    expect(find.byTooltip('Close global search'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('terminal-global-search-close'))),
+      const Size.square(32),
+    );
 
     await tester.enterText(
       find.byKey(const Key('terminal-global-search-field')),

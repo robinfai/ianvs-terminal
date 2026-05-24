@@ -1282,6 +1282,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _scheduleWorkspaceCue('Back in shell');
   }
 
+  void _showScheduledWorkspaceCueNow() {
+    if (!_showReturningCueOnNextFocus) {
+      return;
+    }
+    _workspaceCueTimer?.cancel();
+    _workspaceCueTimer = null;
+    setState(() {
+      _showWorkspaceCue = true;
+      _showReturningCueOnNextFocus = false;
+    });
+    _workspaceCueTimer = Timer(_workspaceCueDuration, () {
+      if (!mounted || !_showWorkspaceCue) {
+        return;
+      }
+      setState(() {
+        _showWorkspaceCue = false;
+      });
+    });
+  }
+
   void _syncPresentationState(SessionState sessionState) {
     final currentTabCount = sessionState.tabs.length;
     if (currentTabCount == 0 && _lastObservedTabCount > 0) {
@@ -1784,6 +1804,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       return;
     }
     _scheduleReturningCue();
+    final focusNode = _focusNodeFor(activeSessionIdBeforeOpen);
+    if (focusNode.hasFocus) {
+      _showScheduledWorkspaceCueNow();
+      return;
+    }
     _focusSession(activeSessionIdBeforeOpen);
   }
 
@@ -3632,20 +3657,42 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
-    final selection = await showDialog<DefaultsAndAppearanceSelection>(
-      context: context,
+    final defaultsRoute = RawDialogRoute<DefaultsAndAppearanceSelection>(
       barrierColor: Colors.black.withValues(alpha: 0.34),
       barrierDismissible: true,
+      barrierLabel: 'Close defaults',
       requestFocus: true,
-      animationStyle: animationsEnabled ? null : AnimationStyle.noAnimation,
-      builder: (dialogContext) => DefaultsAndAppearanceDialog(
-        profiles: sessionState.profiles,
-        configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
-        effectiveDefaultProfileId: sessionState.defaultProfileId,
-        themeMode: sessionState.themeMode,
-        terminalViewportPadding: sessionState.terminalViewportPadding,
+      transitionDuration: animationsEnabled
+          ? const Duration(milliseconds: 160)
+          : Duration.zero,
+      pageBuilder: (dialogContext, _, _) => SafeArea(
+        child: Align(
+          alignment: Alignment.center,
+          child: DefaultsAndAppearanceDialog(
+            profiles: sessionState.profiles,
+            configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
+            effectiveDefaultProfileId: sessionState.defaultProfileId,
+            themeMode: sessionState.themeMode,
+            terminalViewportPadding: sessionState.terminalViewportPadding,
+          ),
+        ),
       ),
+      transitionBuilder: (dialogContext, animation, _, child) {
+        if (!animationsEnabled) {
+          return child;
+        }
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return FadeTransition(opacity: curved, child: child);
+      },
     );
+    final selection = await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push<DefaultsAndAppearanceSelection>(defaultsRoute);
+    await defaultsRoute.completed;
 
     if (!mounted) {
       return;
@@ -3765,6 +3812,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         final edited = await showDialog<TerminalProfile>(
           context: context,
           builder: (dialogContext) => ProfileEditorDialog(
+            title: 'New profile',
             initialValue: _newProfileTemplate(sessionState.profiles),
           ),
         );
@@ -3913,55 +3961,60 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       activeSessionIdBeforeOpen,
       TerminalSplitAxis.vertical,
     );
-    final hotkeyWindowStatus = await WindowBridge.hotkeyStatus();
-    if (!mounted) {
-      return;
+    final hotkeyWindowStatusFuture = WindowBridge.hotkeyStatus();
+    Widget commandMenu(HotkeyWindowStatus? hotkeyWindowStatus) {
+      return _ShellCommandMenu(
+        launcherShortcutLabel: _launcherShortcutLabel(),
+        newTabShortcutLabel: _newTabShortcutLabel(),
+        hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
+        autocompleteShortcutLabel: _autocompleteShortcutLabel(),
+        copyModeShortcutLabel: _copyModeShortcutLabel(),
+        sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
+        sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
+        pasteHistoryShortcutLabel: _pasteHistoryShortcutLabel(),
+        instantReplayShortcutLabel: _instantReplayShortcutLabel(),
+        searchShortcutLabel: _searchShortcutLabel(),
+        hasDefaultProfile: defaultProfile != null,
+        hasActiveSession: hasActiveSession,
+        activePaneZoomed: activePaneZoomed,
+        canReopenClosedTab: sessionController.canReopenClosedTab,
+        splitRightUnavailableReason: splitRightUnavailableReason,
+        splitDownUnavailableReason: splitDownUnavailableReason,
+        hotkeyWindowStatus: hotkeyWindowStatus,
+        isActiveSessionReadOnly: isActiveSessionReadOnly,
+        notificationsBlockedBySystem: _notificationsBlockedBySystem,
+        commandFinishedNotificationsEnabled:
+            _commandFinishedNotificationsEnabled,
+        bellNotificationsEnabled: _bellNotificationsEnabled,
+        activityMonitorEnabled: _activityNotificationsEnabled,
+        canSelectCommandOutput: canSelectCommandOutput,
+      );
     }
-    final action = await showGeneralDialog<TerminalActionId>(
-      context: context,
+
+    final commandMenuRoute = RawDialogRoute<TerminalActionId>(
       barrierDismissible: true,
       barrierLabel: 'Close command menu',
       barrierColor: Colors.black.withValues(alpha: 0.42),
       transitionDuration: animationsEnabled
           ? const Duration(milliseconds: 160)
           : Duration.zero,
-      pageBuilder: (_, _, _) => const SizedBox.shrink(),
-      transitionBuilder: (dialogContext, animation, _, child) {
-        if (!animationsEnabled) {
-          return SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 10, right: 14),
-                child: _ShellCommandMenu(
-                  launcherShortcutLabel: _launcherShortcutLabel(),
-                  newTabShortcutLabel: _newTabShortcutLabel(),
-                  hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
-                  autocompleteShortcutLabel: _autocompleteShortcutLabel(),
-                  copyModeShortcutLabel: _copyModeShortcutLabel(),
-                  sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
-                  sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
-                  pasteHistoryShortcutLabel: _pasteHistoryShortcutLabel(),
-                  instantReplayShortcutLabel: _instantReplayShortcutLabel(),
-                  searchShortcutLabel: _searchShortcutLabel(),
-                  hasDefaultProfile: defaultProfile != null,
-                  hasActiveSession: hasActiveSession,
-                  activePaneZoomed: activePaneZoomed,
-                  canReopenClosedTab: sessionController.canReopenClosedTab,
-                  splitRightUnavailableReason: splitRightUnavailableReason,
-                  splitDownUnavailableReason: splitDownUnavailableReason,
-                  hotkeyWindowStatus: hotkeyWindowStatus,
-                  isActiveSessionReadOnly: isActiveSessionReadOnly,
-                  notificationsBlockedBySystem: _notificationsBlockedBySystem,
-                  commandFinishedNotificationsEnabled:
-                      _commandFinishedNotificationsEnabled,
-                  bellNotificationsEnabled: _bellNotificationsEnabled,
-                  activityMonitorEnabled: _activityNotificationsEnabled,
-                  canSelectCommandOutput: canSelectCommandOutput,
-                ),
+      pageBuilder: (_, _, _) {
+        return SafeArea(
+          child: Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 10, right: 14),
+              child: _ShellCommandMenuHotkeyStatus(
+                statusFuture: hotkeyWindowStatusFuture,
+                builder: commandMenu,
               ),
             ),
-          );
+          ),
+        );
+      },
+      transitionBuilder: (dialogContext, animation, _, child) {
+        if (!animationsEnabled) {
+          return child;
         }
         final curved = CurvedAnimation(
           parent: animation,
@@ -3969,49 +4022,21 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         );
         return FadeTransition(
           opacity: curved,
-          child: SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 10, right: 14),
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, -0.03),
-                    end: Offset.zero,
-                  ).animate(curved),
-                  child: _ShellCommandMenu(
-                    launcherShortcutLabel: _launcherShortcutLabel(),
-                    newTabShortcutLabel: _newTabShortcutLabel(),
-                    hotkeyWindowShortcutLabel: _hotkeyWindowShortcutLabel(),
-                    autocompleteShortcutLabel: _autocompleteShortcutLabel(),
-                    copyModeShortcutLabel: _copyModeShortcutLabel(),
-                    sessionCopyShortcutLabel: _sessionCopyShortcutLabel(),
-                    sessionPasteShortcutLabel: _sessionPasteShortcutLabel(),
-                    pasteHistoryShortcutLabel: _pasteHistoryShortcutLabel(),
-                    instantReplayShortcutLabel: _instantReplayShortcutLabel(),
-                    searchShortcutLabel: _searchShortcutLabel(),
-                    hasDefaultProfile: defaultProfile != null,
-                    hasActiveSession: hasActiveSession,
-                    activePaneZoomed: activePaneZoomed,
-                    canReopenClosedTab: sessionController.canReopenClosedTab,
-                    splitRightUnavailableReason: splitRightUnavailableReason,
-                    splitDownUnavailableReason: splitDownUnavailableReason,
-                    hotkeyWindowStatus: hotkeyWindowStatus,
-                    isActiveSessionReadOnly: isActiveSessionReadOnly,
-                    notificationsBlockedBySystem: _notificationsBlockedBySystem,
-                    commandFinishedNotificationsEnabled:
-                        _commandFinishedNotificationsEnabled,
-                    bellNotificationsEnabled: _bellNotificationsEnabled,
-                    activityMonitorEnabled: _activityNotificationsEnabled,
-                    canSelectCommandOutput: canSelectCommandOutput,
-                  ),
-                ),
-              ),
-            ),
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, -0.03),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
           ),
         );
       },
     );
+    final action = await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push<TerminalActionId>(commandMenuRoute);
+    await commandMenuRoute.completed;
 
     if (!mounted) {
       return;
@@ -4766,12 +4791,30 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         },
         exportDiagnostics: (_) async {
           if (currentSessionId == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Export diagnostics requires an active session.',
+                  ),
+                ),
+              );
+            }
             return const ShellActionBindingResult.skipped(
               'Export diagnostics requires an active session.',
             );
           }
           final directory = await _exportDiagnosticsBundle(currentState);
           if (directory == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Diagnostics export is unavailable for the active sessions.',
+                  ),
+                ),
+              );
+            }
             return const ShellActionBindingResult.skipped(
               'Diagnostics export is unavailable for the active sessions.',
             );
@@ -7321,7 +7364,8 @@ class _ReferenceDemoTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'shell-tab-${tab.sessionId}',
+      identifier: _shellTabSemanticsIdentifier(tab),
+      label: _shellTabSemanticsLabel(tab, shortcutIndex),
       selected: isActive,
       button: true,
       child: TextButton(
@@ -8204,7 +8248,8 @@ class _ShellTabButton extends StatelessWidget {
           );
 
     return Semantics(
-      label: 'shell-tab-${tab.sessionId}',
+      identifier: _shellTabSemanticsIdentifier(tab),
+      label: _shellTabSemanticsLabel(tab, shortcutIndex),
       selected: isActive,
       button: true,
       excludeSemantics: true,
@@ -8314,6 +8359,15 @@ class _ShellTabButton extends StatelessWidget {
       ),
     );
   }
+}
+
+String _shellTabSemanticsIdentifier(TerminalTab tab) {
+  return 'shell-tab-${tab.sessionId}';
+}
+
+String _shellTabSemanticsLabel(TerminalTab tab, int? shortcutIndex) {
+  final shortcut = shortcutIndex == null ? '' : ', Command $shortcutIndex';
+  return '${tab.title} tab$shortcut';
 }
 
 class _ShellStartupSurface extends StatelessWidget {
@@ -9122,6 +9176,12 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
                               color: palette.textSubtle,
                               fontWeight: FontWeight.w600,
                             ),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildSheetCloseButton(
+                        buttonKey: const Key('terminal-global-search-close'),
+                        tooltip: 'Close global search',
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
                   ),
@@ -10417,25 +10477,33 @@ class _AutocompleteSuggestionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return Semantics(
       key: Key('terminal-autocomplete-suggestion-$suggestion'),
+      label: suggestion,
+      button: true,
+      selected: active,
       onTap: onTap,
-      child: ColoredBox(
-        color: active
-            ? palette.accent.withValues(alpha: 0.14)
-            : Colors.transparent,
-        child: SizedBox(
-          height: 30,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                suggestion,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: active ? palette.textPrimary : palette.textSubtle,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+      child: ExcludeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          child: ColoredBox(
+            color: active
+                ? palette.accent.withValues(alpha: 0.14)
+                : Colors.transparent,
+            child: SizedBox(
+              height: 30,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    suggestion,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: active ? palette.textPrimary : palette.textSubtle,
+                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -10461,39 +10529,51 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return Semantics(
       key: Key('terminal-auto-composer-suggestion-$suggestion'),
+      label: suggestion,
+      button: true,
+      selected: active,
       onTap: onTap,
-      borderRadius: BorderRadius.circular(palette.radius.sm),
-      child: ColoredBox(
-        color: active
-            ? palette.accent.withValues(alpha: 0.14)
-            : Colors.transparent,
-        child: SizedBox(
-          height: 30,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                Icon(
-                  active
-                      ? Icons.keyboard_return_rounded
-                      : Icons.subdirectory_arrow_right_rounded,
-                  size: 15,
-                  color: active ? palette.accent : palette.textSubtle,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    suggestion,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: active ? palette.textPrimary : palette.textSubtle,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+      child: ExcludeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(palette.radius.sm),
+          child: ColoredBox(
+            color: active
+                ? palette.accent.withValues(alpha: 0.14)
+                : Colors.transparent,
+            child: SizedBox(
+              height: 30,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      active
+                          ? Icons.keyboard_return_rounded
+                          : Icons.subdirectory_arrow_right_rounded,
+                      size: 15,
+                      color: active ? palette.accent : palette.textSubtle,
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        suggestion,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: active
+                              ? palette.textPrimary
+                              : palette.textSubtle,
+                          fontWeight: active
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -10526,160 +10606,176 @@ class _InstantReplaySheetState extends State<_InstantReplaySheet> {
   Widget build(BuildContext context) {
     final palette = context.appTheme;
     final activeFrame = _frames.isEmpty ? null : _frames[_activeIndex];
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Material(
-        key: const Key('instant-replay-sheet'),
-        color: palette.overlay,
-        borderRadius: BorderRadius.circular(palette.radius.xl),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Instant Replay',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    _buildSheetCloseButton(
-                      tooltip: 'Close instant replay',
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Text(
-                      '${_frames.length} captured frame${_frames.length == 1 ? '' : 's'}',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: palette.textSubtle,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    TextButton.icon(
-                      key: const Key('instant-replay-clear'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: palette.textSubtle,
-                        disabledForegroundColor: palette.textMuted.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                      onPressed: _frames.isEmpty
-                          ? null
-                          : () {
-                              setState(() {
-                                _frames = const [];
-                                _activeIndex = 0;
-                              });
-                              widget.onClear();
-                            },
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                      label: const Text('Clear'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                if (_frames.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: Text(
-                        'No terminal frames captured yet.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: palette.textSubtle,
-                        ),
-                      ),
-                    ),
-                  )
-                else ...[
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      scopesRoute: true,
+      namesRoute: true,
+      label: 'Instant Replay',
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Material(
+          key: const Key('instant-replay-sheet'),
+          color: palette.overlay,
+          borderRadius: BorderRadius.circular(palette.radius.xl),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.history_toggle_off_rounded,
-                        size: 16,
-                        color: palette.textMuted,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _frameLabel(activeFrame!),
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+                      Expanded(
+                        child: Text(
+                          'Instant Replay',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
                         ),
+                      ),
+                      _buildSheetCloseButton(
+                        tooltip: 'Close instant replay',
+                        onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
                   ),
-                  Slider(
-                    key: const Key('instant-replay-slider'),
-                    value: _activeIndex.toDouble(),
-                    min: 0,
-                    max: (_frames.length - 1).toDouble(),
-                    divisions: _frames.length <= 1 ? null : _frames.length - 1,
-                    label: _activeIndex == 0
-                        ? 'Now'
-                        : '${_activeIndex + 1} of ${_frames.length}',
-                    onChanged: _frames.length <= 1
-                        ? null
-                        : (value) {
-                            setState(() {
-                              _activeIndex = value
-                                  .round()
-                                  .clamp(0, _frames.length - 1)
-                                  .toInt();
-                            });
-                          },
-                  ),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: palette.terminalSurface,
-                        borderRadius: BorderRadius.circular(palette.radius.md),
-                        border: Border.all(color: palette.border),
+                  Row(
+                    children: [
+                      Text(
+                        '${_frames.length} captured frame${_frames.length == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: palette.textSubtle,
+                              fontWeight: FontWeight.w600,
+                            ),
                       ),
-                      child: SingleChildScrollView(
-                        key: const Key('instant-replay-preview'),
-                        padding: const EdgeInsets.all(10),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            activeFrame.text,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: palette.textPrimary,
-                                  fontFamily: 'monospace',
-                                  height: 1.25,
-                                ),
+                      const Spacer(),
+                      TextButton.icon(
+                        key: const Key('instant-replay-clear'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: palette.textSubtle,
+                          disabledForegroundColor: palette.textMuted.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
+                        onPressed: _frames.isEmpty
+                            ? null
+                            : () {
+                                setState(() {
+                                  _frames = const [];
+                                  _activeIndex = 0;
+                                });
+                                widget.onClear();
+                              },
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 16,
+                        ),
+                        label: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (_frames.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'No terminal frames captured yet.',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: palette.textSubtle),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.history_toggle_off_rounded,
+                          size: 16,
+                          color: palette.textMuted,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _frameLabel(activeFrame!),
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ],
+                    ),
+                    Slider(
+                      key: const Key('instant-replay-slider'),
+                      value: _activeIndex.toDouble(),
+                      min: 0,
+                      max: (_frames.length - 1).toDouble(),
+                      divisions: _frames.length <= 1
+                          ? null
+                          : _frames.length - 1,
+                      label: _activeIndex == 0
+                          ? 'Now'
+                          : '${_activeIndex + 1} of ${_frames.length}',
+                      onChanged: _frames.length <= 1
+                          ? null
+                          : (value) {
+                              setState(() {
+                                _activeIndex = value
+                                    .round()
+                                    .clamp(0, _frames.length - 1)
+                                    .toInt();
+                              });
+                            },
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: palette.terminalSurface,
+                          borderRadius: BorderRadius.circular(
+                            palette.radius.md,
+                          ),
+                          border: Border.all(color: palette.border),
+                        ),
+                        child: SingleChildScrollView(
+                          key: const Key('instant-replay-preview'),
+                          padding: const EdgeInsets.all(10),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: SelectableText(
+                              activeFrame.text,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: palette.textPrimary,
+                                    fontFamily: 'monospace',
+                                    height: 1.25,
+                                  ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      key: const Key('instant-replay-copy'),
-                      onPressed: () => Navigator.of(
-                        context,
-                      ).pop(_InstantReplayCopyResult(activeFrame.text)),
-                      icon: const Icon(Icons.copy_rounded, size: 16),
-                      label: const Text('Copy Text'),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: FilledButton.icon(
+                        key: const Key('instant-replay-copy'),
+                        onPressed: () => Navigator.of(
+                          context,
+                        ).pop(_InstantReplayCopyResult(activeFrame.text)),
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        label: const Text('Copy Text'),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -10796,15 +10892,21 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  TextField(
-                    key: const Key('advanced-paste-text-field'),
-                    controller: _textController,
-                    minLines: 4,
-                    maxLines: 8,
-                    keyboardType: TextInputType.multiline,
-                    decoration: const InputDecoration(
-                      labelText: 'Text',
-                      alignLabelWithHint: true,
+                  MergeSemantics(
+                    child: Semantics(
+                      label: 'Paste text',
+                      textField: true,
+                      child: TextField(
+                        key: const Key('advanced-paste-text-field'),
+                        controller: _textController,
+                        minLines: 4,
+                        maxLines: 8,
+                        keyboardType: TextInputType.multiline,
+                        decoration: const InputDecoration(
+                          labelText: 'Text',
+                          alignLabelWithHint: true,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -11584,6 +11686,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
   late List<PasswordManagerEntry> _entries;
   late final TextEditingController _labelController;
   late final TextEditingController _passwordController;
+  late final FocusNode _passwordFocusNode;
 
   bool get _canAddEntry => _passwordController.text.isNotEmpty;
 
@@ -11593,6 +11696,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
     _entries = widget.entries;
     _labelController = TextEditingController();
     _passwordController = TextEditingController();
+    _passwordFocusNode = FocusNode(debugLabel: 'password-manager-password');
     _passwordController.addListener(_handlePasswordChanged);
   }
 
@@ -11601,6 +11705,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
     _passwordController.removeListener(_handlePasswordChanged);
     _labelController.dispose();
     _passwordController.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -11702,14 +11807,31 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  key: const Key('password-manager-password-field'),
-                  controller: _passwordController,
-                  obscureText: true,
-                  enableSuggestions: false,
-                  autocorrect: false,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                  onSubmitted: (_) => _addEntry(),
+                Semantics(
+                  label: 'Password',
+                  value: _passwordController.text.isEmpty
+                      ? ''
+                      : 'Password entered',
+                  textField: true,
+                  obscured: true,
+                  excludeSemantics: true,
+                  onTap: () => _passwordFocusNode.requestFocus(),
+                  onSetText: (text) {
+                    _passwordController.value = TextEditingValue(
+                      text: text,
+                      selection: TextSelection.collapsed(offset: text.length),
+                    );
+                  },
+                  child: TextField(
+                    key: const Key('password-manager-password-field'),
+                    controller: _passwordController,
+                    focusNode: _passwordFocusNode,
+                    obscureText: true,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    decoration: const InputDecoration(labelText: 'Password'),
+                    onSubmitted: (_) => _addEntry(),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Align(
@@ -11949,6 +12071,43 @@ class _ShellWorkspaceCue extends StatelessWidget {
   }
 }
 
+class _ShellCommandMenuHotkeyStatus extends StatefulWidget {
+  const _ShellCommandMenuHotkeyStatus({
+    required this.statusFuture,
+    required this.builder,
+  });
+
+  final Future<HotkeyWindowStatus?> statusFuture;
+  final Widget Function(HotkeyWindowStatus? status) builder;
+
+  @override
+  State<_ShellCommandMenuHotkeyStatus> createState() =>
+      _ShellCommandMenuHotkeyStatusState();
+}
+
+class _ShellCommandMenuHotkeyStatusState
+    extends State<_ShellCommandMenuHotkeyStatus> {
+  HotkeyWindowStatus? _status;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.statusFuture.then((status) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _status = status;
+      });
+    }, onError: (_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.builder(_status);
+  }
+}
+
 class _ShellCommandMenu extends StatelessWidget {
   const _ShellCommandMenu({
     required this.launcherShortcutLabel,
@@ -12092,38 +12251,45 @@ class _ShellCommandMenu extends StatelessWidget {
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
-                      child: TextField(
-                        key: const Key('shell-command-search-field'),
-                        autofocus: true,
-                        textInputAction: TextInputAction.search,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: palette.textPrimary,
-                        ),
-                        decoration: InputDecoration(
-                          isDense: true,
-                          prefixIcon: const Icon(Icons.search_rounded),
-                          labelText: 'Search actions',
-                          hintText: 'Type an action and press Enter',
-                          helperText:
-                              'Examples: profile, paste history, read-only',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              palette.radius.lg,
+                      child: MergeSemantics(
+                        child: Semantics(
+                          label: 'Search actions',
+                          textField: true,
+                          child: TextField(
+                            key: const Key('shell-command-search-field'),
+                            autofocus: true,
+                            textInputAction: TextInputAction.search,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: palette.textPrimary),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              labelText: 'Search actions',
+                              hintText: 'Type an action and press Enter',
+                              helperText:
+                                  'Examples: profile, paste history, read-only',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  palette.radius.lg,
+                                ),
+                              ),
                             ),
+                            onSubmitted: (query) {
+                              final action = _commandMenuActionForQuery(query);
+                              if (action == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'No action matches "$query".',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+                              Navigator.of(context).pop(action);
+                            },
                           ),
                         ),
-                        onSubmitted: (query) {
-                          final action = _commandMenuActionForQuery(query);
-                          if (action == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('No action matches "$query".'),
-                              ),
-                            );
-                            return;
-                          }
-                          Navigator.of(context).pop(action);
-                        },
                       ),
                     ),
                     _ShellCommandTile(
@@ -12622,7 +12788,7 @@ class _ShellCommandMenu extends StatelessWidget {
 }
 
 TerminalActionId? _commandMenuActionForQuery(String query) {
-  final normalized = query.trim().toLowerCase();
+  final normalized = _normalizeCommandMenuQuery(query);
   if (normalized.isEmpty) {
     return null;
   }
@@ -12751,11 +12917,22 @@ TerminalActionId? _commandMenuActionForQuery(String query) {
     ),
   ];
   for (final entry in entries) {
-    if (entry.key.contains(normalized) || normalized.contains(entry.key)) {
+    final normalizedEntry = _normalizeCommandMenuQuery(entry.key);
+    if (normalizedEntry.contains(normalized) ||
+        normalized.contains(normalizedEntry)) {
       return entry.value;
     }
   }
   return null;
+}
+
+String _normalizeCommandMenuQuery(String value) {
+  return value
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp('[^a-z0-9]+'), ' ')
+      .trim()
+      .replaceAll(RegExp(r'\s+'), ' ');
 }
 
 class _ShellCommandTile extends StatelessWidget {
@@ -12861,20 +13038,35 @@ Widget _buildCompactActionButton({
   EdgeInsetsGeometry? padding,
   BoxConstraints? constraints,
 }) {
-  return IconButton(
-    key: key,
-    tooltip: tooltip,
-    isSelected: isSelected,
-    onPressed: onPressed,
-    visualDensity: constraints == null
-        ? VisualDensity.compact
-        : VisualDensity.standard,
-    splashRadius: splashRadius,
-    iconSize: iconSize,
-    padding: padding,
-    constraints: constraints,
-    selectedIcon: selectedIcon,
-    icon: icon,
+  return Semantics(
+    label: tooltip,
+    button: true,
+    enabled: onPressed != null,
+    excludeSemantics: true,
+    onTap: onPressed,
+    child: IconButton(
+      key: key,
+      tooltip: tooltip,
+      isSelected: isSelected,
+      onPressed: onPressed,
+      visualDensity: constraints == null
+          ? VisualDensity.compact
+          : VisualDensity.standard,
+      splashRadius: splashRadius,
+      iconSize: iconSize,
+      padding: padding,
+      constraints: constraints,
+      selectedIcon: selectedIcon == null
+          ? null
+          : Semantics(
+              label: tooltip,
+              child: ExcludeSemantics(child: selectedIcon),
+            ),
+      icon: Semantics(
+        label: tooltip,
+        child: ExcludeSemantics(child: icon),
+      ),
+    ),
   );
 }
 
@@ -12886,11 +13078,20 @@ Widget _buildEntryActionButton({
 }) {
   return Builder(
     builder: (context) {
-      return IconButton(
-        key: key,
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon, color: context.appTheme.textMuted),
+      return Semantics(
+        label: tooltip,
+        button: true,
+        enabled: onPressed != null,
+        excludeSemantics: true,
+        onTap: onPressed,
+        child: IconButton(
+          key: key,
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: ExcludeSemantics(
+            child: Icon(icon, color: context.appTheme.textMuted),
+          ),
+        ),
       );
     },
   );
@@ -12904,28 +13105,35 @@ Widget _buildChromeIconButton({
   required double iconSize,
   Color? hoverBackgroundColor,
 }) {
-  return IconButton(
-    key: key,
-    tooltip: tooltip,
-    onPressed: onPressed,
-    visualDensity: VisualDensity.compact,
-    splashRadius: 16,
-    constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-    style: ButtonStyle(
-      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-      backgroundColor: WidgetStateProperty.resolveWith((states) {
-        if (hoverBackgroundColor == null) {
+  return Semantics(
+    label: tooltip,
+    button: true,
+    enabled: onPressed != null,
+    excludeSemantics: true,
+    onTap: onPressed,
+    child: IconButton(
+      key: key,
+      tooltip: tooltip,
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      splashRadius: 16,
+      constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+      style: ButtonStyle(
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (hoverBackgroundColor == null) {
+            return Colors.transparent;
+          }
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.focused) ||
+              states.contains(WidgetState.pressed)) {
+            return hoverBackgroundColor;
+          }
           return Colors.transparent;
-        }
-        if (states.contains(WidgetState.hovered) ||
-            states.contains(WidgetState.focused) ||
-            states.contains(WidgetState.pressed)) {
-          return hoverBackgroundColor;
-        }
-        return Colors.transparent;
-      }),
+        }),
+      ),
+      iconSize: iconSize,
+      icon: ExcludeSemantics(child: icon),
     ),
-    iconSize: iconSize,
-    icon: icon,
   );
 }

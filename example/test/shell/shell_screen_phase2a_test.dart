@@ -88,7 +88,7 @@ void main() {
 
     expect(find.text('Top actions'), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
     expect(shellAcceptanceProbe.current.visibleOverlay, 'none');
     expect(
@@ -108,8 +108,8 @@ void main() {
       ),
     );
 
-    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-2'), findsNothing);
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
@@ -117,8 +117,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Top actions'), findsNothing);
-    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
   });
 }

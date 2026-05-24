@@ -121,6 +121,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                 TextField(
                   key: const Key('profiles-search-field'),
                   controller: _searchController,
+                  autofocus: true,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search_rounded),
                     labelText: 'Search profiles or tags',

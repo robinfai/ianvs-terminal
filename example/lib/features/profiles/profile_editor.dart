@@ -257,9 +257,14 @@ const List<_ColorFieldSpec> _allColorFieldSpecs = <_ColorFieldSpec>[
 ];
 
 class ProfileEditorDialog extends StatefulWidget {
-  const ProfileEditorDialog({super.key, required this.initialValue});
+  const ProfileEditorDialog({
+    super.key,
+    required this.initialValue,
+    this.title = 'Edit profile',
+  });
 
   final TerminalProfile initialValue;
+  final String title;
 
   @override
   State<ProfileEditorDialog> createState() => _ProfileEditorDialogState();
@@ -1027,7 +1032,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       },
       child: AppDialogScaffold(
         key: const Key('profile-editor-dialog'),
-        title: 'Edit profile',
+        title: widget.title,
         subtitle:
             'Changes apply to new sessions only. Existing tabs keep the profile snapshot they started with.',
         onClose: () => unawaited(_closeWithResult(null)),
@@ -1834,7 +1839,6 @@ class _EnvEntryControllers {
     keyFocusNode.dispose();
   }
 }
-
 
 class _ProfileFormGroup extends StatelessWidget {
   const _ProfileFormGroup({

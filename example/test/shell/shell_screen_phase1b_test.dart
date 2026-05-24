@@ -73,16 +73,18 @@ void main() {
     );
 
     expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(
-      tester.getSemantics(find.bySemanticsLabel('shell-tab-1')),
+      tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')),
       matchesSemantics(
-        label: 'shell-tab-1',
+        label: 'Local Shell tab, Command 1',
         hasSelectedState: true,
         isButton: true,
         isSelected: true,
       ),
     );
+    expect(find.bySemanticsLabel('New tab'), findsOneWidget);
+    expect(find.bySemanticsLabel('Open command menu'), findsOneWidget);
   });
 
   testWidgets(
@@ -99,24 +101,19 @@ void main() {
       await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
       await tester.pumpAndSettle();
 
-      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
-      expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(
-        tester.getSemantics(find.bySemanticsLabel('shell-tab-2')),
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-2')),
         matchesSemantics(
-          label: 'shell-tab-2',
           hasSelectedState: true,
           isButton: true,
           isSelected: true,
         ),
       );
       expect(
-        tester.getSemantics(find.bySemanticsLabel('shell-tab-1')),
-        matchesSemantics(
-          label: 'shell-tab-1',
-          hasSelectedState: true,
-          isButton: true,
-        ),
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')),
+        matchesSemantics(hasSelectedState: true, isButton: true),
       );
     },
   );
@@ -246,7 +243,7 @@ void main() {
     }
 
     expect(find.byKey(const Key('shell-tab-overflow-button')), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-12'), findsNothing);
+    expect(find.bySemanticsIdentifier('shell-tab-12'), findsNothing);
     expect(
       tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
       greaterThanOrEqualTo(112),
@@ -404,9 +401,8 @@ void main() {
         lessThan(tester.getCenter(tabOne).dx),
       );
       expect(
-        tester.getSemantics(find.bySemanticsLabel('shell-tab-3')),
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-3')),
         matchesSemantics(
-          label: 'shell-tab-3',
           hasSelectedState: true,
           isButton: true,
           isSelected: true,
@@ -456,21 +452,17 @@ void main() {
     expect(find.text('⌘2'), findsOneWidget);
     expect(find.text('⌘3'), findsOneWidget);
     expect(
-      tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-2')),
+      tester.getSemantics(find.bySemanticsIdentifier('shell-tab-demo-2')),
       matchesSemantics(
-        label: 'shell-tab-demo-2',
+        label: 'Shell tab, Command 2',
         hasSelectedState: true,
         isButton: true,
         isSelected: true,
       ),
     );
     expect(
-      tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-1')),
-      matchesSemantics(
-        label: 'shell-tab-demo-1',
-        hasSelectedState: true,
-        isButton: true,
-      ),
+      tester.getSemantics(find.bySemanticsIdentifier('shell-tab-demo-1')),
+      matchesSemantics(hasSelectedState: true, isButton: true),
     );
   });
 
@@ -489,9 +481,8 @@ void main() {
       await sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
 
       expect(
-        tester.getSemantics(find.bySemanticsLabel('shell-tab-demo-1')),
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-demo-1')),
         matchesSemantics(
-          label: 'shell-tab-demo-1',
           hasSelectedState: true,
           isButton: true,
           isSelected: true,

@@ -21,6 +21,7 @@ class AppDialogScaffold extends StatelessWidget {
     this.headerPadding,
     this.bodyPadding,
     this.footerPadding,
+    this.centerInViewport = true,
   });
 
   final String title;
@@ -37,6 +38,7 @@ class AppDialogScaffold extends StatelessWidget {
   final EdgeInsetsGeometry? headerPadding;
   final EdgeInsetsGeometry? bodyPadding;
   final EdgeInsetsGeometry? footerPadding;
+  final bool centerInViewport;
 
   @override
   Widget build(BuildContext context) {
@@ -121,10 +123,7 @@ class AppDialogScaffold extends StatelessWidget {
         header,
         const Divider(height: 1),
         if (expandBody) Expanded(child: paddedBody) else paddedBody,
-        if (paddedFooter != null) ...[
-          const Divider(height: 1),
-          paddedFooter,
-        ],
+        if (paddedFooter != null) ...[const Divider(height: 1), paddedFooter],
       ],
     );
 
@@ -132,14 +131,8 @@ class AppDialogScaffold extends StatelessWidget {
       contents = SizedBox(width: width, height: height, child: contents);
     }
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding:
-          insetPadding ??
-          EdgeInsets.symmetric(
-            horizontal: theme.spacing.xxl,
-            vertical: theme.spacing.xxl,
-          ),
+    final panel = Material(
+      color: Colors.transparent,
       child: ConstrainedBox(
         constraints: constraints ?? const BoxConstraints(maxWidth: 720),
         child: AppPanel(
@@ -150,5 +143,21 @@ class AppDialogScaffold extends StatelessWidget {
         ),
       ),
     );
+
+    final paddedPanel = Padding(
+      padding:
+          insetPadding ??
+          EdgeInsets.symmetric(
+            horizontal: theme.spacing.xxl,
+            vertical: theme.spacing.xxl,
+          ),
+      child: panel,
+    );
+
+    if (!centerInViewport) {
+      return paddedPanel;
+    }
+
+    return FocusTraversalGroup(child: Center(child: paddedPanel));
   }
 }

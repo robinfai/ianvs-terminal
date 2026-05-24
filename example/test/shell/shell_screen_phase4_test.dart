@@ -53,6 +53,19 @@ Future<void> _pumpShellScreen(
   await tester.pumpAndSettle();
 }
 
+Future<void> _openCommandMenu(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapCommandMenuAction(WidgetTester tester, Key key) async {
+  await _openCommandMenu(tester);
+  await tester.ensureVisible(find.byKey(key));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(key));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('shell resizes the session from the padded terminal viewport', (
     tester,
@@ -137,13 +150,7 @@ void main() {
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.ensureVisible(find.text('Paste clipboard'));
-    await tester.tap(find.text('Paste clipboard'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -161,37 +168,19 @@ void main() {
   ) async {
     await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.ensureVisible(find.text('Split right'));
-    await tester.tap(find.text('Split right'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    await _tapCommandMenuAction(tester, const Key('shell-split-right'));
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.ensureVisible(find.text('Zoom active pane'));
-    await tester.tap(find.text('Zoom active pane'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
 
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.ensureVisible(find.text('Unzoom active pane'));
-    await tester.tap(find.text('Unzoom active pane'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
@@ -230,8 +219,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
     await tester.ensureVisible(find.text('Hotkey window'));
 
-    expect(find.textContaining('Hotkey window is unavailable.'), findsOneWidget);
-    expect(find.textContaining('Shortcut: Option+Command+Space.'), findsOneWidget);
+    expect(
+      find.textContaining('Hotkey window is unavailable.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Shortcut: Option+Command+Space.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('Error: -9876.'), findsOneWidget);
     expect(
       windowBridgeCalls.map((call) => call.method),
@@ -347,8 +342,7 @@ void main() {
       await tester.pump();
       expect(find.byKey(const Key('shell-workspace-focus-cue')), findsNothing);
 
-      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-      await tester.pumpAndSettle();
+      await _openCommandMenu(tester);
       await tester.tap(find.byTooltip('Close actions'));
       await tester.pumpAndSettle();
 
@@ -382,8 +376,7 @@ void main() {
     await tester.tap(find.byType(TerminalViewport));
     await tester.pump();
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
+    await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Close defaults'));

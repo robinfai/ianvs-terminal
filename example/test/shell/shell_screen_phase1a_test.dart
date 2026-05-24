@@ -87,7 +87,7 @@ void main() {
         ),
       );
 
-      expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Close Local Shell'));
       await tester.pumpAndSettle();
@@ -127,9 +127,9 @@ void main() {
 
       expect(find.byKey(const Key('shell-chrome-menu')), findsNothing);
       expect(find.text('Shell'), findsNWidgets(3));
-      expect(find.bySemanticsLabel('shell-tab-demo-1'), findsOneWidget);
-      expect(find.bySemanticsLabel('shell-tab-demo-2'), findsOneWidget);
-      expect(find.bySemanticsLabel('shell-tab-demo-3'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-demo-1'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-demo-2'), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-demo-3'), findsOneWidget);
       expect(find.byType(TerminalViewport), findsOneWidget);
     },
   );

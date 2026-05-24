@@ -48,6 +48,7 @@ class _DefaultsAndAppearanceDialogState
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
   late double _selectedTerminalViewportPadding;
+  String _terminalPresetFilter = '';
 
   @override
   void initState() {
@@ -121,15 +122,36 @@ class _DefaultsAndAppearanceDialogState
     );
   }
 
+  bool _terminalPresetMatchesFilter(TerminalThemePreset preset, String filter) {
+    if (filter.isEmpty) {
+      return true;
+    }
+    return '${preset.name} ${preset.tone.label}'.toLowerCase().contains(filter);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final dialogHeight =
+        (MediaQuery.sizeOf(context).height - theme.spacing.xxl * 2)
+            .clamp(440.0, 580.0)
+            .toDouble();
     final effectiveProfile = _effectiveProfileFor(
       configuredProfileId: _selectedProfileId,
       effectiveProfileId: widget.effectiveDefaultProfileId,
     );
     final isUsingFallback = _selectedProfileId == null;
     final selectedPreset = _selectedPreset;
+    final terminalPresetFilter = _terminalPresetFilter.trim().toLowerCase();
+    final showCurrentPreset =
+        terminalPresetFilter.isEmpty ||
+        'keep current custom colors'.contains(terminalPresetFilter);
+    final visibleTerminalPresets = terminalThemePresets
+        .where(
+          (preset) =>
+              _terminalPresetMatchesFilter(preset, terminalPresetFilter),
+        )
+        .toList(growable: false);
 
     return AppDialogScaffold(
       key: const Key('defaults-dialog'),
@@ -139,8 +161,9 @@ class _DefaultsAndAppearanceDialogState
       onClose: () => Navigator.of(context).pop(),
       closeTooltip: 'Close defaults',
       constraints: const BoxConstraints(maxWidth: 520),
-      height: 580,
+      height: dialogHeight,
       expandBody: true,
+      centerInViewport: false,
       bodyPadding: EdgeInsets.fromLTRB(
         theme.spacing.lg,
         theme.spacing.lg,
@@ -256,30 +279,50 @@ class _DefaultsAndAppearanceDialogState
                   : 'Apply a curated terminal color palette to ${effectiveProfile.name}.',
             ),
             SizedBox(height: theme.spacing.sm),
+            TextField(
+              key: const Key('defaults-terminal-preset-filter'),
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.search_rounded),
+                labelText: 'Filter terminal presets',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(theme.radius.lg),
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _terminalPresetFilter = value;
+                });
+              },
+            ),
+            SizedBox(height: theme.spacing.sm),
             Wrap(
               spacing: theme.spacing.sm,
               runSpacing: theme.spacing.sm,
               children: [
-                _TerminalPresetChoice(
-                  key: const Key('defaults-terminal-preset-current'),
-                  label: 'Keep current',
-                  subtitle: selectedPreset == null
-                      ? 'Custom colors'
-                      : 'Currently ${selectedPreset.name}',
-                  selected: _selectedTerminalPresetId == null,
-                  enabled: effectiveProfile != null,
-                  previewColors: effectiveProfile == null
-                      ? const <String>[]
-                      : _previewColorsForPalette(
-                          effectiveProfile.appearance.colors,
-                        ),
-                  onPressed: () {
-                    setState(() {
-                      _selectedTerminalPresetId = null;
-                    });
-                  },
-                ),
-                for (final preset in terminalThemePresets)
+                if (showCurrentPreset)
+                  _TerminalPresetChoice(
+                    key: const Key('defaults-terminal-preset-current'),
+                    label: 'Keep current',
+                    subtitle: selectedPreset == null
+                        ? 'Custom colors'
+                        : 'Currently ${selectedPreset.name}',
+                    selected: _selectedTerminalPresetId == null,
+                    enabled: effectiveProfile != null,
+                    previewColors: effectiveProfile == null
+                        ? const <String>[]
+                        : _previewColorsForPalette(
+                            effectiveProfile.appearance.colors,
+                          ),
+                    onPressed: () {
+                      setState(() {
+                        _selectedTerminalPresetId = null;
+                      });
+                    },
+                  ),
+                for (final preset in visibleTerminalPresets)
                   _TerminalPresetChoice(
                     key: Key('defaults-terminal-preset-${preset.id}'),
                     label: preset.name,
@@ -292,6 +335,20 @@ class _DefaultsAndAppearanceDialogState
                         _selectedTerminalPresetId = preset.id;
                       });
                     },
+                  ),
+                if (!showCurrentPreset && visibleTerminalPresets.isEmpty)
+                  SizedBox(
+                    width: double.infinity,
+                    child: AppPanel(
+                      tone: AppPanelTone.elevated,
+                      padding: EdgeInsets.all(theme.spacing.md),
+                      child: Text(
+                        'No terminal presets match "$_terminalPresetFilter".',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: theme.textSubtle,
+                        ),
+                      ),
+                    ),
                   ),
               ],
             ),
@@ -584,7 +641,6 @@ class _TerminalPresetChoice extends StatelessWidget {
     );
   }
 }
-
 
 class _TerminalPresetSwatch extends StatelessWidget {
   const _TerminalPresetSwatch({required this.color});

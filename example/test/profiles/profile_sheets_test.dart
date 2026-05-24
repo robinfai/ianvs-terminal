@@ -37,6 +37,12 @@ void main() {
         find.byKey(Key('profile-entry-${vt220Profile.id}')),
         findsOneWidget,
       );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('profiles-search-field')))
+            .autofocus,
+        isTrue,
+      );
 
       await tester.enterText(
         find.byKey(const Key('profiles-search-field')),
@@ -110,10 +116,7 @@ void main() {
       await tester.tap(find.byTooltip('Close profiles'));
       await tester.pumpAndSettle();
 
-      await _pumpDynamicProfilesSheetHarness(
-        tester,
-        onClosed: (_) {},
-      );
+      await _pumpDynamicProfilesSheetHarness(tester, onClosed: (_) {});
 
       final jsonField = tester.widget<TextField>(
         find.byKey(const Key('dynamic-profiles-json-field')),

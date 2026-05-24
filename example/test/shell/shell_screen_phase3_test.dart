@@ -186,6 +186,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+      expect(find.byKey(const Key('shell-command-defaults')), findsNothing);
       expect(shellAcceptanceProbe.current.defaultsOpen, isTrue);
       expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
       expect(shellAcceptanceProbe.current.visibleOverlay, 'defaults');
@@ -351,7 +352,10 @@ void main() {
 
     expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('defaults-open-profiles')));
+    final openProfilesButton = find.byKey(const Key('defaults-open-profiles'));
+    await tester.ensureVisible(openProfilesButton);
+    await tester.pumpAndSettle();
+    await tester.tap(openProfilesButton);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('defaults-dialog')), findsNothing);
@@ -453,6 +457,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+    expect(find.text('New profile'), findsOneWidget);
+    expect(find.text('Edit profile'), findsNothing);
 
     await tester.enterText(
       find.byKey(const Key('profile-editor-name')),
@@ -500,6 +506,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+    expect(find.text('Edit profile'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('profile-editor-shell')),
@@ -643,6 +650,23 @@ void main() {
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+
+      final filterFinder = find.byKey(
+        const Key('defaults-terminal-preset-filter'),
+      );
+      expect(filterFinder, findsOneWidget);
+      await tester.enterText(filterFinder, 'sage');
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('defaults-terminal-preset-sage-mist')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(Key('defaults-terminal-preset-${preset.id}')),
+        findsNothing,
+      );
+      await tester.enterText(filterFinder, '');
       await tester.pumpAndSettle();
 
       final presetFinder = find.byKey(
