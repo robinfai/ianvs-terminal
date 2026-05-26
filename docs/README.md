@@ -26,6 +26,7 @@
 ## 架构边界
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)：稳定设计、模块职责、公开接口和长期约束。
+- [FRAME_DIFF.md](FRAME_DIFF.md)：terminal frame diff 的原理图、生命周期、Snapshot/Delta 对比和收益说明。
 - [TERMINAL_XTERM_API_ALIGNMENT.md](TERMINAL_XTERM_API_ALIGNMENT.md)：xterm.js 风格 API 对齐现状和剩余语义缺口。
 - [TERMINAL_XTERM_RECENT_FIX_AUDIT.md](TERMINAL_XTERM_RECENT_FIX_AUDIT.md)：xterm.js 最近一年修复项对照审计、证据矩阵和后续排查计划。
 - [XTERM_MANUAL_CONFIRMATION_QUEUE.md](XTERM_MANUAL_CONFIRMATION_QUEUE.md)：需要平台、视觉或人工判断的 xterm.js 对照风险确认队列。
