@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="了解 flutterm 的 Flutter UI、PTY 包、Rust native core、xterm 靠齐和验证覆盖。">
+    <title>技术 - flutterm</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+    <script src="../assets/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到正文</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="../index.html" aria-label="flutterm 首页">
+          <img class="brand-mark" src="../assets/images/brand/app-icon.png" alt="" width="32" height="32" aria-hidden="true">
+          <span>flutterm</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="../index.html">首页</a>
+          <a href="../features/index.html">功能</a>
+          <a href="index.html" aria-current="page">技术</a>
+          <a href="../roadmap/index.html">路线图</a>
+          <a href="../open-source/index.html">开源试用</a>
+          <a href="https://github.com/robinfai/flutterm">GitHub</a>
+          <button class="theme-toggle" type="button" data-theme-toggle>系统</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="section page-hero">
+        <div class="page-intro">
+          <p class="eyebrow">Technology</p>
+          <h1 class="page-title">Flutter 界面之下，<br>终端分层清楚。</h1>
+          <p>flutterm 用 Flutter 承载桌面界面，用 package 收口终端运行时，用 Rust native core 处理更贴近系统的终端能力。</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="layers-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Architecture</p>
+            <h2 id="layers-title">界面和运行时，各有边界。</h2>
+          </div>
+        </div>
+        <div class="diagram" aria-label="flutterm 技术分层">
+          <div class="diagram-step">UI shell</div>
+          <div class="diagram-step">flutterm_terminal</div>
+          <div class="diagram-step">flutterm_pty</div>
+          <div class="diagram-step">Rust native core</div>
+        </div>
+        <div class="grid two" style="margin-top:16px">
+          <article class="card">
+            <h3>UI shell</h3>
+            <p>窗口壳、tab、菜单、profile 和 defaults 留在 app 层，避免把产品词汇塞进底层 package。</p>
+          </article>
+          <article class="card">
+            <h3>flutterm_terminal</h3>
+            <p>负责 session runtime、viewport、输入、选区和滚动适配，是 Flutter 侧终端行为的主要边界。</p>
+          </article>
+          <article class="card">
+            <h3>flutterm_pty</h3>
+            <p>负责 PTY 会话传输和 FFI 包装，只暴露创建、写入、读取、resize、scroll、close 这类底层能力。</p>
+          </article>
+          <article class="card">
+            <h3>Rust native core</h3>
+            <p>负责 PTY、VT 解析、frame diff 和事件输出，承接真正贴近终端底层的工作。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="capability-map-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Capability map</p>
+            <h2 id="capability-map-title">功能亮点落在清楚的边界里。</h2>
+          </div>
+          <p>产品能力不是散在页面里的口号。每个亮点都对应到现有分层，让用户能看懂体验从哪里来，也方便开发者继续扩展。</p>
+        </div>
+        <div class="capability-map">
+          <article class="map-card">
+            <span class="map-layer">UI shell</span>
+            <h3>会话体验和回看入口</h3>
+            <p>Shell Hook 带来的标题、目录和命令线索，以及 Instant Replay 的最近画面回看，最终都在 app 层变成用户能操作的界面。</p>
+          </article>
+          <article class="map-card">
+            <span class="map-layer">flutterm_terminal</span>
+            <h3>输入、视口和 API 外壳</h3>
+            <p>模式感知输入、行级渲染缓存和 xterm 风格 Dart API 主要在这一层收口，负责把 native 状态变成稳定的 Flutter 行为。</p>
+          </article>
+          <article class="map-card">
+            <span class="map-layer">flutterm_pty</span>
+            <h3>稳定的 native 桥</h3>
+            <p>Native JSON 请求通道从这里进入 Rust core，让搜索、选区、滚动历史和诊断能力可以继续扩展，而不打散 PTY 边界。</p>
+          </article>
+          <article class="map-card">
+            <span class="map-layer">Rust native core</span>
+            <h3>终端状态和证据来源</h3>
+            <p>frame diff、Shell Hook 事件、终端模式和诊断归因在 native core 里生成，为 Flutter 侧渲染和产品层功能提供可信数据。</p>
+          </article>
+        </div>
+        <div class="actions">
+          <a class="button secondary" href="../features/index.html#capabilities-title">回到功能亮点</a>
+        </div>
+      </section>
+
+      <section class="section visual-gallery" id="frame-diff-visuals" aria-labelledby="frame-diff-visuals-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Frame Diff visuals</p>
+            <h2 id="frame-diff-visuals-title">把原理、路径和收益摊开看。</h2>
+          </div>
+          <p>这组图用于解释 frame diff 为什么能减少传输、合并和重绘，同时保留 snapshot 作为可靠回退。图内信息较密，点击可以打开原图查看。</p>
+        </div>
+        <div class="visual-feature">
+          <a class="visual-frame" href="../assets/images/frame-diff/principle-advantages.png" aria-label="打开 Frame Diff 原理与优势大图">
+            <img src="../assets/images/frame-diff/principle-advantages.png" alt="Frame Diff 原理与优势：Rust 端生成 diff，Dart 端合并状态，Flutter 端只重建必要行。" width="1536" height="1024" loading="eager" decoding="async">
+          </a>
+          <p>完整链路从 Rust native core 的损伤记录开始，到 Dart runtime 合并状态，再到 Flutter 只更新必要行。</p>
+        </div>
+        <div class="visual-grid">
+          <article class="visual-card">
+            <a class="visual-frame" href="../assets/images/frame-diff/lifecycle.png" aria-label="打开 Frame Diff 生命周期大图">
+              <img src="../assets/images/frame-diff/lifecycle.png" alt="Frame Diff 生命周期：PTY 输出到 Rust 损伤跟踪，再到 JSON diff、Dart 合并和 viewport 渲染。" width="1536" height="1024" loading="eager" decoding="async">
+            </a>
+            <h3>生命周期</h3>
+            <p>展示 PTY 输出到 viewport 渲染的六段路径，说明 delta 和 snapshot 分别在什么时候出现。</p>
+          </article>
+          <article class="visual-card">
+            <a class="visual-frame" href="../assets/images/frame-diff/snapshot-delta.png" aria-label="打开 Snapshot vs Delta 大图">
+              <img src="../assets/images/frame-diff/snapshot-delta.png" alt="Snapshot 与 Delta 对比：snapshot 负责全量同步，delta 负责高频局部更新。" width="1536" height="1024" loading="eager" decoding="async">
+            </a>
+            <h3>Snapshot vs Delta</h3>
+            <p>解释安全基线和高频路径的分工：不确定时回到 snapshot，普通输出走 delta。</p>
+          </article>
+          <article class="visual-card">
+            <a class="visual-frame" href="../assets/images/frame-diff/benefits.png" aria-label="打开 Frame Diff 收益大图">
+              <img src="../assets/images/frame-diff/benefits.png" alt="Frame Diff 收益：传输层 JSON 更小，runtime 合并更轻，render 层复用行缓存。" width="1536" height="1024" loading="eager" decoding="async">
+            </a>
+            <h3>收益拆解</h3>
+            <p>从传输、状态合并、渲染复用和正确性回退四个角度看优化边界。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section visual-gallery" id="feature-visuals" aria-labelledby="feature-visuals-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Feature visuals</p>
+            <h2 id="feature-visuals-title">更多能力，也按同一套方式讲清楚。</h2>
+          </div>
+          <p>Shell Hook、行级缓存、模式感知输入和 Instant Replay 都不是孤立卖点。它们各自有输入、状态处理、体验出口和回退边界。</p>
+        </div>
+        <div class="visual-grid">
+          <article class="visual-card" id="shell-hook-visual">
+            <a class="visual-frame" href="../assets/images/feature-visuals/shell-hook.png" aria-label="打开 Shell Hook 感知终端大图">
+              <img src="../assets/images/feature-visuals/shell-hook.png" alt="Shell Hook 感知终端：命令、目录、退出状态和标题随 shell 上下文同步。" width="1536" height="1024" loading="eager" decoding="async">
+            </a>
+            <h3>Shell Hook 感知终端</h3>
+            <p>把 prompt、命令、目录变化和退出状态整理成可归因事件，再映射到 tab、最近命令、诊断上下文和回放锚点。</p>
+          </article>
+          <article class="visual-card" id="row-cache-visual">
+            <a class="visual-frame" href="../assets/images/feature-visuals/row-cache.png" aria-label="打开行级渲染缓存大图">
+              <img src="../assets/images/feature-visuals/row-cache.png" alt="行级渲染缓存：只重建变化行，未变化行复用视觉结果。" width="1536" height="1024" loading="eager" decoding="async">
+            </a>
+            <h3>行级渲染缓存</h3>
+            <p>用 dirty ranges、row key 和缓存命中判断减少重复布局与绘制，同时在尺寸、字体和主题变化时保留安全清理路径。</p>
+          </article>
+          <article class="visual-card" id="input-modes-visual">
+            <a class="visual-frame" href="../assets/images/feature-visuals/input-modes.png" aria-label="打开模式感知输入系统大图">
+              <img src="../assets/images/feature-visuals/input-modes.png" alt="模式感知输入系统：按当前终端模式编码键盘、粘贴、鼠标与滚动。" width="1536" height="1024" loading="eager" decoding="async">
+            </a>
+            <h3>模式感知输入系统</h3>
+            <p>键盘、粘贴、鼠标和滚动会先读取当前终端模式，再决定编码方式，让 vim、tmux、less 和普通 shell 都走合适路径。</p>
+          </article>
+          <article class="visual-card" id="instant-replay-visual">
+            <a class="visual-frame" href="../assets/images/feature-visuals/instant-replay.png" aria-label="打开 Instant Replay 轻量回放大图">
+              <img src="../assets/images/feature-visuals/instant-replay.png" alt="Instant Replay 轻量回放：用轻量文本快照回看最近终端画面。" width="1536" height="1024" loading="eager" decoding="async">
+            </a>
+            <h3>Instant Replay 轻量回放</h3>
+            <p>用最近 N 帧的文本快照支持回看、对比和问题复现，不录制视频，也不改变 shell 行为。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="xterm-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Terminal behavior</p>
+            <h2 id="xterm-title">向 xterm 行为靠齐，但不夸口。</h2>
+          </div>
+          <p>xterm probes、回归测试和手工验证队列用于校准行为边界。可信来自持续验证，而不是一句口号。</p>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="matrix-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Verification</p>
+            <h2 id="matrix-title">验证不是装饰。</h2>
+          </div>
+        </div>
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>类型</th>
+              <th>目的</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Flutter tests</td>
+              <td>验证 UI、session 和交互行为。</td>
+            </tr>
+            <tr>
+              <td>Dart tests</td>
+              <td>验证 package 逻辑和边界。</td>
+            </tr>
+            <tr>
+              <td>Rust tests</td>
+              <td>验证 native core 行为。</td>
+            </tr>
+            <tr>
+              <td>macOS manual smoke</td>
+              <td>验证桌面真实交互。</td>
+            </tr>
+            <tr>
+              <td>performance baseline</td>
+              <td>观察终端输出和渲染表现。</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Repository evidence</p>
+            <h2>来自仓库的证据。</h2>
+          </div>
+        </div>
+        <div class="grid two">
+          <a class="card" href="https://github.com/robinfai/flutterm">
+            <h3>GitHub 仓库</h3>
+            <p>查看源码、任务历史和当前实现。</p>
+          </a>
+          <a class="card" href="https://github.com/robinfai/flutterm/blob/main/docs/ARCHITECTURE.md">
+            <h3>架构文档</h3>
+            <p>查看 workspace 分层和公开边界。</p>
+          </a>
+          <a class="card" href="https://github.com/robinfai/flutterm/blob/main/docs/TESTING.md">
+            <h3>测试文档</h3>
+            <p>查看当前可用的验证命令。</p>
+          </a>
+          <a class="card" href="https://github.com/robinfai/flutterm/blob/main/docs/ROADMAP.md">
+            <h3>路线图文档</h3>
+            <p>查看更细的工程推进顺序。</p>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>flutterm - 技术</span>
+        <div class="footer-links">
+          <a href="../index.html">首页</a>
+          <a href="../features/index.html">功能</a>
+          <a href="../roadmap/index.html">路线图</a>
+          <a href="../open-source/index.html">开源试用</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

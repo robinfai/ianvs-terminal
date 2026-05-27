@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="了解 flutterm 的本地 shell、桌面工作区、终端交互和视觉体验。">
+    <title>功能 - flutterm</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+    <script src="../assets/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到正文</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="../index.html" aria-label="flutterm 首页">
+          <img class="brand-mark" src="../assets/images/brand/app-icon.png" alt="" width="32" height="32" aria-hidden="true">
+          <span>flutterm</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="../index.html">首页</a>
+          <a href="index.html" aria-current="page">功能</a>
+          <a href="../technology/index.html">技术</a>
+          <a href="../roadmap/index.html">路线图</a>
+          <a href="../open-source/index.html">开源试用</a>
+          <a href="https://github.com/robinfai/flutterm">GitHub</a>
+          <button class="theme-toggle" type="button" data-theme-toggle>系统</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="section page-hero">
+        <div class="page-intro">
+          <p class="eyebrow">Features</p>
+          <h1 class="page-title">把本地终端的日常体验先做好。</h1>
+          <p>会话、窗口、交互和视觉状态保持明确。flutterm 先把桌面终端最常见的动作做稳。</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="grid two">
+          <article class="card">
+            <p class="kicker">Local shell</p>
+            <h2>本地 shell，不绕路</h2>
+            <p>打开本地会话，运行常见开发命令，围绕真实工作流组织体验。你先看到稳定可用的 shell，再按需要深入实现细节。</p>
+          </article>
+          <article class="card">
+            <p class="kicker">Workspace</p>
+            <h2>清楚的桌面工作区</h2>
+            <p>tab、窗口壳、profile、defaults、空状态和焦点管理都服务于同一个目标：用户知道当前在哪里、正在操作什么。</p>
+          </article>
+          <article class="card">
+            <p class="kicker">Terminal basics</p>
+            <h2>终端交互基础扎实</h2>
+            <p>复制、粘贴、滚动、resize、选区和退出后的恢复路径是桌面终端的基础。flutterm 把这些基础放在第一层。</p>
+          </article>
+          <article class="card">
+            <p class="kicker">Visual identity</p>
+            <h2>有个性，但不吵</h2>
+            <p>Carbon Neon 让产品有记忆点，Neon Paper 保持白天阅读舒服。高对比、紧凑、状态清楚是共同规则。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="capabilities-title">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Built-in highlights</p>
+            <h2 id="capabilities-title">让终端会话更可理解。</h2>
+          </div>
+          <p>这些亮点不只是在底层多写了几段代码，而是为了让本地 shell 更容易扩展、更容易调试，也更接近真实桌面终端的使用习惯。</p>
+        </div>
+        <div class="highlight-grid">
+          <article class="highlight-card" id="json-request">
+            <span class="feature-index">01</span>
+            <p class="kicker">JSON request</p>
+            <h2>Native JSON 请求通道</h2>
+            <p>搜索、选区文本、滚动历史导出和诊断请求可以通过同一条 native 通道扩展。对用户来说，新能力能更快接入；对实现来说，不必每次都新增一组零散接口。</p>
+          </article>
+          <article class="highlight-card" id="shell-hook">
+            <span class="feature-index">02</span>
+            <p class="kicker">Shell context</p>
+            <h2>Shell Hook 感知终端</h2>
+            <p>终端可以收到命令、当前目录、shell 和退出状态等上下文。它不再只是被动显示输出，而能为标题、最近命令、目录感知和后续工作流提供可靠线索。</p>
+          </article>
+          <article class="highlight-card" id="row-cache">
+            <span class="feature-index">03</span>
+            <p class="kicker">Render path</p>
+            <h2>行级渲染缓存</h2>
+            <p>frame diff 说明哪些内容变了，Flutter 侧再用行级缓存减少重复排版和绘制。大输出、滚动和局部刷新时，界面只处理真正需要更新的行。</p>
+          </article>
+          <article class="highlight-card" id="diagnostics-export">
+            <span class="feature-index">04</span>
+            <p class="kicker">Diagnostics</p>
+            <h2>可归因诊断导出</h2>
+            <p>诊断包会把命令负载、native 解析和 Flutter 渲染分开呈现。遇到卡顿或异常时，可以先看证据指向哪里，而不是在终端、UI 和命令之间来回猜。</p>
+          </article>
+          <article class="highlight-card" id="xterm-api">
+            <span class="feature-index">05</span>
+            <p class="kicker">xterm-style API</p>
+            <h2>xterm 风格 Dart API</h2>
+            <p>对外提供接近常见终端库的 open、write、paste、resize、scroll 和 selection 能力。上层接入时可以按熟悉的终端模型使用，不必先理解 Rust 细节。</p>
+          </article>
+          <article class="highlight-card" id="mode-aware-input">
+            <span class="feature-index">06</span>
+            <p class="kicker">Input modes</p>
+            <h2>模式感知输入系统</h2>
+            <p>按键、粘贴、鼠标和滚动会根据当前终端模式编码，例如 bracketed paste、alternate scroll 和鼠标上报。vim、tmux、less 这类场景更容易保持正确行为。</p>
+          </article>
+          <article class="highlight-card wide" id="instant-replay">
+            <span class="feature-index">07</span>
+            <p class="kicker">Session memory</p>
+            <h2>Instant Replay 轻量回放</h2>
+            <p>最近的终端画面可以用轻量文本快照保留下来，帮助回看刚发生的输出变化。它不是录屏，也不改变 shell 行为，而是给问题复现和状态回顾一个更低成本的入口。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-header">
+          <div>
+            <p class="kicker">Next step</p>
+            <h2>想看它为什么可信？</h2>
+          </div>
+          <div class="actions">
+            <a class="button primary" href="../technology/index.html">查看技术实现</a>
+            <a class="button secondary" href="../technology/index.html#frame-diff-visuals">查看 Frame Diff 图解</a>
+            <a class="button secondary" href="../technology/index.html#feature-visuals">查看更多能力图解</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>flutterm - 功能</span>
+        <div class="footer-links">
+          <a href="../index.html">首页</a>
+          <a href="../technology/index.html">技术</a>
+          <a href="../roadmap/index.html">路线图</a>
+          <a href="../open-source/index.html">开源试用</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

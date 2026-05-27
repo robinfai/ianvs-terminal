@@ -1,0 +1,317 @@
+{
+  "font": "/System/Library/Fonts/STHeiti Medium.ttc",
+  "note": "All diagram text is rendered from this script with system Chinese fonts.",
+  "images": [
+    {
+      "path": "assets/images/frame-diff/principle-advantages.png",
+      "title": "Frame Diff 原理与优势",
+      "subtitle": "Rust 端只发变化，Dart 端合并状态，Flutter 端只重建必要行",
+      "sections": [
+        {
+          "title": "1. Rust native core 生成 diff",
+          "items": [
+            "损伤记录：变化行与滚屏区域",
+            "缓存上次 rows 与元数据",
+            "判断 snapshot 或 delta，输出 diff",
+            "只携带变化行与必要元数据"
+          ]
+        },
+        {
+          "title": "2. Dart runtime 合并状态",
+          "items": [
+            "接收 JSON diff",
+            "RuntimeController 解码、路由、合并",
+            "ViewportController 应用 snapshot / delta",
+            "更新 cursor、modes、回看位移、metadata"
+          ]
+        },
+        {
+          "title": "3. Flutter 渲染必要行",
+          "items": [
+            "滚屏时搬移可复用行缓存",
+            "计算真正需要更新的行",
+            "复用行视觉缓存，未变化行直接上屏",
+            "selection / search / cursor 独立叠加"
+          ]
+        }
+      ],
+      "benefits": [
+        [
+          "更少 JSON",
+          "只传变化行，显著减少序列化开销。"
+        ],
+        [
+          "更少合并成本",
+          "Dart 只合并变化与元数据。"
+        ],
+        [
+          "更少绘制成本",
+          "行缓存复用，dirty 行最小化绘制。"
+        ],
+        [
+          "滚屏更稳",
+          "viewport_row_shift 搬移缓存，保持流畅。"
+        ]
+      ],
+      "callout": [
+        "回退保护",
+        "尺寸、模式、回看或元数据不一致时，回退 Snapshot。"
+      ]
+    },
+    {
+      "path": "assets/images/frame-diff/lifecycle.png",
+      "title": "Frame Diff 生命周期",
+      "subtitle": "PTY 输出 -> Rust 损伤跟踪 -> JSON diff -> Dart 合并 -> Flutter 行缓存渲染",
+      "sections": [],
+      "benefits": [],
+      "callout": null
+    },
+    {
+      "path": "assets/images/frame-diff/snapshot-delta.png",
+      "title": "Snapshot vs Delta：安全基线与快速路径",
+      "subtitle": "Snapshot 负责全量同步全屏；Delta 负责高频局部更新",
+      "sections": [],
+      "benefits": [],
+      "callout": null
+    },
+    {
+      "path": "assets/images/frame-diff/benefits.png",
+      "title": "Frame Diff 的收益",
+      "subtitle": "减少传输、减少合并、减少重绘，同时保留安全回退",
+      "sections": [],
+      "benefits": [],
+      "callout": null
+    },
+    {
+      "path": "assets/images/feature-visuals/shell-hook.png",
+      "title": "Shell Hook 感知终端",
+      "subtitle": "命令、目录、状态与标题，随 shell 上下文同步",
+      "sections": [
+        {
+          "title": "1. Shell 事件来源",
+          "items": [
+            "Prompt Start：用户即将输入命令",
+            "Command Entered：记录提交的命令",
+            "CWD Changed：切换工作目录",
+            "Command Exit：返回 exit_code 与耗时",
+            "Window Title Update：同步 shell 或应用标题"
+          ]
+        },
+        {
+          "title": "2. Native / Runtime 归因",
+          "items": [
+            "标准化事件并附加 session_id",
+            "保留 timestamp、cwd、command、exit_code",
+            "按会话路由，合并成可追溯的上下文",
+            "统一字段：session、cwd、命令、shell"
+          ]
+        },
+        {
+          "title": "3. Flutter 体验层",
+          "items": [
+            "Tab Title：目录、命令和状态驱动标题",
+            "Recent Commands：最近命令列表和结果状态",
+            "CWD Badge：当前工作目录始终可见",
+            "Diagnostics Context：导出诊断时自动带上下文",
+            "Replay Anchor：用事件锚定关键节点"
+          ]
+        }
+      ],
+      "benefits": [
+        [
+          "更少盲猜",
+          "上下文由 shell 事件驱动，减少对输出文本的猜测。"
+        ],
+        [
+          "标签状态更清楚",
+          "目录、命令、退出码映射到标签与状态条。"
+        ],
+        [
+          "诊断更可依",
+          "导出时带命令、目录、时间和退出状态。"
+        ],
+        [
+          "可继续扩展",
+          "为搜索、统计和自动化工作流留下接口。"
+        ]
+      ],
+      "callout": [
+        "回退保护",
+        "shell hook 不可用时，仍保留基础终端输出，不影响正常使用。"
+      ]
+    },
+    {
+      "path": "assets/images/feature-visuals/row-cache.png",
+      "title": "行级渲染缓存",
+      "subtitle": "只重建变化行，未变化行复用视觉结果",
+      "sections": [
+        {
+          "title": "1. 输入变化",
+          "items": [
+            "Frame Diff 提供更新信号",
+            "dirty_ranges 标出发生内容变化的行",
+            "viewport_row_shift 表示滚屏位移",
+            "modes / metadata 影响独立覆盖层"
+          ]
+        },
+        {
+          "title": "2. 缓存索引",
+          "items": [
+            "行视觉缓存保存布局与绘制结果",
+            "Row Key = 行号 + 属性 + 文本哈希",
+            "稳定行 key 不变，直接复用已有缓存",
+            "脏行 key 变化，标记为需要重新布局"
+          ]
+        },
+        {
+          "title": "3. Flutter 绘制",
+          "items": [
+            "接收更新信号并决定绘制范围",
+            "dirty 行重新布局和绘制",
+            "clean 行复用缓存，直接上屏",
+            "cursor、selection、search、IME 独立叠加"
+          ]
+        }
+      ],
+      "benefits": [
+        [
+          "更少布局调用",
+          "只计算脏行，避免全量行重排。"
+        ],
+        [
+          "更少 CPU/GPU 工作",
+          "复用绘制结果，降低合成成本。"
+        ],
+        [
+          "滚动更顺",
+          "行高度稳定，滚屏追踪更清楚。"
+        ],
+        [
+          "更易分析优化",
+          "缓存命中率可观测，性能瓶颈更清晰。"
+        ]
+      ],
+      "callout": [
+        "安全边界",
+        "resize、字体、主题、元数据变化会清空或重建缓存，保证正确性。"
+      ]
+    },
+    {
+      "path": "assets/images/feature-visuals/input-modes.png",
+      "title": "模式感知输入系统",
+      "subtitle": "按当前终端模式编码键盘、粘贴、鼠标与滚动",
+      "sections": [
+        {
+          "title": "1. 输入来源",
+          "items": [
+            "键盘输入：按键、组合键、快捷键",
+            "粘贴：单行、多行文本和命令",
+            "鼠标事件：点击、移动、拖拽、选择",
+            "滚轮滚动：上下滚动和水平滚动",
+            "IME 输入：中文、日文等输入法"
+          ]
+        },
+        {
+          "title": "2. 模式读取",
+          "items": [
+            "Bracketed Paste：识别是否启用括号粘贴",
+            "Application Cursor：区分应用光标和普通光标",
+            "Mouse Reporting：识别鼠标上报协议",
+            "Alternate Screen：识别备用屏幕",
+            "Focus Events：识别焦点变化"
+          ]
+        },
+        {
+          "title": "3. 编码输出",
+          "items": [
+            "键盘编码：普通按键与组合键转义序列",
+            "粘贴编码：启用时包裹括号粘贴标记",
+            "鼠标编码：按协议发送位置、按键、修饰键",
+            "滚轮编码：备用屏幕下转为按键",
+            "IME 编码：按 UTF-8 写入终端"
+          ]
+        }
+      ],
+      "benefits": [
+        [
+          "Vim",
+          "应用光标模式下移动键行为正确。"
+        ],
+        [
+          "Tmux",
+          "括号粘贴保留整段文本。"
+        ],
+        [
+          "Less",
+          "备用屏幕下滚轮转为上下键。"
+        ],
+        [
+          "Shell 提示符",
+          "普通输入路径保持简单可靠。"
+        ]
+      ],
+      "callout": [
+        "回退保护",
+        "无法识别或读取模式时，走普通输入路径，避免误编码导致应用异常。"
+      ]
+    },
+    {
+      "path": "assets/images/feature-visuals/instant-replay.png",
+      "title": "Instant Replay 轻量回放",
+      "subtitle": "用轻量文本快照回看最近终端画面",
+      "sections": [
+        {
+          "title": "1. 采集",
+          "items": [
+            "viewport rows：当前可视区域文本",
+            "cursor：光标位置、形态和可见性",
+            "modes：应用光标、插入模式、反向视频",
+            "scrollback_offset：当前回看偏移",
+            "command context：关联命令和退出状态"
+          ]
+        },
+        {
+          "title": "2. 环形缓冲",
+          "items": [
+            "last N frames：只保留最近帧",
+            "compact text：去重和压缩存储",
+            "timestamp：按时间顺序排列",
+            "command context：关联相关命令",
+            "不录制视频，只保存文本和状态"
+          ]
+        },
+        {
+          "title": "3. 回放入口",
+          "items": [
+            "跳转到最近输出：从时间轴选择任意时刻",
+            "前后对比：查看变化行和 diff 高亮",
+            "附带诊断上下文：命令、目录、时间、exit_code",
+            "复现问题更快：一键定位关键画面"
+          ]
+        }
+      ],
+      "benefits": [
+        [
+          "低存储成本",
+          "只存文本与状态，适合长期保留。"
+        ],
+        [
+          "易于分享协作",
+          "JSON 快照体积小，可复制、粘贴、上传。"
+        ],
+        [
+          "定位问题更高效",
+          "快速回看前后画面，减少排障成本。"
+        ],
+        [
+          "不改变 Shell 行为",
+          "后台采集，不注入命令，不影响输出。"
+        ]
+      ],
+      "callout": [
+        "边界说明",
+        "不是录屏；不采集敏感输入；可按配置清理历史，保护隐私与空间。"
+      ]
+    }
+  ]
+}

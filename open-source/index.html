@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="system">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="通过 GitHub 源码和本地运行 example 开源试用 flutterm。">
+    <title>开源试用 - flutterm</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+    <script src="../assets/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">跳到正文</a>
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="../index.html" aria-label="flutterm 首页">
+          <img class="brand-mark" src="../assets/images/brand/app-icon.png" alt="" width="32" height="32" aria-hidden="true">
+          <span>flutterm</span>
+        </a>
+        <nav class="nav" aria-label="主导航">
+          <a href="../index.html">首页</a>
+          <a href="../features/index.html">功能</a>
+          <a href="../technology/index.html">技术</a>
+          <a href="../roadmap/index.html">路线图</a>
+          <a href="index.html" aria-current="page">开源试用</a>
+          <a href="https://github.com/robinfai/flutterm">GitHub</a>
+          <button class="theme-toggle" type="button" data-theme-toggle>系统</button>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="section page-hero">
+        <div class="page-intro">
+          <p class="eyebrow">Open source trial</p>
+          <h1 class="page-title">当前最可靠的入口是源码和本地运行。</h1>
+          <p>flutterm 还没有正式安装包。想试用，请从 GitHub 和 macOS 本地 example 开始。</p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="grid two">
+          <article class="card">
+            <p class="kicker">Source</p>
+            <h2>查看源码</h2>
+            <p>GitHub 是当前主入口。你可以看 workspace 分层、终端 package、example app 和 native core。</p>
+            <div class="actions">
+              <a class="button primary" href="https://github.com/robinfai/flutterm">打开 GitHub</a>
+            </div>
+          </article>
+          <article class="card">
+            <p class="kicker">Local run</p>
+            <h2>本地运行</h2>
+            <p>macOS 是当前最成熟路径。准备 Flutter 环境后，在仓库根目录运行：</p>
+            <div class="code-card" aria-label="本地运行命令">
+              <pre><code>dart pub get
+cd example
+flutter run -d macos</code></pre>
+            </div>
+          </article>
+          <article class="card">
+            <p class="kicker">Verification</p>
+            <h2>验证方式</h2>
+            <p>测试文档记录了 Flutter、Dart、Rust 和人工检查入口，方便你确认当前能力来自哪些验证。</p>
+            <div class="actions">
+              <a class="button secondary" href="https://github.com/robinfai/flutterm/blob/main/docs/TESTING.md">查看测试文档</a>
+            </div>
+          </article>
+          <article class="card">
+            <p class="kicker">Platform status</p>
+            <h2>平台状态</h2>
+            <p>macOS 当前最成熟。其他桌面平台在路线图中推进，需要更多平台证据后再写成明确支持。</p>
+            <div class="actions">
+              <a class="button secondary" href="../roadmap/index.html">查看路线图</a>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>flutterm - 开源试用</span>
+        <div class="footer-links">
+          <a href="../index.html">首页</a>
+          <a href="../features/index.html">功能</a>
+          <a href="../technology/index.html">技术</a>
+          <a href="../roadmap/index.html">路线图</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>
