@@ -10,7 +10,7 @@ import 'features/shell/shell_screen.dart';
 import 'features/shell/window_bridge.dart';
 import 'platform/clipboard_bridge.dart';
 
-Widget buildFluttermRoot({
+Widget buildIanvsTerminalRoot({
   bool enableSessionPolling = true,
   bool enableShellAnimations = true,
   bool enableDriverWarmUpRefresh = false,
@@ -49,11 +49,11 @@ Widget buildFluttermRoot({
       ),
       shellAnimationsEnabledProvider.overrideWithValue(enableShellAnimations),
     ],
-    child: const FluttermApp(),
+    child: const IanvsTerminalApp(),
   );
 }
 
-void runFluttermApp({
+void runIanvsTerminalApp({
   bool enableSessionPolling = true,
   bool enableShellAnimations = true,
   bool enableDriverWarmUpRefresh = false,
@@ -61,7 +61,7 @@ void runFluttermApp({
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
 }) {
   runApp(
-    buildFluttermRoot(
+    buildIanvsTerminalRoot(
       enableSessionPolling: enableSessionPolling,
       enableDriverWarmUpRefresh: enableDriverWarmUpRefresh,
       enableReferenceDemoMode: enableReferenceDemoMode,

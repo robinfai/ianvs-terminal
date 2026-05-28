@@ -3,7 +3,7 @@
 ## Goal
 
 Process actionable feedback from
-`/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/FLUTTERM_FEEDBACK.md`
+`/Users/luobinghui/projects/flutter/ianvs/ianvs-terminal/IANVS_FEEDBACK.md`
 by fixing the selected upstream terminal gaps that affect Ianvs Terminal
 readiness and by recording explicit follow-up owners for the remaining items.
 
@@ -35,11 +35,11 @@ readiness and by recording explicit follow-up owners for the remaining items.
 
 ## Files In Scope
 
-- `packages/flutterm_terminal/lib/src/terminal/terminal_models.dart`
-- `packages/flutterm_terminal/lib/src/runtime/terminal_runtime_controller.dart`
-- `packages/flutterm_terminal/lib/src/xterm/terminal_api.dart`
-- `packages/flutterm_terminal/test/terminal_runtime_controller_test.dart`
-- `packages/flutterm_terminal/test/terminal_api_test.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_models.dart`
+- `packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart`
+- `packages/ianvs_terminal/lib/src/xterm/terminal_api.dart`
+- `packages/ianvs_terminal/test/terminal_runtime_controller_test.dart`
+- `packages/ianvs_terminal/test/terminal_api_test.dart`
 - `native/core/src/model.rs`
 - `native/core/src/session.rs`
 - `native/core/tests/session_test.rs`
@@ -60,8 +60,8 @@ readiness and by recording explicit follow-up owners for the remaining items.
 
 ```bash
 flutter analyze
-flutter test packages/flutterm_terminal
-flutter test packages/flutterm_pty
+flutter test packages/ianvs_terminal
+flutter test packages/ianvs_pty
 flutter test example
 cargo test --manifest-path native/core/Cargo.toml
 ```
@@ -77,7 +77,7 @@ cargo test --manifest-path native/core/Cargo.toml
 ## Completion Record
 
 - Completed on: `2026-05-10`
-- Status: complete for the flutterm upstream hardening slice.
+- Status: complete for the ianvs terminal upstream hardening slice.
 - `FT-006`: handled by `TerminalViewportState.applyDelta` merging incoming
   delta rows into dirty ranges, with regression coverage for row text arriving
   alongside empty dirty ranges and stale hyperlink clearing.
@@ -98,15 +98,15 @@ cargo test --manifest-path native/core/Cargo.toml
 - Verification recorded for closeout:
   - `cargo test --manifest-path native/core/Cargo.toml alternate_screen`
   - `cargo test --manifest-path native/core/Cargo.toml shell_hook`
-  - `cd packages/flutterm_terminal && flutter test test/terminal_runtime_controller_test.dart`
-  - `cd packages/flutterm_terminal && flutter test test/terminal_api_test.dart`
+  - `cd packages/ianvs_terminal && flutter test test/terminal_runtime_controller_test.dart`
+  - `cd packages/ianvs_terminal && flutter test test/terminal_api_test.dart`
 - Ianvs Terminal real shell smoke remains useful consumer-side evidence, but is
-  not a blocking flutterm-side gate for this closeout.
+  not a blocking ianvs terminal-side gate for this closeout.
 
 ## Done When
 
 - The automated checks above pass.
-- Current flutterm task documentation records how `FT-006`, `FT-007`, and
+- Current ianvs terminal task documentation records how `FT-006`, `FT-007`, and
   `FT-009` were handled, and where `FT-001`, `FT-004`, `FT-008`, and `FT-012`
   continue.
 - Remaining feedback risks are explicitly left as follow-ups instead of being

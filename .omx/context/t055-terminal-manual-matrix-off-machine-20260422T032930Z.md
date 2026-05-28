@@ -29,7 +29,7 @@ Complete the off-machine manual-matrix run, record all required `pass` / `fail` 
   - `vttest` available at `/opt/homebrew/bin/vttest`
 - `flutter doctor -v`: `pass`
 - `flutter devices`: `pass`
-- `integration_test/flutterm_smoke_test.dart`: `pass`
+- `integration_test/ianvs_smoke_test.dart`: `pass`
 
 ## Remaining Local Blockers
 - `flutter run -d macos` still reports `Failed to foreground app; open returned 1`

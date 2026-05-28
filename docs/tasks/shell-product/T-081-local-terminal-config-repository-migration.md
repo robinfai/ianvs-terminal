@@ -21,7 +21,7 @@
 ## Current Progress
 
 - 已新增 `LocalTerminalConfigRepository`。
-- 新配置文件路径为 `flutterm_config.json`。
+- 新配置文件路径为 `ianvs_config.json`。
 - 缺失新配置时返回 `null`，不破坏旧 profile/preferences fallback。
 - corrupt config 会 quarantine 并写入 repaired defaults。
 - 已新增 `LocalTerminalConfigMigration.fromLegacyAppPreferences()`，把旧 app preferences 的 default profile 和 appearance 映射到新 config。
@@ -29,8 +29,8 @@
 
 ## Functional Acceptance
 
-- `flutterm_config.json` 不存在时不会破坏现有启动路径。
-- `flutterm_config.json` 可保存和读取 `LocalTerminalConfigDocument`。
+- `ianvs_config.json` 不存在时不会破坏现有启动路径。
+- `ianvs_config.json` 可保存和读取 `LocalTerminalConfigDocument`。
 - corrupt config 有 quarantine 和 repaired defaults。
 - legacy app preferences 可迁移 defaultProfileId 和 appearance。
 - 该任务不改变当前运行时实际配置来源。
@@ -57,5 +57,5 @@ flutter analyze
 
 ## Risks / Follow-ups
 
-- 后续需要独立任务决定何时从旧 preferences 自动迁移到新 `flutterm_config.json`。
+- 后续需要独立任务决定何时从旧 preferences 自动迁移到新 `ianvs_config.json`。
 - 后续需要把 profile list migration 纳入新 config，当前只迁移 app-level defaults/appearance。

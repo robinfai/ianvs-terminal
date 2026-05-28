@@ -1,6 +1,6 @@
-# flutterm Docs
+# ianvs terminal Docs
 
-这个目录是 `flutterm` 的主文档入口。这里负责导航和长期约束；具体迭代记录放在任务文档里。
+这个目录是 `ianvs terminal` 的主文档入口。这里负责导航和长期约束；具体迭代记录放在任务文档里。
 
 ## 开始开发
 
@@ -32,8 +32,8 @@
 - [XTERM_MANUAL_CONFIRMATION_QUEUE.md](XTERM_MANUAL_CONFIRMATION_QUEUE.md)：需要平台、视觉或人工判断的 xterm.js 对照风险确认队列。
 - [GHOSTTY_CONFIG_COMPARISON.md](GHOSTTY_CONFIG_COMPARISON.md)：Ghostty 官方配置能力与当前仓库配置面的长期对比审计。
 - Package README 只描述各自边界：
-  - [../packages/flutterm_pty/README.md](../packages/flutterm_pty/README.md)
-  - [../packages/flutterm_terminal/README.md](../packages/flutterm_terminal/README.md)
+  - [../packages/ianvs_pty/README.md](../packages/ianvs_pty/README.md)
+  - [../packages/ianvs_terminal/README.md](../packages/ianvs_terminal/README.md)
   - [../example/README.md](../example/README.md)
 
 ## 测试验收

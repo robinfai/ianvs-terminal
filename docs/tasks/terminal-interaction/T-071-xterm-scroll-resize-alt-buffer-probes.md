@@ -23,8 +23,8 @@ Close the xterm.js scroll/resize/alternate-buffer probe gaps with focused automa
 
 - `example/test/terminal/render_terminal_viewport_test.dart`
 - `example/test/terminal/selection_controller_test.dart`
-- `packages/flutterm_terminal/test/terminal_api_test.dart`
-- `packages/flutterm_terminal/test/terminal_runtime_controller_test.dart`
+- `packages/ianvs_terminal/test/terminal_api_test.dart`
+- `packages/ianvs_terminal/test/terminal_runtime_controller_test.dart`
 - `native/core/tests/session_test.rs`
 - `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md`
 

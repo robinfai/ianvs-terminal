@@ -16,17 +16,17 @@
 
 - 不在本任务里落 divider、gutter、sticky header 或 hover action 的可见 UI。
 - 不把 Ianvs Terminal 的产品文案、状态文案或 block toolbar 直接塞进
-  flutterm 公共层。
+  ianvs terminal 公共层。
 - 不修改 `native/core` frame schema，也不要求 backend 直接理解 block。
 - 不改变现有 selection、search、copy、hyperlink hit-test 语义。
 
 ## Files In Scope
 
 - `docs/tasks/runtime-pty/T-064-terminal-row-range-annotation-extension-design.md`
-- `packages/flutterm_terminal/lib/src/terminal/terminal_viewport.dart`
-- `packages/flutterm_terminal/lib/src/terminal/render_terminal_viewport.dart`
-- `packages/flutterm_terminal/lib/src/terminal/terminal_models.dart`
-- `packages/flutterm_terminal/test/`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart`
+- `packages/ianvs_terminal/lib/src/terminal/render_terminal_viewport.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_models.dart`
+- `packages/ianvs_terminal/test/`
 
 ## Candidate API
 
@@ -83,7 +83,7 @@
 参考 [TESTING.md](../../TESTING.md)。后续实现这份设计时，验证至少包括：
 
 ```bash
-cd packages/flutterm_terminal
+cd packages/ianvs_terminal
 flutter test
 ```
 
@@ -106,7 +106,7 @@ flutter test
 
 - 任务文档已经给出可实现的 candidate API 和固定约束。
 - 后续 renderer 实现不需要再决定 absolute row 语义、绘制顺序或 cache 失效边界。
-- 文档明确禁止把 Ianvs Terminal 的具体 UI 直接写成 flutterm 公共 API。
+- 文档明确禁止把 Ianvs Terminal 的具体 UI 直接写成 ianvs terminal 公共 API。
 - 设计验收项已经足够具体，后续实现者不需要补问接口和测试标准。
 
 ## Risks / Follow-ups

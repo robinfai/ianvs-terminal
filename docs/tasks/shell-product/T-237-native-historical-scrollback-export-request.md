@@ -30,7 +30,7 @@ Expose native historical scrollback text through the PTY JSON request channel so
 ## Deliverables
 
 - `native/core/src/session.rs`
-- `packages/flutterm_terminal/lib/src/runtime/terminal_runtime_controller.dart`
+- `packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart`
 - `example/lib/features/shell/shell_screen.dart`
 
 ## Acceptance criteria

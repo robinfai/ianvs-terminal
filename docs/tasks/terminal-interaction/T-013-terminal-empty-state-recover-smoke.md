@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
   - 增加一条“empty-state 下点击 `New Tab` 可恢复 terminal tab”的 UI 冒烟检查。
 - `docs/tasks/terminal-interaction/T-013-terminal-empty-state-recover-smoke.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -22,7 +22,7 @@
 
 ## Files In Scope
 
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
 - `docs/tasks/terminal-interaction/T-013-terminal-empty-state-recover-smoke.md`
 
 ## Functional Acceptance
@@ -42,7 +42,7 @@
 cd example
 flutter analyze
 flutter test
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA

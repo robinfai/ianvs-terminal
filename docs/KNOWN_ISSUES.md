@@ -1,4 +1,4 @@
-# flutterm Known Issues
+# ianvs terminal Known Issues
 
 这份文档只记录当前已接受的限制、缺口和临时取舍。
 
@@ -32,7 +32,7 @@
 
 ## 当前环境相关风险
 
-- `flutter test -d macos integration_test/flutterm_smoke_test.dart` 当前可以通过，但运行时仍会打印 `Failed to foreground app; open returned 1`。这说明 smoke 已覆盖基本启动链路，但 foreground 行为仍不够干净。
+- `flutter test -d macos integration_test/ianvs_smoke_test.dart` 当前可以通过，但运行时仍会打印 `Failed to foreground app; open returned 1`。这说明 smoke 已覆盖基本启动链路，但 foreground 行为仍不够干净。
 - 默认 verification helper 现在用 `flutter test -d macos ...` 运行 integration smoke，避免当前 host 卡在 Flutter device discovery 的 Android `adb devices` 路径；手工 ad-hoc 跑 integration smoke 时仍不要省略 `-d macos`。这属于本机验证环境风险，不是 terminal 产品回归。
 - `osascript -e 'tell application "System Events" to get UI elements enabled'` 仍返回 `false`。当前这不再阻止 `T-059` 的人工矩阵结论成立，但它仍是本地 GUI 自动化和辅助访问验证的环境风险。
 

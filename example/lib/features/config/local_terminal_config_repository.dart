@@ -42,7 +42,7 @@ class LocalTerminalConfigRepository {
 
   Future<File> _configFile() async {
     final directory = await _directoryResolver();
-    return File('${directory.path}/flutterm_config.json');
+    return File('${directory.path}/ianvs_config.json');
   }
 
   Future<void> _quarantineCorruptFile(File file) async {

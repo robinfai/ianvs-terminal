@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutterm_terminal/flutterm_terminal.dart';
-import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 class FakePtyBackend
     implements PtySessionBackend, PtySessionJsonRequestBackend {
@@ -66,7 +66,7 @@ class FakePtyBackend
       'rows': <Object?>[
         <String, Object?>{
           'index': 0,
-          'text': 'flutterm ready',
+          'text': 'ianvs terminal ready',
           'style_runs': <Object?>[
             <String, Object?>{
               'start': 0,

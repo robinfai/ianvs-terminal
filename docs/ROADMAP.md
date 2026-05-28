@@ -1,4 +1,4 @@
-# flutterm Roadmap
+# ianvs terminal Roadmap
 
 这份文档定义当前执行顺序和长期方向。具体实现、验收记录和历史结果必须落到
 `docs/tasks/`；路线图只负责说明先后关系、进入条件和完成条件。

@@ -8,7 +8,7 @@ void main() {
   group('Local workspace repository', () {
     test('returns null when layout file is absent', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-workspace-missing',
+        'ianvs terminal-workspace-missing',
       );
       final repository = LocalWorkspaceRepository(
         directoryResolver: () async => directory,
@@ -19,7 +19,7 @@ void main() {
 
     test('persists local-only workspace layout', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-workspace-roundtrip',
+        'ianvs terminal-workspace-roundtrip',
       );
       final repository = LocalWorkspaceRepository(
         directoryResolver: () async => directory,
@@ -50,9 +50,9 @@ void main() {
       'quarantines corrupt layout and writes repaired empty layout',
       () async {
         final directory = await Directory.systemTemp.createTemp(
-          'flutterm-workspace-corrupt',
+          'ianvs terminal-workspace-corrupt',
         );
-        final file = File('${directory.path}/flutterm_workspace_layout.json');
+        final file = File('${directory.path}/ianvs_workspace_layout.json');
         await file.writeAsString('{bad json');
         final repository = LocalWorkspaceRepository(
           directoryResolver: () async => directory,
@@ -65,7 +65,7 @@ void main() {
         expect(
           directory.listSync().any(
             (entry) =>
-                entry.path.contains('flutterm_workspace_layout.json.corrupt'),
+                entry.path.contains('ianvs_workspace_layout.json.corrupt'),
           ),
           isTrue,
         );

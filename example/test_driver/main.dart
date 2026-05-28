@@ -9,7 +9,7 @@ void main() {
     handler: shellAcceptanceProbe.handleDriverRequest,
     commands: [UnsyncedTapCommandExtension()],
   );
-  runFluttermApp(
+  runIanvsTerminalApp(
     enableSessionPolling: false,
     enableDriverWarmUpRefresh: true,
     enableShellAnimations: false,

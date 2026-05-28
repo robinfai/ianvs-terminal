@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:integration_test/integration_test.dart';
 
 import 'package:app/app.dart';
@@ -415,7 +415,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   addTearDown(container.dispose);
 
   await tester.pumpWidget(
-    UncontrolledProviderScope(container: container, child: const FluttermApp()),
+    UncontrolledProviderScope(container: container, child: const IanvsTerminalApp()),
   );
   await _waitForActiveSession(tester, container);
   await _focusTerminal(tester);
@@ -471,7 +471,7 @@ String _printfShellHook(Map<String, Object?> payload) {
 }
 
 File _tempSignalFile(String name) {
-  final directory = Directory.systemTemp.createTempSync('flutterm-$name-');
+  final directory = Directory.systemTemp.createTempSync('ianvs terminal-$name-');
   addTearDown(() {
     if (directory.existsSync()) {
       directory.deleteSync(recursive: true);

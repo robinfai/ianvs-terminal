@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';

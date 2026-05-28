@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import 'package:app/features/shell/instant_replay_store.dart';
 

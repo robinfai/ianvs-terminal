@@ -8,7 +8,7 @@ void main() {
   group('Local terminal scrollback exporter', () {
     test('writes plain text export', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-scrollback-export',
+        'ianvs terminal-scrollback-export',
       );
 
       final file = await LocalTerminalScrollbackExporter.write(
@@ -27,7 +27,7 @@ void main() {
 
     test('writes json export with metadata', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-scrollback-json',
+        'ianvs terminal-scrollback-json',
       );
 
       final file = await LocalTerminalScrollbackExporter.write(
@@ -49,7 +49,7 @@ void main() {
 
     test('rejects disabled export policy', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-scrollback-disabled',
+        'ianvs terminal-scrollback-disabled',
       );
 
       expect(

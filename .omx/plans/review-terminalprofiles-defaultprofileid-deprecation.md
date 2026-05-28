@@ -14,7 +14,7 @@ This round produces only the formal review artifact. It does not create a narrow
   - `_bootstrap()` still reads the legacy field when preferences are absent and `allowLegacyFallback` is true
   - `setDefaultProfile()` and `resetDefaultProfile()` write only preferences
   - `saveProfile()` and `deleteProfile()` no longer write the legacy field back into `TerminalProfilesDocument`
-- `ProfileRepository` still tolerant-reads the legacy field from `flutterm_profiles.json`, but steady-state writes no longer emit it.
+- `ProfileRepository` still tolerant-reads the legacy field from `ianvs_profiles.json`, but steady-state writes no longer emit it.
 - Shell defaults UI no longer presents fallback as a primary compatibility-window path; the remaining legacy behavior is now runtime/bootstrap-only.
 
 ## Legacy Read-Path Inventory
@@ -164,9 +164,9 @@ That kickoff should create exactly one focused removal task whose target is:
 
 Minimum verification chain for that future removal task should include:
 
-- `cd /Users/robinfai/personal/flutterm/app`
+- `cd /Users/robinfai/personal/ianvs_terminal/app`
 - `flutter analyze`
 - `flutter test test/sessions/session_controller_phase3_test.dart`
 - `flutter test test/sessions/session_controller_test.dart`
 - `flutter test test/profiles/profile_repository_test.dart`
-- `flutter test integration_test/flutterm_smoke_test.dart`
+- `flutter test integration_test/ianvs_smoke_test.dart`

@@ -22,7 +22,7 @@
 ## Current Progress
 
 - 已新增 `LocalWorkspaceRepository`。
-- layout 文件路径为 `flutterm_workspace_layout.json`。
+- layout 文件路径为 `ianvs_workspace_layout.json`。
 - 缺失 layout 文件时返回 `null`。
 - corrupt layout 会 quarantine 并写入 empty repaired layout。
 - 已补充 missing、roundtrip、corrupt repair 测试。

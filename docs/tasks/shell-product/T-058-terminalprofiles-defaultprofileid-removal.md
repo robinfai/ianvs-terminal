@@ -50,7 +50,7 @@ flutter analyze
 flutter test test/sessions/session_controller_phase3_test.dart
 flutter test test/sessions/session_controller_test.dart
 flutter test test/profiles/profile_repository_test.dart
-flutter test -d macos integration_test/flutterm_smoke_test.dart
+flutter test -d macos integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA
@@ -72,7 +72,7 @@ flutter test -d macos integration_test/flutterm_smoke_test.dart
   - `flutter test test/sessions/session_controller_phase3_test.dart`
   - `flutter test test/sessions/session_controller_test.dart`
   - `flutter test test/profiles/profile_repository_test.dart`
-  - `flutter test -d macos integration_test/flutterm_smoke_test.dart`
+  - `flutter test -d macos integration_test/ianvs_smoke_test.dart`
 - 环境说明：
   - 当前 host 上不带 `-d macos` 的 integration smoke 可能卡在 Flutter device discovery，因为 Android `adb devices` 路径异常。
   - 这属于验证环境问题，不是 `T-058` 产品回归。

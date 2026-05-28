@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
   - 增加一条“关闭最后一个 tab 后返回 empty-state prompt”的 UI 冒烟检查。
 - `docs/tasks/terminal-interaction/T-012-terminal-last-tab-empty-state-smoke.md`
   - 记录本次任务范围、验收、验证与风险。
@@ -22,7 +22,7 @@
 
 ## Files In Scope
 
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
 - `docs/tasks/terminal-interaction/T-012-terminal-last-tab-empty-state-smoke.md`
 
 ## Functional Acceptance
@@ -41,7 +41,7 @@
 cd example
 flutter analyze
 flutter test
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA

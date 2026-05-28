@@ -99,53 +99,53 @@ abstract class PtyBindings {
 
 class NativePtyBindings implements PtyBindings {
   NativePtyBindings(ffi.DynamicLibrary library)
-    : _ping = library.lookupFunction<_PingNative, _PingDart>('flutterm_ping'),
+    : _ping = library.lookupFunction<_PingNative, _PingDart>('ianvs_ping'),
       _createSession = library
           .lookupFunction<_CreateSessionNative, _CreateSessionDart>(
-            'flutterm_session_create',
+            'ianvs_session_create',
           ),
       _closeSession = library
           .lookupFunction<_CloseSessionNative, _CloseSessionDart>(
-            'flutterm_session_close',
+            'ianvs_session_close',
           ),
       _resizeSession = library
           .lookupFunction<_ResizeSessionNative, _ResizeSessionDart>(
-            'flutterm_session_resize',
+            'ianvs_session_resize',
           ),
       _writeSession = library
           .lookupFunction<_WriteSessionNative, _WriteSessionDart>(
-            'flutterm_session_write',
+            'ianvs_session_write',
           ),
       _scrollSession = library
           .lookupFunction<_ScrollSessionNative, _ScrollSessionDart>(
-            'flutterm_session_scroll',
+            'ianvs_session_scroll',
           ),
       _scrollToSession = library
           .lookupFunction<_ScrollToSessionNative, _ScrollToSessionDart>(
-            'flutterm_session_scroll_to',
+            'ianvs_session_scroll_to',
           ),
       _requestSessionJson = _lookupOptionalRequestSession(
         library,
-        'flutterm_session_request_json',
+        'ianvs_session_request_json',
       ),
       _takeFrameDiffJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
-            'flutterm_session_take_frame_diff_json',
+            'ianvs_session_take_frame_diff_json',
           ),
       _takeFrameDebugStatsJson = _lookupOptionalStringReturning(
         library,
-        'flutterm_session_take_frame_debug_stats_json',
+        'ianvs_session_take_frame_debug_stats_json',
       ),
       _takeSessionDebugStatsJson = _lookupOptionalStringReturning(
         library,
-        'flutterm_session_take_session_debug_stats_json',
+        'ianvs_session_take_session_debug_stats_json',
       ),
       _pollEventsJson = library
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
-            'flutterm_session_poll_events_json',
+            'ianvs_session_poll_events_json',
           ),
       _stringFree = library.lookupFunction<_FreeStringNative, _FreeStringDart>(
-        'flutterm_string_free',
+        'ianvs_string_free',
       );
 
   final _PingDart _ping;
@@ -396,16 +396,16 @@ class NativePtyBackend
 }
 
 String _resolveLibraryPath() {
-  final explicit = Platform.environment['FLUTTERM_CORE_LIB'];
+  final explicit = Platform.environment['IANVS_CORE_LIB'];
   if (explicit != null && File(explicit).existsSync()) {
     return explicit;
   }
 
   final candidates = <String>[
-    '${executableDirectory.path}/../Frameworks/libflutterm_core.dylib',
-    '${executableDirectory.path}/../Resources/libflutterm_core.dylib',
-    '../native/core/target/debug/libflutterm_core.dylib',
-    '../../native/core/target/debug/libflutterm_core.dylib',
+    '${executableDirectory.path}/../Frameworks/libianvs_core.dylib',
+    '${executableDirectory.path}/../Resources/libianvs_core.dylib',
+    '../native/core/target/debug/libianvs_core.dylib',
+    '../../native/core/target/debug/libianvs_core.dylib',
   ];
 
   for (final candidate in candidates) {
@@ -418,7 +418,7 @@ String _resolveLibraryPath() {
   var directory = executableDirectory;
   for (var index = 0; index < 10; index += 1) {
     final candidate = File(
-      '${directory.path}/../../../../../../../../native/core/target/debug/libflutterm_core.dylib',
+      '${directory.path}/../../../../../../../../native/core/target/debug/libianvs_core.dylib',
     );
     if (candidate.existsSync()) {
       return candidate.absolute.path;
@@ -427,7 +427,7 @@ String _resolveLibraryPath() {
   }
 
   throw StateError(
-    'Unable to locate libflutterm_core.dylib. Set FLUTTERM_CORE_LIB to an absolute path.',
+    'Unable to locate libianvs_core.dylib. Set IANVS_CORE_LIB to an absolute path.',
   );
 }
 

@@ -1495,7 +1495,7 @@ fn executable_basename(value: &str) -> Option<String> {
 
 fn diagnostic_hash(value: &str) -> String {
     let mut hasher = DefaultHasher::new();
-    "flutterm-terminal-diagnostics-v1".hash(&mut hasher);
+    "ianvs terminal-terminal-diagnostics-v1".hash(&mut hasher);
     value.hash(&mut hasher);
     format!("{:016x}", hasher.finish())
 }
@@ -3262,7 +3262,7 @@ mod tests {
         match &events[0] {
             CallbackEvent::ShellHook { payload } => {
                 assert_eq!(payload["hook"].as_str(), Some("precmd"));
-                assert_eq!(payload["pwd"].as_str(), Some("/tmp/flutterm"));
+                assert_eq!(payload["pwd"].as_str(), Some("/tmp/ianvs terminal"));
             }
             event => panic!("expected shell hook event, got {event:?}"),
         }
@@ -3333,7 +3333,7 @@ mod tests {
         let payload = serde_json::json!({
             "hook": "command_finished",
             "command": "/usr/bin/git status --short",
-            "pwd": "/Users/alice/project/flutterm",
+            "pwd": "/Users/alice/project/ianvs terminal",
             "username": "alice",
             "hostname": "alice-mac.local",
             "exit_code": 0,

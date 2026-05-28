@@ -22,10 +22,10 @@
 ## Current Progress
 
 - 已新增 `LocalTerminalThemeRepository`。
-- theme list 文件路径为 `flutterm_themes.json`。
+- theme list 文件路径为 `ianvs_themes.json`。
 - 缺失 theme 文件时返回空列表。
 - corrupt theme list 会 quarantine 并写入空列表。
-- 已新增单个 preset export 到 `<id>.flutterm-theme.json`。
+- 已新增单个 preset export 到 `<id>.ianvs terminal-theme.json`。
 - 已补充 missing、roundtrip、export、corrupt repair 测试。
 
 ## Functional Acceptance

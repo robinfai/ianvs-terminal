@@ -34,7 +34,7 @@ cd <repo-root>
 ./tools/check_terminal_manual_matrix_prereqs.sh
 
 cd example
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 flutter run -d macos
 ```
 
@@ -61,7 +61,7 @@ flutter run -d macos
 在标准交互式 macOS 开发机上执行时，结果记录固定使用以下格式：
 
 - `command -v vttest`: `pass` / `fail` / `blocked`
-- `integration_test/flutterm_smoke_test.dart`: `pass` / `fail` / `blocked`
+- `integration_test/ianvs_smoke_test.dart`: `pass` / `fail` / `blocked`
 - `flutter run -d macos`: `pass` / `fail` / `blocked`
   - 绝对日期
   - 是否附着 Dart VM Service
@@ -92,7 +92,7 @@ flutter run -d macos
 
 `2026-04-22` 当前机器状态：`blocked`
 
-- `zsh -lic 'type flutterm_no_proxy'` 当前返回 `flutterm_no_proxy not found`，所以这轮改用显式 no-proxy 环境变量取证
+- `zsh -lic 'type ianvs_no_proxy'` 当前返回 `ianvs_no_proxy not found`，所以这轮改用显式 no-proxy 环境变量取证
 - `command -v vttest` 当前返回 `/opt/homebrew/bin/vttest`，VT220 工具准备已满足
 - 显式 no-proxy 的 `./tools/check_terminal_manual_matrix_prereqs.sh` 已在 `2026-04-22 11:11 CST` 复跑：
   - host: `BINGHUILUO-MC6`
@@ -101,7 +101,7 @@ flutter run -d macos
   - `HEAD`: `758b5c4e57555a7176fe66cbdc7d818cda3ab901`
   - `flutter doctor -v`: `pass`
   - `flutter devices`: `pass`
-  - `integration_test/flutterm_smoke_test.dart`: `pass`
+  - `integration_test/ianvs_smoke_test.dart`: `pass`
   - `flutter run -d macos`: `blocked`
     - 仍打印 `Failed to foreground app; open returned 1`
     - 但已能观测到 Dart VM Service、app process 和 app bundle

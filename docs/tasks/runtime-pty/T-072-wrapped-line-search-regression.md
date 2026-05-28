@@ -20,7 +20,7 @@ Add a native/runtime search regression for matches that span wrapped terminal ro
 
 - `native/core/src/session.rs`
 - `native/core/tests/session_test.rs`
-- `packages/flutterm_terminal/test/terminal_runtime_controller_test.dart`
+- `packages/ianvs_terminal/test/terminal_runtime_controller_test.dart`
 - `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md`
 
 ## Probe Evidence

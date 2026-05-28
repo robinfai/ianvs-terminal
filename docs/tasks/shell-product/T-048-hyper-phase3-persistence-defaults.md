@@ -38,7 +38,7 @@ flutter analyze
 flutter test test/preferences/app_preferences_repository_test.dart
 flutter test test/sessions/session_controller_test.dart
 flutter test
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA

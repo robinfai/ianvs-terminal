@@ -6,8 +6,8 @@ import 'features/sessions/session_controller.dart';
 import 'features/shell/shell_screen.dart';
 import 'ui/app_ui.dart';
 
-class FluttermApp extends ConsumerWidget {
-  const FluttermApp({super.key});
+class IanvsTerminalApp extends ConsumerWidget {
+  const IanvsTerminalApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,11 +20,11 @@ class FluttermApp extends ConsumerWidget {
     };
 
     return MaterialApp(
-      title: 'flutterm',
+      title: 'Ianvs Terminal',
       debugShowCheckedModeBanner: false,
       themeMode: themeMode,
-      theme: buildFluttermTheme(Brightness.light),
-      darkTheme: buildFluttermTheme(Brightness.dark),
+      theme: buildIanvsTerminalTheme(Brightness.light),
+      darkTheme: buildIanvsTerminalTheme(Brightness.dark),
       home: const ShellScreen(),
     );
   }

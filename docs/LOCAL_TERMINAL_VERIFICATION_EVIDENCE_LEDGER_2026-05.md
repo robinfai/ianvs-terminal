@@ -37,7 +37,7 @@ attempted.
 | `staticAnalysis` | Yes | `flutter analyze` | passed | Latest `bash tools/local_terminal_verification_capture.sh run static-analysis` passed in `build/local-terminal-verification/20260516T171224Z-static-analysis`: exit 0; `No issues found!`. |
 | `unitTests` | Yes | Focused completion, P1, P2-P5, verification evidence, and broader unit test commands from `LOCAL_TERMINAL_TEST_TARGETS_2026-05.md` | passed | Focused suites passed in `20260516T145142Z-all-automated`: completion 45/45, P1 33/33, cross-milestone 8/8, P2 21/21, P3 26/26, P4 22/22, P5 33/33, verification-evidence 10/10. Verification evidence reran and passed 13/13 in `build/local-terminal-verification/20260516T171327Z-verification-evidence`. Latest broader `bash tools/local_terminal_verification_capture.sh run broader` passed in `build/local-terminal-verification/20260516T171406Z-broader`: 601 passing tests plus 1 skipped test; `All tests passed!`. |
 | `widgetTests` | Yes | Shell diagnostics/widget tests including completion diagnostics panel and command-menu diagnostics | passed | Latest broader widget coverage passed in `build/local-terminal-verification/20260516T171406Z-broader`: 601 passing tests plus 1 skipped test; `All tests passed!`. Focused `flutter test example/test/shell/shell_screen_phase4_test.dart` also passed 9/9 after adding paste-confirmation, zoom/unzoom, and hotkey-failure regressions. |
-| `integrationTests` | Yes | `bash tools/local_terminal_verification_capture.sh run integration` | passed | Latest `build/local-terminal-verification/20260516T171644Z-integration`: exit 0. The batch built debug `native/core`, ran `flutterm_smoke_test.dart` from `example` with 4/4 passing tests, then ran `real_pty_acceptance_test.dart` with 7/7 passing tests. |
+| `integrationTests` | Yes | `bash tools/local_terminal_verification_capture.sh run integration` | passed | Latest `build/local-terminal-verification/20260516T171644Z-integration`: exit 0. The batch built debug `native/core`, ran `ianvs_smoke_test.dart` from `example` with 4/4 passing tests, then ran `real_pty_acceptance_test.dart` with 7/7 passing tests. |
 
 ## Manual Gate Ledger
 
@@ -81,7 +81,7 @@ Fill these fields when a command is run:
 | --- | --- |
 | Command | `bash tools/local_terminal_verification_capture.sh run all-automated` |
 | Underlying command | `bash tools/local_terminal_verification_batches.sh run all-automated` |
-| Working directory | `/Users/luobinghui/projects/flutter/flutterm` |
+| Working directory | `/Users/luobinghui/projects/flutter/ianvs terminal` |
 | Date/time | Started `20260516T145142Z`; finished `20260516T150417Z` |
 | Exit status | `1` |
 | Output log | `build/local-terminal-verification/20260516T145142Z-all-automated/output.log` |
@@ -94,7 +94,7 @@ Fill these fields when a command is run:
 | --- | --- |
 | Command | `bash tools/local_terminal_verification_capture.sh run static-analysis` |
 | Underlying command | `bash tools/local_terminal_verification_batches.sh run static-analysis` |
-| Working directory | `/Users/luobinghui/projects/flutter/flutterm` |
+| Working directory | `/Users/luobinghui/projects/flutter/ianvs terminal` |
 | Date/time | Started `20260516T165454Z`; finished `20260516T165539Z` |
 | Exit status | `0` |
 | Output log | `build/local-terminal-verification/20260516T171224Z-static-analysis/output.log` |
@@ -107,7 +107,7 @@ Fill these fields when a command is run:
 | --- | --- |
 | Command | `bash tools/local_terminal_verification_capture.sh run broader` |
 | Underlying command | `bash tools/local_terminal_verification_batches.sh run broader` |
-| Working directory | `/Users/luobinghui/projects/flutter/flutterm` |
+| Working directory | `/Users/luobinghui/projects/flutter/ianvs terminal` |
 | Date/time | Started `20260516T165555Z`; finished `20260516T165704Z` |
 | Exit status | `0` |
 | Output log | `build/local-terminal-verification/20260516T171406Z-broader/output.log` |
@@ -120,7 +120,7 @@ Fill these fields when a command is run:
 | --- | --- |
 | Command | `bash tools/local_terminal_verification_capture.sh run verification-evidence` |
 | Underlying command | `bash tools/local_terminal_verification_batches.sh run verification-evidence` |
-| Working directory | `/Users/luobinghui/projects/flutter/flutterm` |
+| Working directory | `/Users/luobinghui/projects/flutter/ianvs terminal` |
 | Date/time | Started `20260516T155946Z`; finished `20260516T160023Z` |
 | Exit status | `0` |
 | Output log | `build/local-terminal-verification/20260516T171327Z-verification-evidence/output.log` |
@@ -132,12 +132,12 @@ Fill these fields when a command is run:
 | Field | Value |
 | --- | --- |
 | Command | `bash tools/local_terminal_verification_capture.sh run integration` |
-| Underlying command | `PROFILE=debug tools/build_core.sh`; then from `example`, `FLUTTERM_CORE_LIB=../native/core/target/debug/libflutterm_core.dylib flutter test -d macos integration_test/flutterm_smoke_test.dart`; then the same command shape for `integration_test/real_pty_acceptance_test.dart` |
-| Working directory | `/Users/luobinghui/projects/flutter/flutterm` |
+| Underlying command | `PROFILE=debug tools/build_core.sh`; then from `example`, `IANVS_CORE_LIB=../native/core/target/debug/libianvs_core.dylib flutter test -d macos integration_test/ianvs_smoke_test.dart`; then the same command shape for `integration_test/real_pty_acceptance_test.dart` |
+| Working directory | `/Users/luobinghui/projects/flutter/ianvs terminal` |
 | Date/time | Started `20260516T165717Z`; finished `20260516T165935Z` |
 | Exit status | `0` |
 | Output log | `build/local-terminal-verification/20260516T171644Z-integration/output.log` |
-| Output summary | Built `native/core` debug dylib, built the macOS app, passed `flutterm_smoke_test.dart` 4/4, and passed `real_pty_acceptance_test.dart` 7/7. |
+| Output summary | Built `native/core` debug dylib, built the macOS app, passed `ianvs_smoke_test.dart` 4/4, and passed `real_pty_acceptance_test.dart` 7/7. |
 | Failing tests or issues | None in this rerun. |
 | Follow-up task, if needed | Conversion into `LocalTerminalVerificationGateRecord` values is represented by `LocalTerminalVerificationPlanRecords.latestPassed()`; completion-report closure is covered by `LocalTerminalCurrentCompletionState.verified`. |
 | Verification gate status | passed |

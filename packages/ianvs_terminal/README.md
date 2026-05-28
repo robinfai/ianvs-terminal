@@ -1,6 +1,6 @@
-# flutterm_terminal
+# ianvs_terminal
 
-`flutterm_terminal` 建在 `flutterm_pty` 之上，负责共享 terminal 运行时和 viewport 适配。
+`ianvs_terminal` 建在 `ianvs_pty` 之上，负责共享 terminal 运行时和 viewport 适配。
 
 ## 对上层暴露
 
@@ -46,6 +46,6 @@ first simple command for complex pipelines or compound commands.
 ## 测试
 
 ```bash
-cd packages/flutterm_terminal
+cd packages/ianvs_terminal
 flutter test
 ```

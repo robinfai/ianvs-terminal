@@ -423,7 +423,7 @@ TerminalProfile defaultTerminalProfile() {
     id: 'default',
     name: 'Local Shell',
     shell: const String.fromEnvironment(
-      'FLUTTERM_DEFAULT_SHELL',
+      'IANVS_DEFAULT_SHELL',
       defaultValue: '/bin/zsh',
     ),
     args: const ['-l'],
@@ -435,7 +435,7 @@ TerminalProfile vt220TerminalProfile() {
     id: 'vt220',
     name: 'Strict VT220',
     shell: const String.fromEnvironment(
-      'FLUTTERM_DEFAULT_SHELL',
+      'IANVS_DEFAULT_SHELL',
       defaultValue: '/bin/zsh',
     ),
     args: const ['-l'],

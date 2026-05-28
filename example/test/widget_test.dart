@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -112,8 +112,8 @@ Future<void> _pumpShellScreen(
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
       ],
       child: MaterialApp(
-        theme: buildFluttermTheme(Brightness.light),
-        darkTheme: buildFluttermTheme(Brightness.dark),
+        theme: buildIanvsTerminalTheme(Brightness.light),
+        darkTheme: buildIanvsTerminalTheme(Brightness.dark),
         home: const ShellScreen(),
       ),
     ),
@@ -1560,7 +1560,7 @@ void main() {
     await tester.tap(find.text('Copy selection'));
     await tester.pumpAndSettle();
 
-    expect(copiedText, 'flutterm ready');
+    expect(copiedText, 'ianvs terminal ready');
     expect(fakeBindings.writes, isEmpty);
 
     await _openCommandMenu(tester);
@@ -1569,7 +1569,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
-    expect(find.text('flutterm ready'), findsOneWidget);
+    expect(find.text('ianvs terminal ready'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -1600,7 +1600,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('annotations-sheet')), findsOneWidget);
-    expect(find.text('flutterm ready'), findsOneWidget);
+    expect(find.text('ianvs terminal ready'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('annotation-note-field')),
@@ -2278,7 +2278,7 @@ void main() {
     expect(notifications, hasLength(1));
     expect(notifications.single['title'], startsWith('Activity in '));
     expect(notifications.single['body'], 'background build done');
-    expect(notifications.single['identifier'], 'flutterm.activity.1');
+    expect(notifications.single['identifier'], 'ianvs-terminal.activity.1');
   });
 
   testWidgets(
@@ -2353,7 +2353,7 @@ void main() {
 
       expect(
         find.text(
-          'macOS notifications are blocked for Flutterm. Enable them in System Settings > Notifications.',
+          'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
         ),
         findsOneWidget,
       );
@@ -2374,7 +2374,7 @@ void main() {
 
       expect(
         find.text(
-          'macOS notifications are blocked for Flutterm. Enable them in System Settings > Notifications.',
+          'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
         ),
         findsOneWidget,
       );
@@ -2493,7 +2493,7 @@ void main() {
       expect(notifications, hasLength(1));
       expect(notifications.single['title'], startsWith('Activity in '));
       expect(notifications.single['body'], 'background build done');
-      expect(notifications.single['identifier'], 'flutterm.activity.1');
+      expect(notifications.single['identifier'], 'ianvs-terminal.activity.1');
     },
   );
 
@@ -3200,7 +3200,7 @@ void main() {
           payload: const <String, Object?>{
             'hook': 'command_finished',
             'command': 'git status',
-            'pwd': '/Users/luobinghui/projects/flutter/flutterm/example',
+            'pwd': '/Users/luobinghui/projects/flutter/ianvs terminal/example',
             'shell': 'zsh',
             'host': 'workstation.local',
             'user': 'dev',
@@ -4034,7 +4034,7 @@ void main() {
 
     fakeBindings.setFrame(1, {
       'rows': [
-        {'index': 0, 'text': 'flutterm ready', 'style_runs': const []},
+        {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
       ],
       'cursor': {'row': 0, 'col': 4, 'visible': true},
       'selection': null,

@@ -40,11 +40,11 @@
   - shell-hook event propagation
   - Flutter packaging / runnable app evidence
 - Linux 的 artifact export proof 至少接受以下任一证据：
-  - `nm -D native/core/target/debug/libflutterm_core.so`
-  - `llvm-nm --defined-only native/core/target/debug/libflutterm_core.so`
+  - `nm -D native/core/target/debug/libianvs_core.so`
+  - `llvm-nm --defined-only native/core/target/debug/libianvs_core.so`
 - Windows 的 artifact export proof 至少接受以下任一证据：
-  - `dumpbin /exports native/core/target/debug/flutterm_core.dll`
-  - `llvm-nm --defined-only native/core/target/debug/flutterm_core.dll`
+  - `dumpbin /exports native/core/target/debug/ianvs_core.dll`
+  - `llvm-nm --defined-only native/core/target/debug/ianvs_core.dll`
 - `blocked` 固定只用于 host、toolchain、Flutter target、桌面交互权限或
   shell 前置条件未满足。
 - `fail` 固定只用于证据已经跑起来，但 PTY / runtime / packaging 行为错误。
@@ -63,12 +63,12 @@ cargo test
 ```
 
 ```bash
-cd packages/flutterm_pty
+cd packages/ianvs_pty
 dart test
 ```
 
 ```bash
-cd packages/flutterm_terminal
+cd packages/ianvs_terminal
 flutter test
 ```
 
@@ -81,7 +81,7 @@ flutter run -d linux
 ```
 
 ```bash
-nm -D native/core/target/debug/libflutterm_core.so | rg "flutterm_session_search_json|flutterm_session_selection_text"
+nm -D native/core/target/debug/libianvs_core.so | rg "ianvs_session_search_json|ianvs_session_selection_text"
 ```
 
 Windows target-host evidence:
@@ -93,7 +93,7 @@ flutter run -d windows
 ```
 
 ```bash
-dumpbin /exports native/core/target/debug/flutterm_core.dll
+dumpbin /exports native/core/target/debug/ianvs_core.dll
 ```
 
 ## Manual QA

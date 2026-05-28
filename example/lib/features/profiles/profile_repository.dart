@@ -50,7 +50,7 @@ class ProfileRepository {
 
   Future<File> _profilesFile() async {
     final directory = await _directoryResolver();
-    return File('${directory.path}/flutterm_profiles.json');
+    return File('${directory.path}/ianvs_profiles.json');
   }
 
   TerminalProfilesDocument _documentForInvalidLoad({

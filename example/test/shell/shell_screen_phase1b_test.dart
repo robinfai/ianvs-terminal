@@ -39,8 +39,8 @@ Future<void> pumpShellScreen(
         ),
       ],
       child: MaterialApp(
-        theme: buildFluttermTheme(Brightness.light),
-        darkTheme: buildFluttermTheme(Brightness.dark),
+        theme: buildIanvsTerminalTheme(Brightness.light),
+        darkTheme: buildIanvsTerminalTheme(Brightness.dark),
         home: const ShellScreen(),
       ),
     ),

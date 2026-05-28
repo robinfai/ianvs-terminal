@@ -2,7 +2,7 @@
 
 ## Goal
 
-Decide and, if accepted, add flutterm support for kitty keyboard protocol reporting without regressing existing xterm-style key handling.
+Decide and, if accepted, add ianvs terminal support for kitty keyboard protocol reporting without regressing existing xterm-style key handling.
 
 ## Scope
 
@@ -19,8 +19,8 @@ Decide and, if accepted, add flutterm support for kitty keyboard protocol report
 
 ## Files In Scope
 
-- `packages/flutterm_terminal/lib/src/terminal/terminal_input_controller.dart`
-- `packages/flutterm_terminal/test/terminal_input_controller_test.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_input_controller.dart`
+- `packages/ianvs_terminal/test/terminal_input_controller_test.dart`
 - `example/test/terminal_input_controller_test.dart`
 - `native/core/src/model.rs`
 - `native/core/src/session.rs`
@@ -29,13 +29,13 @@ Decide and, if accepted, add flutterm support for kitty keyboard protocol report
 
 ## Probe Evidence
 
-- `rg -n "kitty|CSI u|disambiguate" packages/flutterm_terminal/lib native/core/src example/test packages/flutterm_terminal/test` finds no flutterm kitty keyboard protocol mode or `CSI u` input path.
-- `cd packages/flutterm_terminal && flutter test test/terminal_input_controller_test.dart --plain-name "Control letters"` passes local Control A-Z C0-byte mapping, including Ctrl-C, but it does not exercise kitty mode.
+- `rg -n "kitty|CSI u|disambiguate" packages/ianvs_terminal/lib native/core/src example/test packages/ianvs_terminal/test` finds no ianvs terminal kitty keyboard protocol mode or `CSI u` input path.
+- `cd packages/ianvs_terminal && flutter test test/terminal_input_controller_test.dart --plain-name "Control letters"` passes local Control A-Z C0-byte mapping, including Ctrl-C, but it does not exercise kitty mode.
 - Kitty protocol support remains a product-scope decision queued in [../../XTERM_MANUAL_CONFIRMATION_QUEUE.md](../../XTERM_MANUAL_CONFIRMATION_QUEUE.md) item M-010 before any implementation.
 
 ## Functional Acceptance
 
-- A scope note states whether kitty keyboard protocol is in flutterm's supported terminal surface.
+- A scope note states whether kitty keyboard protocol is in ianvs terminal's supported terminal surface.
 - If in scope, parser tests cover enabling/disabling the relevant kitty keyboard flags.
 - If in scope, input tests cover space, enter, tab, backspace, modifier-only events, and Ctrl-C under kitty mode.
 - If out of scope, the audit rows are marked `Deferred` with an explicit rationale.

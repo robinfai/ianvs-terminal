@@ -1,4 +1,4 @@
-name: flutterm_terminal
+name: ianvs_terminal
 publish_to: none
 
 environment:
@@ -9,8 +9,8 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  flutterm_pty:
-    path: ../flutterm_pty
+  ianvs_pty:
+    path: ../ianvs_pty
 
 dev_dependencies:
   flutter_test:

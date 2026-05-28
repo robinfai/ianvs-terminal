@@ -20,9 +20,9 @@
 
 ## Files In Scope
 
-- `packages/flutterm_terminal/lib/src/terminal/terminal_viewport.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart`
 - `example/test/terminal/render_terminal_viewport_test.dart`
-- 必要时 `packages/flutterm_terminal/test/terminal_api_test.dart`
+- 必要时 `packages/ianvs_terminal/test/terminal_api_test.dart`
 - `docs/tasks/terminal-interaction/T-068-trackpad-momentum-and-return-to-bottom-scrollback-behavior.md`
 
 ## Functional Acceptance

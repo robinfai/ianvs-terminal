@@ -2669,12 +2669,12 @@ void main() {
               ),
               TerminalRow(
                 index: 4,
-                text: '│ directory: ~/personal/flutterm              │',
+                text: '│ directory: ~/personal/ianvs terminal              │',
                 styleRuns: [
                   TerminalStyleRun(start: 0, end: 47, dim: true),
                   TerminalStyleRun(
                     start: '│ directory: '.length,
-                    end: '│ directory: ~/personal/flutterm'.length,
+                    end: '│ directory: ~/personal/ianvs terminal'.length,
                   ),
                 ],
               ),

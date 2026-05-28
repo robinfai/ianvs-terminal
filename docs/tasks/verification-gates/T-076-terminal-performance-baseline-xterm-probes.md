@@ -24,7 +24,7 @@ Create explicit terminal performance baselines before optimizing parser, input, 
 - `example/test/benchmarks/cat_log_benchmark_test.dart`
 - `tools/cat_log_benchmark.sh`
 - `native/core/tests/vttest_regression_test.rs`
-- `packages/flutterm_terminal/test/terminal_runtime_controller_test.dart`
+- `packages/ianvs_terminal/test/terminal_runtime_controller_test.dart`
 - `example/test/terminal/render_terminal_viewport_test.dart`
 - `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md`
 
@@ -33,7 +33,7 @@ Create explicit terminal performance baselines before optimizing parser, input, 
 - Existing functional commands pass for parser, input, render, and search paths, but they do not record throughput or allocation baselines.
 - `KNOWN_ISSUES.md` and the audit both identify missing formal performance baselines.
 - `Cache translateToString calls`, parser fast-path, parser reset-ZDM, input handler, linkifier, core terminal, and Unicode performance rows all need benchmark evidence before optimization.
-- `tools/cat_log_benchmark.sh --out-dir /tmp/flutterm-xterm-risk-benchmark --timeout-sec 5 --profile debug` passed on 2026-05-13. The local debug snapshot captured 384 frames from a 1,185,579-byte fixture; replay time was 3.77s real time on this host. This confirms the benchmark command path and metrics export, but it is not a release-grade baseline.
+- `tools/cat_log_benchmark.sh --out-dir /tmp/ianvs terminal-xterm-risk-benchmark --timeout-sec 5 --profile debug` passed on 2026-05-13. The local debug snapshot captured 384 frames from a 1,185,579-byte fixture; replay time was 3.77s real time on this host. This confirms the benchmark command path and metrics export, but it is not a release-grade baseline.
 - Release-grade benchmark capture is queued in [../../XTERM_MANUAL_CONFIRMATION_QUEUE.md](../../XTERM_MANUAL_CONFIRMATION_QUEUE.md) item M-013 because useful numbers require a quiet, identified host.
 
 ## Functional Acceptance
@@ -52,7 +52,7 @@ cd example
 flutter test test/benchmarks/cat_log_benchmark_test.dart
 
 tools/cat_log_benchmark.sh
-tools/cat_log_benchmark.sh --out-dir /tmp/flutterm-xterm-risk-benchmark --timeout-sec 5 --profile debug
+tools/cat_log_benchmark.sh --out-dir /tmp/ianvs terminal-xterm-risk-benchmark --timeout-sec 5 --profile debug
 ```
 
 ## Manual QA

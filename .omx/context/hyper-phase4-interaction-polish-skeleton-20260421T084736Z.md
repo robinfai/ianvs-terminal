@@ -23,7 +23,7 @@ The intent is to make those two plan files routine to draft once `T-055` is reso
 - `app/test/shell/shell_screen_phase2a_test.dart` already covers launcher open/close behavior.
 - `app/test/shell/shell_screen_phase2b_test.dart` already covers launcher close restoring terminal focus.
 - `app/test/widget_test.dart` already covers last-tab close and shell-exit empty-state paths.
-- `app/integration_test/flutterm_smoke_test.dart` already covers command menu, defaults close, and empty-state recovery.
+- `app/integration_test/ianvs_smoke_test.dart` already covers command menu, defaults close, and empty-state recovery.
 - `docs/TESTING.md` already defines the standard shell / launcher / defaults verification commands that Phase 4 must reuse.
 
 ## Future PRD Skeleton
@@ -90,12 +90,12 @@ The future `.omx/plans/test-spec-hyper-like-phase4-interaction-polish.md` should
 Minimum command chain:
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd /Users/robinfai/personal/ianvs_terminal/app
 flutter analyze
 flutter test test/widget_test.dart
 flutter test test/shell/shell_screen_phase2a_test.dart
 flutter test test/shell/shell_screen_phase2b_test.dart
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 If the Phase 4 change consumes session lifecycle state directly, also rerun:

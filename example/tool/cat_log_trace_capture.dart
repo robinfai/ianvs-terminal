@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 const double _devicePixelRatio = 2.0;
 const double _logicalWidth = 1280;

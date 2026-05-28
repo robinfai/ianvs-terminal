@@ -1,6 +1,6 @@
 # Local Terminal Feature Plan
 
-这份文档把外部竞品调研收敛成 `flutterm` 后续本地 terminal 功能设计。范围只覆盖本地 terminal：macOS 本地 shell、tabs、panes、profiles、配置、shell integration、workspace UX。不做 SSH、remote domain、SFTP、serial、协作 Web session。
+这份文档把外部竞品调研收敛成 `ianvs terminal` 后续本地 terminal 功能设计。范围只覆盖本地 terminal：macOS 本地 shell、tabs、panes、profiles、配置、shell integration、workspace UX。不做 SSH、remote domain、SFTP、serial、协作 Web session。
 
 ## Baseline
 
@@ -57,8 +57,8 @@
 
 | Area | Current state | Gap |
 | --- | --- | --- |
-| Profile persistence | `flutterm_profiles.json`，由 `ProfileRepository` 读写 | profile 能覆盖终端启动和视觉，但还不是统一配置系统 |
-| App preferences | `flutterm_preferences.json`，主要有默认 profile 和 theme mode | app 级偏好太薄，不能承载 keybindings、layouts、clipboard policy |
+| Profile persistence | `ianvs_profiles.json`，由 `ProfileRepository` 读写 | profile 能覆盖终端启动和视觉，但还不是统一配置系统 |
+| App preferences | `ianvs_preferences.json`，主要有默认 profile 和 theme mode | app 级偏好太薄，不能承载 keybindings、layouts、clipboard policy |
 | Terminal config | `TerminalSessionConfig` 已覆盖 program、args、env、cwd、emulation、scrollback、字体、颜色、cursor、copy-on-select、option-drag-mode | 配置项较多，但来源、热重载和优先级没有统一协议 |
 | Shell integration | 已有 preexec、command finished、precmd、cwd、recent commands、recent directories、prompt marks | 只有总开关，缺 feature 级策略和产品化动作 |
 | Tabs and panes | `ShellScreen` 已有 tab、split right/down、pane focus 等入口 | pane tree、layout persistence、move/resize/swap/zoom 需要收口 |
@@ -214,8 +214,8 @@ LocalTerminalConfig
 
 迁移规则：
 
-- 旧 `flutterm_profiles.json` 必须可读。
-- 旧 `flutterm_preferences.json` 必须可读。
+- 旧 `ianvs_profiles.json` 必须可读。
+- 旧 `ianvs_preferences.json` 必须可读。
 - 首次写入新 config 时保留旧文件读取 fallback。
 - schema 不能新增 SSH、remote、serial、SFTP 顶层字段。
 
@@ -516,5 +516,5 @@ ShellIntegrationFeatureSet
 | 继续把 SSH 作为 Phase 3 | 用户明确限定本地 terminal 范围，且本地 workspace、配置、action 模型还没收口 |
 | 先做 plugin ecosystem | 过早扩大边界，会拖慢本地核心体验 |
 | 先做 renderer rewrite | 当前规划主要是产品与配置层，renderer 不是阻塞项 |
-| 直接复制某一个竞品 | 各竞品取向不同，`flutterm` 当前更需要本地 workspace + shell product 收口 |
+| 直接复制某一个竞品 | 各竞品取向不同，`ianvs terminal` 当前更需要本地 workspace + shell product 收口 |
 | 把 tmux 当核心 workspace 后端 | tmux 可作为本地辅助入口，但不应决定 app 的 pane/layout 数据模型 |

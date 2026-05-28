@@ -26,7 +26,7 @@
 - `ShellRecentDirectoryEntry` 已支持 JSON serialization。
 - `ShellRecentItemsState` 已支持 JSON serialization。
 - 已新增 `ShellRecentItemsRepository`。
-- recent items 文件路径为 `flutterm_recent_items.json`。
+- recent items 文件路径为 `ianvs_recent_items.json`。
 - 缺失文件返回默认空状态。
 - corrupt 文件会 quarantine 并写入 repaired defaults。
 - 已补充 missing、roundtrip、corrupt repair 测试。

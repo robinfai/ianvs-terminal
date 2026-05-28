@@ -391,7 +391,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _sendShellNotification(
         title: 'Activity in ${_sessionTitleForNotification(sessionId)}',
         body: preview,
-        identifier: 'flutterm.activity.$sessionId',
+        identifier: 'ianvs-terminal.activity.$sessionId',
       );
     }
   }
@@ -424,7 +424,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       body:
           '${_sessionTitleForNotification(sessionId)} exited${exitCode == null ? '' : ' with code $exitCode'}.',
       identifier:
-          'flutterm.exit.$sessionId.${DateTime.now().microsecondsSinceEpoch}',
+          'ianvs-terminal.exit.$sessionId.${DateTime.now().microsecondsSinceEpoch}',
     );
   }
 
@@ -435,7 +435,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _sendShellNotification(
       title: 'Bell in ${_sessionTitleForNotification(sessionId)}',
       body: 'The terminal requested attention.',
-      identifier: 'flutterm.bell.$sessionId',
+      identifier: 'ianvs-terminal.bell.$sessionId',
     );
   }
 
@@ -455,7 +455,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         if (exitCode != null) 'Exit code $exitCode',
       ].join('\n'),
       identifier:
-          'flutterm.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
+          'ianvs-terminal.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );
   }
 
@@ -741,7 +741,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               'Trigger matched in ${_sessionTitleForNotification(sessionId)}',
           body: rowText.trim(),
           identifier:
-              'flutterm.trigger.$sessionId.${trigger.pattern.hashCode}.${DateTime.now().microsecondsSinceEpoch}',
+              'ianvs-terminal.trigger.$sessionId.${trigger.pattern.hashCode}.${DateTime.now().microsecondsSinceEpoch}',
         );
       case TerminalProfileTriggerAction.sendText:
         final value = trigger.value;
@@ -864,9 +864,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
       final message = switch (error.code) {
         'notification_authorization_failed' =>
-          'macOS notifications are blocked for Flutterm. Enable them in System Settings > Notifications.',
+          'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
         'notification_delivery_failed' =>
-          'Flutterm could not deliver a macOS notification right now.',
+        'Ianvs Terminal could not deliver a macOS notification right now.',
         _ => null,
       };
       if (message == null) {
@@ -7794,7 +7794,7 @@ class _ShellTabTone {
   static Color _readableTextOn(Color background) {
     return background.computeLuminance() < 0.5
         ? Colors.white
-        : const Color(0xFF111111);
+        : Colors.black;
   }
 
   static Color _neutralHighlightFor(Color background, {bool emphasis = false}) {
@@ -12346,7 +12346,7 @@ class _ShellCommandMenu extends StatelessWidget {
                       icon: Icons.add_box_outlined,
                       title: 'New tab',
                       subtitle:
-                          'App action • Open the default profile from its configured starting directory.',
+                          'App action • Open the default shell profile.',
                       shortcutLabel: newTabShortcutLabel,
                       enabled: hasDefaultProfile,
                       disabledReason: defaultProfileRequired,

@@ -13,7 +13,7 @@
 ## Non-goals
 
 - 不接管现有 `ProfileRepository` 或 `AppPreferencesRepository`
-- 不改变 `flutterm_profiles.json` 或 `flutterm_preferences.json` 的读写行为
+- 不改变 `ianvs_profiles.json` 或 `ianvs_preferences.json` 的读写行为
 - 不实现完整配置 UI
 - 不实现 live reload
 - 不新增 SSH、remote、serial、SFTP 顶层字段

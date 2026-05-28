@@ -2,7 +2,7 @@
 
 ## Goal
 
-补齐 P1 的 legacy app preferences compatibility bootstrap 规则，明确新 `LocalTerminalConfig`、旧 `flutterm_preferences.json` 和内建 defaults 的优先级。
+补齐 P1 的 legacy app preferences compatibility bootstrap 规则，明确新 `LocalTerminalConfig`、旧 `ianvs_preferences.json` 和内建 defaults 的优先级。
 
 ## Scope
 
@@ -15,8 +15,8 @@
 
 - 不接入 session bootstrap runtime
 - 不替换 `ProfileRepository`
-- 不读取 `flutterm_profiles.json`
-- 不自动写入 `flutterm_config.json`
+- 不读取 `ianvs_profiles.json`
+- 不自动写入 `ianvs_config.json`
 - 不新增 remote/SSH config source
 
 ## Current Progress

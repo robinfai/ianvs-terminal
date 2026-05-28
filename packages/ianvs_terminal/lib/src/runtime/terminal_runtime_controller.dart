@@ -4,7 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
-import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../config/terminal_config.dart';
 import '../terminal/selection_controller.dart';

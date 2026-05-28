@@ -49,7 +49,7 @@ osascript -e 'tell application "System Events" to get UI elements enabled'
 
 ```bash
 cd example
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ```bash
@@ -82,7 +82,7 @@ flutter run -d macos
 - Branch/HEAD: `codex/hyper-first-shell / d2bb7b6`
 - `vttest`: available at `/opt/homebrew/bin/vttest`
 - Accessibility/UI scripting: `osascript -e 'tell application "System Events" to get UI elements enabled'` returned `false`
-- `integration_test/flutterm_smoke_test.dart`: `pass`
+- `integration_test/ianvs_smoke_test.dart`: `pass`
 - `flutter run -d macos`: `pass`
 - Manual input path (`y`, `Backspace`, `pwd`, `echo hello`, `ls`): `pass`
 
@@ -95,7 +95,7 @@ flutter run -d macos
 
 ### Evidence
 
-- `flutter test integration_test/flutterm_smoke_test.dart` passed on macOS, though the run still printed `Failed to foreground app; open returned 1`.
+- `flutter test integration_test/ianvs_smoke_test.dart` passed on macOS, though the run still printed `Failed to foreground app; open returned 1`.
 - `flutter run -d macos` launched successfully and the app came to the foreground.
 - `VT220` terminal reports passed:
   - Primary DA returned `VT200 family`

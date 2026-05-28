@@ -3,12 +3,12 @@
 ## Goal
 
 把现有 `native/core -> PtyEvent(kind: "shell_hook")` 基线收口成
-`flutterm_terminal` 的 typed runtime event 和可复用的 multi-shell 契约，
+`ianvs_terminal` 的 typed runtime event 和可复用的 multi-shell 契约，
 让消费方不再依赖产品侧 raw adapter 才能消费 shell hook。
 
 ## Scope
 
-- 在 `flutterm_terminal` runtime 层新增 typed shell-hook 事件。
+- 在 `ianvs_terminal` runtime 层新增 typed shell-hook 事件。
 - 固化 raw payload 保留规则，以及 `hook`、`command`、`cwd`、`shell`、
   `exitCode` 这些便捷字段的读取约定。
 - 明确 zsh、bash、fish 的 shell integration 只需要对齐同一组 logical
@@ -18,7 +18,7 @@
 ## Non-goals
 
 - 不重做 `native/core` 的 DCS `hook;<hex-json>` 协议。
-- 不修改 `flutterm_pty` 的 `PtyEvent` wire shape，除非测试先证明当前
+- 不修改 `ianvs_pty` 的 `PtyEvent` wire shape，除非测试先证明当前
   payload 缺少这份任务明确依赖的字段。
 - 不在这次任务里实现 Ianvs Terminal 的 block 模型、cwd-aware completion
   或输出范围推断。
@@ -27,9 +27,9 @@
 
 ## Files In Scope
 
-- `packages/flutterm_terminal/lib/src/runtime/terminal_runtime_controller.dart`
-- `packages/flutterm_terminal/test/terminal_runtime_controller_test.dart`
-- `packages/flutterm_terminal/README.md`
+- `packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart`
+- `packages/ianvs_terminal/test/terminal_runtime_controller_test.dart`
+- `packages/ianvs_terminal/README.md`
 - `docs/tasks/runtime-pty/T-063-shell-hook-typed-runtime-event-and-multi-shell-contract.md`
 
 ## Functional Acceptance
@@ -68,12 +68,12 @@ cargo test shell_hook
 ```
 
 ```bash
-cd packages/flutterm_pty
+cd packages/ianvs_pty
 dart test
 ```
 
 ```bash
-cd packages/flutterm_terminal
+cd packages/ianvs_terminal
 flutter test test/terminal_runtime_controller_test.dart
 flutter test
 ```
@@ -92,7 +92,7 @@ flutter test
 ## Completion Record
 
 - Completed on: `2026-05-10`
-- Status: complete for the flutterm typed runtime event surface.
+- Status: complete for the ianvs terminal typed runtime event surface.
 - Implemented `TerminalSessionShellHookEvent` on
   `TerminalRuntimeController.events`.
 - The event preserves `rawPayload` and exposes convenience fields:
@@ -107,9 +107,9 @@ flutter test
   block UI, or bash / fish shell integration; those remain follow-up work.
 - Verification:
   - `cd native/core && cargo test shell_hook`
-  - `cd packages/flutterm_pty && dart test`
-  - `cd packages/flutterm_terminal && flutter test test/terminal_runtime_controller_test.dart`
-  - `cd packages/flutterm_terminal && flutter test`
+  - `cd packages/ianvs_pty && dart test`
+  - `cd packages/ianvs_terminal && flutter test test/terminal_runtime_controller_test.dart`
+  - `cd packages/ianvs_terminal && flutter test`
 
 ## Done When
 

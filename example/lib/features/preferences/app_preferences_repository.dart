@@ -40,7 +40,7 @@ class AppPreferencesRepository {
 
   Future<File> _preferencesFile() async {
     final directory = await _directoryResolver();
-    return File('${directory.path}/flutterm_preferences.json');
+    return File('${directory.path}/ianvs_preferences.json');
   }
 
   Future<void> _quarantineCorruptFile(File file) async {

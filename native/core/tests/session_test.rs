@@ -1,8 +1,8 @@
-use flutterm_core::model::{
+use ianvs_core::model::{
     TerminalEmulation, TerminalProfile, TerminalProfileAppearance, TerminalProfileInteraction,
     TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
 };
-use flutterm_core::session;
+use ianvs_core::session;
 use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::fs;
@@ -1073,7 +1073,7 @@ fn session_emits_shell_hook_events_from_dcs_hooks() {
 
     let event = wait_for_event(session_id, "shell_hook");
     assert_eq!(event["payload"]["hook"].as_str(), Some("precmd"));
-    assert_eq!(event["payload"]["pwd"].as_str(), Some("/tmp/flutterm"));
+    assert_eq!(event["payload"]["pwd"].as_str(), Some("/tmp/ianvs terminal"));
 
     session::close_session(session_id).unwrap();
 }
@@ -1087,7 +1087,7 @@ fn zsh_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     let original_zdotdir = tempdir().unwrap();
     fs::write(
         original_zdotdir.path().join(".zshrc"),
-        "PROMPT='flutterm-test% '\n",
+        "PROMPT='ianvs terminal-test% '\n",
     )
     .unwrap();
     let mut env = BTreeMap::new();
@@ -1151,7 +1151,7 @@ fn zsh_shell_hook_integration_preserves_prompt_substitution_from_zshrc() {
     let original_zdotdir = tempdir().unwrap();
     fs::write(
         original_zdotdir.path().join(".zshrc"),
-        "setopt prompt_subst\nPROMPT='$(print flutterm-subst)% '\n",
+        "setopt prompt_subst\nPROMPT='$(print ianvs terminal-subst)% '\n",
     )
     .unwrap();
     let mut env = BTreeMap::new();
@@ -1176,9 +1176,9 @@ fn zsh_shell_hook_integration_preserves_prompt_substitution_from_zshrc() {
     )
     .unwrap();
 
-    let frame = wait_for_frame_containing(session_id, "flutterm-subst");
+    let frame = wait_for_frame_containing(session_id, "ianvs terminal-subst");
     assert!(
-        !frame.contains("$(print flutterm-subst)"),
+        !frame.contains("$(print ianvs terminal-subst)"),
         "prompt substitution should be evaluated, not displayed literally: {frame}"
     );
 
@@ -1195,9 +1195,9 @@ fn zsh_shell_hook_integration_sources_zshrc_with_original_zdotdir() {
     fs::write(
         original_zdotdir.path().join(".zshrc"),
         r#"if [[ "${ZDOTDIR:-}" == "${HOME:-}" ]]; then
-  PROMPT='flutterm-zdot-ok% '
+  PROMPT='ianvs terminal-zdot-ok% '
 else
-  PROMPT='flutterm-zdot-bad% '
+  PROMPT='ianvs terminal-zdot-bad% '
 fi
 "#,
     )
@@ -1224,10 +1224,10 @@ fi
     )
     .unwrap();
 
-    let frame = wait_for_frame_containing(session_id, "flutterm-zdot-ok");
+    let frame = wait_for_frame_containing(session_id, "ianvs terminal-zdot-ok");
     assert!(
-        !frame.contains("flutterm-zdot-bad"),
-        "original .zshrc should see the user's ZDOTDIR, not the flutterm proxy: {frame}"
+        !frame.contains("ianvs terminal-zdot-bad"),
+        "original .zshrc should see the user's ZDOTDIR, not the ianvs terminal proxy: {frame}"
     );
 
     session::close_session(session_id).unwrap();
@@ -1242,14 +1242,14 @@ fn zsh_shell_hook_integration_preserves_postdisplay_redraws() {
     let original_zdotdir = tempdir().unwrap();
     fs::write(
         original_zdotdir.path().join(".zshrc"),
-        "PROMPT='flutterm-postdisplay% '\n\
-         __flutterm_test_self_insert() {\n\
+        "PROMPT='ianvs terminal-postdisplay% '\n\
+         __ianvs_test_self_insert() {\n\
            zle .self-insert\n\
            POSTDISPLAY=' ghost-suggestion'\n\
            region_highlight+=(\"$#BUFFER $(($#BUFFER + $#POSTDISPLAY)) fg=8\")\n\
            zle -R\n\
          }\n\
-         zle -N self-insert __flutterm_test_self_insert\n",
+         zle -N self-insert __ianvs_test_self_insert\n",
     )
     .unwrap();
     let mut env = BTreeMap::new();
@@ -1274,7 +1274,7 @@ fn zsh_shell_hook_integration_preserves_postdisplay_redraws() {
     )
     .unwrap();
 
-    let _ = wait_for_frame_containing(session_id, "flutterm-postdisplay");
+    let _ = wait_for_frame_containing(session_id, "ianvs terminal-postdisplay");
     session::write_session(session_id, b"g").unwrap();
     let frame = wait_for_frame_containing(session_id, "ghost-suggestion");
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
@@ -1307,7 +1307,7 @@ fn zsh_initial_prompt_sp_marker_is_cleared_before_multiline_prompt() {
     let original_zdotdir = tempdir().unwrap();
     fs::write(
         original_zdotdir.path().join(".zshrc"),
-        "setopt prompt_sp\nPROMPT=$'\\nflutterm-prompt> '\n",
+        "setopt prompt_sp\nPROMPT=$'\\nianvs-terminal-prompt> '\n",
     )
     .unwrap();
     let mut env = BTreeMap::new();
@@ -1332,7 +1332,7 @@ fn zsh_initial_prompt_sp_marker_is_cleared_before_multiline_prompt() {
     )
     .unwrap();
 
-    let frame = wait_for_frame_containing(session_id, "flutterm-prompt");
+    let frame = wait_for_frame_containing(session_id, "ianvs terminal-prompt");
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
     let marker_row = parsed["rows"]
         .as_array()
@@ -1343,7 +1343,7 @@ fn zsh_initial_prompt_sp_marker_is_cleared_before_multiline_prompt() {
         marker_row.is_none(),
         "zsh PROMPT_SP marker should be cleared before the prompt frame: {frame}"
     );
-    let prompt_row = frame_row_with_text(&parsed, "flutterm-prompt");
+    let prompt_row = frame_row_with_text(&parsed, "ianvs terminal-prompt");
     assert_eq!(
         prompt_row["index"].as_u64(),
         Some(0),
@@ -1364,7 +1364,7 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
                 "-lc".to_string(),
                 "printf '\\033[1m\\033[7m%%\\033[27m\\033[1m\\033[0m                                                                               '; \
                  sleep 0.2; \
-                 printf '\\r \\r\\033Phook;68656c6c6f\\033\\\\\\r\\033[0m\\033[27m\\033[24m\\033[J\\r\\nflutterm-prompt\\r\\n> '; \
+                 printf '\\r \\r\\033Phook;68656c6c6f\\033\\\\\\r\\033[0m\\033[27m\\033[24m\\033[J\\r\\nianvs-terminal-prompt\\r\\n> '; \
                  sleep 0.2"
                     .to_string(),
             ],
@@ -1386,7 +1386,7 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
                     && row["text"].as_str().unwrap_or_default().starts_with('%')
             })
     });
-    let frame = wait_for_frame_containing(session_id, "flutterm-prompt");
+    let frame = wait_for_frame_containing(session_id, "ianvs terminal-prompt");
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
     let row_zero = frame_row_at_index(&parsed, 0);
     assert!(
@@ -1408,7 +1408,7 @@ fn bash_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
 
     let home = tempdir().unwrap();
     let cwd = tempdir().unwrap();
-    fs::write(home.path().join(".bashrc"), "PS1='flutterm-bash$ '\n").unwrap();
+    fs::write(home.path().join(".bashrc"), "PS1='ianvs terminal-bash$ '\n").unwrap();
     let mut env = BTreeMap::new();
     env.insert(
         "HOME".to_string(),
@@ -1450,7 +1450,7 @@ fn fish_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     fs::create_dir_all(&fish_config_dir).unwrap();
     fs::write(
         fish_config_dir.join("config.fish"),
-        "function fish_prompt; printf 'flutterm-fish> '; end\n",
+        "function fish_prompt; printf 'ianvs terminal-fish> '; end\n",
     )
     .unwrap();
     let mut env = BTreeMap::new();
@@ -1491,7 +1491,7 @@ fn zsh_shell_hook_integration_disabled_emits_no_shell_hooks() {
     let original_zdotdir = tempdir().unwrap();
     fs::write(
         original_zdotdir.path().join(".zshrc"),
-        "PROMPT='flutterm-disabled% '\n",
+        "PROMPT='ianvs terminal-disabled% '\n",
     )
     .unwrap();
     let mut env = BTreeMap::new();
@@ -1530,7 +1530,7 @@ fn bash_shell_hook_integration_disabled_emits_no_shell_hooks() {
     };
 
     let home = tempdir().unwrap();
-    fs::write(home.path().join(".bashrc"), "PS1='flutterm-disabled$ '\n").unwrap();
+    fs::write(home.path().join(".bashrc"), "PS1='ianvs terminal-disabled$ '\n").unwrap();
     let mut env = BTreeMap::new();
     env.insert(
         "HOME".to_string(),
@@ -1621,7 +1621,7 @@ fn ffi_poll_events_returns_null_when_queue_is_empty() {
     let session_id =
         session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
 
-    let first_ptr = flutterm_core::ffi::flutterm_session_poll_events_json(session_id);
+    let first_ptr = ianvs_core::ffi::ianvs_session_poll_events_json(session_id);
     assert!(
         !first_ptr.is_null(),
         "expected initial started event payload"
@@ -1634,9 +1634,9 @@ fn ffi_poll_events_returns_null_when_queue_is_empty() {
         first_payload.contains("\"kind\":\"started\""),
         "expected started event payload: {first_payload}"
     );
-    unsafe { flutterm_core::ffi::flutterm_string_free(first_ptr) };
+    unsafe { ianvs_core::ffi::ianvs_string_free(first_ptr) };
 
-    let second_ptr = flutterm_core::ffi::flutterm_session_poll_events_json(session_id);
+    let second_ptr = ianvs_core::ffi::ianvs_session_poll_events_json(session_id);
     assert!(
         second_ptr.is_null(),
         "expected empty event queue to short-circuit without JSON allocation"

@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE_DIR="$ROOT_DIR/native/core"
-PTY_DIR="$ROOT_DIR/packages/flutterm_pty"
-TERMINAL_DIR="$ROOT_DIR/packages/flutterm_terminal"
+PTY_DIR="$ROOT_DIR/packages/ianvs_pty"
+TERMINAL_DIR="$ROOT_DIR/packages/ianvs_terminal"
 EXAMPLE_DIR="$ROOT_DIR/example"
 
 "$ROOT_DIR/tools/build_core.sh"
@@ -42,5 +42,5 @@ fi
   cd "$EXAMPLE_DIR"
   flutter analyze
   flutter test
-  flutter test integration_test/flutterm_smoke_test.dart
+  flutter test integration_test/ianvs_smoke_test.dart
 )

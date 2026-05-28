@@ -3,8 +3,8 @@ import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_pty/flutterm_pty.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
+import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
@@ -727,7 +727,7 @@ void main() {
 
     coreBindings.setFrame(int.parse(sessionId), {
       'rows': [
-        {'index': 0, 'text': 'flutterm ready', 'style_runs': const []},
+        {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
       ],
       'cursor': {'row': 0, 'col': 4, 'visible': true},
       'selection': null,
@@ -775,7 +775,7 @@ void main() {
 
     coreBindings.setFrame(int.parse(sessionId), {
       'rows': [
-        {'index': 0, 'text': 'flutterm ready', 'style_runs': const []},
+        {'index': 0, 'text': 'ianvs terminal ready', 'style_runs': const []},
       ],
       'cursor': {'row': 0, 'col': 4, 'visible': true},
       'selection': null,
@@ -1322,7 +1322,7 @@ void main() {
             'launch': {
               'program': '',
               'args': const ['-l', 2],
-              'env': const {'TERM_PROGRAM': 'flutterm', 'BAD': false},
+              'env': const {'TERM_PROGRAM': 'ianvs terminal', 'BAD': false},
               'cwd': null,
             },
             'terminal': {'emulation': 'ansi', 'scrollbackLines': -1},
@@ -1370,7 +1370,7 @@ void main() {
         'env': const {
           'TERM': 'xterm-256color',
           'COLORTERM': 'truecolor',
-          'TERM_PROGRAM': 'flutterm',
+          'TERM_PROGRAM': 'ianvs terminal',
         },
         'cwd': null,
       });

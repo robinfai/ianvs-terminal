@@ -203,15 +203,15 @@ bash tools/local_terminal_verification_capture.sh run integration
 ```
 
 The batch builds the debug native core, runs from the `example` package so
-desktop plugins are registered, sets `FLUTTERM_CORE_LIB`, and executes the app
+desktop plugins are registered, sets `IANVS_CORE_LIB`, and executes the app
 smoke path plus the macOS real PTY acceptance path sequentially. Record the
 exact command, exit status, and key local shell lifecycle output in the ledger.
 
 Optional external-binary supplement, only when `vttest` is installed or
-`FLUTTERM_VTTEST_BIN` points to it:
+`IANVS_VTTEST_BIN` points to it:
 
 ```sh
-FLUTTERM_VTTEST_BIN=/path/to/vttest flutter test -d macos example/integration_test/vttest_gui_test.dart
+IANVS_VTTEST_BIN=/path/to/vttest flutter test -d macos example/integration_test/vttest_gui_test.dart
 ```
 
 Do not require the optional `vttest` supplement for default closure unless the

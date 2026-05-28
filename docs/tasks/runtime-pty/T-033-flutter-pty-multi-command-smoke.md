@@ -6,7 +6,7 @@
 
 ## Scope
 
-- `example/test/ffi/flutterm_core_test.dart`
+- `example/test/ffi/ianvs_core_test.dart`
   - 新增一条基于真实 `TerminalCoreClient.load()` 的多命令 roundtrip 测试。
 - `docs/tasks/runtime-pty/T-033-flutter-pty-multi-command-smoke.md`
   - 记录本次任务边界、验收、验证与风险。
@@ -20,7 +20,7 @@
 
 ## Files In Scope
 
-- `example/test/ffi/flutterm_core_test.dart`
+- `example/test/ffi/ianvs_core_test.dart`
 - `docs/tasks/runtime-pty/T-033-flutter-pty-multi-command-smoke.md`
 
 ## Functional Acceptance
@@ -35,7 +35,7 @@
 ```bash
 cd example
 flutter analyze
-flutter test test/ffi/flutterm_core_test.dart
+flutter test test/ffi/ianvs_core_test.dart
 ```
 
 ## Manual QA

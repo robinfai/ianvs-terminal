@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
-import 'package:flutterm_terminal/src/terminal/render_terminal_viewport.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 
 void main() {
   testWidgets('near-canvas run backgrounds do not create row blocks', (

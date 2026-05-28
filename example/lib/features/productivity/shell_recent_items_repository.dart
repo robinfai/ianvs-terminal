@@ -41,7 +41,7 @@ class ShellRecentItemsRepository {
 
   Future<File> _recentItemsFile() async {
     final directory = await _directoryResolver();
-    return File('${directory.path}/flutterm_recent_items.json');
+    return File('${directory.path}/ianvs_recent_items.json');
   }
 
   Future<void> _quarantineCorruptFile(File file) async {

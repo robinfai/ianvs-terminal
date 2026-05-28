@@ -1,2 +1,2 @@
-export 'package:flutterm_terminal/flutterm_terminal_debug.dart'
+export 'package:ianvs_terminal/ianvs_terminal_debug.dart'
     show RenderTerminalViewport;

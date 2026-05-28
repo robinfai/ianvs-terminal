@@ -8,7 +8,7 @@ void main() {
   group('Shell recent items repository', () {
     test('returns defaults when recent items file is absent', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-recent-items-missing',
+        'ianvs terminal-recent-items-missing',
       );
       final repository = ShellRecentItemsRepository(
         directoryResolver: () async => directory,
@@ -19,7 +19,7 @@ void main() {
 
     test('persists recent commands and directories', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-recent-items-roundtrip',
+        'ianvs terminal-recent-items-roundtrip',
       );
       final repository = ShellRecentItemsRepository(
         directoryResolver: () async => directory,
@@ -43,9 +43,9 @@ void main() {
 
     test('quarantines corrupt recent items file', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-recent-items-corrupt',
+        'ianvs terminal-recent-items-corrupt',
       );
-      final file = File('${directory.path}/flutterm_recent_items.json');
+      final file = File('${directory.path}/ianvs_recent_items.json');
       await file.writeAsString('{bad json');
       final repository = ShellRecentItemsRepository(
         directoryResolver: () async => directory,
@@ -56,7 +56,7 @@ void main() {
       expect(loaded.commands, isEmpty);
       expect(
         directory.listSync().any(
-          (entry) => entry.path.contains('flutterm_recent_items.json.corrupt'),
+          (entry) => entry.path.contains('ianvs_recent_items.json.corrupt'),
         ),
         isTrue,
       );

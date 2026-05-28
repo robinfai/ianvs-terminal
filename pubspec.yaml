@@ -6,5 +6,5 @@ environment:
 
 workspace:
   - example
-  - packages/flutterm_pty
-  - packages/flutterm_terminal
+  - packages/ianvs_pty
+  - packages/ianvs_terminal

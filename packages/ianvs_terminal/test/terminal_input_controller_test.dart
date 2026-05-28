@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_pty/flutterm_pty.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
   testWidgets('terminal input controller forwards repeated backspace events', (

@@ -35,7 +35,7 @@ cd example
 flutter analyze
 flutter test test/widget_test.dart
 flutter test test/terminal/selection_controller_test.dart
-flutter test test/ffi/flutterm_core_test.dart
+flutter test test/ffi/ianvs_core_test.dart
 
 cd native/core
 cargo fmt --check

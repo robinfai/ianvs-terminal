@@ -7,7 +7,7 @@ class AppDelegate: FlutterAppDelegate {
 
   override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     let alert = NSAlert()
-    alert.messageText = "Quit Flutterm?"
+    alert.messageText = "Quit Ianvs Terminal?"
     alert.informativeText = "Active shell sessions will be closed."
     alert.alertStyle = .warning
     let cancelButton = alert.addButton(withTitle: "Cancel")

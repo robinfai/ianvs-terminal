@@ -16,7 +16,7 @@ options, events, resize/scroll/selection, and addon lifecycle.
 
 ## Implemented Alignment
 
-Added a public xterm-style facade in `flutterm_terminal.dart`:
+Added a public xterm-style facade in `ianvs_terminal.dart`:
 
 - `Terminal`
 - `TerminalOptions`
@@ -35,7 +35,7 @@ more familiar integration point for xterm.js-style addons and consumers.
 
 ## API Matrix
 
-| xterm.js surface | flutterm alignment | Status | Notes |
+| xterm.js surface | ianvs terminal alignment | Status | Notes |
 | --- | --- | --- | --- |
 | `new Terminal(options)` | `Terminal(runtime, sessionConfig, options)` | Partial | Dart must receive runtime/backend and launch config explicitly. |
 | `terminal.options` | `Terminal.options` | Partial | Supported options map to existing session/display/interaction config. Runtime hot mutation is not fully implemented. |
@@ -97,8 +97,8 @@ Recommended next addons:
 ## Verification
 
 - `flutter analyze`
-- `flutter test packages/flutterm_terminal`
-- `flutter test packages/flutterm_pty`
+- `flutter test packages/ianvs_terminal`
+- `flutter test packages/ianvs_pty`
 - `flutter test example`
 
 The new tests cover:

@@ -34,7 +34,7 @@ Add targeted parser/OSC/SGR probes for recent xterm.js fixes before changing ter
 - `native/vendor/.../osc/color.rs` supports OSC 4 set/reset, while OSC 10/11/12 query paths exist; OSC 4 query and alpha reporting are not implemented in that handler.
 - `native/core` passes current OSC 52 copy/paste behavior under `cargo test --test session_test clipboard`.
 - Runtime source decodes clipboard-copy payloads with `base64.decode(raw)` and does not have invalid, padded, or whitespace-sensitive edge fixtures yet.
-- `rg -n "APC|apc" native/vendor/par-term-emu-core-rust/src/terminal/perform.rs native/core/src/session.rs` finds no APC dispatch surface in the flutterm runtime path.
+- `rg -n "APC|apc" native/vendor/par-term-emu-core-rust/src/terminal/perform.rs native/core/src/session.rs` finds no APC dispatch surface in the ianvs terminal runtime path.
 - `cargo test --manifest-path native/vendor/par-term-emu-core-rust/Cargo.toml test_clipboard_operations` is blocked on this host by PyO3/Python linker symbols, so vendored tests cannot be used as completion evidence yet.
 
 ## Functional Acceptance

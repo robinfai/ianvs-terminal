@@ -191,8 +191,8 @@ Future<void> _pumpProfilesSheetHarness(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildFluttermTheme(Brightness.dark),
-      darkTheme: buildFluttermTheme(Brightness.dark),
+      theme: buildIanvsTerminalTheme(Brightness.dark),
+      darkTheme: buildIanvsTerminalTheme(Brightness.dark),
       themeMode: ThemeMode.dark,
       home: Builder(
         builder: (context) {
@@ -231,8 +231,8 @@ Future<void> _pumpDynamicProfilesSheetHarness(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildFluttermTheme(Brightness.dark),
-      darkTheme: buildFluttermTheme(Brightness.dark),
+      theme: buildIanvsTerminalTheme(Brightness.dark),
+      darkTheme: buildIanvsTerminalTheme(Brightness.dark),
       themeMode: ThemeMode.dark,
       home: Builder(
         builder: (context) {

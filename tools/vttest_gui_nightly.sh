@@ -18,9 +18,9 @@ EXAMPLE_DIR="$ROOT_DIR/example"
 release_gate="false"
 timestamp="$(date '+%Y%m%dT%H%M%S%z')"
 out_dir="$ROOT_DIR/build/vttest-gui-nightly/$timestamp"
-command_timeout="${FLUTTERM_VTTEST_COMMAND_TIMEOUT_SECONDS:-120}"
-gui_timeout="${FLUTTERM_VTTEST_GUI_TIMEOUT_SECONDS:-300}"
-preflight_timeout="${FLUTTERM_VTTEST_PREFLIGHT_TIMEOUT_SECONDS:-10}"
+command_timeout="${IANVS_VTTEST_COMMAND_TIMEOUT_SECONDS:-120}"
+gui_timeout="${IANVS_VTTEST_GUI_TIMEOUT_SECONDS:-300}"
+preflight_timeout="${IANVS_VTTEST_PREFLIGHT_TIMEOUT_SECONDS:-10}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -184,13 +184,13 @@ else
   record_event "preflight.macos" "pass" 0 "" "macOS host"
 fi
 
-vttest_path="${FLUTTERM_VTTEST_BIN:-}"
+vttest_path="${IANVS_VTTEST_BIN:-}"
 if [[ -z "$vttest_path" ]]; then
   vttest_path="$(command -v vttest 2>/dev/null || true)"
 fi
 if [[ -z "$vttest_path" || ! -x "$vttest_path" ]]; then
   preflight_blocked="true"
-  add_blocked_reason "vttest executable not found; install with brew install vttest or set FLUTTERM_VTTEST_BIN"
+  add_blocked_reason "vttest executable not found; install with brew install vttest or set IANVS_VTTEST_BIN"
   record_event "preflight.vttest" "blocked" 0 "" "vttest not found"
 else
   record_event "preflight.vttest" "pass" 0 "" "$vttest_path"
@@ -256,7 +256,7 @@ if ! run_step "build.core" "$command_timeout" "$build_log" "$ROOT_DIR/tools/buil
   exit 1
 fi
 
-core_lib="$CORE_DIR/target/debug/libflutterm_core.dylib"
+core_lib="$CORE_DIR/target/debug/libianvs_core.dylib"
 if [[ ! -f "$core_lib" ]]; then
   record_event "preflight.core-lib" "fail" 1 "" "$core_lib not found after build"
   write_summary "failed" 1 "preflight.core-lib" >/dev/null
@@ -306,7 +306,7 @@ fi
 
 if ! (
   cd "$EXAMPLE_DIR"
-  FLUTTERM_CORE_LIB="$core_lib" FLUTTERM_VTTEST_BIN="$vttest_path" run_step \
+  IANVS_CORE_LIB="$core_lib" IANVS_VTTEST_BIN="$vttest_path" run_step \
     "flutter.vttest-gui" \
     "$gui_timeout" \
     "$out_dir/flutter-test.log" \

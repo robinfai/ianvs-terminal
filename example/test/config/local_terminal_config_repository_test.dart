@@ -9,7 +9,7 @@ void main() {
   group('Local terminal config repository', () {
     test('returns null when config file is absent', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-config-missing',
+        'ianvs terminal-config-missing',
       );
       final repository = LocalTerminalConfigRepository(
         directoryResolver: () async => directory,
@@ -20,7 +20,7 @@ void main() {
 
     test('persists local config to disk', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-config-roundtrip',
+        'ianvs terminal-config-roundtrip',
       );
       final repository = LocalTerminalConfigRepository(
         directoryResolver: () async => directory,
@@ -42,9 +42,9 @@ void main() {
 
     test('quarantines corrupt config and writes repaired defaults', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-config-corrupt',
+        'ianvs terminal-config-corrupt',
       );
-      final file = File('${directory.path}/flutterm_config.json');
+      final file = File('${directory.path}/ianvs_config.json');
       await file.writeAsString('{bad json');
       final repository = LocalTerminalConfigRepository(
         directoryResolver: () async => directory,
@@ -56,7 +56,7 @@ void main() {
       expect(loaded!.defaultProfileId, isNull);
       expect(
         directory.listSync().any(
-          (entry) => entry.path.contains('flutterm_config.json.corrupt'),
+          (entry) => entry.path.contains('ianvs_config.json.corrupt'),
         ),
         isTrue,
       );

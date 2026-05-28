@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import 'package:app/features/profiles/profile_editor.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -18,7 +18,7 @@ void main() {
           launch: terminal.TerminalLaunchConfig(
             program: '/bin/bash',
             args: ['-lc', 'printf hello'],
-            env: {'TERM_PROGRAM': 'flutterm'},
+            env: {'TERM_PROGRAM': 'ianvs terminal'},
             cwd: '/tmp',
           ),
           emulation: TerminalEmulation.vt220,
@@ -402,7 +402,7 @@ void main() {
       expect(savedProfile!.cwd, isNull);
       expect(savedProfile!.args, ['printf hello', '-lc', '--login']);
       expect(savedProfile!.env, {
-        'TERM_PROGRAM': 'flutterm',
+        'TERM_PROGRAM': 'ianvs terminal',
         'COLORTERM': 'truecolor',
       });
       expect(savedProfile!.terminalEmulation, TerminalEmulation.xterm256);
@@ -1135,8 +1135,8 @@ Future<void> _pumpEditorHarness(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildFluttermTheme(Brightness.dark),
-      darkTheme: buildFluttermTheme(Brightness.dark),
+      theme: buildIanvsTerminalTheme(Brightness.dark),
+      darkTheme: buildIanvsTerminalTheme(Brightness.dark),
       themeMode: ThemeMode.dark,
       home: Builder(
         builder: (context) {

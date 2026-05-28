@@ -1,15 +1,15 @@
-# flutterm Architecture
+# ianvs terminal Architecture
 
 这份文档只回答一个问题：当前仓库里，哪一层负责什么。
 
 ## 工作区分层
 
-- `packages/flutterm_pty`
+- `packages/ianvs_pty`
   - 负责 PTY 会话传输和 FFI 包装
   - 对上层公开 `PtySessionBackend`、`PtyEvent`、`PtyBindings`、`NativePtyBackend`
   - 能力边界只有 `create / write / read|poll / resize / scroll / close`
-- `packages/flutterm_terminal`
-  - 依赖 `flutterm_pty`
+- `packages/ianvs_terminal`
+  - 依赖 `ianvs_pty`
   - 负责 `TerminalSessionConfig`、`TerminalLaunchConfig`、`TerminalDisplayConfig`
   - 负责 `TerminalRuntimeController`、`TerminalSessionEvent`
   - 负责 viewport、输入编码、选区、滚动和焦点相关适配
@@ -25,7 +25,7 @@
 
 ## 公开接口
 
-### `flutterm_pty`
+### `ianvs_pty`
 
 - `PtySessionBackend`
 - `PtyBindings`
@@ -34,7 +34,7 @@
 
 这里不暴露 tab、profile、viewport 这些 app 词汇。
 
-### `flutterm_terminal`
+### `ianvs_terminal`
 
 - `TerminalSessionConfig`
 - `TerminalLaunchConfig`
@@ -52,7 +52,7 @@
 - `example/lib/features/pty/pty.dart`
 - `example/lib/platform/clipboard_bridge.dart`
 
-`example` 内部业务代码不再直接散落地 import `flutterm_terminal` / `flutterm_pty`；优先经过这些本地入口收口。这样 package 边界和 app 边界各自只有一个入口面。
+`example` 内部业务代码不再直接散落地 import `ianvs_terminal` / `ianvs_pty`；优先经过这些本地入口收口。这样 package 边界和 app 边界各自只有一个入口面。
 
 ## 数据流
 
@@ -61,14 +61,14 @@
 1. `example/` 选择一个 demo profile。
 2. demo profile 组装成 `TerminalSessionConfig`。
 3. `TerminalRuntimeController` 把中性的 session config 转成当前 native wire。
-4. `flutterm_pty` 通过 FFI 调 Rust。
+4. `ianvs_pty` 通过 FFI 调 Rust。
 5. `native/core` 启 PTY、解析输出并生成 frame diff / 事件。
 
 输入与视口：
 
-1. `example/` 把焦点、滚动、键盘、菜单动作交给 `flutterm_terminal`。
-2. `flutterm_terminal` 把输入编码成字节或滚动请求。
-3. `flutterm_pty` 下发给 Rust。
+1. `example/` 把焦点、滚动、键盘、菜单动作交给 `ianvs_terminal`。
+2. `ianvs_terminal` 把输入编码成字节或滚动请求。
+3. `ianvs_pty` 下发给 Rust。
 4. `TerminalRuntimeController` 消费 frame diff / event，驱动 `TerminalViewportController`。
 
 ## 不属于 package 的内容
@@ -85,6 +85,6 @@
 
 ## 当前约束
 
-- `native/core` 现在还吃旧的 profile wire，所以 `flutterm_terminal` 内部保留了一层 native wire 适配。
+- `native/core` 现在还吃旧的 profile wire，所以 `ianvs_terminal` 内部保留了一层 native wire 适配。
 - `example/` 目录里的 Flutter package 现阶段仍保留 `name: app`，这是为了避免连带扩大 macOS 工程改动。
 - 本次边界调整不处理 pub.dev 发布、插件系统和跨平台扩展。

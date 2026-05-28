@@ -10,7 +10,7 @@ void main() {
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp(
-      'flutterm_paste_history_test_',
+      'ianvs_paste_history_test_',
     );
     repository = PasteHistoryRepository(
       directoryResolver: () async => directory,
@@ -76,7 +76,7 @@ void main() {
   test(
     'corrupt history is quarantined and replaced with an empty document',
     () async {
-      final file = File('${directory.path}/flutterm_paste_history.json');
+      final file = File('${directory.path}/ianvs_paste_history.json');
       await file.writeAsString('not json');
 
       final loaded = await repository.load();

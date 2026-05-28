@@ -1,6 +1,6 @@
-import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
-export 'package:flutterm_pty/flutterm_pty.dart'
+export 'package:ianvs_pty/ianvs_pty.dart'
     show
         NativePtyBackend,
         PtyBindings,

@@ -1,4 +1,4 @@
-# flutterm Acceptance
+# ianvs terminal Acceptance
 
 这份文档定义全局完成标准。后续每个任务文档都应引用它，而不是各自发明一套“完成”的含义。
 

@@ -23,7 +23,7 @@
 ## Files In Scope
 
 - `example/lib/features/shell/shell_screen.dart`
-- `packages/flutterm_terminal/lib/src/terminal/terminal_input_controller.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_input_controller.dart`
 - `example/test/widget_test.dart`
 - `example/test/shell/shell_screen_phase2b_test.dart`
 - `example/test/terminal_input_controller_test.dart`
@@ -46,7 +46,7 @@ flutter analyze
 flutter test test/widget_test.dart
 flutter test test/shell/shell_screen_phase2b_test.dart
 flutter test test/terminal_input_controller_test.dart
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA

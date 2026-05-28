@@ -105,9 +105,9 @@ mkdir -p "$out_dir"
 PROFILE="$profile" "$repo_root/tools/build_core.sh"
 
 if [[ "$profile" == "release" ]]; then
-  core_lib="$repo_root/native/core/target/release/libflutterm_core.dylib"
+  core_lib="$repo_root/native/core/target/release/libianvs_core.dylib"
 else
-  core_lib="$repo_root/native/core/target/debug/libflutterm_core.dylib"
+  core_lib="$repo_root/native/core/target/debug/libianvs_core.dylib"
 fi
 
 capture_time_log="$out_dir/cat-log-benchmark.capture-time.txt"
@@ -145,12 +145,12 @@ fi
 
 (
   cd "$example_dir"
-  FLUTTERM_CORE_LIB="$core_lib" /usr/bin/time -lp "${capture_cmd[@]}"
+  IANVS_CORE_LIB="$core_lib" /usr/bin/time -lp "${capture_cmd[@]}"
 ) 2> >(tee "$capture_time_log" >&2)
 
 (
   cd "$example_dir"
-  FLUTTERM_CORE_LIB="$core_lib" /usr/bin/time -lp "${cmd[@]}"
+  IANVS_CORE_LIB="$core_lib" /usr/bin/time -lp "${cmd[@]}"
 ) 2> >(tee "$replay_time_log" >&2)
 
 time_field() {

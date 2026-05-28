@@ -1,7 +1,7 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
 
-import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -101,7 +101,7 @@ void main() {
       expect(backend.ping(), 42);
     },
     skip: _workspaceCoreLibraryPath == null
-        ? 'libflutterm_core.dylib is unavailable for this test run.'
+        ? 'libianvs_core.dylib is unavailable for this test run.'
         : false,
   );
 }
@@ -112,9 +112,9 @@ String? _resolveWorkspaceCoreLibraryPath() {
   }
 
   const relativeCandidates = <String>[
-    'native/core/target/debug/libflutterm_core.dylib',
-    '../native/core/target/debug/libflutterm_core.dylib',
-    '../../native/core/target/debug/libflutterm_core.dylib',
+    'native/core/target/debug/libianvs_core.dylib',
+    '../native/core/target/debug/libianvs_core.dylib',
+    '../../native/core/target/debug/libianvs_core.dylib',
   ];
 
   for (final relativePath in relativeCandidates) {

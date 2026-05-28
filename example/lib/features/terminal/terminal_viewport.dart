@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart' as terminal;
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import 'selection_controller.dart';
 import 'terminal_input_controller.dart';
 
-export 'package:flutterm_terminal/flutterm_terminal.dart'
+export 'package:ianvs_terminal/ianvs_terminal.dart'
     hide
         SelectionController,
         TerminalCursorShape,
@@ -19,7 +19,7 @@ export 'package:flutterm_terminal/flutterm_terminal.dart'
         terminalScrollbarTrackKey,
         terminalViewportColorFromHex,
         terminalViewportHexFromColor;
-export 'package:flutterm_terminal/flutterm_terminal_debug.dart'
+export 'package:ianvs_terminal/ianvs_terminal_debug.dart'
     show
         RenderTerminalViewport,
         TerminalGlyphClass,

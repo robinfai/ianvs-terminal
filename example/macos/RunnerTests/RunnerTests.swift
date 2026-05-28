@@ -13,13 +13,13 @@ class RunnerTests: XCTestCase {
     let window = MainFlutterWindow()
 
     let error = window.notificationAuthorizationFailedError(
-      message: "Notifications are disabled for Flutterm in System Settings."
+      message: "Notifications are disabled for Ianvs Terminal in System Settings."
     )
 
     XCTAssertEqual(error.code, "notification_authorization_failed")
     XCTAssertEqual(
       error.message,
-      "Notifications are disabled for Flutterm in System Settings."
+      "Notifications are disabled for Ianvs Terminal in System Settings."
     )
     XCTAssertNil(error.details)
   }

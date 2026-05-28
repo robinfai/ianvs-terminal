@@ -11,11 +11,11 @@
 
 ## Scope
 
-- `packages/flutterm_terminal/lib/src/terminal/terminal_viewport.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart`
   - 本地点击序列跟踪、按词选中、按词扩展拖选、越界后才自动滚动、拖选/双击时抑制链接打开
-- `packages/flutterm_terminal/lib/src/terminal/selection_controller.dart`
+- `packages/ianvs_terminal/lib/src/terminal/selection_controller.dart`
   - 增加绝对坐标选区写入入口，供内部按词选区使用
-- `packages/flutterm_terminal/lib/src/terminal/terminal_input_controller.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_input_controller.dart`
   - 保持 shell 快捷键让出逻辑只覆盖仍然生效的组合键
 - `example/test/terminal/render_terminal_viewport_test.dart`
   - 覆盖双击选词、wrapped 选词、按词扩展、越界自动滚动、link 抑制
@@ -45,16 +45,16 @@ cd native/core
 cargo fmt --check
 cargo test
 
-cd packages/flutterm_pty
+cd packages/ianvs_pty
 dart test
 
-cd packages/flutterm_terminal
+cd packages/ianvs_terminal
 flutter test
 
 cd example
 flutter analyze
 flutter test
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 
 cd <repo-root>
 ./tools/verify_flutter_terminal.sh
@@ -67,11 +67,11 @@ cd <repo-root>
 - 实际验证链：
   - `cd native/core && cargo fmt --check`
   - `cd native/core && cargo test`
-  - `cd packages/flutterm_pty && dart test`
-  - `cd packages/flutterm_terminal && flutter test`
+  - `cd packages/ianvs_pty && dart test`
+  - `cd packages/ianvs_terminal && flutter test`
   - `cd example && flutter analyze`
   - `cd example && flutter test`
-  - `cd example && flutter test integration_test/flutterm_smoke_test.dart`
+  - `cd example && flutter test integration_test/ianvs_smoke_test.dart`
   - `./tools/verify_flutter_terminal.sh`
 - 结果：上述验证全部通过
 

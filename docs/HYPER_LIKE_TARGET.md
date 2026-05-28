@@ -1,6 +1,6 @@
-# Hyper-inspired Target for flutterm
+# Hyper-inspired Target for ianvs terminal
 
-这份文档把“让 flutterm 更像 Hyper”收敛成当前仓库可执行、可验证、可分阶段推进的产品目标。
+这份文档把“让 ianvs terminal 更像 Hyper”收敛成当前仓库可执行、可验证、可分阶段推进的产品目标。
 
 ## Inputs
 
@@ -90,7 +90,7 @@
 
 ### 5. Profile / theme identity 要可感知，但先从默认体验做起
 
-flutterm 已有 profile 持久化基础，因此 Hyper-inspired 方向可以增强 identity，但 Phase 1 不把它扩展成复杂的设置系统：
+ianvs terminal 已有 profile 持久化基础，因此 Hyper-inspired 方向可以增强 identity，但 Phase 1 不把它扩展成复杂的设置系统：
 
 - 用户能更明确地感知“当前 shell 是什么”
 - 默认 profile / 默认外观行为应可预测

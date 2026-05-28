@@ -1,5 +1,5 @@
-import 'package:flutterm_terminal/flutterm_terminal.dart';
-import 'package:flutterm_pty/flutterm_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 TerminalRuntimeController testRuntime(
   PtySessionBackend backend, {

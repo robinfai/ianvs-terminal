@@ -1,4 +1,4 @@
-export 'package:flutterm_terminal/flutterm_terminal.dart'
+export 'package:ianvs_terminal/ianvs_terminal.dart'
     show
         defaultTerminalScrollbackLines,
         terminalFontFamilyFallback,

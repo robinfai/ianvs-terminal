@@ -41,7 +41,7 @@ Required grounding anchors:
 - `app/test/shell/shell_screen_phase2a_test.dart`
 - `app/test/shell/shell_screen_phase2b_test.dart`
 - `app/test/widget_test.dart`
-- `app/integration_test/flutterm_smoke_test.dart`
+- `app/integration_test/ianvs_smoke_test.dart`
 
 Required content rules:
 - Keep only the three already-approved delivery slices:
@@ -73,12 +73,12 @@ Required sections:
 Required minimum regression chain:
 
 ```bash
-cd /Users/robinfai/personal/flutterm/app
+cd /Users/robinfai/personal/ianvs_terminal/app
 flutter analyze
 flutter test test/widget_test.dart
 flutter test test/shell/shell_screen_phase2a_test.dart
 flutter test test/shell/shell_screen_phase2b_test.dart
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 If Phase 4 directly consumes session lifecycle state, also add:

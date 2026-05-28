@@ -29,7 +29,7 @@ Future<void> _pumpSmokeApp(
           MemoryAppPreferencesRepository(null),
         ),
       ],
-      child: const FluttermApp(),
+      child: const IanvsTerminalApp(),
     ),
   );
 

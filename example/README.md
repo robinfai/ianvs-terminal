@@ -1,4 +1,4 @@
-# flutterm example
+# Ianvs Terminal example
 
 这个目录只放 demo app。
 
@@ -18,8 +18,8 @@
 
 这些共享能力统一来自：
 
-- [packages/flutterm_pty/README.md](../packages/flutterm_pty/README.md)
-- [packages/flutterm_terminal/README.md](../packages/flutterm_terminal/README.md)
+- [packages/ianvs_pty/README.md](../packages/ianvs_pty/README.md)
+- [packages/ianvs_terminal/README.md](../packages/ianvs_terminal/README.md)
 
 ## 常用命令
 

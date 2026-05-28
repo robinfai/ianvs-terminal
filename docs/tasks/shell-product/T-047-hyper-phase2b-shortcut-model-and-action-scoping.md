@@ -9,7 +9,7 @@
 - `example/lib/features/shell/shell_screen.dart`
 - `example/test/shell/shell_screen_phase2b_test.dart`
 - `example/test/widget_test.dart`
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/shell-product/T-047-hyper-phase2b-shortcut-model-and-action-scoping.md`
 
@@ -37,7 +37,7 @@ cd example
 flutter analyze
 flutter test test/shell/shell_screen_phase2b_test.dart
 flutter test test/widget_test.dart
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA

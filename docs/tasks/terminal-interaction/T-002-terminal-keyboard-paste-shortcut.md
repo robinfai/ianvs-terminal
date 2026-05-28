@@ -45,7 +45,7 @@ flutter test
 ## Manual QA
 
 1. 启动应用，打开一个 local shell tab。
-2. 选中外部文字（例如 `hello flutterm`）。
+2. 选中外部文字（例如 `hello ianvs terminal`）。
 3. 在终端内聚焦后按 `⌘V`（或 `Ctrl+V`）。
 4. 验证终端收到的内容与剪贴板一致。
 

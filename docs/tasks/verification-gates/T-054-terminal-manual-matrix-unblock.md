@@ -50,7 +50,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
   flutter devices
 env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
   no_proxy=127.0.0.1,localhost,::1 NO_PROXY=127.0.0.1,localhost,::1 \
-  flutter test integration_test/flutterm_smoke_test.dart
+  flutter test integration_test/ianvs_smoke_test.dart
 env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
   no_proxy=127.0.0.1,localhost,::1 NO_PROXY=127.0.0.1,localhost,::1 \
   flutter run -d macos
@@ -62,7 +62,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 ## Manual QA
 
 1. 从已登录的 macOS 桌面会话里的 Terminal / iTerm 打开一个全新的 login shell，不要并行启动多个 `flutter` 命令
-2. 用显式环境变量清掉代理后再运行命令，不要依赖不存在的 `flutterm_no_proxy` helper
+2. 用显式环境变量清掉代理后再运行命令，不要依赖不存在的 `ianvs_no_proxy` helper
 3. 若 `command -v vttest` 为空，再处理 Homebrew / PATH；若已有路径则不要再把 `vttest` 当成 blocker
 4. 运行显式 no-proxy 的 `./tools/check_terminal_manual_matrix_prereqs.sh`，记录主机、桌面会话、proxy 环境、Flutter 工具链、设备、integration smoke 和 `flutter run` 证据
 5. 单独运行显式 no-proxy 的 `flutter run -d macos --host-vmservice-port 49200`
@@ -87,7 +87,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
 `2026-04-22` 本机最新复跑结果：
 
 - `shell no_proxy helper`: `fail`
-  - `zsh -lic 'type flutterm_no_proxy'` 返回 `flutterm_no_proxy not found`
+  - `zsh -lic 'type ianvs_no_proxy'` 返回 `ianvs_no_proxy not found`
   - `~/.zshrc` 当前没有定义该 helper，因此本轮改用显式 no-proxy 环境变量取证
 - `command -v vttest`: `pass`
   - 当前机器可直接解析到 `/opt/homebrew/bin/vttest`
@@ -111,7 +111,7 @@ env -u http_proxy -u https_proxy -u all_proxy -u HTTP_PROXY -u HTTPS_PROXY -u AL
     - `flutter --version`: `pass`
     - `flutter doctor -v`: `pass`
     - `flutter devices`: `pass`
-    - `flutter test integration_test/flutterm_smoke_test.dart`: `pass`
+    - `flutter test integration_test/ianvs_smoke_test.dart`: `pass`
     - `flutter run -d macos`: `blocked`
       - `exit code: 124`
       - `Dart VM Service observed: yes`

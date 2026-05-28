@@ -422,7 +422,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nROOT_DIR=\"$PROJECT_DIR/../..\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  PROFILE=release \"$ROOT_DIR/tools/build_core.sh\"\n  CORE_LIB=\"$ROOT_DIR/native/core/target/release/libflutterm_core.dylib\"\nelse\n  PROFILE=debug \"$ROOT_DIR/tools/build_core.sh\"\n  CORE_LIB=\"$ROOT_DIR/native/core/target/debug/libflutterm_core.dylib\"\nfi\nDEST_DIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Frameworks\"\nmkdir -p \"$DEST_DIR\"\ncp \"$CORE_LIB\" \"$DEST_DIR/libflutterm_core.dylib\"\nif [ -n \"$EXPANDED_CODE_SIGN_IDENTITY\" ]; then\n  codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" \"$DEST_DIR/libflutterm_core.dylib\"\nelse\n  codesign --force --sign - \"$DEST_DIR/libflutterm_core.dylib\"\nfi\n";
+			shellScript = "set -e\nROOT_DIR=\"$PROJECT_DIR/../..\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  PROFILE=release \"$ROOT_DIR/tools/build_core.sh\"\n  CORE_LIB=\"$ROOT_DIR/native/core/target/release/libianvs_core.dylib\"\nelse\n  PROFILE=debug \"$ROOT_DIR/tools/build_core.sh\"\n  CORE_LIB=\"$ROOT_DIR/native/core/target/debug/libianvs_core.dylib\"\nfi\nDEST_DIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Frameworks\"\nmkdir -p \"$DEST_DIR\"\ncp \"$CORE_LIB\" \"$DEST_DIR/libianvs_core.dylib\"\nif [ -n \"$EXPANDED_CODE_SIGN_IDENTITY\" ]; then\n  codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" \"$DEST_DIR/libianvs_core.dylib\"\nelse\n  codesign --force --sign - \"$DEST_DIR/libianvs_core.dylib\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

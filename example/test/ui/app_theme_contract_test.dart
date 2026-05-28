@@ -17,10 +17,10 @@ void main() {
     return (lighter + 0.05) / (darker + 0.05);
   }
 
-  testWidgets('light and dark flutterm themes expose stable brand tokens', (
+  testWidgets('light and dark ianvs terminal themes expose stable brand tokens', (
     tester,
   ) async {
-    final lightTheme = buildFluttermTheme(Brightness.light);
+    final lightTheme = buildIanvsTerminalTheme(Brightness.light);
     final lightTokens = lightTheme.extension<AppThemeTokens>()!;
     expect(lightTokens.canvas.toARGB32(), const Color(0xFFF5F5F7).toARGB32());
     expect(lightTokens.chrome.toARGB32(), const Color(0xFFEDEEF2).toARGB32());
@@ -119,7 +119,7 @@ void main() {
       greaterThanOrEqualTo(3),
     );
 
-    final darkTheme = buildFluttermTheme(Brightness.dark);
+    final darkTheme = buildIanvsTerminalTheme(Brightness.dark);
     final darkTokens = darkTheme.extension<AppThemeTokens>()!;
     expect(darkTokens.canvas.toARGB32(), const Color(0xFF1D1D1F).toARGB32());
     expect(darkTokens.overlay.toARGB32(), const Color(0xFF3A3A3C).toARGB32());
@@ -173,7 +173,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         Theme(
-          data: buildFluttermTheme(Brightness.light),
+          data: buildIanvsTerminalTheme(Brightness.light),
           child: const SizedBox(key: Key('light-terminal-probe')),
         ),
       );
@@ -222,7 +222,7 @@ void main() {
 
       await tester.pumpWidget(
         Theme(
-          data: buildFluttermTheme(Brightness.dark),
+          data: buildIanvsTerminalTheme(Brightness.dark),
           child: const SizedBox(key: Key('dark-terminal-probe')),
         ),
       );

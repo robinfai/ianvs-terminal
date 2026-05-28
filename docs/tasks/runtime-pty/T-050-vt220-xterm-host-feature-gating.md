@@ -7,7 +7,7 @@
 ## Scope
 
 - `native/core/tests/session_test.rs`
-- `example/test/ffi/flutterm_core_test.dart`
+- `example/test/ffi/ianvs_core_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/runtime-pty/T-050-vt220-xterm-host-feature-gating.md`
 
@@ -21,7 +21,7 @@
 ## Files In Scope
 
 - `native/core/tests/session_test.rs`
-- `example/test/ffi/flutterm_core_test.dart`
+- `example/test/ffi/ianvs_core_test.dart`
 - `docs/TESTING.md`
 
 ## Functional Acceptance
@@ -40,7 +40,7 @@ cargo test
 
 cd example
 flutter analyze
-flutter test test/ffi/flutterm_core_test.dart
+flutter test test/ffi/ianvs_core_test.dart
 flutter test test/terminal_input_controller_test.dart
 ```
 

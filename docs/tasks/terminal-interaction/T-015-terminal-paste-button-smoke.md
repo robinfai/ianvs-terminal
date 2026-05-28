@@ -6,7 +6,7 @@
 
 ## Scope
 
-- 优先在 `example/integration_test/flutterm_smoke_test.dart`
+- 优先在 `example/integration_test/ianvs_smoke_test.dart`
   - 新增一条基于现有 `FakeCoreBindings` 的最小 UI smoke。
   - 为测试注入一段可控剪贴板文本，点击可见的 `Paste` 按钮。
   - 断言 active session 收到的最后一次写入等于该文本的 UTF-8 字节。
@@ -24,7 +24,7 @@
 
 ## Files In Scope
 
-- `example/integration_test/flutterm_smoke_test.dart`（首选）
+- `example/integration_test/ianvs_smoke_test.dart`（首选）
 - `example/test/widget_test.dart`（仅当需要更稳定的剪贴板控制时二选一替代）
 - `docs/tasks/terminal-interaction/T-015-terminal-paste-button-smoke.md`
 
@@ -44,7 +44,7 @@
 cd example
 flutter analyze
 flutter test
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 如果最终覆盖落在 widget test 面，仍需运行 `flutter analyze` 与 `flutter test`；`integration_test` 命令保留用于确认现有主界面 smoke 未回归。

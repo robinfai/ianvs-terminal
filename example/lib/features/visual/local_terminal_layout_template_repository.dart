@@ -54,7 +54,7 @@ class LocalTerminalLayoutTemplateRepository {
 
   Future<File> _templatesFile() async {
     final directory = await _directoryResolver();
-    return File('${directory.path}/flutterm_layout_templates.json');
+    return File('${directory.path}/ianvs_layout_templates.json');
   }
 
   Future<void> _quarantineCorruptFile(File file) async {

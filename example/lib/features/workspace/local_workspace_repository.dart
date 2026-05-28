@@ -40,7 +40,7 @@ class LocalWorkspaceRepository {
 
   Future<File> _workspaceFile() async {
     final directory = await _directoryResolver();
-    return File('${directory.path}/flutterm_workspace_layout.json');
+    return File('${directory.path}/ianvs_workspace_layout.json');
   }
 
   Future<void> _quarantineCorruptFile(File file) async {

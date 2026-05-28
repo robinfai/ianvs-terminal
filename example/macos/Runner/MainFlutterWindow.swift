@@ -369,7 +369,7 @@ class MainFlutterWindow: NSWindow {
         DispatchQueue.main.async {
           result(
             self.notificationAuthorizationFailedError(
-              message: "Notifications are disabled for Flutterm in System Settings."
+              message: "Notifications are disabled for Ianvs Terminal in System Settings."
             )
           )
         }

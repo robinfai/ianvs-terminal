@@ -29,7 +29,7 @@ dispatch without pretending unsupported native backends can clear scrollback.
 
 ## Deliverables
 
-- `packages/flutterm_terminal/lib/src/runtime/terminal_runtime_controller.dart`
+- `packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart`
 - `example/lib/features/shell/shell_screen.dart`
 - `example/lib/features/shell/shell_action_production_action_set.dart`
 

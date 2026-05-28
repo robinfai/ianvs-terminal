@@ -24,7 +24,7 @@
 
 - `LocalTerminalLayoutTemplate` 已支持 JSON serialization。
 - 已新增 `LocalTerminalLayoutTemplateRepository`。
-- template 文件路径为 `flutterm_layout_templates.json`。
+- template 文件路径为 `ianvs_layout_templates.json`。
 - repository 只保存/读取 `localOnly == true` 的 templates。
 - 缺失文件返回空列表。
 - corrupt 文件会 quarantine 并写入空列表。

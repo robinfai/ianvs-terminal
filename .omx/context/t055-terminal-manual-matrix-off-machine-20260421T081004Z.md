@@ -18,7 +18,7 @@ Complete the off-machine manual-matrix run, record all required `pass` / `fail` 
 - Current host is blocked for `T-055` execution.
 - `./tools/check_terminal_manual_matrix_prereqs.sh` on the current host reports:
   - `command -v vttest`: `blocked`
-  - `integration_test/flutterm_smoke_test.dart`: `pass`
+  - `integration_test/ianvs_smoke_test.dart`: `pass`
   - `flutter run -d macos`: `blocked`
 - Current host still reports `Failed to foreground app; open returned 1` during `flutter run -d macos`.
 - Current host lacks:
@@ -58,7 +58,7 @@ Complete the off-machine manual-matrix run, record all required `pass` / `fail` 
 - Use the existing execution template in `docs/tasks/T-055-terminal-manual-matrix-execution.md`.
 - Required recorded items:
   - `command -v vttest`
-  - `integration_test/flutterm_smoke_test.dart`
+  - `integration_test/ianvs_smoke_test.dart`
   - `flutter run -d macos`
   - `VT220 vttest`
   - `powerline / ANSI prompt fidelity`

@@ -28,14 +28,14 @@ Future<void> _pumpApp(
           MemoryAppPreferencesRepository(preferences),
         ),
       ],
-      child: const FluttermApp(),
+      child: const IanvsTerminalApp(),
     ),
   );
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('flutterm app consumes the persisted dark theme mode', (
+  testWidgets('ianvs terminal app consumes the persisted dark theme mode', (
     tester,
   ) async {
     await _pumpApp(
@@ -51,7 +51,7 @@ void main() {
     );
   });
 
-  testWidgets('flutterm app defaults to system theme mode when unset', (
+  testWidgets('ianvs terminal app defaults to system theme mode when unset', (
     tester,
   ) async {
     await _pumpApp(tester);

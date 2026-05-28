@@ -10,7 +10,7 @@
 - `T-078-action-registry-foundation` 已完成，`TerminalActionId` 与 `ShellActionRegistry` 骨架已建立。
 - `T-079-action-keybinding-metadata-foundation` 已推进，registry descriptor 已能承载 default keybinding metadata、input policy 和默认冲突诊断入口。
 - `T-080-local-terminal-config-schema-foundation` 已推进，LocalTerminalConfig schema 已覆盖 keybindings/workspace/clipboard/paste/shellIntegration/notifications/hotkeyWindow 的最小本地配置边界，并拒绝 remote-only 顶层字段。
-- `T-081-local-terminal-config-repository-migration` 已推进，独立 `flutterm_config.json` repository 与 legacy app preferences migration adapter 已建立。
+- `T-081-local-terminal-config-repository-migration` 已推进，独立 `ianvs_config.json` repository 与 legacy app preferences migration adapter 已建立。
 - `T-082-local-terminal-keybinding-resolver` 已推进，registry defaults 与 LocalTerminalConfig disabled/override 能合成为 resolved keybinding，并可诊断最终冲突。
 - `T-083-shell-shortcut-registry-dispatch` 已推进，`ShellScreen` 的 shortcut dispatch 开始消费 registry/resolver 默认 keybinding metadata。
 - `T-095-planned-action-id-expansion` 已推进，P2-P5 的关键规划能力已有稳定 `TerminalActionId` 与 descriptor metadata。
@@ -65,8 +65,8 @@
    - 明确热重载范围：theme/font/keybindings/notification policy 可热重载；program/args/env/cwd/emulation 只影响新 session。
 
 5. Legacy config compatibility
-   - 保持 `flutterm_profiles.json` 可读。
-   - 保持 `flutterm_preferences.json` 可读。
+   - 保持 `ianvs_profiles.json` 可读。
+   - 保持 `ianvs_preferences.json` 可读。
    - 首次写入新 config 时保留旧文件 fallback。
    - schema 校验禁止 SSH/remote/serial/SFTP 顶层字段。
 

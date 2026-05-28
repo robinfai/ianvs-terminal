@@ -16,7 +16,7 @@
 - `example/lib/features/shell/shell_screen.dart`
 - `example/test/shell/shell_screen_phase1a_test.dart`
 - `example/test/widget_test.dart`
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
 - `docs/TESTING.md`
 
 ## Non-goals
@@ -40,7 +40,7 @@ cd example
 flutter analyze
 flutter test test/shell/shell_screen_phase1a_test.dart
 flutter test test/widget_test.dart
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA

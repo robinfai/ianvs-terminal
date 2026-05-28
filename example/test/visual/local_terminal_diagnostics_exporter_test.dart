@@ -3,12 +3,12 @@ import 'dart:io';
 
 import 'package:app/features/visual/local_terminal_diagnostics_exporter.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
   test('diagnostics exporter writes the expected local bundle files', () async {
     final root = await Directory.systemTemp.createTemp(
-      'flutterm-diagnostics-exporter-test-',
+      'ianvs terminal-diagnostics-exporter-test-',
     );
     addTearDown(() => root.delete(recursive: true));
 
@@ -65,7 +65,7 @@ void main() {
 
   test('diagnostics exporter sanitizes unsafe bundle names', () async {
     final root = await Directory.systemTemp.createTemp(
-      'flutterm-diagnostics-exporter-name-test-',
+      'ianvs terminal-diagnostics-exporter-name-test-',
     );
     addTearDown(() => root.delete(recursive: true));
 

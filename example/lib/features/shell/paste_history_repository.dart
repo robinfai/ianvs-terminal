@@ -111,7 +111,7 @@ class PasteHistoryRepository {
 
   Future<File> _historyFile() async {
     final directory = await _directoryResolver();
-    return File('${directory.path}/flutterm_paste_history.json');
+    return File('${directory.path}/ianvs_paste_history.json');
   }
 
   Future<void> _quarantineCorruptFile(File file) async {

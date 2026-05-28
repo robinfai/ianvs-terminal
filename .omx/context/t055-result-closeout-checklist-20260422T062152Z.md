@@ -17,7 +17,7 @@ After a target machine completes `T-055 Terminal Manual Matrix Execution`, synch
 ## Closeout Sequence
 1. Confirm all seven result items in the `Execution Record Template` are filled:
    - `command -v vttest`
-   - `integration_test/flutterm_smoke_test.dart`
+   - `integration_test/ianvs_smoke_test.dart`
    - `flutter run -d macos`
    - `VT220 vttest`
    - `powerline / ANSI prompt fidelity`

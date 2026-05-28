@@ -2,7 +2,7 @@
 
 ## Context
 
-flutterm 接下来要做一轮 Hyper-inspired UI 现代化，但当前仓库已经有一条稳定的 terminal 主链路：Flutter shell/UI + Rust PTY core + viewport render path。
+ianvs terminal 接下来要做一轮 Hyper-inspired UI 现代化，但当前仓库已经有一条稳定的 terminal 主链路：Flutter shell/UI + Rust PTY core + viewport render path。
 
 如果不先明确 shell 层、session 层、viewport 层各自负责什么，后续 Phase 1A/1B 很容易把“视觉升级”顺手做成“输入/焦点/生命周期语义改动”，从而误伤现有稳定能力。
 
@@ -16,7 +16,7 @@ flutterm 接下来要做一轮 Hyper-inspired UI 现代化，但当前仓库已�
 | Session container | `example/lib/features/sessions/session_controller.dart`, `session_state.dart` | session lifecycle、tab 列表、active session、profile bootstrap、polling、viewport controller provisioning | create / activate / close session，profile defaults，resize orchestration，exit 事件处理 | 直接承担 shell chrome 视觉职责；改写 viewport 绘制细节 |
 | Terminal interaction adapters | `example/lib/features/terminal/terminal_input_controller.dart`, `clipboard_bridge.dart`, `selection_controller.dart` | 键盘输入编码、复制粘贴桥接、选区文本提取 | 向 active session 发送 input；更新本地 selection 状态 | tab/session 生命周期；顶层 app action 路由 |
 | Viewport renderer | `example/lib/features/terminal/terminal_viewport.dart`, `render_terminal_viewport.dart` | viewport focus 容器、pointer/scroll hit testing、frame diff 渲染 | viewport 内局部交互状态（focus、selection hit-test、scroll dispatch） | profile/session ownership、terminal state source of truth |
-| Core boundary | `example/lib/ffi/flutterm_core.dart`, `native/core/src/*` | PTY、VT parsing、frame/event delivery、session runtime | core session create/write/resize/scroll/close | Flutter shell polish、tab hierarchy、empty-state UX |
+| Core boundary | `example/lib/ffi/ianvs_core.dart`, `native/core/src/*` | PTY、VT parsing、frame/event delivery、session runtime | core session create/write/resize/scroll/close | Flutter shell polish、tab hierarchy、empty-state UX |
 
 ### Observe vs mutate rules
 
@@ -35,13 +35,13 @@ flutterm 接下来要做一轮 Hyper-inspired UI 现代化，但当前仓库已�
 
 | Contract | Current owner(s) | Why protected | Existing evidence anchors |
 | --- | --- | --- | --- |
-| Terminal input path | `terminal_input_controller.dart`, `flutterm_core.dart`, `native/core` | shell polish 不得改变按键 -> bytes -> PTY 的主链路 | `example/test/terminal_input_controller_test.dart`, `example/test/ffi/flutterm_core_test.dart` |
+| Terminal input path | `terminal_input_controller.dart`, `ianvs_core.dart`, `native/core` | shell polish 不得改变按键 -> bytes -> PTY 的主链路 | `example/test/terminal_input_controller_test.dart`, `example/test/ffi/ianvs_core_test.dart` |
 | Selection semantics | `selection_controller.dart`, `render_terminal_viewport.dart` | 选区文本抽取和 block/linear 行为已形成用户可见语义 | `example/test/terminal/selection_controller_test.dart`, `example/test/widget_test.dart` |
 | Copy/paste semantics | `clipboard_bridge.dart`, `terminal_input_controller.dart`, `shell_screen.dart` | clipboard 是高频路径，最容易被表层 UI 改动误伤 | `example/test/terminal_input_controller_test.dart`, `example/test/widget_test.dart` |
-| Focus handoff after tab/session lifecycle changes | `session_controller.dart`, `shell_screen.dart`, `terminal_viewport.dart` | Hyper-like 表层升级不能引入“焦点去哪了”不确定性 | `example/test/sessions/session_controller_test.dart`, `example/test/widget_test.dart`, `example/integration_test/flutterm_smoke_test.dart` |
-| Resize routing | `session_controller.dart`, `flutterm_core.dart` | shell frame 调整不能破坏 cols/rows/pixel size 路径 | `example/test/sessions/session_controller_test.dart`, `example/test/widget_test.dart`, `docs/TESTING.md` |
-| Scroll routing | `render_terminal_viewport.dart`, `flutterm_core.dart` | shell polish 不得改变滚轮 -> viewport scroll 行为 | `example/test/terminal/render_terminal_viewport_test.dart`, `example/test/widget_test.dart` |
-| PTY event delivery | `session_controller.dart`, `flutterm_core.dart`, `native/core` | exit / frame diff / event polling 是 session lifecycle 的底层契约 | `example/test/ffi/flutterm_core_test.dart`, `example/test/widget_test.dart`, `example/integration_test/flutterm_smoke_test.dart` |
+| Focus handoff after tab/session lifecycle changes | `session_controller.dart`, `shell_screen.dart`, `terminal_viewport.dart` | Hyper-like 表层升级不能引入“焦点去哪了”不确定性 | `example/test/sessions/session_controller_test.dart`, `example/test/widget_test.dart`, `example/integration_test/ianvs_smoke_test.dart` |
+| Resize routing | `session_controller.dart`, `ianvs_core.dart` | shell frame 调整不能破坏 cols/rows/pixel size 路径 | `example/test/sessions/session_controller_test.dart`, `example/test/widget_test.dart`, `docs/TESTING.md` |
+| Scroll routing | `render_terminal_viewport.dart`, `ianvs_core.dart` | shell polish 不得改变滚轮 -> viewport scroll 行为 | `example/test/terminal/render_terminal_viewport_test.dart`, `example/test/widget_test.dart` |
+| PTY event delivery | `session_controller.dart`, `ianvs_core.dart`, `native/core` | exit / frame diff / event polling 是 session lifecycle 的底层契约 | `example/test/ffi/ianvs_core_test.dart`, `example/test/widget_test.dart`, `example/integration_test/ianvs_smoke_test.dart` |
 
 ## Consequences
 

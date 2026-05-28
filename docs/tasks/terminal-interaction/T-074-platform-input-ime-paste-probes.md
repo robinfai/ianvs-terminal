@@ -21,8 +21,8 @@ Close the recent xterm.js input/IME/paste probe gaps with platform-specific manu
 
 ## Files In Scope
 
-- `packages/flutterm_terminal/lib/src/terminal/terminal_input_controller.dart`
-- `packages/flutterm_terminal/test/terminal_input_controller_test.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_input_controller.dart`
+- `packages/ianvs_terminal/test/terminal_input_controller_test.dart`
 - `example/test/terminal_input_controller_test.dart`
 - `example/lib/features/terminal/terminal_viewport.dart`
 - `example/lib/features/terminal/render_terminal_viewport.dart`
@@ -30,7 +30,7 @@ Close the recent xterm.js input/IME/paste probe gaps with platform-specific manu
 
 ## Probe Evidence
 
-- `cd packages/flutterm_terminal && flutter test test/terminal_input_controller_test.dart --plain-name "Control letters"` passes and covers local Control A-Z to C0-byte mapping, including Ctrl-C.
+- `cd packages/ianvs_terminal && flutter test test/terminal_input_controller_test.dart --plain-name "Control letters"` passes and covers local Control A-Z to C0-byte mapping, including Ctrl-C.
 - `flutter test test/terminal_input_controller_test.dart --plain-name Control` passes existing macOS Control+V, Control+T, and Control+C tests, but it does not cover Windows win32 input mode, CapsLock, fish under kitty mode, or Android hardware keyboards.
 - `TerminalInputController.clipboardPasteBytesFor` wraps raw paste text inside `ESC [ 200 ~` / `ESC [ 201 ~`; no sanitizer removes embedded bracketed-paste markers before wrapping.
 - Existing IME tests cover composition visibility before commit, but the current test set does not cover mid-text composition, resize ordering, high-DPI geometry, long composition clipping, or RTL composition.
@@ -52,7 +52,7 @@ See [../../TESTING.md](../../TESTING.md).
 cd example
 flutter test test/terminal_input_controller_test.dart
 
-cd packages/flutterm_terminal
+cd packages/ianvs_terminal
 flutter test test/terminal_input_controller_test.dart --plain-name "Control letters"
 flutter test test/terminal_input_controller_test.dart
 ```

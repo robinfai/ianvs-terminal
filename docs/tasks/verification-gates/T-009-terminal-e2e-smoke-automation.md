@@ -2,13 +2,13 @@
 
 ## Goal
 
-为 `flutterm` 补一条最小可运行的 Flutter integration_test 冒烟链路，减少对人工 GUI 介入的依赖。
+为 `ianvs terminal` 补一条最小可运行的 Flutter integration_test 冒烟链路，减少对人工 GUI 介入的依赖。
 
 ## Scope
 
 - `example/pubspec.yaml`
   - 增加 `integration_test` 开发依赖。
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
   - 增加最小启动/开 tab 冒烟用例。
 - `example/test/support/memory_profile_repository.dart`
   - 抽出测试内存 profile 仓储供 widget/integration 测试复用。
@@ -27,7 +27,7 @@
 ## Files In Scope
 
 - `example/pubspec.yaml`
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
 - `example/test/support/memory_profile_repository.dart`
 - `example/test/widget_test.dart`
 - `docs/TESTING.md`
@@ -47,7 +47,7 @@
 cd example
 flutter analyze
 flutter test
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA

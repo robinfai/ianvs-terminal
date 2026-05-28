@@ -2,13 +2,13 @@
 
 ## 背景
 
-这份设计定义 `flutterm` 第一版产品官网。官网服务的是“想了解、关注或开源试用一个桌面终端 app”的用户，而不是只面向 package 使用者或内部开发者。
+这份设计定义 `ianvs terminal` 第一版产品官网。官网服务的是“想了解、关注或开源试用一个桌面终端 app”的用户，而不是只面向 package 使用者或内部开发者。
 
 仓库当前事实：
 
-- `flutterm` 是 Flutter/Dart workspace。
-- `packages/flutterm_pty` 负责 PTY 会话传输和 FFI 包装。
-- `packages/flutterm_terminal` 负责 session runtime、viewport、输入、选区和滚动适配。
+- `ianvs terminal` 是 Flutter/Dart workspace。
+- `packages/ianvs_pty` 负责 PTY 会话传输和 FFI 包装。
+- `packages/ianvs_terminal` 负责 session runtime、viewport、输入、选区和滚动适配。
 - `example/` 是可运行的 macOS demo app，包含 tab、窗口壳、菜单、profile/defaults 和集成 smoke。
 - `native/core` 负责 Rust PTY、VT 解析、frame diff 和事件输出。
 - macOS 本地 shell 主链路当前最成熟。跨平台桌面体验是产品方向，但不能在官网里写成已经完成。
@@ -98,7 +98,7 @@
 副文案：
 
 ```text
-flutterm 是一个面向本地开发工作流的开源终端实验。当前 macOS 体验最成熟，目标是走向更完整的跨平台桌面终端。
+ianvs terminal 是一个面向本地开发工作流的开源终端实验。当前 macOS 体验最成熟，目标是走向更完整的跨平台桌面终端。
 ```
 
 小标签：
@@ -163,14 +163,14 @@ CTA：
 用简图说明：
 
 ```text
-UI shell -> flutterm_terminal -> flutterm_pty -> Rust native core
+UI shell -> ianvs_terminal -> ianvs_pty -> Rust native core
 ```
 
 每层只写职责：
 
 - UI shell：窗口壳、tab、菜单、profile/defaults。
-- `flutterm_terminal`：session runtime、viewport、输入、选区、滚动。
-- `flutterm_pty`：PTY 会话传输和 FFI 包装。
+- `ianvs_terminal`：session runtime、viewport、输入、选区、滚动。
+- `ianvs_pty`：PTY 会话传输和 FFI 包装。
 - Rust native core：PTY、VT 解析、frame diff 和事件。
 
 ### 分层清楚，方便验证

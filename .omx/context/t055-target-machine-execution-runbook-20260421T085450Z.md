@@ -54,7 +54,7 @@ Use only `pass`, `fail`, or `blocked` for every item.
 - `blocked`: `vttest` is not installed or the machine cannot provide it.
 - `fail`: `vttest` exists but cannot be launched or used normally.
 
-### `integration_test/flutterm_smoke_test.dart`
+### `integration_test/ianvs_smoke_test.dart`
 - `pass`: command exits with code `0`.
 - `blocked`: target machine cannot provide a runnable macOS Flutter host condition.
 - `fail`: command exits non-zero for a reason that is not just missing host/tooling conditions.

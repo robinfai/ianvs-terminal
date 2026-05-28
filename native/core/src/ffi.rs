@@ -3,7 +3,7 @@ use libc::{c_char, c_int};
 use std::ffi::{CStr, CString};
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_ping() -> c_int {
+pub extern "C" fn ianvs_ping() -> c_int {
     session::ping()
 }
 
@@ -12,7 +12,7 @@ pub extern "C" fn flutterm_ping() -> c_int {
 ///
 /// `profile_json` must be a valid, NUL-terminated UTF-8 string pointer that
 /// remains alive for the duration of this call.
-pub unsafe extern "C" fn flutterm_session_create(profile_json: *const c_char) -> u64 {
+pub unsafe extern "C" fn ianvs_session_create(profile_json: *const c_char) -> u64 {
     if profile_json.is_null() {
         return 0;
     }
@@ -26,12 +26,12 @@ pub unsafe extern "C" fn flutterm_session_create(profile_json: *const c_char) ->
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_close(session_id: u64) -> c_int {
+pub extern "C" fn ianvs_session_close(session_id: u64) -> c_int {
     session::close_session(session_id).map(|_| 0).unwrap_or(-1)
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_resize(
+pub extern "C" fn ianvs_session_resize(
     session_id: u64,
     cols: u16,
     rows: u16,
@@ -47,7 +47,7 @@ pub extern "C" fn flutterm_session_resize(
 /// # Safety
 ///
 /// `bytes` must point to `len` readable bytes for the duration of this call.
-pub unsafe extern "C" fn flutterm_session_write(
+pub unsafe extern "C" fn ianvs_session_write(
     session_id: u64,
     bytes: *const u8,
     len: usize,
@@ -62,14 +62,14 @@ pub unsafe extern "C" fn flutterm_session_write(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_scroll(session_id: u64, delta_lines: i32) -> c_int {
+pub extern "C" fn ianvs_session_scroll(session_id: u64, delta_lines: i32) -> c_int {
     session::scroll_session(session_id, delta_lines)
         .map(|_| 0)
         .unwrap_or(-1)
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_scroll_to(session_id: u64, offset: usize) -> c_int {
+pub extern "C" fn ianvs_session_scroll_to(session_id: u64, offset: usize) -> c_int {
     session::scroll_to_session(session_id, offset)
         .map(|_| 0)
         .unwrap_or(-1)
@@ -80,7 +80,7 @@ pub extern "C" fn flutterm_session_scroll_to(session_id: u64, offset: usize) -> 
 ///
 /// `query` must be a valid, NUL-terminated UTF-8 string pointer that remains
 /// alive for the duration of this call.
-pub unsafe extern "C" fn flutterm_session_search_json(
+pub unsafe extern "C" fn ianvs_session_search_json(
     session_id: u64,
     query: *const c_char,
 ) -> *mut c_char {
@@ -106,7 +106,7 @@ pub unsafe extern "C" fn flutterm_session_search_json(
 ///
 /// `request_json` must be a valid, NUL-terminated UTF-8 string pointer that
 /// remains alive for the duration of this call.
-pub unsafe extern "C" fn flutterm_session_selection_text(
+pub unsafe extern "C" fn ianvs_session_selection_text(
     session_id: u64,
     request_json: *const c_char,
 ) -> *mut c_char {
@@ -132,7 +132,7 @@ pub unsafe extern "C" fn flutterm_session_selection_text(
 ///
 /// `request_json` must be a valid, NUL-terminated UTF-8 string pointer that
 /// remains alive for the duration of this call.
-pub unsafe extern "C" fn flutterm_session_request_json(
+pub unsafe extern "C" fn ianvs_session_request_json(
     session_id: u64,
     request_json: *const c_char,
 ) -> *mut c_char {
@@ -155,7 +155,7 @@ pub unsafe extern "C" fn flutterm_session_request_json(
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_take_frame_diff_json(session_id: u64) -> *mut c_char {
+pub extern "C" fn ianvs_session_take_frame_diff_json(session_id: u64) -> *mut c_char {
     match session::take_frame_diff(session_id).ok().flatten() {
         Some(json) => CString::new(json)
             .map(CString::into_raw)
@@ -165,7 +165,7 @@ pub extern "C" fn flutterm_session_take_frame_diff_json(session_id: u64) -> *mut
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_take_frame_debug_stats_json(session_id: u64) -> *mut c_char {
+pub extern "C" fn ianvs_session_take_frame_debug_stats_json(session_id: u64) -> *mut c_char {
     match session::take_frame_debug_stats_json(session_id)
         .ok()
         .flatten()
@@ -178,7 +178,7 @@ pub extern "C" fn flutterm_session_take_frame_debug_stats_json(session_id: u64) 
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_take_session_debug_stats_json(session_id: u64) -> *mut c_char {
+pub extern "C" fn ianvs_session_take_session_debug_stats_json(session_id: u64) -> *mut c_char {
     match session::take_session_debug_stats_json(session_id)
         .ok()
         .flatten()
@@ -191,7 +191,7 @@ pub extern "C" fn flutterm_session_take_session_debug_stats_json(session_id: u64
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn flutterm_session_poll_events_json(session_id: u64) -> *mut c_char {
+pub extern "C" fn ianvs_session_poll_events_json(session_id: u64) -> *mut c_char {
     match session::take_events(session_id) {
         Ok(events) if events.is_empty() => std::ptr::null_mut(),
         Ok(events) => serde_json::to_string(&events)
@@ -208,7 +208,7 @@ pub extern "C" fn flutterm_session_poll_events_json(session_id: u64) -> *mut c_c
 ///
 /// `value` must be a pointer previously returned by this library via
 /// `CString::into_raw`, and it must not be freed more than once.
-pub unsafe extern "C" fn flutterm_string_free(value: *mut c_char) {
+pub unsafe extern "C" fn ianvs_string_free(value: *mut c_char) {
     if value.is_null() {
         return;
     }

@@ -1,6 +1,6 @@
 # Hyper-inspired Gap Matrix
 
-这份矩阵描述 flutterm 当前状态与 Hyper-inspired 目标之间的具体缺口，用于给后续 Phase 1+ 排优先级。
+这份矩阵描述 ianvs terminal 当前状态与 Hyper-inspired 目标之间的具体缺口，用于给后续 Phase 1+ 排优先级。
 
 | Area | Current repo state | Desired target | Gap | Primary layer owner | Suggested phase |
 | --- | --- | --- | --- | --- | --- |

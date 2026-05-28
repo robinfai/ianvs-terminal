@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
   test('terminal color palette roundtrips grouped special and ansi colors', () {

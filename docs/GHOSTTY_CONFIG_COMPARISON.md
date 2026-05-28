@@ -1,6 +1,6 @@
 # Ghostty 配置能力对比审计
 
-这份文档记录 `flutterm` 当前仓库基线与 Ghostty 官方配置能力之间的差异，用于后续产品和配置系统演进时做长期参考。
+这份文档记录 `ianvs terminal` 当前仓库基线与 Ghostty 官方配置能力之间的差异，用于后续产品和配置系统演进时做长期参考。
 
 ## 审计基线
 
@@ -26,17 +26,17 @@
 
 - 只比较“用户可配置能力”和其直接依赖的运行时行为。
 - 不把纯 VT 兼容性逐项展开；只有当某个 VT 能力被配置显式控制时才纳入。
-- `flutterm` 按仓库边界拆两层看：
-  - `packages/flutterm_terminal` / `native/core` 是否已经具备底层能力。
+- `ianvs terminal` 按仓库边界拆两层看：
+  - `packages/ianvs_terminal` / `native/core` 是否已经具备底层能力。
   - `example/` 是否已经把该能力建模成稳定配置或对用户暴露。
-- 对比目标不是“把 Ghostty 原样照抄”，而是识别哪些能力适合吸收到 `flutterm` 当前产品方向中。
+- 对比目标不是“把 Ghostty 原样照抄”，而是识别哪些能力适合吸收到 `ianvs terminal` 当前产品方向中。
 
-## 当前 flutterm 配置面
+## 当前 ianvs terminal 配置面
 
 ### 配置载体
 
-- Profile 持久化在应用支持目录下的 `flutterm_profiles.json`，由 `ProfileRepository` 负责读写。
-- App 级偏好单独持久化在 `flutterm_preferences.json`，由 `AppPreferencesRepository` 负责读写。
+- Profile 持久化在应用支持目录下的 `ianvs_profiles.json`，由 `ProfileRepository` 负责读写。
+- App 级偏好单独持久化在 `ianvs_preferences.json`，由 `AppPreferencesRepository` 负责读写。
 - 当前没有统一配置入口，没有 include/override 层次，也没有显式运行时 reload 协议。
 
 对应代码：
@@ -60,7 +60,7 @@
 
 对应代码：
 
-- `packages/flutterm_terminal/lib/src/config/terminal_config.dart`
+- `packages/ianvs_terminal/lib/src/config/terminal_config.dart`
 - `example/lib/features/profiles/profile_models.dart`
 - `example/lib/features/profiles/profile_editor.dart`
 
@@ -96,7 +96,7 @@
 - `example/lib/features/sessions/session_state.dart`
 - `example/lib/features/sessions/session_controller.dart`
 - `example/lib/features/shell/shell_screen.dart`
-- `packages/flutterm_terminal/lib/src/terminal/terminal_viewport.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart`
 
 ### 关键仓库证据索引
 
@@ -104,7 +104,7 @@
 | --- | --- |
 | Profile 文件持久化 | `example/lib/features/profiles/profile_repository.dart` |
 | App 偏好文件持久化 | `example/lib/features/preferences/app_preferences_repository.dart` |
-| 终端配置模型 | `packages/flutterm_terminal/lib/src/config/terminal_config.dart` |
+| 终端配置模型 | `packages/ianvs_terminal/lib/src/config/terminal_config.dart` |
 | Profile 编辑器当前暴露字段 | `example/lib/features/profiles/profile_editor.dart` |
 | Theme preset 系统 | `example/lib/ui/foundation/terminal_theme_presets.dart` |
 | shell hook 注入实现 | `native/core/src/pty.rs` |
@@ -112,14 +112,14 @@
 | 自动 profile 切换逻辑 | `example/lib/features/sessions/session_controller.dart` |
 | 快捷键硬编码入口 | `example/lib/features/shell/shell_screen.dart` |
 | hotkey window 平台桥接 | `example/lib/features/shell/window_bridge.dart` |
-| copy-on-select 实际触发点 | `packages/flutterm_terminal/lib/src/terminal/terminal_viewport.dart` |
-| inline image overlay 渲染 | `packages/flutterm_terminal/lib/src/terminal/terminal_viewport.dart` |
+| copy-on-select 实际触发点 | `packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart` |
+| inline image overlay 渲染 | `packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart` |
 | terminal 标题同步 | `example/lib/features/sessions/session_controller.dart` |
 | command finished / bell / activity 通知 | `example/lib/features/shell/shell_screen.dart` |
 
 ## 差异矩阵
 
-| Area | Ghostty 官方能力 | flutterm 当前状态 | 差异类型 | 吸收价值 |
+| Area | Ghostty 官方能力 | ianvs terminal 当前状态 | 差异类型 | 吸收价值 |
 | --- | --- | --- | --- | --- |
 | 配置文件形态 | 文本 `config.ghostty`，支持多位置加载、`config-file` 拆分、可选 include、命令行同名 flag 覆盖 | 两份 JSON 持久化文件，按 repo 当前实现分成 profile 与 app preferences，缺少统一入口 | 基础设施缺口 | 很高。先补统一配置层，再谈单项功能 |
 | 配置热重载 | 官方支持 reload config，且文档区分哪些选项可热更新、哪些只影响新 surface | 未看到通用文件监听或 reload 协议；现有编辑器更多是“保存后影响新会话” | 基础设施缺口 | 很高。对后续任意配置扩展都有复用价值 |
@@ -149,11 +149,11 @@
 | inline image / graphics | 官方支持 Kitty graphics protocol，且可配 image storage limit | 当前 frame model 和 viewport 已支持 inline image overlay，但没看到用户配置 limit 或 graphics policy | 能力已部分存在，缺配置面 | 中。属于后续增强项 |
 | 安全键盘输入等平台特性 | Ghostty 暴露 secure input、mouse reporting toggle、readonly 等动作/策略 | 当前存在部分相关 app 行为，但未形成统一配置与动作协议 | 产品壳层差距 | 中。需要和快捷键/action registry 一起看 |
 
-## flutterm 已有且不应被 Ghostty 对比掩盖的能力
+## ianvs terminal 已有且不应被 Ghostty 对比掩盖的能力
 
-下面这些能力不是 Ghostty 本轮配置对比里的主要强项，但 `flutterm` 已经具备或正在显式建模，后续不该因为追 Ghostty 而被误判为“还没做”：
+下面这些能力不是 Ghostty 本轮配置对比里的主要强项，但 `ianvs terminal` 已经具备或正在显式建模，后续不该因为追 Ghostty 而被误判为“还没做”：
 
-| Area | flutterm 当前状态 | 备注 |
+| Area | ianvs terminal 当前状态 | 备注 |
 | --- | --- | --- |
 | 输出触发器 | profile 可按 regex 触发 notify 或 send text | 更偏工作流自动化，不是 Ghostty 那类终端基础配置 |
 | 自动 profile 切换 | 可按 host/user/dir 切换 profile | 很有产品辨识度，适合保留并继续增强 |
@@ -220,4 +220,4 @@
 2. 把快捷键和动作从硬编码提升为声明式 registry。
 3. 把现有 shell integration、hotkey window、主题和通知这些已有能力补成完整配置语义。
 
-这三条做完之后，再继续吸收 Ghostty 的视觉配置、字体高阶能力和窗口策略，ROI 会明显更高，也更符合 `flutterm` 当前“terminal runtime + shell product”双层定位。
+这三条做完之后，再继续吸收 Ghostty 的视觉配置、字体高阶能力和窗口策略，ROI 会明显更高，也更符合 `ianvs terminal` 当前“terminal runtime + shell product”双层定位。

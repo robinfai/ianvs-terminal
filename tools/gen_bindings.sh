@@ -9,5 +9,5 @@ if ! command -v cbindgen >/dev/null 2>&1; then
   cargo install cbindgen --locked
 fi
 
-cbindgen --crate flutterm_core --output "$CORE_DIR/flutterm_core.h"
-echo "Generated C header at $CORE_DIR/flutterm_core.h"
+cbindgen --crate ianvs_core --output "$CORE_DIR/ianvs_core.h"
+echo "Generated C header at $CORE_DIR/ianvs_core.h"

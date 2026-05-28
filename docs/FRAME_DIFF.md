@@ -3,9 +3,9 @@
 这份文档说明当前 terminal frame diff 的工作方式、回退边界和收益。图中的字段与代码路径对应：
 
 - Rust 端生成：`native/core/src/session.rs`
-- Dart frame 模型与合并：`packages/flutterm_terminal/lib/src/terminal/terminal_models.dart`
-- Runtime 拉取与派发：`packages/flutterm_terminal/lib/src/runtime/terminal_runtime_controller.dart`
-- Flutter 行缓存渲染：`packages/flutterm_terminal/lib/src/terminal/render_terminal_viewport.dart`
+- Dart frame 模型与合并：`packages/ianvs_terminal/lib/src/terminal/terminal_models.dart`
+- Runtime 拉取与派发：`packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart`
+- Flutter 行缓存渲染：`packages/ianvs_terminal/lib/src/terminal/render_terminal_viewport.dart`
 
 ## 总览
 

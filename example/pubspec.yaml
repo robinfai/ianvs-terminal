@@ -36,10 +36,10 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^3.3.1
-  flutterm_pty:
-    path: ../packages/flutterm_pty
-  flutterm_terminal:
-    path: ../packages/flutterm_terminal
+  ianvs_pty:
+    path: ../packages/ianvs_pty
+  ianvs_terminal:
+    path: ../packages/ianvs_terminal
   path_provider: ^2.1.5
   ffi: ^2.2.0
 

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Define and implement a flutterm runtime contract for xterm synchronized output mode (`CSI ? 2026 h/l`) so writes can defer visible frame publication during synchronized-output blocks.
+Define and implement a ianvs terminal runtime contract for xterm synchronized output mode (`CSI ? 2026 h/l`) so writes can defer visible frame publication during synchronized-output blocks.
 
 ## Scope
 
@@ -22,13 +22,13 @@ Define and implement a flutterm runtime contract for xterm synchronized output m
 - `native/core/src/session.rs`
 - `native/core/tests/session_test.rs`
 - `native/vendor/par-term-emu-core-rust/src/terminal/sequences/csi/mode.rs`
-- `packages/flutterm_terminal/lib/src/runtime/terminal_runtime_controller.dart`
-- `packages/flutterm_terminal/test/terminal_runtime_controller_test.dart`
+- `packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart`
+- `packages/ianvs_terminal/test/terminal_runtime_controller_test.dart`
 - `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md`
 
 ## Probe Evidence
 
-- `rg -n "2026|synchronized" native/core/src native/vendor/par-term-emu-core-rust/src` shows a vendored parser toggle, but no flutterm `TerminalFrameModes` field or runtime frame deferral contract.
+- `rg -n "2026|synchronized" native/core/src native/vendor/par-term-emu-core-rust/src` shows a vendored parser toggle, but no ianvs terminal `TerminalFrameModes` field or runtime frame deferral contract.
 - `cargo test --manifest-path native/vendor/par-term-emu-core-rust/Cargo.toml test_synchronized_updates_mode_toggle` is not currently usable on this host; it fails at link time with unresolved Python/PyO3 symbols.
 
 ## Functional Acceptance
@@ -46,7 +46,7 @@ See [../../TESTING.md](../../TESTING.md).
 cd native/core
 cargo test --test session_test synchronized_output
 
-cd packages/flutterm_terminal
+cd packages/ianvs_terminal
 flutter test test/terminal_runtime_controller_test.dart --plain-name synchronized
 ```
 

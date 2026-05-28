@@ -1,4 +1,4 @@
-# flutterm Testing
+# ianvs terminal Testing
 
 这份文档只保留当前工作区真实可用的验证入口。
 
@@ -11,12 +11,12 @@ cargo test
 ```
 
 ```bash
-cd packages/flutterm_pty
+cd packages/ianvs_pty
 dart test
 ```
 
 ```bash
-cd packages/flutterm_terminal
+cd packages/ianvs_terminal
 flutter test
 ```
 
@@ -24,12 +24,12 @@ flutter test
 cd example
 flutter analyze
 flutter test
-flutter test -d macos integration_test/flutterm_smoke_test.dart
+flutter test -d macos integration_test/ianvs_smoke_test.dart
 ```
 
 当前 macOS smoke 显式指定 `-d macos`。在本机不指定 device 时，
 Flutter 可能先进入 Android `adb devices` discovery 并卡住；这不是
-flutterm 产品回归。
+ianvs terminal 产品回归。
 
 ## 运行 demo
 
@@ -119,7 +119,7 @@ flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "term
 command -v vttest
 cd example && flutter devices
 osascript -e 'tell application "System Events" to get UI elements enabled'
-cd example && flutter test -d macos integration_test/flutterm_smoke_test.dart
+cd example && flutter test -d macos integration_test/ianvs_smoke_test.dart
 cd example && flutter run -d macos
 ```
 
@@ -159,15 +159,15 @@ terminal frame/event 通道，覆盖：
 ./tools/verify_flutter_terminal.sh
 ```
 
-这个脚本会先构建并验证 `native/core`，再跑 `packages/flutterm_pty`、`packages/flutterm_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。
+这个脚本会先构建并验证 `native/core`，再跑 `packages/ianvs_pty`、`packages/ianvs_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。
 
 ## 按边界挑命令
 
-- 只改 `packages/flutterm_pty`
+- 只改 `packages/ianvs_pty`
   - `cd native/core && cargo test`
-  - `cd packages/flutterm_pty && dart test`
-- 只改 `packages/flutterm_terminal`
-  - `cd packages/flutterm_terminal && flutter test`
+  - `cd packages/ianvs_pty && dart test`
+- 只改 `packages/ianvs_terminal`
+  - `cd packages/ianvs_terminal && flutter test`
 - 只改 `example/`
   - `cd example && flutter analyze`
   - `cd example && flutter test`

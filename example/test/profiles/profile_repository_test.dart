@@ -12,12 +12,12 @@ void main() {
     'profile repository persists profiles to disk without legacy default field',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-profiles',
+        'ianvs terminal-profiles',
       );
       final repository = ProfileRepository(
         directoryResolver: () async => directory,
       );
-      final file = File('${directory.path}/flutterm_profiles.json');
+      final file = File('${directory.path}/ianvs_profiles.json');
 
       final document = TerminalProfilesDocument(
         profiles: [
@@ -113,12 +113,12 @@ void main() {
     'profile repository seeds a strict VT220 preset on first launch without legacy default field',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-profiles-seeded',
+        'ianvs terminal-profiles-seeded',
       );
       final repository = ProfileRepository(
         directoryResolver: () async => directory,
       );
-      final file = File('${directory.path}/flutterm_profiles.json');
+      final file = File('${directory.path}/ianvs_profiles.json');
 
       final loaded = await repository.load();
       final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
@@ -158,9 +158,9 @@ void main() {
     'profile repository ignores legacy defaultProfileId from older documents',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-profiles-migration',
+        'ianvs terminal-profiles-migration',
       );
-      final file = File('${directory.path}/flutterm_profiles.json');
+      final file = File('${directory.path}/ianvs_profiles.json');
       await file.parent.create(recursive: true);
       await file.writeAsString(
         jsonEncode({
@@ -197,9 +197,9 @@ void main() {
     'profile repository tolerates documents that omit defaultProfileId',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-profiles-missing-default',
+        'ianvs terminal-profiles-missing-default',
       );
-      final file = File('${directory.path}/flutterm_profiles.json');
+      final file = File('${directory.path}/ianvs_profiles.json');
       await file.parent.create(recursive: true);
       await file.writeAsString(
         jsonEncode({
@@ -232,9 +232,9 @@ void main() {
 
   test('profile repository reads nested schema v3 documents', () async {
     final directory = await Directory.systemTemp.createTemp(
-      'flutterm-profiles-v3',
+      'ianvs terminal-profiles-v3',
     );
-    final file = File('${directory.path}/flutterm_profiles.json');
+    final file = File('${directory.path}/ianvs_profiles.json');
     await file.parent.create(recursive: true);
     await file.writeAsString(
       jsonEncode({
@@ -255,7 +255,7 @@ void main() {
             'launch': {
               'program': '/bin/zsh',
               'args': const ['-l'],
-              'env': const {'TERM_PROGRAM': 'flutterm'},
+              'env': const {'TERM_PROGRAM': 'ianvs terminal'},
               'cwd': '/tmp',
             },
             'terminal': {'emulation': 'vt220', 'scrollbackLines': 4096},
@@ -304,7 +304,7 @@ void main() {
       ),
     ]);
     expect(loaded.profiles.single.args, const ['-l']);
-    expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
+    expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'ianvs terminal'});
     expect(loaded.profiles.single.cwd, '/tmp');
     expect(loaded.profiles.single.terminalEmulation, TerminalEmulation.vt220);
     expect(loaded.profiles.single.scrollbackLines, 4096);
@@ -354,9 +354,9 @@ void main() {
     'profile repository tolerates invalid nested fields and reports warnings',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-profiles-invalid-fields',
+        'ianvs terminal-profiles-invalid-fields',
       );
-      final file = File('${directory.path}/flutterm_profiles.json');
+      final file = File('${directory.path}/ianvs_profiles.json');
       await file.parent.create(recursive: true);
       final rawDocument = jsonEncode({
         'schemaVersion': 3,
@@ -378,7 +378,7 @@ void main() {
             'launch': {
               'program': 7,
               'args': const ['-l', 3, ''],
-              'env': const {'TERM_PROGRAM': 'flutterm', 'BAD': 9, '': 'empty'},
+              'env': const {'TERM_PROGRAM': 'ianvs terminal', 'BAD': 9, '': 'empty'},
               'cwd': 42,
             },
             'terminal': {'emulation': 'ansi', 'scrollbackLines': -1},
@@ -436,7 +436,7 @@ void main() {
       ]);
       expect(loaded.profiles.single.shell, defaultTerminalProfile().shell);
       expect(loaded.profiles.single.args, const ['-l']);
-      expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'flutterm'});
+      expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'ianvs terminal'});
       expect(loaded.profiles.single.cwd, isNull);
       expect(
         loaded.profiles.single.terminalEmulation,
@@ -514,9 +514,9 @@ void main() {
     'profile repository upgrades built-in shell presets without explicit login args',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-profiles-login-shell-upgrade',
+        'ianvs terminal-profiles-login-shell-upgrade',
       );
-      final file = File('${directory.path}/flutterm_profiles.json');
+      final file = File('${directory.path}/ianvs_profiles.json');
       await file.parent.create(recursive: true);
       await file.writeAsString(
         jsonEncode({
@@ -527,7 +527,7 @@ void main() {
               'name': 'Local Shell',
               'launch': {
                 'program': defaultTerminalProfile().shell,
-                'env': const {'TERM_PROGRAM': 'flutterm'},
+                'env': const {'TERM_PROGRAM': 'ianvs terminal'},
                 'cwd': null,
               },
               'terminal': {'emulation': 'xterm256', 'scrollbackLines': 8000},
@@ -537,7 +537,7 @@ void main() {
               'name': 'Strict VT220',
               'launch': {
                 'program': vt220TerminalProfile().shell,
-                'env': const {'TERM_PROGRAM': 'flutterm'},
+                'env': const {'TERM_PROGRAM': 'ianvs terminal'},
                 'cwd': null,
               },
               'terminal': {'emulation': 'vt220', 'scrollbackLines': 8000},
@@ -570,9 +570,9 @@ void main() {
     'profile repository falls back in-memory when the json document is malformed',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-profiles-malformed-json',
+        'ianvs terminal-profiles-malformed-json',
       );
-      final file = File('${directory.path}/flutterm_profiles.json');
+      final file = File('${directory.path}/ianvs_profiles.json');
       await file.parent.create(recursive: true);
       await file.writeAsString('{bad json');
       final repository = ProfileRepository(

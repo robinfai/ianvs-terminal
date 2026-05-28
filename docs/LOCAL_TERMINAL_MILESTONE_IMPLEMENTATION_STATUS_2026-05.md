@@ -512,20 +512,20 @@ state.
 - T-324 Integration batch environment hardening: UPDATED / VERIFIED. Updated
   `tools/local_terminal_verification_batches.sh` so the integration batch builds
   the debug native core, runs from the `example` package to use desktop plugin
-  registration, sets `FLUTTERM_CORE_LIB`, and executes the smoke and real-PTY
+  registration, sets `IANVS_CORE_LIB`, and executes the smoke and real-PTY
   integration files sequentially.
 
 - T-325 Integration smoke visibility fix: UPDATED / VERIFIED. Updated
-  `example/integration_test/flutterm_smoke_test.dart` to make the `Profiles…`
+  `example/integration_test/ianvs_smoke_test.dart` to make the `Profiles…`
   menu item visible before tapping it in the 800x600 macOS test window. Ran
-  `dart format example/integration_test/flutterm_smoke_test.dart` and
+  `dart format example/integration_test/ianvs_smoke_test.dart` and
   `bash -n tools/local_terminal_verification_batches.sh`.
 
 - T-326 Integration verification rerun: VERIFIED. Ran
   `bash tools/local_terminal_verification_capture.sh run integration` after the
   helper and smoke-test fixes. Captured evidence in
   `build/local-terminal-verification/20260516T155028Z-integration`; exit status
-  was `0`, `flutterm_smoke_test.dart` passed 4/4, and
+  was `0`, `ianvs_smoke_test.dart` passed 4/4, and
   `real_pty_acceptance_test.dart` passed 7/7. Manual gates and
   completion evidence records are now closed.
 

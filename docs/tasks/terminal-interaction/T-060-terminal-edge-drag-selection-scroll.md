@@ -24,7 +24,7 @@
   - 在 state 层管理本地拖选、边缘自动滚动、停止条件与 scroll callback。
 - `example/lib/features/shell/shell_screen.dart`
   - 复制路径改为 native selection text 优先，frame fallback 兜底。
-- `example/lib/ffi/flutterm_core.dart`
+- `example/lib/ffi/ianvs_core.dart`
   - 增加 selection text 绑定与客户端封装。
 - `example/test/support/fake_core_bindings.dart`
   - 为 widget 测试补 selection text 假实现。
@@ -51,7 +51,7 @@
 - `example/lib/features/terminal/render_terminal_viewport.dart`
 - `example/lib/features/terminal/terminal_viewport.dart`
 - `example/lib/features/shell/shell_screen.dart`
-- `example/lib/ffi/flutterm_core.dart`
+- `example/lib/ffi/ianvs_core.dart`
 - `example/test/support/fake_core_bindings.dart`
 - `example/test/terminal/selection_controller_test.dart`
 - `example/test/terminal/render_terminal_viewport_test.dart`
@@ -77,7 +77,7 @@ cargo test
 cd example
 flutter analyze
 flutter test
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 
 cd <repo-root>
 ./tools/verify_flutter_terminal.sh

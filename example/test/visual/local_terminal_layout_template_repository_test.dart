@@ -8,7 +8,7 @@ void main() {
   group('Local terminal layout template repository', () {
     test('returns empty list when template file is absent', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-layout-templates-missing',
+        'ianvs terminal-layout-templates-missing',
       );
       final repository = LocalTerminalLayoutTemplateRepository(
         directoryResolver: () async => directory,
@@ -19,7 +19,7 @@ void main() {
 
     test('persists local-only templates', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-layout-templates-roundtrip',
+        'ianvs terminal-layout-templates-roundtrip',
       );
       final repository = LocalTerminalLayoutTemplateRepository(
         directoryResolver: () async => directory,
@@ -48,9 +48,9 @@ void main() {
 
     test('quarantines corrupt template file', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-layout-templates-corrupt',
+        'ianvs terminal-layout-templates-corrupt',
       );
-      final file = File('${directory.path}/flutterm_layout_templates.json');
+      final file = File('${directory.path}/ianvs_layout_templates.json');
       await file.writeAsString('{bad json');
       final repository = LocalTerminalLayoutTemplateRepository(
         directoryResolver: () async => directory,
@@ -62,7 +62,7 @@ void main() {
       expect(
         directory.listSync().any(
           (entry) =>
-              entry.path.contains('flutterm_layout_templates.json.corrupt'),
+              entry.path.contains('ianvs_layout_templates.json.corrupt'),
         ),
         isTrue,
       );

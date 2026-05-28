@@ -15,7 +15,7 @@
 - `example/test/sessions/session_controller_test.dart`
 - `example/test/profiles/profile_repository_test.dart`
 - `example/test/shell/shell_screen_phase3_test.dart`
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
 - `docs/TESTING.md`
 - `docs/tasks/shell-product/T-057-terminalprofiles-defaultprofileid-narrowing.md`
 
@@ -38,7 +38,7 @@
 - `example/test/sessions/session_controller_test.dart`
 - `example/test/profiles/profile_repository_test.dart`
 - `example/test/shell/shell_screen_phase3_test.dart`
-- `example/integration_test/flutterm_smoke_test.dart`
+- `example/integration_test/ianvs_smoke_test.dart`
 - `docs/TESTING.md`
 
 ## Functional Acceptance
@@ -59,7 +59,7 @@ flutter test test/sessions/session_controller_phase3_test.dart
 flutter test test/sessions/session_controller_test.dart
 flutter test test/profiles/profile_repository_test.dart
 flutter test test/shell/shell_screen_phase3_test.dart
-flutter test integration_test/flutterm_smoke_test.dart
+flutter test integration_test/ianvs_smoke_test.dart
 ```
 
 ## Manual QA
@@ -83,7 +83,7 @@ flutter test integration_test/flutterm_smoke_test.dart
 - 实际验证链：
   - `flutter analyze`
   - `flutter test test/sessions/session_controller_phase3_test.dart test/sessions/session_controller_test.dart test/profiles/profile_repository_test.dart test/shell/shell_screen_phase1a_test.dart test/shell/shell_screen_phase3_test.dart`
-  - `flutter test integration_test/flutterm_smoke_test.dart`
+  - `flutter test integration_test/ianvs_smoke_test.dart`
 - 结论：`T-057` 已完成，且不再阻塞 defaults deprecation lane
 
 ## Risks / Follow-ups

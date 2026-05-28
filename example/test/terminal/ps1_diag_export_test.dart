@@ -913,7 +913,7 @@ TerminalFrameDiff _debug1CodexBoxFrame() {
       ),
       TerminalRow(
         index: 4,
-        text: padRow('│ directory: ~/personal/flutterm              │'),
+        text: padRow('│ directory: ~/personal/ianvs terminal              │'),
         styleRuns: const [
           TerminalStyleRun(start: 0, end: 13, dim: true),
           TerminalStyleRun(start: 13, end: 32),

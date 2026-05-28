@@ -12,7 +12,7 @@ void main() {
   group('Local terminal config loader', () {
     test('loads local config before legacy preferences', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-config-loader-local',
+        'ianvs terminal-config-loader-local',
       );
       final localRepository = LocalTerminalConfigRepository(
         directoryResolver: () async => directory,
@@ -40,7 +40,7 @@ void main() {
 
     test('loads legacy preferences when local config is absent', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-config-loader-legacy',
+        'ianvs terminal-config-loader-legacy',
       );
       final legacyRepository = AppPreferencesRepository(
         directoryResolver: () async => directory,

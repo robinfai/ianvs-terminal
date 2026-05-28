@@ -10,7 +10,7 @@ void main() {
     'app preferences repository returns null when preferences file is absent',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-preferences-missing',
+        'ianvs terminal-preferences-missing',
       );
       final repository = AppPreferencesRepository(
         directoryResolver: () async => directory,
@@ -24,7 +24,7 @@ void main() {
 
   test('app preferences repository persists app defaults to disk', () async {
     final directory = await Directory.systemTemp.createTemp(
-      'flutterm-preferences-roundtrip',
+      'ianvs terminal-preferences-roundtrip',
     );
     final repository = AppPreferencesRepository(
       directoryResolver: () async => directory,
@@ -55,12 +55,12 @@ void main() {
     'app preferences repository fills missing fields with schema defaults',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-preferences-defaults',
+        'ianvs terminal-preferences-defaults',
       );
       final repository = AppPreferencesRepository(
         directoryResolver: () async => directory,
       );
-      final file = File('${directory.path}/flutterm_preferences.json');
+      final file = File('${directory.path}/ianvs_preferences.json');
 
       await file.writeAsString('{"schemaVersion":1}');
 
@@ -80,12 +80,12 @@ void main() {
     'app preferences repository quarantines corrupt files and repairs defaults',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-preferences-corrupt',
+        'ianvs terminal-preferences-corrupt',
       );
       final repository = AppPreferencesRepository(
         directoryResolver: () async => directory,
       );
-      final file = File('${directory.path}/flutterm_preferences.json');
+      final file = File('${directory.path}/ianvs_preferences.json');
 
       await file.writeAsString('{not-json');
 
@@ -105,7 +105,7 @@ void main() {
             .whereType<File>()
             .where(
               (entry) =>
-                  entry.path.contains('flutterm_preferences.json.corrupt'),
+                  entry.path.contains('ianvs_preferences.json.corrupt'),
             )
             .length,
         1,

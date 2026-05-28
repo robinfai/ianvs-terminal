@@ -8,7 +8,7 @@ void main() {
   group('Local terminal theme repository', () {
     test('returns empty presets when themes file is absent', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-themes-missing',
+        'ianvs terminal-themes-missing',
       );
       final repository = LocalTerminalThemeRepository(
         directoryResolver: () async => directory,
@@ -19,7 +19,7 @@ void main() {
 
     test('persists theme presets', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-themes-roundtrip',
+        'ianvs terminal-themes-roundtrip',
       );
       final repository = LocalTerminalThemeRepository(
         directoryResolver: () async => directory,
@@ -35,7 +35,7 @@ void main() {
 
     test('exports a single preset document', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-theme-export',
+        'ianvs terminal-theme-export',
       );
       final repository = LocalTerminalThemeRepository(
         directoryResolver: () async => directory,
@@ -43,15 +43,15 @@ void main() {
 
       final file = await repository.exportPreset(_preset());
 
-      expect(file.path, contains('baseline.flutterm-theme.json'));
+      expect(file.path, contains('baseline.ianvs-terminal-theme.json'));
       expect(await file.readAsString(), contains('"baseline"'));
     });
 
     test('quarantines corrupt theme list', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-themes-corrupt',
+        'ianvs terminal-themes-corrupt',
       );
-      final file = File('${directory.path}/flutterm_themes.json');
+      final file = File('${directory.path}/ianvs_themes.json');
       await file.writeAsString('{bad json');
       final repository = LocalTerminalThemeRepository(
         directoryResolver: () async => directory,
@@ -62,7 +62,7 @@ void main() {
       expect(loaded, isEmpty);
       expect(
         directory.listSync().any(
-          (entry) => entry.path.contains('flutterm_themes.json.corrupt'),
+          (entry) => entry.path.contains('ianvs_themes.json.corrupt'),
         ),
         isTrue,
       );

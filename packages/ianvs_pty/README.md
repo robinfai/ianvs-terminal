@@ -1,6 +1,6 @@
-# flutterm_pty
+# ianvs_pty
 
-`flutterm_pty` 只负责 PTY 会话传输和 FFI 包装。
+`ianvs_pty` 只负责 PTY 会话传输和 FFI 包装。
 
 ## 对上层暴露
 
@@ -24,6 +24,6 @@ cargo test
 ```
 
 ```bash
-cd packages/flutterm_pty
+cd packages/ianvs_pty
 dart test
 ```

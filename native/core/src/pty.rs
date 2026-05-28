@@ -212,13 +212,13 @@ fn supports_zdotdir_proxy() -> bool {
 
 fn apply_zsh_shell_integration(env: &mut BTreeMap<String, String>, proxy: &ShellIntegrationProxy) {
     let original_zdotdir = original_zdotdir(env);
-    env.insert("FLUTTERM_SHELL_INTEGRATION".to_string(), "1".to_string());
+    env.insert("IANVS_SHELL_INTEGRATION".to_string(), "1".to_string());
     env.insert(
-        "FLUTTERM_ORIGINAL_ZDOTDIR_WAS_SET".to_string(),
+        "IANVS_ORIGINAL_ZDOTDIR_WAS_SET".to_string(),
         if original_zdotdir.is_some() { "1" } else { "0" }.to_string(),
     );
     env.insert(
-        "FLUTTERM_ORIGINAL_ZDOTDIR".to_string(),
+        "IANVS_ORIGINAL_ZDOTDIR".to_string(),
         original_zdotdir.unwrap_or_default(),
     );
     env.insert(
@@ -232,7 +232,7 @@ fn apply_bash_shell_integration(
     env: &mut BTreeMap<String, String>,
     proxy: &ShellIntegrationProxy,
 ) {
-    env.insert("FLUTTERM_SHELL_INTEGRATION".to_string(), "1".to_string());
+    env.insert("IANVS_SHELL_INTEGRATION".to_string(), "1".to_string());
     args.clear();
     args.push("--rcfile".to_string());
     args.push(proxy.path().join(".bashrc").to_string_lossy().into_owned());
@@ -243,9 +243,9 @@ fn apply_fish_shell_integration(
     env: &mut BTreeMap<String, String>,
     proxy: &ShellIntegrationProxy,
 ) {
-    env.insert("FLUTTERM_SHELL_INTEGRATION".to_string(), "1".to_string());
+    env.insert("IANVS_SHELL_INTEGRATION".to_string(), "1".to_string());
     env.insert(
-        "FLUTTERM_FISH_INIT".to_string(),
+        "IANVS_FISH_INIT".to_string(),
         proxy
             .path()
             .join("init.fish")
@@ -254,7 +254,7 @@ fn apply_fish_shell_integration(
     );
     args.clear();
     args.push("--init-command".to_string());
-    args.push(r#"source "$FLUTTERM_FISH_INIT""#.to_string());
+    args.push(r#"source "$IANVS_FISH_INIT""#.to_string());
 }
 
 fn original_zdotdir(env: &BTreeMap<String, String>) -> Option<String> {
@@ -314,7 +314,7 @@ fn create_shell_integration_proxy_in(
     for attempt in 0..100_u64 {
         let counter = SHELL_INTEGRATION_PROXY_COUNTER.fetch_add(1, Ordering::Relaxed);
         let path = base_dir.join(format!(
-            "flutterm-{}-shell-integration-{}-{timestamp}-{counter}-{attempt}",
+            "ianvs terminal-{}-shell-integration-{}-{timestamp}-{counter}-{attempt}",
             kind.temp_dir_name(),
             process::id()
         ));
@@ -332,7 +332,7 @@ fn create_shell_integration_proxy_in(
     }
     Err(std::io::Error::new(
         std::io::ErrorKind::AlreadyExists,
-        "could not allocate unique flutterm shell integration proxy",
+        "could not allocate unique ianvs terminal shell integration proxy",
     ))
 }
 
@@ -353,21 +353,21 @@ fn write_zsh_proxy_files(dir: &Path) -> std::io::Result<()> {
     fs::write(
         dir.join(".zshrc"),
         format!(
-            "{}\n{}\n__flutterm_source_original_zdotfile \".zshrc\"\n__flutterm_install_shell_hooks >/dev/null 2>&1 || true\n__flutterm_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__flutterm_restore_zdotdir >/dev/null 2>&1 || true\n",
+            "{}\n{}\n__ianvs_source_original_zdotfile \".zshrc\"\n__ianvs_install_shell_hooks >/dev/null 2>&1 || true\n__ianvs_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n",
             ZSH_PROXY_COMMON, ZSH_HOOK_INSTALLER
         ),
     )?;
     fs::write(
         dir.join(".zlogin"),
         format!(
-            "{}\n__flutterm_source_original_zdotfile \".zlogin\"\n__flutterm_restore_zdotdir >/dev/null 2>&1 || true\n",
+            "{}\n__ianvs_source_original_zdotfile \".zlogin\"\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n",
             ZSH_PROXY_COMMON
         ),
     )?;
     fs::write(
         dir.join(".zlogout"),
         format!(
-            "{}\n__flutterm_source_original_zdotfile \".zlogout\"\n",
+            "{}\n__ianvs_source_original_zdotfile \".zlogout\"\n",
             ZSH_PROXY_COMMON
         ),
     )?;
@@ -375,42 +375,42 @@ fn write_zsh_proxy_files(dir: &Path) -> std::io::Result<()> {
 }
 
 fn zsh_source_proxy(file_name: &str) -> String {
-    format!("{ZSH_PROXY_COMMON}\n__flutterm_source_original_zdotfile \"{file_name}\"\n")
+    format!("{ZSH_PROXY_COMMON}\n__ianvs_source_original_zdotfile \"{file_name}\"\n")
 }
 
 const ZSH_PROXY_COMMON: &str = r#"
-__flutterm_original_zdotdir() {
+__ianvs_original_zdotdir() {
   emulate -L zsh
-  if [[ "${FLUTTERM_ORIGINAL_ZDOTDIR_WAS_SET:-0}" == "1" ]]; then
-    builtin print -r -- "${FLUTTERM_ORIGINAL_ZDOTDIR:-}"
+  if [[ "${IANVS_ORIGINAL_ZDOTDIR_WAS_SET:-0}" == "1" ]]; then
+    builtin print -r -- "${IANVS_ORIGINAL_ZDOTDIR:-}"
   else
     builtin print -r -- "${HOME:-}"
   fi
 }
 
-__flutterm_source_original_zdotfile() {
-  local __flutterm_file="$1"
-  local __flutterm_dir="$(__flutterm_original_zdotdir)"
-  [[ -n "$__flutterm_dir" ]] || return 0
-  local __flutterm_path="$__flutterm_dir/$__flutterm_file"
-  [[ -r "$__flutterm_path" ]] || return 0
-  [[ "$__flutterm_path" != "${ZDOTDIR:-}/$__flutterm_file" ]] || return 0
-  local __flutterm_proxy_zdotdir="${ZDOTDIR:-}"
-  local __flutterm_proxy_zdotdir_was_set=0
-  (( $+ZDOTDIR )) && __flutterm_proxy_zdotdir_was_set=1
-  __flutterm_restore_zdotdir
-  source "$__flutterm_path" || true
-  if [[ "$__flutterm_proxy_zdotdir_was_set" == "1" ]]; then
-    export ZDOTDIR="$__flutterm_proxy_zdotdir"
+__ianvs_source_original_zdotfile() {
+  local __ianvs_file="$1"
+  local __ianvs_dir="$(__ianvs_original_zdotdir)"
+  [[ -n "$__ianvs_dir" ]] || return 0
+  local __ianvs_path="$__ianvs_dir/$__ianvs_file"
+  [[ -r "$__ianvs_path" ]] || return 0
+  [[ "$__ianvs_path" != "${ZDOTDIR:-}/$__ianvs_file" ]] || return 0
+  local __ianvs_proxy_zdotdir="${ZDOTDIR:-}"
+  local __ianvs_proxy_zdotdir_was_set=0
+  (( $+ZDOTDIR )) && __ianvs_proxy_zdotdir_was_set=1
+  __ianvs_restore_zdotdir
+  source "$__ianvs_path" || true
+  if [[ "$__ianvs_proxy_zdotdir_was_set" == "1" ]]; then
+    export ZDOTDIR="$__ianvs_proxy_zdotdir"
   else
     unset ZDOTDIR
   fi
 }
 
-__flutterm_restore_zdotdir() {
+__ianvs_restore_zdotdir() {
   emulate -L zsh
-  if [[ "${FLUTTERM_ORIGINAL_ZDOTDIR_WAS_SET:-0}" == "1" ]]; then
-    export ZDOTDIR="${FLUTTERM_ORIGINAL_ZDOTDIR:-}"
+  if [[ "${IANVS_ORIGINAL_ZDOTDIR_WAS_SET:-0}" == "1" ]]; then
+    export ZDOTDIR="${IANVS_ORIGINAL_ZDOTDIR:-}"
   else
     unset ZDOTDIR
   fi
@@ -418,274 +418,274 @@ __flutterm_restore_zdotdir() {
 "#;
 
 const ZSH_HOOK_INSTALLER: &str = r#"
-__flutterm_install_shell_hooks() {
+__ianvs_install_shell_hooks() {
   emulate -L zsh
-  [[ -n "${FLUTTERM_SHELL_INTEGRATION:-}" ]] || return 0
-  [[ -z "${__FLUTTERM_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
+  [[ -n "${IANVS_SHELL_INTEGRATION:-}" ]] || return 0
+  [[ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
   (( $+commands[od] && $+commands[tr] )) || return 0
   autoload -Uz add-zsh-hook 2>/dev/null || return 0
 
-  typeset -g __FLUTTERM_SHELL_INTEGRATION_LOADED=1
-  typeset -g __flutterm_command_active=0
-  typeset -g __flutterm_last_command=""
-  typeset -g __flutterm_prompt_sp_suppressed=0
-  typeset -g __flutterm_prompt_sp_was_set=0
-  typeset -g __flutterm_startup_prompt_sp_checked=0
-  typeset -g __flutterm_startup_prompt_trimmed=0
-  typeset -g __flutterm_original_prompt=""
+  typeset -g __IANVS_SHELL_INTEGRATION_LOADED=1
+  typeset -g __ianvs_command_active=0
+  typeset -g __ianvs_last_command=""
+  typeset -g __ianvs_prompt_sp_suppressed=0
+  typeset -g __ianvs_prompt_sp_was_set=0
+  typeset -g __ianvs_startup_prompt_sp_checked=0
+  typeset -g __ianvs_startup_prompt_trimmed=0
+  typeset -g __ianvs_original_prompt=""
 
-  __flutterm_json_escape() {
+  __ianvs_json_escape() {
     emulate -L zsh
-    local __flutterm_value="${1:-}"
-    __flutterm_value=${__flutterm_value//\\/\\\\}
-    __flutterm_value=${__flutterm_value//\"/\\\"}
-    __flutterm_value=${__flutterm_value//$'\n'/\\n}
-    __flutterm_value=${__flutterm_value//$'\r'/\\r}
-    __flutterm_value=${__flutterm_value//$'\t'/\\t}
-    builtin printf '%s' "$__flutterm_value"
+    local __ianvs_value="${1:-}"
+    __ianvs_value=${__ianvs_value//\\/\\\\}
+    __ianvs_value=${__ianvs_value//\"/\\\"}
+    __ianvs_value=${__ianvs_value//$'\n'/\\n}
+    __ianvs_value=${__ianvs_value//$'\r'/\\r}
+    __ianvs_value=${__ianvs_value//$'\t'/\\t}
+    builtin printf '%s' "$__ianvs_value"
   }
 
-  __flutterm_emit_shell_hook() {
+  __ianvs_emit_shell_hook() {
     emulate -L zsh
-    local __flutterm_json="$1"
-    local __flutterm_hex
-    __flutterm_hex=$(builtin printf '%s' "$__flutterm_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
-    [[ -n "$__flutterm_hex" ]] || return 0
-    builtin printf '\ePhook;%s\e\\' "$__flutterm_hex" 2>/dev/null || true
+    local __ianvs_json="$1"
+    local __ianvs_hex
+    __ianvs_hex=$(builtin printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
+    [[ -n "$__ianvs_hex" ]] || return 0
+    builtin printf '\ePhook;%s\e\\' "$__ianvs_hex" 2>/dev/null || true
   }
 
-  __flutterm_suspend_startup_prompt_sp() {
-    [[ "${__FLUTTERM_SHELL_INTEGRATION_LOADED:-}" == "1" ]] || return 0
-    [[ "${__flutterm_startup_prompt_sp_checked:-0}" == "0" ]] || return 0
-    builtin typeset -g __flutterm_startup_prompt_sp_checked=1
-    builtin typeset -g __flutterm_prompt_sp_was_set=0
-    [[ -o prompt_sp ]] && builtin typeset -g __flutterm_prompt_sp_was_set=1
+  __ianvs_suspend_startup_prompt_sp() {
+    [[ "${__IANVS_SHELL_INTEGRATION_LOADED:-}" == "1" ]] || return 0
+    [[ "${__ianvs_startup_prompt_sp_checked:-0}" == "0" ]] || return 0
+    builtin typeset -g __ianvs_startup_prompt_sp_checked=1
+    builtin typeset -g __ianvs_prompt_sp_was_set=0
+    [[ -o prompt_sp ]] && builtin typeset -g __ianvs_prompt_sp_was_set=1
     unsetopt prompt_sp
-    builtin typeset -g __flutterm_prompt_sp_suppressed=1
+    builtin typeset -g __ianvs_prompt_sp_suppressed=1
   }
 
-  __flutterm_trim_startup_prompt_newline() {
-    [[ "${__flutterm_startup_prompt_trimmed:-0}" == "0" ]] || return 0
-    builtin typeset -g __flutterm_original_prompt="$PROMPT"
+  __ianvs_trim_startup_prompt_newline() {
+    [[ "${__ianvs_startup_prompt_trimmed:-0}" == "0" ]] || return 0
+    builtin typeset -g __ianvs_original_prompt="$PROMPT"
     if [[ "$PROMPT" == $'\n'* ]]; then
       PROMPT="${PROMPT#$'\n'}"
-      builtin typeset -g __flutterm_startup_prompt_trimmed=1
+      builtin typeset -g __ianvs_startup_prompt_trimmed=1
     elif [[ -o prompt_subst ]]; then
-      PROMPT='${${:-${(e)__flutterm_original_prompt}}#$'\''\n'\''}'
-      builtin typeset -g __flutterm_startup_prompt_trimmed=1
+      PROMPT='${${:-${(e)__ianvs_original_prompt}}#$'\''\n'\''}'
+      builtin typeset -g __ianvs_startup_prompt_trimmed=1
     else
-      builtin typeset -g __flutterm_startup_prompt_trimmed=2
+      builtin typeset -g __ianvs_startup_prompt_trimmed=2
     fi
   }
 
-  __flutterm_restore_startup_prompt_state() {
-    if [[ "${__flutterm_startup_prompt_trimmed:-0}" == "1" ]]; then
-      PROMPT="${__flutterm_original_prompt:-}"
-      builtin typeset -g __flutterm_startup_prompt_trimmed=2
+  __ianvs_restore_startup_prompt_state() {
+    if [[ "${__ianvs_startup_prompt_trimmed:-0}" == "1" ]]; then
+      PROMPT="${__ianvs_original_prompt:-}"
+      builtin typeset -g __ianvs_startup_prompt_trimmed=2
     fi
-    if [[ "${__flutterm_prompt_sp_suppressed:-0}" == "1" ]]; then
-      if [[ "${__flutterm_prompt_sp_was_set:-0}" == "1" ]]; then
+    if [[ "${__ianvs_prompt_sp_suppressed:-0}" == "1" ]]; then
+      if [[ "${__ianvs_prompt_sp_was_set:-0}" == "1" ]]; then
         setopt prompt_sp
       else
         unsetopt prompt_sp
       fi
-      builtin typeset -g __flutterm_prompt_sp_suppressed=0
+      builtin typeset -g __ianvs_prompt_sp_suppressed=0
     fi
   }
 
-  __flutterm_preexec() {
-    __flutterm_restore_startup_prompt_state
+  __ianvs_preexec() {
+    __ianvs_restore_startup_prompt_state
     emulate -L zsh
-    local __flutterm_command="$(__flutterm_json_escape "${1:-}")"
-    typeset -g __flutterm_command_active=1
-    typeset -g __flutterm_last_command="${1:-}"
-    __flutterm_emit_shell_hook "{\"hook\":\"preexec\",\"command\":\"$__flutterm_command\",\"shell\":\"zsh\"}"
+    local __ianvs_command="$(__ianvs_json_escape "${1:-}")"
+    typeset -g __ianvs_command_active=1
+    typeset -g __ianvs_last_command="${1:-}"
+    __ianvs_emit_shell_hook "{\"hook\":\"preexec\",\"command\":\"$__ianvs_command\",\"shell\":\"zsh\"}"
     return 0
   }
 
-  __flutterm_precmd() {
-    local __flutterm_status=$?
-    __flutterm_trim_startup_prompt_newline
+  __ianvs_precmd() {
+    local __ianvs_status=$?
+    __ianvs_trim_startup_prompt_newline
     emulate -L zsh
-    if [[ "${__flutterm_command_active:-0}" == "1" ]]; then
-      local __flutterm_command="$(__flutterm_json_escape "${__flutterm_last_command:-}")"
-      __flutterm_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__flutterm_command\",\"exit_code\":$__flutterm_status,\"shell\":\"zsh\"}"
-      typeset -g __flutterm_command_active=0
-      typeset -g __flutterm_last_command=""
+    if [[ "${__ianvs_command_active:-0}" == "1" ]]; then
+      local __ianvs_command="$(__ianvs_json_escape "${__ianvs_last_command:-}")"
+      __ianvs_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__ianvs_command\",\"exit_code\":$__ianvs_status,\"shell\":\"zsh\"}"
+      typeset -g __ianvs_command_active=0
+      typeset -g __ianvs_last_command=""
     fi
-    __flutterm_emit_shell_hook '{"hook":"precmd","shell":"zsh"}'
-    local __flutterm_pwd="$(__flutterm_json_escape "${PWD:-}")"
-    __flutterm_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__flutterm_pwd\",\"shell\":\"zsh\"}"
-    return $__flutterm_status
+    __ianvs_emit_shell_hook '{"hook":"precmd","shell":"zsh"}'
+    local __ianvs_pwd="$(__ianvs_json_escape "${PWD:-}")"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"zsh\"}"
+    return $__ianvs_status
   }
 
-  add-zsh-hook preexec __flutterm_preexec 2>/dev/null || true
-  add-zsh-hook precmd __flutterm_precmd 2>/dev/null || true
+  add-zsh-hook preexec __ianvs_preexec 2>/dev/null || true
+  add-zsh-hook precmd __ianvs_precmd 2>/dev/null || true
 }
 "#;
 
 const BASH_RCFILE: &str = r#"
-__flutterm_source_original_bashrc() {
-  local __flutterm_home="${HOME:-}"
-  [[ -n "$__flutterm_home" ]] || return 0
-  local __flutterm_path="$__flutterm_home/.bashrc"
-  [[ -r "$__flutterm_path" ]] || return 0
-  [[ "$__flutterm_path" != "${BASH_SOURCE[0]:-}" ]] || return 0
-  . "$__flutterm_path" || true
+__ianvs_source_original_bashrc() {
+  local __ianvs_home="${HOME:-}"
+  [[ -n "$__ianvs_home" ]] || return 0
+  local __ianvs_path="$__ianvs_home/.bashrc"
+  [[ -r "$__ianvs_path" ]] || return 0
+  [[ "$__ianvs_path" != "${BASH_SOURCE[0]:-}" ]] || return 0
+  . "$__ianvs_path" || true
 }
 
-__flutterm_json_escape() {
-  local __flutterm_value="${1:-}"
-  __flutterm_value=${__flutterm_value//\\/\\\\}
-  __flutterm_value=${__flutterm_value//\"/\\\"}
-  __flutterm_value=${__flutterm_value//$'\n'/\\n}
-  __flutterm_value=${__flutterm_value//$'\r'/\\r}
-  __flutterm_value=${__flutterm_value//$'\t'/\\t}
-  printf '%s' "$__flutterm_value"
+__ianvs_json_escape() {
+  local __ianvs_value="${1:-}"
+  __ianvs_value=${__ianvs_value//\\/\\\\}
+  __ianvs_value=${__ianvs_value//\"/\\\"}
+  __ianvs_value=${__ianvs_value//$'\n'/\\n}
+  __ianvs_value=${__ianvs_value//$'\r'/\\r}
+  __ianvs_value=${__ianvs_value//$'\t'/\\t}
+  printf '%s' "$__ianvs_value"
 }
 
-__flutterm_emit_shell_hook() {
-  local __flutterm_json="$1"
-  local __flutterm_hex
-  __flutterm_hex=$(printf '%s' "$__flutterm_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
-  [[ -n "$__flutterm_hex" ]] || return 0
-  printf '\ePhook;%s\e\\' "$__flutterm_hex" 2>/dev/null || true
+__ianvs_emit_shell_hook() {
+  local __ianvs_json="$1"
+  local __ianvs_hex
+  __ianvs_hex=$(printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
+  [[ -n "$__ianvs_hex" ]] || return 0
+  printf '\ePhook;%s\e\\' "$__ianvs_hex" 2>/dev/null || true
 }
 
-__flutterm_install_shell_hooks() {
-  [[ -n "${FLUTTERM_SHELL_INTEGRATION:-}" ]] || return 0
-  [[ -z "${__FLUTTERM_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
+__ianvs_install_shell_hooks() {
+  [[ -n "${IANVS_SHELL_INTEGRATION:-}" ]] || return 0
+  [[ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
   command -v od >/dev/null 2>&1 || return 0
   command -v tr >/dev/null 2>&1 || return 0
   [[ -z "$(trap -p DEBUG 2>/dev/null)" ]] || return 0
 
-  __FLUTTERM_SHELL_INTEGRATION_LOADED=1
-  __flutterm_command_active=0
-  __flutterm_last_command=""
-  __flutterm_inside_prompt=0
+  __IANVS_SHELL_INTEGRATION_LOADED=1
+  __ianvs_command_active=0
+  __ianvs_last_command=""
+  __ianvs_inside_prompt=0
 
   if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == declare\ -a* ]]; then
-    __flutterm_original_prompt_command_is_array=1
-    __flutterm_original_prompt_command_array=("${PROMPT_COMMAND[@]}")
+    __ianvs_original_prompt_command_is_array=1
+    __ianvs_original_prompt_command_array=("${PROMPT_COMMAND[@]}")
   else
-    __flutterm_original_prompt_command_is_array=0
-    __flutterm_original_prompt_command_string="${PROMPT_COMMAND:-}"
+    __ianvs_original_prompt_command_is_array=0
+    __ianvs_original_prompt_command_string="${PROMPT_COMMAND:-}"
   fi
 
-  __flutterm_run_original_prompt_command() {
-    local __flutterm_status="$1"
-    if [[ "${__flutterm_original_prompt_command_is_array:-0}" == "1" ]]; then
-      local __flutterm_prompt_command_entry
-      for __flutterm_prompt_command_entry in "${__flutterm_original_prompt_command_array[@]}"; do
-        [[ -n "$__flutterm_prompt_command_entry" ]] && eval "$__flutterm_prompt_command_entry" || true
+  __ianvs_run_original_prompt_command() {
+    local __ianvs_status="$1"
+    if [[ "${__ianvs_original_prompt_command_is_array:-0}" == "1" ]]; then
+      local __ianvs_prompt_command_entry
+      for __ianvs_prompt_command_entry in "${__ianvs_original_prompt_command_array[@]}"; do
+        [[ -n "$__ianvs_prompt_command_entry" ]] && eval "$__ianvs_prompt_command_entry" || true
       done
-    elif [[ -n "${__flutterm_original_prompt_command_string:-}" ]]; then
-      eval "$__flutterm_original_prompt_command_string" || true
+    elif [[ -n "${__ianvs_original_prompt_command_string:-}" ]]; then
+      eval "$__ianvs_original_prompt_command_string" || true
     fi
-    return "$__flutterm_status"
+    return "$__ianvs_status"
   }
 
-  __flutterm_preexec() {
-    local __flutterm_frame
-    for __flutterm_frame in "${FUNCNAME[@]:1}"; do
-      [[ "$__flutterm_frame" == __flutterm_* ]] && return 0
+  __ianvs_preexec() {
+    local __ianvs_frame
+    for __ianvs_frame in "${FUNCNAME[@]:1}"; do
+      [[ "$__ianvs_frame" == __ianvs_* ]] && return 0
     done
-    [[ "${__flutterm_inside_prompt:-0}" == "1" ]] && return 0
-    [[ "${__flutterm_command_active:-0}" == "1" ]] && return 0
+    [[ "${__ianvs_inside_prompt:-0}" == "1" ]] && return 0
+    [[ "${__ianvs_command_active:-0}" == "1" ]] && return 0
 
-    local __flutterm_command="${BASH_COMMAND:-}"
-    [[ -n "$__flutterm_command" ]] || return 0
-    [[ "$__flutterm_command" == "__flutterm_prompt_command"* ]] && return 0
+    local __ianvs_command="${BASH_COMMAND:-}"
+    [[ -n "$__ianvs_command" ]] || return 0
+    [[ "$__ianvs_command" == "__ianvs_prompt_command"* ]] && return 0
 
-    __flutterm_command_active=1
-    __flutterm_last_command="$__flutterm_command"
-    local __flutterm_escaped_command="$(__flutterm_json_escape "$__flutterm_command")"
-    __flutterm_emit_shell_hook "{\"hook\":\"preexec\",\"command\":\"$__flutterm_escaped_command\",\"shell\":\"bash\"}"
+    __ianvs_command_active=1
+    __ianvs_last_command="$__ianvs_command"
+    local __ianvs_escaped_command="$(__ianvs_json_escape "$__ianvs_command")"
+    __ianvs_emit_shell_hook "{\"hook\":\"preexec\",\"command\":\"$__ianvs_escaped_command\",\"shell\":\"bash\"}"
     return 0
   }
 
-  __flutterm_prompt_command() {
-    local __flutterm_status=$?
-    __flutterm_inside_prompt=1
-    __flutterm_run_original_prompt_command "$__flutterm_status" || true
-    if [[ "${__flutterm_command_active:-0}" == "1" ]]; then
-      local __flutterm_escaped_command="$(__flutterm_json_escape "${__flutterm_last_command:-}")"
-      __flutterm_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__flutterm_escaped_command\",\"exit_code\":$__flutterm_status,\"shell\":\"bash\"}"
-      __flutterm_command_active=0
-      __flutterm_last_command=""
+  __ianvs_prompt_command() {
+    local __ianvs_status=$?
+    __ianvs_inside_prompt=1
+    __ianvs_run_original_prompt_command "$__ianvs_status" || true
+    if [[ "${__ianvs_command_active:-0}" == "1" ]]; then
+      local __ianvs_escaped_command="$(__ianvs_json_escape "${__ianvs_last_command:-}")"
+      __ianvs_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__ianvs_escaped_command\",\"exit_code\":$__ianvs_status,\"shell\":\"bash\"}"
+      __ianvs_command_active=0
+      __ianvs_last_command=""
     fi
-    __flutterm_emit_shell_hook '{"hook":"precmd","shell":"bash"}'
-    local __flutterm_pwd="$(__flutterm_json_escape "${PWD:-}")"
-    __flutterm_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__flutterm_pwd\",\"shell\":\"bash\"}"
-    __flutterm_inside_prompt=0
-    return "$__flutterm_status"
+    __ianvs_emit_shell_hook '{"hook":"precmd","shell":"bash"}'
+    local __ianvs_pwd="$(__ianvs_json_escape "${PWD:-}")"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"bash\"}"
+    __ianvs_inside_prompt=0
+    return "$__ianvs_status"
   }
 
-  trap '__flutterm_preexec' DEBUG
-  if [[ "${__flutterm_original_prompt_command_is_array:-0}" == "1" ]]; then
-    PROMPT_COMMAND=(__flutterm_prompt_command)
+  trap '__ianvs_preexec' DEBUG
+  if [[ "${__ianvs_original_prompt_command_is_array:-0}" == "1" ]]; then
+    PROMPT_COMMAND=(__ianvs_prompt_command)
   else
-    PROMPT_COMMAND=__flutterm_prompt_command
+    PROMPT_COMMAND=__ianvs_prompt_command
   fi
 }
 
-__flutterm_source_original_bashrc || true
-__flutterm_install_shell_hooks >/dev/null 2>&1 || true
+__ianvs_source_original_bashrc || true
+__ianvs_install_shell_hooks >/dev/null 2>&1 || true
 "#;
 
 const FISH_INIT: &str = r#"
-if test -n "$FLUTTERM_SHELL_INTEGRATION"; and not set -q __FLUTTERM_SHELL_INTEGRATION_LOADED
+if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_LOADED
   command -sq od; or return 0
   command -sq tr; or return 0
 
-  set -g __FLUTTERM_SHELL_INTEGRATION_LOADED 1
-  set -g __flutterm_command_active 0
-  set -g __flutterm_last_command ''
+  set -g __IANVS_SHELL_INTEGRATION_LOADED 1
+  set -g __ianvs_command_active 0
+  set -g __ianvs_last_command ''
 
-  function __flutterm_json_escape
-    set -l __flutterm_value ''
+  function __ianvs_json_escape
+    set -l __ianvs_value ''
     if set -q argv[1]
-      set __flutterm_value "$argv[1]"
+      set __ianvs_value "$argv[1]"
     end
-    set __flutterm_value (string replace -a "\\" "\\\\" -- "$__flutterm_value")
-    set __flutterm_value (string replace -a "\"" "\\\"" -- "$__flutterm_value")
-    set -l __flutterm_lf \n
-    set -l __flutterm_cr \r
-    set -l __flutterm_tab \t
-    set __flutterm_value (string replace -a "$__flutterm_lf" "\\n" -- "$__flutterm_value")
-    set __flutterm_value (string replace -a "$__flutterm_cr" "\\r" -- "$__flutterm_value")
-    set __flutterm_value (string replace -a "$__flutterm_tab" "\\t" -- "$__flutterm_value")
-    printf '%s' "$__flutterm_value"
+    set __ianvs_value (string replace -a "\\" "\\\\" -- "$__ianvs_value")
+    set __ianvs_value (string replace -a "\"" "\\\"" -- "$__ianvs_value")
+    set -l __ianvs_lf \n
+    set -l __ianvs_cr \r
+    set -l __ianvs_tab \t
+    set __ianvs_value (string replace -a "$__ianvs_lf" "\\n" -- "$__ianvs_value")
+    set __ianvs_value (string replace -a "$__ianvs_cr" "\\r" -- "$__ianvs_value")
+    set __ianvs_value (string replace -a "$__ianvs_tab" "\\t" -- "$__ianvs_value")
+    printf '%s' "$__ianvs_value"
   end
 
-  function __flutterm_emit_shell_hook
-    set -l __flutterm_json "$argv[1]"
-    set -l __flutterm_hex (printf '%s' "$__flutterm_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null)
-    test -n "$__flutterm_hex"; or return 0
-    printf '\ePhook;%s\e\\' "$__flutterm_hex" 2>/dev/null; or true
+  function __ianvs_emit_shell_hook
+    set -l __ianvs_json "$argv[1]"
+    set -l __ianvs_hex (printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null)
+    test -n "$__ianvs_hex"; or return 0
+    printf '\ePhook;%s\e\\' "$__ianvs_hex" 2>/dev/null; or true
   end
 
-  function __flutterm_preexec --on-event fish_preexec
-    set -g __flutterm_command_active 1
-    set -g __flutterm_last_command "$argv[1]"
-    set -l __flutterm_command (__flutterm_json_escape "$argv[1]")
-    __flutterm_emit_shell_hook "{\"hook\":\"preexec\",\"command\":\"$__flutterm_command\",\"shell\":\"fish\"}"
+  function __ianvs_preexec --on-event fish_preexec
+    set -g __ianvs_command_active 1
+    set -g __ianvs_last_command "$argv[1]"
+    set -l __ianvs_command (__ianvs_json_escape "$argv[1]")
+    __ianvs_emit_shell_hook "{\"hook\":\"preexec\",\"command\":\"$__ianvs_command\",\"shell\":\"fish\"}"
   end
 
-  function __flutterm_postexec --on-event fish_postexec
-    set -l __flutterm_status $status
-    if test "$__flutterm_command_active" = 1
-      set -l __flutterm_command (__flutterm_json_escape "$__flutterm_last_command")
-      __flutterm_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__flutterm_command\",\"exit_code\":$__flutterm_status,\"shell\":\"fish\"}"
-      set -g __flutterm_command_active 0
-      set -g __flutterm_last_command ''
+  function __ianvs_postexec --on-event fish_postexec
+    set -l __ianvs_status $status
+    if test "$__ianvs_command_active" = 1
+      set -l __ianvs_command (__ianvs_json_escape "$__ianvs_last_command")
+      __ianvs_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__ianvs_command\",\"exit_code\":$__ianvs_status,\"shell\":\"fish\"}"
+      set -g __ianvs_command_active 0
+      set -g __ianvs_last_command ''
     end
   end
 
-  function __flutterm_prompt --on-event fish_prompt
-    __flutterm_emit_shell_hook '{"hook":"precmd","shell":"fish"}'
-    set -l __flutterm_pwd (__flutterm_json_escape "$PWD")
-    __flutterm_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__flutterm_pwd\",\"shell\":\"fish\"}"
+  function __ianvs_prompt --on-event fish_prompt
+    __ianvs_emit_shell_hook '{"hook":"precmd","shell":"fish"}'
+    set -l __ianvs_pwd (__ianvs_json_escape "$PWD")
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"fish\"}"
   end
 end
 "#;
@@ -781,24 +781,24 @@ mod tests {
         assert!(proxy_path.join(".zshrc").exists());
         assert!(proxy_path.join(".zlogin").exists());
         assert!(proxy_path.join(".zlogout").exists());
-        assert_eq!(plan.env["FLUTTERM_SHELL_INTEGRATION"], "1");
-        assert_eq!(plan.env["FLUTTERM_ORIGINAL_ZDOTDIR_WAS_SET"], "1");
+        assert_eq!(plan.env["IANVS_SHELL_INTEGRATION"], "1");
+        assert_eq!(plan.env["IANVS_ORIGINAL_ZDOTDIR_WAS_SET"], "1");
         assert_eq!(
-            plan.env["FLUTTERM_ORIGINAL_ZDOTDIR"],
+            plan.env["IANVS_ORIGINAL_ZDOTDIR"],
             original_zdotdir.path().to_string_lossy()
         );
         assert!(plan.shell_integration_proxy.is_some());
 
         let zshrc = fs::read_to_string(proxy_path.join(".zshrc")).unwrap();
-        assert!(zshrc.contains("__FLUTTERM_SHELL_INTEGRATION_LOADED"));
-        assert!(zshrc.contains("add-zsh-hook preexec __flutterm_preexec"));
-        assert!(zshrc.contains("add-zsh-hook precmd __flutterm_precmd"));
+        assert!(zshrc.contains("__IANVS_SHELL_INTEGRATION_LOADED"));
+        assert!(zshrc.contains("add-zsh-hook preexec __ianvs_preexec"));
+        assert!(zshrc.contains("add-zsh-hook precmd __ianvs_precmd"));
         assert!(zshrc.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
-        assert!(zshrc.contains("__flutterm_suspend_startup_prompt_sp"));
+        assert!(zshrc.contains("__ianvs_suspend_startup_prompt_sp"));
         assert!(zshrc.contains("unsetopt prompt_sp"));
-        assert!(zshrc.contains("__flutterm_trim_startup_prompt_newline"));
-        assert!(zshrc.contains("__flutterm_restore_startup_prompt_state"));
-        assert!(zshrc.contains("__flutterm_source_original_zdotfile \".zshrc\""));
+        assert!(zshrc.contains("__ianvs_trim_startup_prompt_newline"));
+        assert!(zshrc.contains("__ianvs_restore_startup_prompt_state"));
+        assert!(zshrc.contains("__ianvs_source_original_zdotfile \".zshrc\""));
     }
 
     #[test]
@@ -825,7 +825,7 @@ mod tests {
         });
 
         assert_eq!(plan.args, vec!["-l"]);
-        assert_eq!(plan.env["FLUTTERM_SHELL_INTEGRATION"], "1");
+        assert_eq!(plan.env["IANVS_SHELL_INTEGRATION"], "1");
         assert!(plan.env.contains_key("ZDOTDIR"));
         assert!(plan.shell_integration_proxy.is_some());
     }
@@ -860,11 +860,11 @@ mod tests {
             rcfile.file_name().and_then(|name| name.to_str()),
             Some(".bashrc")
         );
-        assert_eq!(plan.env["FLUTTERM_SHELL_INTEGRATION"], "1");
+        assert_eq!(plan.env["IANVS_SHELL_INTEGRATION"], "1");
         assert!(plan.shell_integration_proxy.is_some());
 
         let bashrc = fs::read_to_string(rcfile).unwrap();
-        assert!(bashrc.contains("__flutterm_source_original_bashrc"));
+        assert!(bashrc.contains("__ianvs_source_original_bashrc"));
         assert!(bashrc.contains("trap -p DEBUG"));
         assert!(bashrc.contains("PROMPT_COMMAND"));
         assert!(bashrc.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
@@ -892,12 +892,12 @@ mod tests {
             plan.args,
             vec![
                 "--init-command".to_string(),
-                r#"source "$FLUTTERM_FISH_INIT""#.to_string()
+                r#"source "$IANVS_FISH_INIT""#.to_string()
             ]
         );
         let init_file = Path::new(
             plan.env
-                .get("FLUTTERM_FISH_INIT")
+                .get("IANVS_FISH_INIT")
                 .expect("expected fish init file"),
         );
         assert!(init_file.starts_with(proxy_base.path()));
@@ -905,11 +905,11 @@ mod tests {
             init_file.file_name().and_then(|name| name.to_str()),
             Some("init.fish")
         );
-        assert_eq!(plan.env["FLUTTERM_SHELL_INTEGRATION"], "1");
+        assert_eq!(plan.env["IANVS_SHELL_INTEGRATION"], "1");
         assert!(plan.shell_integration_proxy.is_some());
 
         let init = fs::read_to_string(init_file).unwrap();
-        assert!(init.contains("__FLUTTERM_SHELL_INTEGRATION_LOADED"));
+        assert!(init.contains("__IANVS_SHELL_INTEGRATION_LOADED"));
         assert!(init.contains("--on-event fish_preexec"));
         assert!(init.contains("--on-event fish_postexec"));
         assert!(init.contains("--on-event fish_prompt"));

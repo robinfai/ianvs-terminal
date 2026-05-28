@@ -25,7 +25,7 @@
 
 ## 非目标
 
-- 不改 `packages/flutterm_terminal` 的公开接口。
+- 不改 `packages/ianvs_terminal` 的公开接口。
 - 不新增 UI 依赖。
 - 不把当前界面改成移动端优先。
 - 不在这一轮继续扩大组件库范围。
@@ -116,7 +116,7 @@
 - 浮层和对话框阴影都要更短、更贴边
 - 目标不是“飘”，而是“压住层级”
 
-### `buildFluttermTheme`
+### `buildIanvsTerminalTheme`
 
 需要同步收紧：
 

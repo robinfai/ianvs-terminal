@@ -114,7 +114,7 @@ void main() {
 
     test('exports scrollback visual action and records file path', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'flutterm-runtime-scrollback-export',
+        'ianvs terminal-runtime-scrollback-export',
       );
       final controller = ShellActionRuntimeController();
 

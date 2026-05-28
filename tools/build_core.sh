@@ -8,8 +8,8 @@ PROFILE="${PROFILE:-debug}"
 cd "$CORE_DIR"
 if [ "$PROFILE" = "release" ]; then
   cargo build --release
-  echo "Built Rust core at $CORE_DIR/target/release/libflutterm_core.dylib"
+  echo "Built Rust core at $CORE_DIR/target/release/libianvs_core.dylib"
 else
   cargo build
-  echo "Built Rust core at $CORE_DIR/target/debug/libflutterm_core.dylib"
+  echo "Built Rust core at $CORE_DIR/target/debug/libianvs_core.dylib"
 fi

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_theme_tokens.dart';
 
-ThemeData buildFluttermTheme(Brightness brightness) {
+ThemeData buildIanvsTerminalTheme(Brightness brightness) {
   final tokens = AppThemeTokens.fallbackFor(brightness);
   final controls = tokens.controls;
   final colorScheme =

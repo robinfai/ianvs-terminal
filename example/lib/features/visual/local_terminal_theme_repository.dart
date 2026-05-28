@@ -50,14 +50,14 @@ class LocalTerminalThemeRepository {
   Future<File> exportPreset(LocalTerminalThemePreset preset) async {
     final directory = await _directoryResolver();
     await directory.create(recursive: true);
-    final file = File('${directory.path}/${preset.id}.flutterm-theme.json');
+    final file = File('${directory.path}/${preset.id}.ianvs-terminal-theme.json');
     await file.writeAsString(preset.encode());
     return file;
   }
 
   Future<File> _themesFile() async {
     final directory = await _directoryResolver();
-    return File('${directory.path}/flutterm_themes.json');
+    return File('${directory.path}/ianvs_themes.json');
   }
 
   Future<void> _quarantineCorruptFile(File file) async {

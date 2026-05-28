@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutterm_pty/flutterm_pty.dart';
-import 'package:flutterm_terminal/flutterm_terminal.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
   testWidgets('terminal facade opens with xterm-style options and addons', (

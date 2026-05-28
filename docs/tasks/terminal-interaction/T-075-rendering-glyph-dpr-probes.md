@@ -23,8 +23,8 @@ Add visual or automated probes for xterm.js rendering/glyph/DPR rows that are re
 
 - `example/test/terminal/render_terminal_viewport_test.dart`
 - `example/test/terminal/selection_controller_test.dart`
-- `packages/flutterm_terminal/lib/src/terminal/render_terminal_viewport.dart`
-- `packages/flutterm_terminal/lib/src/terminal/terminal_models.dart`
+- `packages/ianvs_terminal/lib/src/terminal/render_terminal_viewport.dart`
+- `packages/ianvs_terminal/lib/src/terminal/terminal_models.dart`
 - `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md`
 
 ## Probe Evidence

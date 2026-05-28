@@ -7,7 +7,7 @@ void main() {
   Future<void> pumpHarness(WidgetTester tester, Widget child) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildFluttermTheme(Brightness.light),
+        theme: buildIanvsTerminalTheme(Brightness.light),
         home: Scaffold(body: Center(child: child)),
       ),
     );

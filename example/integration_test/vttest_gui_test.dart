@@ -22,7 +22,7 @@ void main() {
   testWidgets('real VT220 profile can drive vttest through the GUI', (
     tester,
   ) async {
-    final vttestBin = Platform.environment['FLUTTERM_VTTEST_BIN'] ?? 'vttest';
+    final vttestBin = Platform.environment['IANVS_VTTEST_BIN'] ?? 'vttest';
     final profile = TerminalProfile(
       id: 'vttest-vt220',
       name: 'VTTEST VT220',
@@ -48,7 +48,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const FluttermApp(),
+        child: const IanvsTerminalApp(),
       ),
     );
 
