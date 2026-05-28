@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="了解 flutterm 的 Flutter UI、PTY 包、Rust native core、xterm 靠齐和验证覆盖。">
-    <title>技术 - flutterm</title>
+    <meta name="description" content="了解 ianvs 的 Flutter UI、PTY 包、Rust native core、xterm 靠齐和验证覆盖。">
+    <title>技术 - ianvs</title>
     <link rel="stylesheet" href="../assets/styles.css">
     <script src="../assets/app.js" defer></script>
   </head>
@@ -12,9 +12,9 @@
     <a class="skip-link" href="#main-content">跳到正文</a>
     <header class="site-header">
       <div class="header-inner">
-        <a class="brand" href="../index.html" aria-label="flutterm 首页">
+        <a class="brand" href="../index.html" aria-label="ianvs 首页">
           <img class="brand-mark" src="../assets/images/brand/app-icon.png" alt="" width="32" height="32" aria-hidden="true">
-          <span>flutterm</span>
+          <span>ianvs</span>
         </a>
         <nav class="nav" aria-label="主导航">
           <a href="../index.html">首页</a>
@@ -22,7 +22,7 @@
           <a href="index.html" aria-current="page">技术</a>
           <a href="../roadmap/index.html">路线图</a>
           <a href="../open-source/index.html">开源试用</a>
-          <a href="https://github.com/robinfai/flutterm">GitHub</a>
+          <a href="https://github.com/robinfai/ianvs-terminal">GitHub</a>
           <button class="theme-toggle" type="button" data-theme-toggle>系统</button>
         </nav>
       </div>
@@ -33,7 +33,7 @@
         <div class="page-intro">
           <p class="eyebrow">Technology</p>
           <h1 class="page-title">Flutter 界面之下，<br>终端分层清楚。</h1>
-          <p>flutterm 用 Flutter 承载桌面界面，用 package 收口终端运行时，用 Rust native core 处理更贴近系统的终端能力。</p>
+          <p>ianvs 用 Flutter 承载桌面界面，用 package 收口终端运行时，用 Rust native core 处理更贴近系统的终端能力。</p>
         </div>
       </section>
 
@@ -44,10 +44,10 @@
             <h2 id="layers-title">界面和运行时，各有边界。</h2>
           </div>
         </div>
-        <div class="diagram" aria-label="flutterm 技术分层">
+        <div class="diagram" aria-label="ianvs 技术分层">
           <div class="diagram-step">UI shell</div>
-          <div class="diagram-step">flutterm_terminal</div>
-          <div class="diagram-step">flutterm_pty</div>
+          <div class="diagram-step">ianvs_terminal</div>
+          <div class="diagram-step">ianvs_pty</div>
           <div class="diagram-step">Rust native core</div>
         </div>
         <div class="grid two" style="margin-top:16px">
@@ -56,11 +56,11 @@
             <p>窗口壳、tab、菜单、profile 和 defaults 留在 app 层，避免把产品词汇塞进底层 package。</p>
           </article>
           <article class="card">
-            <h3>flutterm_terminal</h3>
+            <h3>ianvs_terminal</h3>
             <p>负责 session runtime、viewport、输入、选区和滚动适配，是 Flutter 侧终端行为的主要边界。</p>
           </article>
           <article class="card">
-            <h3>flutterm_pty</h3>
+            <h3>ianvs_pty</h3>
             <p>负责 PTY 会话传输和 FFI 包装，只暴露创建、写入、读取、resize、scroll、close 这类底层能力。</p>
           </article>
           <article class="card">
@@ -85,12 +85,12 @@
             <p>Shell Hook 带来的标题、目录和命令线索，以及 Instant Replay 的最近画面回看，最终都在 app 层变成用户能操作的界面。</p>
           </article>
           <article class="map-card">
-            <span class="map-layer">flutterm_terminal</span>
+            <span class="map-layer">ianvs_terminal</span>
             <h3>输入、视口和 API 外壳</h3>
             <p>模式感知输入、行级渲染缓存和 xterm 风格 Dart API 主要在这一层收口，负责把 native 状态变成稳定的 Flutter 行为。</p>
           </article>
           <article class="map-card">
-            <span class="map-layer">flutterm_pty</span>
+            <span class="map-layer">ianvs_pty</span>
             <h3>稳定的 native 桥</h3>
             <p>Native JSON 请求通道从这里进入 Rust core，让搜索、选区、滚动历史和诊断能力可以继续扩展，而不打散 PTY 边界。</p>
           </article>
@@ -241,19 +241,19 @@
           </div>
         </div>
         <div class="grid two">
-          <a class="card" href="https://github.com/robinfai/flutterm">
+          <a class="card" href="https://github.com/robinfai/ianvs-terminal">
             <h3>GitHub 仓库</h3>
             <p>查看源码、任务历史和当前实现。</p>
           </a>
-          <a class="card" href="https://github.com/robinfai/flutterm/blob/main/docs/ARCHITECTURE.md">
+          <a class="card" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/ARCHITECTURE.md">
             <h3>架构文档</h3>
             <p>查看 workspace 分层和公开边界。</p>
           </a>
-          <a class="card" href="https://github.com/robinfai/flutterm/blob/main/docs/TESTING.md">
+          <a class="card" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/TESTING.md">
             <h3>测试文档</h3>
             <p>查看当前可用的验证命令。</p>
           </a>
-          <a class="card" href="https://github.com/robinfai/flutterm/blob/main/docs/ROADMAP.md">
+          <a class="card" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/ROADMAP.md">
             <h3>路线图文档</h3>
             <p>查看更细的工程推进顺序。</p>
           </a>
@@ -263,7 +263,7 @@
 
     <footer class="site-footer">
       <div class="footer-inner">
-        <span>flutterm - 技术</span>
+        <span>ianvs - 技术</span>
         <div class="footer-links">
           <a href="../index.html">首页</a>
           <a href="../features/index.html">功能</a>

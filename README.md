@@ -1,6 +1,6 @@
-# flutterm product site
+# Ianvs Terminal product site
 
-这是 `flutterm` 第一版静态产品官网。它没有构建步骤，也不依赖 npm。
+这是 `ianvs` 第一版静态产品官网。它没有构建步骤，也不依赖 npm。
 
 ## 本地预览
 

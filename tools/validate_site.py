@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the static flutterm product site."""
+"""Validate the static Ianvs Terminal product site."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ FORBIDDEN_COPY = [
     "技术证明要",
 ]
 REQUIRED_APP_SNIPPETS = [
-    "flutterm-site-theme",
+    "ianvs-terminal-site-theme",
     'dataset.theme = "system"',
     "prefers-reduced-motion",
 ]

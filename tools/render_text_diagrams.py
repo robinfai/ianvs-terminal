@@ -357,7 +357,7 @@ THREE_COLUMN = {
         ],
         "benefits": [("更少盲猜", "上下文由 shell 事件驱动，减少对输出文本的猜测。"), ("标签状态更清楚", "目录、命令、退出码映射到标签与状态条。"), ("诊断更可依", "导出时带命令、目录、时间和退出状态。"), ("可继续扩展", "为搜索、统计和自动化工作流留下接口。")],
         "callout": ("回退保护", "shell hook 不可用时，仍保留基础终端输出，不影响正常使用。"),
-        "terminal": ["rob@mac ~ % git status", "exit 0  (12.4ms)", "cwd  ~/flutterm/src", "title flutterm - zsh"],
+        "terminal": ["rob@mac ~ % git status", "exit 0  (12.4ms)", "cwd  ~/ianvs-terminal/src", "title Ianvs Terminal - zsh"],
     },
     "row_cache": {
         "path": OUT_DIRS["feature"] / "row-cache.png",

@@ -1,5 +1,5 @@
 (function () {
-  const storageKey = "flutterm-site-theme";
+  const storageKey = "ianvs-terminal-site-theme";
   const themes = ["system", "dark", "light"];
   const labels = {
     system: "系统",
