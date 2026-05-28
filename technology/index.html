@@ -122,21 +122,21 @@
         <div class="visual-grid">
           <article class="visual-card">
             <a class="visual-frame" href="../assets/images/frame-diff/lifecycle.png" aria-label="打开 Frame Diff 生命周期大图">
-              <img src="../assets/images/frame-diff/lifecycle.png" alt="Frame Diff 生命周期：PTY 输出到 Rust 损伤跟踪，再到 JSON diff、Dart 合并和 viewport 渲染。" width="1536" height="1024" loading="eager" decoding="async">
+              <img src="../assets/images/frame-diff/lifecycle.png" alt="Frame Diff 生命周期：PTY 输出到 Rust 损伤跟踪，再到 JSON diff、Dart 合并和 viewport 渲染。" width="1774" height="887" loading="eager" decoding="async">
             </a>
             <h3>生命周期</h3>
             <p>展示 PTY 输出到 viewport 渲染的六段路径，说明 delta 和 snapshot 分别在什么时候出现。</p>
           </article>
           <article class="visual-card">
             <a class="visual-frame" href="../assets/images/frame-diff/snapshot-delta.png" aria-label="打开 Snapshot vs Delta 大图">
-              <img src="../assets/images/frame-diff/snapshot-delta.png" alt="Snapshot 与 Delta 对比：snapshot 负责全量同步，delta 负责高频局部更新。" width="1536" height="1024" loading="eager" decoding="async">
+              <img src="../assets/images/frame-diff/snapshot-delta.png" alt="Snapshot 与 Delta 对比：snapshot 负责全量同步，delta 负责高频局部更新。" width="1672" height="941" loading="eager" decoding="async">
             </a>
             <h3>Snapshot vs Delta</h3>
             <p>解释安全基线和高频路径的分工：不确定时回到 snapshot，普通输出走 delta。</p>
           </article>
           <article class="visual-card">
             <a class="visual-frame" href="../assets/images/frame-diff/benefits.png" aria-label="打开 Frame Diff 收益大图">
-              <img src="../assets/images/frame-diff/benefits.png" alt="Frame Diff 收益：传输层 JSON 更小，runtime 合并更轻，render 层复用行缓存。" width="1536" height="1024" loading="eager" decoding="async">
+              <img src="../assets/images/frame-diff/benefits.png" alt="Frame Diff 收益：传输层 JSON 更小，runtime 合并更轻，render 层复用行缓存。" width="1672" height="941" loading="eager" decoding="async">
             </a>
             <h3>收益拆解</h3>
             <p>从传输、状态合并、渲染复用和正确性回退四个角度看优化边界。</p>
@@ -152,17 +152,23 @@
           </div>
           <p>Shell Hook、行级缓存、模式感知输入和 Instant Replay 都不是孤立卖点。它们各自有输入、状态处理、体验出口和回退边界。</p>
         </div>
+        <div class="visual-feature">
+          <a class="visual-frame" href="../assets/images/feature-visuals/architecture-overview.png" aria-label="打开 Ianvs Terminal 架构图大图">
+            <img src="../assets/images/feature-visuals/architecture-overview.png" alt="Ianvs Terminal 架构图：example、ianvs_terminal、ianvs_pty 和 native core 的分层关系。" width="1672" height="941" loading="eager" decoding="async">
+          </a>
+          <p>先看应用层、终端 runtime、PTY 和 native core 的边界，再进入具体能力图解。</p>
+        </div>
         <div class="visual-grid">
           <article class="visual-card" id="shell-hook-visual">
             <a class="visual-frame" href="../assets/images/feature-visuals/shell-hook.png" aria-label="打开 Shell Hook 感知终端大图">
-              <img src="../assets/images/feature-visuals/shell-hook.png" alt="Shell Hook 感知终端：命令、目录、退出状态和标题随 shell 上下文同步。" width="1536" height="1024" loading="eager" decoding="async">
+              <img src="../assets/images/feature-visuals/shell-hook.png" alt="Shell Hook 感知终端：命令、目录、退出状态和标题随 shell 上下文同步。" width="1603" height="981" loading="eager" decoding="async">
             </a>
             <h3>Shell Hook 感知终端</h3>
             <p>把 prompt、命令、目录变化和退出状态整理成可归因事件，再映射到 tab、最近命令、诊断上下文和回放锚点。</p>
           </article>
           <article class="visual-card" id="row-cache-visual">
             <a class="visual-frame" href="../assets/images/feature-visuals/row-cache.png" aria-label="打开行级渲染缓存大图">
-              <img src="../assets/images/feature-visuals/row-cache.png" alt="行级渲染缓存：只重建变化行，未变化行复用视觉结果。" width="1536" height="1024" loading="eager" decoding="async">
+              <img src="../assets/images/feature-visuals/row-cache.png" alt="行级渲染缓存：只重建变化行，未变化行复用视觉结果。" width="1653" height="952" loading="eager" decoding="async">
             </a>
             <h3>行级渲染缓存</h3>
             <p>用 dirty ranges、row key 和缓存命中判断减少重复布局与绘制，同时在尺寸、字体和主题变化时保留安全清理路径。</p>
