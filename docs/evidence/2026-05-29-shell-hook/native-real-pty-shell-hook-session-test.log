@@ -1,0 +1,17 @@
+$ cargo test shell_hook_integration --manifest-path native/core/Cargo.toml --test session_test -- --nocapture
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running tests/session_test.rs (native/core/target/debug/deps/session_test-ed6db49da7454782)
+
+running 9 tests
+test fish_shell_hook_integration_disabled_emits_no_shell_hooks ... ok
+test fish_shell_hook_integration_emits_lifecycle_hooks_when_enabled ... ok
+test zsh_shell_hook_integration_sources_zshrc_with_original_zdotdir ... ok
+test zsh_shell_hook_integration_preserves_prompt_substitution_from_zshrc ... ok
+test zsh_shell_hook_integration_preserves_postdisplay_redraws ... ok
+test bash_shell_hook_integration_emits_lifecycle_hooks_when_enabled ... ok
+test zsh_shell_hook_integration_emits_lifecycle_hooks_when_enabled ... ok
+test zsh_shell_hook_integration_disabled_emits_no_shell_hooks ... ok
+test bash_shell_hook_integration_disabled_emits_no_shell_hooks ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 53 filtered out; finished in 1.07s
+

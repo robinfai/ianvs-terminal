@@ -171,6 +171,7 @@ class MainFlutterWindow: NSWindow {
       name: "app/window_bridge",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
+    bindNativePasteMenuItems()
     hotkeyWindowController = HotkeyWindowController(window: self)
     hotkeyWindowController?.register()
     windowBridgeChannel?.setMethodCallHandler { [weak self] call, result in
@@ -278,6 +279,37 @@ class MainFlutterWindow: NSWindow {
   override func becomeKey() {
     super.becomeKey()
     scheduleTrafficLightCentering()
+  }
+
+  @objc func paste(_ sender: Any?) {
+    windowBridgeChannel?.invokeMethod("nativePaste", arguments: nil)
+  }
+
+  @objc func pasteAsPlainText(_ sender: Any?) {
+    windowBridgeChannel?.invokeMethod("nativePaste", arguments: nil)
+  }
+
+  private func bindNativePasteMenuItems() {
+    guard let mainMenu = NSApp.mainMenu else {
+      return
+    }
+    for item in mainMenu.items {
+      guard item.title == "Edit", let editMenu = item.submenu else {
+        continue
+      }
+      for editItem in editMenu.items {
+        switch editItem.title {
+        case "Paste":
+          editItem.target = self
+          editItem.action = #selector(paste(_:))
+        case "Paste and Match Style":
+          editItem.target = self
+          editItem.action = #selector(pasteAsPlainText(_:))
+        default:
+          continue
+        }
+      }
+    }
   }
 
   private func observeTrafficLightLayoutChanges() {

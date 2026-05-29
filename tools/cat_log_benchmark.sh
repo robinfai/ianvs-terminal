@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  tools/cat_log_benchmark.sh --out-dir /absolute/output/dir [--fixture /absolute/fixture.log] [--timeout-sec 20] [--profile release|debug] [--include-raw-frames]
+  tools/cat_log_benchmark.sh --out-dir /absolute/output/dir [--scenario bulk-output|streaming-scroll|resize|alternate-screen|input-echo] [--fixture /absolute/fixture.log] [--timeout-sec 20] [--profile release|debug] [--include-raw-frames]
 EOF
 }
 
@@ -14,6 +14,7 @@ fixture=""
 timeout_sec="20"
 profile="${PROFILE:-release}"
 include_raw_frames="false"
+scenario="bulk-output"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -31,6 +32,14 @@ while [[ $# -gt 0 ]]; do
         exit 1
       fi
       fixture="$2"
+      shift 2
+      ;;
+    --scenario)
+      if [[ $# -lt 2 ]]; then
+        usage
+        exit 1
+      fi
+      scenario="$2"
       shift 2
       ;;
     --timeout-sec)
@@ -97,6 +106,15 @@ if [[ "$profile" != "release" && "$profile" != "debug" ]]; then
   exit 1
 fi
 
+case "$scenario" in
+  bulk-output|streaming-scroll|resize|alternate-screen|input-echo)
+    ;;
+  *)
+    echo "--scenario must be bulk-output, streaming-scroll, resize, alternate-screen, or input-echo" >&2
+    exit 1
+    ;;
+esac
+
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 example_dir="$repo_root/example"
 
@@ -131,6 +149,8 @@ capture_cmd=(
   tool/cat_log_trace_capture.dart
   --out-dir
   "$out_dir"
+  --scenario
+  "$scenario"
   --timeout-sec
   "$timeout_sec"
 )
@@ -202,6 +222,7 @@ cat >"$time_json" <<EOF
 {
   "coreProfile": "$profile",
   "coreLibPath": "$core_lib",
+  "scenario": "$scenario",
   "includeRawFrames": $include_raw_frames,
   "fixtureBytes": $fixture_bytes,
   "traceBytes": $(file_size "$trace_file"),

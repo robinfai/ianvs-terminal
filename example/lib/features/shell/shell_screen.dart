@@ -307,6 +307,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    WindowBridge.setNativePasteHandler(_handleNativePasteMenu);
     _completionDiagnosticsSnapshot =
         const LocalTerminalPendingCompletionSnapshotFactory(
           p0BoundaryManifest: LocalTerminalP0BoundaryClosureManifest(
@@ -328,6 +329,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   void dispose() {
+    WindowBridge.setNativePasteHandler(null);
     _terminalEventSubscription?.cancel();
     _workspaceCueTimer?.cancel();
     _viewportResizeTimer?.cancel();
@@ -338,6 +340,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _autoComposerController.dispose();
     _autoComposerFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleNativePasteMenu() async {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    await _pasteToSession(activeSessionId);
   }
 
   void _handleTerminalSessionEvent(terminal.TerminalSessionEvent event) {
@@ -6007,6 +6017,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           'nextPrompt',
           'autocomplete',
           'copyMode',
+          'paste',
           'pasteHistory',
           'instantReplay',
           'toggleCommandPalette',
@@ -6188,6 +6199,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             );
             return const ShellActionBindingResult.completed();
           },
+          paste: (_) async {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Paste requires an active session.',
+              );
+            }
+            await _pasteToSession(activeSessionId);
+            return const ShellActionBindingResult.completed();
+          },
           pasteHistory: (_) async {
             if (activeSessionId == null) {
               return const ShellActionBindingResult.skipped(
@@ -6330,7 +6350,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         case TerminalActionId.copy:
           return KeyEventResult.ignored;
         case TerminalActionId.paste:
-          return KeyEventResult.ignored;
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          unawaited(_pasteToSession(activeSessionId));
+          return KeyEventResult.handled;
         case TerminalActionId.activateTab:
           final tabIndex = shortcut.tabIndex;
           if (tabIndex == null || tabIndex >= sessionState.tabs.length) {

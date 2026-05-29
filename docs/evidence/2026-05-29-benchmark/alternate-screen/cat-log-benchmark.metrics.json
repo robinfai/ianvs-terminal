@@ -1,0 +1,5518 @@
+{
+  "captureMode": "cat_log_benchmark",
+  "scenario": "alternate-screen",
+  "fixturePath": "/tmp/ianvs-technical-blog-action-benchmark/alternate-screen/alternate-screen.fixture.log",
+  "tracePath": "/tmp/ianvs-technical-blog-action-benchmark/alternate-screen/cat-log-benchmark.trace.json",
+  "traceBytes": 599415,
+  "coreProfile": "debug",
+  "coreLibPath": "/Users/robinfai/personal/ianvs/ianvs-terminal/native/core/target/debug/libianvs_core.dylib",
+  "fixtureBytes": 42980,
+  "includeRawFrames": true,
+  "rawFrameCount": 222,
+  "viewport": {
+    "logicalWidth": 1280.0,
+    "logicalHeight": 720.0,
+    "devicePixelRatio": 2.0,
+    "pixelWidth": 2560,
+    "pixelHeight": 1440,
+    "rows": 40,
+    "cols": 142,
+    "cellSize": {
+      "width": 14.0,
+      "height": 22.0
+    }
+  },
+  "summary": {
+    "frameCount": 222,
+    "traceFrameCount": 222,
+    "sessionDebugStats": {
+      "bytes_read": 10608,
+      "read_chunks": 223,
+      "host_protocol_micros": 566,
+      "terminal_process_micros": 12153,
+      "terminal_process_breakdown": {
+        "process_calls": 224,
+        "process_bytes": 10608,
+        "plain_ascii_bytes": 9504,
+        "escape_or_control_bytes": 1104,
+        "print_calls": 9050,
+        "execute_calls": 882,
+        "newline_calls": 441,
+        "plain_ascii_fast_path_calls": 1,
+        "plain_ascii_fast_path_bytes": 17,
+        "plain_ascii_fast_path_micros": 2,
+        "scroll_up_calls": 0,
+        "scroll_down_calls": 0,
+        "scroll_region_up_calls": 0,
+        "scroll_region_down_calls": 0,
+        "scroll_rows": 0,
+        "scrollback_push_lines": 0,
+        "parser_advance_micros": 11559,
+        "scroll_micros": 0,
+        "scrollback_push_micros": 0
+      },
+      "damage_merge_micros": 68,
+      "response_write_micros": 0,
+      "transcript_bytes": 10608,
+      "transcript_truncated": false,
+      "pending_dirty_rows": 0,
+      "pending_scroll_region": null
+    },
+    "snapshotRatio": 0.013513513513513514,
+    "deltaRatio": 0.9864864864864865,
+    "totalJsonBytes": 332684,
+    "totalRowsEmitted": 558,
+    "durationMs": {
+      "count": 222,
+      "min": 0.462,
+      "max": 42.851,
+      "mean": 1.0163243243243243,
+      "p50": 0.706,
+      "p95": 1.64,
+      "total": 225.624
+    },
+    "jsonBytes": {
+      "count": 222,
+      "min": 1323.0,
+      "max": 14316.0,
+      "mean": 1498.5765765765766,
+      "p50": 1323.0,
+      "p95": 1323.0,
+      "total": 332684.0
+    },
+    "rowCount": {
+      "count": 222,
+      "min": 2.0,
+      "max": 40.0,
+      "mean": 2.5135135135135136,
+      "p50": 2.0,
+      "p95": 2.0,
+      "total": 558.0
+    },
+    "dirtyRowCount": {
+      "count": 222,
+      "min": 2.0,
+      "max": 40.0,
+      "mean": 2.5135135135135136,
+      "p50": 2.0,
+      "p95": 2.0,
+      "total": 558.0
+    },
+    "rowsScanned": {
+      "count": 222,
+      "min": 3.0,
+      "max": 40.0,
+      "mean": 3.5,
+      "p50": 3.0,
+      "p95": 3.0,
+      "total": 777.0
+    },
+    "frameBuildMicros": {
+      "count": 222,
+      "min": 72.0,
+      "max": 1211.0,
+      "mean": 112.87387387387388,
+      "p50": 98.0,
+      "p95": 137.0,
+      "total": 25058.0
+    },
+    "stateLockWaitMicros": {
+      "count": 222,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "total": 0.0
+    },
+    "frameExtractMicros": {
+      "count": 222,
+      "min": 71.0,
+      "max": 1211.0,
+      "mean": 112.75225225225225,
+      "p50": 98.0,
+      "p95": 137.0,
+      "total": 25031.0
+    },
+    "jsonEncodeMicros": {
+      "count": 222,
+      "min": 35.0,
+      "max": 440.0,
+      "mean": 54.554054054054056,
+      "p50": 49.0,
+      "p95": 65.0,
+      "total": 12111.0
+    },
+    "rebuiltRowCount": {
+      "count": 222,
+      "min": 2.0,
+      "max": 40.0,
+      "mean": 2.5135135135135136,
+      "p50": 2.0,
+      "p95": 2.0,
+      "total": 558.0
+    },
+    "paintedRowCount": {
+      "count": 222,
+      "min": 40.0,
+      "max": 40.0,
+      "mean": 40.0,
+      "p50": 40.0,
+      "p95": 40.0,
+      "total": 8880.0
+    },
+    "viewportRowShiftAbs": {
+      "count": 222,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "total": 0.0
+    },
+    "fallbackReasons": {
+      "resize": 1,
+      "alternate_screen_switch": 2
+    },
+    "droppedFrames": {
+      "thresholdMs": 16.67,
+      "count": 1,
+      "ratio": 0.0045045045045045045
+    },
+    "frameKinds": {
+      "snapshot": 3,
+      "delta": 219
+    }
+  },
+  "frames": [
+    {
+      "index": 0,
+      "frameKind": "snapshot",
+      "durationMicros": 42851,
+      "jsonBytes": 14316,
+      "rowCount": 40,
+      "rowsScanned": 40,
+      "frameBuildMicros": 1211,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 1211,
+      "jsonEncodeMicros": 359,
+      "snapshotFallbackReason": "resize",
+      "dirtyRowCount": 40,
+      "rebuiltRowCount": 40,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "frameKind": "snapshot",
+      "durationMicros": 5834,
+      "jsonBytes": 14315,
+      "rowCount": 40,
+      "rowsScanned": 40,
+      "frameBuildMicros": 892,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 892,
+      "jsonEncodeMicros": 402,
+      "snapshotFallbackReason": "alternate_screen_switch",
+      "dirtyRowCount": 40,
+      "rebuiltRowCount": 40,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "frameKind": "delta",
+      "durationMicros": 4311,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 168,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 167,
+      "jsonEncodeMicros": 58,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "frameKind": "delta",
+      "durationMicros": 2102,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 90,
+      "jsonEncodeMicros": 38,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "frameKind": "delta",
+      "durationMicros": 1969,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 132,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 132,
+      "jsonEncodeMicros": 65,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "frameKind": "delta",
+      "durationMicros": 1671,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 78,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 78,
+      "jsonEncodeMicros": 37,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "frameKind": "delta",
+      "durationMicros": 1845,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 125,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 124,
+      "jsonEncodeMicros": 65,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "frameKind": "delta",
+      "durationMicros": 1335,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 80,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 80,
+      "jsonEncodeMicros": 37,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "frameKind": "delta",
+      "durationMicros": 1157,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 123,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 123,
+      "jsonEncodeMicros": 36,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "frameKind": "delta",
+      "durationMicros": 1242,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 144,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 144,
+      "jsonEncodeMicros": 138,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "frameKind": "delta",
+      "durationMicros": 1541,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 11,
+      "frameKind": "delta",
+      "durationMicros": 1435,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 73,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 73,
+      "jsonEncodeMicros": 37,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 12,
+      "frameKind": "delta",
+      "durationMicros": 1175,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 77,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 77,
+      "jsonEncodeMicros": 40,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 13,
+      "frameKind": "delta",
+      "durationMicros": 2172,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 82,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 82,
+      "jsonEncodeMicros": 39,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 14,
+      "frameKind": "delta",
+      "durationMicros": 1033,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 147,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 147,
+      "jsonEncodeMicros": 65,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "frameKind": "delta",
+      "durationMicros": 893,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 79,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 79,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 16,
+      "frameKind": "delta",
+      "durationMicros": 793,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 138,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 138,
+      "jsonEncodeMicros": 77,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 17,
+      "frameKind": "delta",
+      "durationMicros": 953,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 142,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 142,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "frameKind": "delta",
+      "durationMicros": 1137,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 86,
+      "jsonEncodeMicros": 42,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "frameKind": "delta",
+      "durationMicros": 870,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 42,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "frameKind": "delta",
+      "durationMicros": 1015,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 136,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 136,
+      "jsonEncodeMicros": 67,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 21,
+      "frameKind": "delta",
+      "durationMicros": 1640,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 93,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 93,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 22,
+      "frameKind": "delta",
+      "durationMicros": 1223,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 98,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 23,
+      "frameKind": "delta",
+      "durationMicros": 932,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 96,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 24,
+      "frameKind": "delta",
+      "durationMicros": 1185,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 108,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 107,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 25,
+      "frameKind": "delta",
+      "durationMicros": 957,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 112,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 111,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 26,
+      "frameKind": "delta",
+      "durationMicros": 942,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 115,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 115,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 27,
+      "frameKind": "delta",
+      "durationMicros": 907,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 134,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 134,
+      "jsonEncodeMicros": 71,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 28,
+      "frameKind": "delta",
+      "durationMicros": 724,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 117,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 117,
+      "jsonEncodeMicros": 59,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 29,
+      "frameKind": "delta",
+      "durationMicros": 707,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 117,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 117,
+      "jsonEncodeMicros": 65,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 30,
+      "frameKind": "delta",
+      "durationMicros": 760,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 125,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 125,
+      "jsonEncodeMicros": 63,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 31,
+      "frameKind": "delta",
+      "durationMicros": 729,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 105,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 105,
+      "jsonEncodeMicros": 53,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 32,
+      "frameKind": "delta",
+      "durationMicros": 835,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 103,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 103,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 33,
+      "frameKind": "delta",
+      "durationMicros": 888,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 121,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 120,
+      "jsonEncodeMicros": 61,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 34,
+      "frameKind": "delta",
+      "durationMicros": 804,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 113,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 113,
+      "jsonEncodeMicros": 58,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 35,
+      "frameKind": "delta",
+      "durationMicros": 733,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 120,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 120,
+      "jsonEncodeMicros": 57,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 36,
+      "frameKind": "delta",
+      "durationMicros": 863,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 119,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 119,
+      "jsonEncodeMicros": 60,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 37,
+      "frameKind": "delta",
+      "durationMicros": 939,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 109,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 109,
+      "jsonEncodeMicros": 53,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 38,
+      "frameKind": "delta",
+      "durationMicros": 959,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 95,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 39,
+      "frameKind": "delta",
+      "durationMicros": 756,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 95,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 40,
+      "frameKind": "delta",
+      "durationMicros": 1895,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 113,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 113,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 41,
+      "frameKind": "delta",
+      "durationMicros": 822,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 42,
+      "frameKind": "delta",
+      "durationMicros": 620,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 93,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 93,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 43,
+      "frameKind": "delta",
+      "durationMicros": 667,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 108,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 108,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 44,
+      "frameKind": "delta",
+      "durationMicros": 680,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 105,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 105,
+      "jsonEncodeMicros": 53,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 45,
+      "frameKind": "delta",
+      "durationMicros": 747,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 46,
+      "frameKind": "delta",
+      "durationMicros": 766,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 95,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 47,
+      "frameKind": "delta",
+      "durationMicros": 671,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 99,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 48,
+      "frameKind": "delta",
+      "durationMicros": 653,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 90,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 49,
+      "frameKind": "delta",
+      "durationMicros": 610,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 88,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 88,
+      "jsonEncodeMicros": 42,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 50,
+      "frameKind": "delta",
+      "durationMicros": 671,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 104,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 104,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 51,
+      "frameKind": "delta",
+      "durationMicros": 676,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 94,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 52,
+      "frameKind": "delta",
+      "durationMicros": 990,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 90,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 53,
+      "frameKind": "delta",
+      "durationMicros": 893,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 105,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 104,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 54,
+      "frameKind": "delta",
+      "durationMicros": 922,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 101,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 101,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 55,
+      "frameKind": "delta",
+      "durationMicros": 781,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 56,
+      "frameKind": "delta",
+      "durationMicros": 761,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 96,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 57,
+      "frameKind": "delta",
+      "durationMicros": 1036,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 107,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 107,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 58,
+      "frameKind": "delta",
+      "durationMicros": 911,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 96,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 59,
+      "frameKind": "delta",
+      "durationMicros": 720,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 60,
+      "frameKind": "delta",
+      "durationMicros": 719,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 91,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 91,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 61,
+      "frameKind": "delta",
+      "durationMicros": 708,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 107,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 107,
+      "jsonEncodeMicros": 56,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 62,
+      "frameKind": "delta",
+      "durationMicros": 669,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 96,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 63,
+      "frameKind": "delta",
+      "durationMicros": 652,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 64,
+      "frameKind": "delta",
+      "durationMicros": 711,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 135,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 134,
+      "jsonEncodeMicros": 57,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 65,
+      "frameKind": "delta",
+      "durationMicros": 760,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 96,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 66,
+      "frameKind": "delta",
+      "durationMicros": 691,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 102,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 102,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 67,
+      "frameKind": "delta",
+      "durationMicros": 1054,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 100,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 100,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 68,
+      "frameKind": "delta",
+      "durationMicros": 756,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 107,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 107,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 69,
+      "frameKind": "delta",
+      "durationMicros": 674,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 99,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 70,
+      "frameKind": "delta",
+      "durationMicros": 1053,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 86,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 71,
+      "frameKind": "delta",
+      "durationMicros": 782,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 100,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 100,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 72,
+      "frameKind": "delta",
+      "durationMicros": 1493,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 98,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 73,
+      "frameKind": "delta",
+      "durationMicros": 1347,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 84,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 84,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 74,
+      "frameKind": "delta",
+      "durationMicros": 968,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 91,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 91,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 75,
+      "frameKind": "delta",
+      "durationMicros": 800,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 98,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 76,
+      "frameKind": "delta",
+      "durationMicros": 633,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 87,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 87,
+      "jsonEncodeMicros": 42,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 77,
+      "frameKind": "delta",
+      "durationMicros": 783,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 88,
+      "jsonEncodeMicros": 40,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 78,
+      "frameKind": "delta",
+      "durationMicros": 996,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 79,
+      "frameKind": "delta",
+      "durationMicros": 1511,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 242,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 242,
+      "jsonEncodeMicros": 142,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 80,
+      "frameKind": "delta",
+      "durationMicros": 775,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 104,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 104,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 81,
+      "frameKind": "delta",
+      "durationMicros": 667,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 106,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 106,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 82,
+      "frameKind": "delta",
+      "durationMicros": 623,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 109,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 109,
+      "jsonEncodeMicros": 57,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 83,
+      "frameKind": "delta",
+      "durationMicros": 601,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 98,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 84,
+      "frameKind": "delta",
+      "durationMicros": 611,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 101,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 101,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 85,
+      "frameKind": "delta",
+      "durationMicros": 588,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 110,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 110,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 86,
+      "frameKind": "delta",
+      "durationMicros": 599,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 101,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 101,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 87,
+      "frameKind": "delta",
+      "durationMicros": 570,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 100,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 100,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 88,
+      "frameKind": "delta",
+      "durationMicros": 617,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 89,
+      "frameKind": "delta",
+      "durationMicros": 635,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 105,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 105,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 90,
+      "frameKind": "delta",
+      "durationMicros": 829,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 96,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 54,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 91,
+      "frameKind": "delta",
+      "durationMicros": 657,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 44,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 92,
+      "frameKind": "delta",
+      "durationMicros": 634,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 88,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 88,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 93,
+      "frameKind": "delta",
+      "durationMicros": 930,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 100,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 100,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 94,
+      "frameKind": "delta",
+      "durationMicros": 635,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 108,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 108,
+      "jsonEncodeMicros": 53,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 95,
+      "frameKind": "delta",
+      "durationMicros": 745,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 109,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 109,
+      "jsonEncodeMicros": 63,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 96,
+      "frameKind": "delta",
+      "durationMicros": 673,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 108,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 108,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 97,
+      "frameKind": "delta",
+      "durationMicros": 1115,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 104,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 104,
+      "jsonEncodeMicros": 53,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 98,
+      "frameKind": "delta",
+      "durationMicros": 705,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 113,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 113,
+      "jsonEncodeMicros": 53,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 99,
+      "frameKind": "delta",
+      "durationMicros": 623,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 108,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 108,
+      "jsonEncodeMicros": 57,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 100,
+      "frameKind": "delta",
+      "durationMicros": 641,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 98,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 101,
+      "frameKind": "delta",
+      "durationMicros": 1156,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 99,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 102,
+      "frameKind": "delta",
+      "durationMicros": 642,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 103,
+      "frameKind": "delta",
+      "durationMicros": 840,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 99,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 104,
+      "frameKind": "delta",
+      "durationMicros": 803,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 103,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 103,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 105,
+      "frameKind": "delta",
+      "durationMicros": 685,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 96,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 106,
+      "frameKind": "delta",
+      "durationMicros": 636,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 103,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 103,
+      "jsonEncodeMicros": 60,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 107,
+      "frameKind": "delta",
+      "durationMicros": 577,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 107,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 106,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 108,
+      "frameKind": "delta",
+      "durationMicros": 623,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 107,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 107,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 109,
+      "frameKind": "delta",
+      "durationMicros": 575,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 98,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 110,
+      "frameKind": "delta",
+      "durationMicros": 604,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 107,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 107,
+      "jsonEncodeMicros": 56,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 111,
+      "frameKind": "delta",
+      "durationMicros": 580,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 106,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 105,
+      "jsonEncodeMicros": 54,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 112,
+      "frameKind": "delta",
+      "durationMicros": 669,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 102,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 101,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 113,
+      "frameKind": "delta",
+      "durationMicros": 724,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 113,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 113,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 114,
+      "frameKind": "delta",
+      "durationMicros": 696,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 94,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 94,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 115,
+      "frameKind": "delta",
+      "durationMicros": 706,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 115,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 115,
+      "jsonEncodeMicros": 56,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 116,
+      "frameKind": "delta",
+      "durationMicros": 601,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 100,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 100,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 117,
+      "frameKind": "delta",
+      "durationMicros": 787,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 111,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 111,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 118,
+      "frameKind": "delta",
+      "durationMicros": 2124,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 107,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 107,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 119,
+      "frameKind": "delta",
+      "durationMicros": 964,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 99,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 120,
+      "frameKind": "delta",
+      "durationMicros": 1131,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 122,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 122,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 121,
+      "frameKind": "delta",
+      "durationMicros": 884,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 107,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 107,
+      "jsonEncodeMicros": 54,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 122,
+      "frameKind": "delta",
+      "durationMicros": 760,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 123,
+      "frameKind": "delta",
+      "durationMicros": 696,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 101,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 101,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 124,
+      "frameKind": "delta",
+      "durationMicros": 834,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 103,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 103,
+      "jsonEncodeMicros": 53,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 125,
+      "frameKind": "delta",
+      "durationMicros": 748,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 98,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 126,
+      "frameKind": "delta",
+      "durationMicros": 633,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 94,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 93,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 127,
+      "frameKind": "delta",
+      "durationMicros": 609,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 102,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 102,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 128,
+      "frameKind": "delta",
+      "durationMicros": 573,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 102,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 102,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 129,
+      "frameKind": "delta",
+      "durationMicros": 931,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 130,
+      "frameKind": "delta",
+      "durationMicros": 911,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 131,
+      "frameKind": "delta",
+      "durationMicros": 736,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 103,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 103,
+      "jsonEncodeMicros": 56,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 132,
+      "frameKind": "delta",
+      "durationMicros": 946,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 95,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 133,
+      "frameKind": "delta",
+      "durationMicros": 931,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 134,
+      "frameKind": "delta",
+      "durationMicros": 653,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 44,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 135,
+      "frameKind": "delta",
+      "durationMicros": 1183,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 136,
+      "frameKind": "delta",
+      "durationMicros": 765,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 106,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 106,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 137,
+      "frameKind": "delta",
+      "durationMicros": 941,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 90,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 138,
+      "frameKind": "delta",
+      "durationMicros": 923,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 137,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 137,
+      "jsonEncodeMicros": 56,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 139,
+      "frameKind": "delta",
+      "durationMicros": 759,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 99,
+      "jsonEncodeMicros": 54,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 140,
+      "frameKind": "delta",
+      "durationMicros": 676,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 103,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 103,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 141,
+      "frameKind": "delta",
+      "durationMicros": 628,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 142,
+      "frameKind": "delta",
+      "durationMicros": 824,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 84,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 84,
+      "jsonEncodeMicros": 44,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 143,
+      "frameKind": "delta",
+      "durationMicros": 710,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 73,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 73,
+      "jsonEncodeMicros": 37,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 144,
+      "frameKind": "delta",
+      "durationMicros": 863,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 79,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 78,
+      "jsonEncodeMicros": 40,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 145,
+      "frameKind": "delta",
+      "durationMicros": 623,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 82,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 82,
+      "jsonEncodeMicros": 40,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 146,
+      "frameKind": "delta",
+      "durationMicros": 526,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 78,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 78,
+      "jsonEncodeMicros": 41,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 147,
+      "frameKind": "delta",
+      "durationMicros": 547,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 73,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 73,
+      "jsonEncodeMicros": 38,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 148,
+      "frameKind": "delta",
+      "durationMicros": 555,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 79,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 79,
+      "jsonEncodeMicros": 42,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 149,
+      "frameKind": "delta",
+      "durationMicros": 544,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 72,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 71,
+      "jsonEncodeMicros": 35,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 150,
+      "frameKind": "delta",
+      "durationMicros": 632,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 82,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 82,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 151,
+      "frameKind": "delta",
+      "durationMicros": 1248,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 75,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 75,
+      "jsonEncodeMicros": 36,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 152,
+      "frameKind": "delta",
+      "durationMicros": 1338,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 85,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 85,
+      "jsonEncodeMicros": 41,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 153,
+      "frameKind": "delta",
+      "durationMicros": 887,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 73,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 73,
+      "jsonEncodeMicros": 36,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 154,
+      "frameKind": "delta",
+      "durationMicros": 852,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 76,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 75,
+      "jsonEncodeMicros": 36,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 155,
+      "frameKind": "delta",
+      "durationMicros": 950,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 74,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 74,
+      "jsonEncodeMicros": 36,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 156,
+      "frameKind": "delta",
+      "durationMicros": 761,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 157,
+      "frameKind": "delta",
+      "durationMicros": 551,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 158,
+      "frameKind": "delta",
+      "durationMicros": 586,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 86,
+      "jsonEncodeMicros": 39,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 159,
+      "frameKind": "delta",
+      "durationMicros": 542,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 160,
+      "frameKind": "delta",
+      "durationMicros": 701,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 100,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 100,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 161,
+      "frameKind": "delta",
+      "durationMicros": 590,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 88,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 88,
+      "jsonEncodeMicros": 41,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 162,
+      "frameKind": "delta",
+      "durationMicros": 508,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 86,
+      "jsonEncodeMicros": 42,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 163,
+      "frameKind": "delta",
+      "durationMicros": 513,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 85,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 164,
+      "frameKind": "delta",
+      "durationMicros": 746,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 44,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 165,
+      "frameKind": "delta",
+      "durationMicros": 599,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 86,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 166,
+      "frameKind": "delta",
+      "durationMicros": 485,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 44,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 167,
+      "frameKind": "delta",
+      "durationMicros": 468,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 95,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 168,
+      "frameKind": "delta",
+      "durationMicros": 499,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 91,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 91,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 169,
+      "frameKind": "delta",
+      "durationMicros": 479,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 170,
+      "frameKind": "delta",
+      "durationMicros": 530,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 91,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 91,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 171,
+      "frameKind": "delta",
+      "durationMicros": 681,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 90,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 172,
+      "frameKind": "delta",
+      "durationMicros": 592,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 90,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 173,
+      "frameKind": "delta",
+      "durationMicros": 495,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 85,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 174,
+      "frameKind": "delta",
+      "durationMicros": 918,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 145,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 145,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 175,
+      "frameKind": "delta",
+      "durationMicros": 598,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 99,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 176,
+      "frameKind": "delta",
+      "durationMicros": 576,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 177,
+      "frameKind": "delta",
+      "durationMicros": 578,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 94,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 178,
+      "frameKind": "delta",
+      "durationMicros": 516,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 179,
+      "frameKind": "delta",
+      "durationMicros": 504,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 180,
+      "frameKind": "delta",
+      "durationMicros": 532,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 181,
+      "frameKind": "delta",
+      "durationMicros": 761,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 90,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 182,
+      "frameKind": "delta",
+      "durationMicros": 666,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 126,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 126,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 183,
+      "frameKind": "delta",
+      "durationMicros": 537,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 109,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 109,
+      "jsonEncodeMicros": 60,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 184,
+      "frameKind": "delta",
+      "durationMicros": 496,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 98,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 185,
+      "frameKind": "delta",
+      "durationMicros": 509,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 102,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 102,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 186,
+      "frameKind": "delta",
+      "durationMicros": 551,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 97,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 187,
+      "frameKind": "delta",
+      "durationMicros": 481,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 95,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 188,
+      "frameKind": "delta",
+      "durationMicros": 718,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 105,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 105,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 189,
+      "frameKind": "delta",
+      "durationMicros": 502,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 108,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 108,
+      "jsonEncodeMicros": 54,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 190,
+      "frameKind": "delta",
+      "durationMicros": 498,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 90,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 90,
+      "jsonEncodeMicros": 44,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 191,
+      "frameKind": "delta",
+      "durationMicros": 507,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 104,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 104,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 192,
+      "frameKind": "delta",
+      "durationMicros": 474,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 118,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 118,
+      "jsonEncodeMicros": 59,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 193,
+      "frameKind": "delta",
+      "durationMicros": 572,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 99,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 98,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 194,
+      "frameKind": "delta",
+      "durationMicros": 628,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 115,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 115,
+      "jsonEncodeMicros": 53,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 195,
+      "frameKind": "delta",
+      "durationMicros": 711,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 101,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 101,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 196,
+      "frameKind": "delta",
+      "durationMicros": 487,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 161,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 161,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 197,
+      "frameKind": "delta",
+      "durationMicros": 500,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 101,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 101,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 198,
+      "frameKind": "delta",
+      "durationMicros": 517,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 199,
+      "frameKind": "delta",
+      "durationMicros": 512,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 105,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 105,
+      "jsonEncodeMicros": 52,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 200,
+      "frameKind": "delta",
+      "durationMicros": 480,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 104,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 104,
+      "jsonEncodeMicros": 50,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 201,
+      "frameKind": "delta",
+      "durationMicros": 575,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 94,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 93,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 202,
+      "frameKind": "delta",
+      "durationMicros": 666,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 105,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 105,
+      "jsonEncodeMicros": 51,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 203,
+      "frameKind": "delta",
+      "durationMicros": 711,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 91,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 91,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 204,
+      "frameKind": "delta",
+      "durationMicros": 646,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 93,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 93,
+      "jsonEncodeMicros": 44,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 205,
+      "frameKind": "delta",
+      "durationMicros": 495,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 206,
+      "frameKind": "delta",
+      "durationMicros": 631,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 60,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 207,
+      "frameKind": "delta",
+      "durationMicros": 539,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 97,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 96,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 208,
+      "frameKind": "delta",
+      "durationMicros": 483,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 87,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 87,
+      "jsonEncodeMicros": 43,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 209,
+      "frameKind": "delta",
+      "durationMicros": 537,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 93,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 93,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 210,
+      "frameKind": "delta",
+      "durationMicros": 506,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 93,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 93,
+      "jsonEncodeMicros": 47,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 211,
+      "frameKind": "delta",
+      "durationMicros": 513,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 87,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 87,
+      "jsonEncodeMicros": 55,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 212,
+      "frameKind": "delta",
+      "durationMicros": 558,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 92,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 92,
+      "jsonEncodeMicros": 46,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 213,
+      "frameKind": "delta",
+      "durationMicros": 507,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 103,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 103,
+      "jsonEncodeMicros": 54,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 214,
+      "frameKind": "delta",
+      "durationMicros": 553,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 89,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 89,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 215,
+      "frameKind": "delta",
+      "durationMicros": 462,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 79,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 79,
+      "jsonEncodeMicros": 40,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 216,
+      "frameKind": "delta",
+      "durationMicros": 513,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 86,
+      "jsonEncodeMicros": 44,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 217,
+      "frameKind": "delta",
+      "durationMicros": 478,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 95,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 95,
+      "jsonEncodeMicros": 48,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 218,
+      "frameKind": "delta",
+      "durationMicros": 465,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 82,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 82,
+      "jsonEncodeMicros": 45,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 219,
+      "frameKind": "delta",
+      "durationMicros": 513,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 86,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 86,
+      "jsonEncodeMicros": 42,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 220,
+      "frameKind": "delta",
+      "durationMicros": 472,
+      "jsonBytes": 1323,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 84,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 84,
+      "jsonEncodeMicros": 42,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 221,
+      "frameKind": "snapshot",
+      "durationMicros": 1662,
+      "jsonBytes": 14316,
+      "rowCount": 40,
+      "rowsScanned": 40,
+      "frameBuildMicros": 1023,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 1023,
+      "jsonEncodeMicros": 440,
+      "snapshotFallbackReason": "alternate_screen_switch",
+      "dirtyRowCount": 40,
+      "rebuiltRowCount": 40,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 40
+        }
+      ]
+    }
+  ],
+  "metricsBytes": 127888
+}

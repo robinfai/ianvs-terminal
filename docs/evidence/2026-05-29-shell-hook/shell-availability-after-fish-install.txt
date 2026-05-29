@@ -1,0 +1,6 @@
+# Shell availability after fish install
+Fri May 29 16:39:23 CST 2026
+/bin/zsh
+/bin/bash
+/opt/homebrew/bin/fish
+fish version: fish, version 4.7.1

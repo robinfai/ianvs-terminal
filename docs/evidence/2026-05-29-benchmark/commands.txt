@@ -1,0 +1,5 @@
+/Users/robinfai/personal/ianvs/ianvs-terminal/tools/cat_log_benchmark.sh --out-dir /tmp/ianvs-technical-blog-action-benchmark/bulk-output --scenario bulk-output --timeout-sec 8 --profile debug --include-raw-frames 
+/Users/robinfai/personal/ianvs/ianvs-terminal/tools/cat_log_benchmark.sh --out-dir /tmp/ianvs-technical-blog-action-benchmark/streaming-scroll --scenario streaming-scroll --timeout-sec 8 --profile debug --include-raw-frames 
+/Users/robinfai/personal/ianvs/ianvs-terminal/tools/cat_log_benchmark.sh --out-dir /tmp/ianvs-technical-blog-action-benchmark/resize --scenario resize --timeout-sec 8 --profile debug --include-raw-frames 
+/Users/robinfai/personal/ianvs/ianvs-terminal/tools/cat_log_benchmark.sh --out-dir /tmp/ianvs-technical-blog-action-benchmark/alternate-screen --scenario alternate-screen --timeout-sec 8 --profile debug --include-raw-frames 
+/Users/robinfai/personal/ianvs/ianvs-terminal/tools/cat_log_benchmark.sh --out-dir /tmp/ianvs-technical-blog-action-benchmark/input-echo --scenario input-echo --timeout-sec 8 --profile debug --include-raw-frames 

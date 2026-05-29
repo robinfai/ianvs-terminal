@@ -1,0 +1,4 @@
+# Shell availability
+Fri May 29 16:18:58 CST 2026
+/bin/zsh
+/bin/bash

@@ -44,6 +44,19 @@ void main() {
     expect(store.framesFor('1').map((frame) => frame.text), ['three', 'two']);
   });
 
+  test('default v1 retention keeps the latest sixty text frames', () {
+    final store = InstantReplayStore();
+
+    for (var index = 0; index < 61; index += 1) {
+      store.record('1', frameWithRows(['frame $index']));
+    }
+
+    final frames = store.framesFor('1');
+    expect(frames, hasLength(60));
+    expect(frames.first.text, 'frame 60');
+    expect(frames.last.text, 'frame 1');
+  });
+
   test('clear removes only the requested session', () {
     final store = InstantReplayStore();
 

@@ -6,6 +6,21 @@ class WindowBridge {
 
   static const MethodChannel _channel = MethodChannel('app/window_bridge');
 
+  static void setNativePasteHandler(Future<void> Function()? handler) {
+    if (handler == null) {
+      _channel.setMethodCallHandler(null);
+      return;
+    }
+    _channel.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'nativePaste':
+          await handler();
+        default:
+          throw MissingPluginException('No handler for ${call.method}');
+      }
+    });
+  }
+
   static Future<void> resizeBy({
     required double widthDelta,
     required double heightDelta,

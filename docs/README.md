@@ -64,10 +64,12 @@
 - [LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md](LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md)：当前验证阻塞状态，明确下一步应是恢复额度后复跑 broader、继续 integration/manual，或暂停。
 - [LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md](LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md)：最终验证 handoff，串联审计、命令批次、ledger、record examples、runbook 和 manual template。
 - [LOCAL_TERMINAL_MILESTONE_IMPLEMENTATION_STATUS_2026-05.md](LOCAL_TERMINAL_MILESTONE_IMPLEMENTATION_STATUS_2026-05.md)：P0-P5 实现状态总览，区分 `FOUNDATION`、`WIRED` 和 `DONE`。
+- [TECHNICAL_BLOG_PROJECT_ACTION_PLAN_2026-05.md](TECHNICAL_BLOG_PROJECT_ACTION_PLAN_2026-05.md)：从技术文章反馈反推出来的工程行动计划，记录 benchmark、Instant Replay、粘贴安全、Shell Hook 和视觉正确性证据 gate。
 
 辅助脚本：
 
 - `tools/LOCAL_TERMINAL_VERIFICATION_HELPERS.md`：local terminal 验证 helper 的本地说明，解释脚本职责、调用方式和 evidence 边界。
+- `tools/technical_blog_action_benchmark.sh`：运行技术文章反馈对应的 Frame Diff、行缓存和输入回显 benchmark 场景，并输出可复现证据目录。
 - `tools/local_terminal_verification_batches.sh`：列出、打印或显式运行 local terminal 验证命令批次；脚本不会自动更新 evidence ledger。
 - `tools/local_terminal_verification_capture.sh`：显式运行验证批次并把 `output.log`、`summary.txt`、`ledger-entry.md` 捕获到 `build/local-terminal-verification/`，仍需人工回填 evidence ledger。
 - `tools/local_terminal_verification_status.sh`：打印 local terminal 最终验证入口和当前阻塞状态；不会运行验证。

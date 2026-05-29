@@ -34,6 +34,8 @@ void main() {
 
     final traceJson = (jsonDecode(traceFile.readAsStringSync()) as Map)
         .cast<String, Object?>();
+    final scenario = traceJson['scenario'] as String? ?? 'bulk-output';
+    final inputEcho = (traceJson['inputEcho'] as Map?)?.cast<String, Object?>();
     final viewport = (traceJson['viewport']! as Map).cast<String, Object?>();
     final frames = (traceJson['frames'] as List<dynamic>? ?? const [])
         .cast<Map>()
@@ -107,7 +109,9 @@ void main() {
     final frameDurationsMicros = <int>[];
     final jsonSizes = <int>[];
     final rowCounts = <int>[];
+    final dirtyRowCounts = <int>[];
     final rebuiltRowCounts = <int>[];
+    final paintedRowCounts = <int>[];
     final viewportRowShifts = <int>[];
     final rowsScanned = <int>[];
     final frameBuildMicros = <int>[];
@@ -171,7 +175,9 @@ void main() {
       frameDurationsMicros.add(durationMicros);
       jsonSizes.add(jsonBytes);
       rowCounts.add(rowCount);
+      dirtyRowCounts.add(dirtyRowCount);
       rebuiltRowCounts.add(rebuiltRows);
+      paintedRowCounts.add(paintedRows);
       viewportRowShifts.add(viewportRowShift.abs());
       rowsScanned.add(rustRowsScanned);
       frameBuildMicros.add(rustFrameBuildMicros);
@@ -207,6 +213,7 @@ void main() {
     final metricsFile = File('${outDir.path}/cat-log-benchmark.metrics.json');
     final metrics = <String, Object?>{
       'captureMode': 'cat_log_benchmark',
+      'scenario': scenario,
       'fixturePath': traceJson['fixturePath'],
       'tracePath': traceFile.path,
       'traceBytes': traceFile.lengthSync(),
@@ -235,17 +242,39 @@ void main() {
         'traceFrameCount': frames.length,
         'sessionDebugStats':
             (traceJson['summary'] as Map?)?['sessionDebugStats'],
+        'snapshotRatio': _ratio(
+          frameSamples
+              .where((sample) => sample['frameKind'] == 'snapshot')
+              .length,
+          frameSamples.length,
+        ),
+        'deltaRatio': _ratio(
+          frameSamples.where((sample) => sample['frameKind'] == 'delta').length,
+          frameSamples.length,
+        ),
+        'totalJsonBytes': jsonSizes.fold<int>(0, (sum, value) => sum + value),
+        'totalRowsEmitted': frames.fold<int>(
+          0,
+          (sum, frame) => sum + ((frame['rowsEmitted'] as num?)?.toInt() ?? 0),
+        ),
         'durationMs': _distributionSummary(frameDurationsMicros, scale: 1000),
         'jsonBytes': _distributionSummary(jsonSizes),
         'rowCount': _distributionSummary(rowCounts),
+        'dirtyRowCount': _distributionSummary(dirtyRowCounts),
         'rowsScanned': _distributionSummary(rowsScanned),
         'frameBuildMicros': _distributionSummary(frameBuildMicros),
         'stateLockWaitMicros': _distributionSummary(stateLockWaitMicros),
         'frameExtractMicros': _distributionSummary(frameExtractMicros),
         'jsonEncodeMicros': _distributionSummary(jsonEncodeMicros),
         'rebuiltRowCount': _distributionSummary(rebuiltRowCounts),
+        'paintedRowCount': _distributionSummary(paintedRowCounts),
         'viewportRowShiftAbs': _distributionSummary(viewportRowShifts),
         'fallbackReasons': _frequencySummary(fallbackReasons),
+        if (inputEcho != null)
+          'inputEcho': <String, Object?>{
+            'observed': inputEcho['observed'] as bool? ?? false,
+            'inputToDisplayMicros': inputEcho['inputToDisplayMicros'],
+          },
         'droppedFrames': <String, Object?>{
           'thresholdMs': _droppedFrameThresholdMs,
           'count': frameDurationsMicros
@@ -338,4 +367,11 @@ Map<String, int> _frequencySummary(List<String> values) {
     counts.update(value, (count) => count + 1, ifAbsent: () => 1);
   }
   return counts;
+}
+
+double _ratio(int count, int total) {
+  if (total == 0) {
+    return 0;
+  }
+  return count / total;
 }

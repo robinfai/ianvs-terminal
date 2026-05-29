@@ -1,0 +1,265 @@
+{
+  "captureMode": "cat_log_benchmark",
+  "scenario": "input-echo",
+  "fixturePath": "/tmp/ianvs-technical-blog-action-benchmark/input-echo/input-echo.fixture.log",
+  "tracePath": "/tmp/ianvs-technical-blog-action-benchmark/input-echo/cat-log-benchmark.trace.json",
+  "traceBytes": 23323,
+  "coreProfile": "debug",
+  "coreLibPath": "/Users/robinfai/personal/ianvs/ianvs-terminal/native/core/target/debug/libianvs_core.dylib",
+  "fixtureBytes": 1538,
+  "includeRawFrames": true,
+  "rawFrameCount": 3,
+  "viewport": {
+    "logicalWidth": 1280.0,
+    "logicalHeight": 720.0,
+    "devicePixelRatio": 2.0,
+    "pixelWidth": 2560,
+    "pixelHeight": 1440,
+    "rows": 40,
+    "cols": 142,
+    "cellSize": {
+      "width": 14.0,
+      "height": 22.0
+    }
+  },
+  "summary": {
+    "frameCount": 3,
+    "traceFrameCount": 3,
+    "sessionDebugStats": {
+      "bytes_read": 104,
+      "read_chunks": 4,
+      "host_protocol_micros": 12,
+      "terminal_process_micros": 81,
+      "terminal_process_breakdown": {
+        "process_calls": 5,
+        "process_bytes": 104,
+        "plain_ascii_bytes": 96,
+        "escape_or_control_bytes": 8,
+        "print_calls": 96,
+        "execute_calls": 8,
+        "newline_calls": 4,
+        "plain_ascii_fast_path_calls": 4,
+        "plain_ascii_fast_path_bytes": 104,
+        "plain_ascii_fast_path_micros": 54,
+        "scroll_up_calls": 0,
+        "scroll_down_calls": 0,
+        "scroll_region_up_calls": 0,
+        "scroll_region_down_calls": 0,
+        "scroll_rows": 0,
+        "scrollback_push_lines": 0,
+        "parser_advance_micros": 1,
+        "scroll_micros": 0,
+        "scrollback_push_micros": 0
+      },
+      "damage_merge_micros": 5,
+      "response_write_micros": 0,
+      "transcript_bytes": 104,
+      "transcript_truncated": false,
+      "pending_dirty_rows": 0,
+      "pending_scroll_region": null
+    },
+    "snapshotRatio": 0.3333333333333333,
+    "deltaRatio": 0.6666666666666666,
+    "totalJsonBytes": 16623,
+    "totalRowsEmitted": 43,
+    "durationMs": {
+      "count": 3,
+      "min": 2.757,
+      "max": 42.482,
+      "mean": 16.595,
+      "p50": 4.546,
+      "p95": 42.482,
+      "total": 49.785
+    },
+    "jsonBytes": {
+      "count": 3,
+      "min": 983.0,
+      "max": 14316.0,
+      "mean": 5541.0,
+      "p50": 1324.0,
+      "p95": 14316.0,
+      "total": 16623.0
+    },
+    "rowCount": {
+      "count": 3,
+      "min": 1.0,
+      "max": 40.0,
+      "mean": 14.333333333333334,
+      "p50": 2.0,
+      "p95": 40.0,
+      "total": 43.0
+    },
+    "dirtyRowCount": {
+      "count": 3,
+      "min": 1.0,
+      "max": 40.0,
+      "mean": 14.333333333333334,
+      "p50": 2.0,
+      "p95": 40.0,
+      "total": 43.0
+    },
+    "rowsScanned": {
+      "count": 3,
+      "min": 2.0,
+      "max": 40.0,
+      "mean": 15.0,
+      "p50": 3.0,
+      "p95": 40.0,
+      "total": 45.0
+    },
+    "frameBuildMicros": {
+      "count": 3,
+      "min": 117.0,
+      "max": 1526.0,
+      "mean": 598.0,
+      "p50": 151.0,
+      "p95": 1526.0,
+      "total": 1794.0
+    },
+    "stateLockWaitMicros": {
+      "count": 3,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "total": 0.0
+    },
+    "frameExtractMicros": {
+      "count": 3,
+      "min": 117.0,
+      "max": 1526.0,
+      "mean": 597.6666666666666,
+      "p50": 150.0,
+      "p95": 1526.0,
+      "total": 1793.0
+    },
+    "jsonEncodeMicros": {
+      "count": 3,
+      "min": 49.0,
+      "max": 611.0,
+      "mean": 245.66666666666666,
+      "p50": 77.0,
+      "p95": 611.0,
+      "total": 737.0
+    },
+    "rebuiltRowCount": {
+      "count": 3,
+      "min": 1.0,
+      "max": 40.0,
+      "mean": 14.333333333333334,
+      "p50": 2.0,
+      "p95": 40.0,
+      "total": 43.0
+    },
+    "paintedRowCount": {
+      "count": 3,
+      "min": 40.0,
+      "max": 40.0,
+      "mean": 40.0,
+      "p50": 40.0,
+      "p95": 40.0,
+      "total": 120.0
+    },
+    "viewportRowShiftAbs": {
+      "count": 3,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p95": 0.0,
+      "total": 0.0
+    },
+    "fallbackReasons": {
+      "resize": 1
+    },
+    "inputEcho": {
+      "observed": true,
+      "inputToDisplayMicros": 10893
+    },
+    "droppedFrames": {
+      "thresholdMs": 16.67,
+      "count": 1,
+      "ratio": 0.3333333333333333
+    },
+    "frameKinds": {
+      "snapshot": 1,
+      "delta": 2
+    }
+  },
+  "frames": [
+    {
+      "index": 0,
+      "frameKind": "snapshot",
+      "durationMicros": 42482,
+      "jsonBytes": 14316,
+      "rowCount": 40,
+      "rowsScanned": 40,
+      "frameBuildMicros": 1526,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 1526,
+      "jsonEncodeMicros": 611,
+      "snapshotFallbackReason": "resize",
+      "dirtyRowCount": 40,
+      "rebuiltRowCount": 40,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 0,
+          "end": 40
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "frameKind": "delta",
+      "durationMicros": 4546,
+      "jsonBytes": 983,
+      "rowCount": 1,
+      "rowsScanned": 2,
+      "frameBuildMicros": 117,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 117,
+      "jsonEncodeMicros": 49,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 1,
+      "rebuiltRowCount": 1,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 1,
+          "end": 2
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "frameKind": "delta",
+      "durationMicros": 2757,
+      "jsonBytes": 1324,
+      "rowCount": 2,
+      "rowsScanned": 3,
+      "frameBuildMicros": 151,
+      "stateLockWaitMicros": 0,
+      "frameExtractMicros": 150,
+      "jsonEncodeMicros": 77,
+      "snapshotFallbackReason": null,
+      "dirtyRowCount": 2,
+      "rebuiltRowCount": 2,
+      "paintedRowCount": 40,
+      "scrollbackOffset": 0,
+      "viewportRowShift": 0,
+      "dirtyRanges": [
+        {
+          "start": 2,
+          "end": 4
+        }
+      ]
+    }
+  ],
+  "metricsBytes": 6088
+}

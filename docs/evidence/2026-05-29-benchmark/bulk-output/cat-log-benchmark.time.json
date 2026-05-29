@@ -1,0 +1,21 @@
+{
+  "coreProfile": "debug",
+  "coreLibPath": "/Users/robinfai/personal/ianvs/ianvs-terminal/native/core/target/debug/libianvs_core.dylib",
+  "scenario": "bulk-output",
+  "includeRawFrames": true,
+  "fixtureBytes": 0,
+  "traceBytes": 4899160,
+  "metricsBytes": 214998,
+  "captureTime": {
+    "realSec": ,
+    "userSec": 0.95,
+    "sysSec": 0.14,
+    "cpuPercent": 0.00
+  },
+  "replayTime": {
+    "realSec": 3.91,
+    "userSec": 3.79,
+    "sysSec": 0.98,
+    "cpuPercent": 121.99
+  }
+}

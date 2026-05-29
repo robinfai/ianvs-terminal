@@ -20,20 +20,30 @@ Future<void> main(List<String> args) async {
   }
 
   final fixtureFile = File(
-    options.fixturePath ?? '${outDir.path}/cat-log-benchmark.fixture.log',
+    options.fixturePath ?? '${outDir.path}/${options.scenario.id}.fixture.log',
   );
   if (!fixtureFile.existsSync()) {
-    fixtureFile.writeAsStringSync(_buildFixtureText());
+    fixtureFile.writeAsStringSync(_buildFixtureText(options.scenario));
   }
 
   final backend = NativePtyBackend.load();
-  final sessionId = backend.createSession(_sessionConfigJson(fixtureFile));
+  final sessionId = backend.createSession(
+    _sessionConfigJson(fixtureFile, options.scenario),
+  );
   final traceFrames = <Map<String, Object?>>[];
+  final resizeEvents = <Map<String, Object?>>[];
+  final inputEchoText =
+      'ianvs-input-echo-${DateTime.now().microsecondsSinceEpoch}';
   final timeout = Stopwatch()..start();
   final timeoutLimit = Duration(seconds: options.timeoutSeconds);
   var seenExit = false;
   var emptyPollsAfterExit = 0;
   var timedOut = false;
+  var resizeApplied = false;
+  var inputEchoSent = false;
+  var inputEchoObserved = false;
+  Stopwatch? inputEchoWatch;
+  int? inputToDisplayMicros;
   Map<String, Object?> sessionDebugStats = const <String, Object?>{};
 
   try {
@@ -44,6 +54,11 @@ Future<void> main(List<String> args) async {
       pixelWidth: (_logicalWidth * _devicePixelRatio).round(),
       pixelHeight: (_logicalHeight * _devicePixelRatio).round(),
     );
+    if (options.scenario == _BenchmarkScenario.inputEcho) {
+      inputEchoSent = true;
+      inputEchoWatch = Stopwatch()..start();
+      backend.writeInput(sessionId, utf8.encode('$inputEchoText\n'));
+    }
 
     while (!seenExit || emptyPollsAfterExit < 3) {
       if (timeout.elapsed > timeoutLimit) {
@@ -91,6 +106,34 @@ Future<void> main(List<String> args) async {
           traceFrame['debugStats'] = debugStats;
         }
         traceFrames.add(traceFrame);
+        if (options.scenario == _BenchmarkScenario.resize &&
+            !resizeApplied &&
+            traceFrames.length >= 2) {
+          resizeApplied = true;
+          backend.resizeSession(
+            sessionId,
+            cols: 96,
+            rows: 28,
+            pixelWidth: 1728,
+            pixelHeight: 1008,
+          );
+          resizeEvents.add(<String, Object?>{
+            'afterFrameIndex': traceFrames.length - 1,
+            'cols': 96,
+            'rows': 28,
+            'pixelWidth': 1728,
+            'pixelHeight': 1008,
+          });
+        }
+        if (options.scenario == _BenchmarkScenario.inputEcho &&
+            inputEchoSent &&
+            !inputEchoObserved &&
+            rawFrame.contains(inputEchoText)) {
+          inputEchoObserved = true;
+          inputEchoWatch?.stop();
+          inputToDisplayMicros = inputEchoWatch?.elapsedMicroseconds;
+          backend.writeInput(sessionId, utf8.encode('exit\n'));
+        }
       } else if (seenExit) {
         emptyPollsAfterExit += 1;
       }
@@ -127,6 +170,10 @@ Future<void> main(List<String> args) async {
     elapsedMillis: timeout.elapsedMilliseconds,
     timeoutSeconds: options.timeoutSeconds,
     sessionDebugStats: sessionDebugStats,
+    scenario: options.scenario,
+    resizeEvents: resizeEvents,
+    inputEchoText: inputEchoText,
+    inputToDisplayMicros: inputToDisplayMicros,
   );
   if (timedOut) {
     exitCode = 1;
@@ -142,16 +189,43 @@ void _writeTrace({
   required int elapsedMillis,
   required int timeoutSeconds,
   required Map<String, Object?> sessionDebugStats,
+  required _BenchmarkScenario scenario,
+  required List<Map<String, Object?>> resizeEvents,
+  required String inputEchoText,
+  required int? inputToDisplayMicros,
 }) {
   final traceFile = File('${outDir.path}/cat-log-benchmark.trace.json');
+  final snapshotFrames = traceFrames
+      .where((frame) => frame['frameKind'] == 'snapshot')
+      .length;
+  final deltaFrames = traceFrames
+      .where((frame) => frame['frameKind'] == 'delta')
+      .length;
+  final frameCount = traceFrames.length;
+  final totalJsonBytes = traceFrames.fold<int>(
+    0,
+    (sum, frame) => sum + (frame['jsonBytes'] as int),
+  );
+  final rowsEmitted = traceFrames.fold<int>(
+    0,
+    (sum, frame) => sum + ((frame['rowsEmitted'] as int?) ?? 0),
+  );
   traceFile.writeAsStringSync(
     const JsonEncoder.withIndent('  ').convert(<String, Object?>{
+      'scenario': scenario.id,
       'fixturePath': fixtureFile.path,
       'fixtureBytes': fixtureFile.existsSync() ? fixtureFile.lengthSync() : 0,
       'includeRawFrames': includeRawFrames,
       'timedOut': timedOut,
       'elapsedMillis': elapsedMillis,
       'timeoutSeconds': timeoutSeconds,
+      'resizeEvents': resizeEvents,
+      if (scenario == _BenchmarkScenario.inputEcho)
+        'inputEcho': <String, Object?>{
+          'sentinel': inputEchoText,
+          'observed': inputToDisplayMicros != null,
+          'inputToDisplayMicros': inputToDisplayMicros,
+        },
       'viewport': <String, Object?>{
         'logicalWidth': _logicalWidth,
         'logicalHeight': _logicalHeight,
@@ -162,13 +236,11 @@ void _writeTrace({
         'pixelHeight': (_logicalHeight * _devicePixelRatio).round(),
       },
       'summary': <String, Object?>{
-        'frameCount': traceFrames.length,
-        'snapshotFrames': traceFrames
-            .where((frame) => frame['frameKind'] == 'snapshot')
-            .length,
-        'deltaFrames': traceFrames
-            .where((frame) => frame['frameKind'] == 'delta')
-            .length,
+        'frameCount': frameCount,
+        'snapshotFrames': snapshotFrames,
+        'deltaFrames': deltaFrames,
+        'snapshotRatio': frameCount == 0 ? 0 : snapshotFrames / frameCount,
+        'deltaRatio': frameCount == 0 ? 0 : deltaFrames / frameCount,
         'shiftedFrames': traceFrames
             .where((frame) => (frame['viewportRowShift'] as int? ?? 0) != 0)
             .length,
@@ -180,10 +252,11 @@ void _writeTrace({
           0,
           (sum, frame) => sum + ((frame['rowsEmitted'] as int?) ?? 0),
         ),
-        'totalJsonBytes': traceFrames.fold<int>(
-          0,
-          (sum, frame) => sum + (frame['jsonBytes'] as int),
-        ),
+        'totalJsonBytes': totalJsonBytes,
+        'meanRowsEmitted': frameCount == 0 ? 0 : rowsEmitted / frameCount,
+        'meanJsonBytes': frameCount == 0 ? 0 : totalJsonBytes / frameCount,
+        if (scenario == _BenchmarkScenario.inputEcho)
+          'inputToDisplayMicros': inputToDisplayMicros,
         'sessionDebugStats': sessionDebugStats,
       },
       'frames': traceFrames,
@@ -191,16 +264,13 @@ void _writeTrace({
   );
 }
 
-String _sessionConfigJson(File fixtureFile) {
+String _sessionConfigJson(File fixtureFile, _BenchmarkScenario scenario) {
   return jsonEncode(<String, Object?>{
-    'id': 'cat-log-benchmark',
-    'name': 'cat-log-benchmark',
+    'id': 'cat-log-benchmark-${scenario.id}',
+    'name': 'cat-log-benchmark-${scenario.id}',
     'launch': <String, Object?>{
       'program': '/bin/sh',
-      'args': <String>[
-        '-lc',
-        'sleep 0.06; exec /bin/cat ${_shellQuote(fixtureFile.path)}',
-      ],
+      'args': <String>['-lc', _scenarioCommand(scenario, fixtureFile)],
       'env': const <String, String>{},
       'cwd': Directory.current.path,
     },
@@ -229,13 +299,42 @@ String _sessionConfigJson(File fixtureFile) {
   });
 }
 
+String _scenarioCommand(_BenchmarkScenario scenario, File fixtureFile) {
+  final fixture = _shellQuote(fixtureFile.path);
+  return switch (scenario) {
+    _BenchmarkScenario.bulkOutput => 'sleep 0.06; exec /bin/cat $fixture',
+    _BenchmarkScenario.streamingScroll =>
+      r'sleep 0.06; i=0; while [ "$i" -lt 900 ]; do '
+          r'printf "stream-scroll frame %04d payload=%048d\\n" "$i" "$i"; '
+          r'i=$((i + 1)); sleep 0.001; done',
+    _BenchmarkScenario.resize => 'sleep 0.06; exec /bin/cat $fixture',
+    _BenchmarkScenario.alternateScreen =>
+      'sleep 0.06; printf "\\033[?1049h"; '
+          r'i=0; while [ "$i" -lt 220 ]; do '
+          r'printf "\\033[Halternate-screen tick %04d\\nstatus row %04d\\n" "$i" "$i"; '
+          r'i=$((i + 1)); sleep 0.002; done; '
+          'printf "\\033[?1049lreturned from alternate screen\\\\n"',
+    _BenchmarkScenario.inputEcho =>
+      r'sleep 0.06; while IFS= read -r line; do '
+          r'printf "ianvs-echo:%s\\n" "$line"; '
+          r'[ "$line" = "exit" ] && exit 0; done',
+  };
+}
+
 String _shellQuote(String value) {
   return "'${value.replaceAll("'", "'\"'\"'")}'";
 }
 
-String _buildFixtureText() {
+String _buildFixtureText(_BenchmarkScenario scenario) {
   final buffer = StringBuffer();
-  for (var index = 0; index < 6000; index += 1) {
+  final lineCount = switch (scenario) {
+    _BenchmarkScenario.bulkOutput => 6000,
+    _BenchmarkScenario.resize => 1800,
+    _BenchmarkScenario.streamingScroll => 900,
+    _BenchmarkScenario.alternateScreen => 220,
+    _BenchmarkScenario.inputEcho => 8,
+  };
+  for (var index = 0; index < lineCount; index += 1) {
     final level = switch (index % 5) {
       0 => 'INFO',
       1 => 'DEBUG',
@@ -267,24 +366,51 @@ String _buildFixtureText() {
   return buffer.toString();
 }
 
+enum _BenchmarkScenario {
+  bulkOutput('bulk-output'),
+  streamingScroll('streaming-scroll'),
+  resize('resize'),
+  alternateScreen('alternate-screen'),
+  inputEcho('input-echo');
+
+  const _BenchmarkScenario(this.id);
+
+  final String id;
+
+  static _BenchmarkScenario parse(String value) {
+    for (final scenario in values) {
+      if (scenario.id == value) {
+        return scenario;
+      }
+    }
+    _BenchmarkArgs._usageAndExit(
+      'Unknown --scenario: $value '
+      '(expected bulk-output, streaming-scroll, resize, alternate-screen, or input-echo)',
+    );
+  }
+}
+
 class _BenchmarkArgs {
   const _BenchmarkArgs({
     required this.outDir,
     required this.fixturePath,
     required this.timeoutSeconds,
     required this.includeRawFrames,
+    required this.scenario,
   });
 
   final String outDir;
   final String? fixturePath;
   final int timeoutSeconds;
   final bool includeRawFrames;
+  final _BenchmarkScenario scenario;
 
   static _BenchmarkArgs parse(List<String> args) {
     String? outDir;
     String? fixturePath;
     var timeoutSeconds = _defaultTimeoutSeconds;
     var includeRawFrames = false;
+    var scenario = _BenchmarkScenario.bulkOutput;
 
     for (var index = 0; index < args.length; index += 1) {
       switch (args[index]) {
@@ -308,6 +434,12 @@ class _BenchmarkArgs {
           timeoutSeconds = int.tryParse(args[index]) ?? _defaultTimeoutSeconds;
         case '--include-raw-frames':
           includeRawFrames = true;
+        case '--scenario':
+          index += 1;
+          if (index >= args.length) {
+            _usageAndExit('--scenario requires a value');
+          }
+          scenario = _BenchmarkScenario.parse(args[index]);
         default:
           _usageAndExit('Unknown argument: ${args[index]}');
       }
@@ -334,6 +466,7 @@ class _BenchmarkArgs {
       fixturePath: fixturePath,
       timeoutSeconds: timeoutSeconds,
       includeRawFrames: includeRawFrames,
+      scenario: scenario,
     );
   }
 
@@ -342,6 +475,7 @@ class _BenchmarkArgs {
     stderr.writeln(
       'Usage: dart run tool/cat_log_trace_capture.dart '
       '--out-dir /absolute/output/dir '
+      '[--scenario bulk-output|streaming-scroll|resize|alternate-screen|input-echo] '
       '[--fixture /absolute/fixture.log] [--timeout-sec 20] '
       '[--include-raw-frames]',
     );

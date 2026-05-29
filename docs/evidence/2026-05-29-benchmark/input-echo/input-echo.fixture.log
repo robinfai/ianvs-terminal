@@ -1,0 +1,8 @@
+2026-04-27T12:00:00.000Z level=INFO service=gateway request_id=req-000000 user_id=1000 latency_ms=4 payload_bytes=256 path=/api/v1/logs/0 message="cat log benchmark line 0" trace=tr-00000000
+2026-04-27T12:00:01.001Z level=DEBUG service=timeline request_id=req-000001 user_id=1001 latency_ms=5 payload_bytes=257 path=/api/v1/logs/1 message="cat log benchmark line 1" trace=tr-00000017
+2026-04-27T12:00:02.002Z level=WARN service=session request_id=req-000002 user_id=1002 latency_ms=6 payload_bytes=258 path=/api/v1/logs/2 message="cat log benchmark line 2" trace=tr-00000034
+2026-04-27T12:00:03.003Z level=ERROR service=renderer request_id=req-000003 user_id=1003 latency_ms=7 payload_bytes=259 path=/api/v1/logs/3 message="cat log benchmark line 3" trace=tr-00000051
+2026-04-27T12:00:04.004Z level=TRACE service=gateway request_id=req-000004 user_id=1004 latency_ms=8 payload_bytes=260 path=/api/v1/logs/4 message="cat log benchmark line 4" trace=tr-00000068
+2026-04-27T12:00:05.005Z level=INFO service=timeline request_id=req-000005 user_id=1005 latency_ms=9 payload_bytes=261 path=/api/v1/logs/5 message="cat log benchmark line 5" trace=tr-00000085
+2026-04-27T12:00:06.006Z level=DEBUG service=session request_id=req-000006 user_id=1006 latency_ms=10 payload_bytes=262 path=/api/v1/logs/6 message="cat log benchmark line 6" trace=tr-00000102
+2026-04-27T12:00:07.007Z level=WARN service=renderer request_id=req-000007 user_id=1007 latency_ms=11 payload_bytes=263 path=/api/v1/logs/7 message="cat log benchmark line 7" trace=tr-00000119

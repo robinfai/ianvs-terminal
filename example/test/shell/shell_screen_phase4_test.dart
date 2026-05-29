@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -161,6 +162,54 @@ void main() {
 
     expect(fakeBindings.writes, hasLength(1));
     expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
+  });
+
+  testWidgets('command-v uses paste confirmation before sending multiline text', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+    const clipboardText = 'one\ntwo';
+    final fakeBindings = FakePtyBackend();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.pumpAndSettle();
+
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
   });
 
   testWidgets('zoom active pane hides the split sibling and can unzoom', (

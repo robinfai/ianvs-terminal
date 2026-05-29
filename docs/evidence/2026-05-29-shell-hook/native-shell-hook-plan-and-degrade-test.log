@@ -1,0 +1,38 @@
+$ cargo test shell_hook_integration --manifest-path native/core/Cargo.toml -- --nocapture
+   Compiling ianvs_core v0.1.0 (/Users/robinfai/personal/ianvs/ianvs-terminal/native/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.59s
+     Running unittests src/lib.rs (native/core/target/debug/deps/ianvs_core-dae1b355a38a8b4f)
+
+running 8 tests
+test pty::tests::shell_hook_integration_disabled_keeps_original_launch_plan ... ok
+test pty::tests::shell_hook_integration_degrades_for_unsupported_profiles ... ok
+test pty::tests::shell_hook_integration_degrades_when_proxy_creation_fails ... ok
+test pty::tests::shell_hook_integration_degrades_when_helpers_are_missing ... ok
+test pty::tests::fish_shell_hook_integration_eligible_profile_sets_init_command_proxy ... ok
+test pty::tests::bash_shell_hook_integration_eligible_profile_sets_rcfile_proxy ... ok
+test pty::tests::zsh_login_shell_hook_integration_remains_eligible ... ok
+test pty::tests::zsh_shell_hook_integration_eligible_profile_sets_zdotdir_proxy ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.01s
+
+     Running tests/session_test.rs (native/core/target/debug/deps/session_test-ed6db49da7454782)
+
+running 9 tests
+test fish_shell_hook_integration_emits_lifecycle_hooks_when_enabled ... ok
+test fish_shell_hook_integration_disabled_emits_no_shell_hooks ... ok
+test zsh_shell_hook_integration_sources_zshrc_with_original_zdotdir ... ok
+test zsh_shell_hook_integration_preserves_prompt_substitution_from_zshrc ... ok
+test zsh_shell_hook_integration_preserves_postdisplay_redraws ... ok
+test zsh_shell_hook_integration_emits_lifecycle_hooks_when_enabled ... ok
+test bash_shell_hook_integration_emits_lifecycle_hooks_when_enabled ... ok
+test zsh_shell_hook_integration_disabled_emits_no_shell_hooks ... ok
+test bash_shell_hook_integration_disabled_emits_no_shell_hooks ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 53 filtered out; finished in 1.07s
+
+     Running tests/vttest_regression_test.rs (native/core/target/debug/deps/vttest_regression_test-2e14f631a59943c3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+

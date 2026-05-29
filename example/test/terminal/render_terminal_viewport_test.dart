@@ -666,6 +666,84 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport keeps selection and wide-row text stable when unrelated delta rows rebuild',
+    (tester) async {
+      final selectionController = SelectionController()
+        ..setSelection(
+          const TerminalSelection(
+            startRow: 1,
+            startCol: 0,
+            endRow: 1,
+            endCol: 2,
+          ),
+        );
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            frameKind: TerminalFrameKind.snapshot,
+            rows: [
+              TerminalRow(index: 0, text: 'prompt'),
+              TerminalRow(index: 1, text: '界 ok'),
+            ],
+            cursor: TerminalCursor(row: 0, col: 6, visible: true),
+            viewportRows: 2,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readSelection: () =>
+                      selectionController.textForFrame(controller.frame),
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final wideRowBuildsBefore = renderObject.debugRowPictureBuildsForRow(1);
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 0, text: 'prompt*')],
+          cursor: TerminalCursor(row: 0, col: 7, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      await tester.pump();
+
+      expect(renderObject.debugLastRebuiltRowIndexes, <int>[0]);
+      expect(renderObject.debugRowPictureBuildsForRow(1), wideRowBuildsBefore);
+      expect(_resolvedRowText(renderObject, 1), '界 ok');
+      expect(selectionController.textForFrame(controller.frame), '界');
+    },
+  );
+
+  testWidgets(
     'terminal viewport repaints consecutive full-width wrapped rows without leaving a shorter middle row',
     (tester) async {
       final controller = TerminalViewportController()

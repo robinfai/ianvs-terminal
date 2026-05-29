@@ -1,0 +1,20 @@
+Running build hooks...Running build hooks...real 1.35
+user 0.95
+sys 0.14
+           344211456  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               39675  page reclaims
+                  44  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                1170  voluntary context switches
+                6191  involuntary context switches
+         14311474573  instructions retired
+          4226853420  cycles elapsed
+           292701048  peak memory footprint
