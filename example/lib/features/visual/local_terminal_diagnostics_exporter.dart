@@ -183,7 +183,17 @@ class LocalTerminalDiagnosticsExporter {
     if (value is! List) {
       return const <String>[];
     }
-    return value.map((entry) => entry.toString()).toList(growable: false);
+    final strings = <String>[];
+    for (final entry in value) {
+      if (entry is! String) {
+        continue;
+      }
+      final text = entry.trim();
+      if (text.isNotEmpty) {
+        strings.add(text);
+      }
+    }
+    return strings;
   }
 
   static String _safeBasename(String basename) {

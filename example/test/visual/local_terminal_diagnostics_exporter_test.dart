@@ -114,4 +114,43 @@ void main() {
     expect(directoryPath, startsWith('$rootPath${Platform.pathSeparator}'));
     expect(directory.parent.path, root.path);
   });
+
+  test('diagnostics exporter skips non-string summary list entries', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'ianvs terminal-diagnostics-exporter-summary-test-',
+    );
+    addTearDown(() => root.delete(recursive: true));
+
+    final directory = await LocalTerminalDiagnosticsExporter.write(
+      directory: root,
+      basename: 'summary',
+      exports: const <TerminalDiagnosticsExport>[
+        TerminalDiagnosticsExport(
+          manifest: <String, Object?>{'session_id': 1},
+          resourceSamples: <Map<String, Object?>>[],
+          terminalStats: <String, Object?>{},
+          events: <Map<String, Object?>>[],
+          summary: <String, Object?>{
+            'conclusion': 'insufficient-evidence',
+            'evidence': <Object?>[
+              ' valid_resource_samples=1 ',
+              <String, Object?>{'raw_command': 'ssh prod'},
+              '   ',
+            ],
+            'next_steps': <Object?>[
+              ' reproduce while active ',
+              <String, Object?>{'raw_cwd': '/Users/alice/project'},
+            ],
+          },
+        ),
+      ],
+    );
+
+    final summary = File('${directory.path}/summary.md').readAsStringSync();
+
+    expect(summary, contains('valid_resource_samples=1'));
+    expect(summary, contains('reproduce while active'));
+    expect(summary, isNot(contains('raw_command')));
+    expect(summary, isNot(contains('raw_cwd')));
+  });
 }
