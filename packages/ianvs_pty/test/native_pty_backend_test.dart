@@ -89,6 +89,39 @@ void main() {
     },
   );
 
+  test('pty event decoding skips malformed entries', () {
+    final events = PtyEvent.listFromJson(<Object?>[
+      <String, Object?>{
+        'kind': 'started',
+        'session_id': 7,
+        'payload': <Object?, Object?>{'cwd': '/tmp/project', 42: 'ignored'},
+      },
+      'bad-entry',
+      <String, Object?>{'kind': 'missing-session'},
+      <String, Object?>{'session_id': 8},
+      <String, Object?>{
+        'kind': 'exit',
+        'session_id': '8',
+        'payload': 'bad-payload',
+      },
+    ]);
+
+    expect(events, hasLength(2));
+    expect(events.first.kind, 'started');
+    expect(events.first.sessionId, '7');
+    expect(events.first.payload, <String, Object?>{'cwd': '/tmp/project'});
+    expect(events.last.kind, 'exit');
+    expect(events.last.sessionId, '8');
+    expect(events.last.payload, isNull);
+  });
+
+  test('pty event decoding rejects invalid single events', () {
+    expect(
+      () => PtyEvent.fromJson(<String, Object?>{'kind': 'started'}),
+      throwsFormatException,
+    );
+  });
+
   test(
     'native pty backend can bridge to the real Rust core',
     () {

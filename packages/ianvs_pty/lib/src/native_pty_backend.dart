@@ -69,12 +69,67 @@ class PtyEvent {
   final Map<String, Object?>? payload;
 
   factory PtyEvent.fromJson(Map<String, Object?> json) {
+    final event = PtyEvent.tryFromJson(json);
+    if (event == null) {
+      throw const FormatException('Invalid PTY event payload');
+    }
+    return event;
+  }
+
+  static PtyEvent? tryFromJson(Object? json) {
+    final map = _stringKeyedJsonMap(json);
+    if (map == null) {
+      return null;
+    }
+    final kind = map['kind'];
+    final sessionId = _sessionIdFromJson(map['session_id']);
+    if (kind is! String || sessionId == null) {
+      return null;
+    }
     return PtyEvent(
-      kind: json['kind']! as String,
-      sessionId: (json['session_id']! as num).toInt().toString(),
-      payload: (json['payload'] as Map?)?.cast<String, Object?>(),
+      kind: kind,
+      sessionId: sessionId,
+      payload: _stringKeyedJsonMap(map['payload']),
     );
   }
+
+  static List<PtyEvent> listFromJson(Object? json) {
+    if (json is! List) {
+      return const <PtyEvent>[];
+    }
+    final events = <PtyEvent>[];
+    for (final entry in json) {
+      final event = PtyEvent.tryFromJson(entry);
+      if (event != null) {
+        events.add(event);
+      }
+    }
+    return events;
+  }
+}
+
+Map<String, Object?>? _stringKeyedJsonMap(Object? value) {
+  if (value is! Map) {
+    return null;
+  }
+  final json = <String, Object?>{};
+  for (final entry in value.entries) {
+    final key = entry.key;
+    if (key is String) {
+      json[key] = entry.value;
+    }
+  }
+  return json;
+}
+
+String? _sessionIdFromJson(Object? value) {
+  if (value is num && value.isFinite) {
+    return value.toInt().toString();
+  }
+  if (value is String && value.isNotEmpty) {
+    return value;
+  }
+  return null;
 }
 
 abstract class PtyBindings {
@@ -272,13 +327,9 @@ class NativePtyBindings implements PtyBindings {
     }
     try {
       final raw = resultPointer.toDartString();
-      final entries = jsonDecode(raw) as List<dynamic>;
-      return entries
-          .map(
-            (entry) =>
-                PtyEvent.fromJson((entry as Map).cast<String, Object?>()),
-          )
-          .toList();
+      return PtyEvent.listFromJson(jsonDecode(raw));
+    } on Object {
+      return const <PtyEvent>[];
     } finally {
       _stringFree(resultPointer);
     }
