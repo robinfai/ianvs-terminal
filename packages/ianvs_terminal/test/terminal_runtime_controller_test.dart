@@ -889,6 +889,42 @@ void main() {
     expect(search.errorText, isNull);
   });
 
+  testWidgets('terminal runtime skips malformed frame payloads', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
+
+    runtimeBackend
+      ..enqueueRawFrame(sessionId, '[]')
+      ..setFrame(sessionId, _singleRowSnapshot('recovered prompt'));
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+    expect(runtime.viewportFor(sessionId).frame.rows.first.text, 'demo');
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+    expect(
+      runtime.viewportFor(sessionId).frame.rows.first.text,
+      'recovered prompt',
+    );
+  });
+
   test('terminal runtime exports diagnostics with private defaults', () {
     final runtimeBackend = _FakePtyBackend()
       ..diagnosticsResponse = <String, Object?>{
@@ -1969,6 +2005,7 @@ class _FakePtyBackend
       <String, Map<String, Object?>>{};
   final Map<String, List<Map<String, Object?>>> _queuedFrames =
       <String, List<Map<String, Object?>>>{};
+  final Map<String, List<String>> _queuedRawFrames = <String, List<String>>{};
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
   int _nextSessionId = 0;
 
@@ -1988,6 +2025,10 @@ class _FakePtyBackend
     _queuedFrames
         .putIfAbsent(sessionId, () => <Map<String, Object?>>[])
         .add(frame);
+  }
+
+  void enqueueRawFrame(String sessionId, String rawFrame) {
+    _queuedRawFrames.putIfAbsent(sessionId, () => <String>[]).add(rawFrame);
   }
 
   void enqueueEvent(String sessionId, PtyEvent event) {
@@ -2025,6 +2066,7 @@ class _FakePtyBackend
     closeCalls.add(sessionId);
     _frames.remove(sessionId);
     _queuedFrames.remove(sessionId);
+    _queuedRawFrames.remove(sessionId);
     _queuedEvents.remove(sessionId);
   }
 
@@ -2089,6 +2131,10 @@ class _FakePtyBackend
   @override
   String? takeFrameDiffJson(String sessionId) {
     takeFrameDiffCalls += 1;
+    final queuedRawFrames = _queuedRawFrames[sessionId];
+    if (queuedRawFrames != null && queuedRawFrames.isNotEmpty) {
+      return queuedRawFrames.removeAt(0);
+    }
     final queuedFrames = _queuedFrames[sessionId];
     if (queuedFrames != null && queuedFrames.isNotEmpty) {
       return jsonEncode(queuedFrames.removeAt(0));

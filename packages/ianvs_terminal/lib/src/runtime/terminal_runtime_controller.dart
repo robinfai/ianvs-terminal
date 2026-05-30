@@ -670,7 +670,10 @@ class TerminalRuntimeController {
 
         final rawFrame = _backend.takeFrameDiffJson(sessionId);
         if (rawFrame != null && rawFrame.isNotEmpty) {
-          _queuePendingFrame(pendingFrames, _decodeFrame(rawFrame));
+          final frame = _decodeFrame(rawFrame);
+          if (frame != null) {
+            _queuePendingFrame(pendingFrames, frame);
+          }
         }
 
         final events = _backend.pollEvents(sessionId);
@@ -719,10 +722,16 @@ class TerminalRuntimeController {
     _events.add(TerminalSessionFrameEvent(sessionId, frame));
   }
 
-  TerminalFrameDiff _decodeFrame(String rawFrame) {
-    return TerminalFrameDiff.fromJson(
-      (jsonDecode(rawFrame) as Map).cast<String, Object?>(),
-    );
+  TerminalFrameDiff? _decodeFrame(String rawFrame) {
+    final json = _tryDecodeJsonObject(rawFrame);
+    if (json == null) {
+      return null;
+    }
+    try {
+      return TerminalFrameDiff.fromJson(json);
+    } on Object {
+      return null;
+    }
   }
 
   void _queuePendingFrame(
