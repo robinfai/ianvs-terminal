@@ -1205,6 +1205,76 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return '$cols×$rows';
   }
 
+  List<_ShellStatusModeItem> _statusModeItemsFor(
+    String sessionId,
+    terminal.TerminalFrameModes modes,
+  ) {
+    final items = <_ShellStatusModeItem>[];
+    if (modes.alternateScreen) {
+      items.add(
+        const _ShellStatusModeItem(
+          key: Key('shell-status-mode-alt'),
+          label: 'ALT',
+          tooltip: 'Alternate screen buffer is active.',
+          semanticsLabel: 'Terminal mode: alternate screen buffer active',
+        ),
+      );
+    }
+    if (modes.mouseMode != 'off') {
+      final mouseMode = _mouseModeStatusLabel(modes.mouseMode);
+      final mouseEncoding = _mouseEncodingStatusLabel(modes.mouseEncoding);
+      items.add(
+        _ShellStatusModeItem(
+          key: const Key('shell-status-mode-mouse'),
+          label: 'MOUSE',
+          tooltip: 'Mouse reporting is active: $mouseMode, $mouseEncoding.',
+          semanticsLabel: 'Terminal mode: mouse reporting active',
+        ),
+      );
+    }
+    if (modes.bracketedPaste) {
+      items.add(
+        const _ShellStatusModeItem(
+          key: Key('shell-status-mode-paste'),
+          label: 'PASTE',
+          tooltip: 'Bracketed paste mode is active.',
+          semanticsLabel: 'Terminal mode: bracketed paste active',
+        ),
+      );
+    }
+    if (_isSessionReadOnly(sessionId)) {
+      items.add(
+        const _ShellStatusModeItem(
+          key: Key('shell-status-mode-read-only'),
+          label: 'READ ONLY',
+          tooltip:
+              'Read-only mode is enabled for this pane. Input and paste sends are blocked.',
+          semanticsLabel: 'Terminal pane is read-only',
+        ),
+      );
+    }
+    return items;
+  }
+
+  String _mouseModeStatusLabel(String mode) {
+    return switch (mode) {
+      'normal' => 'normal tracking',
+      'button_event' => 'button-event tracking',
+      'any_event' => 'any-event tracking',
+      _ => mode.replaceAll('_', ' '),
+    };
+  }
+
+  String _mouseEncodingStatusLabel(String encoding) {
+    return switch (encoding) {
+      'sgr' => 'SGR encoding',
+      'utf8' => 'UTF-8 encoding',
+      'urxvt' => 'URXVT encoding',
+      'default' => 'default encoding',
+      _ => '${encoding.replaceAll('_', ' ')} encoding',
+    };
+  }
+
   void _commitViewportResize(
     SessionController sessionController,
     String sessionId,
@@ -5985,6 +6055,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ? null
         : _profileForPane(statusPane, sessionState.profiles);
     final statusViewportLabel = _viewportStatusLabelFor(displayedSessionId);
+    final statusViewportController = displayedSessionId == null
+        ? null
+        : sessionController.viewportFor(displayedSessionId);
     final shellChromeBackground = statusProfile == null
         ? activeTab == null
               ? _terminalColorsForProfile(
@@ -6599,16 +6672,39 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 ),
               ),
               if (statusPane != null)
-                _ShellStatusBar(
-                  key: const Key('shell-status-bar'),
-                  palette: palette,
-                  terminalBackgroundColor: shellChromeBackground,
-                  directory: statusDirectory?.trim().isNotEmpty == true
-                      ? statusDirectory!.trim()
-                      : statusProfile?.cwd,
-                  viewportLabel: statusViewportLabel,
-                  encodingLabel: 'UTF-8',
-                ),
+                if (statusViewportController == null ||
+                    displayedSessionId == null)
+                  _ShellStatusBar(
+                    key: const Key('shell-status-bar'),
+                    palette: palette,
+                    terminalBackgroundColor: shellChromeBackground,
+                    directory: statusDirectory?.trim().isNotEmpty == true
+                        ? statusDirectory!.trim()
+                        : statusProfile?.cwd,
+                    viewportLabel: statusViewportLabel,
+                    modeItems: const <_ShellStatusModeItem>[],
+                    encodingLabel: 'UTF-8',
+                  )
+                else
+                  ListenableBuilder(
+                    listenable: statusViewportController,
+                    builder: (context, _) {
+                      return _ShellStatusBar(
+                        key: const Key('shell-status-bar'),
+                        palette: palette,
+                        terminalBackgroundColor: shellChromeBackground,
+                        directory: statusDirectory?.trim().isNotEmpty == true
+                            ? statusDirectory!.trim()
+                            : statusProfile?.cwd,
+                        viewportLabel: statusViewportLabel,
+                        modeItems: _statusModeItemsFor(
+                          displayedSessionId,
+                          statusViewportController.frame.modes,
+                        ),
+                        encodingLabel: 'UTF-8',
+                      );
+                    },
+                  ),
             ],
           ),
         ),
@@ -6880,6 +6976,7 @@ class _ShellStatusBar extends StatelessWidget {
     required this.terminalBackgroundColor,
     required this.directory,
     required this.viewportLabel,
+    required this.modeItems,
     required this.encodingLabel,
   });
 
@@ -6887,6 +6984,7 @@ class _ShellStatusBar extends StatelessWidget {
   final Color terminalBackgroundColor;
   final String? directory;
   final String? viewportLabel;
+  final List<_ShellStatusModeItem> modeItems;
   final String encodingLabel;
 
   @override
@@ -6909,6 +7007,18 @@ class _ShellStatusBar extends StatelessWidget {
           tone: tone,
           label: viewportLabel!,
           monospace: true,
+        ),
+      for (final modeItem in modeItems)
+        _ShellStatusItem(
+          key: modeItem.key,
+          palette: palette,
+          tone: tone,
+          label: modeItem.label,
+          tooltip: modeItem.tooltip,
+          semanticsLabel: modeItem.semanticsLabel,
+          monospace: true,
+          highlighted: true,
+          maxWidth: 118,
         ),
       if (directory != null && directory!.trim().isNotEmpty)
         _ShellStatusDirectoryItem(
@@ -6973,6 +7083,20 @@ class _ShellStatusBar extends StatelessWidget {
     }
     return '...${normalized.substring(normalized.length - 31)}';
   }
+}
+
+class _ShellStatusModeItem {
+  const _ShellStatusModeItem({
+    required this.key,
+    required this.label,
+    required this.tooltip,
+    required this.semanticsLabel,
+  });
+
+  final Key key;
+  final String label;
+  final String tooltip;
+  final String semanticsLabel;
 }
 
 class _ShellStatusDirectoryItem extends StatefulWidget {
@@ -7103,6 +7227,8 @@ class _ShellStatusItem extends StatelessWidget {
     this.minWidth,
     this.maxWidth,
     this.highlighted = false,
+    this.tooltip,
+    this.semanticsLabel,
   });
 
   final AppThemeTokens palette;
@@ -7112,6 +7238,8 @@ class _ShellStatusItem extends StatelessWidget {
   final double? minWidth;
   final double? maxWidth;
   final bool highlighted;
+  final String? tooltip;
+  final String? semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -7126,7 +7254,7 @@ class _ShellStatusItem extends StatelessWidget {
       fontWeight: FontWeight.w600,
       fontFamily: monospace ? 'monospace' : null,
     );
-    return ConstrainedBox(
+    Widget item = ConstrainedBox(
       constraints: BoxConstraints(
         minWidth: minWidth ?? 0,
         maxWidth: maxWidth ?? 180,
@@ -7155,6 +7283,13 @@ class _ShellStatusItem extends StatelessWidget {
         ),
       ),
     );
+    if (semanticsLabel != null) {
+      item = Semantics(container: true, label: semanticsLabel, child: item);
+    }
+    if (tooltip != null) {
+      item = Tooltip(message: tooltip!, child: item);
+    }
+    return item;
   }
 }
 

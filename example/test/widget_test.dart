@@ -3213,6 +3213,81 @@ void main() {
     expect(find.text('Copy full path'), findsOneWidget);
   });
 
+  testWidgets('shell status bar shows important active mode tokens', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'vim README.md', 'style_runs': const []},
+      ],
+      'cursor': {'row': 0, 'col': 13, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'modes': {
+        'alternate_screen': true,
+        'bracketed_paste': true,
+        'mouse_mode': 'button_event',
+        'mouse_encoding': 'sgr',
+        'application_cursor': true,
+      },
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('shell-status-mode-alt')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-mode-mouse')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-mode-paste')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-mode-read-only')), findsNothing);
+    expect(find.text('ALT'), findsOneWidget);
+    expect(find.text('MOUSE'), findsOneWidget);
+    expect(find.text('PASTE'), findsOneWidget);
+    expect(find.text('APP CURSOR'), findsNothing);
+    expect(
+      find.byTooltip('Alternate screen buffer is active.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byTooltip(
+        'Mouse reporting is active: button-event tracking, SGR encoding.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Bracketed paste mode is active.'), findsOneWidget);
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('shell-status-mode-read-only')),
+      findsOneWidget,
+    );
+    expect(find.text('READ ONLY'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        'Read-only mode is enabled for this pane. Input and paste sends are blocked.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'shell status bar keeps the directory item visible in a narrow window',
     (tester) async {
