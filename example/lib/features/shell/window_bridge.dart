@@ -205,8 +205,22 @@ class HotkeyWindowStatus {
   factory HotkeyWindowStatus.fromMap(Map<String, Object?> map) {
     return HotkeyWindowStatus(
       registered: map['registered'] == true,
-      shortcut: map['shortcut'] as String? ?? '⌥⌘Space',
-      errorCode: map['errorCode'] as int?,
+      shortcut: _stringFromPlatformValue(map['shortcut']) ?? '⌥⌘Space',
+      errorCode: _intFromPlatformValue(map['errorCode']),
     );
   }
+}
+
+String? _stringFromPlatformValue(Object? value) {
+  if (value is String && value.isNotEmpty) {
+    return value;
+  }
+  return null;
+}
+
+int? _intFromPlatformValue(Object? value) {
+  if (value is num && value.isFinite) {
+    return value.toInt();
+  }
+  return null;
 }
