@@ -144,6 +144,32 @@ void main() {
     );
   });
 
+  test('terminal session config trims nullable cwd fields', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final trimmed = TerminalSessionConfig.fromProfileJson(
+      const <String, Object?>{
+        'launch': <String, Object?>{
+          'program': '/bin/zsh',
+          'cwd': '  /tmp/project  ',
+        },
+      },
+      defaultProgram: '/bin/sh',
+      onWarning: warnings.add,
+    );
+    final blank = TerminalSessionConfig.fromProfileJson(
+      const <String, Object?>{
+        'launch': <String, Object?>{'program': '/bin/zsh', 'cwd': '   '},
+      },
+      defaultProgram: '/bin/sh',
+      onWarning: warnings.add,
+    );
+
+    expect(trimmed.launch.cwd, '/tmp/project');
+    expect(blank.launch.cwd, isNull);
+    expect(warnings.map((warning) => warning.path), contains('launch.cwd'));
+  });
+
   test(
     'terminal session config ignores legacy flat profile color fields and warns',
     () {

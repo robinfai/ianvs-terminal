@@ -932,8 +932,8 @@ String? _nullableStringField(
   if (rawValue == null) {
     return null;
   }
-  final value = _stringOrNull(rawValue);
-  if (value != null) {
+  final value = _stringOrNull(rawValue)?.trim();
+  if (value != null && value.isNotEmpty) {
     return value;
   }
   onWarning?.call(
