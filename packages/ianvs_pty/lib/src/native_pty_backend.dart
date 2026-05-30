@@ -124,10 +124,15 @@ Map<String, Object?>? _stringKeyedJsonMap(Object? value) {
 
 String? _sessionIdFromJson(Object? value) {
   if (value is num && value.isFinite) {
-    return value.toInt().toString();
+    final parsed = value.toInt();
+    if (parsed > 0 && value == parsed) {
+      return parsed.toString();
+    }
+    return null;
   }
-  if (value is String && value.isNotEmpty) {
-    return value;
+  if (value is String) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
   return null;
 }

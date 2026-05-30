@@ -125,9 +125,12 @@ void main() {
       'bad-entry',
       <String, Object?>{'kind': 'missing-session'},
       <String, Object?>{'session_id': 8},
+      <String, Object?>{'kind': 'fractional-session', 'session_id': 7.5},
+      <String, Object?>{'kind': 'zero-session', 'session_id': 0},
+      <String, Object?>{'kind': 'blank-session', 'session_id': '   '},
       <String, Object?>{
         'kind': 'exit',
-        'session_id': '8',
+        'session_id': ' 8 ',
         'payload': 'bad-payload',
       },
     ]);
