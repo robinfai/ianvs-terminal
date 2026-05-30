@@ -2,6 +2,7 @@
 .omx-last.txt
 .omx-run.log
 /.dart_tool/
+/.tmp-home/
 /build/
 packages/*/.dart_tool/
 packages/*/build/
