@@ -29,11 +29,15 @@ class LocalTerminalPastePolicy {
   final int largePasteThreshold;
   final int historySize;
 
+  bool isLargePaste(String text) {
+    return largePasteThreshold > 0 && text.length >= largePasteThreshold;
+  }
+
   bool requiresConfirmation(String text) {
     if (confirmMultilinePaste && _containsLineBreak(text)) {
       return true;
     }
-    return confirmLargePaste && text.length >= largePasteThreshold;
+    return confirmLargePaste && isLargePaste(text);
   }
 
   bool canPaste({required bool readOnly}) {

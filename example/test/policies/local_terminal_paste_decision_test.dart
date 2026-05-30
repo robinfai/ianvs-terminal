@@ -42,5 +42,17 @@ void main() {
       expect(decision.captureHistory, isTrue);
       expect(decision.text, 'hello');
     });
+
+    test('ignores non-positive large paste thresholds for history capture', () {
+      final decision = LocalTerminalPasteDecisionResolver.resolve(
+        text: 'hello',
+        readOnly: false,
+        pastePolicy: const LocalTerminalPastePolicy(largePasteThreshold: 0),
+        historyPolicy: const LocalTerminalPasteHistoryPolicy(),
+      );
+
+      expect(decision.kind, LocalTerminalPasteDecisionKind.sendImmediately);
+      expect(decision.captureHistory, isTrue);
+    });
   });
 }

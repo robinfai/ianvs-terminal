@@ -27,7 +27,7 @@ class LocalTerminalPasteDecisionResolver {
     required LocalTerminalPastePolicy pastePolicy,
     required LocalTerminalPasteHistoryPolicy historyPolicy,
   }) {
-    final largePaste = text.length >= pastePolicy.largePasteThreshold;
+    final largePaste = pastePolicy.isLargePaste(text);
     final captureHistory = historyPolicy.shouldCapture(
       text: text,
       largePaste: largePaste,

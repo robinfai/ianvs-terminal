@@ -7,8 +7,19 @@ void main() {
       const policy = LocalTerminalPastePolicy(largePasteThreshold: 5);
 
       expect(policy.requiresConfirmation('one\ntwo'), isTrue);
+      expect(policy.isLargePaste('12345'), isTrue);
       expect(policy.requiresConfirmation('12345'), isTrue);
       expect(policy.requiresConfirmation('1234'), isFalse);
+    });
+
+    test('paste policy ignores non-positive large paste thresholds', () {
+      const disabledLargePaste = LocalTerminalPastePolicy(
+        largePasteThreshold: 0,
+      );
+
+      expect(disabledLargePaste.isLargePaste('hello'), isFalse);
+      expect(disabledLargePaste.requiresConfirmation('hello'), isFalse);
+      expect(disabledLargePaste.requiresConfirmation('one\ntwo'), isTrue);
     });
 
     test('paste policy blocks read-only paste', () {
