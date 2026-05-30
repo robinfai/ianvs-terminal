@@ -59,6 +59,7 @@ Future<void> _pumpShellScreen(
       ),
     ),
   );
+  await tester.pump();
   await tester.pumpAndSettle();
 }
 

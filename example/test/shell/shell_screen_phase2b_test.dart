@@ -11,6 +11,7 @@ import 'package:app/ui/app_ui.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
+import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 
@@ -30,6 +31,9 @@ Future<void> pumpShellScreen(
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          MemoryLocalTerminalConfigRepository(null),
+        ),
       ],
       child: MaterialApp(
         theme: buildIanvsTerminalTheme(Brightness.light),
@@ -38,6 +42,7 @@ Future<void> pumpShellScreen(
       ),
     ),
   );
+  await tester.pump();
   await tester.pumpAndSettle();
 }
 

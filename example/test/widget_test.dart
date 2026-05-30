@@ -16,6 +16,7 @@ import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ui/app_ui.dart';
 import 'support/fake_pty_backend.dart';
 import 'support/memory_app_preferences_repository.dart';
+import 'support/memory_local_terminal_config_repository.dart';
 import 'support/memory_paste_history_repository.dart';
 import 'support/memory_profile_repository.dart';
 
@@ -108,6 +109,9 @@ Future<void> _pumpShellScreen(
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          MemoryLocalTerminalConfigRepository(null),
+        ),
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
       ],
@@ -119,6 +123,7 @@ Future<void> _pumpShellScreen(
     ),
   );
   if (settle) {
+    await tester.pump();
     await tester.pumpAndSettle();
   }
 }
