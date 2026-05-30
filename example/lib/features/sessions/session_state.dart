@@ -76,7 +76,7 @@ class TerminalPaneLayoutNode {
       splitAxis: splitAxis,
       first: first,
       second: second,
-      ratio: ratio.clamp(0.1, 0.9).toDouble(),
+      ratio: _splitRatio(ratio),
     );
   }
 
@@ -319,6 +319,13 @@ class TerminalPaneLayoutNode {
     }
     return this;
   }
+}
+
+double _splitRatio(double value) {
+  if (!value.isFinite) {
+    return 0.5;
+  }
+  return value.clamp(0.1, 0.9).toDouble();
 }
 
 class TerminalTab {
