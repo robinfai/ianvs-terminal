@@ -10,6 +10,11 @@ class LocalTerminalConfigPreferencesAdapter {
     return TerminalAppPreferencesDocument(
       defaults: TerminalAppDefaults(defaultProfileId: config.defaultProfileId),
       appearance: config.appearance,
+      notifications: TerminalAppNotifications(
+        commandFinished: config.notifications.enabled,
+        bell: config.notifications.enabled,
+        activity: config.notifications.enabled,
+      ),
     );
   }
 }

@@ -27,6 +27,11 @@ void main() {
           themeMode: TerminalThemeMode.dark,
           terminalViewportPadding: 18,
         ),
+        notifications: TerminalAppNotifications(
+          commandFinished: false,
+          bell: false,
+          activity: false,
+        ),
       );
 
       final result = LocalTerminalConfigBootstrap.resolve(
@@ -41,6 +46,7 @@ void main() {
       expect(result.config.defaultProfileId, 'legacy');
       expect(result.config.appearance.themeMode, TerminalThemeMode.dark);
       expect(result.config.appearance.terminalViewportPadding, 18);
+      expect(result.config.notifications.enabled, isFalse);
     });
 
     test('falls back to defaults when no config sources exist', () {

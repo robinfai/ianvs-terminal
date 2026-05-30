@@ -65,6 +65,12 @@ class LocalTerminalConfigMigration {
     return LocalTerminalConfigDocument(
       defaultProfileId: preferences.defaults.defaultProfileId,
       appearance: preferences.appearance,
+      notifications: LocalTerminalNotificationsConfig(
+        enabled:
+            preferences.notifications.commandFinished ||
+            preferences.notifications.bell ||
+            preferences.notifications.activity,
+      ),
     );
   }
 }
