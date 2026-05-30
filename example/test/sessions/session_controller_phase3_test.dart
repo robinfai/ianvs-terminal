@@ -83,6 +83,37 @@ void main() {
     expect(state.tabs.single.profileId, 'ssh');
   });
 
+  test('bootstrap trims persisted default profile ids', () async {
+    final preferencesRepository = _TestAppPreferencesRepository(
+      const TerminalAppPreferencesDocument(
+        defaults: TerminalAppDefaults(defaultProfileId: ' ssh '),
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          preferencesRepository,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.defaultProfileId, 'ssh');
+    expect(state.configuredDefaultProfileId, 'ssh');
+    expect(state.tabs.single.profileId, 'ssh');
+    expect(preferencesRepository.savedDocuments, isEmpty);
+  });
+
   test(
     'bootstrap ignores legacy profile defaults when preferences are absent',
     () async {

@@ -105,7 +105,7 @@ class LocalTerminalConfigDocument {
         json['schemaVersion'],
         currentSchemaVersion,
       ),
-      defaultProfileId: _stringOrNull(json['defaultProfileId']),
+      defaultProfileId: _nonEmptyTrimmedStringOrNull(json['defaultProfileId']),
       appearance: TerminalAppAppearance.fromJson(
         _objectMap(json['appearance']),
       ),
@@ -420,6 +420,11 @@ Map<Object?, Object?>? _objectMap(Object? value) {
 
 String? _stringOrNull(Object? value) {
   return value is String ? value : null;
+}
+
+String? _nonEmptyTrimmedStringOrNull(Object? value) {
+  final text = _stringOrNull(value)?.trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 bool _boolFromJson(Object? value, bool fallback) {

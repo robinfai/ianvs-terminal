@@ -35,7 +35,7 @@ class TerminalAppDefaults {
 
   static TerminalAppDefaults fromJson(Map<Object?, Object?>? json) {
     return TerminalAppDefaults(
-      defaultProfileId: _stringOrNull(json?['defaultProfileId']),
+      defaultProfileId: _nonEmptyTrimmedStringOrNull(json?['defaultProfileId']),
     );
   }
 }
@@ -215,6 +215,11 @@ Map<Object?, Object?>? _objectMap(Object? value) {
 
 String? _stringOrNull(Object? value) {
   return value is String ? value : null;
+}
+
+String? _nonEmptyTrimmedStringOrNull(Object? value) {
+  final text = _stringOrNull(value)?.trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 bool _boolFromJson(Object? value, bool fallback) {

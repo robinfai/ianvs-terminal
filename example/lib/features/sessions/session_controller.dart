@@ -1416,10 +1416,11 @@ class SessionController extends Notifier<SessionState> {
   }
 
   String? _normalizeProfileId(String? profileId) {
-    if (profileId == null || profileId.isEmpty) {
+    final normalized = profileId?.trim();
+    if (normalized == null || normalized.isEmpty) {
       return null;
     }
-    return profileId;
+    return normalized;
   }
 
   bool _hasProfileId(List<TerminalProfile> profiles, String? profileId) {

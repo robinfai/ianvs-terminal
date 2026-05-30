@@ -41,6 +41,18 @@ void main() {
       );
     });
 
+    test('default profile id trims whitespace and rejects blanks', () {
+      final trimmed = LocalTerminalConfigDocument.fromJson(const {
+        'defaultProfileId': ' ssh ',
+      });
+      final blank = LocalTerminalConfigDocument.fromJson(const {
+        'defaultProfileId': '   ',
+      });
+
+      expect(trimmed.defaultProfileId, 'ssh');
+      expect(blank.defaultProfileId, isNull);
+    });
+
     test('keybinding overrides roundtrip through json', () {
       const config = LocalTerminalConfigDocument(
         keybindings: LocalTerminalKeybindingsConfig(

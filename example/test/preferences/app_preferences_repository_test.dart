@@ -77,6 +77,18 @@ void main() {
     },
   );
 
+  test('app preferences defaults trim profile ids and reject blanks', () {
+    final trimmed = TerminalAppPreferencesDocument.fromJson(const {
+      'defaults': {'defaultProfileId': ' ssh '},
+    });
+    final blank = TerminalAppPreferencesDocument.fromJson(const {
+      'defaults': {'defaultProfileId': '   '},
+    });
+
+    expect(trimmed.defaults.defaultProfileId, 'ssh');
+    expect(blank.defaults.defaultProfileId, isNull);
+  });
+
   test(
     'app preferences repository keeps values when only schema version is invalid',
     () async {
