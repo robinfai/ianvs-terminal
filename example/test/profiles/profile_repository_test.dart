@@ -561,6 +561,46 @@ void main() {
     );
   });
 
+  test('profile repository tolerates non-finite schema version', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs terminal-profiles-non-finite-schema',
+    );
+    final file = File('${directory.path}/ianvs_profiles.json');
+    await file.parent.create(recursive: true);
+    await file.writeAsString('''
+{
+  "schemaVersion": 1e999,
+  "profiles": [
+    {
+      "id": "default",
+      "name": "Local Shell",
+      "launch": {"program": "/bin/zsh", "args": ["-l"]}
+    }
+  ]
+}
+''');
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
+
+    final loaded = await repository.load();
+
+    expect(loaded.schemaVersion, 1);
+    expect(loaded.profiles.single.id, 'default');
+    expect(
+      loaded.loadWarnings,
+      contains(
+        const TerminalProfileLoadWarning(
+          profileId: 'document',
+          profileName: 'Profiles document',
+          path: 'schemaVersion',
+          rawValueSummary: 'Infinity',
+          fallbackSummary: 'used schema version 1',
+        ),
+      ),
+    );
+  });
+
   test(
     'profile repository upgrades built-in shell presets without explicit login args',
     () async {

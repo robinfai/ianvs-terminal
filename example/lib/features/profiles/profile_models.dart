@@ -384,7 +384,7 @@ int _schemaVersionFromJson(
   if (rawValue == null) {
     return 1;
   }
-  if (rawValue is num) {
+  if (rawValue is num && rawValue.isFinite) {
     return rawValue.toInt();
   }
   warnings.add(
