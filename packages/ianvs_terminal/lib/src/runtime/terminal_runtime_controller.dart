@@ -997,7 +997,8 @@ class TerminalRuntimeController {
     if (!await allowClipboardPasteRequest()) {
       return;
     }
-    final selection = _stringFromJsonValue(payload?['selection']) ?? 'c';
+    final selection =
+        _nonEmptyTrimmedStringFromJsonValue(payload?['selection']) ?? 'c';
     final clipboardText = await readClipboard();
     final encoded = base64.encode(utf8.encode(clipboardText));
     final response = '\x1B]52;$selection;$encoded\x07';

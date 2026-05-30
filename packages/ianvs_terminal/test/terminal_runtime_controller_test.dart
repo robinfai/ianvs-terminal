@@ -2049,7 +2049,7 @@ void main() {
         PtyEvent(
           kind: 'clipboard_paste_request',
           sessionId: sessionId,
-          payload: const <String, Object?>{'selection': 'c'},
+          payload: const <String, Object?>{'selection': ' c '},
         ),
       );
 
