@@ -642,8 +642,9 @@ List<Map<Object?, Object?>> _objectList(Object? value) {
 
 TerminalPaneSplitDirection _splitDirection(Object? value) {
   if (value is String) {
+    final normalized = value.trim();
     for (final direction in TerminalPaneSplitDirection.values) {
-      if (direction.name == value) {
+      if (direction.name == normalized) {
         return direction;
       }
     }

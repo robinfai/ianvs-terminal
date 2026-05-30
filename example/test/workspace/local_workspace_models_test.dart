@@ -220,6 +220,38 @@ void main() {
       expect(workspace.tabs.single.root.ratio, 0.9);
     });
 
+    test('workspace layout trims persisted split direction', () {
+      final workspace = TerminalWorkspace.fromJson(const {
+        'tabs': [
+          {
+            'id': 'tab-1',
+            'root': {
+              'id': 'split-1',
+              'type': 'split',
+              'direction': ' down ',
+              'children': [
+                {
+                  'id': 'pane-1',
+                  'type': 'leaf',
+                  'sessionIntent': {'profileId': 'default'},
+                },
+                {
+                  'id': 'pane-2',
+                  'type': 'leaf',
+                  'sessionIntent': {'profileId': 'default'},
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      expect(
+        workspace.tabs.single.root.direction,
+        TerminalPaneSplitDirection.down,
+      );
+    });
+
     test('split nodes normalize direct ratio values', () {
       final first = TerminalPaneNode.leaf(
         id: 'pane-1',
