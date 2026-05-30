@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_loader.dart';
+import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/local_terminal_config_repository.dart';
 import '../pty/pty.dart';
@@ -70,6 +71,9 @@ final sessionEnvironmentOverridesProvider = Provider<Map<String, String>>((
 final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 
+typedef _LocalConfigUpdater =
+    LocalTerminalConfigDocument Function(LocalTerminalConfigDocument config);
+
 class _AutomaticProfileBaseline {
   const _AutomaticProfileBaseline({
     required this.title,
@@ -90,6 +94,10 @@ class SessionController extends Notifier<SessionState> {
   final List<TerminalTab> _recentlyClosedTabs = <TerminalTab>[];
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
+  LocalTerminalConfigDocument _localConfigDocument =
+      const LocalTerminalConfigDocument();
+  LocalTerminalConfigBootstrapSource _configBootstrapSource =
+      LocalTerminalConfigBootstrapSource.defaults;
   bool _preferencesLoadedFromDisk = false;
   StreamSubscription<TerminalSessionEvent>? _runtimeEventsSubscription;
 
@@ -182,6 +190,8 @@ class SessionController extends Notifier<SessionState> {
         : profiles.profiles;
     final preferencesRepository = ref.read(appPreferencesRepositoryProvider);
     final configBootstrap = await _loadBootstrapConfig();
+    _configBootstrapSource = configBootstrap.source;
+    _localConfigDocument = configBootstrap.config;
     _preferencesLoadedFromDisk =
         configBootstrap.source != LocalTerminalConfigBootstrapSource.defaults;
     final seededPreferences =
@@ -194,10 +204,17 @@ class SessionController extends Notifier<SessionState> {
       explicitDefaultProfileId: bootstrapDefaultProfileIdOverride,
     );
     _appPreferences = resolution.preferences;
-    if (resolution.shouldRepairWritePreferences &&
-        configBootstrap.source !=
-            LocalTerminalConfigBootstrapSource.localConfig) {
-      await preferencesRepository.save(_appPreferences);
+    if (resolution.shouldRepairWritePreferences) {
+      if (_usesLocalConfigPersistence) {
+        _localConfigDocument = _localConfigDocument.copyWith(
+          defaultProfileId: _appPreferences.defaults.defaultProfileId,
+        );
+        await ref
+            .read(localTerminalConfigRepositoryProvider)
+            .save(_localConfigDocument);
+      } else {
+        await preferencesRepository.save(_appPreferences);
+      }
       _preferencesLoadedFromDisk = true;
     }
     if (!ref.mounted) {
@@ -1206,8 +1223,10 @@ class SessionController extends Notifier<SessionState> {
     _appPreferences = _appPreferences.copyWith(
       defaults: _appPreferences.defaults.copyWith(defaultProfileId: profileId),
     );
-    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
-    _preferencesLoadedFromDisk = true;
+    await _savePreferences(
+      localConfigUpdater: (config) =>
+          config.copyWith(defaultProfileId: profileId),
+    );
     state = state.copyWith(
       defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
@@ -1218,8 +1237,9 @@ class SessionController extends Notifier<SessionState> {
     _appPreferences = _appPreferences.copyWith(
       defaults: _appPreferences.defaults.copyWith(defaultProfileId: null),
     );
-    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
-    _preferencesLoadedFromDisk = true;
+    await _savePreferences(
+      localConfigUpdater: (config) => config.copyWith(defaultProfileId: null),
+    );
     state = state.copyWith(
       defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
@@ -1230,8 +1250,10 @@ class SessionController extends Notifier<SessionState> {
     _appPreferences = _appPreferences.copyWith(
       appearance: _appPreferences.appearance.copyWith(themeMode: themeMode),
     );
-    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
-    _preferencesLoadedFromDisk = true;
+    await _savePreferences(
+      localConfigUpdater: (config) =>
+          config.copyWith(appearance: _appPreferences.appearance),
+    );
     state = state.copyWith(themeMode: _appPreferences.appearance.themeMode);
   }
 
@@ -1251,8 +1273,10 @@ class SessionController extends Notifier<SessionState> {
         terminalViewportPadding: nextPadding,
       ),
     );
-    await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
-    _preferencesLoadedFromDisk = true;
+    await _savePreferences(
+      localConfigUpdater: (config) =>
+          config.copyWith(appearance: _appPreferences.appearance),
+    );
     state = state.copyWith(
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
@@ -1273,8 +1297,9 @@ class SessionController extends Notifier<SessionState> {
       _appPreferences = _appPreferences.copyWith(
         defaults: _appPreferences.defaults.copyWith(defaultProfileId: null),
       );
-      await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
-      _preferencesLoadedFromDisk = true;
+      await _savePreferences(
+        localConfigUpdater: (config) => config.copyWith(defaultProfileId: null),
+      );
     }
     state = state.copyWith(
       profiles: nextProfiles,
@@ -1305,6 +1330,23 @@ class SessionController extends Notifier<SessionState> {
       return null;
     }
     return _normalizeProfileId(_appPreferences.defaults.defaultProfileId);
+  }
+
+  bool get _usesLocalConfigPersistence =>
+      _configBootstrapSource == LocalTerminalConfigBootstrapSource.localConfig;
+
+  Future<void> _savePreferences({
+    required _LocalConfigUpdater localConfigUpdater,
+  }) async {
+    if (_usesLocalConfigPersistence) {
+      _localConfigDocument = localConfigUpdater(_localConfigDocument);
+      await ref
+          .read(localTerminalConfigRepositoryProvider)
+          .save(_localConfigDocument);
+    } else {
+      await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
+    }
+    _preferencesLoadedFromDisk = true;
   }
 
   _BootstrapPreferencesResolution _resolveBootstrapPreferences({

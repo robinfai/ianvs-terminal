@@ -42,6 +42,35 @@ class LocalTerminalConfigDocument {
   final LocalTerminalNotificationsConfig notifications;
   final LocalTerminalHotkeyWindowConfig hotkeyWindow;
 
+  LocalTerminalConfigDocument copyWith({
+    int? schemaVersion,
+    Object? defaultProfileId = _localTerminalConfigNoChange,
+    TerminalAppAppearance? appearance,
+    LocalTerminalKeybindingsConfig? keybindings,
+    LocalTerminalWorkspaceConfig? workspace,
+    LocalTerminalClipboardConfig? clipboard,
+    LocalTerminalPasteConfig? paste,
+    LocalTerminalShellIntegrationConfig? shellIntegration,
+    LocalTerminalNotificationsConfig? notifications,
+    LocalTerminalHotkeyWindowConfig? hotkeyWindow,
+  }) {
+    return LocalTerminalConfigDocument(
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      defaultProfileId:
+          identical(defaultProfileId, _localTerminalConfigNoChange)
+          ? this.defaultProfileId
+          : defaultProfileId as String?,
+      appearance: appearance ?? this.appearance,
+      keybindings: keybindings ?? this.keybindings,
+      workspace: workspace ?? this.workspace,
+      clipboard: clipboard ?? this.clipboard,
+      paste: paste ?? this.paste,
+      shellIntegration: shellIntegration ?? this.shellIntegration,
+      notifications: notifications ?? this.notifications,
+      hotkeyWindow: hotkeyWindow ?? this.hotkeyWindow,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return {
       'schemaVersion': schemaVersion,
@@ -468,3 +497,5 @@ String _normalizeKeySignatureLabel(String value) {
   }
   return value;
 }
+
+const Object _localTerminalConfigNoChange = Object();

@@ -1633,6 +1633,159 @@ void main() {
   });
 
   test(
+    'setDefaultProfile persists to local config when it supplied bootstrap',
+    () async {
+      final profileRepository = _TestProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+      );
+      final legacyPreferencesRepository = _TestAppPreferencesRepository(null);
+      final localConfigRepository = _TestLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          defaultProfileId: 'default',
+          workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            legacyPreferencesRepository,
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            localConfigRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setDefaultProfile('ssh');
+
+      expect(legacyPreferencesRepository.savedDocuments, isEmpty);
+      expect(localConfigRepository.savedDocuments, hasLength(1));
+      expect(
+        localConfigRepository.savedDocuments.single.defaultProfileId,
+        'ssh',
+      );
+      expect(
+        localConfigRepository.savedDocuments.single.workspace.restoreLayout,
+        isTrue,
+      );
+      final state = container.read(sessionControllerProvider);
+      expect(state.configuredDefaultProfileId, 'ssh');
+      expect(state.defaultProfileId, 'ssh');
+    },
+  );
+
+  test(
+    'appearance settings persist to local config when it supplied bootstrap',
+    () async {
+      final legacyPreferencesRepository = _TestAppPreferencesRepository(null);
+      final localConfigRepository = _TestLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          appearance: TerminalAppAppearance(
+            themeMode: TerminalThemeMode.light,
+            terminalViewportPadding: 12,
+          ),
+          notifications: LocalTerminalNotificationsConfig(enabled: false),
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            legacyPreferencesRepository,
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            localConfigRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setThemeMode(TerminalThemeMode.dark);
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setTerminalViewportPadding(22);
+
+      expect(legacyPreferencesRepository.savedDocuments, isEmpty);
+      expect(localConfigRepository.savedDocuments, hasLength(2));
+      expect(
+        localConfigRepository.savedDocuments.last.appearance.themeMode,
+        TerminalThemeMode.dark,
+      );
+      expect(
+        localConfigRepository
+            .savedDocuments
+            .last
+            .appearance
+            .terminalViewportPadding,
+        22,
+      );
+      expect(
+        localConfigRepository.savedDocuments.last.notifications.enabled,
+        isFalse,
+      );
+      final state = container.read(sessionControllerProvider);
+      expect(state.themeMode, TerminalThemeMode.dark);
+      expect(state.terminalViewportPadding, 22);
+    },
+  );
+
+  test(
+    'bootstrap repairs invalid local config default id in local config',
+    () async {
+      final legacyPreferencesRepository = _TestAppPreferencesRepository(null);
+      final localConfigRepository = _TestLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(defaultProfileId: 'missing'),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            legacyPreferencesRepository,
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            localConfigRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(legacyPreferencesRepository.savedDocuments, isEmpty);
+      expect(localConfigRepository.savedDocuments, hasLength(1));
+      expect(
+        localConfigRepository.savedDocuments.single.defaultProfileId,
+        isNull,
+      );
+      final state = container.read(sessionControllerProvider);
+      expect(state.configuredDefaultProfileId, isNull);
+      expect(state.defaultProfileId, 'default');
+    },
+  );
+
+  test(
     'saveProfile clears configuration warnings for the saved profile',
     () async {
       final coreClient = FakePtyBackend();
