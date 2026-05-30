@@ -89,6 +89,22 @@ void main() {
     expect(blank.defaults.defaultProfileId, isNull);
   });
 
+  test('app preferences theme mode trims whitespace and ignores case', () {
+    final dark = TerminalAppPreferencesDocument.fromJson(const {
+      'appearance': {'themeMode': ' Dark '},
+    });
+    final light = TerminalAppPreferencesDocument.fromJson(const {
+      'appearance': {'themeMode': ' LIGHT '},
+    });
+    final blank = TerminalAppPreferencesDocument.fromJson(const {
+      'appearance': {'themeMode': '   '},
+    });
+
+    expect(dark.appearance.themeMode, TerminalThemeMode.dark);
+    expect(light.appearance.themeMode, TerminalThemeMode.light);
+    expect(blank.appearance.themeMode, TerminalThemeMode.system);
+  });
+
   test(
     'app preferences repository keeps values when only schema version is invalid',
     () async {

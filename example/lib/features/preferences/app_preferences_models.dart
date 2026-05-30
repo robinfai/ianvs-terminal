@@ -6,7 +6,8 @@ enum TerminalThemeMode {
   dark;
 
   static TerminalThemeMode fromJsonValue(Object? value) {
-    return switch (value) {
+    final normalized = value is String ? value.trim().toLowerCase() : null;
+    return switch (normalized) {
       'light' => TerminalThemeMode.light,
       'dark' => TerminalThemeMode.dark,
       _ => TerminalThemeMode.system,
