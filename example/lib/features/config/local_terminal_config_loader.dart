@@ -13,9 +13,15 @@ class LocalTerminalConfigLoader {
 
   Future<LocalTerminalConfigBootstrapResult> load() async {
     final localConfig = await localConfigRepository.load();
+    if (localConfig != null) {
+      return LocalTerminalConfigBootstrap.resolve(
+        localConfig: localConfig,
+        legacyAppPreferences: null,
+      );
+    }
     final legacyPreferences = await legacyPreferencesRepository.load();
     return LocalTerminalConfigBootstrap.resolve(
-      localConfig: localConfig,
+      localConfig: null,
       legacyAppPreferences: legacyPreferences,
     );
   }

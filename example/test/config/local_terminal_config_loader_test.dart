@@ -38,6 +38,40 @@ void main() {
       expect(result.config.defaultProfileId, 'local');
     });
 
+    test(
+      'does not read corrupt legacy preferences when local config exists',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-config-loader-local-corrupt-legacy',
+        );
+        final localRepository = LocalTerminalConfigRepository(
+          directoryResolver: () async => directory,
+        );
+        final legacyFile = File('${directory.path}/ianvs_preferences.json');
+        await localRepository.save(
+          const LocalTerminalConfigDocument(defaultProfileId: 'local'),
+        );
+        await legacyFile.writeAsString('{bad json');
+
+        final result = await LocalTerminalConfigLoader(
+          localConfigRepository: localRepository,
+          legacyPreferencesRepository: AppPreferencesRepository(
+            directoryResolver: () async => directory,
+          ),
+        ).load();
+
+        expect(result.source, LocalTerminalConfigBootstrapSource.localConfig);
+        expect(result.config.defaultProfileId, 'local');
+        expect(await legacyFile.readAsString(), '{bad json');
+        expect(
+          directory.listSync().any(
+            (entry) => entry.path.contains('ianvs_preferences.json.corrupt'),
+          ),
+          isFalse,
+        );
+      },
+    );
+
     test('loads legacy preferences when local config is absent', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-config-loader-legacy',
