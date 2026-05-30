@@ -156,6 +156,42 @@ void main() {
       },
     );
 
+    test(
+      'defaults non-finite integer config fields without quarantine',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-config-non-finite-integers',
+        );
+        final file = File('${directory.path}/ianvs_config.json');
+        await file.writeAsString('''
+{
+  "schemaVersion": 1e999,
+  "defaultProfileId": "local-dev",
+  "paste": {"historySize": 1e999}
+}
+''');
+        final repository = LocalTerminalConfigRepository(
+          directoryResolver: () async => directory,
+        );
+
+        final loaded = await repository.load();
+
+        expect(loaded, isNotNull);
+        expect(
+          loaded!.schemaVersion,
+          LocalTerminalConfigDocument.currentSchemaVersion,
+        );
+        expect(loaded.defaultProfileId, 'local-dev');
+        expect(loaded.paste.historySize, 50);
+        expect(
+          directory.listSync().any(
+            (entry) => entry.path.contains('ianvs_config.json.corrupt'),
+          ),
+          isFalse,
+        );
+      },
+    );
+
     test('quarantines corrupt config and writes repaired defaults', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-config-corrupt',
