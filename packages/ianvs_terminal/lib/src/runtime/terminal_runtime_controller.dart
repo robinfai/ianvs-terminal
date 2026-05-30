@@ -360,7 +360,7 @@ class TerminalRuntimeController {
 
   TerminalSearchResult _decodeSearchResult(Object? decoded) {
     if (decoded is Map) {
-      final json = decoded.cast<String, Object?>();
+      final json = _stringKeyedJsonMap(decoded);
       final rawMatches = json['matches'];
       final errorText = json['error_text'] ?? json['errorText'];
       return TerminalSearchResult(
@@ -376,13 +376,18 @@ class TerminalRuntimeController {
   }
 
   List<TerminalSearchMatch> _decodeSearchMatches(List<dynamic> entries) {
-    return entries
-        .map(
-          (entry) => TerminalSearchMatch.fromJson(
-            (entry as Map).cast<String, Object?>(),
-          ),
-        )
-        .toList();
+    final matches = <TerminalSearchMatch>[];
+    for (final entry in entries) {
+      if (entry is! Map) {
+        continue;
+      }
+      try {
+        matches.add(TerminalSearchMatch.fromJson(_stringKeyedJsonMap(entry)));
+      } on Object {
+        continue;
+      }
+    }
+    return matches;
   }
 
   bool clearScrollback(String sessionId) {
@@ -1035,17 +1040,21 @@ Map<String, Object?>? _tryDecodeJsonObject(String raw) {
     if (decoded is! Map) {
       return null;
     }
-    final json = <String, Object?>{};
-    for (final entry in decoded.entries) {
-      final key = entry.key;
-      if (key is String) {
-        json[key] = entry.value;
-      }
-    }
-    return json;
+    return _stringKeyedJsonMap(decoded);
   } on Object {
     return null;
   }
+}
+
+Map<String, Object?> _stringKeyedJsonMap(Map<dynamic, dynamic> decoded) {
+  final json = <String, Object?>{};
+  for (final entry in decoded.entries) {
+    final key = entry.key;
+    if (key is String) {
+      json[key] = entry.value;
+    }
+  }
+  return json;
 }
 
 class _SessionResizeMetric {

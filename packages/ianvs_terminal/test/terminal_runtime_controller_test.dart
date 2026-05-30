@@ -715,6 +715,41 @@ void main() {
     expect(runtime.exportScrollbackText(sessionId), isNull);
   });
 
+  test('terminal runtime skips malformed search match entries', () {
+    final runtimeBackend = _FakePtyBackend()
+      ..searchRawResponse = jsonEncode(<String, Object?>{
+        'matches': <Object?>[
+          <String, Object?>{
+            'row': 0,
+            'start_col': 1,
+            'end_col': 5,
+            'text': 'good',
+            'scrollback_offset': 2,
+          },
+          null,
+          <String, Object?>{'row': 'bad'},
+        ],
+      });
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    final search = runtime.searchTextResult(sessionId, 'ready');
+
+    expect(search.matches.map((match) => match.text), <String>['good']);
+    expect(search.errorText, isNull);
+  });
+
   test('terminal runtime exports diagnostics with private defaults', () {
     final runtimeBackend = _FakePtyBackend()
       ..diagnosticsResponse = <String, Object?>{
