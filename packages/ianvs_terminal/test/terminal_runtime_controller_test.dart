@@ -227,6 +227,101 @@ void main() {
     expect(run.background, const Color(0x80445566));
   });
 
+  test('terminal frames skip malformed collection entries', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'frame_kind': 'delta',
+      'rows': [
+        'bad-row',
+        {
+          'index': 0,
+          'text': 'ok',
+          'wrapped': 'not-a-bool',
+          'style_runs': [
+            'bad-style',
+            {'start': 0, 'end': 2, 'bold': true},
+            {'start': 'bad', 'end': 2},
+            {'start': 2, 'end': 3, 'underline': 'yes'},
+          ],
+        },
+        {'index': 'bad', 'text': 'ignored'},
+        {'index': 1, 'text': 42},
+      ],
+      'cursor': {'row': 0, 'col': 2, 'visible': true},
+      'viewport_rows': 1,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        'bad-range',
+        {'start': 0, 'end': 1},
+        {'start': 'bad', 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'hyperlinks': [
+        'bad-link',
+        {'row': 0, 'start_col': 0, 'end_col': 2, 'uri': 'https://example.com'},
+        {'row': 0, 'start_col': 0, 'end_col': 2, 'uri': 7},
+      ],
+      'inline_images': ['bad-image'],
+      'modes': {'alternate_screen': true, 'mouse_mode': 7},
+    });
+
+    expect(frame.frameKind, TerminalFrameKind.delta);
+    expect(frame.rows, hasLength(1));
+    expect(frame.rows.single.index, 0);
+    expect(frame.rows.single.text, 'ok');
+    expect(frame.rows.single.wrapped, isFalse);
+    expect(frame.rows.single.styleRuns, hasLength(2));
+    expect(frame.rows.single.styleRuns.first.bold, isTrue);
+    expect(frame.rows.single.styleRuns.last.underline, isFalse);
+    expect(frame.dirtyRanges, hasLength(1));
+    expect(frame.dirtyRanges.single.start, 0);
+    expect(frame.hyperlinks, hasLength(1));
+    expect(frame.hyperlinks.single.uri, 'https://example.com');
+    expect(frame.inlineImages, isEmpty);
+    expect(frame.modes.alternateScreen, isTrue);
+    expect(frame.modes.mouseMode, 'off');
+  });
+
+  test('terminal frames default malformed scalar fields', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'frame_kind': 7,
+      'rows': [],
+      'cursor': {'row': 'bad', 'col': 2, 'visible': true},
+      'selection': {'start_row': 0, 'start_col': 'bad'},
+      'viewport_rows': 'bad',
+      'viewport_cols': null,
+      'dirty_ranges': [],
+      'scrollback_offset': 'bad',
+      'scrollback_max_offset': 'bad',
+      'viewport_start_row': 'bad',
+      'viewport_row_shift': 'bad',
+      'modes': {
+        'alternate_screen': 'yes',
+        'mouse_mode': false,
+        'mouse_encoding': 12,
+      },
+      'window_title': 99,
+      'window_icon_name': false,
+    });
+
+    expect(frame.frameKind, TerminalFrameKind.snapshot);
+    expect(frame.cursor.row, 0);
+    expect(frame.cursor.col, 0);
+    expect(frame.cursor.visible, isFalse);
+    expect(frame.selection, isNull);
+    expect(frame.viewportRows, 0);
+    expect(frame.viewportCols, 0);
+    expect(frame.scrollbackOffset, 0);
+    expect(frame.scrollbackMaxOffset, 0);
+    expect(frame.viewportStartRow, 0);
+    expect(frame.viewportRowShift, 0);
+    expect(frame.modes.alternateScreen, isFalse);
+    expect(frame.modes.mouseMode, 'off');
+    expect(frame.modes.mouseEncoding, 'default');
+    expect(frame.windowTitle, isNull);
+    expect(frame.windowIconName, isNull);
+  });
+
   test('terminal frames parse inline image payloads', () {
     final imageBytes = utf8.encode('fake-png');
     final frame = TerminalFrameDiff.fromJson(<String, Object?>{

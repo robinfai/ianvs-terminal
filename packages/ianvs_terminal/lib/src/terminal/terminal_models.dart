@@ -34,17 +34,30 @@ class TerminalStyleRun {
   final bool inverse;
 
   factory TerminalStyleRun.fromJson(Map<String, Object?> json) {
+    final run = TerminalStyleRun.tryFromJson(json);
+    if (run == null) {
+      throw const FormatException('Invalid terminal style run payload');
+    }
+    return run;
+  }
+
+  static TerminalStyleRun? tryFromJson(Map<String, Object?> json) {
+    final start = _intOrNullFromJson(json['start']);
+    final end = _intOrNullFromJson(json['end']);
+    if (start == null || end == null) {
+      return null;
+    }
     return TerminalStyleRun(
-      start: json['start']! as int,
-      end: json['end']! as int,
-      foreground: _colorFromHex(json['foreground'] as String?),
-      background: _colorFromHex(json['background'] as String?),
-      bold: json['bold'] as bool? ?? false,
-      dim: json['dim'] as bool? ?? false,
-      italic: json['italic'] as bool? ?? false,
-      underline: json['underline'] as bool? ?? false,
-      blink: json['blink'] as bool? ?? false,
-      inverse: json['inverse'] as bool? ?? false,
+      start: start,
+      end: end,
+      foreground: _colorFromHex(_stringFromJson(json['foreground'])),
+      background: _colorFromHex(_stringFromJson(json['background'])),
+      bold: _boolFromJson(json['bold'], fallback: false),
+      dim: _boolFromJson(json['dim'], fallback: false),
+      italic: _boolFromJson(json['italic'], fallback: false),
+      underline: _boolFromJson(json['underline'], fallback: false),
+      blink: _boolFromJson(json['blink'], fallback: false),
+      inverse: _boolFromJson(json['inverse'], fallback: false),
     );
   }
 }
@@ -84,19 +97,28 @@ class TerminalFrameModes {
 
   factory TerminalFrameModes.fromJson(Map<String, Object?> json) {
     return TerminalFrameModes(
-      alternateScreen: json['alternate_screen'] as bool? ?? false,
-      alternateScroll: json['alternate_scroll'] as bool? ?? false,
-      applicationCursor: json['application_cursor'] as bool? ?? false,
-      applicationKeypad: json['application_keypad'] as bool? ?? false,
-      insertMode: json['insert_mode'] as bool? ?? false,
-      originMode: json['origin_mode'] as bool? ?? false,
-      lineFeedNewLineMode: json['line_feed_new_line_mode'] as bool? ?? false,
-      hideCursor: json['hide_cursor'] as bool? ?? false,
-      bracketedPaste: json['bracketed_paste'] as bool? ?? false,
-      focusTracking: json['focus_tracking'] as bool? ?? false,
-      charProtected: json['char_protected'] as bool? ?? false,
-      mouseMode: json['mouse_mode'] as String? ?? 'off',
-      mouseEncoding: json['mouse_encoding'] as String? ?? 'default',
+      alternateScreen: _boolFromJson(json['alternate_screen'], fallback: false),
+      alternateScroll: _boolFromJson(json['alternate_scroll'], fallback: false),
+      applicationCursor: _boolFromJson(
+        json['application_cursor'],
+        fallback: false,
+      ),
+      applicationKeypad: _boolFromJson(
+        json['application_keypad'],
+        fallback: false,
+      ),
+      insertMode: _boolFromJson(json['insert_mode'], fallback: false),
+      originMode: _boolFromJson(json['origin_mode'], fallback: false),
+      lineFeedNewLineMode: _boolFromJson(
+        json['line_feed_new_line_mode'],
+        fallback: false,
+      ),
+      hideCursor: _boolFromJson(json['hide_cursor'], fallback: false),
+      bracketedPaste: _boolFromJson(json['bracketed_paste'], fallback: false),
+      focusTracking: _boolFromJson(json['focus_tracking'], fallback: false),
+      charProtected: _boolFromJson(json['char_protected'], fallback: false),
+      mouseMode: _stringFromJson(json['mouse_mode']) ?? 'off',
+      mouseEncoding: _stringFromJson(json['mouse_encoding']) ?? 'default',
     );
   }
 }
@@ -117,21 +139,33 @@ class TerminalRow {
   final List<TerminalStyleRun> styleRuns;
 
   factory TerminalRow.fromJson(Map<String, Object?> json) {
+    final row = TerminalRow.tryFromJson(json);
+    if (row == null) {
+      throw const FormatException('Invalid terminal row payload');
+    }
+    return row;
+  }
+
+  static TerminalRow? tryFromJson(Map<String, Object?> json) {
+    final index = _intOrNullFromJson(json['index']);
+    final text = _stringFromJson(json['text']);
+    if (index == null || text == null) {
+      return null;
+    }
     return TerminalRow(
-      index: json['index']! as int,
-      text: json['text']! as String,
-      wrapped: json['wrapped'] as bool? ?? false,
+      index: index,
+      text: text,
+      wrapped: _boolFromJson(json['wrapped'], fallback: false),
       modifiedAt: _dateTimeFromJson(
         json['modified_at'] ??
             json['modifiedAt'] ??
             json['timestamp'] ??
             json['last_modified'],
       ),
-      styleRuns: (json['style_runs'] as List<dynamic>? ?? const [])
-          .map(
-            (entry) => TerminalStyleRun.fromJson(entry as Map<String, Object?>),
-          )
-          .toList(),
+      styleRuns: _jsonListFromJson(
+        json['style_runs'],
+        TerminalStyleRun.tryFromJson,
+      ),
     );
   }
 }
@@ -148,11 +182,21 @@ class TerminalCursor {
   final bool visible;
 
   factory TerminalCursor.fromJson(Map<String, Object?> json) {
-    return TerminalCursor(
-      row: json['row']! as int,
-      col: json['col']! as int,
-      visible: json['visible']! as bool,
-    );
+    final cursor = TerminalCursor.tryFromJson(json);
+    if (cursor == null) {
+      throw const FormatException('Invalid terminal cursor payload');
+    }
+    return cursor;
+  }
+
+  static TerminalCursor? tryFromJson(Map<String, Object?> json) {
+    final row = _intOrNullFromJson(json['row']);
+    final col = _intOrNullFromJson(json['col']);
+    final visible = json['visible'];
+    if (row == null || col == null || visible is! bool) {
+      return null;
+    }
+    return TerminalCursor(row: row, col: col, visible: visible);
   }
 }
 
@@ -191,11 +235,29 @@ class TerminalSelection {
   }
 
   factory TerminalSelection.fromJson(Map<String, Object?> json) {
+    final selection = TerminalSelection.tryFromJson(json);
+    if (selection == null) {
+      throw const FormatException('Invalid terminal selection payload');
+    }
+    return selection;
+  }
+
+  static TerminalSelection? tryFromJson(Map<String, Object?> json) {
+    final startRow = _intOrNullFromJson(json['start_row']);
+    final startCol = _intOrNullFromJson(json['start_col']);
+    final endRow = _intOrNullFromJson(json['end_row']);
+    final endCol = _intOrNullFromJson(json['end_col']);
+    if (startRow == null ||
+        startCol == null ||
+        endRow == null ||
+        endCol == null) {
+      return null;
+    }
     return TerminalSelection(
-      startRow: json['start_row']! as int,
-      startCol: json['start_col']! as int,
-      endRow: json['end_row']! as int,
-      endCol: json['end_col']! as int,
+      startRow: startRow,
+      startCol: startCol,
+      endRow: endRow,
+      endCol: endCol,
     );
   }
 }
@@ -207,10 +269,20 @@ class TerminalDirtyRange {
   final int end;
 
   factory TerminalDirtyRange.fromJson(Map<String, Object?> json) {
-    return TerminalDirtyRange(
-      start: json['start']! as int,
-      end: json['end']! as int,
-    );
+    final range = TerminalDirtyRange.tryFromJson(json);
+    if (range == null) {
+      throw const FormatException('Invalid terminal dirty range payload');
+    }
+    return range;
+  }
+
+  static TerminalDirtyRange? tryFromJson(Map<String, Object?> json) {
+    final start = _intOrNullFromJson(json['start']);
+    final end = _intOrNullFromJson(json['end']);
+    if (start == null || end == null) {
+      return null;
+    }
+    return TerminalDirtyRange(start: start, end: end);
   }
 }
 
@@ -228,11 +300,26 @@ class TerminalHyperlinkRange {
   final String uri;
 
   factory TerminalHyperlinkRange.fromJson(Map<String, Object?> json) {
+    final range = TerminalHyperlinkRange.tryFromJson(json);
+    if (range == null) {
+      throw const FormatException('Invalid terminal hyperlink payload');
+    }
+    return range;
+  }
+
+  static TerminalHyperlinkRange? tryFromJson(Map<String, Object?> json) {
+    final row = _intOrNullFromJson(json['row']);
+    final startCol = _intOrNullFromJson(json['start_col']);
+    final endCol = _intOrNullFromJson(json['end_col']);
+    final uri = _stringFromJson(json['uri']);
+    if (row == null || startCol == null || endCol == null || uri == null) {
+      return null;
+    }
     return TerminalHyperlinkRange(
-      row: json['row']! as int,
-      startCol: json['start_col']! as int,
-      endCol: json['end_col']! as int,
-      uri: json['uri']! as String,
+      row: row,
+      startCol: startCol,
+      endCol: endCol,
+      uri: uri,
     );
   }
 }
@@ -288,7 +375,8 @@ class TerminalInlineImage {
         fallback: 1,
       ),
       bytes: bytes,
-      altText: json['alt'] as String? ?? json['alt_text'] as String?,
+      altText:
+          _stringFromJson(json['alt']) ?? _stringFromJson(json['alt_text']),
     );
   }
 }
@@ -337,12 +425,27 @@ class TerminalSearchMatch {
   final int scrollbackOffset;
 
   factory TerminalSearchMatch.fromJson(Map<String, Object?> json) {
+    final match = TerminalSearchMatch.tryFromJson(json);
+    if (match == null) {
+      throw const FormatException('Invalid terminal search match payload');
+    }
+    return match;
+  }
+
+  static TerminalSearchMatch? tryFromJson(Map<String, Object?> json) {
+    final row = _intOrNullFromJson(json['row']);
+    final startCol = _intOrNullFromJson(json['start_col']);
+    final endCol = _intOrNullFromJson(json['end_col']);
+    final text = _stringFromJson(json['text']);
+    if (row == null || startCol == null || endCol == null || text == null) {
+      return null;
+    }
     return TerminalSearchMatch(
-      row: json['row']! as int,
-      startCol: json['start_col']! as int,
-      endCol: json['end_col']! as int,
-      text: json['text']! as String,
-      scrollbackOffset: json['scrollback_offset'] as int? ?? 0,
+      row: row,
+      startCol: startCol,
+      endCol: endCol,
+      text: text,
+      scrollbackOffset: _intFromJson(json['scrollback_offset'], fallback: 0),
     );
   }
 }
@@ -398,66 +501,84 @@ class TerminalFrameDiff {
   );
 
   factory TerminalFrameDiff.fromJson(Map<String, Object?> json) {
+    final cursorJson = _jsonMapFromJson(json['cursor']);
+    final selectionJson = _jsonMapFromJson(json['selection']);
+    final modesJson = _jsonMapFromJson(json['modes']);
     return TerminalFrameDiff(
-      frameKind: _terminalFrameKindFromWire(json['frame_kind'] as String?),
-      rows: (json['rows'] as List<dynamic>? ?? const [])
-          .map((entry) => TerminalRow.fromJson(entry as Map<String, Object?>))
-          .toList(),
-      cursor: TerminalCursor.fromJson(json['cursor']! as Map<String, Object?>),
-      selection: json['selection'] == null
+      frameKind: _terminalFrameKindFromWire(
+        _stringFromJson(json['frame_kind']),
+      ),
+      rows: _jsonListFromJson(json['rows'], TerminalRow.tryFromJson),
+      cursor: cursorJson == null
+          ? const TerminalCursor(row: 0, col: 0, visible: false)
+          : TerminalCursor.tryFromJson(cursorJson) ??
+                const TerminalCursor(row: 0, col: 0, visible: false),
+      selection: selectionJson == null
           ? null
-          : TerminalSelection.fromJson(
-              json['selection']! as Map<String, Object?>,
-            ),
-      viewportRows: json['viewport_rows']! as int,
-      viewportCols: json['viewport_cols']! as int,
-      dirtyRanges: (json['dirty_ranges'] as List<dynamic>? ?? const [])
-          .map(
-            (entry) =>
-                TerminalDirtyRange.fromJson(entry as Map<String, Object?>),
-          )
-          .toList(),
-      scrollbackOffset: json['scrollback_offset'] as int? ?? 0,
-      scrollbackMaxOffset: json['scrollback_max_offset'] as int? ?? 0,
-      viewportStartRow: json['viewport_start_row'] as int? ?? 0,
-      viewportRowShift: json['viewport_row_shift'] as int? ?? 0,
-      modes: json['modes'] == null
+          : TerminalSelection.tryFromJson(selectionJson),
+      viewportRows: _intFromJson(json['viewport_rows'], fallback: 0),
+      viewportCols: _intFromJson(json['viewport_cols'], fallback: 0),
+      dirtyRanges: _jsonListFromJson(
+        json['dirty_ranges'],
+        TerminalDirtyRange.tryFromJson,
+      ),
+      scrollbackOffset: _intFromJson(json['scrollback_offset'], fallback: 0),
+      scrollbackMaxOffset: _intFromJson(
+        json['scrollback_max_offset'],
+        fallback: 0,
+      ),
+      viewportStartRow: _intFromJson(json['viewport_start_row'], fallback: 0),
+      viewportRowShift: _intFromJson(json['viewport_row_shift'], fallback: 0),
+      modes: modesJson == null
           ? TerminalFrameModes.empty
-          : TerminalFrameModes.fromJson(json['modes']! as Map<String, Object?>),
-      windowTitle: json['window_title'] as String?,
-      windowIconName: json['window_icon_name'] as String?,
-      hyperlinks: (json['hyperlinks'] as List<dynamic>? ?? const [])
-          .map(
-            (entry) =>
-                TerminalHyperlinkRange.fromJson(entry as Map<String, Object?>),
-          )
-          .toList(),
+          : TerminalFrameModes.fromJson(modesJson),
+      windowTitle: _stringFromJson(json['window_title']),
+      windowIconName: _stringFromJson(json['window_icon_name']),
+      hyperlinks: _jsonListFromJson(
+        json['hyperlinks'],
+        TerminalHyperlinkRange.tryFromJson,
+      ),
       inlineImages: _inlineImagesFromJson(json['inline_images']),
     );
   }
 }
 
 List<TerminalInlineImage> _inlineImagesFromJson(Object? value) {
+  return _jsonListFromJson(value, TerminalInlineImage.tryFromJson);
+}
+
+List<T> _jsonListFromJson<T>(
+  Object? value,
+  T? Function(Map<String, Object?> json) decode,
+) {
   if (value is! List) {
-    return const [];
+    return <T>[];
   }
-  final images = <TerminalInlineImage>[];
+  final items = <T>[];
   for (final entry in value) {
-    if (entry is! Map) {
+    final json = _jsonMapFromJson(entry);
+    if (json == null) {
       continue;
     }
-    final imageJson = <String, Object?>{};
-    entry.forEach((key, value) {
-      if (key is String) {
-        imageJson[key] = value;
-      }
-    });
-    final image = TerminalInlineImage.tryFromJson(imageJson);
-    if (image != null) {
-      images.add(image);
+    final item = decode(json);
+    if (item != null) {
+      items.add(item);
     }
   }
-  return images;
+  return items;
+}
+
+Map<String, Object?>? _jsonMapFromJson(Object? value) {
+  if (value is! Map) {
+    return null;
+  }
+  final json = <String, Object?>{};
+  value.forEach((key, value) {
+    if (key is String) {
+      json[key] = value;
+    }
+  });
+  return json;
 }
 
 class TerminalViewportState {
@@ -678,10 +799,31 @@ Color? _colorFromHex(String? value) {
 }
 
 int _intFromJson(Object? value, {required int fallback}) {
-  if (value is num) {
+  if (value is num && value.isFinite) {
     return value.toInt();
   }
   return fallback;
+}
+
+int? _intOrNullFromJson(Object? value) {
+  if (value is num && value.isFinite) {
+    return value.toInt();
+  }
+  return null;
+}
+
+bool _boolFromJson(Object? value, {required bool fallback}) {
+  if (value is bool) {
+    return value;
+  }
+  return fallback;
+}
+
+String? _stringFromJson(Object? value) {
+  if (value is String) {
+    return value;
+  }
+  return null;
 }
 
 DateTime? _dateTimeFromJson(Object? value) {
