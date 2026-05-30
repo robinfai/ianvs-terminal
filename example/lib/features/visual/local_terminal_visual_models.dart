@@ -250,7 +250,7 @@ int _intFromJson(Object? value, int fallback) {
   if (value is int) {
     return value;
   }
-  if (value is num) {
+  if (value is num && value.isFinite) {
     return value.toInt();
   }
   return fallback;

@@ -36,6 +36,20 @@ void main() {
       expect(remote.canApply, isFalse);
     });
 
+    test('json decoding defaults non-finite numeric fields', () {
+      final scheme = LocalTerminalColorScheme.fromJson({
+        'background': double.infinity,
+      });
+      final template = LocalTerminalLayoutTemplate.fromJson({
+        'paneCount': double.nan,
+        'localOnly': true,
+      });
+
+      expect(scheme.background, 0x000000);
+      expect(template.paneCount, 0);
+      expect(template.canApply, isFalse);
+    });
+
     test('advanced visual policy flags renderer-risk options', () {
       const safe = LocalTerminalAdvancedVisualPolicy();
       const risky = LocalTerminalAdvancedVisualPolicy(blurEnabled: true);
