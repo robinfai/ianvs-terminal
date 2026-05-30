@@ -37,7 +37,6 @@
 
 ## 当前真实产品缺口
 
-- macOS terminal focus 下，`Ctrl+T` / `Ctrl+V` 会被 app/session shortcut 逻辑抢走，导致 VT220 control-key matrix 失败。
 - VT220 `vttest` wrap-around screen-features 仍失败，连续满宽行渲染不一致。
 - 真实 trackpad 的惯性滚动和 return-to-bottom 行为仍失败。
 
