@@ -148,7 +148,7 @@ EOF
 PROFILE=debug tools/build_core.sh
 cd example
 IANVS_CORE_LIB="$(pwd)/../native/core/target/debug/libianvs_core.dylib" \
-  flutter test -d macos integration_test/ianvs_smoke_test.dart
+  flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 IANVS_CORE_LIB="$(pwd)/../native/core/target/debug/libianvs_core.dylib" \
   flutter test -d macos integration_test/real_pty_acceptance_test.dart
 EOF
@@ -259,7 +259,7 @@ run_batch() {
       (
         cd "$ROOT_DIR/example" || exit 1
         IANVS_CORE_LIB="$ROOT_DIR/native/core/target/debug/libianvs_core.dylib" \
-          flutter test -d macos integration_test/ianvs_smoke_test.dart &&
+          flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart &&
         IANVS_CORE_LIB="$ROOT_DIR/native/core/target/debug/libianvs_core.dylib" \
           flutter test -d macos integration_test/real_pty_acceptance_test.dart
       )

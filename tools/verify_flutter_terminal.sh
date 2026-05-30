@@ -42,5 +42,5 @@ fi
   cd "$EXAMPLE_DIR"
   flutter analyze
   flutter test
-  flutter test integration_test/ianvs_smoke_test.dart
+  flutter test integration_test/ianvs_terminal_smoke_test.dart
 )

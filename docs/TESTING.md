@@ -24,7 +24,7 @@ flutter test
 cd example
 flutter analyze
 flutter test
-flutter test -d macos integration_test/ianvs_smoke_test.dart
+flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 ```
 
 当前 macOS smoke 显式指定 `-d macos`。在本机不指定 device 时，
@@ -119,7 +119,7 @@ flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "term
 command -v vttest
 cd example && flutter devices
 osascript -e 'tell application "System Events" to get UI elements enabled'
-cd example && flutter test -d macos integration_test/ianvs_smoke_test.dart
+cd example && flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 cd example && flutter run -d macos
 ```
 

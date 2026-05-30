@@ -43,13 +43,8 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
 
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
   expect(
-    tester.getSemantics(find.bySemanticsLabel('shell-tab-$sessionId')),
-    matchesSemantics(
-      label: 'shell-tab-$sessionId',
-      hasSelectedState: true,
-      isSelected: true,
-      isButton: true,
-    ),
+    tester.getSemantics(find.bySemanticsIdentifier('shell-tab-$sessionId')),
+    matchesSemantics(hasSelectedState: true, isSelected: true, isButton: true),
   );
 }
 
@@ -65,14 +60,14 @@ void main() {
     );
 
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
-    expect(find.bySemanticsLabel('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
 
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
   });
 
@@ -144,7 +139,7 @@ void main() {
     await tester.tap(find.text('Shell B').last);
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
   });
 
@@ -166,7 +161,7 @@ void main() {
     await tester.tap(find.text('New Tab'));
     await tester.pumpAndSettle();
 
-    expect(find.bySemanticsLabel('shell-tab-2'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);
   });
 }
