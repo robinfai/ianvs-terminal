@@ -196,6 +196,25 @@ void main() {
     expect(frame.rows.single.modifiedAt, modifiedAt);
   });
 
+  test('terminal frames ignore invalid numeric row timestamps', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0, 'text': 'non-finite', 'modified_at': double.infinity},
+        {'index': 1, 'text': 'too-large', 'modified_at': 1e100},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 2},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(frame.rows.map((row) => row.modifiedAt), everyElement(isNull));
+  });
+
   test('terminal style runs degrade malformed colors', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [

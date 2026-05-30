@@ -831,11 +831,15 @@ DateTime? _dateTimeFromJson(Object? value) {
   if (value is String && value.isNotEmpty) {
     return DateTime.tryParse(value);
   }
-  if (value is num) {
-    final milliseconds = value >= 100000000000
-        ? value.toInt()
-        : (value * 1000).toInt();
-    return DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true);
+  if (value is num && value.isFinite) {
+    try {
+      final milliseconds = value >= 100000000000
+          ? value.toInt()
+          : (value * 1000).toInt();
+      return DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true);
+    } on Object {
+      return null;
+    }
   }
   return null;
 }
