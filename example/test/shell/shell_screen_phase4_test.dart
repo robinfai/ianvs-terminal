@@ -237,6 +237,57 @@ void main() {
     expect(savedConfig.notifications.activity, isTrue);
   });
 
+  testWidgets('notification save merges the latest local config document', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        defaultProfileId: 'initial',
+        notifications: LocalTerminalNotificationsConfig(
+          enabled: true,
+          commandFinished: true,
+          bell: false,
+          activity: true,
+        ),
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: localConfigRepository,
+    );
+    await localConfigRepository.save(
+      const LocalTerminalConfigDocument(
+        defaultProfileId: 'external',
+        paste: LocalTerminalPasteConfig(
+          bracketedPaste: LocalTerminalBracketedPastePolicy.force,
+          confirmLargePaste: false,
+        ),
+        notifications: LocalTerminalNotificationsConfig(
+          enabled: true,
+          commandFinished: true,
+          bell: false,
+          activity: true,
+        ),
+      ),
+    );
+    localConfigRepository.savedDocuments.clear();
+
+    await _tapCommandMenuAction(tester, const Key('shell-toggle-bell-notify'));
+
+    expect(localConfigRepository.savedDocuments, hasLength(1));
+    final savedConfig = localConfigRepository.savedDocuments.single;
+    expect(savedConfig.defaultProfileId, 'external');
+    expect(
+      savedConfig.paste.bracketedPaste,
+      LocalTerminalBracketedPastePolicy.force,
+    );
+    expect(savedConfig.paste.confirmLargePaste, isFalse);
+    expect(savedConfig.notifications.bell, isTrue);
+  });
+
   testWidgets('shell shortcuts honor local config keybinding overrides', (
     tester,
   ) async {

@@ -589,12 +589,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     await repository.save(preferences.copyWith(notifications: notifications));
   }
 
-  Future<LocalTerminalConfigDocument?> _loadLocalNotificationConfigForSave() {
+  Future<LocalTerminalConfigDocument?>
+  _loadLocalNotificationConfigForSave() async {
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
     if (_notificationConfigSource ==
         LocalTerminalConfigBootstrapSource.localConfig) {
-      return Future.value(_notificationLocalConfig);
+      return await repository.load() ?? _notificationLocalConfig;
     }
-    return ref.read(localTerminalConfigRepositoryProvider).load();
+    return repository.load();
   }
 
   LocalTerminalPastePolicy _pastePolicyFromConfig(
