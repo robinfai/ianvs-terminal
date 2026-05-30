@@ -624,13 +624,13 @@ class TerminalRuntimeController {
     double devicePixelRatio = 1,
     Size? cellSize,
   }) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
     if (cols <= 0 || rows <= 0 || !_isPositiveFiniteDouble(devicePixelRatio)) {
       throw RangeError(
         'Terminal dimensions and devicePixelRatio must be positive.',
       );
-    }
-    if (!hasSession(sessionId)) {
-      return;
     }
     final measuredCellSize = cellSize ?? _cellSizeFor(sessionId);
     if (!_isPositiveFiniteSize(measuredCellSize)) {

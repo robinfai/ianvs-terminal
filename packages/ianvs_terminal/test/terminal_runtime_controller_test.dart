@@ -928,6 +928,13 @@ void main() {
       rows: 24,
       cellSize: terminalFallbackCellSize,
     );
+    runtime.resizeSessionCells(
+      sessionId,
+      cols: 0,
+      rows: 24,
+      devicePixelRatio: double.nan,
+      cellSize: const Size(double.infinity, 18),
+    );
     final selectionText = runtime.selectionText(
       sessionId,
       const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 4),
