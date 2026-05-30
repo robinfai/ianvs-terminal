@@ -118,6 +118,36 @@ void main() {
       );
     });
 
+    test('workspace layout clamps persisted split ratios', () {
+      final workspace = TerminalWorkspace.fromJson(const {
+        'tabs': [
+          {
+            'id': 'tab-1',
+            'root': {
+              'id': 'split-1',
+              'type': 'split',
+              'direction': 'right',
+              'ratio': 2,
+              'children': [
+                {
+                  'id': 'pane-1',
+                  'type': 'leaf',
+                  'sessionIntent': {'profileId': 'default'},
+                },
+                {
+                  'id': 'pane-2',
+                  'type': 'leaf',
+                  'sessionIntent': {'profileId': 'default'},
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      expect(workspace.tabs.single.root.ratio, 0.9);
+    });
+
     test('focus, resize, swap, and zoom stay in the pane model', () {
       final splitTab = _tab('tab-1').splitActivePane(
         splitNodeId: 'split-1',

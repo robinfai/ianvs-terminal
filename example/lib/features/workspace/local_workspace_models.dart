@@ -403,7 +403,7 @@ class TerminalPaneNode {
         direction: _splitDirection(json['direction']),
         first: children.isEmpty ? _emptyLeaf() : children.first,
         second: children.length < 2 ? _emptyLeaf() : children[1],
-        ratio: _doubleFromJson(json['ratio'], 0.5),
+        ratio: _splitRatioFromJson(json['ratio'], 0.5),
       );
     }
 
@@ -540,8 +540,14 @@ String? _stringOrNull(Object? value) {
   return value is String ? value : null;
 }
 
-double _doubleFromJson(Object? value, double fallback) {
-  return value is num ? value.toDouble() : fallback;
+double _splitRatioFromJson(Object? value, double fallback) {
+  if (value is num) {
+    final parsed = value.toDouble();
+    if (parsed.isFinite) {
+      return parsed.clamp(0.1, 0.9).toDouble();
+    }
+  }
+  return fallback;
 }
 
 List<Map<Object?, Object?>> _objectList(Object? value) {
