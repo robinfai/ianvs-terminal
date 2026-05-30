@@ -362,6 +362,52 @@ void main() {
     expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
   });
 
+  testWidgets('local paste config can force bracketed paste wrapping', (
+    tester,
+  ) async {
+    const clipboardText = 'bracket me';
+    final fakeBindings = FakePtyBackend();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          paste: LocalTerminalPasteConfig(
+            bracketedPaste: LocalTerminalBracketedPastePolicy.force,
+          ),
+        ),
+      ),
+    );
+
+    await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+
+    expect(
+      fakeBindings.writes.single,
+      ascii.encode('\x1B[200~') +
+          utf8.encode(clipboardText) +
+          ascii.encode('\x1B[201~'),
+    );
+  });
+
   testWidgets(
     'command-v uses paste confirmation before sending multiline text',
     (tester) async {

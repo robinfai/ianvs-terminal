@@ -282,6 +282,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const LocalTerminalKeybindingsConfig();
   LocalTerminalClipboardConfig _clipboardConfig =
       const LocalTerminalClipboardConfig();
+  LocalTerminalBracketedPastePolicy _bracketedPastePolicy =
+      LocalTerminalBracketedPastePolicy.auto;
   LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();
   LocalTerminalPasteHistoryPolicy _pasteHistoryPolicy =
       const LocalTerminalPasteHistoryPolicy();
@@ -526,6 +528,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _notificationLocalConfig = configBootstrap.config;
       _keybindingsConfig = configBootstrap.config.keybindings;
       _clipboardConfig = configBootstrap.config.clipboard;
+      _bracketedPastePolicy = configBootstrap.config.paste.bracketedPaste;
       _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
       _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(
         configBootstrap.config.paste,
@@ -611,6 +614,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       enabled: config.historySize > 0,
       maxEntries: config.historySize,
     );
+  }
+
+  terminal.TerminalFrameModes _pasteModesFor(
+    terminal.TerminalFrameModes frameModes,
+  ) {
+    return switch (_bracketedPastePolicy) {
+      LocalTerminalBracketedPastePolicy.auto => frameModes,
+      LocalTerminalBracketedPastePolicy.force =>
+        const terminal.TerminalFrameModes(bracketedPaste: true),
+      LocalTerminalBracketedPastePolicy.plain =>
+        terminal.TerminalFrameModes.empty,
+    };
   }
 
   Future<bool> _toggleHotkeyWindowWithFeedback() async {
@@ -2523,7 +2538,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             emulation:
                 terminalConfig?.emulation ??
                 terminal.TerminalEmulation.xterm256,
-            modes: frame.modes,
+            modes: _pasteModesFor(frame.modes),
             text: text,
           ),
         );
