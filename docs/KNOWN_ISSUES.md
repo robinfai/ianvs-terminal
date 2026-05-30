@@ -22,7 +22,7 @@
 
 ## 当前缺少的非功能性保障
 
-- 还没有正式性能基线
+- 已有首批本地性能基线 evidence（`docs/evidence/2026-05-29-benchmark/` 与 `TERMINAL_XTERM_RECENT_FIX_AUDIT.md` 里的 release snapshots），但还没有 quiet-host / cross-machine 对比基线
 - 还没有自动化性能回归检查
 - 还没有跨平台验证
 - 还没有 SSH 兼容性验证
