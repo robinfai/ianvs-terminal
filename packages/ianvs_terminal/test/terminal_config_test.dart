@@ -72,6 +72,22 @@ void main() {
     expect(roundTrip.bright.white, '#181818');
   });
 
+  test('terminal launch config trims direct json string fields', () {
+    final launch = TerminalLaunchConfig.fromJson(const <String, Object?>{
+      'program': '  /bin/zsh  ',
+      'cwd': '  /tmp/project  ',
+    });
+    final blank = TerminalLaunchConfig.fromJson(const <String, Object?>{
+      'program': '   ',
+      'cwd': '   ',
+    });
+
+    expect(launch.program, '/bin/zsh');
+    expect(launch.cwd, '/tmp/project');
+    expect(blank.program, '');
+    expect(blank.cwd, isNull);
+  });
+
   test('terminal session config parses grouped profile colors', () {
     final warnings = <TerminalConfigWarning>[];
 

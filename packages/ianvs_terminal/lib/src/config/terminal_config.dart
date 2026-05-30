@@ -60,10 +60,10 @@ class TerminalLaunchConfig {
   factory TerminalLaunchConfig.fromJson(Object? json) {
     final map = _asObjectMap(json);
     return TerminalLaunchConfig(
-      program: _stringOrNull(map?['program']) ?? '',
+      program: _trimmedStringOrNull(map?['program']) ?? '',
       args: _stringList(map?['args']),
       env: _stringMap(map?['env']),
-      cwd: _stringOrNull(map?['cwd']),
+      cwd: _trimmedStringOrNull(map?['cwd']),
     );
   }
 }
@@ -833,6 +833,11 @@ String? _stringOrNull(Object? value) {
     return value;
   }
   return null;
+}
+
+String? _trimmedStringOrNull(Object? value) {
+  final text = _stringOrNull(value)?.trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 List<String> _stringList(
