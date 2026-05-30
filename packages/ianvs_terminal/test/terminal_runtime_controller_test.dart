@@ -390,6 +390,41 @@ void main() {
     expect(overflow.scrollbackMaxOffset, 10);
   });
 
+  test('terminal frames clamp dirty ranges to the viewport', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 3,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': -4, 'end': 99},
+        {'start': 2, 'end': 1},
+        {'start': 4, 'end': 5},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    final emptyViewport = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 0,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(
+      frame.dirtyRanges
+          .map((range) => (range.start, range.end))
+          .toList(growable: false),
+      <(int, int)>[(0, 3)],
+    );
+    expect(emptyViewport.dirtyRanges, isEmpty);
+  });
+
   test('terminal frames parse inline image payloads', () {
     final imageBytes = utf8.encode('fake-png');
     final frame = TerminalFrameDiff.fromJson(<String, Object?>{

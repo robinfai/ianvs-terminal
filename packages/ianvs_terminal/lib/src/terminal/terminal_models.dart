@@ -527,9 +527,9 @@ class TerminalFrameDiff {
           : TerminalSelection.tryFromJson(selectionJson),
       viewportRows: viewportRows,
       viewportCols: viewportCols,
-      dirtyRanges: _jsonListFromJson(
-        json['dirty_ranges'],
-        TerminalDirtyRange.tryFromJson,
+      dirtyRanges: _normalizeDirtyRanges(
+        _jsonListFromJson(json['dirty_ranges'], TerminalDirtyRange.tryFromJson),
+        viewportRows,
       ),
       scrollbackOffset: scrollbackOffset,
       scrollbackMaxOffset: scrollbackMaxOffset,
@@ -551,6 +551,25 @@ class TerminalFrameDiff {
 
 List<TerminalInlineImage> _inlineImagesFromJson(Object? value) {
   return _jsonListFromJson(value, TerminalInlineImage.tryFromJson);
+}
+
+List<TerminalDirtyRange> _normalizeDirtyRanges(
+  List<TerminalDirtyRange> ranges,
+  int viewportRows,
+) {
+  if (viewportRows <= 0 || ranges.isEmpty) {
+    return const <TerminalDirtyRange>[];
+  }
+
+  final normalized = <TerminalDirtyRange>[];
+  for (final range in ranges) {
+    final start = range.start.clamp(0, viewportRows).toInt();
+    final end = range.end.clamp(start, viewportRows).toInt();
+    if (start < end) {
+      normalized.add(TerminalDirtyRange(start: start, end: end));
+    }
+  }
+  return normalized;
 }
 
 List<T> _jsonListFromJson<T>(
