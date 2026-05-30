@@ -1213,6 +1213,58 @@ void main() {
     expect(copied, '复制内容🌟');
   });
 
+  test('OSC 52 copy events respect disabled local clipboard policy', () async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final coreClient = bindings;
+    String copied = '';
+
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionClipboardCopyProvider.overrideWithValue((text) async {
+          copied = text;
+        }),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.disabled,
+              ),
+            ),
+          ),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'clipboard_copy',
+      'session_id': int.parse(sessionId),
+      'payload': {
+        'selection': 'c',
+        'data': base64.encode(utf8.encode('blocked')),
+      },
+    });
+
+    controller.resizeActiveSession(const Size(640, 480), 1.0);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(copied, isEmpty);
+  });
+
   test('OSC 52 paste requests reply with UTF-8 clipboard content', () async {
     final fakeBindings = FakePtyBackend();
     final bindings = _EventfulPtyBackend(fakeBindings);
@@ -1254,6 +1306,63 @@ void main() {
       utf8.encode('\x1B]52;c;$expectedPayload\x07'),
     );
   });
+
+  test(
+    'OSC 52 paste requests respect disabled local clipboard policy',
+    () async {
+      final fakeBindings = FakePtyBackend();
+      final bindings = _EventfulPtyBackend(fakeBindings);
+      final coreClient = bindings;
+      var pasteReadCount = 0;
+
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionClipboardPasteProvider.overrideWithValue(() async {
+            pasteReadCount += 1;
+            return 'blocked paste';
+          }),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                clipboard: LocalTerminalClipboardConfig(
+                  osc52: LocalTerminalOsc52Policy.disabled,
+                ),
+              ),
+            ),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(
+        defaultTerminalProfile().copyWith(id: 'shell-1'),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'clipboard_paste_request',
+        'session_id': int.parse(sessionId),
+        'payload': {'selection': 'c'},
+      });
+
+      controller.resizeActiveSession(const Size(640, 480), 1.0);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(pasteReadCount, 0);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
   test(
     'bootstrap prefers explicit override over persisted and legacy defaults',

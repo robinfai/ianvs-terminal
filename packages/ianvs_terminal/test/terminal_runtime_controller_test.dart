@@ -1793,6 +1793,83 @@ void main() {
     },
   );
 
+  testWidgets('terminal runtime controller can block OSC 52 copy events', (
+    tester,
+  ) async {
+    final copiedTexts = <String>[];
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (text) async {
+        copiedTexts.add(text);
+      },
+      readClipboard: () async => '',
+      allowClipboardCopy: () async => false,
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'clipboard_copy',
+        sessionId: sessionId,
+        payload: <String, Object?>{
+          'data': base64.encode(utf8.encode('blocked')),
+        },
+      ),
+    );
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    expect(copiedTexts, isEmpty);
+  });
+
+  testWidgets('terminal runtime controller can block OSC 52 paste requests', (
+    tester,
+  ) async {
+    var readClipboardCount = 0;
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async {
+        readClipboardCount += 1;
+        return 'blocked paste';
+      },
+      allowClipboardPasteRequest: () async => false,
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'clipboard_paste_request',
+        sessionId: sessionId,
+        payload: const <String, Object?>{'selection': 'c'},
+      ),
+    );
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    expect(readClipboardCount, 0);
+    expect(runtimeBackend.writeCalls, hasLength(1));
+    expect(runtimeBackend.writeCalls.single, isEmpty);
+  });
+
   testWidgets(
     'terminal runtime controller skips malformed event payload fields',
     (tester) async {

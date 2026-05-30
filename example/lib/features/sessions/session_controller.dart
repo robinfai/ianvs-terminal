@@ -24,10 +24,25 @@ final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
 final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
   ref,
 ) {
+  Future<bool> osc52ClipboardAccessAllowed() async {
+    try {
+      final config = await ref.read(localTerminalConfigLoaderProvider).load();
+      return switch (config.config.clipboard.osc52) {
+        LocalTerminalOsc52Policy.disabled => false,
+        LocalTerminalOsc52Policy.profile ||
+        LocalTerminalOsc52Policy.allow => true,
+      };
+    } on Object {
+      return true;
+    }
+  }
+
   final controller = TerminalRuntimeController(
     backend: ref.read(ptySessionBackendProvider),
     copyToClipboard: ref.read(sessionClipboardCopyProvider),
     readClipboard: ref.read(sessionClipboardPasteProvider),
+    allowClipboardCopy: osc52ClipboardAccessAllowed,
+    allowClipboardPasteRequest: osc52ClipboardAccessAllowed,
     resizeWindowBy: ref.read(sessionWindowResizeProvider),
     enableSessionPolling: ref.read(sessionPollingEnabledProvider),
     enableWarmUpRefresh: ref.read(driverWarmUpRefreshEnabledProvider),

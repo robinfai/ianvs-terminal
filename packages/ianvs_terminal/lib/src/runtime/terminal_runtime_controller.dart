@@ -200,14 +200,21 @@ class TerminalRuntimeController {
     required PtySessionBackend backend,
     required this.copyToClipboard,
     required this.readClipboard,
+    Future<bool> Function()? allowClipboardCopy,
+    Future<bool> Function()? allowClipboardPasteRequest,
     this.resizeWindowBy,
     this.enableSessionPolling = true,
     this.enableWarmUpRefresh = false,
-  }) : _backend = backend;
+  }) : _backend = backend,
+       allowClipboardCopy = allowClipboardCopy ?? _allowClipboardAccess,
+       allowClipboardPasteRequest =
+           allowClipboardPasteRequest ?? _allowClipboardAccess;
 
   final PtySessionBackend _backend;
   final Future<void> Function(String text) copyToClipboard;
   final Future<String> Function() readClipboard;
+  final Future<bool> Function() allowClipboardCopy;
+  final Future<bool> Function() allowClipboardPasteRequest;
   final TerminalWindowResizeCallback? resizeWindowBy;
   final bool enableSessionPolling;
   final bool enableWarmUpRefresh;
@@ -949,6 +956,9 @@ class TerminalRuntimeController {
   }
 
   Future<void> _handleClipboardCopyEvent(Map<String, Object?>? payload) async {
+    if (!await allowClipboardCopy()) {
+      return;
+    }
     if (payload == null) {
       return;
     }
@@ -977,6 +987,9 @@ class TerminalRuntimeController {
     String sessionId,
     Map<String, Object?>? payload,
   ) async {
+    if (!await allowClipboardPasteRequest()) {
+      return;
+    }
     final selection = _stringFromJsonValue(payload?['selection']) ?? 'c';
     final clipboardText = await readClipboard();
     final encoded = base64.encode(utf8.encode(clipboardText));
@@ -1078,6 +1091,8 @@ class TerminalRuntimeController {
     _resizeEvents.close();
   }
 }
+
+Future<bool> _allowClipboardAccess() async => true;
 
 Map<String, Object?>? _tryDecodeJsonObject(String raw) {
   try {
