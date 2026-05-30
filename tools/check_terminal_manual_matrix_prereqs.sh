@@ -123,7 +123,7 @@ flutter_doctor_exit=$?
 run_logged_command "$COMMAND_TIMEOUT_SECONDS" "$FLUTTER_DEVICES_LOG" flutter devices
 flutter_devices_exit=$?
 
-run_logged_command "$SMOKE_TIMEOUT_SECONDS" "$SMOKE_LOG" flutter test integration_test/ianvs_terminal_smoke_test.dart
+run_logged_command "$SMOKE_TIMEOUT_SECONDS" "$SMOKE_LOG" flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
 smoke_exit=$?
 
 run_logged_command "$TIMEOUT_SECONDS" "$RUN_LOG" flutter run -d macos
@@ -264,7 +264,7 @@ Flutter environment:
 Observed evidence:
 - \`command -v vttest\`: $vttest_status
   - $vttest_detail
-- \`flutter test integration_test/ianvs_terminal_smoke_test.dart\`: $smoke_status
+- \`flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart\`: $smoke_status
   - $smoke_detail
   - log: $SMOKE_LOG
 - \`flutter run -d macos\`: $run_status
@@ -300,7 +300,7 @@ Paste-ready record:
   - $flutter_devices_detail
 - \`command -v vttest\`: $vttest_status
   - $vttest_detail
-- \`integration_test/ianvs_terminal_smoke_test.dart\`: $smoke_status
+- \`flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart\`: $smoke_status
   - $smoke_detail
   - log: $SMOKE_LOG
 - \`flutter run -d macos\`: $run_status
