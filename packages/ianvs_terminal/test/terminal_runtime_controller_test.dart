@@ -620,19 +620,26 @@ void main() {
           'data': base64.encode(imageBytes),
           'alt': 'preview',
         },
+        {'base64': base64.encode(imageBytes)},
       ],
     });
 
-    expect(frame.inlineImages, hasLength(1));
-    expect(frame.inlineImages.single.row, 0);
-    expect(frame.inlineImages.single.col, 2);
-    expect(frame.inlineImages.single.widthCells, 4);
-    expect(frame.inlineImages.single.heightCells, 3);
-    expect(frame.inlineImages.single.bytes, imageBytes);
-    expect(frame.inlineImages.single.altText, 'preview');
+    expect(frame.inlineImages, hasLength(2));
+    expect(frame.inlineImages.first.row, 0);
+    expect(frame.inlineImages.first.col, 2);
+    expect(frame.inlineImages.first.widthCells, 4);
+    expect(frame.inlineImages.first.heightCells, 3);
+    expect(frame.inlineImages.first.bytes, imageBytes);
+    expect(frame.inlineImages.first.altText, 'preview');
+    expect(frame.inlineImages.last.row, 0);
+    expect(frame.inlineImages.last.col, 0);
+    expect(frame.inlineImages.last.widthCells, 1);
+    expect(frame.inlineImages.last.heightCells, 1);
+    expect(frame.inlineImages.last.bytes, imageBytes);
   });
 
   test('terminal frames ignore malformed inline image payloads', () {
+    const encodedImage = 'ZmFrZS1wbmc=';
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
         {'index': 0, 'text': 'image', 'style_runs': []},
@@ -654,6 +661,41 @@ void main() {
           'data': 'not-valid-base64!!!',
         },
         {'row': 0, 'col': 2, 'width_cells': 4, 'height_cells': 3, 'data': 42},
+        {
+          'row': 'bad',
+          'col': 2,
+          'width_cells': 4,
+          'height_cells': 3,
+          'data': encodedImage,
+        },
+        {
+          'row': 0.5,
+          'col': 2,
+          'width_cells': 4,
+          'height_cells': 3,
+          'data': encodedImage,
+        },
+        {
+          'row': 0,
+          'col': 'bad',
+          'width_cells': 4,
+          'height_cells': 3,
+          'data': encodedImage,
+        },
+        {
+          'row': 0,
+          'col': 2,
+          'width_cells': 'wide',
+          'height_cells': 3,
+          'data': encodedImage,
+        },
+        {
+          'row': 0,
+          'col': 2,
+          'width_cells': 4,
+          'height_cells': 3.5,
+          'data': encodedImage,
+        },
       ],
     });
 

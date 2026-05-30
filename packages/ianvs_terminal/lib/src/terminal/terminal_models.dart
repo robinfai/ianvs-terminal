@@ -371,17 +371,27 @@ class TerminalInlineImage {
     if (bytes.isEmpty || bytes.length > _maxInlineImageDecodedBytes) {
       return null;
     }
-    final row = _intFromJson(json['row'], fallback: 0);
-    final col = _intFromJson(json['col'] ?? json['column'], fallback: 0);
-    final widthCells = _intFromJson(
+    final row = _optionalIntFromJson(json['row'], fallback: 0);
+    final col = _optionalIntFromJson(
+      json['col'] ?? json['column'],
+      fallback: 0,
+    );
+    final widthCells = _optionalIntFromJson(
       json['width_cells'] ?? json['widthCells'],
       fallback: 1,
     );
-    final heightCells = _intFromJson(
+    final heightCells = _optionalIntFromJson(
       json['height_cells'] ?? json['heightCells'],
       fallback: 1,
     );
-    if (row < 0 || col < 0 || widthCells <= 0 || heightCells <= 0) {
+    if (row == null ||
+        row < 0 ||
+        col == null ||
+        col < 0 ||
+        widthCells == null ||
+        widthCells <= 0 ||
+        heightCells == null ||
+        heightCells <= 0) {
       return null;
     }
     return TerminalInlineImage(
@@ -846,6 +856,13 @@ Color? _colorFromHex(String? value) {
 
 int _intFromJson(Object? value, {required int fallback}) {
   return _wholeIntFromJson(value) ?? fallback;
+}
+
+int? _optionalIntFromJson(Object? value, {required int fallback}) {
+  if (value == null) {
+    return fallback;
+  }
+  return _wholeIntFromJson(value);
 }
 
 int _nonNegativeIntFromJson(Object? value) {
