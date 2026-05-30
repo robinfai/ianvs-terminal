@@ -50,10 +50,16 @@ class TerminalWorkspace {
     final closedTabs = _objectList(
       json['closedTabs'],
     ).map(TerminalWorkspaceTab.fromJson).toList(growable: false);
+    final rawActiveTabId = _nonEmptyStringOrNull(json['activeTabId']);
+    final activeTabId =
+        rawActiveTabId != null &&
+            tabs.any((candidate) => candidate.id == rawActiveTabId)
+        ? rawActiveTabId
+        : _lastNonEmptyTabId(tabs);
 
     return TerminalWorkspace(
       tabs: tabs,
-      activeTabId: _stringOrNull(json['activeTabId']),
+      activeTabId: activeTabId,
       closedTabs: closedTabs,
     );
   }
@@ -196,14 +202,24 @@ class TerminalWorkspaceTab {
     final root = TerminalPaneNode.fromJson(
       _objectMap(json['root']) ?? const {},
     );
+    final rawActivePaneId = _nonEmptyStringOrNull(json['activePaneId']);
+    final activePaneId =
+        rawActivePaneId != null && root.containsPane(rawActivePaneId)
+        ? rawActivePaneId
+        : root.firstLeafId;
+    final rawZoomedPaneId = _nonEmptyStringOrNull(json['zoomedPaneId']);
+    final zoomedPaneId =
+        rawZoomedPaneId != null && root.containsPane(rawZoomedPaneId)
+        ? rawZoomedPaneId
+        : null;
     return TerminalWorkspaceTab(
       id: _stringOrNull(json['id']) ?? '',
       root: root,
-      activePaneId: _stringOrNull(json['activePaneId']) ?? root.firstLeafId,
+      activePaneId: activePaneId,
       closedPanes: _objectList(
         json['closedPanes'],
       ).map(TerminalPaneNode.fromJson).toList(growable: false),
-      zoomedPaneId: _stringOrNull(json['zoomedPaneId']),
+      zoomedPaneId: zoomedPaneId,
     );
   }
 
@@ -581,6 +597,23 @@ Map<Object?, Object?>? _objectMap(Object? value) {
 
 String? _stringOrNull(Object? value) {
   return value is String ? value : null;
+}
+
+String? _nonEmptyStringOrNull(Object? value) {
+  final text = _stringOrNull(value);
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+  return text;
+}
+
+String? _lastNonEmptyTabId(List<TerminalWorkspaceTab> tabs) {
+  for (final tab in tabs.reversed) {
+    if (tab.id.isNotEmpty) {
+      return tab.id;
+    }
+  }
+  return null;
 }
 
 double _splitRatioFromJson(Object? value, double fallback) {

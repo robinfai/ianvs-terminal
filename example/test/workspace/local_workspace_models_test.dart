@@ -108,6 +108,38 @@ void main() {
       );
     });
 
+    test('workspace layout normalizes invalid active ids', () {
+      final workspace = TerminalWorkspace.fromJson(const {
+        'activeTabId': 'missing-tab',
+        'tabs': [
+          {
+            'id': 'tab-1',
+            'activePaneId': 'pane-1',
+            'root': {
+              'id': 'pane-1',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+          },
+          {
+            'id': 'tab-2',
+            'activePaneId': 'missing-pane',
+            'zoomedPaneId': 'missing-pane',
+            'root': {
+              'id': 'pane-2',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+          },
+        ],
+      });
+
+      expect(workspace.activeTabId, 'tab-2');
+      expect(workspace.activeTab!.activePaneId, 'pane-2');
+      expect(workspace.activeTab!.hasActivePane, isTrue);
+      expect(workspace.activeTab!.zoomedPaneId, isNull);
+    });
+
     test('workspace layout rejects remote-only fields', () {
       expect(
         () => TerminalWorkspace.fromJson(const {
