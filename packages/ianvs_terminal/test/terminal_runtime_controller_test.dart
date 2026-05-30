@@ -955,6 +955,25 @@ void main() {
     expect(wholeDouble.exitCode, 7);
   });
 
+  test('terminal shell hook payload normalizes hook tokens', () {
+    final event = TerminalSessionShellHookEvent(
+      '1',
+      rawPayload: const <String, Object?>{
+        'hook': ' command_finished ',
+        'command': '  echo ok  ',
+      },
+    );
+    final blank = TerminalSessionShellHookEvent(
+      '1',
+      rawPayload: const <String, Object?>{'hook': '   '},
+    );
+
+    expect(event.hook, 'command_finished');
+    expect(event.command, '  echo ok  ');
+    expect(event.rawPayload['hook'], ' command_finished ');
+    expect(blank.hook, isNull);
+  });
+
   testWidgets('terminal runtime controller emits bell events', (tester) async {
     final runtimeBackend = _FakePtyBackend();
     final runtime = TerminalRuntimeController(

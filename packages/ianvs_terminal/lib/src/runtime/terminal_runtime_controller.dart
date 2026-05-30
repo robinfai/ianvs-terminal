@@ -47,7 +47,7 @@ final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
 
   final Map<String, Object?> rawPayload;
 
-  String? get hook => _stringValue(rawPayload['hook']);
+  String? get hook => _hookValue(rawPayload['hook']);
   String? get command => _stringValue(rawPayload['command']);
   String? get cwd => _stringValue(rawPayload['cwd'] ?? rawPayload['pwd']);
   String? get shell => _stringValue(rawPayload['shell']);
@@ -65,6 +65,14 @@ final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
 
   static String? _stringValue(Object? value) {
     return value is String ? value : null;
+  }
+
+  static String? _hookValue(Object? value) {
+    if (value is! String) {
+      return null;
+    }
+    final hook = value.trim();
+    return hook.isEmpty ? null : hook;
   }
 
   static int? _intValue(Object? value) {
