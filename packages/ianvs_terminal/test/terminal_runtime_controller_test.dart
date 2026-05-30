@@ -378,6 +378,7 @@ void main() {
           'height_cells': 3,
           'data': 'not-valid-base64!!!',
         },
+        {'row': 0, 'col': 2, 'width_cells': 4, 'height_cells': 3, 'data': 42},
       ],
     });
 

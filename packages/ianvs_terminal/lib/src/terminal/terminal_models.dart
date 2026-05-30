@@ -350,7 +350,8 @@ class TerminalInlineImage {
   }
 
   static TerminalInlineImage? tryFromJson(Map<String, Object?> json) {
-    final encoded = json['data'] as String? ?? json['base64'] as String? ?? '';
+    final encoded =
+        _stringFromJson(json['data']) ?? _stringFromJson(json['base64']) ?? '';
     if (encoded.isEmpty || encoded.length > _maxInlineImageEncodedLength) {
       return null;
     }
