@@ -126,14 +126,10 @@ void main() {
           loaded.keybindings.overrides[TerminalActionId.newTab]?.enabled,
           isTrue,
         );
-        final binding =
-            loaded.keybindings.overrides[TerminalActionId.newTab]?.binding;
-        expect(binding?.scope, TerminalKeyBindingScope.global);
-        expect(binding?.key, '');
-        expect(binding?.meta, isFalse);
-        expect(binding?.control, isTrue);
-        expect(binding?.shift, isFalse);
-        expect(binding?.alt, isFalse);
+        expect(
+          loaded.keybindings.overrides[TerminalActionId.newTab]?.binding,
+          isNull,
+        );
         expect(loaded.workspace.restoreLayout, isFalse);
         expect(loaded.clipboard.copyOnSelect, isFalse);
         expect(loaded.clipboard.osc52, LocalTerminalOsc52Policy.allow);

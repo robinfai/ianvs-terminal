@@ -82,6 +82,30 @@ void main() {
       expect(override.meta, isTrue);
     });
 
+    test('keybinding json trims keys and rejects blank keys', () {
+      final config = LocalTerminalConfigDocument.fromJson(const {
+        'keybindings': {
+          'overrides': {
+            'newTab': {
+              'binding': {'key': ' KeyN ', 'meta': true},
+            },
+            'openDefaults': {
+              'binding': {'key': '   ', 'meta': true},
+            },
+          },
+        },
+      });
+
+      expect(
+        config.keybindings.overrides[TerminalActionId.newTab]!.binding!.key,
+        'KeyN',
+      );
+      expect(
+        config.keybindings.overrides[TerminalActionId.openDefaults]!.binding,
+        isNull,
+      );
+    });
+
     test('decode rejects non-object json roots', () {
       expect(
         () => LocalTerminalConfigDocument.decode('[]'),

@@ -43,19 +43,21 @@ class LocalTerminalKeyBindingResolver {
 
       final override = config.overrides[actionId];
       if (override != null) {
-        final binding = override.binding;
-        if (!override.enabled || binding == null) {
+        if (!override.enabled) {
           continue;
         }
 
-        resolved.add(
-          ResolvedLocalTerminalKeyBinding(
-            actionId: actionId,
-            signature: binding.signature,
-            source: LocalTerminalKeyBindingSource.userOverride,
-          ),
-        );
-        continue;
+        final binding = override.binding;
+        if (binding != null) {
+          resolved.add(
+            ResolvedLocalTerminalKeyBinding(
+              actionId: actionId,
+              signature: binding.signature,
+              source: LocalTerminalKeyBindingSource.userOverride,
+            ),
+          );
+          continue;
+        }
       }
 
       final defaultBinding = entry.value.defaultKeyBinding;

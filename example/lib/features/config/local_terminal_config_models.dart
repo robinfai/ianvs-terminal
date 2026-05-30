@@ -249,9 +249,14 @@ class LocalTerminalKeyBinding {
       return null;
     }
 
+    final key = _nonEmptyTrimmedStringOrNull(json['key']);
+    if (key == null) {
+      return null;
+    }
+
     return LocalTerminalKeyBinding(
       scope: _keyBindingScope(json['scope']),
-      key: _stringOrNull(json['key']) ?? '',
+      key: key,
       meta: _boolFromJson(json['meta'], false),
       control: _boolFromJson(json['control'], false),
       shift: _boolFromJson(json['shift'], false),

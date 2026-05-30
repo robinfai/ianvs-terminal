@@ -30,6 +30,39 @@ void main() {
       );
     });
 
+    test('disabled user override removes registry binding', () {
+      final resolved = LocalTerminalKeyBindingResolver.resolve(
+        config: const LocalTerminalKeybindingsConfig(
+          overrides: {
+            TerminalActionId.newTab: LocalTerminalKeyBindingOverride(
+              enabled: false,
+            ),
+          },
+        ),
+      );
+
+      expect(
+        resolved.any((binding) => binding.actionId == TerminalActionId.newTab),
+        isFalse,
+      );
+    });
+
+    test('enabled override without binding falls back to registry default', () {
+      final resolved = LocalTerminalKeyBindingResolver.resolve(
+        config: const LocalTerminalKeybindingsConfig(
+          overrides: {
+            TerminalActionId.newTab: LocalTerminalKeyBindingOverride(),
+          },
+        ),
+      );
+
+      final newTab = resolved.singleWhere(
+        (binding) => binding.actionId == TerminalActionId.newTab,
+      );
+
+      expect(newTab.source, LocalTerminalKeyBindingSource.defaultBinding);
+    });
+
     test('user override replaces registry default binding', () {
       final resolved = LocalTerminalKeyBindingResolver.resolve(
         config: const LocalTerminalKeybindingsConfig(
