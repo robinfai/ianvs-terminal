@@ -35,10 +35,6 @@
 - 默认 verification helper 现在用 `flutter test -d macos ...` 运行 integration smoke，避免当前 host 卡在 Flutter device discovery 的 Android `adb devices` 路径；手工 ad-hoc 跑 integration smoke 时仍不要省略 `-d macos`。这属于本机验证环境风险，不是 terminal 产品回归。
 - `osascript -e 'tell application "System Events" to get UI elements enabled'` 仍返回 `false`。当前这不再阻止 `T-059` 的人工矩阵结论成立，但它仍是本地 GUI 自动化和辅助访问验证的环境风险。
 
-## 当前真实产品缺口
-
-- 真实 trackpad 的惯性滚动和 return-to-bottom 行为仍失败。
-
 ## 当前已接受的延期风险
 
 - `2026-04-23` 决定先不处理宽字符和组合字符的真实终端列宽。当前 `TerminalTextCells.fromText(...)` 仍按 rune 计列，所以像 `你`、部分 emoji、组合字符这类内容，仍可能把 style run、cursor、selection、导出的列坐标带偏。当前这轮只保证非 BMP 单字符不会再被 UTF-16 下标切坏，没有把真实终端列宽问题一起收掉。
