@@ -120,6 +120,48 @@ void main() {
   );
 
   test(
+    'app preferences repository keeps values when schema version is non-finite',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-preferences-non-finite-schema',
+      );
+      final repository = AppPreferencesRepository(
+        directoryResolver: () async => directory,
+      );
+      final file = File('${directory.path}/ianvs_preferences.json');
+
+      await file.writeAsString('''
+{
+  "schemaVersion": 1e999,
+  "defaults": {"defaultProfileId": "ssh"},
+  "appearance": {"themeMode": "dark", "terminalViewportPadding": 16}
+}
+''');
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(
+        loaded!.schemaVersion,
+        TerminalAppPreferencesDocument.currentSchemaVersion,
+      );
+      expect(loaded.defaults.defaultProfileId, 'ssh');
+      expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
+      expect(loaded.appearance.terminalViewportPadding, 16);
+      expect(
+        directory
+            .listSync()
+            .whereType<File>()
+            .where(
+              (entry) => entry.path.contains('ianvs_preferences.json.corrupt'),
+            )
+            .length,
+        0,
+      );
+    },
+  );
+
+  test(
     'app preferences repository defaults invalid sections without quarantine',
     () async {
       final directory = await Directory.systemTemp.createTemp(
