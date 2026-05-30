@@ -10,6 +10,8 @@ class LocalTerminalGraphicsEntry {
   final String id;
   final int bytes;
   final int createdAtMillis;
+
+  bool get isValid => id.trim().isNotEmpty && bytes > 0;
 }
 
 class LocalTerminalGraphicsEvictionPlan {
@@ -38,14 +40,17 @@ class LocalTerminalGraphicsStorePlanner {
         rejectedReason: 'Graphics storage is disabled.',
       );
     }
-    if (next.bytes <= 0 || next.bytes > policy.maxBytes) {
+    if (!next.isValid || next.bytes > policy.maxBytes) {
       return const LocalTerminalGraphicsEvictionPlan(
         accepted: false,
         rejectedReason: 'Image exceeds graphics storage limits.',
       );
     }
 
-    final total = existing.fold<int>(0, (sum, entry) => sum + entry.bytes);
+    final validExisting = existing
+        .where((entry) => entry.isValid)
+        .toList(growable: false);
+    final total = validExisting.fold<int>(0, (sum, entry) => sum + entry.bytes);
     final projected = total + next.bytes;
     if (projected <= policy.maxBytes) {
       return const LocalTerminalGraphicsEvictionPlan(accepted: true);
@@ -57,7 +62,7 @@ class LocalTerminalGraphicsStorePlanner {
       );
     }
 
-    final sorted = [...existing]
+    final sorted = [...validExisting]
       ..sort((a, b) => a.createdAtMillis.compareTo(b.createdAtMillis));
     var remainingTotal = total;
     final evictIds = <String>[];

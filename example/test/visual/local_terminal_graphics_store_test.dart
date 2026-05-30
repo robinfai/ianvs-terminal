@@ -57,5 +57,48 @@ void main() {
       expect(plan.accepted, isTrue);
       expect(plan.evictIds, ['old']);
     });
+
+    test('rejects insert without a usable image id', () {
+      final plan = LocalTerminalGraphicsStorePlanner.planInsert(
+        policy: const LocalTerminalGraphicsStoragePolicy(
+          enabled: true,
+          maxBytes: 10,
+        ),
+        existing: const [],
+        next: const LocalTerminalGraphicsEntry(
+          id: '   ',
+          bytes: 5,
+          createdAtMillis: 1,
+        ),
+      );
+
+      expect(plan.accepted, isFalse);
+      expect(plan.evictIds, isEmpty);
+    });
+
+    test('ignores invalid existing entries when planning capacity', () {
+      final plan = LocalTerminalGraphicsStorePlanner.planInsert(
+        policy: const LocalTerminalGraphicsStoragePolicy(
+          enabled: true,
+          maxBytes: 10,
+        ),
+        existing: const [
+          LocalTerminalGraphicsEntry(
+            id: 'bad',
+            bytes: -100,
+            createdAtMillis: 1,
+          ),
+          LocalTerminalGraphicsEntry(id: 'old', bytes: 9, createdAtMillis: 2),
+        ],
+        next: const LocalTerminalGraphicsEntry(
+          id: 'next',
+          bytes: 5,
+          createdAtMillis: 3,
+        ),
+      );
+
+      expect(plan.accepted, isTrue);
+      expect(plan.evictIds, ['old']);
+    });
   });
 }
