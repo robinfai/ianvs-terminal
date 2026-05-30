@@ -37,7 +37,6 @@
 
 ## 当前真实产品缺口
 
-- VT220 `vttest` wrap-around screen-features 仍失败，连续满宽行渲染不一致。
 - 真实 trackpad 的惯性滚动和 return-to-bottom 行为仍失败。
 
 ## 当前已接受的延期风险
