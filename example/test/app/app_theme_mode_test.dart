@@ -9,6 +9,7 @@ import 'package:app/features/sessions/session_controller.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
+import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_profile_repository.dart';
 
 Future<void> _pumpApp(
@@ -27,10 +28,14 @@ Future<void> _pumpApp(
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(preferences),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          MemoryLocalTerminalConfigRepository(null),
+        ),
       ],
       child: const IanvsTerminalApp(),
     ),
   );
+  await tester.pump();
   await tester.pumpAndSettle();
 }
 

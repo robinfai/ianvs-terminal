@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('macOS main window is visible at launch', () {
-    final mainMenu = File('macos/Runner/Base.lproj/MainMenu.xib');
+    final mainMenu = File(
+      '${_exampleRoot().path}/macos/Runner/Base.lproj/MainMenu.xib',
+    );
 
     expect(mainMenu.existsSync(), isTrue);
 
@@ -19,4 +21,16 @@ void main() {
       ),
     );
   });
+}
+
+Directory _exampleRoot() {
+  final current = Directory.current;
+  if (Directory('${current.path}/macos').existsSync()) {
+    return current;
+  }
+  final nestedExample = Directory('${current.path}/example');
+  if (Directory('${nestedExample.path}/macos').existsSync()) {
+    return nestedExample;
+  }
+  return current;
 }

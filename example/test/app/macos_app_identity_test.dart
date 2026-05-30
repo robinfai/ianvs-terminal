@@ -4,10 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('macOS project metadata tracks the Ianvs Terminal app identity', () {
-    final appInfo = File('macos/Runner/Configs/AppInfo.xcconfig');
-    final project = File('macos/Runner.xcodeproj/project.pbxproj');
+    final exampleRoot = _exampleRoot();
+    final appInfo = File(
+      '${exampleRoot.path}/macos/Runner/Configs/AppInfo.xcconfig',
+    );
+    final project = File(
+      '${exampleRoot.path}/macos/Runner.xcodeproj/project.pbxproj',
+    );
     final scheme = File(
-      'macos/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme',
+      '${exampleRoot.path}/macos/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme',
     );
 
     final appInfoText = appInfo.readAsStringSync();
@@ -39,4 +44,16 @@ void main() {
     expect(schemeText, contains('BuildableName = "Ianvs Terminal.app"'));
     expect(schemeText, isNot(contains('BuildableName = "app.app"')));
   });
+}
+
+Directory _exampleRoot() {
+  final current = Directory.current;
+  if (Directory('${current.path}/macos').existsSync()) {
+    return current;
+  }
+  final nestedExample = Directory('${current.path}/example');
+  if (Directory('${nestedExample.path}/macos').existsSync()) {
+    return nestedExample;
+  }
+  return current;
 }
