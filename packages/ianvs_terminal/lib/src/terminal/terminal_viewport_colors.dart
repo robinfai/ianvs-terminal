@@ -137,11 +137,21 @@ class TerminalViewportColors {
 }
 
 Color? terminalViewportColorFromHex(String? value) {
-  if (value == null || value.isEmpty) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
     return null;
   }
-  final normalized = value.replaceFirst('#', '');
-  return Color(int.parse('FF$normalized', radix: 16));
+  final normalized = trimmed.startsWith('#') ? trimmed.substring(1) : trimmed;
+  final hex = switch (normalized.length) {
+    6 => 'FF$normalized',
+    8 => normalized,
+    _ => null,
+  };
+  if (hex == null) {
+    return null;
+  }
+  final colorValue = int.tryParse(hex, radix: 16);
+  return colorValue == null ? null : Color(colorValue);
 }
 
 String terminalViewportHexFromColor(Color color) {
