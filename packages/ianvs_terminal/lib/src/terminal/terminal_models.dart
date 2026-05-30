@@ -845,10 +845,7 @@ Color? _colorFromHex(String? value) {
 }
 
 int _intFromJson(Object? value, {required int fallback}) {
-  if (value is num && value.isFinite) {
-    return value.toInt();
-  }
-  return fallback;
+  return _wholeIntFromJson(value) ?? fallback;
 }
 
 int _nonNegativeIntFromJson(Object? value) {
@@ -857,8 +854,18 @@ int _nonNegativeIntFromJson(Object? value) {
 }
 
 int? _intOrNullFromJson(Object? value) {
+  return _wholeIntFromJson(value);
+}
+
+int? _wholeIntFromJson(Object? value) {
+  if (value is int) {
+    return value;
+  }
   if (value is num && value.isFinite) {
-    return value.toInt();
+    final parsed = value.toInt();
+    if (value == parsed) {
+      return parsed;
+    }
   }
   return null;
 }

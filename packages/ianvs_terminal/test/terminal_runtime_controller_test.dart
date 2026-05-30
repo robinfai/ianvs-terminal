@@ -276,12 +276,14 @@ void main() {
             'bad-style',
             {'start': 0, 'end': 2, 'bold': true},
             {'start': 'bad', 'end': 2},
+            {'start': 0.5, 'end': 2, 'dim': true},
             {'start': -1, 'end': 2, 'italic': true},
             {'start': 2, 'end': 2, 'blink': true},
             {'start': 2, 'end': 3, 'underline': 'yes'},
           ],
         },
         {'index': 'bad', 'text': 'ignored'},
+        {'index': 0.5, 'text': 'fractional'},
         {'index': 1, 'text': 42},
       ],
       'cursor': {'row': 0, 'col': 2, 'visible': true},
@@ -291,6 +293,7 @@ void main() {
         'bad-range',
         const {'start': 0, 'end': 1},
         {'start': 'bad', 'end': 1},
+        {'start': 0.5, 'end': 1},
       ],
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
@@ -303,6 +306,12 @@ void main() {
           'uri': ' https://example.com ',
         },
         const {'row': 0, 'start_col': 0, 'end_col': 2, 'uri': 7},
+        const {
+          'row': 0.5,
+          'start_col': 0,
+          'end_col': 2,
+          'uri': 'https://fractional-row.example',
+        },
         const {
           'row': -1,
           'start_col': 0,
@@ -464,6 +473,41 @@ void main() {
     );
   });
 
+  test('terminal frames reject fractional coordinate fields', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0.5, 'text': 'fractional'},
+        {'index': 0, 'text': 'ok'},
+      ],
+      'cursor': {'row': 0.5, 'col': 0, 'visible': true},
+      'selection': {
+        'start_row': 0,
+        'start_col': 0.5,
+        'end_row': 0,
+        'end_col': 1,
+      },
+      'viewport_rows': 1,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0.5, 'end': 1},
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(frame.rows, hasLength(1));
+    expect(frame.rows.single.text, 'ok');
+    expect(frame.cursor.visible, isFalse);
+    expect(frame.selection, isNull);
+    expect(
+      frame.dirtyRanges
+          .map((range) => (range.start, range.end))
+          .toList(growable: false),
+      <(int, int)>[(0, 1)],
+    );
+  });
+
   test('terminal frames clamp scalar bounds from native payloads', () {
     final negative = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [],
@@ -495,6 +539,27 @@ void main() {
     expect(negative.viewportRowShift, -1);
     expect(overflow.scrollbackOffset, 10);
     expect(overflow.scrollbackMaxOffset, 10);
+  });
+
+  test('terminal frames default fractional scalar fields', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2.5,
+      'viewport_cols': 80.5,
+      'dirty_ranges': [],
+      'scrollback_offset': 1.5,
+      'scrollback_max_offset': 4.5,
+      'viewport_start_row': 2.5,
+      'viewport_row_shift': 1.5,
+    });
+
+    expect(frame.viewportRows, 0);
+    expect(frame.viewportCols, 0);
+    expect(frame.scrollbackOffset, 0);
+    expect(frame.scrollbackMaxOffset, 0);
+    expect(frame.viewportStartRow, 0);
+    expect(frame.viewportRowShift, 0);
   });
 
   test('terminal frames clamp dirty ranges to the viewport', () {
@@ -1090,6 +1155,12 @@ void main() {
           },
           null,
           <String, Object?>{'row': 'bad'},
+          <String, Object?>{
+            'row': 0.5,
+            'start_col': 1,
+            'end_col': 5,
+            'text': 'fractional-row',
+          },
           <String, Object?>{
             'row': -1,
             'start_col': 1,
