@@ -357,6 +357,39 @@ void main() {
     expect(frame.windowIconName, isNull);
   });
 
+  test('terminal frames clamp scalar bounds from native payloads', () {
+    final negative = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': -2,
+      'viewport_cols': -80,
+      'dirty_ranges': [],
+      'scrollback_offset': -4,
+      'scrollback_max_offset': -1,
+      'viewport_start_row': -9,
+      'viewport_row_shift': -1,
+    });
+    final overflow = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [],
+      'scrollback_offset': 99,
+      'scrollback_max_offset': 10,
+      'viewport_start_row': 3,
+    });
+
+    expect(negative.viewportRows, 0);
+    expect(negative.viewportCols, 0);
+    expect(negative.scrollbackOffset, 0);
+    expect(negative.scrollbackMaxOffset, 0);
+    expect(negative.viewportStartRow, 0);
+    expect(negative.viewportRowShift, -1);
+    expect(overflow.scrollbackOffset, 10);
+    expect(overflow.scrollbackMaxOffset, 10);
+  });
+
   test('terminal frames parse inline image payloads', () {
     final imageBytes = utf8.encode('fake-png');
     final frame = TerminalFrameDiff.fromJson(<String, Object?>{

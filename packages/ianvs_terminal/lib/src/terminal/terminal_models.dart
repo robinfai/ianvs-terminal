@@ -505,6 +505,14 @@ class TerminalFrameDiff {
     final cursorJson = _jsonMapFromJson(json['cursor']);
     final selectionJson = _jsonMapFromJson(json['selection']);
     final modesJson = _jsonMapFromJson(json['modes']);
+    final viewportRows = _nonNegativeIntFromJson(json['viewport_rows']);
+    final viewportCols = _nonNegativeIntFromJson(json['viewport_cols']);
+    final scrollbackMaxOffset = _nonNegativeIntFromJson(
+      json['scrollback_max_offset'],
+    );
+    final scrollbackOffset = _nonNegativeIntFromJson(
+      json['scrollback_offset'],
+    ).clamp(0, scrollbackMaxOffset).toInt();
     return TerminalFrameDiff(
       frameKind: _terminalFrameKindFromWire(
         _stringFromJson(json['frame_kind']),
@@ -517,18 +525,15 @@ class TerminalFrameDiff {
       selection: selectionJson == null
           ? null
           : TerminalSelection.tryFromJson(selectionJson),
-      viewportRows: _intFromJson(json['viewport_rows'], fallback: 0),
-      viewportCols: _intFromJson(json['viewport_cols'], fallback: 0),
+      viewportRows: viewportRows,
+      viewportCols: viewportCols,
       dirtyRanges: _jsonListFromJson(
         json['dirty_ranges'],
         TerminalDirtyRange.tryFromJson,
       ),
-      scrollbackOffset: _intFromJson(json['scrollback_offset'], fallback: 0),
-      scrollbackMaxOffset: _intFromJson(
-        json['scrollback_max_offset'],
-        fallback: 0,
-      ),
-      viewportStartRow: _intFromJson(json['viewport_start_row'], fallback: 0),
+      scrollbackOffset: scrollbackOffset,
+      scrollbackMaxOffset: scrollbackMaxOffset,
+      viewportStartRow: _nonNegativeIntFromJson(json['viewport_start_row']),
       viewportRowShift: _intFromJson(json['viewport_row_shift'], fallback: 0),
       modes: modesJson == null
           ? TerminalFrameModes.empty
@@ -804,6 +809,11 @@ int _intFromJson(Object? value, {required int fallback}) {
     return value.toInt();
   }
   return fallback;
+}
+
+int _nonNegativeIntFromJson(Object? value) {
+  final parsed = _intFromJson(value, fallback: 0);
+  return parsed < 0 ? 0 : parsed;
 }
 
 int? _intOrNullFromJson(Object? value) {
