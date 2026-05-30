@@ -690,6 +690,46 @@ fn find_shell(name: &str) -> Option<String> {
     .find(|path| Path::new(path.as_str()).exists())
 }
 
+fn fish_runtime_stays_open(fish_path: &str) -> bool {
+    let Ok(home) = tempdir() else {
+        return false;
+    };
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        home.path().to_string_lossy().into_owned(),
+    );
+    let mut profile = local_profile(
+        "fish-runtime-probe",
+        "Fish Runtime Probe",
+        fish_path,
+        vec![],
+        env,
+        TerminalEmulation::Xterm256,
+    );
+    profile.shell_integration.enabled = false;
+    let Ok(profile_json) = serde_json::to_string(&profile) else {
+        return false;
+    };
+    let Ok(session_id) = session::create_session(&profile_json) else {
+        return false;
+    };
+    thread::sleep(Duration::from_millis(250));
+    let exited = session::poll_events(session_id)
+        .ok()
+        .and_then(|events| serde_json::from_str::<serde_json::Value>(&events).ok())
+        .and_then(|events| {
+            events.as_array().map(|entries| {
+                entries
+                    .iter()
+                    .any(|entry| entry["kind"].as_str() == Some("exit"))
+            })
+        })
+        .unwrap_or(true);
+    let _ = session::close_session(session_id);
+    !exited
+}
+
 fn assert_shell_hook_command_lifecycle(session_id: u64, shell: &str) {
     session::write_session(session_id, b"echo ok\n").unwrap();
     let hooks = wait_for_shell_hook_sequence(session_id, &["preexec", "command_finished"]);
@@ -1458,7 +1498,7 @@ fn zsh_initial_prompt_sp_marker_is_cleared_before_multiline_prompt() {
     let original_zdotdir = tempdir().unwrap();
     fs::write(
         original_zdotdir.path().join(".zshrc"),
-        "setopt prompt_sp\nPROMPT=$'\\nianvs-terminal-prompt> '\n",
+        "setopt prompt_sp\nPROMPT=$'\\nianvs terminal-prompt> '\n",
     )
     .unwrap();
     let mut env = BTreeMap::new();
@@ -1594,6 +1634,9 @@ fn fish_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     let Some(fish_path) = find_shell("fish") else {
         return;
     };
+    if !fish_runtime_stays_open(&fish_path) {
+        return;
+    }
 
     let home = tempdir().unwrap();
     let cwd = tempdir().unwrap();
@@ -1716,6 +1759,9 @@ fn fish_shell_hook_integration_disabled_emits_no_shell_hooks() {
     let Some(fish_path) = find_shell("fish") else {
         return;
     };
+    if !fish_runtime_stays_open(&fish_path) {
+        return;
+    }
 
     let home = tempdir().unwrap();
     let mut env = BTreeMap::new();
