@@ -208,6 +208,17 @@ void main() {
     expect(config.interaction.copyOnSelect, isFalse);
   });
 
+  test('terminal session config defaults invalid font dimensions', () {
+    final config = TerminalSessionConfig.fromJson(<String, Object?>{
+      'appearance': <String, Object?>{
+        'font': <String, Object?>{'size': double.infinity, 'lineHeight': -1},
+      },
+    });
+
+    expect(config.display.font.size, terminalFontSize);
+    expect(config.display.font.lineHeight, terminalLineHeight);
+  });
+
   test('terminal profile JSON validates shell integration settings', () {
     final warnings = <TerminalConfigWarning>[];
 
@@ -223,6 +234,31 @@ void main() {
     expect(config.shellIntegration.enabled, isTrue);
     expect(warnings.map((warning) => warning.path), <String>[
       'shellIntegration.enabled',
+    ]);
+  });
+
+  test('terminal profile JSON warns for non-finite font dimensions', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final config = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'shell': '/bin/zsh',
+        'appearance': <String, Object?>{
+          'font': <String, Object?>{
+            'size': double.infinity,
+            'lineHeight': double.nan,
+          },
+        },
+      },
+      defaultProgram: '/bin/zsh',
+      onWarning: warnings.add,
+    );
+
+    expect(config.display.font.size, terminalFontSize);
+    expect(config.display.font.lineHeight, terminalLineHeight);
+    expect(warnings.map((warning) => warning.path), <String>[
+      'appearance.font.size',
+      'appearance.font.lineHeight',
     ]);
   });
 }

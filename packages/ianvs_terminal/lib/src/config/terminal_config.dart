@@ -133,8 +133,11 @@ class TerminalFontConfig {
         map?['fallback'],
         fallback: terminalFontFamilyFallback,
       ),
-      size: _doubleOr(map?['size'], terminalFontSize),
-      lineHeight: _doubleOr(map?['lineHeight'], terminalLineHeight),
+      size: _positiveFiniteDoubleOr(map?['size'], terminalFontSize),
+      lineHeight: _positiveFiniteDoubleOr(
+        map?['lineHeight'],
+        terminalLineHeight,
+      ),
     );
   }
 }
@@ -851,9 +854,12 @@ Map<String, String> _stringMap(Object? value) {
   return const <String, String>{};
 }
 
-double _doubleOr(Object? value, double fallback) {
+double _positiveFiniteDoubleOr(Object? value, double fallback) {
   if (value is num) {
-    return value.toDouble();
+    final parsed = value.toDouble();
+    if (parsed.isFinite && parsed > 0) {
+      return parsed;
+    }
   }
   return fallback;
 }
@@ -1099,8 +1105,11 @@ double _positiveDoubleField(
   required String path,
   required TerminalConfigWarningCallback? onWarning,
 }) {
-  if (rawValue is num && rawValue.toDouble() > 0) {
-    return rawValue.toDouble();
+  if (rawValue is num) {
+    final value = rawValue.toDouble();
+    if (value.isFinite && value > 0) {
+      return value;
+    }
   }
   if (rawValue != null) {
     onWarning?.call(
