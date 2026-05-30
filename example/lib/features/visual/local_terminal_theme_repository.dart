@@ -30,6 +30,7 @@ class LocalTerminalThemeRepository {
           .map(_objectMap)
           .whereType<Map<Object?, Object?>>()
           .map(LocalTerminalThemePreset.fromJson)
+          .where((preset) => preset.isUsable)
           .toList(growable: false);
     } on Object {
       await _quarantineCorruptFile(file);
@@ -43,7 +44,10 @@ class LocalTerminalThemeRepository {
     await file.parent.create(recursive: true);
     await file.writeAsString(
       jsonEncode(
-        presets.map((preset) => preset.toJson()).toList(growable: false),
+        presets
+            .where((preset) => preset.isUsable)
+            .map((preset) => preset.toJson())
+            .toList(growable: false),
       ),
     );
   }

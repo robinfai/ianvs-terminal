@@ -73,6 +73,41 @@ void main() {
       expect(negative.canApply, isFalse);
     });
 
+    test(
+      'visual preset and template ids trim whitespace and reject blanks',
+      () {
+        final preset = LocalTerminalThemePreset.fromJson({
+          'id': ' baseline ',
+          'name': ' Baseline ',
+        });
+        final blankPreset = LocalTerminalThemePreset.fromJson({
+          'id': '   ',
+          'name': 'Blank',
+        });
+        final template = LocalTerminalLayoutTemplate.fromJson({
+          'id': ' two-pane ',
+          'name': ' Two Pane ',
+          'paneCount': 2,
+          'localOnly': true,
+        });
+        final blankTemplate = LocalTerminalLayoutTemplate.fromJson({
+          'id': '   ',
+          'name': 'Blank',
+          'paneCount': 2,
+          'localOnly': true,
+        });
+
+        expect(preset.id, 'baseline');
+        expect(preset.name, 'Baseline');
+        expect(preset.isUsable, isTrue);
+        expect(blankPreset.isUsable, isFalse);
+        expect(template.id, 'two-pane');
+        expect(template.name, 'Two Pane');
+        expect(template.canApply, isTrue);
+        expect(blankTemplate.canApply, isFalse);
+      },
+    );
+
     test('json decoding defaults out-of-range color fields', () {
       final scheme = LocalTerminalColorScheme.fromJson({
         'background': -1,

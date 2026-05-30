@@ -31,7 +31,7 @@ class LocalTerminalLayoutTemplateRepository {
           .map(_objectMap)
           .whereType<Map<Object?, Object?>>()
           .map(LocalTerminalLayoutTemplate.fromJson)
-          .where((template) => template.localOnly)
+          .where((template) => template.localOnly && template.isUsable)
           .toList(growable: false);
     } on Object {
       await _quarantineCorruptFile(file);
@@ -46,7 +46,7 @@ class LocalTerminalLayoutTemplateRepository {
     await file.writeAsString(
       jsonEncode(
         templates
-            .where((template) => template.localOnly)
+            .where((template) => template.localOnly && template.isUsable)
             .map((template) => template.toJson())
             .toList(growable: false),
       ),

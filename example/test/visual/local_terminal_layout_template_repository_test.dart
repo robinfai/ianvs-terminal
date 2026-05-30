@@ -34,6 +34,12 @@ void main() {
           localOnly: true,
         ),
         LocalTerminalLayoutTemplate(
+          id: '   ',
+          name: 'Blank',
+          paneCount: 2,
+          localOnly: true,
+        ),
+        LocalTerminalLayoutTemplate(
           id: 'remote',
           name: 'Remote',
           paneCount: 2,
@@ -76,6 +82,13 @@ void main() {
       await file.writeAsString(
         jsonEncode([
           'not a template',
+          {'id': '   ', 'name': 'Blank', 'paneCount': 2, 'localOnly': true},
+          {
+            'id': 'missing-name',
+            'name': '   ',
+            'paneCount': 2,
+            'localOnly': true,
+          },
           {
             'id': 'bad-local-flag',
             'name': 'Bad local flag',
@@ -83,8 +96,8 @@ void main() {
             'localOnly': 'true',
           },
           {
-            'id': 'two-pane',
-            'name': 'Two Pane',
+            'id': ' two-pane ',
+            'name': ' Two Pane ',
             'paneCount': 2.0,
             'localOnly': true,
           },
@@ -98,6 +111,7 @@ void main() {
 
       expect(loaded, hasLength(1));
       expect(loaded.single.id, 'two-pane');
+      expect(loaded.single.name, 'Two Pane');
       expect(loaded.single.paneCount, 2);
       expect(loaded.single.canApply, isTrue);
       expect(

@@ -26,7 +26,7 @@ void main() {
         directoryResolver: () async => directory,
       );
 
-      await repository.save([_preset()]);
+      await repository.save([_preset(), _preset(id: '   ')]);
       final loaded = await repository.load();
 
       expect(loaded, hasLength(1));
@@ -102,9 +102,11 @@ void main() {
       await file.writeAsString(
         jsonEncode([
           'not a preset',
+          {'id': '   ', 'name': 'Blank'},
+          {'id': 'missing-name', 'name': '   '},
           {
-            'id': 'custom',
-            'name': 'Custom',
+            'id': ' custom ',
+            'name': ' Custom ',
             'dark': {'background': 'black', 'foreground': 0xeeeeee},
             'light': {'background': 0xffffff, 'foreground': false},
           },
@@ -118,6 +120,7 @@ void main() {
 
       expect(loaded, hasLength(1));
       expect(loaded.single.id, 'custom');
+      expect(loaded.single.name, 'Custom');
       expect(loaded.single.dark.background, 0x000000);
       expect(loaded.single.dark.foreground, 0xeeeeee);
       expect(loaded.single.light.background, 0xffffff);

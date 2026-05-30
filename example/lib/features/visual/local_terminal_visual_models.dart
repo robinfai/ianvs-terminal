@@ -56,6 +56,8 @@ class LocalTerminalThemePreset {
   final LocalTerminalColorScheme dark;
   final LocalTerminalColorScheme light;
 
+  bool get isUsable => id.trim().isNotEmpty && name.trim().isNotEmpty;
+
   LocalTerminalColorScheme schemeForBrightness({required bool darkMode}) {
     return darkMode ? dark : light;
   }
@@ -82,8 +84,8 @@ class LocalTerminalThemePreset {
 
   static LocalTerminalThemePreset fromJson(Map<Object?, Object?> json) {
     return LocalTerminalThemePreset(
-      id: _stringOrNull(json['id']) ?? '',
-      name: _stringOrNull(json['name']) ?? '',
+      id: _trimmedStringOrNull(json['id']) ?? '',
+      name: _trimmedStringOrNull(json['name']) ?? '',
       dark: LocalTerminalColorScheme.fromJson(
         _objectMap(json['dark']) ?? const {},
       ),
@@ -135,7 +137,9 @@ class LocalTerminalLayoutTemplate {
   final int paneCount;
   final bool localOnly;
 
-  bool get canApply => localOnly && paneCount > 0 && paneCount <= 2;
+  bool get isUsable => id.trim().isNotEmpty && name.trim().isNotEmpty;
+
+  bool get canApply => isUsable && localOnly && paneCount > 0 && paneCount <= 2;
 
   Map<String, Object?> toJson() {
     return {
@@ -148,8 +152,8 @@ class LocalTerminalLayoutTemplate {
 
   static LocalTerminalLayoutTemplate fromJson(Map<Object?, Object?> json) {
     return LocalTerminalLayoutTemplate(
-      id: _stringOrNull(json['id']) ?? '',
-      name: _stringOrNull(json['name']) ?? '',
+      id: _trimmedStringOrNull(json['id']) ?? '',
+      name: _trimmedStringOrNull(json['name']) ?? '',
       paneCount: _nonNegativeIntFromJson(json['paneCount'], 0),
       localOnly: _boolFromJson(json['localOnly'], false),
     );
@@ -240,6 +244,11 @@ Map<Object?, Object?>? _objectMap(Object? value) {
 
 String? _stringOrNull(Object? value) {
   return value is String ? value : null;
+}
+
+String? _trimmedStringOrNull(Object? value) {
+  final text = _stringOrNull(value)?.trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 bool _boolFromJson(Object? value, bool fallback) {
