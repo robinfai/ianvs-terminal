@@ -149,8 +149,8 @@ class ShellRecentCommandEntry {
 
   static ShellRecentCommandEntry fromJson(Map<Object?, Object?> json) {
     return ShellRecentCommandEntry(
-      command: _stringOrNull(json['command']) ?? '',
-      cwd: _stringOrNull(json['cwd']),
+      command: _trimmedStringOrNull(json['command']) ?? '',
+      cwd: _trimmedStringOrNull(json['cwd']),
       exitCode: _intOrNull(json['exitCode']),
     );
   }
@@ -170,8 +170,8 @@ class ShellRecentDirectoryEntry {
 
   static ShellRecentDirectoryEntry fromJson(Map<Object?, Object?> json) {
     return ShellRecentDirectoryEntry(
-      path: _stringOrNull(json['path']) ?? '',
-      label: _stringOrNull(json['label']),
+      path: _trimmedStringOrNull(json['path']) ?? '',
+      label: _trimmedStringOrNull(json['label']),
     );
   }
 }
@@ -188,10 +188,19 @@ class ShellRecentItemsState {
   final int limit;
 
   ShellRecentItemsState addCommand(ShellRecentCommandEntry entry) {
+    final command = _trimmedStringOrNull(entry.command);
+    if (command == null) {
+      return trimmed();
+    }
+    final normalizedEntry = ShellRecentCommandEntry(
+      command: command,
+      cwd: _trimmedStringOrNull(entry.cwd),
+      exitCode: entry.exitCode,
+    );
     return ShellRecentItemsState(
       commands: _prependUnique(
         commands,
-        entry,
+        normalizedEntry,
         (candidate) => '${candidate.cwd ?? ''}\n${candidate.command}',
       ),
       directories: directories,
@@ -200,11 +209,19 @@ class ShellRecentItemsState {
   }
 
   ShellRecentItemsState addDirectory(ShellRecentDirectoryEntry entry) {
+    final path = _trimmedStringOrNull(entry.path);
+    if (path == null) {
+      return trimmed();
+    }
+    final normalizedEntry = ShellRecentDirectoryEntry(
+      path: path,
+      label: _trimmedStringOrNull(entry.label),
+    );
     return ShellRecentItemsState(
       commands: commands,
       directories: _prependUnique(
         directories,
-        entry,
+        normalizedEntry,
         (candidate) => candidate.path,
       ),
       limit: limit,
@@ -375,6 +392,14 @@ Map<Object?, Object?>? _objectMap(Object? value) {
 
 String? _stringOrNull(Object? value) {
   return value is String ? value : null;
+}
+
+String? _trimmedStringOrNull(Object? value) {
+  final text = _stringOrNull(value)?.trim();
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+  return text;
 }
 
 int? _intOrNull(Object? value) {

@@ -134,6 +134,58 @@ void main() {
       expect(state.directories.first.path, '/repo');
     });
 
+    test('recent items trim text and skip blank entries', () {
+      final state = const ShellRecentItemsState()
+          .addCommand(
+            const ShellRecentCommandEntry(
+              command: '   ',
+              cwd: '/ignored',
+              exitCode: 0,
+            ),
+          )
+          .addCommand(
+            const ShellRecentCommandEntry(
+              command: '  flutter test  ',
+              cwd: '  /repo  ',
+              exitCode: 0,
+            ),
+          )
+          .addDirectory(const ShellRecentDirectoryEntry(path: '   '))
+          .addDirectory(
+            const ShellRecentDirectoryEntry(
+              path: '  /repo  ',
+              label: '  Repo  ',
+            ),
+          );
+
+      expect(state.commands, hasLength(1));
+      expect(state.commands.single.command, 'flutter test');
+      expect(state.commands.single.cwd, '/repo');
+      expect(state.directories, hasLength(1));
+      expect(state.directories.single.path, '/repo');
+      expect(state.directories.single.label, 'Repo');
+    });
+
+    test('recent items json skips whitespace-only entries', () {
+      final state = ShellRecentItemsState.fromJson({
+        'commands': [
+          {'command': '   ', 'cwd': '/ignored', 'exitCode': 0},
+          {'command': '  dart analyze  ', 'cwd': '  /repo  ', 'exitCode': 0},
+        ],
+        'directories': [
+          {'path': '   ', 'label': 'Blank'},
+          {'path': '  /repo  ', 'label': '  Repo  '},
+        ],
+      });
+
+      expect(state.commands, hasLength(1));
+      expect(state.commands.single.command, 'dart analyze');
+      expect(state.commands.single.cwd, '/repo');
+      expect(state.directories, hasLength(1));
+      expect(state.directories.single.path, '/repo');
+      expect(state.directories.single.label, 'Repo');
+    });
+
     test('recent items default invalid limits', () {
       final state = ShellRecentItemsState.fromJson({
         'limit': 0,

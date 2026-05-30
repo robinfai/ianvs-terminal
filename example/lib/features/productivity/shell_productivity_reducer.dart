@@ -65,38 +65,50 @@ class ShellProductivityReducer {
       ShellPromptMarkEvent() => _promptMark(snapshot, event),
       ShellCommandFinishedEvent() => _commandFinished(snapshot, event),
       ShellCommandOutputRangeEvent() => _commandOutputRange(snapshot, event),
-      ShellCwdChangedEvent() => ShellProductivitySnapshot(
-        state: snapshot.state,
-        recentItems: snapshot.recentItems.addDirectory(
-          ShellRecentDirectoryEntry(path: event.cwd),
-        ),
-        currentCwd: event.cwd,
-      ),
+      ShellCwdChangedEvent() => _cwdChanged(snapshot, event),
     };
+  }
+
+  static ShellProductivitySnapshot _cwdChanged(
+    ShellProductivitySnapshot snapshot,
+    ShellCwdChangedEvent event,
+  ) {
+    final cwd = _trimmedOrNull(event.cwd);
+    if (cwd == null) {
+      return snapshot;
+    }
+    return ShellProductivitySnapshot(
+      state: snapshot.state,
+      recentItems: snapshot.recentItems.addDirectory(
+        ShellRecentDirectoryEntry(path: cwd),
+      ),
+      currentCwd: cwd,
+    );
   }
 
   static ShellProductivitySnapshot _promptMark(
     ShellProductivitySnapshot snapshot,
     ShellPromptMarkEvent event,
   ) {
+    final cwd = _trimmedOrNull(event.cwd);
     return ShellProductivitySnapshot(
       state: ShellProductivityState(
         features: snapshot.state.features,
         promptMarks: [
           ...snapshot.state.promptMarks,
-          ShellPromptMark(id: event.id, row: event.row, cwd: event.cwd),
+          ShellPromptMark(id: event.id, row: event.row, cwd: cwd),
         ],
         commandOutputRanges: snapshot.state.commandOutputRanges,
         recentCommands: snapshot.state.recentCommands,
         recentDirectories: snapshot.state.recentDirectories,
         readOnly: snapshot.state.readOnly,
       ),
-      recentItems: event.cwd == null
+      recentItems: cwd == null
           ? snapshot.recentItems
           : snapshot.recentItems.addDirectory(
-              ShellRecentDirectoryEntry(path: event.cwd!),
+              ShellRecentDirectoryEntry(path: cwd),
             ),
-      currentCwd: event.cwd ?? snapshot.currentCwd,
+      currentCwd: cwd ?? snapshot.currentCwd,
     );
   }
 
@@ -104,16 +116,21 @@ class ShellProductivityReducer {
     ShellProductivitySnapshot snapshot,
     ShellCommandFinishedEvent event,
   ) {
+    final command = event.command.trim();
+    final eventCwd = _trimmedOrNull(event.cwd);
+    final currentCwd = eventCwd ?? snapshot.currentCwd;
     return ShellProductivitySnapshot(
       state: snapshot.state,
-      recentItems: snapshot.recentItems.addCommand(
-        ShellRecentCommandEntry(
-          command: event.command,
-          cwd: event.cwd ?? snapshot.currentCwd,
-          exitCode: event.exitCode,
-        ),
-      ),
-      currentCwd: event.cwd ?? snapshot.currentCwd,
+      recentItems: command.isEmpty
+          ? snapshot.recentItems
+          : snapshot.recentItems.addCommand(
+              ShellRecentCommandEntry(
+                command: command,
+                cwd: currentCwd,
+                exitCode: event.exitCode,
+              ),
+            ),
+      currentCwd: currentCwd,
     );
   }
 
@@ -141,4 +158,12 @@ class ShellProductivityReducer {
       currentCwd: snapshot.currentCwd,
     );
   }
+}
+
+String? _trimmedOrNull(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) {
+    return null;
+  }
+  return trimmed;
 }
