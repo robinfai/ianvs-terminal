@@ -52,6 +52,19 @@ void main() {
       expect(decoded.light.background, 0xffffff);
     });
 
+    test('theme preset decode rejects non-object json roots', () {
+      expect(
+        () => LocalTerminalThemePreset.decode('[]'),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            'Theme preset JSON must be an object.',
+          ),
+        ),
+      );
+    });
+
     test('profile theme override matches profile id', () {
       const override = LocalTerminalProfileThemeOverride(
         profileId: 'dev',

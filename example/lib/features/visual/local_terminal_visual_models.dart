@@ -72,7 +72,12 @@ class LocalTerminalThemePreset {
   String encode() => jsonEncode(toJson());
 
   static LocalTerminalThemePreset decode(String raw) {
-    return fromJson(jsonDecode(raw) as Map<String, Object?>);
+    final decoded = jsonDecode(raw);
+    final json = _objectMap(decoded);
+    if (json == null) {
+      throw const FormatException('Theme preset JSON must be an object.');
+    }
+    return fromJson(json);
   }
 
   static LocalTerminalThemePreset fromJson(Map<Object?, Object?> json) {
