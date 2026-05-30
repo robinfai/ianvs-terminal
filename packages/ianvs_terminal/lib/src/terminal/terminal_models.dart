@@ -927,8 +927,12 @@ String _terminalMouseEncodingFromJson(Object? value) {
 }
 
 DateTime? _dateTimeFromJson(Object? value) {
-  if (value is String && value.isNotEmpty) {
-    return DateTime.tryParse(value);
+  if (value is String) {
+    final normalized = value.trim();
+    if (normalized.isNotEmpty) {
+      return DateTime.tryParse(normalized);
+    }
+    return null;
   }
   if (value is num && value.isFinite) {
     try {

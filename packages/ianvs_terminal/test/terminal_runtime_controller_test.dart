@@ -195,7 +195,7 @@ void main() {
         {
           'index': 0,
           'text': 'timestamped',
-          'modified_at': '2026-05-13T08:09:10Z',
+          'modified_at': ' 2026-05-13T08:09:10Z ',
           'style_runs': [],
         },
       ],
