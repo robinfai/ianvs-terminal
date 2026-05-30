@@ -15,7 +15,6 @@ import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
-import '../config/local_terminal_keybinding_resolver.dart';
 import '../preferences/app_preferences_models.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
@@ -42,6 +41,7 @@ import 'local_terminal_shell_ui_wiring_exports.dart';
 import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
+import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
 class _ShellShortcut {
@@ -278,6 +278,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       LocalTerminalConfigBootstrapSource.defaults;
   LocalTerminalConfigDocument _notificationLocalConfig =
       const LocalTerminalConfigDocument();
+  LocalTerminalKeybindingsConfig _keybindingsConfig =
+      const LocalTerminalKeybindingsConfig();
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
@@ -517,6 +519,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     setState(() {
       _notificationConfigSource = configBootstrap.source;
       _notificationLocalConfig = configBootstrap.config;
+      _keybindingsConfig = configBootstrap.config.keybindings;
       _commandFinishedNotificationsEnabled =
           preferences.notifications.commandFinished;
       _bellNotificationsEnabled = preferences.notifications.bell;
@@ -1096,28 +1099,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ? isMetaPressed && !isControlPressed
         : isControlPressed && !isMetaPressed;
 
-    final resolvedBindings = LocalTerminalKeyBindingResolver.resolve(
-      config: const LocalTerminalKeybindingsConfig(),
-    );
-    for (final binding in resolvedBindings) {
-      final action = ShellActionRegistry.actions[binding.actionId];
-      final defaultBinding = action?.defaultKeyBinding;
-      if (defaultBinding == null) {
-        continue;
-      }
-      if (binding.source != LocalTerminalKeyBindingSource.defaultBinding) {
-        continue;
-      }
-      if (_shortcutEventMatchesDefaultBinding(
-        event: event,
-        binding: defaultBinding,
+    for (final scope in const <TerminalKeyBindingScope>[
+      TerminalKeyBindingScope.terminalFocused,
+      TerminalKeyBindingScope.focusedApp,
+      TerminalKeyBindingScope.global,
+    ]) {
+      final actionId = ShellShortcutBridge.resolve(
+        key: event.logicalKey,
         usesMetaShortcuts: usesMetaShortcuts,
         isMetaPressed: isMetaPressed,
         isControlPressed: isControlPressed,
         isShiftPressed: isShiftPressed,
         isAltPressed: isAltPressed,
-      )) {
-        return _ShellShortcut(binding.actionId);
+        scope: scope,
+        config: _keybindingsConfig,
+      );
+      if (actionId != null) {
+        return _ShellShortcut(actionId);
       }
     }
 
@@ -1128,77 +1126,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     }
 
-    if (usesAppModifier &&
-        isShiftPressed &&
-        event.logicalKey == LogicalKeyboardKey.keyP) {
-      return const _ShellShortcut(TerminalActionId.openLauncher);
-    }
-
-    if (usesAppModifier &&
-        isShiftPressed &&
-        event.logicalKey == LogicalKeyboardKey.keyD) {
-      return const _ShellShortcut(TerminalActionId.splitDown);
-    }
-
-    if (usesAppModifier &&
-        isShiftPressed &&
-        event.logicalKey == LogicalKeyboardKey.keyC) {
-      return const _ShellShortcut(TerminalActionId.copyMode);
-    }
-
-    if (usesAppModifier &&
-        isShiftPressed &&
-        event.logicalKey == LogicalKeyboardKey.keyH) {
-      return const _ShellShortcut(TerminalActionId.pasteHistory);
-    }
-
-    if (usesAppModifier &&
-        isAltPressed &&
-        event.logicalKey == LogicalKeyboardKey.keyB) {
-      return const _ShellShortcut(TerminalActionId.instantReplay);
-    }
-
-    if (usesAppModifier &&
-        isShiftPressed &&
-        event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      return const _ShellShortcut(TerminalActionId.previousPrompt);
-    }
-
-    if (usesAppModifier &&
-        isShiftPressed &&
-        event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      return const _ShellShortcut(TerminalActionId.nextPrompt);
-    }
-
-    if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyT) {
-      return const _ShellShortcut(TerminalActionId.newTab);
-    }
-
     return null;
-  }
-
-  bool _shortcutEventMatchesDefaultBinding({
-    required KeyEvent event,
-    required TerminalKeyBinding binding,
-    required bool usesMetaShortcuts,
-    required bool isMetaPressed,
-    required bool isControlPressed,
-    required bool isShiftPressed,
-    required bool isAltPressed,
-  }) {
-    if (event.logicalKey != binding.key) {
-      return false;
-    }
-
-    final appModifierMatches = binding.meta
-        ? usesMetaShortcuts
-              ? isMetaPressed && !isControlPressed
-              : isControlPressed && !isMetaPressed
-        : !isMetaPressed && !isControlPressed;
-
-    return appModifierMatches &&
-        isShiftPressed == binding.shift &&
-        isAltPressed == binding.alt;
   }
 
   int? _tabShortcutIndexFor(LogicalKeyboardKey key) {

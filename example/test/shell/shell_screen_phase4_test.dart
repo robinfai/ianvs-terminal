@@ -11,6 +11,7 @@ import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 
@@ -214,6 +215,51 @@ void main() {
     expect(savedConfig.notifications.commandFinished, isTrue);
     expect(savedConfig.notifications.bell, isTrue);
     expect(savedConfig.notifications.activity, isTrue);
+  });
+
+  testWidgets('shell shortcuts honor local config keybinding overrides', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    final fakeBindings = FakePtyBackend();
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        keybindings: LocalTerminalKeybindingsConfig(
+          overrides: {
+            TerminalActionId.openDefaults: LocalTerminalKeyBindingOverride(
+              binding: LocalTerminalKeyBinding(
+                scope: TerminalKeyBindingScope.focusedApp,
+                key: 'Key N',
+                meta: true,
+              ),
+            ),
+          },
+        ),
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: localConfigRepository,
+    );
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyN, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyN, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+    await tester.pumpAndSettle();
+
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(find.byTooltip('Close defaults'), findsOneWidget);
   });
 
   testWidgets('paste clipboard confirms multiline text before sending', (
