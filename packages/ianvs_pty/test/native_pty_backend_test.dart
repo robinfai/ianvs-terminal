@@ -89,6 +89,32 @@ void main() {
     },
   );
 
+  test('native pty backend rejects invalid session ids before bindings', () {
+    final bindings = _RequestRecordingPtyBindings();
+    final backend = NativePtyBackend.fromBindings(bindings);
+
+    expect(() => backend.closeSession('abc'), throwsArgumentError);
+    expect(
+      () => backend.resizeSession(
+        '0',
+        cols: 80,
+        rows: 24,
+        pixelWidth: 800,
+        pixelHeight: 600,
+      ),
+      throwsArgumentError,
+    );
+    expect(() => backend.writeInput('-1', const [0x41]), throwsArgumentError);
+    expect(
+      () => (backend as PtySessionJsonRequestBackend).requestSessionJson(
+        'nan',
+        '{}',
+      ),
+      throwsArgumentError,
+    );
+    expect(bindings.lastSessionId, isNull);
+  });
+
   test('pty event decoding skips malformed entries', () {
     final events = PtyEvent.listFromJson(<Object?>[
       <String, Object?>{

@@ -390,7 +390,7 @@ class NativePtyBackend
 
   @override
   void closeSession(String sessionId) {
-    _bindings.sessionClose(int.parse(sessionId));
+    _bindings.sessionClose(_nativeSessionId(sessionId));
   }
 
   @override
@@ -402,7 +402,7 @@ class NativePtyBackend
     required int pixelHeight,
   }) {
     _bindings.sessionResize(
-      int.parse(sessionId),
+      _nativeSessionId(sessionId),
       cols,
       rows,
       pixelWidth,
@@ -412,38 +412,53 @@ class NativePtyBackend
 
   @override
   void writeInput(String sessionId, List<int> bytes) {
-    _bindings.sessionWrite(int.parse(sessionId), bytes);
+    _bindings.sessionWrite(_nativeSessionId(sessionId), bytes);
   }
 
   @override
   void scrollViewport(String sessionId, int deltaLines) {
-    _bindings.sessionScroll(int.parse(sessionId), deltaLines);
+    _bindings.sessionScroll(_nativeSessionId(sessionId), deltaLines);
   }
 
   @override
   void scrollViewportTo(String sessionId, int offset) {
-    _bindings.sessionScrollTo(int.parse(sessionId), offset);
+    _bindings.sessionScrollTo(_nativeSessionId(sessionId), offset);
   }
 
   @override
   String? requestSessionJson(String sessionId, String requestJson) {
-    return _bindings.sessionRequestJson(int.parse(sessionId), requestJson);
+    return _bindings.sessionRequestJson(
+      _nativeSessionId(sessionId),
+      requestJson,
+    );
   }
 
   @override
   String? takeFrameDiffJson(String sessionId) {
-    return _bindings.sessionTakeFrameDiffJson(int.parse(sessionId));
+    return _bindings.sessionTakeFrameDiffJson(_nativeSessionId(sessionId));
   }
 
   @override
   String? takeDiagnosticsJson(String sessionId, String kind) {
-    return _bindings.sessionDiagnosticsJson(int.parse(sessionId), kind);
+    return _bindings.sessionDiagnosticsJson(_nativeSessionId(sessionId), kind);
   }
 
   @override
   List<PtyEvent> pollEvents(String sessionId) {
-    return _bindings.sessionPollEvents(int.parse(sessionId));
+    return _bindings.sessionPollEvents(_nativeSessionId(sessionId));
   }
+}
+
+int _nativeSessionId(String sessionId) {
+  final parsed = int.tryParse(sessionId);
+  if (parsed == null || parsed <= 0) {
+    throw ArgumentError.value(
+      sessionId,
+      'sessionId',
+      'must be a positive integer',
+    );
+  }
+  return parsed;
 }
 
 String _resolveLibraryPath() {
