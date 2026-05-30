@@ -414,6 +414,56 @@ void main() {
     expect(frame.windowIconName, isNull);
   });
 
+  test('terminal frames reject negative cursor and selection coordinates', () {
+    final invalid = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': -1, 'col': 2, 'visible': true},
+      'selection': {
+        'start_row': 0,
+        'start_col': 0,
+        'end_row': -1,
+        'end_col': 2,
+      },
+      'viewport_rows': 1,
+      'viewport_cols': 80,
+      'dirty_ranges': [],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    final reversedSelection = TerminalFrameDiff.fromJson(
+      const <String, Object?>{
+        'rows': [],
+        'cursor': {'row': 0, 'col': 0, 'visible': true},
+        'selection': {
+          'start_row': 1,
+          'start_col': 4,
+          'end_row': 0,
+          'end_col': 1,
+        },
+        'viewport_rows': 2,
+        'viewport_cols': 80,
+        'dirty_ranges': [],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      },
+    );
+
+    expect(invalid.cursor.row, 0);
+    expect(invalid.cursor.col, 0);
+    expect(invalid.cursor.visible, isFalse);
+    expect(invalid.selection, isNull);
+    expect(reversedSelection.selection, isNotNull);
+    expect(
+      reversedSelection.selection!.normalized().toJson(),
+      const <String, Object?>{
+        'start_row': 0,
+        'start_col': 1,
+        'end_row': 1,
+        'end_col': 4,
+      },
+    );
+  });
+
   test('terminal frames clamp scalar bounds from native payloads', () {
     final negative = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [],

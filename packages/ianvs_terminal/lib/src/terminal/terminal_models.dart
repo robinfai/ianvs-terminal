@@ -193,7 +193,7 @@ class TerminalCursor {
     final row = _intOrNullFromJson(json['row']);
     final col = _intOrNullFromJson(json['col']);
     final visible = json['visible'];
-    if (row == null || col == null || visible is! bool) {
+    if (row == null || row < 0 || col == null || col < 0 || visible is! bool) {
       return null;
     }
     return TerminalCursor(row: row, col: col, visible: visible);
@@ -248,9 +248,13 @@ class TerminalSelection {
     final endRow = _intOrNullFromJson(json['end_row']);
     final endCol = _intOrNullFromJson(json['end_col']);
     if (startRow == null ||
+        startRow < 0 ||
         startCol == null ||
+        startCol < 0 ||
         endRow == null ||
-        endCol == null) {
+        endRow < 0 ||
+        endCol == null ||
+        endCol < 0) {
       return null;
     }
     return TerminalSelection(
