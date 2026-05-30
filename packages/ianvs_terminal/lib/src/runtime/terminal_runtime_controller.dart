@@ -442,7 +442,7 @@ class TerminalRuntimeController {
       sessionId,
       jsonEncode(<String, Object?>{
         'kind': 'terminal.export_scrollback',
-        if (maxLines != null) 'maxLines': maxLines,
+        'maxLines': ?maxLines,
       }),
     );
     if (raw == null || raw.isEmpty) {
@@ -995,7 +995,7 @@ class TerminalRuntimeController {
         : program.split('/').last;
     final json = config.toJson();
     return jsonEncode(<String, Object?>{
-      'id': 'runtime-${_wireSessionSeed}',
+      'id': 'runtime-$_wireSessionSeed',
       'name': wireName,
       ...json,
     });

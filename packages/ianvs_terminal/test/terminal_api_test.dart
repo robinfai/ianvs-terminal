@@ -378,7 +378,7 @@ Map<String, Object?> _singleRowSnapshot(
     ],
     'scrollback_offset': scrollbackOffset,
     'scrollback_max_offset': scrollbackMaxOffset,
-    if (selection != null) 'selection': selection.toJson(),
-    if (windowTitle != null) 'window_title': windowTitle,
+    'selection': ?selection?.toJson(),
+    'window_title': ?windowTitle,
   };
 }

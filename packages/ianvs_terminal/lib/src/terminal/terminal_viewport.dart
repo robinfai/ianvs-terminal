@@ -1395,12 +1395,10 @@ class _TerminalViewportState extends State<TerminalViewport>
                               onScrollToOffset: widget.onScrollToOffset,
                             ),
                           ),
-                        if (_buildComposingOverlay(
-                              colors,
-                              viewportWidth: constraints.maxWidth,
-                            )
-                            case final overlay?)
-                          overlay,
+                        ?_buildComposingOverlay(
+                          colors,
+                          viewportWidth: constraints.maxWidth,
+                        ),
                       ],
                     ),
                   );
