@@ -329,7 +329,7 @@ class LocalTerminalPasteConfig {
         json?['confirmMultilinePaste'],
         true,
       ),
-      historySize: _intFromJson(json?['historySize'], 50),
+      historySize: _nonNegativeIntFromJson(json?['historySize'], 50),
     );
   }
 }
@@ -438,6 +438,11 @@ int _intFromJson(Object? value, int fallback) {
     return value.toInt();
   }
   return fallback;
+}
+
+int _nonNegativeIntFromJson(Object? value, int fallback) {
+  final parsed = _intFromJson(value, fallback);
+  return parsed < 0 ? fallback : parsed;
 }
 
 Set<TerminalActionId> _actionIdSet(Object? value) {

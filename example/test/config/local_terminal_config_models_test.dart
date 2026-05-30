@@ -110,5 +110,17 @@ void main() {
       expect(decoded.notifications.bell, isTrue);
       expect(decoded.notifications.activity, isFalse);
     });
+
+    test('paste history size accepts zero but rejects negatives', () {
+      final disabled = LocalTerminalConfigDocument.fromJson(const {
+        'paste': {'historySize': 0},
+      });
+      final negative = LocalTerminalConfigDocument.fromJson(const {
+        'paste': {'historySize': -1},
+      });
+
+      expect(disabled.paste.historySize, 0);
+      expect(negative.paste.historySize, 50);
+    });
   });
 }
