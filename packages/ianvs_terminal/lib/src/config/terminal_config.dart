@@ -553,7 +553,7 @@ class TerminalSessionConfig {
     return TerminalSessionConfig(
       launch: TerminalLaunchConfig.fromJson(json['launch']),
       emulation: _emulationFromJson(terminal?['emulation']),
-      scrollbackLines: _intOr(
+      scrollbackLines: _positiveIntOr(
         terminal?['scrollbackLines'],
         defaultTerminalScrollbackLines,
       ),
@@ -864,9 +864,12 @@ double _positiveFiniteDoubleOr(Object? value, double fallback) {
   return fallback;
 }
 
-int _intOr(Object? value, int fallback) {
-  if (value is num) {
-    return value.toInt();
+int _positiveIntOr(Object? value, int fallback) {
+  if (value is num && value.isFinite) {
+    final parsed = value.toInt();
+    if (parsed >= 1) {
+      return parsed;
+    }
   }
   return fallback;
 }
@@ -1084,8 +1087,11 @@ int _positiveIntField(
   required String path,
   required TerminalConfigWarningCallback? onWarning,
 }) {
-  if (rawValue is num && rawValue.toInt() >= 1) {
-    return rawValue.toInt();
+  if (rawValue is num && rawValue.isFinite) {
+    final value = rawValue.toInt();
+    if (value >= 1) {
+      return value;
+    }
   }
   if (rawValue != null) {
     onWarning?.call(

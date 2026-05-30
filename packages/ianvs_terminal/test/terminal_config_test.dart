@@ -219,6 +219,14 @@ void main() {
     expect(config.display.font.lineHeight, terminalLineHeight);
   });
 
+  test('terminal session config defaults invalid scrollback lines', () {
+    final config = TerminalSessionConfig.fromJson(<String, Object?>{
+      'terminal': <String, Object?>{'scrollbackLines': -1},
+    });
+
+    expect(config.scrollbackLines, defaultTerminalScrollbackLines);
+  });
+
   test('terminal profile JSON validates shell integration settings', () {
     final warnings = <TerminalConfigWarning>[];
 
@@ -259,6 +267,24 @@ void main() {
     expect(warnings.map((warning) => warning.path), <String>[
       'appearance.font.size',
       'appearance.font.lineHeight',
+    ]);
+  });
+
+  test('terminal profile JSON warns for non-finite scrollback lines', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final config = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'shell': '/bin/zsh',
+        'terminal': <String, Object?>{'scrollbackLines': double.infinity},
+      },
+      defaultProgram: '/bin/zsh',
+      onWarning: warnings.add,
+    );
+
+    expect(config.scrollbackLines, defaultTerminalScrollbackLines);
+    expect(warnings.map((warning) => warning.path), <String>[
+      'terminal.scrollbackLines',
     ]);
   });
 }
