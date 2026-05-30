@@ -14,6 +14,34 @@ void main() {
 
       expect(layout.ratio, 0.5);
     });
+
+    test('tab active session falls back when active pane id is stale', () {
+      final tab = TerminalTab(
+        sessionId: 'closed-root',
+        title: 'closed-root',
+        profileId: 'default',
+        paneLayout: TerminalPaneLayoutNode.leaf(_pane('remaining-pane')),
+        activePaneSessionId: 'closed-pane',
+      );
+
+      expect(tab.activeSessionId, 'remaining-pane');
+      expect(tab.activePane.sessionId, 'remaining-pane');
+    });
+
+    test(
+      'tab active session prefers tab root when active pane id is stale',
+      () {
+        final tab = TerminalTab(
+          sessionId: 'root-pane',
+          title: 'root-pane',
+          profileId: 'default',
+          panes: [_pane('root-pane'), _pane('second-pane')],
+          activePaneSessionId: 'closed-pane',
+        );
+
+        expect(tab.activeSessionId, 'root-pane');
+      },
+    );
   });
 }
 

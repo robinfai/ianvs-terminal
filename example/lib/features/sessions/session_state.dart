@@ -382,7 +382,18 @@ class TerminalTab {
     return effectivePaneLayout.panes;
   }
 
-  String get activeSessionId => activePaneSessionId ?? sessionId;
+  String get activeSessionId {
+    final panes = effectivePanes;
+    final activePaneId = activePaneSessionId;
+    if (activePaneId != null &&
+        panes.any((pane) => pane.sessionId == activePaneId)) {
+      return activePaneId;
+    }
+    if (panes.any((pane) => pane.sessionId == sessionId)) {
+      return sessionId;
+    }
+    return panes.first.sessionId;
+  }
 
   TerminalPane get activePane {
     return paneFor(activeSessionId) ?? effectivePanes.first;
