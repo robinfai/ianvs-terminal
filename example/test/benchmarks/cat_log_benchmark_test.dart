@@ -299,8 +299,8 @@ void main() {
             'payloadBytes': pasteProbe['payloadBytes'],
             'payloadLines': pasteProbe['payloadLines'],
           },
-        if (searchProbe != null) 'searchProbe': searchProbe,
-        if (visibleUrlProbe != null) 'visibleUrlProbe': visibleUrlProbe,
+        'searchProbe': ?searchProbe,
+        'visibleUrlProbe': ?visibleUrlProbe,
         'droppedFrames': <String, Object?>{
           'thresholdMs': _droppedFrameThresholdMs,
           'count': frameDurationsMicros

@@ -267,7 +267,7 @@ void _writeTrace({
           'payloadBytes': utf8.encode(pastePayloadText).length,
           'payloadLines': '\n'.allMatches(pastePayloadText).length,
         },
-      if (searchProbe != null) 'searchProbe': searchProbe,
+      'searchProbe': ?searchProbe,
       'viewport': <String, Object?>{
         'logicalWidth': _logicalWidth,
         'logicalHeight': _logicalHeight,
@@ -301,7 +301,7 @@ void _writeTrace({
           'inputToDisplayMicros': inputToDisplayMicros,
         if (scenario == _BenchmarkScenario.pasteThroughput)
           'pasteToDisplayMicros': pasteToDisplayMicros,
-        if (searchProbe != null) 'searchProbe': searchProbe,
+        'searchProbe': ?searchProbe,
         'sessionDebugStats': sessionDebugStats,
       },
       'frames': traceFrames,
@@ -420,7 +420,7 @@ Map<String, Object?> _runSearchProbe(
     'elapsedMicros': _microsSummary(samples),
     'matchCount': matchCount,
     'resultBytes': resultBytes,
-    if (errorText != null) 'errorText': errorText,
+    'errorText': ?errorText,
   };
 }
 
