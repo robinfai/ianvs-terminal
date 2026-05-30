@@ -377,7 +377,7 @@ class TerminalPaneNode {
       direction: direction,
       children: [first, second],
       sessionIntent: null,
-      ratio: ratio,
+      ratio: _normalizeSplitRatio(ratio, 0.5),
     );
   }
 
@@ -618,12 +618,16 @@ String? _lastNonEmptyTabId(List<TerminalWorkspaceTab> tabs) {
 
 double _splitRatioFromJson(Object? value, double fallback) {
   if (value is num) {
-    final parsed = value.toDouble();
-    if (parsed.isFinite) {
-      return parsed.clamp(0.1, 0.9).toDouble();
-    }
+    return _normalizeSplitRatio(value.toDouble(), fallback);
   }
   return fallback;
+}
+
+double _normalizeSplitRatio(double value, double fallback) {
+  if (!value.isFinite) {
+    return fallback;
+  }
+  return value.clamp(0.1, 0.9).toDouble();
 }
 
 List<Map<Object?, Object?>> _objectList(Object? value) {

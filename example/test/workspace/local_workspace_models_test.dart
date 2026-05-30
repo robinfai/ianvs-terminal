@@ -180,6 +180,43 @@ void main() {
       expect(workspace.tabs.single.root.ratio, 0.9);
     });
 
+    test('split nodes normalize direct ratio values', () {
+      final first = TerminalPaneNode.leaf(
+        id: 'pane-1',
+        sessionIntent: const TerminalPaneSessionIntent(profileId: 'default'),
+      );
+      final second = TerminalPaneNode.leaf(
+        id: 'pane-2',
+        sessionIntent: const TerminalPaneSessionIntent(profileId: 'default'),
+      );
+
+      final high = TerminalPaneNode.split(
+        id: 'high',
+        direction: TerminalPaneSplitDirection.right,
+        first: first,
+        second: second,
+        ratio: 2,
+      );
+      final low = TerminalPaneNode.split(
+        id: 'low',
+        direction: TerminalPaneSplitDirection.right,
+        first: first,
+        second: second,
+        ratio: -1,
+      );
+      final nonFinite = TerminalPaneNode.split(
+        id: 'non-finite',
+        direction: TerminalPaneSplitDirection.right,
+        first: first,
+        second: second,
+        ratio: double.infinity,
+      );
+
+      expect(high.ratio, 0.9);
+      expect(low.ratio, 0.1);
+      expect(nonFinite.ratio, 0.5);
+    });
+
     test('focus, resize, swap, and zoom stay in the pane model', () {
       final splitTab = _tab('tab-1').splitActivePane(
         splitNodeId: 'split-1',
