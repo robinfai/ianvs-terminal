@@ -30,12 +30,12 @@ class LocalTerminalColorScheme {
 
   static LocalTerminalColorScheme fromJson(Map<Object?, Object?> json) {
     return LocalTerminalColorScheme(
-      background: _intFromJson(json['background'], 0x000000),
-      foreground: _intFromJson(json['foreground'], 0xffffff),
-      cursor: _intFromJson(json['cursor'], 0xffffff),
-      selection: _intFromJson(json['selection'], 0x333333),
-      splitDivider: _intFromJson(json['splitDivider'], 0x222222),
-      inactivePaneOverlay: _intFromJson(
+      background: _colorIntFromJson(json['background'], 0x000000),
+      foreground: _colorIntFromJson(json['foreground'], 0xffffff),
+      cursor: _colorIntFromJson(json['cursor'], 0xffffff),
+      selection: _colorIntFromJson(json['selection'], 0x333333),
+      splitDivider: _colorIntFromJson(json['splitDivider'], 0x222222),
+      inactivePaneOverlay: _colorIntFromJson(
         json['inactivePaneOverlay'],
         0x11000000,
       ),
@@ -254,4 +254,9 @@ int _intFromJson(Object? value, int fallback) {
     return value.toInt();
   }
   return fallback;
+}
+
+int _colorIntFromJson(Object? value, int fallback) {
+  final parsed = _intFromJson(value, fallback);
+  return parsed < 0 || parsed > 0xffffffff ? fallback : parsed;
 }

@@ -50,6 +50,18 @@ void main() {
       expect(template.canApply, isFalse);
     });
 
+    test('json decoding defaults out-of-range color fields', () {
+      final scheme = LocalTerminalColorScheme.fromJson({
+        'background': -1,
+        'foreground': 0x1ffffffff,
+        'cursor': 0xffffff,
+      });
+
+      expect(scheme.background, 0x000000);
+      expect(scheme.foreground, 0xffffff);
+      expect(scheme.cursor, 0xffffff);
+    });
+
     test('advanced visual policy flags renderer-risk options', () {
       const safe = LocalTerminalAdvancedVisualPolicy();
       const risky = LocalTerminalAdvancedVisualPolicy(blurEnabled: true);
