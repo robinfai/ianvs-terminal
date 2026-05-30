@@ -320,7 +320,7 @@ fn shell_hook_profile() -> TerminalProfile {
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1bPhook;7b22686f6f6b223a22707265636d64222c22707764223a222f746d702f666c75747465726d227d\x1b\\")'"#
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1bPhook;7b22686f6f6b223a22707265636d64222c22707764223a222f746d702f69616e7673207465726d696e616c227d\x1b\\")'"#
                 .to_string(),
         ],
         BTreeMap::new(),
@@ -1515,7 +1515,7 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
                 "-lc".to_string(),
                 "printf '\\033[1m\\033[7m%%\\033[27m\\033[1m\\033[0m                                                                               '; \
                  sleep 0.2; \
-                 printf '\\r \\r\\033Phook;68656c6c6f\\033\\\\\\r\\033[0m\\033[27m\\033[24m\\033[J\\r\\nianvs-terminal-prompt\\r\\n> '; \
+                 printf '\\r \\r\\033Phook;68656c6c6f\\033\\\\\\r\\033[0m\\033[27m\\033[24m\\033[J\\r\\nianvs terminal-prompt\\r\\n> '; \
                  sleep 0.2"
                     .to_string(),
             ],

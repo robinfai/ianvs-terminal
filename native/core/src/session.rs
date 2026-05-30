@@ -3327,7 +3327,7 @@ mod tests {
         assert!(!state.buffer.is_empty());
 
         let events = state.observe(
-            b"22707764223a222f746d702f666c75747465726d227d\x1b\\",
+            b"22707764223a222f746d702f69616e7673207465726d696e616c227d\x1b\\",
             TerminalEmulation::Xterm256,
         );
 
