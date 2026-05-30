@@ -48,6 +48,25 @@ void main() {
       );
     });
 
+    test('hotkey window action exposes failure when size is invalid', () {
+      final result = LocalTerminalPolicyActionReducer.reduce(
+        actionId: TerminalActionId.hotkeyWindow,
+        policies: const LocalTerminalPolicyBundle(
+          hotkeyWindow: LocalTerminalHotkeyWindowPolicy(
+            enabled: true,
+            widthFraction: 1.2,
+          ),
+        ),
+        context: const LocalTerminalPolicyActionContext(),
+      );
+
+      expect(result, isA<LocalTerminalHotkeyActionResult>());
+      expect(
+        (result as LocalTerminalHotkeyActionResult).state.hasVisibleFailure,
+        isTrue,
+      );
+    });
+
     test('hotkey window action toggles when enabled and sized', () {
       final result = LocalTerminalPolicyActionReducer.reduce(
         actionId: TerminalActionId.hotkeyWindow,

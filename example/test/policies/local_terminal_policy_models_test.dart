@@ -63,9 +63,15 @@ void main() {
     test('hotkey window policy exposes usable size', () {
       const enabled = LocalTerminalHotkeyWindowPolicy(enabled: true);
       const invalid = LocalTerminalHotkeyWindowPolicy(widthFraction: 0);
+      const oversized = LocalTerminalHotkeyWindowPolicy(widthFraction: 1.2);
+      const nonFinite = LocalTerminalHotkeyWindowPolicy(
+        heightFraction: double.infinity,
+      );
 
       expect(enabled.hasUsableSize, isTrue);
       expect(invalid.hasUsableSize, isFalse);
+      expect(oversized.hasUsableSize, isFalse);
+      expect(nonFinite.hasUsableSize, isFalse);
     });
 
     test('hotkey window state exposes visible failure', () {

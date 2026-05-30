@@ -191,8 +191,13 @@ class LocalTerminalHotkeyWindowPolicy {
   final bool autohide;
 
   bool get hasUsableSize {
-    return widthFraction > 0 && heightFraction > 0;
+    return _isUsableFraction(widthFraction) &&
+        _isUsableFraction(heightFraction);
   }
+}
+
+bool _isUsableFraction(double value) {
+  return value.isFinite && value > 0 && value <= 1;
 }
 
 enum LocalTerminalHotkeyWindowFailureKind {
