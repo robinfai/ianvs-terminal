@@ -191,7 +191,7 @@ class LocalTerminalDiagnosticsExporter {
         .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
         .replaceAll(RegExp('-+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
-    if (safe.isEmpty) {
+    if (safe.isEmpty || RegExp(r'^\.+$').hasMatch(safe)) {
       return 'diagnostics-${DateTime.now().millisecondsSinceEpoch}';
     }
     return safe;

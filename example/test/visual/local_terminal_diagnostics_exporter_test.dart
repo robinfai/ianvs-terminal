@@ -88,4 +88,30 @@ void main() {
     expect(directory.path, isNot(contains('@')));
     expect(directory.path, isNot(contains(':')));
   });
+
+  test('diagnostics exporter rejects parent directory bundle names', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'ianvs terminal-diagnostics-exporter-dot-name-test-',
+    );
+    addTearDown(() => root.delete(recursive: true));
+
+    final directory = await LocalTerminalDiagnosticsExporter.write(
+      directory: root,
+      basename: '..',
+      exports: const <TerminalDiagnosticsExport>[
+        TerminalDiagnosticsExport(
+          manifest: <String, Object?>{'session_id': 1},
+          resourceSamples: <Map<String, Object?>>[],
+          terminalStats: <String, Object?>{},
+          events: <Map<String, Object?>>[],
+          summary: <String, Object?>{'conclusion': 'insufficient-evidence'},
+        ),
+      ],
+    );
+
+    final rootPath = await root.resolveSymbolicLinks();
+    final directoryPath = await directory.resolveSymbolicLinks();
+    expect(directoryPath, startsWith('$rootPath${Platform.pathSeparator}'));
+    expect(directory.parent.path, root.path);
+  });
 }
