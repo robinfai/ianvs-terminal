@@ -68,7 +68,7 @@ final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
   }
 
   static int? _intValue(Object? value) {
-    return value is num ? value.toInt() : null;
+    return value is num && value.isFinite ? value.toInt() : null;
   }
 }
 

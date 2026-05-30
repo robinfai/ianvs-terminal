@@ -607,6 +607,19 @@ void main() {
     expect(event.exitCode, 7);
   });
 
+  test('terminal shell hook payload ignores non-finite numeric fields', () {
+    final event = TerminalSessionShellHookEvent(
+      '1',
+      rawPayload: <String, Object?>{
+        'prompt_scrollback_offset': double.infinity,
+        'exit_code': double.nan,
+      },
+    );
+
+    expect(event.promptScrollbackOffset, isNull);
+    expect(event.exitCode, isNull);
+  });
+
   testWidgets('terminal runtime controller emits bell events', (tester) async {
     final runtimeBackend = _FakePtyBackend();
     final runtime = TerminalRuntimeController(
