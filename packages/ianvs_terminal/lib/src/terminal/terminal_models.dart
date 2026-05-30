@@ -311,8 +311,11 @@ class TerminalHyperlinkRange {
     final row = _intOrNullFromJson(json['row']);
     final startCol = _intOrNullFromJson(json['start_col']);
     final endCol = _intOrNullFromJson(json['end_col']);
-    final uri = _stringFromJson(json['uri']);
+    final uri = _nonEmptyTrimmedStringFromJson(json['uri']);
     if (row == null || startCol == null || endCol == null || uri == null) {
+      return null;
+    }
+    if (row < 0 || startCol < 0 || endCol <= startCol) {
       return null;
     }
     return TerminalHyperlinkRange(
@@ -364,17 +367,24 @@ class TerminalInlineImage {
     if (bytes.isEmpty || bytes.length > _maxInlineImageDecodedBytes) {
       return null;
     }
+    final row = _intFromJson(json['row'], fallback: 0);
+    final col = _intFromJson(json['col'] ?? json['column'], fallback: 0);
+    final widthCells = _intFromJson(
+      json['width_cells'] ?? json['widthCells'],
+      fallback: 1,
+    );
+    final heightCells = _intFromJson(
+      json['height_cells'] ?? json['heightCells'],
+      fallback: 1,
+    );
+    if (row < 0 || col < 0 || widthCells <= 0 || heightCells <= 0) {
+      return null;
+    }
     return TerminalInlineImage(
-      row: _intFromJson(json['row'], fallback: 0),
-      col: _intFromJson(json['col'] ?? json['column'], fallback: 0),
-      widthCells: _intFromJson(
-        json['width_cells'] ?? json['widthCells'],
-        fallback: 1,
-      ),
-      heightCells: _intFromJson(
-        json['height_cells'] ?? json['heightCells'],
-        fallback: 1,
-      ),
+      row: row,
+      col: col,
+      widthCells: widthCells,
+      heightCells: heightCells,
       bytes: bytes,
       altText:
           _stringFromJson(json['alt']) ?? _stringFromJson(json['alt_text']),
@@ -854,6 +864,11 @@ String? _stringFromJson(Object? value) {
     return value;
   }
   return null;
+}
+
+String? _nonEmptyTrimmedStringFromJson(Object? value) {
+  final text = _stringFromJson(value)?.trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 String _terminalMouseModeFromJson(Object? value) {

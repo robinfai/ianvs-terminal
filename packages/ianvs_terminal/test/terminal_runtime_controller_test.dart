@@ -263,9 +263,10 @@ void main() {
   });
 
   test('terminal frames skip malformed collection entries', () {
-    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+    final imageBytes = utf8.encode('fake-png');
+    final frame = TerminalFrameDiff.fromJson(<String, Object?>{
       'frame_kind': 'delta',
-      'rows': [
+      'rows': const [
         'bad-row',
         {
           'index': 0,
@@ -286,17 +287,71 @@ void main() {
       'viewport_cols': 80,
       'dirty_ranges': [
         'bad-range',
-        {'start': 0, 'end': 1},
+        const {'start': 0, 'end': 1},
         {'start': 'bad', 'end': 1},
       ],
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
       'hyperlinks': [
         'bad-link',
-        {'row': 0, 'start_col': 0, 'end_col': 2, 'uri': 'https://example.com'},
-        {'row': 0, 'start_col': 0, 'end_col': 2, 'uri': 7},
+        {
+          'row': 0,
+          'start_col': 0,
+          'end_col': 2,
+          'uri': ' https://example.com ',
+        },
+        const {'row': 0, 'start_col': 0, 'end_col': 2, 'uri': 7},
+        const {
+          'row': -1,
+          'start_col': 0,
+          'end_col': 2,
+          'uri': 'https://negative-row.example',
+        },
+        const {
+          'row': 0,
+          'start_col': -1,
+          'end_col': 2,
+          'uri': 'https://negative-col.example',
+        },
+        const {
+          'row': 0,
+          'start_col': 2,
+          'end_col': 2,
+          'uri': 'https://empty-range.example',
+        },
+        const {'row': 0, 'start_col': 0, 'end_col': 2, 'uri': '   '},
       ],
-      'inline_images': ['bad-image'],
+      'inline_images': [
+        'bad-image',
+        {
+          'row': -1,
+          'col': 0,
+          'width_cells': 1,
+          'height_cells': 1,
+          'data': base64.encode(imageBytes),
+        },
+        {
+          'row': 0,
+          'col': -1,
+          'width_cells': 1,
+          'height_cells': 1,
+          'data': base64.encode(imageBytes),
+        },
+        {
+          'row': 0,
+          'col': 0,
+          'width_cells': 0,
+          'height_cells': 1,
+          'data': base64.encode(imageBytes),
+        },
+        {
+          'row': 0,
+          'col': 0,
+          'width_cells': 1,
+          'height_cells': -1,
+          'data': base64.encode(imageBytes),
+        },
+      ],
       'modes': {'alternate_screen': true, 'mouse_mode': 7},
     });
 
