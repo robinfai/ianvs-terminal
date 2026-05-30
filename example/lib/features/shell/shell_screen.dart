@@ -280,6 +280,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const LocalTerminalConfigDocument();
   LocalTerminalKeybindingsConfig _keybindingsConfig =
       const LocalTerminalKeybindingsConfig();
+  LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();
+  LocalTerminalPasteHistoryPolicy _pasteHistoryPolicy =
+      const LocalTerminalPasteHistoryPolicy();
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
@@ -520,6 +523,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _notificationConfigSource = configBootstrap.source;
       _notificationLocalConfig = configBootstrap.config;
       _keybindingsConfig = configBootstrap.config.keybindings;
+      _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
+      _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(
+        configBootstrap.config.paste,
+      );
+      _pasteHistoryEntries = _pasteHistoryEntries
+          .take(_effectivePasteHistoryLimit)
+          .toList();
       _commandFinishedNotificationsEnabled =
           preferences.notifications.commandFinished;
       _bellNotificationsEnabled = preferences.notifications.bell;
@@ -579,6 +589,25 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       return Future.value(_notificationLocalConfig);
     }
     return ref.read(localTerminalConfigRepositoryProvider).load();
+  }
+
+  LocalTerminalPastePolicy _pastePolicyFromConfig(
+    LocalTerminalPasteConfig config,
+  ) {
+    return LocalTerminalPastePolicy(
+      confirmLargePaste: config.confirmLargePaste,
+      confirmMultilinePaste: config.confirmMultilinePaste,
+      historySize: config.historySize,
+    );
+  }
+
+  LocalTerminalPasteHistoryPolicy _pasteHistoryPolicyFromConfig(
+    LocalTerminalPasteConfig config,
+  ) {
+    return LocalTerminalPasteHistoryPolicy(
+      enabled: config.historySize > 0,
+      maxEntries: config.historySize,
+    );
   }
 
   Future<bool> _toggleHotkeyWindowWithFeedback() async {
@@ -1985,7 +2014,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       nextEntry,
       for (final entry in _pasteHistoryEntries)
         if (entry.text != normalizedText) entry,
-    ].take(_pasteHistoryLimit).toList();
+    ].take(_effectivePasteHistoryLimit).toList();
 
     if (mounted) {
       setState(() {
@@ -2003,6 +2032,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
   }
 
+  int get _effectivePasteHistoryLimit {
+    if (_pasteHistoryPolicy.maxEntries <= 0) {
+      return 0;
+    }
+    return math.min(_pasteHistoryLimit, _pasteHistoryPolicy.maxEntries);
+  }
+
   List<PasteHistoryEntry> _mergePasteHistoryEntries(
     List<PasteHistoryEntry> leading,
     List<PasteHistoryEntry> trailing,
@@ -2011,7 +2047,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     return <PasteHistoryEntry>[
       for (final entry in [...leading, ...trailing])
         if (entry.text.trim().isNotEmpty && seenTexts.add(entry.text)) entry,
-    ].take(_pasteHistoryLimit).toList();
+    ].take(_effectivePasteHistoryLimit).toList();
   }
 
   Future<void> _setPasteHistoryPersistence(bool enabled) async {
@@ -2346,8 +2382,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final decision = LocalTerminalPasteDecisionResolver.resolve(
       text: text,
       readOnly: _isSessionReadOnly(sessionId),
-      pastePolicy: const LocalTerminalPastePolicy(),
-      historyPolicy: const LocalTerminalPasteHistoryPolicy(),
+      pastePolicy: _pastePolicy,
+      historyPolicy: _pasteHistoryPolicy,
     );
     switch (decision.kind) {
       case LocalTerminalPasteDecisionKind.blockedReadOnly:
@@ -2706,8 +2742,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         final decision = LocalTerminalPasteDecisionResolver.resolve(
           text: entry.text,
           readOnly: _isSessionReadOnly(currentActiveSessionId),
-          pastePolicy: const LocalTerminalPastePolicy(),
-          historyPolicy: const LocalTerminalPasteHistoryPolicy(),
+          pastePolicy: _pastePolicy,
+          historyPolicy: _pasteHistoryPolicy,
         );
         switch (decision.kind) {
           case LocalTerminalPasteDecisionKind.blockedReadOnly:

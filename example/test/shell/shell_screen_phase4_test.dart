@@ -301,6 +301,47 @@ void main() {
     expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
   });
 
+  testWidgets('local paste config can disable multiline confirmation', (
+    tester,
+  ) async {
+    const clipboardText = 'one\ntwo';
+    final fakeBindings = FakePtyBackend();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          paste: LocalTerminalPasteConfig(confirmMultilinePaste: false),
+        ),
+      ),
+    );
+
+    await _tapCommandMenuAction(tester, const Key('shell-paste-clipboard'));
+
+    expect(find.byKey(const Key('paste-confirmation-dialog')), findsNothing);
+    expect(fakeBindings.writes, hasLength(1));
+    expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
+  });
+
   testWidgets(
     'command-v uses paste confirmation before sending multiline text',
     (tester) async {
