@@ -212,8 +212,11 @@ class HotkeyWindowStatus {
 }
 
 String? _stringFromPlatformValue(Object? value) {
-  if (value is String && value.isNotEmpty) {
-    return value;
+  if (value is String) {
+    final trimmed = value.trim();
+    if (trimmed.isNotEmpty) {
+      return trimmed;
+    }
   }
   return null;
 }

@@ -17,12 +17,21 @@ void main() {
   test('hotkey window status accepts numeric error codes', () {
     final status = HotkeyWindowStatus.fromMap(const <String, Object?>{
       'registered': true,
-      'shortcut': '⌃Space',
+      'shortcut': ' ⌃Space ',
       'errorCode': 12.0,
     });
 
     expect(status.registered, isTrue);
     expect(status.shortcut, '⌃Space');
     expect(status.errorCode, 12);
+  });
+
+  test('hotkey window status falls back for blank shortcuts', () {
+    final status = HotkeyWindowStatus.fromMap(const <String, Object?>{
+      'registered': true,
+      'shortcut': '   ',
+    });
+
+    expect(status.shortcut, '⌥⌘Space');
   });
 }
