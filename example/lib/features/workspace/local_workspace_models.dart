@@ -12,8 +12,8 @@ class TerminalPaneSessionIntent {
 
   static TerminalPaneSessionIntent fromJson(Map<Object?, Object?> json) {
     return TerminalPaneSessionIntent(
-      profileId: json['profileId'] as String? ?? '',
-      cwd: json['cwd'] as String?,
+      profileId: _stringOrNull(json['profileId']) ?? '',
+      cwd: _stringOrNull(json['cwd']),
     );
   }
 }
@@ -53,7 +53,7 @@ class TerminalWorkspace {
 
     return TerminalWorkspace(
       tabs: tabs,
-      activeTabId: json['activeTabId'] as String?,
+      activeTabId: _stringOrNull(json['activeTabId']),
       closedTabs: closedTabs,
     );
   }
@@ -197,13 +197,13 @@ class TerminalWorkspaceTab {
       _objectMap(json['root']) ?? const {},
     );
     return TerminalWorkspaceTab(
-      id: json['id'] as String? ?? '',
+      id: _stringOrNull(json['id']) ?? '',
       root: root,
-      activePaneId: json['activePaneId'] as String? ?? root.firstLeafId,
+      activePaneId: _stringOrNull(json['activePaneId']) ?? root.firstLeafId,
       closedPanes: _objectList(
         json['closedPanes'],
       ).map(TerminalPaneNode.fromJson).toList(growable: false),
-      zoomedPaneId: json['zoomedPaneId'] as String?,
+      zoomedPaneId: _stringOrNull(json['zoomedPaneId']),
     );
   }
 
@@ -399,16 +399,16 @@ class TerminalPaneNode {
         json['children'],
       ).map(TerminalPaneNode.fromJson).toList(growable: false);
       return TerminalPaneNode.split(
-        id: json['id'] as String? ?? '',
+        id: _stringOrNull(json['id']) ?? '',
         direction: _splitDirection(json['direction']),
         first: children.isEmpty ? _emptyLeaf() : children.first,
         second: children.length < 2 ? _emptyLeaf() : children[1],
-        ratio: (json['ratio'] as num?)?.toDouble() ?? 0.5,
+        ratio: _doubleFromJson(json['ratio'], 0.5),
       );
     }
 
     return TerminalPaneNode.leaf(
-      id: json['id'] as String? ?? '',
+      id: _stringOrNull(json['id']) ?? '',
       sessionIntent: TerminalPaneSessionIntent.fromJson(
         _objectMap(json['sessionIntent']) ?? const {},
       ),
@@ -534,6 +534,14 @@ Map<Object?, Object?>? _objectMap(Object? value) {
     return value.cast<Object?, Object?>();
   }
   return null;
+}
+
+String? _stringOrNull(Object? value) {
+  return value is String ? value : null;
+}
+
+double _doubleFromJson(Object? value, double fallback) {
+  return value is num ? value.toDouble() : fallback;
 }
 
 List<Map<Object?, Object?>> _objectList(Object? value) {
