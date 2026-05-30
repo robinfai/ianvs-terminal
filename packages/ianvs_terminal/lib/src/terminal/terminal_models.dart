@@ -448,7 +448,14 @@ class TerminalSearchMatch {
     final startCol = _intOrNullFromJson(json['start_col']);
     final endCol = _intOrNullFromJson(json['end_col']);
     final text = _stringFromJson(json['text']);
-    if (row == null || startCol == null || endCol == null || text == null) {
+    if (row == null ||
+        row < 0 ||
+        startCol == null ||
+        startCol < 0 ||
+        endCol == null ||
+        endCol <= startCol ||
+        text == null ||
+        text.isEmpty) {
       return null;
     }
     return TerminalSearchMatch(
@@ -456,7 +463,7 @@ class TerminalSearchMatch {
       startCol: startCol,
       endCol: endCol,
       text: text,
-      scrollbackOffset: _intFromJson(json['scrollback_offset'], fallback: 0),
+      scrollbackOffset: _nonNegativeIntFromJson(json['scrollback_offset']),
     );
   }
 }

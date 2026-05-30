@@ -1034,10 +1034,29 @@ void main() {
             'start_col': 1,
             'end_col': 5,
             'text': 'good',
-            'scrollback_offset': 2,
+            'scrollback_offset': -2,
           },
           null,
           <String, Object?>{'row': 'bad'},
+          <String, Object?>{
+            'row': -1,
+            'start_col': 1,
+            'end_col': 5,
+            'text': 'negative-row',
+          },
+          <String, Object?>{
+            'row': 0,
+            'start_col': -1,
+            'end_col': 5,
+            'text': 'negative-start',
+          },
+          <String, Object?>{
+            'row': 0,
+            'start_col': 5,
+            'end_col': 5,
+            'text': 'empty-range',
+          },
+          <String, Object?>{'row': 0, 'start_col': 1, 'end_col': 5, 'text': ''},
         ],
       });
     final runtime = TerminalRuntimeController(
@@ -1057,6 +1076,7 @@ void main() {
     final search = runtime.searchTextResult(sessionId, 'ready');
 
     expect(search.matches.map((match) => match.text), <String>['good']);
+    expect(search.matches.single.scrollbackOffset, 0);
     expect(search.errorText, isNull);
   });
 
