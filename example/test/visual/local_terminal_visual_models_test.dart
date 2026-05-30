@@ -50,6 +50,22 @@ void main() {
       expect(template.canApply, isFalse);
     });
 
+    test('layout template pane count accepts zero but rejects negatives', () {
+      final disabled = LocalTerminalLayoutTemplate.fromJson({
+        'paneCount': 0,
+        'localOnly': true,
+      });
+      final negative = LocalTerminalLayoutTemplate.fromJson({
+        'paneCount': -2,
+        'localOnly': true,
+      });
+
+      expect(disabled.paneCount, 0);
+      expect(disabled.canApply, isFalse);
+      expect(negative.paneCount, 0);
+      expect(negative.canApply, isFalse);
+    });
+
     test('json decoding defaults out-of-range color fields', () {
       final scheme = LocalTerminalColorScheme.fromJson({
         'background': -1,

@@ -150,7 +150,7 @@ class LocalTerminalLayoutTemplate {
     return LocalTerminalLayoutTemplate(
       id: _stringOrNull(json['id']) ?? '',
       name: _stringOrNull(json['name']) ?? '',
-      paneCount: _intFromJson(json['paneCount'], 0),
+      paneCount: _nonNegativeIntFromJson(json['paneCount'], 0),
       localOnly: _boolFromJson(json['localOnly'], false),
     );
   }
@@ -259,4 +259,9 @@ int _intFromJson(Object? value, int fallback) {
 int _colorIntFromJson(Object? value, int fallback) {
   final parsed = _intFromJson(value, fallback);
   return parsed < 0 || parsed > 0xffffffff ? fallback : parsed;
+}
+
+int _nonNegativeIntFromJson(Object? value, int fallback) {
+  final parsed = _intFromJson(value, fallback);
+  return parsed < 0 ? fallback : parsed;
 }
