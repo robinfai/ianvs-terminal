@@ -163,8 +163,8 @@ final class TerminalDiagnosticsExport {
   final List<Map<String, Object?>> events;
   final Map<String, Object?> summary;
 
-  String? get conclusion => summary['conclusion'] as String?;
-  String? get summaryMarkdown => summary['markdown'] as String?;
+  String? get conclusion => _stringFromJsonValue(summary['conclusion']);
+  String? get summaryMarkdown => _stringFromJsonValue(summary['markdown']);
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -179,7 +179,7 @@ final class TerminalDiagnosticsExport {
 
 Map<String, Object?> _mapValue(Object? value) {
   if (value is Map) {
-    return Map<String, Object?>.unmodifiable(value.cast<String, Object?>());
+    return Map<String, Object?>.unmodifiable(_stringKeyedJsonMap(value));
   }
   return const <String, Object?>{};
 }
@@ -190,8 +190,7 @@ List<Map<String, Object?>> _mapList(Object? value) {
   }
   return List<Map<String, Object?>>.unmodifiable(
     value.whereType<Map>().map(
-      (entry) =>
-          Map<String, Object?>.unmodifiable(entry.cast<String, Object?>()),
+      (entry) => Map<String, Object?>.unmodifiable(_stringKeyedJsonMap(entry)),
     ),
   );
 }

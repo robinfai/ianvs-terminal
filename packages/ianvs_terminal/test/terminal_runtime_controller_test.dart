@@ -947,6 +947,29 @@ void main() {
     });
   });
 
+  test('terminal diagnostics export tolerates malformed summary fields', () {
+    final export = TerminalDiagnosticsExport.fromJson(<String, Object?>{
+      'manifest': <Object?, Object?>{
+        7: 'ignored',
+        'schema_version': 'terminal-diagnostics-session-v1',
+      },
+      'resource_samples': <Object?>[
+        <Object?, Object?>{7: 'ignored', 'rss_bytes': 100},
+        'bad-sample',
+      ],
+      'summary': <String, Object?>{'conclusion': 42, 'markdown': false},
+    });
+
+    expect(export.manifest, <String, Object?>{
+      'schema_version': 'terminal-diagnostics-session-v1',
+    });
+    expect(export.resourceSamples, <Map<String, Object?>>[
+      <String, Object?>{'rss_bytes': 100},
+    ]);
+    expect(export.conclusion, isNull);
+    expect(export.summaryMarkdown, isNull);
+  });
+
   test(
     'terminal runtime degrades diagnostics export to null on bad backend data',
     () {
