@@ -30,6 +30,8 @@ class ShellPromptMark {
   final String id;
   final int row;
   final String? cwd;
+
+  bool get isValid => id.trim().isNotEmpty && row >= 0;
 }
 
 class ShellCommandOutputRange {
@@ -65,7 +67,10 @@ class ShellProductivityState {
 
   bool get canSendText => !readOnly;
   bool get canPaste => !readOnly;
-  bool get canNavigatePrompts => features.promptMarks && promptMarks.isNotEmpty;
+  bool get canNavigatePrompts {
+    return features.promptMarks && promptMarks.any((mark) => mark.isValid);
+  }
+
   bool get canSelectCommandOutput {
     return features.commandOutputRanges &&
         commandOutputRanges.any((range) => range.isValid);
@@ -82,7 +87,8 @@ class ShellProductivityState {
 
     ShellPromptMark? candidate;
     for (final mark in promptMarks) {
-      if (mark.row < currentRow &&
+      if (mark.isValid &&
+          mark.row < currentRow &&
           (candidate == null || mark.row > candidate.row)) {
         candidate = mark;
       }
@@ -97,7 +103,8 @@ class ShellProductivityState {
 
     ShellPromptMark? candidate;
     for (final mark in promptMarks) {
-      if (mark.row > currentRow &&
+      if (mark.isValid &&
+          mark.row > currentRow &&
           (candidate == null || mark.row < candidate.row)) {
         candidate = mark;
       }

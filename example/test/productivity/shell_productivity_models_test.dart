@@ -16,6 +16,25 @@ void main() {
       expect(state.nextPrompt(10)!.id, 'p3');
     });
 
+    test('prompt navigation skips invalid marks', () {
+      const state = ShellProductivityState(
+        promptMarks: [
+          ShellPromptMark(id: '', row: 4),
+          ShellPromptMark(id: 'negative', row: -1),
+          ShellPromptMark(id: 'ok', row: 8),
+        ],
+      );
+      const invalidOnly = ShellProductivityState(
+        promptMarks: [ShellPromptMark(id: '', row: -1)],
+      );
+
+      expect(state.canNavigatePrompts, isTrue);
+      expect(state.previousPrompt(10)!.id, 'ok');
+      expect(state.nextPrompt(1)!.id, 'ok');
+      expect(invalidOnly.canNavigatePrompts, isFalse);
+      expect(invalidOnly.previousPrompt(10), isNull);
+    });
+
     test('disabled shell integration gates prompt navigation', () {
       const state = ShellProductivityState(
         features: ShellIntegrationFeatureSet.disabled(),

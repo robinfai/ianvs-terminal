@@ -14,6 +14,24 @@ void main() {
       expect(snapshot.recentItems.directories.single.path, '/repo');
     });
 
+    test('ignores invalid prompt mark events', () {
+      final blankId = ShellProductivityReducer.reduce(
+        const ShellProductivitySnapshot(),
+        const ShellPromptMarkEvent(id: '   ', row: 4, cwd: '/repo'),
+      );
+      final negativeRow = ShellProductivityReducer.reduce(
+        const ShellProductivitySnapshot(),
+        const ShellPromptMarkEvent(id: 'p1', row: -1, cwd: '/repo'),
+      );
+
+      expect(blankId.state.promptMarks, isEmpty);
+      expect(blankId.currentCwd, isNull);
+      expect(blankId.recentItems.directories, isEmpty);
+      expect(negativeRow.state.promptMarks, isEmpty);
+      expect(negativeRow.currentCwd, isNull);
+      expect(negativeRow.recentItems.directories, isEmpty);
+    });
+
     test('records command finished events as recent commands', () {
       final withCwd = ShellProductivityReducer.reduce(
         const ShellProductivitySnapshot(),

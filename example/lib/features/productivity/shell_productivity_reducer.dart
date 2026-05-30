@@ -90,13 +90,18 @@ class ShellProductivityReducer {
     ShellProductivitySnapshot snapshot,
     ShellPromptMarkEvent event,
   ) {
+    final id = _trimmedOrNull(event.id);
+    if (id == null || event.row < 0) {
+      return snapshot;
+    }
+
     final cwd = _trimmedOrNull(event.cwd);
     return ShellProductivitySnapshot(
       state: ShellProductivityState(
         features: snapshot.state.features,
         promptMarks: [
           ...snapshot.state.promptMarks,
-          ShellPromptMark(id: event.id, row: event.row, cwd: cwd),
+          ShellPromptMark(id: id, row: event.row, cwd: cwd),
         ],
         commandOutputRanges: snapshot.state.commandOutputRanges,
         recentCommands: snapshot.state.recentCommands,
