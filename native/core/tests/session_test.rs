@@ -13,6 +13,8 @@ use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
 
+const SESSION_WAIT_ATTEMPTS: usize = 50;
+
 fn local_profile(
     id: &str,
     name: &str,
@@ -150,17 +152,31 @@ fn streaming_scrollback_profile() -> TerminalProfile {
     )
 }
 
-fn single_line_scroll_shift_profile() -> TerminalProfile {
+fn single_line_scroll_shift_profile(gate_path: &Path) -> TerminalProfile {
+    let mut env = BTreeMap::new();
+    env.insert(
+        "IANVS_SCROLL_GATE".to_string(),
+        gate_path.display().to_string(),
+    );
     local_profile(
         "single-line-scroll-shift",
         "Single Line Scroll Shift",
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            "i=0; while [ \"$i\" -lt 6 ]; do printf 'line%02d\\n' \"$i\"; i=$((i + 1)); if [ \"$i\" -eq 5 ]; then sleep 0.35; fi; done"
-                .to_string(),
+            r#"python3 -c 'import os, sys, time
+gate = os.environ["IANVS_SCROLL_GATE"]
+for i in range(5):
+    sys.stdout.write(f"line{i:02d}\n")
+sys.stdout.flush()
+while not os.path.exists(gate):
+    time.sleep(0.01)
+sys.stdout.write("line05\n")
+sys.stdout.flush()
+'"#
+            .to_string(),
         ],
-        BTreeMap::new(),
+        env,
         TerminalEmulation::Xterm256,
     )
 }
@@ -598,7 +614,7 @@ fn vt220_wraparound_repaint_profile() -> TerminalProfile {
 }
 
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
-    for _ in 0..20 {
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
         if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
             if frame.contains(needle) {
                 return frame;
@@ -610,7 +626,7 @@ fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
 }
 
 fn wait_for_frame_where(session_id: u64, predicate: impl Fn(&str) -> bool) -> String {
-    for _ in 0..20 {
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
         if let Some(frame) = session::take_frame_diff(session_id)
             .unwrap()
             .filter(|frame| predicate(frame))
@@ -623,7 +639,7 @@ fn wait_for_frame_where(session_id: u64, predicate: impl Fn(&str) -> bool) -> St
 }
 
 fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
-    for _ in 0..20 {
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
         let events = session::poll_events(session_id).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
         if let Some(event) = parsed
@@ -2680,13 +2696,16 @@ fn scrolling_output_keeps_using_delta_frames_after_viewport_advances() {
 
 #[test]
 fn single_line_scroll_reports_viewport_row_shift_and_bottom_dirty_range() {
+    let gate = tempdir().unwrap();
+    let gate_path = gate.path().join("continue");
     let session_id = session::create_session(
-        &serde_json::to_string(&single_line_scroll_shift_profile()).unwrap(),
+        &serde_json::to_string(&single_line_scroll_shift_profile(&gate_path)).unwrap(),
     )
     .unwrap();
     session::resize_session(session_id, 40, 5, 0, 0).unwrap();
 
     let _ = wait_for_frame_containing(session_id, "line04");
+    fs::write(&gate_path, "").unwrap();
 
     let shifted = wait_for_frame_containing(session_id, "line05");
     let shifted_parsed: serde_json::Value = serde_json::from_str(&shifted).unwrap();
@@ -2717,13 +2736,16 @@ fn single_line_scroll_reports_viewport_row_shift_and_bottom_dirty_range() {
 
 #[test]
 fn damage_driven_delta_reports_low_rows_scanned_for_single_line_scroll() {
+    let gate = tempdir().unwrap();
+    let gate_path = gate.path().join("continue");
     let session_id = session::create_session(
-        &serde_json::to_string(&single_line_scroll_shift_profile()).unwrap(),
+        &serde_json::to_string(&single_line_scroll_shift_profile(&gate_path)).unwrap(),
     )
     .unwrap();
     session::resize_session(session_id, 40, 5, 0, 0).unwrap();
 
     let _ = wait_for_frame_containing(session_id, "line04");
+    fs::write(&gate_path, "").unwrap();
     let _ = wait_for_frame_containing(session_id, "line05");
     let debug_stats = session::take_frame_debug_stats_json(session_id)
         .unwrap()
