@@ -31,9 +31,16 @@ void main() {
         paneCount: 2,
         localOnly: false,
       );
+      const unsupported = LocalTerminalLayoutTemplate(
+        id: 'three-pane',
+        name: 'Three Pane',
+        paneCount: 3,
+        localOnly: true,
+      );
 
       expect(local.canApply, isTrue);
       expect(remote.canApply, isFalse);
+      expect(unsupported.canApply, isFalse);
     });
 
     test('json decoding defaults non-finite numeric fields', () {

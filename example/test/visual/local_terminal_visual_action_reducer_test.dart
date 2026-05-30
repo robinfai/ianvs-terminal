@@ -59,5 +59,21 @@ void main() {
         'two-pane',
       );
     });
+
+    test('apply layout template action ignores unsupported templates', () {
+      final result = LocalTerminalVisualActionReducer.reduce(
+        actionId: TerminalActionId.applyLayoutTemplate,
+        context: const LocalTerminalVisualActionContext(
+          layoutTemplate: LocalTerminalLayoutTemplate(
+            id: 'three-pane',
+            name: 'Three Pane',
+            paneCount: 3,
+            localOnly: true,
+          ),
+        ),
+      );
+
+      expect(result, isA<LocalTerminalVisualNoopResult>());
+    });
   });
 }

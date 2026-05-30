@@ -135,7 +135,7 @@ class LocalTerminalLayoutTemplate {
   final int paneCount;
   final bool localOnly;
 
-  bool get canApply => localOnly && paneCount > 0;
+  bool get canApply => localOnly && paneCount > 0 && paneCount <= 2;
 
   Map<String, Object?> toJson() {
     return {

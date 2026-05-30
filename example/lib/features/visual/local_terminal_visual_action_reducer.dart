@@ -57,9 +57,19 @@ class LocalTerminalVisualActionReducer {
           content: context.scrollbackText,
         ),
       ),
-      TerminalActionId.applyLayoutTemplate =>
-        LocalTerminalApplyLayoutTemplateResult(context.layoutTemplate),
+      TerminalActionId.applyLayoutTemplate => _applyLayoutTemplate(
+        context.layoutTemplate,
+      ),
       _ => const LocalTerminalVisualNoopResult(),
     };
+  }
+
+  static LocalTerminalVisualActionResult _applyLayoutTemplate(
+    LocalTerminalLayoutTemplate? template,
+  ) {
+    if (template == null || !template.canApply) {
+      return const LocalTerminalVisualNoopResult();
+    }
+    return LocalTerminalApplyLayoutTemplateResult(template);
   }
 }

@@ -50,6 +50,20 @@ void main() {
 
       expect(workspace, isNull);
     });
+
+    test('rejects unsupported multi-pane template', () {
+      final workspace = LocalTerminalLayoutTemplateApplier.apply(
+        template: const LocalTerminalLayoutTemplate(
+          id: 'three',
+          name: 'Three',
+          paneCount: 3,
+          localOnly: true,
+        ),
+        context: _context(),
+      );
+
+      expect(workspace, isNull);
+    });
   });
 }
 
