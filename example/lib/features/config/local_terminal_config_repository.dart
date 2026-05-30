@@ -62,14 +62,18 @@ class LocalTerminalConfigMigration {
       return const LocalTerminalConfigDocument();
     }
 
+    final notifications = preferences.notifications;
     return LocalTerminalConfigDocument(
       defaultProfileId: preferences.defaults.defaultProfileId,
       appearance: preferences.appearance,
       notifications: LocalTerminalNotificationsConfig(
         enabled:
-            preferences.notifications.commandFinished ||
-            preferences.notifications.bell ||
-            preferences.notifications.activity,
+            notifications.commandFinished ||
+            notifications.bell ||
+            notifications.activity,
+        commandFinished: notifications.commandFinished,
+        bell: notifications.bell,
+        activity: notifications.activity,
       ),
     );
   }

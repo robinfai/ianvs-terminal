@@ -355,19 +355,39 @@ class LocalTerminalShellIntegrationConfig {
 }
 
 class LocalTerminalNotificationsConfig {
-  const LocalTerminalNotificationsConfig({this.enabled = true});
+  const LocalTerminalNotificationsConfig({
+    bool enabled = true,
+    bool? commandFinished,
+    bool? bell,
+    bool? activity,
+  }) : enabled = enabled,
+       commandFinished = commandFinished ?? enabled,
+       bell = bell ?? enabled,
+       activity = activity ?? enabled;
 
   final bool enabled;
+  final bool commandFinished;
+  final bool bell;
+  final bool activity;
 
   Map<String, Object?> toJson() {
-    return {'enabled': enabled};
+    return {
+      'enabled': enabled,
+      'commandFinished': commandFinished,
+      'bell': bell,
+      'activity': activity,
+    };
   }
 
   static LocalTerminalNotificationsConfig fromJson(
     Map<Object?, Object?>? json,
   ) {
+    final enabled = _boolFromJson(json?['enabled'], true);
     return LocalTerminalNotificationsConfig(
-      enabled: _boolFromJson(json?['enabled'], true),
+      enabled: enabled,
+      commandFinished: _boolOrNull(json?['commandFinished']) ?? enabled,
+      bell: _boolOrNull(json?['bell']) ?? enabled,
+      activity: _boolOrNull(json?['activity']) ?? enabled,
     );
   }
 }
@@ -404,6 +424,10 @@ String? _stringOrNull(Object? value) {
 
 bool _boolFromJson(Object? value, bool fallback) {
   return value is bool ? value : fallback;
+}
+
+bool? _boolOrNull(Object? value) {
+  return value is bool ? value : null;
 }
 
 int _intFromJson(Object? value, int fallback) {

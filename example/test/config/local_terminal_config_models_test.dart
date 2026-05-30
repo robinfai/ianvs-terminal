@@ -25,6 +25,9 @@ void main() {
       );
       expect(config.shellIntegration.enabled, isTrue);
       expect(config.notifications.enabled, isTrue);
+      expect(config.notifications.commandFinished, isTrue);
+      expect(config.notifications.bell, isTrue);
+      expect(config.notifications.activity, isTrue);
       expect(config.hotkeyWindow.enabled, isFalse);
     });
 
@@ -88,6 +91,24 @@ void main() {
       final decoded = LocalTerminalConfigDocument.decode(config.encode());
 
       expect(decoded.appearance.terminalViewportPadding, 16);
+    });
+
+    test('notifications keep independent toggles through json', () {
+      const config = LocalTerminalConfigDocument(
+        notifications: LocalTerminalNotificationsConfig(
+          enabled: true,
+          commandFinished: false,
+          bell: true,
+          activity: false,
+        ),
+      );
+
+      final decoded = LocalTerminalConfigDocument.decode(config.encode());
+
+      expect(decoded.notifications.enabled, isTrue);
+      expect(decoded.notifications.commandFinished, isFalse);
+      expect(decoded.notifications.bell, isTrue);
+      expect(decoded.notifications.activity, isFalse);
     });
   });
 }

@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:app/features/config/local_terminal_config_models.dart';
+import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -22,6 +24,8 @@ Future<void> _pumpShellScreen(
   required FakePtyBackend fakeBindings,
   ThemeMode themeMode = ThemeMode.light,
   TerminalAppPreferencesDocument? preferences,
+  MemoryAppPreferencesRepository? preferencesRepository,
+  LocalTerminalConfigRepository? localConfigRepository,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -36,7 +40,10 @@ Future<void> _pumpShellScreen(
           MemoryPasteHistoryRepository(),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
-          MemoryAppPreferencesRepository(preferences),
+          preferencesRepository ?? MemoryAppPreferencesRepository(preferences),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          localConfigRepository ?? _MemoryLocalTerminalConfigRepository(null),
         ),
       ],
       child: MaterialApp(
@@ -52,6 +59,36 @@ Future<void> _pumpShellScreen(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _MemoryLocalTerminalConfigRepository
+    extends LocalTerminalConfigRepository {
+  _MemoryLocalTerminalConfigRepository(this._document);
+
+  LocalTerminalConfigDocument? _document;
+  final List<LocalTerminalConfigDocument> savedDocuments = [];
+
+  @override
+  Future<LocalTerminalConfigDocument?> load() async => _document;
+
+  @override
+  Future<void> save(LocalTerminalConfigDocument document) async {
+    savedDocuments.add(document);
+    _document = document;
+  }
+}
+
+class _RecordingAppPreferencesRepository
+    extends MemoryAppPreferencesRepository {
+  _RecordingAppPreferencesRepository(super.document);
+
+  final List<TerminalAppPreferencesDocument> savedDocuments = [];
+
+  @override
+  Future<void> save(TerminalAppPreferencesDocument document) async {
+    savedDocuments.add(document);
+    await super.save(document);
+  }
 }
 
 Future<void> _openCommandMenu(WidgetTester tester) async {
@@ -125,6 +162,60 @@ void main() {
     expect(viewport.contentPadding, const EdgeInsets.all(20));
   });
 
+  testWidgets('notification toggles read and write local config when present', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    final legacyPreferencesRepository = _RecordingAppPreferencesRepository(
+      const TerminalAppPreferencesDocument(
+        notifications: TerminalAppNotifications(
+          commandFinished: true,
+          bell: true,
+          activity: true,
+        ),
+      ),
+    );
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        workspace: LocalTerminalWorkspaceConfig(restoreLayout: true),
+        notifications: LocalTerminalNotificationsConfig(
+          enabled: true,
+          commandFinished: true,
+          bell: false,
+          activity: true,
+        ),
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      preferencesRepository: legacyPreferencesRepository,
+      localConfigRepository: localConfigRepository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('shell-toggle-bell-notify')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Enable bell notifications'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-toggle-bell-notify')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bell notifications enabled and saved.'), findsOneWidget);
+    expect(legacyPreferencesRepository.savedDocuments, isEmpty);
+    expect(localConfigRepository.savedDocuments, hasLength(1));
+    final savedConfig = localConfigRepository.savedDocuments.single;
+    expect(savedConfig.workspace.restoreLayout, isTrue);
+    expect(savedConfig.notifications.enabled, isTrue);
+    expect(savedConfig.notifications.commandFinished, isTrue);
+    expect(savedConfig.notifications.bell, isTrue);
+    expect(savedConfig.notifications.activity, isTrue);
+  });
+
   testWidgets('paste clipboard confirms multiline text before sending', (
     tester,
   ) async {
@@ -164,53 +255,57 @@ void main() {
     expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
   });
 
-  testWidgets('command-v uses paste confirmation before sending multiline text', (
-    tester,
-  ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+  testWidgets(
+    'command-v uses paste confirmation before sending multiline text',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
 
-    const clipboardText = 'one\ntwo';
-    final fakeBindings = FakePtyBackend();
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (methodCall) async {
-        if (methodCall.method == 'Clipboard.getData') {
-          return <String, dynamic>{'text': clipboardText};
-        }
-        if (methodCall.method == 'Clipboard.setData') {
-          return null;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const clipboardText = 'one\ntwo';
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
-        null,
-      ),
-    );
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
 
-    await tester.sendKeyDownEvent(
-      LogicalKeyboardKey.metaLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV, platform: 'macos');
-    await tester.sendKeyUpEvent(
-      LogicalKeyboardKey.metaLeft,
-      platform: 'macos',
-    );
-    await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pumpAndSettle();
 
-    debugDefaultTargetPlatformOverride = null;
+      debugDefaultTargetPlatformOverride = null;
 
-    expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
-    expect(fakeBindings.writes, isEmpty);
-  });
+      expect(
+        find.byKey(const Key('paste-confirmation-dialog')),
+        findsOneWidget,
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
   testWidgets('zoom active pane hides the split sibling and can unzoom', (
     tester,

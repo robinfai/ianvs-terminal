@@ -218,6 +218,11 @@ void main() {
       const preferences = TerminalAppPreferencesDocument(
         defaults: TerminalAppDefaults(defaultProfileId: 'local-dev'),
         appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.dark),
+        notifications: TerminalAppNotifications(
+          commandFinished: false,
+          bell: true,
+          activity: false,
+        ),
       );
 
       final migrated = LocalTerminalConfigMigration.fromLegacyAppPreferences(
@@ -226,6 +231,10 @@ void main() {
 
       expect(migrated.defaultProfileId, 'local-dev');
       expect(migrated.appearance.themeMode, TerminalThemeMode.dark);
+      expect(migrated.notifications.enabled, isTrue);
+      expect(migrated.notifications.commandFinished, isFalse);
+      expect(migrated.notifications.bell, isTrue);
+      expect(migrated.notifications.activity, isFalse);
       expect(migrated.keybindings.disabledDefaultActions, isEmpty);
     });
   });

@@ -12,7 +12,12 @@ void main() {
           themeMode: TerminalThemeMode.dark,
           terminalViewportPadding: 18,
         ),
-        notifications: LocalTerminalNotificationsConfig(enabled: false),
+        notifications: LocalTerminalNotificationsConfig(
+          enabled: true,
+          commandFinished: false,
+          bell: true,
+          activity: false,
+        ),
       );
 
       final preferences =
@@ -22,7 +27,7 @@ void main() {
       expect(preferences.appearance.themeMode, TerminalThemeMode.dark);
       expect(preferences.appearance.terminalViewportPadding, 18);
       expect(preferences.notifications.commandFinished, isFalse);
-      expect(preferences.notifications.bell, isFalse);
+      expect(preferences.notifications.bell, isTrue);
       expect(preferences.notifications.activity, isFalse);
     });
   });

@@ -12,7 +12,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
+import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
+import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/local_terminal_keybinding_resolver.dart';
 import '../preferences/app_preferences_models.dart';
 import '../policies/local_terminal_paste_decision.dart';
@@ -272,6 +274,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _commandFinishedNotificationsEnabled = true;
   bool _bellNotificationsEnabled = true;
   bool _activityNotificationsEnabled = true;
+  LocalTerminalConfigBootstrapSource _notificationConfigSource =
+      LocalTerminalConfigBootstrapSource.defaults;
+  LocalTerminalConfigDocument _notificationLocalConfig =
+      const LocalTerminalConfigDocument();
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
@@ -501,11 +507,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   Future<void> _loadNotificationPreferences() async {
-    final preferences = await ref.read(appPreferencesRepositoryProvider).load();
-    if (!mounted || preferences == null) {
+    final configBootstrap = await _loadNotificationConfig();
+    final preferences = LocalTerminalConfigPreferencesAdapter.toAppPreferences(
+      configBootstrap.config,
+    );
+    if (!mounted) {
       return;
     }
     setState(() {
+      _notificationConfigSource = configBootstrap.source;
+      _notificationLocalConfig = configBootstrap.config;
       _commandFinishedNotificationsEnabled =
           preferences.notifications.commandFinished;
       _bellNotificationsEnabled = preferences.notifications.bell;
@@ -513,19 +524,58 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     });
   }
 
+  Future<LocalTerminalConfigBootstrapResult> _loadNotificationConfig() async {
+    try {
+      return await ref.read(localTerminalConfigLoaderProvider).load();
+    } on Object {
+      final legacyPreferences = await ref
+          .read(appPreferencesRepositoryProvider)
+          .load();
+      return LocalTerminalConfigBootstrap.resolve(
+        localConfig: null,
+        legacyAppPreferences: legacyPreferences,
+      );
+    }
+  }
+
   Future<void> _saveNotificationPreferences() async {
+    final notifications = TerminalAppNotifications(
+      commandFinished: _commandFinishedNotificationsEnabled,
+      bell: _bellNotificationsEnabled,
+      activity: _activityNotificationsEnabled,
+    );
+    final localConfig = await _loadLocalNotificationConfigForSave();
+    if (localConfig != null) {
+      final nextConfig = localConfig.copyWith(
+        notifications: LocalTerminalNotificationsConfig(
+          enabled:
+              notifications.commandFinished ||
+              notifications.bell ||
+              notifications.activity,
+          commandFinished: notifications.commandFinished,
+          bell: notifications.bell,
+          activity: notifications.activity,
+        ),
+      );
+      _notificationConfigSource =
+          LocalTerminalConfigBootstrapSource.localConfig;
+      _notificationLocalConfig = nextConfig;
+      await ref.read(localTerminalConfigRepositoryProvider).save(nextConfig);
+      return;
+    }
+
     final repository = ref.read(appPreferencesRepositoryProvider);
     final preferences =
         await repository.load() ?? const TerminalAppPreferencesDocument();
-    await repository.save(
-      preferences.copyWith(
-        notifications: TerminalAppNotifications(
-          commandFinished: _commandFinishedNotificationsEnabled,
-          bell: _bellNotificationsEnabled,
-          activity: _activityNotificationsEnabled,
-        ),
-      ),
-    );
+    await repository.save(preferences.copyWith(notifications: notifications));
+  }
+
+  Future<LocalTerminalConfigDocument?> _loadLocalNotificationConfigForSave() {
+    if (_notificationConfigSource ==
+        LocalTerminalConfigBootstrapSource.localConfig) {
+      return Future.value(_notificationLocalConfig);
+    }
+    return ref.read(localTerminalConfigRepositoryProvider).load();
   }
 
   Future<bool> _toggleHotkeyWindowWithFeedback() async {

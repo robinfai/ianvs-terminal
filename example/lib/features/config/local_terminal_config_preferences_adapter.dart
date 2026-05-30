@@ -11,9 +11,9 @@ class LocalTerminalConfigPreferencesAdapter {
       defaults: TerminalAppDefaults(defaultProfileId: config.defaultProfileId),
       appearance: config.appearance,
       notifications: TerminalAppNotifications(
-        commandFinished: config.notifications.enabled,
-        bell: config.notifications.enabled,
-        activity: config.notifications.enabled,
+        commandFinished: config.notifications.commandFinished,
+        bell: config.notifications.bell,
+        activity: config.notifications.activity,
       ),
     );
   }
