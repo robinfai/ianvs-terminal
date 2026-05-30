@@ -11,7 +11,7 @@ objective.
 
 | Script | Purpose | Runs verification |
 | --- | --- | --- |
-| `local_terminal_verification_status.sh` | Print current blocked status and relevant docs/scripts. | No |
+| `local_terminal_verification_status.sh` | Print current verification status and relevant docs/scripts. | No |
 | `local_terminal_verification_batches.sh` | List, print, or explicitly run verification batches. | Only with `run ...` |
 | `local_terminal_verification_capture.sh` | Explicitly run verification batches and capture logs/templates. | Only with `run ...` |
 
@@ -69,8 +69,9 @@ sequentially:
 build/local-terminal-verification/20260516T171644Z-integration
 ```
 
-The next remaining work is conversion of captured ledger rows into
-`LocalTerminalVerificationGateRecord` values.
+Ledger-to-record conversion is represented by
+`LocalTerminalVerificationPlanRecords.latestPassed()`. The commands below are
+for refreshing evidence, not for closing a currently pending conversion step.
 
 ```sh
 bash tools/local_terminal_verification_capture.sh run broader
