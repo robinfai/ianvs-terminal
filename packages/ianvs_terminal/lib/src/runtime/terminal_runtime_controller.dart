@@ -171,8 +171,10 @@ final class TerminalDiagnosticsExport {
   final List<Map<String, Object?>> events;
   final Map<String, Object?> summary;
 
-  String? get conclusion => _stringFromJsonValue(summary['conclusion']);
-  String? get summaryMarkdown => _stringFromJsonValue(summary['markdown']);
+  String? get conclusion =>
+      _nonEmptyTrimmedStringFromJsonValue(summary['conclusion']);
+  String? get summaryMarkdown =>
+      _nonEmptyTrimmedStringFromJsonValue(summary['markdown']);
 
   Map<String, Object?> toJson() {
     return <String, Object?>{

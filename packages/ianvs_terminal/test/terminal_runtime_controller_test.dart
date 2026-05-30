@@ -1433,7 +1433,7 @@ void main() {
         <Object?, Object?>{7: 'ignored', 'rss_bytes': 100},
         'bad-sample',
       ],
-      'summary': <String, Object?>{'conclusion': 42, 'markdown': false},
+      'summary': <String, Object?>{'conclusion': '   ', 'markdown': 42},
     });
 
     expect(export.manifest, <String, Object?>{
@@ -1444,6 +1444,16 @@ void main() {
     ]);
     expect(export.conclusion, isNull);
     expect(export.summaryMarkdown, isNull);
+
+    final trimmed = TerminalDiagnosticsExport.fromJson(<String, Object?>{
+      'summary': <String, Object?>{
+        'conclusion': ' insufficient-evidence ',
+        'markdown': ' # Terminal diagnostics ',
+      },
+    });
+
+    expect(trimmed.conclusion, 'insufficient-evidence');
+    expect(trimmed.summaryMarkdown, '# Terminal diagnostics');
   });
 
   test(
