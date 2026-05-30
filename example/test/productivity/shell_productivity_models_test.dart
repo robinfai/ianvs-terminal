@@ -253,6 +253,19 @@ void main() {
       expect(state.directories.single.label, 'Repo');
     });
 
+    test('recent command json rejects fractional exit codes', () {
+      final state = ShellRecentItemsState.fromJson({
+        'commands': [
+          {'command': 'flutter test', 'cwd': '/repo', 'exitCode': 0.0},
+          {'command': 'dart analyze', 'cwd': '/repo', 'exitCode': 7.5},
+        ],
+      });
+
+      expect(state.commands, hasLength(2));
+      expect(state.commands.first.exitCode, 0);
+      expect(state.commands.last.exitCode, isNull);
+    });
+
     test('recent items default invalid limits', () {
       final state = ShellRecentItemsState.fromJson({
         'limit': 0,

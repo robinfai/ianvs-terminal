@@ -158,7 +158,7 @@ class ShellRecentCommandEntry {
     return ShellRecentCommandEntry(
       command: _trimmedStringOrNull(json['command']) ?? '',
       cwd: _trimmedStringOrNull(json['cwd']),
-      exitCode: _intOrNull(json['exitCode']),
+      exitCode: _wholeIntOrNull(json['exitCode']),
     );
   }
 }
@@ -445,16 +445,6 @@ String? _trimmedStringOrNull(Object? value) {
     return null;
   }
   return text;
-}
-
-int? _intOrNull(Object? value) {
-  if (value is int) {
-    return value;
-  }
-  if (value is num && value.isFinite) {
-    return value.toInt();
-  }
-  return null;
 }
 
 int? _wholeIntOrNull(Object? value) {
