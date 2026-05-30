@@ -27,7 +27,13 @@ void main() {
         );
 
     expect(formattingGate.status, LocalTerminalVerificationStatus.pending);
-    expect(formattingGate.command, 'dart format example/lib example/test');
+    expect(
+      formattingGate.command,
+      'dart format example/lib example/test example/integration_test '
+      'example/test_driver example/tool packages/ianvs_terminal/lib '
+      'packages/ianvs_terminal/test packages/ianvs_pty/lib '
+      'packages/ianvs_pty/test',
+    );
   });
 
   test('exposes implemented but unverified backlog evidence in snapshot', () {
