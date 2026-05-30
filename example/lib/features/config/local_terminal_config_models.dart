@@ -494,8 +494,13 @@ TerminalActionId? _actionId(Object? value) {
     return null;
   }
 
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return null;
+  }
+
   for (final actionId in TerminalActionId.values) {
-    if (actionId.name == value) {
+    if (actionId.name == normalized) {
       return actionId;
     }
   }

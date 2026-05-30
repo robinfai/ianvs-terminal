@@ -106,6 +106,28 @@ void main() {
       );
     });
 
+    test('keybinding action ids trim whitespace', () {
+      final config = LocalTerminalConfigDocument.fromJson(const {
+        'keybindings': {
+          'disabledDefaultActions': [' pasteHistory ', '   '],
+          'overrides': {
+            ' newTab ': {
+              'binding': {'key': 'KeyN', 'meta': true},
+            },
+          },
+        },
+      });
+
+      expect(
+        config.keybindings.disabledDefaultActions,
+        contains(TerminalActionId.pasteHistory),
+      );
+      expect(
+        config.keybindings.overrides[TerminalActionId.newTab]!.binding!.key,
+        'KeyN',
+      );
+    });
+
     test('decode rejects non-object json roots', () {
       expect(
         () => LocalTerminalConfigDocument.decode('[]'),
