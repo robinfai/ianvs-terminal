@@ -128,6 +128,30 @@ void main() {
       );
     });
 
+    test('config enum values trim whitespace', () {
+      final config = LocalTerminalConfigDocument.fromJson(const {
+        'keybindings': {
+          'overrides': {
+            'newTab': {
+              'binding': {'scope': ' focusedApp ', 'key': 'KeyN'},
+            },
+          },
+        },
+        'clipboard': {'osc52': ' allow '},
+        'paste': {'bracketedPaste': ' force '},
+      });
+
+      expect(
+        config.keybindings.overrides[TerminalActionId.newTab]!.binding!.scope,
+        TerminalKeyBindingScope.focusedApp,
+      );
+      expect(config.clipboard.osc52, LocalTerminalOsc52Policy.allow);
+      expect(
+        config.paste.bracketedPaste,
+        LocalTerminalBracketedPastePolicy.force,
+      );
+    });
+
     test('decode rejects non-object json roots', () {
       expect(
         () => LocalTerminalConfigDocument.decode('[]'),
