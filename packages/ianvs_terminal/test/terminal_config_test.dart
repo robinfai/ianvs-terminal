@@ -93,6 +93,22 @@ void main() {
     expect(palette.bright.white, '#ABCDEF');
   });
 
+  test('terminal font config trims direct json strings', () {
+    final font = TerminalFontConfig.fromJson(const <String, Object?>{
+      'family': '  JetBrains Mono  ',
+      'fallback': <Object?>['  Monaco  ', '', 7],
+    });
+    final blank = TerminalFontConfig.fromJson(const <String, Object?>{
+      'family': '   ',
+      'fallback': <Object?>['   ', 7],
+    });
+
+    expect(font.family, 'JetBrains Mono');
+    expect(font.fallback, <String>['Monaco']);
+    expect(blank.family, terminalPrimaryFontFamily);
+    expect(blank.fallback, terminalFontFamilyFallback);
+  });
+
   test('terminal launch config trims direct json string fields', () {
     final launch = TerminalLaunchConfig.fromJson(const <String, Object?>{
       'program': '  /bin/zsh  ',

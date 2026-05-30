@@ -128,8 +128,8 @@ class TerminalFontConfig {
   factory TerminalFontConfig.fromJson(Object? json) {
     final map = _asObjectMap(json);
     return TerminalFontConfig(
-      family: _stringOrNull(map?['family']) ?? terminalPrimaryFontFamily,
-      fallback: _stringList(
+      family: _trimmedStringOrNull(map?['family']) ?? terminalPrimaryFontFamily,
+      fallback: _trimmedStringList(
         map?['fallback'],
         fallback: terminalFontFamilyFallback,
       ),
@@ -857,6 +857,23 @@ List<String> _stringList(
     return value.whereType<String>().toList();
   }
   return fallback;
+}
+
+List<String> _trimmedStringList(
+  Object? value, {
+  required List<String> fallback,
+}) {
+  if (value is! List) {
+    return fallback;
+  }
+  final values = <String>[];
+  for (final entry in value) {
+    final text = _trimmedStringOrNull(entry);
+    if (text != null) {
+      values.add(text);
+    }
+  }
+  return values.isEmpty ? fallback : values;
 }
 
 Map<String, String> _stringMap(Object? value) {
