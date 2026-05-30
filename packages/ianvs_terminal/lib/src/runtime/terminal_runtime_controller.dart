@@ -68,7 +68,7 @@ final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
   }
 
   static int? _intValue(Object? value) {
-    return value is num && value.isFinite ? value.toInt() : null;
+    return _wholeIntValue(value);
   }
 }
 
@@ -1118,8 +1118,18 @@ Map<String, Object?> _stringKeyedJsonMap(Map<dynamic, dynamic> decoded) {
 }
 
 int? _intFromEventPayload(Object? value) {
+  return _wholeIntValue(value);
+}
+
+int? _wholeIntValue(Object? value) {
+  if (value is int) {
+    return value;
+  }
   if (value is num && value.isFinite) {
-    return value.toInt();
+    final parsed = value.toInt();
+    if (value == parsed) {
+      return parsed;
+    }
   }
   return null;
 }

@@ -882,17 +882,35 @@ void main() {
     expect(event.exitCode, 7);
   });
 
-  test('terminal shell hook payload ignores non-finite numeric fields', () {
-    final event = TerminalSessionShellHookEvent(
+  test('terminal shell hook payload ignores invalid numeric fields', () {
+    final nonFinite = TerminalSessionShellHookEvent(
       '1',
       rawPayload: <String, Object?>{
         'prompt_scrollback_offset': double.infinity,
         'exit_code': double.nan,
       },
     );
+    final fractional = TerminalSessionShellHookEvent(
+      '1',
+      rawPayload: <String, Object?>{
+        'prompt_scrollback_offset': 17.5,
+        'exit_code': 7.5,
+      },
+    );
+    final wholeDouble = TerminalSessionShellHookEvent(
+      '1',
+      rawPayload: <String, Object?>{
+        'prompt_scrollback_offset': 17.0,
+        'exit_code': 7.0,
+      },
+    );
 
-    expect(event.promptScrollbackOffset, isNull);
-    expect(event.exitCode, isNull);
+    expect(nonFinite.promptScrollbackOffset, isNull);
+    expect(nonFinite.exitCode, isNull);
+    expect(fractional.promptScrollbackOffset, isNull);
+    expect(fractional.exitCode, isNull);
+    expect(wholeDouble.promptScrollbackOffset, 17);
+    expect(wholeDouble.exitCode, 7);
   });
 
   testWidgets('terminal runtime controller emits bell events', (tester) async {
@@ -2217,6 +2235,14 @@ void main() {
         PtyEvent(
           kind: 'resize',
           sessionId: sessionId,
+          payload: const <String, Object?>{'cols': 21.5, 'rows': 9},
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'resize',
+          sessionId: sessionId,
           payload: const <String, Object?>{'cols': 21, 'rows': 9},
         ),
       );
@@ -2225,7 +2251,7 @@ void main() {
         PtyEvent(
           kind: 'exit',
           sessionId: sessionId,
-          payload: const <String, Object?>{'code': 'bad'},
+          payload: const <String, Object?>{'code': 7.5},
         ),
       );
 
