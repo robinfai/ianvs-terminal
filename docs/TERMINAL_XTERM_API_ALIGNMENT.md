@@ -97,9 +97,9 @@ Recommended next addons:
 ## Verification
 
 - `flutter analyze`
-- `flutter test packages/ianvs_terminal`
-- `flutter test packages/ianvs_pty`
-- `flutter test example`
+- `cd packages/ianvs_terminal && flutter test`
+- `cd packages/ianvs_pty && dart test`
+- `cd example && flutter test`
 
 The new tests cover:
 
