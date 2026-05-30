@@ -163,6 +163,26 @@ void main() {
     expect(viewport.contentPadding, const EdgeInsets.all(20));
   });
 
+  testWidgets('local clipboard config enables copy on select', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(copyOnSelect: true),
+        ),
+      ),
+    );
+
+    final viewport = tester.widget<TerminalViewport>(
+      find.byType(TerminalViewport),
+    );
+
+    expect(viewport.copyOnSelect, isTrue);
+  });
+
   testWidgets('notification toggles read and write local config when present', (
     tester,
   ) async {

@@ -280,6 +280,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const LocalTerminalConfigDocument();
   LocalTerminalKeybindingsConfig _keybindingsConfig =
       const LocalTerminalKeybindingsConfig();
+  LocalTerminalClipboardConfig _clipboardConfig =
+      const LocalTerminalClipboardConfig();
   LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();
   LocalTerminalPasteHistoryPolicy _pasteHistoryPolicy =
       const LocalTerminalPasteHistoryPolicy();
@@ -523,6 +525,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _notificationConfigSource = configBootstrap.source;
       _notificationLocalConfig = configBootstrap.config;
       _keybindingsConfig = configBootstrap.config.keybindings;
+      _clipboardConfig = configBootstrap.config.clipboard;
       _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
       _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(
         configBootstrap.config.paste,
@@ -5862,7 +5865,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         terminalConfig?.display.cursor ??
                         const terminal.TerminalCursorConfig(),
                     copyOnSelect:
-                        terminalConfig?.interaction.copyOnSelect ?? false,
+                        _clipboardConfig.copyOnSelect ||
+                        (terminalConfig?.interaction.copyOnSelect ?? false),
                     optionDragMode:
                         terminalConfig?.interaction.optionDragMode ??
                         terminal.TerminalOptionDragMode.blockSelection,
