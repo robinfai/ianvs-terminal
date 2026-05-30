@@ -260,7 +260,10 @@ int _intFromJson(Object? value, int fallback) {
     return value;
   }
   if (value is num && value.isFinite) {
-    return value.toInt();
+    final parsed = value.toInt();
+    if (value == parsed) {
+      return parsed;
+    }
   }
   return fallback;
 }

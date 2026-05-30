@@ -66,11 +66,17 @@ void main() {
         'paneCount': -2,
         'localOnly': true,
       });
+      final fractional = LocalTerminalLayoutTemplate.fromJson({
+        'paneCount': 1.5,
+        'localOnly': true,
+      });
 
       expect(disabled.paneCount, 0);
       expect(disabled.canApply, isFalse);
       expect(negative.paneCount, 0);
       expect(negative.canApply, isFalse);
+      expect(fractional.paneCount, 0);
+      expect(fractional.canApply, isFalse);
     });
 
     test(
@@ -114,10 +120,12 @@ void main() {
         'foreground': 0x1ffffffff,
         'cursor': 0xffffff,
       });
+      final fractional = LocalTerminalColorScheme.fromJson({'background': 1.5});
 
       expect(scheme.background, 0x000000);
       expect(scheme.foreground, 0xffffff);
       expect(scheme.cursor, 0xffffff);
+      expect(fractional.background, 0x000000);
     });
 
     test('advanced visual policy flags renderer-risk options', () {

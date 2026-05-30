@@ -271,6 +271,7 @@ void main() {
         ShellRecentItemsState.fromJson({'limit': double.infinity}).limit,
         50,
       );
+      expect(ShellRecentItemsState.fromJson({'limit': 2.5}).limit, 50);
       expect(const ShellRecentItemsState(limit: -1).trimmed().limit, 50);
     });
   });

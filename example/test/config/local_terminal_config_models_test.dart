@@ -225,9 +225,13 @@ void main() {
       final negative = LocalTerminalConfigDocument.fromJson(const {
         'paste': {'historySize': -1},
       });
+      final fractional = LocalTerminalConfigDocument.fromJson(const {
+        'paste': {'historySize': 2.5},
+      });
 
       expect(disabled.paste.historySize, 0);
       expect(negative.paste.historySize, 50);
+      expect(fractional.paste.historySize, 50);
     });
   });
 }

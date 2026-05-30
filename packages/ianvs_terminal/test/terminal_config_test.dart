@@ -223,8 +223,12 @@ void main() {
     final config = TerminalSessionConfig.fromJson(<String, Object?>{
       'terminal': <String, Object?>{'scrollbackLines': -1},
     });
+    final fractional = TerminalSessionConfig.fromJson(<String, Object?>{
+      'terminal': <String, Object?>{'scrollbackLines': 20.5},
+    });
 
     expect(config.scrollbackLines, defaultTerminalScrollbackLines);
+    expect(fractional.scrollbackLines, defaultTerminalScrollbackLines);
   });
 
   test('terminal profile JSON validates shell integration settings', () {
@@ -270,8 +274,9 @@ void main() {
     ]);
   });
 
-  test('terminal profile JSON warns for non-finite scrollback lines', () {
+  test('terminal profile JSON warns for invalid scrollback lines', () {
     final warnings = <TerminalConfigWarning>[];
+    final fractionalWarnings = <TerminalConfigWarning>[];
 
     final config = TerminalSessionConfig.fromProfileJson(
       <String, Object?>{
@@ -281,9 +286,21 @@ void main() {
       defaultProgram: '/bin/zsh',
       onWarning: warnings.add,
     );
+    final fractional = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'shell': '/bin/zsh',
+        'terminal': <String, Object?>{'scrollbackLines': 20.5},
+      },
+      defaultProgram: '/bin/zsh',
+      onWarning: fractionalWarnings.add,
+    );
 
     expect(config.scrollbackLines, defaultTerminalScrollbackLines);
     expect(warnings.map((warning) => warning.path), <String>[
+      'terminal.scrollbackLines',
+    ]);
+    expect(fractional.scrollbackLines, defaultTerminalScrollbackLines);
+    expect(fractionalWarnings.map((warning) => warning.path), <String>[
       'terminal.scrollbackLines',
     ]);
   });

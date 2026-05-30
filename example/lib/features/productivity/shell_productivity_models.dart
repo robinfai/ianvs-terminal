@@ -457,8 +457,21 @@ int? _intOrNull(Object? value) {
   return null;
 }
 
+int? _wholeIntOrNull(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num && value.isFinite) {
+    final parsed = value.toInt();
+    if (value == parsed) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
 int _limitFromJson(Object? value) {
-  final parsed = _intOrNull(value);
+  final parsed = _wholeIntOrNull(value);
   if (parsed == null) {
     return _defaultRecentItemsLimit;
   }

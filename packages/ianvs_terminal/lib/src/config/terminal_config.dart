@@ -865,13 +865,7 @@ double _positiveFiniteDoubleOr(Object? value, double fallback) {
 }
 
 int _positiveIntOr(Object? value, int fallback) {
-  if (value is num && value.isFinite) {
-    final parsed = value.toInt();
-    if (parsed >= 1) {
-      return parsed;
-    }
-  }
-  return fallback;
+  return _positiveWholeIntOrNull(value) ?? fallback;
 }
 
 bool _boolOr(Object? value, bool fallback) {
@@ -1087,11 +1081,9 @@ int _positiveIntField(
   required String path,
   required TerminalConfigWarningCallback? onWarning,
 }) {
-  if (rawValue is num && rawValue.isFinite) {
-    final value = rawValue.toInt();
-    if (value >= 1) {
-      return value;
-    }
+  final value = _positiveWholeIntOrNull(rawValue);
+  if (value != null) {
+    return value;
   }
   if (rawValue != null) {
     onWarning?.call(
@@ -1103,6 +1095,19 @@ int _positiveIntField(
     );
   }
   return fallback;
+}
+
+int? _positiveWholeIntOrNull(Object? rawValue) {
+  if (rawValue is int) {
+    return rawValue >= 1 ? rawValue : null;
+  }
+  if (rawValue is num && rawValue.isFinite) {
+    final parsed = rawValue.toInt();
+    if (parsed >= 1 && rawValue == parsed) {
+      return parsed;
+    }
+  }
+  return null;
 }
 
 double _positiveDoubleField(

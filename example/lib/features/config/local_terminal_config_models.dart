@@ -440,30 +440,27 @@ bool? _boolOrNull(Object? value) {
   return value is bool ? value : null;
 }
 
-int _intFromJson(Object? value, int fallback) {
+int? _wholeIntOrNull(Object? value) {
   if (value is int) {
     return value;
   }
   if (value is num && value.isFinite) {
-    return value.toInt();
+    final parsed = value.toInt();
+    if (value == parsed) {
+      return parsed;
+    }
   }
-  return fallback;
+  return null;
 }
 
 int _nonNegativeIntFromJson(Object? value, int fallback) {
-  final parsed = _intFromJson(value, fallback);
-  return parsed < 0 ? fallback : parsed;
+  final parsed = _wholeIntOrNull(value);
+  return parsed == null || parsed < 0 ? fallback : parsed;
 }
 
 int _positiveWholeIntFromJson(Object? value, int fallback) {
-  if (value is int) {
-    return value > 0 ? value : fallback;
-  }
-  if (value is num && value.isFinite) {
-    final parsed = value.toInt();
-    return parsed > 0 && value == parsed ? parsed : fallback;
-  }
-  return fallback;
+  final parsed = _wholeIntOrNull(value);
+  return parsed == null || parsed <= 0 ? fallback : parsed;
 }
 
 Set<TerminalActionId> _actionIdSet(Object? value) {
