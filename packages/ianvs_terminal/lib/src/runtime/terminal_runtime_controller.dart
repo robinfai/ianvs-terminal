@@ -276,11 +276,17 @@ class TerminalRuntimeController {
   }
 
   void closeSession(String sessionId) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
     _backend.closeSession(sessionId);
     _removeSessionState(sessionId);
   }
 
   void sendInput(String sessionId, Uint8List bytes) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
     final copiedBytes = Uint8List.fromList(bytes);
     _inputEvents.add(TerminalSessionInputEvent(sessionId, copiedBytes));
     _backend.writeInput(sessionId, copiedBytes);
@@ -288,11 +294,17 @@ class TerminalRuntimeController {
   }
 
   void scrollViewport(String sessionId, int deltaLines) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
     _backend.scrollViewport(sessionId, deltaLines);
     _refreshSessionIfNeeded(sessionId);
   }
 
   void scrollViewportTo(String sessionId, int offset) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
     _backend.scrollViewportTo(sessionId, offset);
     _refreshSessionIfNeeded(sessionId);
   }
@@ -314,6 +326,9 @@ class TerminalRuntimeController {
     TerminalSelection selection, {
     required bool block,
   }) {
+    if (!hasSession(sessionId)) {
+      return '';
+    }
     final backend = _backend;
     final requestBackend = backend is PtySessionJsonRequestBackend
         ? backend as PtySessionJsonRequestBackend
@@ -345,6 +360,9 @@ class TerminalRuntimeController {
     String query, {
     TerminalSearchMode mode = TerminalSearchMode.smartCaseSubstring,
   }) {
+    if (!hasSession(sessionId)) {
+      return TerminalSearchResult.empty;
+    }
     if (query.isEmpty) {
       return TerminalSearchResult.empty;
     }
@@ -535,6 +553,9 @@ class TerminalRuntimeController {
     Size viewportSize,
     double devicePixelRatio,
   ) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
     if (!_isPositiveFiniteSize(viewportSize) ||
         !_isPositiveFiniteDouble(devicePixelRatio)) {
       return;
@@ -607,6 +628,9 @@ class TerminalRuntimeController {
       throw RangeError(
         'Terminal dimensions and devicePixelRatio must be positive.',
       );
+    }
+    if (!hasSession(sessionId)) {
+      return;
     }
     final measuredCellSize = cellSize ?? _cellSizeFor(sessionId);
     if (!_isPositiveFiniteSize(measuredCellSize)) {

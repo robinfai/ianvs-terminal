@@ -880,6 +880,77 @@ void main() {
     );
   });
 
+  testWidgets('terminal runtime controller ignores stale session operations', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    await tester.pump();
+    runtime.closeSession(sessionId);
+    expect(runtime.hasSession(sessionId), isFalse);
+
+    final inputEvents = <TerminalSessionInputEvent>[];
+    final resizeEvents = <TerminalSessionResizeEvent>[];
+    final inputSubscription = runtime.inputEvents.listen(inputEvents.add);
+    final resizeSubscription = runtime.resizeEvents.listen(resizeEvents.add);
+    addTearDown(inputSubscription.cancel);
+    addTearDown(resizeSubscription.cancel);
+
+    runtimeBackend.closeCalls.clear();
+    runtimeBackend.writeCalls.clear();
+    runtimeBackend.scrollCalls.clear();
+    runtimeBackend.scrollToCalls.clear();
+    runtimeBackend.resizeCalls.clear();
+    runtimeBackend.jsonRequests.clear();
+    runtimeBackend.takeFrameDiffCalls = 0;
+    runtimeBackend.pollEventsCalls = 0;
+
+    runtime.closeSession(sessionId);
+    runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+    runtime.scrollViewport(sessionId, 1);
+    runtime.scrollViewportTo(sessionId, 2);
+    runtime.resizeSession(sessionId, const Size(180, 144), 1);
+    runtime.resizeSessionCells(
+      sessionId,
+      cols: 80,
+      rows: 24,
+      cellSize: terminalFallbackCellSize,
+    );
+    final selectionText = runtime.selectionText(
+      sessionId,
+      const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 4),
+      block: false,
+    );
+    final searchResult = runtime.searchTextResult(sessionId, 'demo');
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+
+    expect(selectionText, isEmpty);
+    expect(searchResult.matches, isEmpty);
+    expect(runtimeBackend.closeCalls, isEmpty);
+    expect(runtimeBackend.writeCalls, isEmpty);
+    expect(runtimeBackend.scrollCalls, isEmpty);
+    expect(runtimeBackend.scrollToCalls, isEmpty);
+    expect(runtimeBackend.resizeCalls, isEmpty);
+    expect(runtimeBackend.jsonRequests, isEmpty);
+    expect(runtimeBackend.takeFrameDiffCalls, 0);
+    expect(runtimeBackend.pollEventsCalls, 0);
+    expect(inputEvents, isEmpty);
+    expect(resizeEvents, isEmpty);
+  });
+
   testWidgets('terminal runtime controller emits typed shell hook events', (
     tester,
   ) async {
@@ -2646,6 +2717,7 @@ class _FakePtyBackend
   final List<String> closeCalls = <String>[];
   final List<Uint8List> writeCalls = <Uint8List>[];
   final List<List<Object?>> resizeCalls = <List<Object?>>[];
+  final List<(String, int)> scrollCalls = <(String, int)>[];
   final List<(String, int)> scrollToCalls = <(String, int)>[];
   final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
   List<Map<String, Object?>> searchResponse = const <Map<String, Object?>>[];
@@ -2750,7 +2822,9 @@ class _FakePtyBackend
   }
 
   @override
-  void scrollViewport(String sessionId, int deltaLines) {}
+  void scrollViewport(String sessionId, int deltaLines) {
+    scrollCalls.add((sessionId, deltaLines));
+  }
 
   @override
   void scrollViewportTo(String sessionId, int offset) {
