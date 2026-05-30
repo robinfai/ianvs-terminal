@@ -314,7 +314,10 @@ class TerminalRuntimeController {
       if (raw != null && raw.isNotEmpty) {
         final decoded = _tryDecodeJsonObject(raw);
         if (decoded != null) {
-          return decoded['text'] as String?;
+          final text = _stringFromJsonValue(decoded['text']);
+          if (text != null) {
+            return text;
+          }
         }
       }
     }
@@ -457,7 +460,7 @@ class TerminalRuntimeController {
     if (decoded == null) {
       return null;
     }
-    return decoded['content'] as String?;
+    return _stringFromJsonValue(decoded['content']);
   }
 
   TerminalDiagnosticsExport? exportSessionDiagnostics(
@@ -907,7 +910,7 @@ class TerminalRuntimeController {
     if (payload == null) {
       return;
     }
-    final raw = _stringFromEventPayload(payload['data']);
+    final raw = _stringFromJsonValue(payload['data']);
     if (raw == null) {
       return;
     }
@@ -932,7 +935,7 @@ class TerminalRuntimeController {
     String sessionId,
     Map<String, Object?>? payload,
   ) async {
-    final selection = _stringFromEventPayload(payload?['selection']) ?? 'c';
+    final selection = _stringFromJsonValue(payload?['selection']) ?? 'c';
     final clipboardText = await readClipboard();
     final encoded = base64.encode(utf8.encode(clipboardText));
     final response = '\x1B]52;$selection;$encoded\x07';
@@ -1064,7 +1067,7 @@ int? _intFromEventPayload(Object? value) {
   return null;
 }
 
-String? _stringFromEventPayload(Object? value) {
+String? _stringFromJsonValue(Object? value) {
   if (value is String) {
     return value;
   }

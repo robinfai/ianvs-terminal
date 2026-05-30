@@ -839,6 +839,18 @@ void main() {
 
     expect(runtime.clearScrollback(sessionId), isFalse);
     expect(runtime.exportScrollbackText(sessionId), isNull);
+
+    runtimeBackend
+      ..selectionRawResponse = jsonEncode(<String, Object?>{'text': 42})
+      ..scrollbackRawResponse = jsonEncode(<String, Object?>{'content': 42});
+
+    final invalidText = runtime.selectionText(
+      sessionId,
+      const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 4),
+      block: false,
+    );
+    expect(invalidText, 'demo');
+    expect(runtime.exportScrollbackText(sessionId), isNull);
   });
 
   test('terminal runtime skips malformed search match entries', () {
