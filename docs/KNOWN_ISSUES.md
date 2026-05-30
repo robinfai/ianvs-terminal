@@ -27,7 +27,7 @@
 - 还没有跨平台验证
 - 还没有 SSH 兼容性验证
 - local-only terminal 手工矩阵已于 `2026-05-06` 在 `T-059` 实际执行；当时发现的真实失败项已拆到 `T-066`、`T-067`、`T-068` 并完成，`T-059` 仍作为历史矩阵入口保留
-- local-terminal P0-P5 当前已有计划、竞品映射、核心 wiring、诊断和测试脚手架。`2026-05-16` 这轮已经记录 `dart format`、`flutter analyze` 和 focused automated tests 的通过证据；当前仍缺 `broader` 最后修复后的重跑、integration/smoke evidence、manual gates，以及把这些结果转换成 canonical verification evidence，因此不能把当前状态当成已完成。
+- local-terminal P0-P5 required closure baseline 已由 canonical verification records 标记为 verified；对应入口见 `docs/LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json`、`docs/LOCAL_TERMINAL_COMPLETION_AUDIT_CHECKLIST_2026-05.md` 和 `tools/local_terminal_verification_status.sh`。剩余风险主要是 advanced visual/productivity/policy follow-up、跨平台验证、性能回归自动化和更宽的宿主环境矩阵，不应再把 required closure baseline 记录为缺 evidence。
 
 ## 当前环境相关风险
 
