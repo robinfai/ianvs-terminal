@@ -77,7 +77,20 @@ class ShellProductivityState {
   }
 
   bool get canOpenRecentDirectory {
-    return features.recentDirectories && recentDirectories.isNotEmpty;
+    return firstRecentDirectory != null;
+  }
+
+  String? get firstRecentDirectory {
+    if (!features.recentDirectories) {
+      return null;
+    }
+    for (final directory in recentDirectories) {
+      final trimmed = directory.trim();
+      if (trimmed.isNotEmpty) {
+        return trimmed;
+      }
+    }
+    return null;
   }
 
   ShellPromptMark? previousPrompt(int currentRow) {

@@ -73,9 +73,7 @@ class ShellProductivityActionReducer {
       TerminalActionId.copyCommandOutput =>
         ShellProductivityCommandOutputResult(state.lastCommandOutputRange()),
       TerminalActionId.openRecentDirectory =>
-        ShellProductivityRecentDirectoryResult(
-          state.canOpenRecentDirectory ? state.recentDirectories.first : null,
-        ),
+        ShellProductivityRecentDirectoryResult(state.firstRecentDirectory),
       TerminalActionId.clearScrollback => const ShellProductivityNoopResult(),
       TerminalActionId.search => ShellProductivitySearchResult(context.search),
       TerminalActionId.globalSearch => ShellProductivitySearchResult(

@@ -63,5 +63,21 @@ void main() {
         '/repo',
       );
     });
+
+    test('recent directory action skips blank entries', () {
+      final result = ShellProductivityActionReducer.reduce(
+        state: const ShellProductivityState(
+          recentDirectories: ['', '  ', ' /repo '],
+        ),
+        actionId: TerminalActionId.openRecentDirectory,
+        context: const ShellProductivityActionContext(),
+      );
+
+      expect(result, isA<ShellProductivityRecentDirectoryResult>());
+      expect(
+        (result as ShellProductivityRecentDirectoryResult).directory,
+        '/repo',
+      );
+    });
   });
 }

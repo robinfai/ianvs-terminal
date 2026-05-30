@@ -91,6 +91,18 @@ void main() {
       expect(disabled.canOpenRecentDirectory, isFalse);
     });
 
+    test('recent directories skip blank entries', () {
+      const state = ShellProductivityState(
+        recentDirectories: ['', '   ', ' /repo '],
+      );
+      const blankOnly = ShellProductivityState(recentDirectories: ['', '  ']);
+
+      expect(state.canOpenRecentDirectory, isTrue);
+      expect(state.firstRecentDirectory, '/repo');
+      expect(blankOnly.canOpenRecentDirectory, isFalse);
+      expect(blankOnly.firstRecentDirectory, isNull);
+    });
+
     test('search state cycles next and previous matches', () {
       const state = ShellSearchState(
         query: 'build',
