@@ -86,7 +86,10 @@ class TerminalAppAppearance {
       String() => double.tryParse(value),
       _ => null,
     };
-    return (parsed ?? defaultTerminalViewportPadding)
+    if (parsed == null || !parsed.isFinite) {
+      return defaultTerminalViewportPadding;
+    }
+    return parsed
         .clamp(minTerminalViewportPadding, maxTerminalViewportPadding)
         .toDouble();
   }

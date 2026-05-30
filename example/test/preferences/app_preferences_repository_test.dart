@@ -203,4 +203,43 @@ void main() {
       );
     },
   );
+
+  test(
+    'app preferences repository defaults non-finite viewport padding',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-preferences-non-finite-padding',
+      );
+      final repository = AppPreferencesRepository(
+        directoryResolver: () async => directory,
+      );
+      final file = File('${directory.path}/ianvs_preferences.json');
+
+      await file.writeAsString(
+        jsonEncode({
+          'schemaVersion': 1,
+          'appearance': {'themeMode': 'dark', 'terminalViewportPadding': 'NaN'},
+        }),
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(loaded!.appearance.themeMode, TerminalThemeMode.dark);
+      expect(
+        loaded.appearance.terminalViewportPadding,
+        TerminalAppAppearance.defaultTerminalViewportPadding,
+      );
+      expect(
+        directory
+            .listSync()
+            .whereType<File>()
+            .where(
+              (entry) => entry.path.contains('ianvs_preferences.json.corrupt'),
+            )
+            .length,
+        0,
+      );
+    },
+  );
 }
