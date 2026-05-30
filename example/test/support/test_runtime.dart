@@ -8,8 +8,9 @@ TerminalRuntimeController testRuntime(
   bool enableSessionPolling = false,
   bool enableWarmUpRefresh = false,
   TerminalWindowResizeCallback? resizeWindowBy,
+  bool seedDefaultSession = true,
 }) {
-  return TerminalRuntimeController(
+  final runtime = TerminalRuntimeController(
     backend: backend,
     copyToClipboard: copyToClipboard ?? (_) async {},
     readClipboard: readClipboard ?? () async => '',
@@ -17,4 +18,12 @@ TerminalRuntimeController testRuntime(
     enableSessionPolling: enableSessionPolling,
     enableWarmUpRefresh: enableWarmUpRefresh,
   );
+  if (seedDefaultSession) {
+    runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+  }
+  return runtime;
 }
