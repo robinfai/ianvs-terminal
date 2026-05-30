@@ -86,5 +86,5 @@
 ## 当前约束
 
 - `native/core` 现在还吃旧的 profile wire，所以 `ianvs_terminal` 内部保留了一层 native wire 适配。
-- `example/` 目录里的 Flutter package 现阶段仍保留 `name: app`，这是为了避免连带扩大 macOS 工程改动。
+- `example/` 目录里的 Flutter package 现阶段仍保留 `name: app`，这是为了稳定既有 `package:app/...` import 面；macOS bundle identity 由 Runner project 单独维护。
 - 本次边界调整不处理 pub.dev 发布、插件系统和跨平台扩展。
