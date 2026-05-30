@@ -193,6 +193,21 @@ void main() {
     });
   });
 
+  test('terminal session config defaults malformed boolean fields', () {
+    final config = TerminalSessionConfig.fromJson(<String, Object?>{
+      'launch': <String, Object?>{'program': '/bin/zsh'},
+      'shellIntegration': <String, Object?>{'enabled': 'yes'},
+      'appearance': <String, Object?>{
+        'cursor': <String, Object?>{'blink': 'no'},
+      },
+      'interaction': <String, Object?>{'copyOnSelect': 'yes'},
+    });
+
+    expect(config.shellIntegration.enabled, isTrue);
+    expect(config.display.cursor.blink, isTrue);
+    expect(config.interaction.copyOnSelect, isFalse);
+  });
+
   test('terminal profile JSON validates shell integration settings', () {
     final warnings = <TerminalConfigWarning>[];
 

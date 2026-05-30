@@ -84,7 +84,7 @@ class TerminalShellIntegrationConfig {
   factory TerminalShellIntegrationConfig.fromJson(Object? json) {
     final map = _asObjectMap(json);
     return TerminalShellIntegrationConfig(
-      enabled: map?['enabled'] as bool? ?? true,
+      enabled: _boolOr(map?['enabled'], true),
     );
   }
 }
@@ -414,7 +414,7 @@ class TerminalCursorConfig {
     final map = _asObjectMap(json);
     return TerminalCursorConfig(
       shape: _cursorShapeFromJson(map?['shape']),
-      blink: map?['blink'] as bool? ?? true,
+      blink: _boolOr(map?['blink'], true),
     );
   }
 }
@@ -489,7 +489,7 @@ class TerminalInteractionConfig {
   factory TerminalInteractionConfig.fromJson(Object? json) {
     final map = _asObjectMap(json);
     return TerminalInteractionConfig(
-      copyOnSelect: map?['copyOnSelect'] as bool? ?? false,
+      copyOnSelect: _boolOr(map?['copyOnSelect'], false),
       optionDragMode: TerminalOptionDragMode.fromJsonValue(
         map?['optionDragMode'],
       ),
@@ -861,6 +861,13 @@ double _doubleOr(Object? value, double fallback) {
 int _intOr(Object? value, int fallback) {
   if (value is num) {
     return value.toInt();
+  }
+  return fallback;
+}
+
+bool _boolOr(Object? value, bool fallback) {
+  if (value is bool) {
+    return value;
   }
   return fallback;
 }
