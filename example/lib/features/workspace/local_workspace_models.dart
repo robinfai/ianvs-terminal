@@ -499,13 +499,12 @@ class TerminalPaneNode {
       );
     }
 
-    final clampedRatio = nextRatio.clamp(0.1, 0.9).toDouble();
     return TerminalPaneNode.split(
       id: id,
       direction: direction!,
       first: first,
       second: second,
-      ratio: clampedRatio,
+      ratio: _normalizeSplitRatio(nextRatio, 0.5),
     );
   }
 

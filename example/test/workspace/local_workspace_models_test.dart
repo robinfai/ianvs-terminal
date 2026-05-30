@@ -272,6 +272,18 @@ void main() {
       expect(swappedNestedSplit.children.last.id, 'pane-1');
     });
 
+    test('resize active split defaults non-finite ratios', () {
+      final splitTab = _tab('tab-1').splitActivePane(
+        splitNodeId: 'split-1',
+        newPaneId: 'pane-2',
+        sessionIntent: const TerminalPaneSessionIntent(profileId: 'default'),
+        direction: TerminalPaneSplitDirection.right,
+      );
+
+      expect(splitTab.resizeActiveSplit(double.nan).root.ratio, 0.5);
+      expect(splitTab.resizeActiveSplit(double.infinity).root.ratio, 0.5);
+    });
+
     test('new tab and split can inherit active cwd intent', () {
       final workspace = const TerminalWorkspace()
           .addTab(_tab('tab-1', cwd: '/project'))
