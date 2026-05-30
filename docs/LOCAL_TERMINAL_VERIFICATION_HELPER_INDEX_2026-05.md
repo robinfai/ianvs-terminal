@@ -21,7 +21,7 @@ Verification execution authorization is documented in
 | --- | --- | --- | --- | --- | --- |
 | `tools/local_terminal_verification_status.sh` | Prints current verification status, handoff docs, evidence docs, and helper commands | None | No | No | Navigation only. |
 | `tools/local_terminal_verification_batches.sh` | `list`, `print <batch>`, `print all-automated` | `run <batch>`, `run all-automated` | Command output to terminal only | No | Run explicit verification batches after approval. |
-| `tools/local_terminal_verification_capture.sh` | `list`, `print <batch>` | `run <batch>`, `run all-automated` | `build/local-terminal-verification/<timestamp>-<batch>/output.log`, `summary.txt`, `ledger-entry.md` | No | Run explicit verification batches and capture output for later ledger entry. |
+| `tools/local_terminal_verification_capture.sh` | `list`, `print <batch>`, `print all-automated` | `run <batch>`, `run all-automated` | `build/local-terminal-verification/<timestamp>-<batch>/output.log`, `summary.txt`, `ledger-entry.md` | No | Run explicit verification batches and capture output for later ledger entry. |
 
 Execution helpers print warnings that ledger updates remain manual and script
 success alone is not closure evidence.

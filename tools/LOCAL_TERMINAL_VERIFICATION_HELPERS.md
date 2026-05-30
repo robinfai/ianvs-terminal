@@ -22,6 +22,7 @@ Use `bash tools/<script>.sh ...` rather than relying on executable file mode:
 ```sh
 bash tools/local_terminal_verification_status.sh
 bash tools/local_terminal_verification_batches.sh print all-automated
+bash tools/local_terminal_verification_capture.sh print all-automated
 bash tools/local_terminal_verification_capture.sh run broader
 bash tools/local_terminal_verification_capture.sh run integration
 bash tools/local_terminal_verification_capture.sh run all-automated

@@ -17,6 +17,7 @@ usage() {
 Usage:
   bash tools/local_terminal_verification_capture.sh list
   bash tools/local_terminal_verification_capture.sh print <batch>
+  bash tools/local_terminal_verification_capture.sh print all-automated
   bash tools/local_terminal_verification_capture.sh run <batch>
   bash tools/local_terminal_verification_capture.sh run all-automated
 
