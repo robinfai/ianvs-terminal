@@ -83,6 +83,24 @@ void main() {
       );
     });
 
+    test('schema version rejects non-positive values', () {
+      final zero = LocalTerminalConfigDocument.fromJson(const {
+        'schemaVersion': 0,
+      });
+      final negative = LocalTerminalConfigDocument.fromJson(const {
+        'schemaVersion': -1,
+      });
+
+      expect(
+        zero.schemaVersion,
+        LocalTerminalConfigDocument.currentSchemaVersion,
+      );
+      expect(
+        negative.schemaVersion,
+        LocalTerminalConfigDocument.currentSchemaVersion,
+      );
+    });
+
     test('appearance viewport padding roundtrips through json', () {
       const config = LocalTerminalConfigDocument(
         appearance: TerminalAppAppearance(terminalViewportPadding: 16),

@@ -601,6 +601,49 @@ void main() {
     );
   });
 
+  test('profile repository tolerates non-positive schema version', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs terminal-profiles-non-positive-schema',
+    );
+    final file = File('${directory.path}/ianvs_profiles.json');
+    await file.parent.create(recursive: true);
+    await file.writeAsString(
+      jsonEncode({
+        'schemaVersion': -2,
+        'profiles': [
+          {
+            'id': 'default',
+            'name': 'Local Shell',
+            'launch': {
+              'program': '/bin/zsh',
+              'args': const ['-l'],
+            },
+          },
+        ],
+      }),
+    );
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
+
+    final loaded = await repository.load();
+
+    expect(loaded.schemaVersion, 1);
+    expect(loaded.profiles.single.id, 'default');
+    expect(
+      loaded.loadWarnings,
+      contains(
+        const TerminalProfileLoadWarning(
+          profileId: 'document',
+          profileName: 'Profiles document',
+          path: 'schemaVersion',
+          rawValueSummary: '-2',
+          fallbackSummary: 'used schema version 1',
+        ),
+      ),
+    );
+  });
+
   test(
     'profile repository upgrades built-in shell presets without explicit login args',
     () async {

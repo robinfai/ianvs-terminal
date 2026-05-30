@@ -194,10 +194,11 @@ class TerminalAppPreferencesDocument {
 
 int _schemaVersionFromJson(Object? value, int fallback) {
   if (value is int) {
-    return value;
+    return value > 0 ? value : fallback;
   }
   if (value is num && value.isFinite) {
-    return value.toInt();
+    final parsed = value.toInt();
+    return parsed > 0 ? parsed : fallback;
   }
   return fallback;
 }
