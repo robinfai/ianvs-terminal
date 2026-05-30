@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
+import 'package:app/features/config/local_terminal_config_models.dart';
+import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -59,6 +61,22 @@ class _TestAppPreferencesRepository extends AppPreferencesRepository {
 
   @override
   Future<void> save(TerminalAppPreferencesDocument document) async {
+    savedDocuments.add(document);
+    _document = document;
+  }
+}
+
+class _TestLocalTerminalConfigRepository extends LocalTerminalConfigRepository {
+  _TestLocalTerminalConfigRepository(this._document);
+
+  LocalTerminalConfigDocument? _document;
+  final List<LocalTerminalConfigDocument> savedDocuments = [];
+
+  @override
+  Future<LocalTerminalConfigDocument?> load() async => _document;
+
+  @override
+  Future<void> save(LocalTerminalConfigDocument document) async {
     savedDocuments.add(document);
     _document = document;
   }
@@ -906,14 +924,16 @@ void main() {
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
     addTearDown(container.dispose);
 
     container.read(sessionControllerProvider);
-    await tester.pump();
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
     final sessionId = container
         .read(sessionControllerProvider)
         .activeSessionId!;
@@ -970,14 +990,16 @@ void main() {
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
     addTearDown(container.dispose);
 
     container.read(sessionControllerProvider);
-    await tester.pump();
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
     final sessionId = container
         .read(sessionControllerProvider)
         .activeSessionId!;
@@ -1562,6 +1584,52 @@ void main() {
     final state = container.read(sessionControllerProvider);
     expect(state.defaultProfileId, 'ssh');
     expect(state.tabs.single.profileId, 'ssh');
+  });
+
+  test('bootstrap prefers local config over legacy preferences', () async {
+    final coreClient = FakePtyBackend();
+    final profileRepository = _TestProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+    );
+    final legacyPreferencesRepository = _TestAppPreferencesRepository(
+      const TerminalAppPreferencesDocument(
+        defaults: TerminalAppDefaults(defaultProfileId: 'default'),
+        appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.light),
+      ),
+    );
+    final localConfigRepository = _TestLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        defaultProfileId: 'ssh',
+        appearance: TerminalAppAppearance(
+          themeMode: TerminalThemeMode.dark,
+          terminalViewportPadding: 18,
+        ),
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(profileRepository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          legacyPreferencesRepository,
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          localConfigRepository,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final state = container.read(sessionControllerProvider);
+    expect(state.defaultProfileId, 'ssh');
+    expect(state.configuredDefaultProfileId, 'ssh');
+    expect(state.tabs.single.profileId, 'ssh');
+    expect(state.themeMode, TerminalThemeMode.dark);
+    expect(state.terminalViewportPadding, 18);
+    expect(legacyPreferencesRepository.savedDocuments, isEmpty);
   });
 
   test(

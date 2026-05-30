@@ -3,6 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/local_terminal_config_bootstrap.dart';
+import '../config/local_terminal_config_loader.dart';
+import '../config/local_terminal_config_preferences_adapter.dart';
+import '../config/local_terminal_config_repository.dart';
 import '../pty/pty.dart';
 import '../preferences/app_preferences_models.dart';
 import '../preferences/app_preferences_repository.dart';
@@ -39,6 +43,20 @@ final appPreferencesRepositoryProvider = Provider<AppPreferencesRepository>((
   ref,
 ) {
   return AppPreferencesRepository();
+});
+
+final localTerminalConfigRepositoryProvider =
+    Provider<LocalTerminalConfigRepository>((ref) {
+      return LocalTerminalConfigRepository();
+    });
+
+final localTerminalConfigLoaderProvider = Provider<LocalTerminalConfigLoader>((
+  ref,
+) {
+  return LocalTerminalConfigLoader(
+    localConfigRepository: ref.read(localTerminalConfigRepositoryProvider),
+    legacyPreferencesRepository: ref.read(appPreferencesRepositoryProvider),
+  );
 });
 
 final sessionPollingEnabledProvider = Provider<bool>((ref) => true);
@@ -163,17 +181,22 @@ class SessionController extends Notifier<SessionState> {
         ? <TerminalProfile>[defaultTerminalProfile()]
         : profiles.profiles;
     final preferencesRepository = ref.read(appPreferencesRepositoryProvider);
-    final persistedPreferences = await preferencesRepository.load();
-    _preferencesLoadedFromDisk = persistedPreferences != null;
+    final configBootstrap = await _loadBootstrapConfig();
+    _preferencesLoadedFromDisk =
+        configBootstrap.source != LocalTerminalConfigBootstrapSource.defaults;
     final seededPreferences =
-        persistedPreferences ?? const TerminalAppPreferencesDocument();
+        LocalTerminalConfigPreferencesAdapter.toAppPreferences(
+          configBootstrap.config,
+        );
     final resolution = _resolveBootstrapPreferences(
       profiles: runtimeProfiles,
       preferences: seededPreferences,
       explicitDefaultProfileId: bootstrapDefaultProfileIdOverride,
     );
     _appPreferences = resolution.preferences;
-    if (resolution.shouldRepairWritePreferences) {
+    if (resolution.shouldRepairWritePreferences &&
+        configBootstrap.source !=
+            LocalTerminalConfigBootstrapSource.localConfig) {
       await preferencesRepository.save(_appPreferences);
       _preferencesLoadedFromDisk = true;
     }
@@ -224,6 +247,20 @@ class SessionController extends Notifier<SessionState> {
     );
     if (initialLaunchProfile != null) {
       _setWindowTitle(initialLaunchProfile.name);
+    }
+  }
+
+  Future<LocalTerminalConfigBootstrapResult> _loadBootstrapConfig() async {
+    try {
+      return await ref.read(localTerminalConfigLoaderProvider).load();
+    } on Object {
+      final legacyPreferences = await ref
+          .read(appPreferencesRepositoryProvider)
+          .load();
+      return LocalTerminalConfigBootstrap.resolve(
+        localConfig: null,
+        legacyAppPreferences: legacyPreferences,
+      );
     }
   }
 
