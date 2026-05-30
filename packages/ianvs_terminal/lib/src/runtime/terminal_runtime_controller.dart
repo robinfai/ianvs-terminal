@@ -312,9 +312,9 @@ class TerminalRuntimeController {
         }),
       );
       if (raw != null && raw.isNotEmpty) {
-        final decoded = jsonDecode(raw);
-        if (decoded is Map) {
-          return decoded.cast<String, Object?>()['text'] as String?;
+        final decoded = _tryDecodeJsonObject(raw);
+        if (decoded != null) {
+          return decoded['text'] as String?;
         }
       }
     }
@@ -347,7 +347,7 @@ class TerminalRuntimeController {
     if (raw == null || raw.isEmpty) {
       return TerminalSearchResult.empty;
     }
-    return _decodeSearchResult(jsonDecode(raw));
+    return _decodeSearchResult(_tryDecodeJsonObject(raw));
   }
 
   List<TerminalSearchMatch> searchText(
@@ -403,8 +403,8 @@ class TerminalRuntimeController {
     if (raw == null || raw.isEmpty) {
       return false;
     }
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map || decoded['cleared'] != true) {
+    final decoded = _tryDecodeJsonObject(raw);
+    if (decoded == null || decoded['cleared'] != true) {
       return false;
     }
 
@@ -448,8 +448,8 @@ class TerminalRuntimeController {
     if (raw == null || raw.isEmpty) {
       return null;
     }
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) {
+    final decoded = _tryDecodeJsonObject(raw);
+    if (decoded == null) {
       return null;
     }
     return decoded['content'] as String?;
@@ -1026,6 +1026,25 @@ class TerminalRuntimeController {
     _events.close();
     _inputEvents.close();
     _resizeEvents.close();
+  }
+}
+
+Map<String, Object?>? _tryDecodeJsonObject(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) {
+      return null;
+    }
+    final json = <String, Object?>{};
+    for (final entry in decoded.entries) {
+      final key = entry.key;
+      if (key is String) {
+        json[key] = entry.value;
+      }
+    }
+    return json;
+  } on Object {
+    return null;
   }
 }
 

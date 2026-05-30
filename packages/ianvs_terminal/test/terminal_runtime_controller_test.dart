@@ -680,6 +680,41 @@ void main() {
     });
   });
 
+  test('terminal runtime degrades malformed JSON request responses', () {
+    final runtimeBackend = _FakePtyBackend()
+      ..searchRawResponse = '{'
+      ..selectionRawResponse = '{'
+      ..clearScrollbackRawResponse = '{'
+      ..scrollbackRawResponse = '{';
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    final search = runtime.searchTextResult(sessionId, 'ready');
+    expect(search.matches, isEmpty);
+    expect(search.errorText, isNull);
+
+    final text = runtime.selectionText(
+      sessionId,
+      const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 4),
+      block: false,
+    );
+    expect(text, 'demo');
+
+    expect(runtime.clearScrollback(sessionId), isFalse);
+    expect(runtime.exportScrollbackText(sessionId), isNull);
+  });
+
   test('terminal runtime exports diagnostics with private defaults', () {
     final runtimeBackend = _FakePtyBackend()
       ..diagnosticsResponse = <String, Object?>{
@@ -1626,8 +1661,12 @@ class _FakePtyBackend
   final List<(String, int)> scrollToCalls = <(String, int)>[];
   final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
   List<Map<String, Object?>> searchResponse = const <Map<String, Object?>>[];
+  String? searchRawResponse;
   String? searchErrorText;
   String selectionResponse = '';
+  String? selectionRawResponse;
+  String? clearScrollbackRawResponse;
+  String? scrollbackRawResponse;
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
   bool returnNullJsonRequests = false;
@@ -1732,13 +1771,21 @@ class _FakePtyBackend
       return null;
     }
     return switch (request['kind']) {
-      'terminal.search_text' => jsonEncode(<String, Object?>{
-        'matches': searchResponse,
-        'error_text': searchErrorText,
-      }),
-      'terminal.selection_text' => jsonEncode(<String, Object?>{
-        'text': selectionResponse,
-      }),
+      'terminal.search_text' =>
+        searchRawResponse ??
+            jsonEncode(<String, Object?>{
+              'matches': searchResponse,
+              'error_text': searchErrorText,
+            }),
+      'terminal.selection_text' =>
+        selectionRawResponse ??
+            jsonEncode(<String, Object?>{'text': selectionResponse}),
+      'terminal.clear_scrollback' =>
+        clearScrollbackRawResponse ??
+            jsonEncode(<String, Object?>{'cleared': true}),
+      'terminal.export_scrollback' =>
+        scrollbackRawResponse ??
+            jsonEncode(<String, Object?>{'content': 'scrollback text'}),
       'terminal.export_diagnostics' =>
         diagnosticsRawResponse ?? jsonEncode(diagnosticsResponse),
       _ => null,
