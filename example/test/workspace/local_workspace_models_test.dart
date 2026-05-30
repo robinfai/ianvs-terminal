@@ -180,6 +180,69 @@ void main() {
       expect(workspace.closedTabs.single.activeSessionIntent!.cwd, isNull);
     });
 
+    test('workspace layout skips malformed tabs and panes', () {
+      final workspace = TerminalWorkspace.fromJson(const {
+        'activeTabId': 'missing-tab',
+        'tabs': [
+          {
+            'id': '   ',
+            'activePaneId': 'pane-ignored',
+            'root': {
+              'id': '   ',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+          },
+          {
+            'id': 'tab-1',
+            'activePaneId': 'missing-pane',
+            'root': {
+              'id': 'split-1',
+              'type': 'split',
+              'direction': 'right',
+              'children': [
+                {
+                  'id': '   ',
+                  'type': 'leaf',
+                  'sessionIntent': {'profileId': 'ignored'},
+                },
+                {
+                  'id': ' pane-2 ',
+                  'type': 'leaf',
+                  'sessionIntent': {'profileId': ' default '},
+                },
+              ],
+            },
+          },
+        ],
+        'closedTabs': [
+          {
+            'id': '   ',
+            'root': {
+              'id': '   ',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+          },
+          {
+            'id': 'closed',
+            'root': {
+              'id': ' closed-pane ',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': 'default'},
+            },
+          },
+        ],
+      });
+
+      expect(workspace.tabs, hasLength(1));
+      expect(workspace.activeTabId, 'tab-1');
+      expect(workspace.activeTab!.activePaneId, 'pane-2');
+      expect(workspace.activeTab!.activeSessionIntent!.profileId, 'default');
+      expect(workspace.closedTabs, hasLength(1));
+      expect(workspace.closedTabs.single.id, 'closed');
+    });
+
     test('workspace layout rejects remote-only fields', () {
       expect(
         () => TerminalWorkspace.fromJson(const {

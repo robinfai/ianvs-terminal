@@ -44,12 +44,14 @@ class TerminalWorkspace {
   static TerminalWorkspace fromJson(Map<Object?, Object?> json) {
     _rejectRemoteWorkspaceKeys(json);
 
-    final tabs = _objectList(
-      json['tabs'],
-    ).map(TerminalWorkspaceTab.fromJson).toList(growable: false);
-    final closedTabs = _objectList(
-      json['closedTabs'],
-    ).map(TerminalWorkspaceTab.fromJson).toList(growable: false);
+    final tabs = _objectList(json['tabs'])
+        .map(TerminalWorkspaceTab.fromJson)
+        .where((tab) => tab.isRestorable)
+        .toList(growable: false);
+    final closedTabs = _objectList(json['closedTabs'])
+        .map(TerminalWorkspaceTab.fromJson)
+        .where((tab) => tab.isRestorable)
+        .toList(growable: false);
     final rawActiveTabId = _nonEmptyStringOrNull(json['activeTabId']);
     final activeTabId =
         rawActiveTabId != null &&
@@ -181,6 +183,8 @@ class TerminalWorkspaceTab {
   final String? zoomedPaneId;
 
   bool get hasActivePane => root.containsPane(activePaneId);
+  bool get isRestorable => root.hasRestorablePane;
+
   String get effectiveActivePaneId {
     return hasActivePane ? activePaneId : root.firstLeafId;
   }
@@ -418,6 +422,12 @@ class TerminalPaneNode {
   final double ratio;
 
   bool get isLeaf => sessionIntent != null;
+  bool get hasRestorablePane {
+    if (isLeaf) {
+      return id.isNotEmpty;
+    }
+    return children.any((child) => child.hasRestorablePane);
+  }
 
   Map<String, Object?> toJson() {
     if (isLeaf) {
@@ -465,7 +475,13 @@ class TerminalPaneNode {
     if (isLeaf) {
       return id;
     }
-    return children.first.firstLeafId;
+    for (final child in children) {
+      final leafId = child.firstLeafId;
+      if (leafId.isNotEmpty) {
+        return leafId;
+      }
+    }
+    return '';
   }
 
   bool containsPane(String paneId) {
