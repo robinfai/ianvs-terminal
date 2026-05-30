@@ -1626,6 +1626,103 @@ void main() {
     },
   );
 
+  testWidgets(
+    'terminal runtime controller skips malformed event payload fields',
+    (tester) async {
+      final copiedTexts = <String>[];
+      final seenEvents = <TerminalSessionEvent>[];
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (text) async {
+          copiedTexts.add(text);
+        },
+        readClipboard: () async => 'paste me',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final subscription = runtime.events.listen(seenEvents.add);
+      addTearDown(subscription.cancel);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtime.resizeSession(sessionId, const Size(180, 144), 1);
+      runtimeBackend.resizeCalls.clear();
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'data': 42},
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'data': base64.encode(utf8.encode('copy ok')),
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 42},
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'resize',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'cols': 'wide', 'rows': 9},
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'resize',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'cols': 21, 'rows': 9},
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 'bad'},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+
+      expect(copiedTexts, <String>['copy ok']);
+      expect(
+        utf8.decode(runtimeBackend.writeCalls.last),
+        '\x1B]52;c;cGFzdGUgbWU=\x07',
+      );
+      expect(runtimeBackend.resizeCalls, <List<Object?>>[
+        <Object?>[sessionId, 21, 9, 189, 162],
+      ]);
+      expect(
+        seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode,
+        isNull,
+      );
+      expect(runtime.hasSession(sessionId), isFalse);
+    },
+  );
+
   testWidgets('terminal runtime controller dispose closes active sessions', (
     tester,
   ) async {

@@ -769,7 +769,7 @@ class TerminalRuntimeController {
     for (final event in events) {
       switch (event.kind) {
         case 'exit':
-          final exitCode = (event.payload?['code'] as num?)?.toInt();
+          final exitCode = _intFromEventPayload(event.payload?['code']);
           if (pendingAsyncWork == null) {
             _removeSessionState(sessionId);
             _events.add(
@@ -833,8 +833,8 @@ class TerminalRuntimeController {
     if (payload == null) {
       return;
     }
-    final cols = (payload['cols'] as num?)?.toInt();
-    final rows = (payload['rows'] as num?)?.toInt();
+    final cols = _intFromEventPayload(payload['cols']);
+    final rows = _intFromEventPayload(payload['rows']);
     final metric = _lastResizeMetrics[sessionId];
     if (cols == null ||
         rows == null ||
@@ -907,7 +907,7 @@ class TerminalRuntimeController {
     if (payload == null) {
       return;
     }
-    final raw = payload['data'] as String?;
+    final raw = _stringFromEventPayload(payload['data']);
     if (raw == null) {
       return;
     }
@@ -932,7 +932,7 @@ class TerminalRuntimeController {
     String sessionId,
     Map<String, Object?>? payload,
   ) async {
-    final selection = payload?['selection'] as String? ?? 'c';
+    final selection = _stringFromEventPayload(payload?['selection']) ?? 'c';
     final clipboardText = await readClipboard();
     final encoded = base64.encode(utf8.encode(clipboardText));
     final response = '\x1B]52;$selection;$encoded\x07';
@@ -1055,6 +1055,20 @@ Map<String, Object?> _stringKeyedJsonMap(Map<dynamic, dynamic> decoded) {
     }
   }
   return json;
+}
+
+int? _intFromEventPayload(Object? value) {
+  if (value is num && value.isFinite) {
+    return value.toInt();
+  }
+  return null;
+}
+
+String? _stringFromEventPayload(Object? value) {
+  if (value is String) {
+    return value;
+  }
+  return null;
 }
 
 class _SessionResizeMetric {
