@@ -7728,13 +7728,19 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
           final totalWidth = constraints.maxWidth.isFinite
               ? constraints.maxWidth
               : 0.0;
-          final tabsAreaWidth = math.max(0.0, totalWidth - _newTabButtonWidth);
+          final newTabWidth = math.min(_newTabButtonWidth, totalWidth);
+          final tabsAreaWidth = math.max(0.0, totalWidth - newTabWidth);
           final visibleTabCount = _visibleTabCountFor(tabsAreaWidth);
           final hasOverflow = visibleTabCount < widget.tabs.length;
           final hiddenTabs = hasOverflow
               ? widget.tabs.skip(visibleTabCount).toList(growable: false)
               : const <TerminalTab>[];
-          final overflowWidth = hasOverflow ? _overflowButtonWidth : 0.0;
+          final overflowWidth = hasOverflow
+              ? _overflowWidthFor(
+                  tabsAreaWidth,
+                  visibleTabCount: visibleTabCount,
+                )
+              : 0.0;
           final visibleTabsWidth = math.max(0.0, tabsAreaWidth - overflowWidth);
           final tabWidth = visibleTabCount == 0
               ? 0.0
@@ -7825,12 +7831,15 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                   tabHasNewOutput: widget.tabHasNewOutput,
                   tabBackgroundColor: widget.tabBackgroundColor,
                   onActivateSession: widget.onActivateSession,
+                  width: overflowWidth,
                 ),
-              _ShellNewTabButton(
-                palette: widget.palette,
-                tone: chromeTone,
-                onPressed: widget.onNewTab,
-              ),
+              if (newTabWidth > 0)
+                _ShellNewTabButton(
+                  palette: widget.palette,
+                  tone: chromeTone,
+                  width: newTabWidth,
+                  onPressed: widget.onNewTab,
+                ),
             ],
           );
         },
@@ -7843,18 +7852,37 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
     if (tabCount == 0 || tabsAreaWidth <= 0) {
       return 0;
     }
-    final capacityWithoutOverflow = math.max(
-      1,
-      tabsAreaWidth ~/ _minReadableTabWidth,
-    );
+    if (tabCount == 1) {
+      return 1;
+    }
+    final capacityWithoutOverflow = tabsAreaWidth ~/ _minReadableTabWidth;
     if (tabCount <= capacityWithoutOverflow) {
       return tabCount;
     }
-    final capacityWithOverflow = math.max(
-      1,
-      (tabsAreaWidth - _overflowButtonWidth) ~/ _minReadableTabWidth,
-    );
+    final tabsWidthWithOverflow =
+        tabsAreaWidth - _overflowButtonWidthFor(tabsAreaWidth);
+    if (tabsWidthWithOverflow < _minReadableTabWidth) {
+      return 0;
+    }
+    final capacityWithOverflow = tabsWidthWithOverflow ~/ _minReadableTabWidth;
     return math.min(tabCount - 1, capacityWithOverflow);
+  }
+
+  static double _overflowWidthFor(
+    double tabsAreaWidth, {
+    required int visibleTabCount,
+  }) {
+    if (visibleTabCount == 0) {
+      return tabsAreaWidth;
+    }
+    return _overflowButtonWidthFor(tabsAreaWidth);
+  }
+
+  static double _overflowButtonWidthFor(double tabsAreaWidth) {
+    if (tabsAreaWidth <= 0) {
+      return 0;
+    }
+    return math.min(_overflowButtonWidth, tabsAreaWidth);
   }
 }
 
@@ -7939,17 +7967,19 @@ class _ShellNewTabButton extends StatelessWidget {
   const _ShellNewTabButton({
     required this.palette,
     required this.tone,
+    required this.width,
     required this.onPressed,
   });
 
   final AppThemeTokens palette;
   final _ShellTabTone tone;
+  final double width;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: _ShellTabStripState._newTabButtonWidth,
+      width: width,
       child: Center(
         child: _buildChromeIconButton(
           key: const Key('shell-chrome-new-tab'),
@@ -8040,6 +8070,7 @@ class _ShellTabOverflowMenu extends StatefulWidget {
     required this.tabHasNewOutput,
     required this.tabBackgroundColor,
     required this.onActivateSession,
+    required this.width,
   });
 
   final AppThemeTokens palette;
@@ -8049,6 +8080,7 @@ class _ShellTabOverflowMenu extends StatefulWidget {
   final bool Function(TerminalTab tab) tabHasNewOutput;
   final Color Function(TerminalTab tab) tabBackgroundColor;
   final ValueChanged<String> onActivateSession;
+  final double width;
 
   @override
   State<_ShellTabOverflowMenu> createState() => _ShellTabOverflowMenuState();
@@ -8102,10 +8134,7 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
           CompositedTransformFollower(
             link: _layerLink,
             showWhenUnlinked: false,
-            offset: const Offset(
-              _ShellTabStripState._overflowButtonWidth - _menuWidth,
-              38,
-            ),
+            offset: Offset(widget.width - _menuWidth, 38),
             child: _ShellTabOverflowPanel(
               palette: widget.palette,
               width: _menuWidth,
@@ -8174,7 +8203,7 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
       child: Tooltip(
         message: 'Show hidden tabs',
         child: SizedBox(
-          width: _ShellTabStripState._overflowButtonWidth,
+          width: widget.width,
           height: double.infinity,
           child: Semantics(
             label: 'shell-tab-overflow',

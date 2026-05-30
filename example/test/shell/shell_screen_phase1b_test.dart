@@ -261,6 +261,58 @@ void main() {
     expect(find.byKey(const Key('shell-tab-overflow-item-12')), findsOneWidget);
   });
 
+  testWidgets(
+    'shell tabs keep compact overflow controls inside narrow chrome',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(320, 720);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final stripRect = tester.getRect(
+        find.byKey(const Key('shell-tab-strip')),
+      );
+      final overflowRect = tester.getRect(
+        find.byKey(const Key('shell-tab-overflow-button')),
+      );
+      final newTabRect = tester.getRect(
+        find.byKey(const Key('shell-chrome-new-tab')),
+      );
+
+      expect(overflowRect.left, greaterThanOrEqualTo(stripRect.left - 0.1));
+      expect(newTabRect.right, lessThanOrEqualTo(stripRect.right + 0.1));
+      expect(
+        overflowRect.width + newTabRect.width,
+        lessThanOrEqualTo(stripRect.width + 1),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('shell-tab-overflow-item-1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-tab-overflow-item-2')),
+        findsOneWidget,
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('inactive tabs mark and clear new output activity', (
     tester,
   ) async {
