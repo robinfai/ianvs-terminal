@@ -51,8 +51,9 @@ class LocalTerminalThemeRepository {
   Future<File> exportPreset(LocalTerminalThemePreset preset) async {
     final directory = await _directoryResolver();
     await directory.create(recursive: true);
+    final safePresetId = _safeBasename(preset.id);
     final file = File(
-      '${directory.path}/${preset.id}.ianvs-terminal-theme.json',
+      '${directory.path}/$safePresetId.ianvs-terminal-theme.json',
     );
     await file.writeAsString(preset.encode());
     return file;
@@ -67,6 +68,17 @@ class LocalTerminalThemeRepository {
     final quarantinedPath =
         '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
     await file.rename(quarantinedPath);
+  }
+
+  String _safeBasename(String basename) {
+    final safe = basename
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+        .replaceAll(RegExp('-+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    if (safe.isEmpty) {
+      return 'theme-${DateTime.now().millisecondsSinceEpoch}';
+    }
+    return safe;
   }
 }
 

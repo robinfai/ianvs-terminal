@@ -48,6 +48,31 @@ void main() {
       expect(await file.readAsString(), contains('"baseline"'));
     });
 
+    test('sanitizes exported preset id inside theme directory', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'ianvs terminal-theme-export-safe-name',
+      );
+      final directory = Directory('${root.path}/themes');
+      final repository = LocalTerminalThemeRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final file = await repository.exportPreset(
+        _preset(id: '../escaped-theme'),
+      );
+
+      final directoryPath = await directory.resolveSymbolicLinks();
+      final filePath = await file.resolveSymbolicLinks();
+      expect(filePath, startsWith('$directoryPath${Platform.pathSeparator}'));
+      expect(file.path, contains('..-escaped-theme.ianvs-terminal-theme.json'));
+      expect(
+        File(
+          '${root.path}/escaped-theme.ianvs-terminal-theme.json',
+        ).existsSync(),
+        isFalse,
+      );
+    });
+
     test('quarantines corrupt theme list', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-themes-corrupt',
@@ -107,9 +132,9 @@ void main() {
   });
 }
 
-LocalTerminalThemePreset _preset() {
-  return const LocalTerminalThemePreset(
-    id: 'baseline',
+LocalTerminalThemePreset _preset({String id = 'baseline'}) {
+  return LocalTerminalThemePreset(
+    id: id,
     name: 'Baseline',
     dark: LocalTerminalColorScheme(
       background: 0x000000,
