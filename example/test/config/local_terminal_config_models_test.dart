@@ -67,6 +67,19 @@ void main() {
       expect(override.meta, isTrue);
     });
 
+    test('decode rejects non-object json roots', () {
+      expect(
+        () => LocalTerminalConfigDocument.decode('[]'),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            'Local config JSON must be an object.',
+          ),
+        ),
+      );
+    });
+
     test('appearance viewport padding roundtrips through json', () {
       const config = LocalTerminalConfigDocument(
         appearance: TerminalAppAppearance(terminalViewportPadding: 16),

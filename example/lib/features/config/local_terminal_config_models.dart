@@ -60,7 +60,12 @@ class LocalTerminalConfigDocument {
   String encode() => jsonEncode(toJson());
 
   static LocalTerminalConfigDocument decode(String raw) {
-    return fromJson(jsonDecode(raw) as Map<String, Object?>);
+    final decoded = jsonDecode(raw);
+    final json = _objectMap(decoded);
+    if (json == null) {
+      throw const FormatException('Local config JSON must be an object.');
+    }
+    return fromJson(json.cast<String, Object?>());
   }
 
   static LocalTerminalConfigDocument fromJson(Map<String, Object?> json) {
