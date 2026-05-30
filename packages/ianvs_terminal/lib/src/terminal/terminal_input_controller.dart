@@ -554,7 +554,15 @@ List<int>? _modifiedKeyBytesFor(
 String? _altCharacterFor(KeyEvent event) {
   final label = event.logicalKey.keyLabel;
   if (label.length == 1) {
-    return label.toLowerCase();
+    final codeUnit = label.codeUnitAt(0);
+    final isAsciiLetter =
+        (codeUnit >= 0x41 && codeUnit <= 0x5a) ||
+        (codeUnit >= 0x61 && codeUnit <= 0x7a);
+    if (isAsciiLetter) {
+      return HardwareKeyboard.instance.isShiftPressed
+          ? label.toUpperCase()
+          : label.toLowerCase();
+    }
   }
   final character = event.character;
   if (character == null || character.isEmpty || character == '\n') {

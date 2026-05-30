@@ -1511,6 +1511,59 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft, platform: 'macos');
   });
 
+  testWidgets('terminal input preserves Shift for Alt letter chords', (
+    tester,
+  ) async {
+    final bindings = FakePtyBackend();
+    final coreClient = testRuntime(bindings);
+    final viewportController = TerminalViewportController();
+    final selectionController = SelectionController();
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: coreClient,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TerminalViewport(
+            controller: viewportController,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.altLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyF, platform: 'macos');
+    await tester.pump();
+
+    expect(bindings.writes, isNotEmpty);
+    expect(bindings.writes.last, ascii.encode('\x1BF'));
+
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyF, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft, platform: 'macos');
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: 'macos',
+    );
+  });
+
   testWidgets(
     'terminal input maps Option+Left and Option+Right to word moves',
     (tester) async {
