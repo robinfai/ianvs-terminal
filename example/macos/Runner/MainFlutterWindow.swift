@@ -289,6 +289,11 @@ class MainFlutterWindow: NSWindow {
     windowBridgeChannel?.invokeMethod("nativePaste", arguments: nil)
   }
 
+  @objc func performFindPanelAction(_ sender: Any?) {
+    let tag = (sender as? NSMenuItem)?.tag ?? 1
+    windowBridgeChannel?.invokeMethod("nativeFind", arguments: ["tag": tag])
+  }
+
   private func bindNativePasteMenuItems() {
     guard let mainMenu = NSApp.mainMenu else {
       return

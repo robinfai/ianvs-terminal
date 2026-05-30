@@ -134,6 +134,19 @@ Future<void> _openShellSearch(WidgetTester tester) async {
   await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
 }
 
+Future<void> _invokeNativeWindowBridge(
+  WidgetTester tester,
+  MethodCall call,
+) async {
+  final codec = const StandardMethodCodec();
+  await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+    'app/window_bridge',
+    codec.encodeMethodCall(call),
+    (_) {},
+  );
+  await tester.pumpAndSettle();
+}
+
 Future<void> _openTabContextMenu(
   WidgetTester tester, {
   String sessionId = '1',
@@ -2146,6 +2159,34 @@ void main() {
       await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
 
       _expectSelectedTab(tester, '1');
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'native find menu opens search without leaking input',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      await _invokeNativeWindowBridge(
+        tester,
+        const MethodCall('nativeFind', <String, Object?>{'tag': 1}),
+      );
+
+      expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
+      expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),

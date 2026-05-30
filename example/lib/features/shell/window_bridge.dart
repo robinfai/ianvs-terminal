@@ -6,19 +6,36 @@ class WindowBridge {
 
   static const MethodChannel _channel = MethodChannel('app/window_bridge');
 
-  static void setNativePasteHandler(Future<void> Function()? handler) {
-    if (handler == null) {
+  static void setNativeMenuHandlers({
+    Future<void> Function()? onPaste,
+    Future<void> Function(NativeFindAction action)? onFind,
+  }) {
+    if (onPaste == null && onFind == null) {
       _channel.setMethodCallHandler(null);
       return;
     }
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
         case 'nativePaste':
+          final handler = onPaste;
+          if (handler == null) {
+            throw MissingPluginException('No handler for ${call.method}');
+          }
           await handler();
+        case 'nativeFind':
+          final handler = onFind;
+          if (handler == null) {
+            throw MissingPluginException('No handler for ${call.method}');
+          }
+          await handler(NativeFindAction.fromTag(_findTagFrom(call.arguments)));
         default:
           throw MissingPluginException('No handler for ${call.method}');
       }
     });
+  }
+
+  static void setNativePasteHandler(Future<void> Function()? handler) {
+    setNativeMenuHandlers(onPaste: handler);
   }
 
   static Future<void> resizeBy({
@@ -142,6 +159,35 @@ class WindowBridge {
     } on MissingPluginException {
       return;
     }
+  }
+}
+
+int? _findTagFrom(Object? arguments) {
+  if (arguments is Map) {
+    final tag = arguments['tag'];
+    if (tag is int) {
+      return tag;
+    }
+  }
+  return null;
+}
+
+enum NativeFindAction {
+  show,
+  replace,
+  next,
+  previous,
+  useSelection,
+  jumpToSelection;
+
+  factory NativeFindAction.fromTag(int? tag) {
+    return switch (tag) {
+      2 => NativeFindAction.next,
+      3 => NativeFindAction.previous,
+      7 => NativeFindAction.useSelection,
+      12 => NativeFindAction.replace,
+      _ => NativeFindAction.show,
+    };
   }
 }
 

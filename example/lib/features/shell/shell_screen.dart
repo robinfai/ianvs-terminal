@@ -307,7 +307,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
-    WindowBridge.setNativePasteHandler(_handleNativePasteMenu);
+    WindowBridge.setNativeMenuHandlers(
+      onPaste: _handleNativePasteMenu,
+      onFind: _handleNativeFindMenu,
+    );
     _completionDiagnosticsSnapshot =
         const LocalTerminalPendingCompletionSnapshotFactory(
           p0BoundaryManifest: LocalTerminalP0BoundaryClosureManifest(
@@ -329,7 +332,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   void dispose() {
-    WindowBridge.setNativePasteHandler(null);
+    WindowBridge.setNativeMenuHandlers();
     _terminalEventSubscription?.cancel();
     _workspaceCueTimer?.cancel();
     _viewportResizeTimer?.cancel();
@@ -348,6 +351,34 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       return;
     }
     await _pasteToSession(activeSessionId);
+  }
+
+  Future<void> _handleNativeFindMenu(NativeFindAction action) async {
+    if (!mounted) {
+      return;
+    }
+    switch (action) {
+      case NativeFindAction.next:
+        if (!_isSearchOpen) {
+          _openSearch();
+          return;
+        }
+        _moveSearchMatch(1);
+        return;
+      case NativeFindAction.previous:
+        if (!_isSearchOpen) {
+          _openSearch();
+          return;
+        }
+        _moveSearchMatch(-1);
+        return;
+      case NativeFindAction.show:
+      case NativeFindAction.replace:
+      case NativeFindAction.useSelection:
+      case NativeFindAction.jumpToSelection:
+        _openSearch();
+        return;
+    }
   }
 
   void _handleTerminalSessionEvent(terminal.TerminalSessionEvent event) {
