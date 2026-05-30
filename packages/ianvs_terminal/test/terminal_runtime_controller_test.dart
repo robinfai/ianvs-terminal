@@ -196,6 +196,37 @@ void main() {
     expect(frame.rows.single.modifiedAt, modifiedAt);
   });
 
+  test('terminal style runs degrade malformed colors', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {
+          'index': 0,
+          'text': 'styled',
+          'style_runs': [
+            {
+              'start': 0,
+              'end': 6,
+              'foreground': 'not-a-color',
+              'background': '#80445566',
+            },
+          ],
+        },
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 1,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    final run = frame.rows.single.styleRuns.single;
+    expect(run.foreground, isNull);
+    expect(run.background, const Color(0x80445566));
+  });
+
   test('terminal frames parse inline image payloads', () {
     final imageBytes = utf8.encode('fake-png');
     final frame = TerminalFrameDiff.fromJson(<String, Object?>{

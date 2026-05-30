@@ -667,7 +667,14 @@ Color? _colorFromHex(String? value) {
     return null;
   }
   final normalized = value.replaceFirst('#', '');
-  return Color(int.parse('FF$normalized', radix: 16));
+  if (normalized.length != 6 && normalized.length != 8) {
+    return null;
+  }
+  final parsed = int.tryParse(normalized, radix: 16);
+  if (parsed == null) {
+    return null;
+  }
+  return Color(normalized.length == 6 ? 0xFF000000 | parsed : parsed);
 }
 
 int _intFromJson(Object? value, {required int fallback}) {
