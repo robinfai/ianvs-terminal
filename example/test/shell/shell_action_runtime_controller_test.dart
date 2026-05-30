@@ -287,6 +287,36 @@ void main() {
       expect(controller.state.lastExternalExecutorError, isA<StateError>());
       expect(controller.state.lastPasteDecision!.text, 'hello');
     });
+
+    test(
+      'clears external executor errors after a later successful run',
+      () async {
+        final controller = ShellActionRuntimeController();
+        final failingExecutor = ShellActionSideEffectExecutor(
+          ShellActionSideEffectHandlers(
+            sendPaste: (_) async => throw StateError('paste failed'),
+          ),
+        );
+        final harness = ShellActionTestHarness();
+
+        await controller.run(
+          actionId: TerminalActionId.paste,
+          context: _context(pasteText: 'first'),
+          externalExecutor: failingExecutor,
+        );
+        expect(controller.state.lastExternalExecutorError, isA<StateError>());
+
+        await controller.run(
+          actionId: TerminalActionId.paste,
+          context: _context(pasteText: 'second'),
+          externalExecutor: harness.executor(),
+        );
+
+        expect(controller.state.lastExternalExecutorError, isNull);
+        expect(harness.calls.single.kind, ShellActionSideEffectKind.sendPaste);
+        expect(controller.state.lastPasteDecision!.text, 'second');
+      },
+    );
   });
 }
 

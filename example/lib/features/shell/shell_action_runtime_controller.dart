@@ -15,6 +15,8 @@ import 'shell_action_registry.dart';
 import 'shell_action_side_effect_executor.dart';
 import 'shell_action_side_effect_plan.dart';
 
+const Object _copyWithUnset = Object();
+
 class ShellActionRuntimeState {
   const ShellActionRuntimeState({
     this.workspace = const TerminalWorkspace(),
@@ -56,7 +58,7 @@ class ShellActionRuntimeState {
     ShellCommandOutputRange? lastCommandOutputRange,
     String? lastRecentDirectory,
     bool? themePickerRequested,
-    Object? lastExternalExecutorError,
+    Object? lastExternalExecutorError = _copyWithUnset,
   }) {
     return ShellActionRuntimeState(
       workspace: workspace ?? this.workspace,
@@ -74,7 +76,9 @@ class ShellActionRuntimeState {
       lastRecentDirectory: lastRecentDirectory ?? this.lastRecentDirectory,
       themePickerRequested: themePickerRequested ?? this.themePickerRequested,
       lastExternalExecutorError:
-          lastExternalExecutorError ?? this.lastExternalExecutorError,
+          identical(lastExternalExecutorError, _copyWithUnset)
+          ? this.lastExternalExecutorError
+          : lastExternalExecutorError,
     );
   }
 }
@@ -213,6 +217,7 @@ class ShellActionRuntimeController {
       context: context,
     );
     planned = result.plan;
+    _state = _state.copyWith(lastExternalExecutorError: null);
     try {
       await externalExecutor?.execute(planned);
     } on Object catch (error) {
