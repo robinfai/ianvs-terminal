@@ -106,12 +106,12 @@ void main() {
       );
     });
 
-    test('keybinding action ids trim whitespace', () {
+    test('keybinding action ids trim whitespace and ignore case', () {
       final config = LocalTerminalConfigDocument.fromJson(const {
         'keybindings': {
-          'disabledDefaultActions': [' pasteHistory ', '   '],
+          'disabledDefaultActions': [' PASTEHISTORY ', '   '],
           'overrides': {
-            ' newTab ': {
+            ' NEWTAB ': {
               'binding': {'key': 'KeyN', 'meta': true},
             },
           },
@@ -128,17 +128,17 @@ void main() {
       );
     });
 
-    test('config enum values trim whitespace', () {
+    test('config enum values trim whitespace and ignore case', () {
       final config = LocalTerminalConfigDocument.fromJson(const {
         'keybindings': {
           'overrides': {
             'newTab': {
-              'binding': {'scope': ' focusedApp ', 'key': 'KeyN'},
+              'binding': {'scope': ' FOCUSEDAPP ', 'key': 'KeyN'},
             },
           },
         },
-        'clipboard': {'osc52': ' allow '},
-        'paste': {'bracketedPaste': ' force '},
+        'clipboard': {'osc52': ' ALLOW '},
+        'paste': {'bracketedPaste': ' FORCE '},
       });
 
       expect(

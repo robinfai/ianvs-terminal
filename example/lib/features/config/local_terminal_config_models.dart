@@ -497,13 +497,13 @@ TerminalActionId? _actionId(Object? value) {
     return null;
   }
 
-  final normalized = value.trim();
+  final normalized = value.trim().toLowerCase();
   if (normalized.isEmpty) {
     return null;
   }
 
   for (final actionId in TerminalActionId.values) {
-    if (actionId.name == normalized) {
+    if (actionId.name.toLowerCase() == normalized) {
       return actionId;
     }
   }
@@ -512,9 +512,9 @@ TerminalActionId? _actionId(Object? value) {
 
 TerminalKeyBindingScope _keyBindingScope(Object? value) {
   if (value is String) {
-    final normalized = value.trim();
+    final normalized = value.trim().toLowerCase();
     for (final scope in TerminalKeyBindingScope.values) {
-      if (scope.name == normalized) {
+      if (scope.name.toLowerCase() == normalized) {
         return scope;
       }
     }
@@ -524,7 +524,7 @@ TerminalKeyBindingScope _keyBindingScope(Object? value) {
 
 LocalTerminalOsc52Policy _osc52Policy(Object? value) {
   if (value is String) {
-    final normalized = value.trim();
+    final normalized = value.trim().toLowerCase();
     for (final policy in LocalTerminalOsc52Policy.values) {
       if (policy.name == normalized) {
         return policy;
@@ -536,7 +536,7 @@ LocalTerminalOsc52Policy _osc52Policy(Object? value) {
 
 LocalTerminalBracketedPastePolicy _bracketedPastePolicy(Object? value) {
   if (value is String) {
-    final normalized = value.trim();
+    final normalized = value.trim().toLowerCase();
     for (final policy in LocalTerminalBracketedPastePolicy.values) {
       if (policy.name == normalized) {
         return policy;
