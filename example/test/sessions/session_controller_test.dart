@@ -570,6 +570,57 @@ void main() {
     );
   });
 
+  test('reopenClosedTab preserves nested pane layout shape', () {
+    final coreClient = FakePtyBackend();
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+    controller.createSession(profile);
+    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+    controller.splitActiveSession(profile, TerminalSplitAxis.vertical);
+
+    final originalTab = container.read(sessionControllerProvider).tabs.single;
+    controller.resizeActivePaneSplit(originalTab.effectivePaneLayout.id, 0.35);
+    final resizedRoot = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .effectivePaneLayout;
+    controller.resizeActivePaneSplit(resizedRoot.second!.id, 0.65);
+    final beforeClose = container.read(sessionControllerProvider);
+    final activeBeforeClose = beforeClose.activeSessionId;
+
+    controller.closeTab(beforeClose.tabs.single.sessionId);
+    expect(container.read(sessionControllerProvider).tabs, isEmpty);
+
+    controller.reopenClosedTab();
+
+    final reopenedState = container.read(sessionControllerProvider);
+    final reopenedTab = reopenedState.tabs.single;
+    final reopenedLayout = reopenedTab.effectivePaneLayout;
+    expect(reopenedTab.effectivePanes, hasLength(3));
+    expect(reopenedLayout.splitAxis, TerminalSplitAxis.horizontal);
+    expect(reopenedLayout.ratio, 0.35);
+    expect(reopenedLayout.second!.splitAxis, TerminalSplitAxis.vertical);
+    expect(reopenedLayout.second!.ratio, 0.65);
+    expect(reopenedState.activeSessionId, isNot(activeBeforeClose));
+    expect(reopenedState.activeSessionId, reopenedLayout.second!.second!.id);
+  });
+
   test('resizeActiveSession dedupes identical size requests', () {
     final coreBindings = FakePtyBackend();
     final coreClient = coreBindings;

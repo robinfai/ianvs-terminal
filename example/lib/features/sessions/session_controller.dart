@@ -593,6 +593,7 @@ class SessionController extends Notifier<SessionState> {
     final sourcePanes = closedTab.effectivePanes;
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
     final reopenedPanes = <TerminalPane>[];
+    final replacementsBySourceSessionId = <String, TerminalPane>{};
     String? activeSessionId;
 
     _ensureRuntimeSubscription();
@@ -614,6 +615,7 @@ class SessionController extends Notifier<SessionState> {
           profileSnapshot: launchProfile,
         ),
       );
+      replacementsBySourceSessionId[sourcePane.sessionId] = reopenedPanes.last;
       if (sourcePane.sessionId == closedTab.activeSessionId) {
         activeSessionId = sessionId;
       }
@@ -624,12 +626,18 @@ class SessionController extends Notifier<SessionState> {
     }
     activeSessionId ??= reopenedPanes.first.sessionId;
     final tabSessionId = reopenedPanes.first.sessionId;
+    final reopenedLayout = _reopenedPaneLayout(
+      closedTab.effectivePaneLayout,
+      replacementsBySourceSessionId,
+    );
+    final layoutPanes = reopenedLayout?.panes ?? reopenedPanes;
     final reopenedTab = TerminalTab(
       sessionId: tabSessionId,
       title: closedTab.title,
       profileId: reopenedPanes.first.profileId,
       profileSnapshot: reopenedPanes.first.profileSnapshot,
-      panes: reopenedPanes,
+      panes: layoutPanes,
+      paneLayout: reopenedLayout,
       activePaneSessionId: activeSessionId == tabSessionId
           ? null
           : activeSessionId,
@@ -642,6 +650,41 @@ class SessionController extends Notifier<SessionState> {
     );
     final activePane = reopenedTab.paneFor(activeSessionId);
     _setWindowTitle(activePane?.title ?? reopenedTab.title);
+  }
+
+  TerminalPaneLayoutNode? _reopenedPaneLayout(
+    TerminalPaneLayoutNode source,
+    Map<String, TerminalPane> replacementsBySourceSessionId,
+  ) {
+    if (source.isLeaf) {
+      final replacement = replacementsBySourceSessionId[source.pane!.sessionId];
+      return replacement == null
+          ? null
+          : TerminalPaneLayoutNode.leaf(replacement);
+    }
+
+    final first = _reopenedPaneLayout(
+      source.first!,
+      replacementsBySourceSessionId,
+    );
+    final second = _reopenedPaneLayout(
+      source.second!,
+      replacementsBySourceSessionId,
+    );
+    if (first == null) {
+      return second;
+    }
+    if (second == null) {
+      return first;
+    }
+
+    return TerminalPaneLayoutNode.split(
+      id: source.id,
+      splitAxis: source.splitAxis!,
+      first: first,
+      second: second,
+      ratio: source.ratio,
+    );
   }
 
   TerminalProfile? _profileForClosedPane(TerminalPane pane) {
