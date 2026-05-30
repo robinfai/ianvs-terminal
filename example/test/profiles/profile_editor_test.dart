@@ -706,6 +706,47 @@ void main() {
     expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
   });
 
+  testWidgets('profile editor rejects non-finite typography values', (
+    tester,
+  ) async {
+    TerminalProfile? savedProfile;
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (value) => savedProfile = value,
+    );
+
+    await _ensureVisible(
+      tester,
+      find.byKey(const Key('profile-editor-font-size')),
+    );
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-font-size')),
+      'NaN',
+    );
+    await _ensureVisible(
+      tester,
+      find.byKey(const Key('profile-editor-font-line-height')),
+    );
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-font-line-height')),
+      'Infinity',
+    );
+
+    await _ensureVisible(tester, find.byKey(const Key('profile-editor-save')));
+    await tester.tap(find.byKey(const Key('profile-editor-save')));
+    await tester.pumpAndSettle();
+
+    expect(savedProfile, isNull);
+    expect(find.text('Font size must be greater than 0'), findsOneWidget);
+    expect(find.text('Line height must be greater than 0'), findsOneWidget);
+    expect(find.byKey(const Key('profile-editor-dialog')), findsOneWidget);
+  });
+
   testWidgets('profile editor confirms before discarding unsaved changes', (
     tester,
   ) async {

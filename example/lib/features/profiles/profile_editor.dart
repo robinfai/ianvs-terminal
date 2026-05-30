@@ -581,7 +581,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       return '$label is required';
     }
     final parsed = double.tryParse(trimmed);
-    if (parsed == null || parsed <= 0) {
+    if (parsed == null || !parsed.isFinite || parsed <= 0) {
       return '$label must be greater than 0';
     }
     return null;
