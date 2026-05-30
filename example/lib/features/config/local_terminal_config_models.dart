@@ -71,7 +71,7 @@ class LocalTerminalConfigDocument {
         json['schemaVersion'],
         currentSchemaVersion,
       ),
-      defaultProfileId: json['defaultProfileId'] as String?,
+      defaultProfileId: _stringOrNull(json['defaultProfileId']),
       appearance: TerminalAppAppearance.fromJson(
         _objectMap(json['appearance']),
       ),
@@ -98,13 +98,7 @@ class LocalTerminalConfigDocument {
   }
 
   static int _schemaVersionFromJson(Object? value, int fallback) {
-    if (value is int) {
-      return value;
-    }
-    if (value is num) {
-      return value.toInt();
-    }
-    return fallback;
+    return _intFromJson(value, fallback);
   }
 
   static void _rejectForbiddenTopLevelKeys(Map<String, Object?> json) {
@@ -170,7 +164,7 @@ class LocalTerminalKeyBindingOverride {
     }
 
     return LocalTerminalKeyBindingOverride(
-      enabled: json['enabled'] as bool? ?? true,
+      enabled: _boolFromJson(json['enabled'], true),
       binding: LocalTerminalKeyBinding.fromJson(_objectMap(json['binding'])),
     );
   }
@@ -223,11 +217,11 @@ class LocalTerminalKeyBinding {
 
     return LocalTerminalKeyBinding(
       scope: _keyBindingScope(json['scope']),
-      key: json['key'] as String? ?? '',
-      meta: json['meta'] as bool? ?? false,
-      control: json['control'] as bool? ?? false,
-      shift: json['shift'] as bool? ?? false,
-      alt: json['alt'] as bool? ?? false,
+      key: _stringOrNull(json['key']) ?? '',
+      meta: _boolFromJson(json['meta'], false),
+      control: _boolFromJson(json['control'], false),
+      shift: _boolFromJson(json['shift'], false),
+      alt: _boolFromJson(json['alt'], false),
     );
   }
 }
@@ -243,7 +237,7 @@ class LocalTerminalWorkspaceConfig {
 
   static LocalTerminalWorkspaceConfig fromJson(Map<Object?, Object?>? json) {
     return LocalTerminalWorkspaceConfig(
-      restoreLayout: json?['restoreLayout'] as bool? ?? false,
+      restoreLayout: _boolFromJson(json?['restoreLayout'], false),
     );
   }
 }
@@ -263,7 +257,7 @@ class LocalTerminalClipboardConfig {
 
   static LocalTerminalClipboardConfig fromJson(Map<Object?, Object?>? json) {
     return LocalTerminalClipboardConfig(
-      copyOnSelect: json?['copyOnSelect'] as bool? ?? false,
+      copyOnSelect: _boolFromJson(json?['copyOnSelect'], false),
       osc52: _osc52Policy(json?['osc52']),
     );
   }
@@ -296,9 +290,12 @@ class LocalTerminalPasteConfig {
   static LocalTerminalPasteConfig fromJson(Map<Object?, Object?>? json) {
     return LocalTerminalPasteConfig(
       bracketedPaste: _bracketedPastePolicy(json?['bracketedPaste']),
-      confirmLargePaste: json?['confirmLargePaste'] as bool? ?? true,
-      confirmMultilinePaste: json?['confirmMultilinePaste'] as bool? ?? true,
-      historySize: json?['historySize'] as int? ?? 50,
+      confirmLargePaste: _boolFromJson(json?['confirmLargePaste'], true),
+      confirmMultilinePaste: _boolFromJson(
+        json?['confirmMultilinePaste'],
+        true,
+      ),
+      historySize: _intFromJson(json?['historySize'], 50),
     );
   }
 }
@@ -318,7 +315,7 @@ class LocalTerminalShellIntegrationConfig {
     Map<Object?, Object?>? json,
   ) {
     return LocalTerminalShellIntegrationConfig(
-      enabled: json?['enabled'] as bool? ?? true,
+      enabled: _boolFromJson(json?['enabled'], true),
     );
   }
 }
@@ -336,7 +333,7 @@ class LocalTerminalNotificationsConfig {
     Map<Object?, Object?>? json,
   ) {
     return LocalTerminalNotificationsConfig(
-      enabled: json?['enabled'] as bool? ?? true,
+      enabled: _boolFromJson(json?['enabled'], true),
     );
   }
 }
@@ -352,7 +349,7 @@ class LocalTerminalHotkeyWindowConfig {
 
   static LocalTerminalHotkeyWindowConfig fromJson(Map<Object?, Object?>? json) {
     return LocalTerminalHotkeyWindowConfig(
-      enabled: json?['enabled'] as bool? ?? false,
+      enabled: _boolFromJson(json?['enabled'], false),
     );
   }
 }
@@ -365,6 +362,24 @@ Map<Object?, Object?>? _objectMap(Object? value) {
     return value.cast<Object?, Object?>();
   }
   return null;
+}
+
+String? _stringOrNull(Object? value) {
+  return value is String ? value : null;
+}
+
+bool _boolFromJson(Object? value, bool fallback) {
+  return value is bool ? value : fallback;
+}
+
+int _intFromJson(Object? value, int fallback) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return fallback;
 }
 
 Set<TerminalActionId> _actionIdSet(Object? value) {

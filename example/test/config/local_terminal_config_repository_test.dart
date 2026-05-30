@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
+import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -73,6 +74,87 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'defaults invalid primitive config fields without quarantine',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-config-invalid-primitives',
+        );
+        final file = File('${directory.path}/ianvs_config.json');
+        await file.writeAsString(
+          jsonEncode({
+            'schemaVersion': 1,
+            'defaultProfileId': 42,
+            'keybindings': {
+              'overrides': {
+                'newTab': {
+                  'enabled': 'yes',
+                  'binding': {
+                    'scope': 'global',
+                    'key': 7,
+                    'meta': 'true',
+                    'control': true,
+                    'shift': 1,
+                    'alt': false,
+                  },
+                },
+              },
+            },
+            'workspace': {'restoreLayout': 'yes'},
+            'clipboard': {'copyOnSelect': 'no', 'osc52': 'allow'},
+            'paste': {
+              'bracketedPaste': 'force',
+              'confirmLargePaste': 'yes',
+              'confirmMultilinePaste': false,
+              'historySize': 'many',
+            },
+            'shellIntegration': {'enabled': 'true'},
+            'notifications': {'enabled': false},
+            'hotkeyWindow': {'enabled': 'false'},
+          }),
+        );
+        final repository = LocalTerminalConfigRepository(
+          directoryResolver: () async => directory,
+        );
+
+        final loaded = await repository.load();
+
+        expect(loaded, isNotNull);
+        expect(loaded!.defaultProfileId, isNull);
+        expect(
+          loaded.keybindings.overrides[TerminalActionId.newTab]?.enabled,
+          isTrue,
+        );
+        final binding =
+            loaded.keybindings.overrides[TerminalActionId.newTab]?.binding;
+        expect(binding?.scope, TerminalKeyBindingScope.global);
+        expect(binding?.key, '');
+        expect(binding?.meta, isFalse);
+        expect(binding?.control, isTrue);
+        expect(binding?.shift, isFalse);
+        expect(binding?.alt, isFalse);
+        expect(loaded.workspace.restoreLayout, isFalse);
+        expect(loaded.clipboard.copyOnSelect, isFalse);
+        expect(loaded.clipboard.osc52, LocalTerminalOsc52Policy.allow);
+        expect(
+          loaded.paste.bracketedPaste,
+          LocalTerminalBracketedPastePolicy.force,
+        );
+        expect(loaded.paste.confirmLargePaste, isTrue);
+        expect(loaded.paste.confirmMultilinePaste, isFalse);
+        expect(loaded.paste.historySize, 50);
+        expect(loaded.shellIntegration.enabled, isTrue);
+        expect(loaded.notifications.enabled, isFalse);
+        expect(loaded.hotkeyWindow.enabled, isFalse);
+        expect(
+          directory.listSync().any(
+            (entry) => entry.path.contains('ianvs_config.json.corrupt'),
+          ),
+          isFalse,
+        );
+      },
+    );
 
     test('quarantines corrupt config and writes repaired defaults', () async {
       final directory = await Directory.systemTemp.createTemp(

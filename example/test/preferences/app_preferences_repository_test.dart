@@ -120,6 +120,55 @@ void main() {
   );
 
   test(
+    'app preferences repository defaults invalid sections without quarantine',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-preferences-invalid-sections',
+      );
+      final repository = AppPreferencesRepository(
+        directoryResolver: () async => directory,
+      );
+      final file = File('${directory.path}/ianvs_preferences.json');
+
+      await file.writeAsString(
+        jsonEncode({
+          'schemaVersion': 1,
+          'defaults': {'defaultProfileId': 42},
+          'appearance': 'dark',
+          'notifications': {
+            'commandFinished': 'yes',
+            'bell': false,
+            'activity': 1,
+          },
+        }),
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(loaded!.defaults.defaultProfileId, isNull);
+      expect(loaded.appearance.themeMode, TerminalThemeMode.system);
+      expect(
+        loaded.appearance.terminalViewportPadding,
+        TerminalAppAppearance.defaultTerminalViewportPadding,
+      );
+      expect(loaded.notifications.commandFinished, isTrue);
+      expect(loaded.notifications.bell, isFalse);
+      expect(loaded.notifications.activity, isTrue);
+      expect(
+        directory
+            .listSync()
+            .whereType<File>()
+            .where(
+              (entry) => entry.path.contains('ianvs_preferences.json.corrupt'),
+            )
+            .length,
+        0,
+      );
+    },
+  );
+
+  test(
     'app preferences repository quarantines corrupt files and repairs defaults',
     () async {
       final directory = await Directory.systemTemp.createTemp(

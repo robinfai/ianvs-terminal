@@ -35,7 +35,7 @@ class TerminalAppDefaults {
 
   static TerminalAppDefaults fromJson(Map<Object?, Object?>? json) {
     return TerminalAppDefaults(
-      defaultProfileId: json?['defaultProfileId'] as String?,
+      defaultProfileId: _stringOrNull(json?['defaultProfileId']),
     );
   }
 }
@@ -125,9 +125,9 @@ class TerminalAppNotifications {
 
   static TerminalAppNotifications fromJson(Map<Object?, Object?>? json) {
     return TerminalAppNotifications(
-      commandFinished: json?['commandFinished'] as bool? ?? true,
-      bell: json?['bell'] as bool? ?? true,
-      activity: json?['activity'] as bool? ?? true,
+      commandFinished: _boolFromJson(json?['commandFinished'], true),
+      bell: _boolFromJson(json?['bell'], true),
+      activity: _boolFromJson(json?['activity'], true),
     );
   }
 }
@@ -178,14 +178,12 @@ class TerminalAppPreferencesDocument {
         json['schemaVersion'],
         currentSchemaVersion,
       ),
-      defaults: TerminalAppDefaults.fromJson(
-        json['defaults'] as Map<Object?, Object?>?,
-      ),
+      defaults: TerminalAppDefaults.fromJson(_objectMap(json['defaults'])),
       appearance: TerminalAppAppearance.fromJson(
-        json['appearance'] as Map<Object?, Object?>?,
+        _objectMap(json['appearance']),
       ),
       notifications: TerminalAppNotifications.fromJson(
-        json['notifications'] as Map<Object?, Object?>?,
+        _objectMap(json['notifications']),
       ),
     );
   }
@@ -199,6 +197,24 @@ int _schemaVersionFromJson(Object? value, int fallback) {
     return value.toInt();
   }
   return fallback;
+}
+
+Map<Object?, Object?>? _objectMap(Object? value) {
+  if (value is Map<Object?, Object?>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.cast<Object?, Object?>();
+  }
+  return null;
+}
+
+String? _stringOrNull(Object? value) {
+  return value is String ? value : null;
+}
+
+bool _boolFromJson(Object? value, bool fallback) {
+  return value is bool ? value : fallback;
 }
 
 const Object _appPreferencesNoChange = Object();
