@@ -692,7 +692,10 @@ class TerminalRuntimeController {
           }
         }
 
-        final events = _backend.pollEvents(sessionId);
+        final events = _eventsForSession(
+          sessionId,
+          _backend.pollEvents(sessionId),
+        );
         final shouldApplyBeforeEvents =
             pendingFrames.isNotEmpty &&
             (!_eventsDelayFrame(events) || _eventsContainExit(events));
@@ -777,6 +780,12 @@ class TerminalRuntimeController {
       }
     }
     return false;
+  }
+
+  List<PtyEvent> _eventsForSession(String sessionId, List<PtyEvent> events) {
+    return events
+        .where((event) => event.sessionId == sessionId)
+        .toList(growable: false);
   }
 
   bool _eventsDelayFrame(List<PtyEvent> events) {

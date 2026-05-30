@@ -1890,6 +1890,65 @@ void main() {
     },
   );
 
+  testWidgets('terminal runtime controller ignores events for other sessions', (
+    tester,
+  ) async {
+    final seenEvents = <TerminalSessionEvent>[];
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final subscription = runtime.events.listen(seenEvents.add);
+    addTearDown(subscription.cancel);
+
+    final firstSessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    final secondSessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/zsh'),
+      ),
+    );
+    runtime.resizeSession(firstSessionId, const Size(180, 144), 1);
+    runtimeBackend.resizeCalls.clear();
+
+    runtimeBackend.enqueueEvent(
+      firstSessionId,
+      PtyEvent(kind: 'bell', sessionId: secondSessionId),
+    );
+    runtimeBackend.enqueueEvent(
+      firstSessionId,
+      PtyEvent(
+        kind: 'resize',
+        sessionId: secondSessionId,
+        payload: const <String, Object?>{'cols': 21, 'rows': 9},
+      ),
+    );
+    runtimeBackend.enqueueEvent(
+      firstSessionId,
+      PtyEvent(
+        kind: 'exit',
+        sessionId: secondSessionId,
+        payload: const <String, Object?>{'code': 0},
+      ),
+    );
+
+    runtime.sendInput(firstSessionId, Uint8List(0));
+    await tester.pump();
+
+    expect(runtime.hasSession(firstSessionId), isTrue);
+    expect(runtime.hasSession(secondSessionId), isTrue);
+    expect(seenEvents.whereType<TerminalSessionBellEvent>(), isEmpty);
+    expect(seenEvents.whereType<TerminalSessionExitEvent>(), isEmpty);
+    expect(runtimeBackend.resizeCalls, isEmpty);
+  });
+
   testWidgets('terminal runtime controller dispose closes active sessions', (
     tester,
   ) async {
