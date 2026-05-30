@@ -140,6 +140,46 @@ void main() {
       expect(workspace.activeTab!.zoomedPaneId, isNull);
     });
 
+    test('workspace layout trims persisted identifiers', () {
+      final workspace = TerminalWorkspace.fromJson(const {
+        'activeTabId': ' tab-1 ',
+        'tabs': [
+          {
+            'id': ' tab-1 ',
+            'activePaneId': ' pane-1 ',
+            'zoomedPaneId': ' pane-1 ',
+            'root': {
+              'id': ' pane-1 ',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': ' default ', 'cwd': ' /repo '},
+            },
+          },
+        ],
+        'closedTabs': [
+          {
+            'id': ' closed ',
+            'activePaneId': ' closed-pane ',
+            'root': {
+              'id': ' closed-pane ',
+              'type': 'leaf',
+              'sessionIntent': {'profileId': '   ', 'cwd': '   '},
+            },
+          },
+        ],
+      });
+
+      expect(workspace.activeTabId, 'tab-1');
+      expect(workspace.activeTab!.id, 'tab-1');
+      expect(workspace.activeTab!.activePaneId, 'pane-1');
+      expect(workspace.activeTab!.zoomedPaneId, 'pane-1');
+      expect(workspace.activeTab!.root.id, 'pane-1');
+      expect(workspace.activeTab!.activeSessionIntent!.profileId, 'default');
+      expect(workspace.activeTab!.activeSessionIntent!.cwd, '/repo');
+      expect(workspace.closedTabs.single.id, 'closed');
+      expect(workspace.closedTabs.single.activeSessionIntent!.profileId, '');
+      expect(workspace.closedTabs.single.activeSessionIntent!.cwd, isNull);
+    });
+
     test('workspace layout rejects remote-only fields', () {
       expect(
         () => TerminalWorkspace.fromJson(const {

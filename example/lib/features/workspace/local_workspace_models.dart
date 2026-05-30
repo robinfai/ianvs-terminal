@@ -12,8 +12,8 @@ class TerminalPaneSessionIntent {
 
   static TerminalPaneSessionIntent fromJson(Map<Object?, Object?> json) {
     return TerminalPaneSessionIntent(
-      profileId: _stringOrNull(json['profileId']) ?? '',
-      cwd: _stringOrNull(json['cwd']),
+      profileId: _nonEmptyStringOrNull(json['profileId']) ?? '',
+      cwd: _nonEmptyStringOrNull(json['cwd']),
     );
   }
 }
@@ -213,7 +213,7 @@ class TerminalWorkspaceTab {
         ? rawZoomedPaneId
         : null;
     return TerminalWorkspaceTab(
-      id: _stringOrNull(json['id']) ?? '',
+      id: _nonEmptyStringOrNull(json['id']) ?? '',
       root: root,
       activePaneId: activePaneId,
       closedPanes: _objectList(
@@ -415,7 +415,7 @@ class TerminalPaneNode {
         json['children'],
       ).map(TerminalPaneNode.fromJson).toList(growable: false);
       return TerminalPaneNode.split(
-        id: _stringOrNull(json['id']) ?? '',
+        id: _nonEmptyStringOrNull(json['id']) ?? '',
         direction: _splitDirection(json['direction']),
         first: children.isEmpty ? _emptyLeaf() : children.first,
         second: children.length < 2 ? _emptyLeaf() : children[1],
@@ -424,7 +424,7 @@ class TerminalPaneNode {
     }
 
     return TerminalPaneNode.leaf(
-      id: _stringOrNull(json['id']) ?? '',
+      id: _nonEmptyStringOrNull(json['id']) ?? '',
       sessionIntent: TerminalPaneSessionIntent.fromJson(
         _objectMap(json['sessionIntent']) ?? const {},
       ),
@@ -599,7 +599,7 @@ String? _stringOrNull(Object? value) {
 }
 
 String? _nonEmptyStringOrNull(Object? value) {
-  final text = _stringOrNull(value);
+  final text = _stringOrNull(value)?.trim();
   if (text == null || text.isEmpty) {
     return null;
   }
