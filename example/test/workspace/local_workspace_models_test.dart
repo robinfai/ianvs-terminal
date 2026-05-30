@@ -220,7 +220,7 @@ void main() {
       expect(workspace.tabs.single.root.ratio, 0.9);
     });
 
-    test('workspace layout trims persisted split direction', () {
+    test('workspace layout normalizes persisted split direction', () {
       final workspace = TerminalWorkspace.fromJson(const {
         'tabs': [
           {
@@ -228,7 +228,7 @@ void main() {
             'root': {
               'id': 'split-1',
               'type': 'split',
-              'direction': ' down ',
+              'direction': ' DOWN ',
               'children': [
                 {
                   'id': 'pane-1',
