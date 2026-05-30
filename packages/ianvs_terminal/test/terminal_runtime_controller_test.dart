@@ -231,7 +231,7 @@ void main() {
     expect(frame.rows.map((row) => row.modifiedAt), everyElement(isNull));
   });
 
-  test('terminal style runs degrade malformed colors', () {
+  test('terminal style runs normalize color strings', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [
         {
@@ -241,8 +241,8 @@ void main() {
             {
               'start': 0,
               'end': 6,
-              'foreground': 'not-a-color',
-              'background': '#80445566',
+              'foreground': ' #112233 ',
+              'background': ' #80445566 ',
             },
           ],
         },
@@ -258,7 +258,7 @@ void main() {
     });
 
     final run = frame.rows.single.styleRuns.single;
-    expect(run.foreground, isNull);
+    expect(run.foreground, const Color(0xFF112233));
     expect(run.background, const Color(0x80445566));
   });
 

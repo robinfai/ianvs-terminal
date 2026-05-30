@@ -843,7 +843,7 @@ Color? _colorFromHex(String? value) {
   if (value == null || value.isEmpty) {
     return null;
   }
-  final normalized = value.replaceFirst('#', '');
+  final normalized = value.trim().replaceFirst('#', '');
   if (normalized.length != 6 && normalized.length != 8) {
     return null;
   }
