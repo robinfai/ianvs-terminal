@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/features/config/local_terminal_config_models.dart';
@@ -38,6 +39,39 @@ void main() {
       expect(loaded!.defaultProfileId, 'local-dev');
       expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
       expect(loaded.hotkeyWindow.enabled, isTrue);
+    });
+
+    test('keeps config values when only schema version is invalid', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-config-invalid-schema',
+      );
+      final file = File('${directory.path}/ianvs_config.json');
+      await file.writeAsString(
+        jsonEncode({
+          'schemaVersion': 'latest',
+          'defaultProfileId': 'local-dev',
+          'appearance': {'themeMode': 'dark'},
+        }),
+      );
+      final repository = LocalTerminalConfigRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(
+        loaded!.schemaVersion,
+        LocalTerminalConfigDocument.currentSchemaVersion,
+      );
+      expect(loaded.defaultProfileId, 'local-dev');
+      expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
+      expect(
+        directory.listSync().any(
+          (entry) => entry.path.contains('ianvs_config.json.corrupt'),
+        ),
+        isFalse,
+      );
     });
 
     test('quarantines corrupt config and writes repaired defaults', () async {

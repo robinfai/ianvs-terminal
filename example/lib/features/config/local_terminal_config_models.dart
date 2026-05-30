@@ -67,7 +67,10 @@ class LocalTerminalConfigDocument {
     _rejectForbiddenTopLevelKeys(json);
 
     return LocalTerminalConfigDocument(
-      schemaVersion: (json['schemaVersion'] as int?) ?? currentSchemaVersion,
+      schemaVersion: _schemaVersionFromJson(
+        json['schemaVersion'],
+        currentSchemaVersion,
+      ),
       defaultProfileId: json['defaultProfileId'] as String?,
       appearance: TerminalAppAppearance.fromJson(
         _objectMap(json['appearance']),
@@ -92,6 +95,16 @@ class LocalTerminalConfigDocument {
         _objectMap(json['hotkeyWindow']),
       ),
     );
+  }
+
+  static int _schemaVersionFromJson(Object? value, int fallback) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return fallback;
   }
 
   static void _rejectForbiddenTopLevelKeys(Map<String, Object?> json) {

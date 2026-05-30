@@ -174,7 +174,10 @@ class TerminalAppPreferencesDocument {
 
   static TerminalAppPreferencesDocument fromJson(Map<String, Object?> json) {
     return TerminalAppPreferencesDocument(
-      schemaVersion: (json['schemaVersion'] as int?) ?? currentSchemaVersion,
+      schemaVersion: _schemaVersionFromJson(
+        json['schemaVersion'],
+        currentSchemaVersion,
+      ),
       defaults: TerminalAppDefaults.fromJson(
         json['defaults'] as Map<Object?, Object?>?,
       ),
@@ -186,6 +189,16 @@ class TerminalAppPreferencesDocument {
       ),
     );
   }
+}
+
+int _schemaVersionFromJson(Object? value, int fallback) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return fallback;
 }
 
 const Object _appPreferencesNoChange = Object();
