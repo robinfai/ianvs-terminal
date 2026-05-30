@@ -198,10 +198,10 @@ class TerminalSpecialColors {
   factory TerminalSpecialColors.fromJson(Object? json) {
     final map = _asObjectMap(json);
     return TerminalSpecialColors(
-      foreground: _stringOrNull(map?['foreground']),
-      background: _stringOrNull(map?['background']),
-      cursor: _stringOrNull(map?['cursor']),
-      selection: _stringOrNull(map?['selection']),
+      foreground: _hexColorOrNull(map?['foreground']),
+      background: _hexColorOrNull(map?['background']),
+      cursor: _hexColorOrNull(map?['cursor']),
+      selection: _hexColorOrNull(map?['selection']),
     );
   }
 }
@@ -292,14 +292,14 @@ class TerminalAnsiColors {
   factory TerminalAnsiColors.fromJson(Object? json) {
     final map = _asObjectMap(json);
     return TerminalAnsiColors(
-      black: _stringOrNull(map?['black']),
-      red: _stringOrNull(map?['red']),
-      green: _stringOrNull(map?['green']),
-      yellow: _stringOrNull(map?['yellow']),
-      blue: _stringOrNull(map?['blue']),
-      magenta: _stringOrNull(map?['magenta']),
-      cyan: _stringOrNull(map?['cyan']),
-      white: _stringOrNull(map?['white']),
+      black: _hexColorOrNull(map?['black']),
+      red: _hexColorOrNull(map?['red']),
+      green: _hexColorOrNull(map?['green']),
+      yellow: _hexColorOrNull(map?['yellow']),
+      blue: _hexColorOrNull(map?['blue']),
+      magenta: _hexColorOrNull(map?['magenta']),
+      cyan: _hexColorOrNull(map?['cyan']),
+      white: _hexColorOrNull(map?['white']),
     );
   }
 }
@@ -840,6 +840,15 @@ String? _trimmedStringOrNull(Object? value) {
   return text == null || text.isEmpty ? null : text;
 }
 
+String? _hexColorOrNull(Object? rawValue) {
+  final value = _stringOrNull(rawValue);
+  if (value == null) {
+    return null;
+  }
+  final normalized = value.trim().toUpperCase();
+  return RegExp(r'^#[0-9A-F]{6}$').hasMatch(normalized) ? normalized : null;
+}
+
 List<String> _stringList(
   Object? value, {
   List<String> fallback = const <String>[],
@@ -1174,12 +1183,9 @@ String? _nullableHexColor(
   if (rawValue == null) {
     return null;
   }
-  final value = _stringOrNull(rawValue);
+  final value = _hexColorOrNull(rawValue);
   if (value != null) {
-    final normalized = value.trim().toUpperCase();
-    if (RegExp(r'^#[0-9A-F]{6}$').hasMatch(normalized)) {
-      return normalized;
-    }
+    return value;
   }
   onWarning?.call(
     TerminalConfigWarning(

@@ -72,6 +72,27 @@ void main() {
     expect(roundTrip.bright.white, '#181818');
   });
 
+  test('terminal color palette ignores invalid direct json colors', () {
+    final palette = TerminalColorPalette.fromJson(const <String, Object?>{
+      'special': <String, Object?>{
+        'foreground': ' #112233 ',
+        'background': '   ',
+        'cursor': 'not-a-color',
+        'selection': 42,
+      },
+      'normal': <String, Object?>{'red': ' #020202 ', 'blue': 'bad'},
+      'bright': <String, Object?>{'white': '#abcdef'},
+    }).resolveWith();
+
+    expect(palette.special.foreground, '#112233');
+    expect(palette.special.background, defaultTerminalSpecialColors.background);
+    expect(palette.special.cursor, defaultTerminalSpecialColors.cursor);
+    expect(palette.special.selection, defaultTerminalSpecialColors.selection);
+    expect(palette.normal.red, '#020202');
+    expect(palette.normal.blue, defaultTerminalAnsiColors.blue);
+    expect(palette.bright.white, '#ABCDEF');
+  });
+
   test('terminal launch config trims direct json string fields', () {
     final launch = TerminalLaunchConfig.fromJson(const <String, Object?>{
       'program': '  /bin/zsh  ',
