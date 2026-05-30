@@ -14,7 +14,6 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/password_manager_store.dart';
 import 'package:app/features/shell/shell_screen.dart';
-import 'package:app/features/terminal/terminal_viewport.dart';
 
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_profile_repository.dart';
@@ -415,10 +414,12 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   addTearDown(container.dispose);
 
   await tester.pumpWidget(
-    UncontrolledProviderScope(container: container, child: const IanvsTerminalApp()),
+    UncontrolledProviderScope(
+      container: container,
+      child: const IanvsTerminalApp(),
+    ),
   );
   await _waitForActiveSession(tester, container);
-  await _focusTerminal(tester);
   return _RealPtyHarness(container);
 }
 
@@ -471,7 +472,9 @@ String _printfShellHook(Map<String, Object?> payload) {
 }
 
 File _tempSignalFile(String name) {
-  final directory = Directory.systemTemp.createTempSync('ianvs terminal-$name-');
+  final directory = Directory.systemTemp.createTempSync(
+    'ianvs terminal-$name-',
+  );
   addTearDown(() {
     if (directory.existsSync()) {
       directory.deleteSync(recursive: true);
@@ -486,11 +489,6 @@ void _signal(File file) {
 
 Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-  await tester.pump(_pollStep);
-}
-
-Future<void> _focusTerminal(WidgetTester tester) async {
-  await tester.tap(find.byType(TerminalViewport));
   await tester.pump(_pollStep);
 }
 
