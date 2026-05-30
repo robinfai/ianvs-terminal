@@ -133,5 +133,26 @@ void main() {
       expect(state.directories, hasLength(2));
       expect(state.directories.first.path, '/repo');
     });
+
+    test('recent items default invalid limits', () {
+      final state = ShellRecentItemsState.fromJson({
+        'limit': 0,
+        'commands': [
+          {'command': 'flutter test', 'cwd': '/repo', 'exitCode': 0},
+        ],
+        'directories': [
+          {'path': '/repo'},
+        ],
+      });
+
+      expect(state.limit, 50);
+      expect(state.commands.single.command, 'flutter test');
+      expect(state.directories.single.path, '/repo');
+      expect(
+        ShellRecentItemsState.fromJson({'limit': double.infinity}).limit,
+        50,
+      );
+      expect(const ShellRecentItemsState(limit: -1).trimmed().limit, 50);
+    });
   });
 }

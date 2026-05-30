@@ -180,7 +180,7 @@ class ShellRecentItemsState {
   const ShellRecentItemsState({
     this.commands = const <ShellRecentCommandEntry>[],
     this.directories = const <ShellRecentDirectoryEntry>[],
-    this.limit = 50,
+    this.limit = _defaultRecentItemsLimit,
   });
 
   final List<ShellRecentCommandEntry> commands;
@@ -212,10 +212,11 @@ class ShellRecentItemsState {
   }
 
   ShellRecentItemsState trimmed() {
+    final effectiveLimit = _effectiveLimit(limit);
     return ShellRecentItemsState(
-      commands: commands.take(limit).toList(growable: false),
-      directories: directories.take(limit).toList(growable: false),
-      limit: limit,
+      commands: commands.take(effectiveLimit).toList(growable: false),
+      directories: directories.take(effectiveLimit).toList(growable: false),
+      limit: effectiveLimit,
     );
   }
 
@@ -245,6 +246,8 @@ class ShellRecentItemsState {
     ).trimmed();
   }
 }
+
+const _defaultRecentItemsLimit = 50;
 
 class ShellCommandBlock {
   const ShellCommandBlock({
@@ -378,7 +381,7 @@ int? _intOrNull(Object? value) {
   if (value is int) {
     return value;
   }
-  if (value is num) {
+  if (value is num && value.isFinite) {
     return value.toInt();
   }
   return null;
@@ -386,10 +389,17 @@ int? _intOrNull(Object? value) {
 
 int _limitFromJson(Object? value) {
   final parsed = _intOrNull(value);
-  if (parsed == null || parsed < 0) {
-    return 50;
+  if (parsed == null) {
+    return _defaultRecentItemsLimit;
   }
-  return parsed;
+  return _effectiveLimit(parsed);
+}
+
+int _effectiveLimit(int value) {
+  if (value < 1) {
+    return _defaultRecentItemsLimit;
+  }
+  return value;
 }
 
 List<Map<Object?, Object?>> _objectList(Object? value) {
