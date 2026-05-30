@@ -13243,9 +13243,7 @@ TerminalActionId? _commandMenuActionForQuery(String query) {
     return null;
   }
   for (final entry in _commandMenuActionSearchEntries) {
-    final normalizedEntry = _normalizeCommandMenuQuery(entry.key);
-    if (normalizedEntry.contains(normalized) ||
-        normalized.contains(normalizedEntry)) {
+    if (_commandMenuQueryMatches(entry.key, normalized)) {
       return entry.value;
     }
   }
@@ -13266,14 +13264,40 @@ bool _commandMenuActionMatchesQuery(
   final fallback = _normalizeCommandMenuQuery(
     '$title $subtitle ${actionId.name}',
   );
-  if (fallback.contains(normalized) || normalized.contains(fallback)) {
+  if (_commandMenuQueryMatches(fallback, normalized)) {
     return true;
   }
 
   return _commandMenuActionSearchEntries
       .where((entry) => entry.value == actionId)
-      .map((entry) => _normalizeCommandMenuQuery(entry.key))
-      .any((entry) => entry.contains(normalized) || normalized.contains(entry));
+      .map((entry) => entry.key)
+      .any((entry) => _commandMenuQueryMatches(entry, normalized));
+}
+
+bool _commandMenuQueryMatches(String candidate, String query) {
+  final normalizedCandidate = _normalizeCommandMenuQuery(candidate);
+  final normalizedQuery = _normalizeCommandMenuQuery(query);
+  if (normalizedQuery.isEmpty) {
+    return true;
+  }
+  if (normalizedCandidate.isEmpty) {
+    return false;
+  }
+  if (normalizedCandidate.contains(normalizedQuery) ||
+      normalizedQuery.contains(normalizedCandidate)) {
+    return true;
+  }
+
+  final candidateTokens = normalizedCandidate.split(' ');
+  return normalizedQuery
+      .split(' ')
+      .every(
+        (queryToken) => candidateTokens.any(
+          (candidateToken) =>
+              candidateToken.contains(queryToken) ||
+              queryToken.contains(candidateToken),
+        ),
+      );
 }
 
 String _normalizeCommandMenuQuery(String value) {

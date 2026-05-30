@@ -126,6 +126,16 @@ void main() {
 
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
+      'history paste',
+    );
+    await tester.pump();
+
+    expect(find.text('Paste history'), findsOneWidget);
+    expect(find.text('New tab'), findsNothing);
+    expect(find.text('Defaults & appearance'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
       '',
     );
     await tester.pump();
