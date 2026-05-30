@@ -244,6 +244,7 @@ void main() {
               'foreground': ' #112233 ',
               'background': ' #80445566 ',
             },
+            {'start': 1, 'end': 6, 'foreground': '12#3456'},
           ],
         },
       ],
@@ -257,9 +258,10 @@ void main() {
       'scrollback_max_offset': 0,
     });
 
-    final run = frame.rows.single.styleRuns.single;
+    final run = frame.rows.single.styleRuns.first;
     expect(run.foreground, const Color(0xFF112233));
     expect(run.background, const Color(0x80445566));
+    expect(frame.rows.single.styleRuns.last.foreground, isNull);
   });
 
   test('terminal frames skip malformed collection entries', () {
