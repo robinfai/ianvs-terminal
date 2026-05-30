@@ -376,12 +376,23 @@ class SessionController extends Notifier<SessionState> {
     TerminalProfile profile,
     Map<String, String> environmentOverrides,
   ) {
-    return profile.copyWith(
+    final launchProfile = profile.copyWith(
       env: <String, String>{
         ..._defaultEnvironmentForEmulation(profile.terminalEmulation),
         ...profile.env,
         ...environmentOverrides,
       },
+    );
+    if (_localConfigDocument.shellIntegration.enabled) {
+      return launchProfile;
+    }
+
+    return launchProfile.copyWith(
+      sessionConfig: launchProfile.sessionConfig.copyWith(
+        shellIntegration: launchProfile.sessionConfig.shellIntegration.copyWith(
+          enabled: false,
+        ),
+      ),
     );
   }
 

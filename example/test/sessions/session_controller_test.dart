@@ -1741,6 +1741,44 @@ void main() {
     expect(legacyPreferencesRepository.savedDocuments, isEmpty);
   });
 
+  test('local config can globally disable shell integration', () async {
+    final coreClient = FakePtyBackend();
+    final profileRepository = _TestProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultProfile]),
+    );
+    final localConfigRepository = _TestLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(
+        shellIntegration: LocalTerminalShellIntegrationConfig(enabled: false),
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        profileRepositoryProvider.overrideWithValue(profileRepository),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          localConfigRepository,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final launchConfig = terminal.TerminalSessionConfig.fromJson(
+      coreClient.lastCreatedSessionPayload!,
+    );
+    final state = container.read(sessionControllerProvider);
+    expect(launchConfig.shellIntegration.enabled, isFalse);
+    expect(
+      state.tabs.single.profileSnapshot!.sessionConfig.shellIntegration.enabled,
+      isFalse,
+    );
+  });
+
   test(
     'setDefaultProfile persists to local config when it supplied bootstrap',
     () async {
