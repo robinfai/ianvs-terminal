@@ -519,13 +519,26 @@ class TerminalRuntimeController {
     Size viewportSize,
     double devicePixelRatio,
   ) {
+    if (!_isPositiveFiniteSize(viewportSize) ||
+        !_isPositiveFiniteDouble(devicePixelRatio)) {
+      return;
+    }
     final measuredCellSize = _cellSizeFor(sessionId);
+    if (!_isPositiveFiniteSize(measuredCellSize)) {
+      return;
+    }
     final cellWidth = measuredCellSize.width;
     final cellHeight = measuredCellSize.height;
     final cols = math.max(20, (viewportSize.width / cellWidth).floor());
     final rows = math.max(8, (viewportSize.height / cellHeight).floor());
-    final pixelWidth = (viewportSize.width * devicePixelRatio).round();
-    final pixelHeight = (viewportSize.height * devicePixelRatio).round();
+    final pixelWidth = math.max(
+      1,
+      (viewportSize.width * devicePixelRatio).round(),
+    );
+    final pixelHeight = math.max(
+      1,
+      (viewportSize.height * devicePixelRatio).round(),
+    );
     final nextMetric = _SessionResizeMetric(
       cols: cols,
       rows: rows,
@@ -574,12 +587,15 @@ class TerminalRuntimeController {
     double devicePixelRatio = 1,
     Size? cellSize,
   }) {
-    if (cols <= 0 || rows <= 0 || devicePixelRatio <= 0) {
+    if (cols <= 0 || rows <= 0 || !_isPositiveFiniteDouble(devicePixelRatio)) {
       throw RangeError(
         'Terminal dimensions and devicePixelRatio must be positive.',
       );
     }
     final measuredCellSize = cellSize ?? _cellSizeFor(sessionId);
+    if (!_isPositiveFiniteSize(measuredCellSize)) {
+      throw RangeError('Cell size must be positive and finite.');
+    }
     final logicalWidth = cols * measuredCellSize.width;
     final logicalHeight = rows * measuredCellSize.height;
     final pixelWidth = math.max(1, (logicalWidth * devicePixelRatio).round());
@@ -912,6 +928,15 @@ class TerminalRuntimeController {
 
   Size _cellSizeFor(String sessionId) {
     return viewportFor(sessionId).measuredCellSize ?? terminalFallbackCellSize;
+  }
+
+  bool _isPositiveFiniteSize(Size size) {
+    return _isPositiveFiniteDouble(size.width) &&
+        _isPositiveFiniteDouble(size.height);
+  }
+
+  bool _isPositiveFiniteDouble(double value) {
+    return value.isFinite && value > 0;
   }
 
   Future<void> _handleClipboardCopyEvent(Map<String, Object?>? payload) async {

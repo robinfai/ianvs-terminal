@@ -1091,6 +1091,69 @@ void main() {
     expect(runtime.exportSessionDiagnostics(sessionId), isNull);
   });
 
+  test(
+    'terminal runtime controller ignores invalid viewport resize metrics',
+    () {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      runtime.resizeSession(sessionId, const Size(double.infinity, 144), 1);
+      runtime.resizeSession(sessionId, const Size(180, double.nan), 1);
+      runtime.resizeSession(sessionId, const Size(180, 144), double.nan);
+
+      expect(runtimeBackend.resizeCalls, isEmpty);
+    },
+  );
+
+  test('terminal runtime controller rejects invalid cell resize metrics', () {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    expect(
+      () => runtime.resizeSessionCells(
+        sessionId,
+        cols: 80,
+        rows: 24,
+        devicePixelRatio: double.nan,
+      ),
+      throwsRangeError,
+    );
+    expect(
+      () => runtime.resizeSessionCells(
+        sessionId,
+        cols: 80,
+        rows: 24,
+        cellSize: const Size(double.infinity, 18),
+      ),
+      throwsRangeError,
+    );
+    expect(runtimeBackend.resizeCalls, isEmpty);
+  });
+
   testWidgets(
     'terminal runtime controller does not keep started-only refreshes in flight',
     (tester) async {
