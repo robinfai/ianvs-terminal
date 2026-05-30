@@ -30,6 +30,10 @@ class InstantReplayStore {
     if (text.isEmpty) {
       return;
     }
+    if (frameLimit <= 0) {
+      _framesBySession.remove(sessionId);
+      return;
+    }
     final frames = _framesBySession.putIfAbsent(
       sessionId,
       () => <InstantReplayFrame>[],

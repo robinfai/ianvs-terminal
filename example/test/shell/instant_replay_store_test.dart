@@ -44,6 +44,17 @@ void main() {
     expect(store.framesFor('1').map((frame) => frame.text), ['three', 'two']);
   });
 
+  test('non-positive frame limits disable retention without throwing', () {
+    final zeroLimitStore = InstantReplayStore(frameLimit: 0);
+    final negativeLimitStore = InstantReplayStore(frameLimit: -1);
+
+    zeroLimitStore.record('1', frameWithRows(['one']));
+    negativeLimitStore.record('1', frameWithRows(['one']));
+
+    expect(zeroLimitStore.framesFor('1'), isEmpty);
+    expect(negativeLimitStore.framesFor('1'), isEmpty);
+  });
+
   test('default v1 retention keeps the latest sixty text frames', () {
     final store = InstantReplayStore();
 
