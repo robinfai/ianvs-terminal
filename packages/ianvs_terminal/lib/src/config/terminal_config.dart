@@ -14,7 +14,7 @@ enum TerminalOptionDragMode {
   };
 
   static TerminalOptionDragMode fromJsonValue(Object? value) {
-    return switch (value) {
+    return switch (_normalizedConfigToken(value)) {
       'normal_selection' => TerminalOptionDragMode.normalSelection,
       _ => TerminalOptionDragMode.blockSelection,
     };
@@ -840,6 +840,10 @@ String? _trimmedStringOrNull(Object? value) {
   return text == null || text.isEmpty ? null : text;
 }
 
+String? _normalizedConfigToken(Object? value) {
+  return _trimmedStringOrNull(value)?.toLowerCase();
+}
+
 String? _hexColorOrNull(Object? rawValue) {
   final value = _stringOrNull(rawValue);
   if (value == null) {
@@ -913,7 +917,7 @@ bool _boolOr(Object? value, bool fallback) {
 }
 
 TerminalCursorShape _cursorShapeFromJson(Object? value) {
-  return switch (value) {
+  return switch (_normalizedConfigToken(value)) {
     'underline' => TerminalCursorShape.underline,
     'beam' => TerminalCursorShape.beam,
     _ => TerminalCursorShape.block,
@@ -921,7 +925,7 @@ TerminalCursorShape _cursorShapeFromJson(Object? value) {
 }
 
 TerminalEmulation _emulationFromJson(Object? value) {
-  return switch (value) {
+  return switch (_normalizedConfigToken(value)) {
     'vt220' => TerminalEmulation.vt220,
     _ => TerminalEmulation.xterm256,
   };
@@ -1278,7 +1282,7 @@ TerminalEmulation _emulationFromProfileJson(
   required String path,
   required TerminalConfigWarningCallback? onWarning,
 }) {
-  return switch (raw) {
+  return switch (_normalizedConfigToken(raw)) {
     'vt220' => TerminalEmulation.vt220,
     'xterm256' || 'xterm-256color' || null => TerminalEmulation.xterm256,
     _ => () {
@@ -1300,7 +1304,7 @@ TerminalCursorShape _cursorShapeFromProfileJson(
   required String path,
   required TerminalConfigWarningCallback? onWarning,
 }) {
-  return switch (raw) {
+  return switch (_normalizedConfigToken(raw)) {
     'underline' => TerminalCursorShape.underline,
     'beam' => TerminalCursorShape.beam,
     'block' || null => TerminalCursorShape.block,
@@ -1323,7 +1327,7 @@ TerminalOptionDragMode _optionDragModeFromProfileJson(
   required String path,
   required TerminalConfigWarningCallback? onWarning,
 }) {
-  return switch (raw) {
+  return switch (_normalizedConfigToken(raw)) {
     'normal_selection' => TerminalOptionDragMode.normalSelection,
     'block_selection' || null => TerminalOptionDragMode.blockSelection,
     _ => () {

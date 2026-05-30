@@ -109,6 +109,28 @@ void main() {
     expect(blank.fallback, terminalFontFamilyFallback);
   });
 
+  test('terminal session config normalizes direct enum tokens', () {
+    final config = TerminalSessionConfig.fromJson(const <String, Object?>{
+      'launch': <String, Object?>{'program': '/bin/zsh'},
+      'terminal': <String, Object?>{'emulation': ' VT220 '},
+      'appearance': <String, Object?>{
+        'cursor': <String, Object?>{'shape': ' Beam '},
+      },
+      'interaction': <String, Object?>{
+        'copyOnSelect': true,
+        'optionDragMode': ' Normal_Selection ',
+      },
+    });
+
+    expect(config.emulation, TerminalEmulation.vt220);
+    expect(config.display.cursor.shape, TerminalCursorShape.beam);
+    expect(config.interaction.copyOnSelect, isTrue);
+    expect(
+      config.interaction.optionDragMode,
+      TerminalOptionDragMode.normalSelection,
+    );
+  });
+
   test('terminal launch config trims direct json string fields', () {
     final launch = TerminalLaunchConfig.fromJson(const <String, Object?>{
       'program': '  /bin/zsh  ',
@@ -135,6 +157,33 @@ void main() {
     expect(launch.cwd, '/tmp/project');
     expect(blank.program, '');
     expect(blank.cwd, isNull);
+  });
+
+  test('terminal profile JSON normalizes enum tokens', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    final config = TerminalSessionConfig.fromProfileJson(
+      const <String, Object?>{
+        'shell': '/bin/zsh',
+        'terminal': <String, Object?>{'emulation': ' VT220 '},
+        'appearance': <String, Object?>{
+          'cursor': <String, Object?>{'shape': ' Underline '},
+        },
+        'interaction': <String, Object?>{
+          'optionDragMode': ' Normal_Selection ',
+        },
+      },
+      defaultProgram: '/bin/sh',
+      onWarning: warnings.add,
+    );
+
+    expect(config.emulation, TerminalEmulation.vt220);
+    expect(config.display.cursor.shape, TerminalCursorShape.underline);
+    expect(
+      config.interaction.optionDragMode,
+      TerminalOptionDragMode.normalSelection,
+    );
+    expect(warnings, isEmpty);
   });
 
   test('terminal session config parses grouped profile colors', () {
