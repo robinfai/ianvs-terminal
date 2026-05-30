@@ -9,8 +9,11 @@ class LocalTerminalVerificationPlanRecords {
       records: [
         _pending(
           LocalTerminalVerificationGate.formatting,
-          command: 'dart format example/lib example/test',
-          notes: const ['Run after final production wiring edits.'],
+          command: _expandedFormattingCommand,
+          notes: const [
+            'Run after final production wiring edits across app, integration, '
+                'test-driver, tool, and local package Dart files.',
+          ],
         ),
         _pending(
           LocalTerminalVerificationGate.staticAnalysis,
@@ -23,8 +26,8 @@ class LocalTerminalVerificationPlanRecords {
               'all-automated',
           notes: const [
             'Covers focused completion/P1/P2-P5/cross-milestone/'
-                'verification-evidence groups and the broader example/test '
-                'suite.',
+                'verification-evidence groups, terminal package tests, and '
+                'the broader example/test suite.',
           ],
         ),
         _pending(
@@ -81,9 +84,9 @@ class LocalTerminalVerificationPlanRecords {
       records: [
         _passed(
           LocalTerminalVerificationGate.formatting,
-          command: 'dart format example/lib example/test',
+          command: _expandedFormattingCommand,
           output: const [
-            'build/local-terminal-verification/20260516T145142Z-all-automated: Formatted 252 files (0 changed).',
+            '2026-05-31 expanded formatting scope audit: dart format --output=none --set-exit-if-changed ... reported Formatted 287 files (0 changed).',
           ],
         ),
         _passed(
@@ -103,6 +106,7 @@ class LocalTerminalVerificationPlanRecords {
           output: const [
             'Focused completion/P1/cross-milestone/P2/P3/P4/P5 suites passed in 20260516T145142Z-all-automated.',
             'build/local-terminal-verification/20260516T171327Z-verification-evidence: exit 0; 13/13 passed.',
+            '2026-05-31 terminal package tests passed: flutter test packages/ianvs_terminal/test 92/92 and dart test packages/ianvs_pty/test 8/8.',
             'build/local-terminal-verification/20260516T171406Z-broader: exit 0; 601 passed, 1 skipped.',
           ],
         ),
@@ -209,3 +213,9 @@ class LocalTerminalVerificationPlanRecords {
     };
   }
 }
+
+const _expandedFormattingCommand =
+    'dart format example/lib example/test example/integration_test '
+    'example/test_driver example/tool packages/ianvs_terminal/lib '
+    'packages/ianvs_terminal/test packages/ianvs_pty/lib '
+    'packages/ianvs_pty/test';

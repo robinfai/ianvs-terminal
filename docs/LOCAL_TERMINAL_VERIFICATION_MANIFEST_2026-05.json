@@ -56,6 +56,7 @@
     "p4Policy": "passed: 22/22.",
     "p5Visual": "passed: 33/33.",
     "verificationEvidence": "passed: 10/10 in all-automated, then passed 13/13 after latest verification rerun in build/local-terminal-verification/20260516T171327Z-verification-evidence.",
+    "terminalPackages": "passed: 2026-05-31 audit ran flutter test packages/ianvs_terminal/test 92/92 and dart test packages/ianvs_pty/test 8/8.",
     "verificationEvidenceRerunDirectory": "build/local-terminal-verification/20260516T171327Z-verification-evidence",
     "broader": "passed after latest rerun: build/local-terminal-verification/20260516T171406Z-broader exit 0; 601 passing tests plus 1 skipped test; All tests passed.",
     "broaderRerunDirectory": "build/local-terminal-verification/20260516T171406Z-broader",
@@ -256,6 +257,14 @@
     {
       "id": "verification-evidence",
       "command": "flutter test example/test/shell/local_terminal_verification_*test.dart",
+      "recordsGates": [
+        "unitTests"
+      ],
+      "runsVerification": true
+    },
+    {
+      "id": "terminal-packages",
+      "command": "flutter test packages/ianvs_terminal/test && dart test packages/ianvs_pty/test",
       "recordsGates": [
         "unitTests"
       ],

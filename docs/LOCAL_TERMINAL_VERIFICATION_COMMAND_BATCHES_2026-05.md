@@ -181,7 +181,18 @@ Record against:
 
 - `LocalTerminalVerificationGate.unitTests`
 
-## Batch 10: Broader Test Scope
+## Batch 10: Terminal Package Tests
+
+```sh
+flutter test packages/ianvs_terminal/test
+dart test packages/ianvs_pty/test
+```
+
+Record against:
+
+- `LocalTerminalVerificationGate.unitTests`
+
+## Batch 11: Broader Test Scope
 
 Use the stable broader project command after the focused batches above have
 passed:
@@ -203,7 +214,7 @@ If the full `example/test` suite is not stable, record the chosen broader scope,
 the reason for the chosen boundary, and any remaining blocker in the evidence
 ledger.
 
-## Batch 11: Integration Or Smoke Test
+## Batch 12: Integration Or Smoke Test
 
 Default command:
 
@@ -230,7 +241,7 @@ Record against:
 
 - `LocalTerminalVerificationGate.integrationTests`
 
-## Batch 12: Manual Gates
+## Batch 13: Manual Gates
 
 Use `LOCAL_TERMINAL_MANUAL_VERIFICATION_TEMPLATE_2026-05.md`.
 

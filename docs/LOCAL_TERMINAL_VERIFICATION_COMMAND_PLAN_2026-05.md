@@ -33,7 +33,7 @@ remain blockers.
 | --- | --- | --- | --- |
 | Formatting | `dart format example/lib example/test example/integration_test example/test_driver example/tool packages/ianvs_terminal/lib packages/ianvs_terminal/test packages/ianvs_pty/lib packages/ianvs_pty/test` | Command exits successfully after production wiring edits | Run after final code edits, not before; cover app, integration helpers, test driver, tools, and local packages. |
 | Static analysis | `flutter analyze` | Command exits successfully with zero blocking analyzer issues | Run from repository root unless project conventions require `example/`. |
-| Unit tests | Focused `flutter test` commands for shell/config/workspace/productivity/policies/visual foundation and wiring tests plus `flutter test example/test` broader scope | Passing test output covering P0-P5 closure/manifests/callback gates | Focused groups passed in `20260516T145142Z-all-automated`; latest broader passed in `20260516T171406Z-broader`. |
+| Unit tests | Focused `flutter test` commands for shell/config/workspace/productivity/policies/visual foundation and wiring tests, terminal package tests, plus `flutter test example/test` broader scope | Passing test output covering P0-P5 closure/manifests/callback gates and package-level runtime/PTY contracts | Focused groups passed in `20260516T145142Z-all-automated`; latest terminal package audit passed on 2026-05-31; latest broader passed in `20260516T171406Z-broader`. |
 | Widget tests | Existing shell widget tests plus new command-menu/shortcut/focus diagnostics tests, including broader `example/test` widget coverage | Passing output showing UI actions do not leak input and diagnostics render correctly | Focused diagnostics passed; latest broader widget coverage passed in `20260516T171406Z-broader`. |
 | Integration tests | `bash tools/local_terminal_verification_capture.sh run integration` | Passing output for app smoke plus macOS real PTY lifecycle behavior | Passed in `20260516T171644Z-integration`. The batch builds debug `native/core`, runs from `example` so desktop plugins are registered, and executes the two macOS integration files sequentially. Optional `vttest_gui_test.dart` remains external-binary supplement only. |
 
@@ -78,7 +78,8 @@ remain blockers.
 Verification was authorized and partially executed. Formatting, static
 analysis, focused completion, P1, cross-milestone, P2, P3, P4, P5, and
 verification-evidence batches have passing captured evidence in
-`build/local-terminal-verification/20260516T145142Z-all-automated`.
+`build/local-terminal-verification/20260516T145142Z-all-automated`. Terminal
+package tests have passing 2026-05-31 audit evidence.
 
 The remaining automated blocker has been resolved. Latest broader passed in
 `20260516T171406Z-broader`, integration/smoke passed in

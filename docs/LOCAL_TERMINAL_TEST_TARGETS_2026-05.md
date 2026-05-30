@@ -19,6 +19,7 @@ run after real production wiring is complete.
 | P4 policy wiring | `example/test/policies/*policy*_test.dart` | Paste decisions, policy reducer, notification dispatcher, core policy production callback baseline, advanced policy gaps, hotkey-window state. |
 | P5 visual wiring | `example/test/visual/*visual*_test.dart` | Theme repository, layout templates, scrollback export, graphics store, visual reducer, core visual production callback baseline, advanced visual gaps. |
 | Verification evidence | `example/test/shell/local_terminal_verification_*test.dart` | Required gates, recorder, batch recording, plan records, T-169 backlog bridge. |
+| Terminal packages | `packages/ianvs_terminal/test` and `packages/ianvs_pty/test` | Runtime controller, viewport/input/config models, xterm-style facade, and PTY bindings contracts. |
 | UI diagnostics widget | `example/test/shell/local_terminal_completion_diagnostics_panel_test.dart` | Read-only Flutter panel rendering from shell UI wiring snapshot. |
 
 ## Suggested focused command order
@@ -33,6 +34,8 @@ flutter test example/test/productivity
 flutter test example/test/policies
 flutter test example/test/visual
 flutter test example/test/shell/local_terminal_verification_*test.dart
+flutter test packages/ianvs_terminal/test
+dart test packages/ianvs_pty/test
 flutter test example/test/shell/local_terminal_completion_diagnostics_panel_test.dart
 ```
 

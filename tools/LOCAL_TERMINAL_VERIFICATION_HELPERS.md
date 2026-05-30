@@ -53,7 +53,8 @@ build/local-terminal-verification/20260516T145142Z-all-automated
 ```
 
 Formatting, static analysis, focused completion, P1, cross-milestone, P2, P3,
-P4, P5, and verification-evidence batches have passing captured evidence.
+P4, P5, verification-evidence, and terminal package batches have passing
+evidence.
 
 The latest `broader` rerun passed after the visibility, paste, zoom, and hotkey
 fixes:

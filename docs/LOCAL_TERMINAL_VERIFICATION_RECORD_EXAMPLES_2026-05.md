@@ -74,7 +74,8 @@ const staticAnalysisRecord = LocalTerminalVerificationGateRecord.passed(
 ## Focused Test Record Example
 
 Use the `unitTests` gate for the focused completion, P1, P2-P5, verification,
-and broader unit-test scope after all required unit-oriented commands pass:
+terminal package, and broader unit-test scope after all required unit-oriented
+commands pass:
 
 ```dart
 const unitTestRecord = LocalTerminalVerificationGateRecord.passed(
@@ -85,6 +86,7 @@ const unitTestRecord = LocalTerminalVerificationGateRecord.passed(
     'P1 action wiring tests passed.',
     'P2-P5 domain tests passed.',
     'Verification evidence tests passed.',
+    'Terminal package tests passed.',
     'Broader unit scope passed.',
   ],
 );

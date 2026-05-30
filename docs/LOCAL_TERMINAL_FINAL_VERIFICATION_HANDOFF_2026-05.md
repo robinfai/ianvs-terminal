@@ -58,6 +58,8 @@ Latest verification evidence:
 - P5 visual passed 33/33.
 - Verification evidence passed 13/13 in
   `20260516T171327Z-verification-evidence`.
+- Terminal package tests passed in the 2026-05-31 audit:
+  `packages/ianvs_terminal/test` 92/92 and `packages/ianvs_pty/test` 8/8.
 - Latest broader `flutter test example/test` passed with 601 passing tests plus
   1 skipped test in `20260516T171406Z-broader`.
 - Latest integration passed with smoke 4/4 and real PTY 7/7 in

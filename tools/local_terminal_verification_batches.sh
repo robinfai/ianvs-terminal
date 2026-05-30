@@ -30,6 +30,7 @@ Batches:
   p4-policy
   p5-visual
   verification-evidence
+  terminal-packages
   broader
   integration
   manual
@@ -53,6 +54,7 @@ p3-productivity
 p4-policy
 p5-visual
 verification-evidence
+terminal-packages
 broader
 integration
 manual
@@ -147,6 +149,12 @@ EOF
 flutter test example/test/shell/local_terminal_verification_*test.dart
 EOF
       ;;
+    terminal-packages)
+      cat <<'EOF'
+flutter test packages/ianvs_terminal/test
+dart test packages/ianvs_pty/test
+EOF
+      ;;
     broader)
       cat <<'EOF'
 flutter test example/test
@@ -187,6 +195,7 @@ print_all_automated() {
     p4-policy \
     p5-visual \
     verification-evidence \
+    terminal-packages \
     broader
   do
     echo "# Batch: $batch"
@@ -269,6 +278,10 @@ run_batch() {
     verification-evidence)
       flutter test example/test/shell/local_terminal_verification_*test.dart
       ;;
+    terminal-packages)
+      flutter test packages/ianvs_terminal/test || return $?
+      dart test packages/ianvs_pty/test
+      ;;
     broader)
       flutter test example/test
       ;;
@@ -305,6 +318,7 @@ run_all_automated() {
     p4-policy \
     p5-visual \
     verification-evidence \
+    terminal-packages \
     broader
   do
     echo "==> Running batch: $batch"

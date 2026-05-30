@@ -58,7 +58,7 @@ This runbook does not claim that any evidence has been collected.
 | --- | --- | --- |
 | Formatting | Expanded `dart format` output covering app, integration/test-driver/tool files, and local packages | `passed` only if command exits cleanly after final edits. |
 | Static analysis | `flutter analyze` output | `passed` only if analyzer has no blocking issues. |
-| Unit tests | `bash tools/local_terminal_verification_capture.sh run all-automated` or carried-forward focused evidence plus a successful `broader` rerun | `passed` only if required focused and broader unit scopes pass. |
+| Unit tests | `bash tools/local_terminal_verification_capture.sh run all-automated` or carried-forward focused evidence plus terminal package tests and a successful `broader` rerun | `passed` only if required focused, package, and broader unit scopes pass. |
 | Widget tests | `bash tools/local_terminal_verification_capture.sh run broader` output plus focused diagnostics evidence | `passed` only if UI focus/diagnostic behavior passes after the latest visibility fix. |
 | Integration tests | `bash tools/local_terminal_verification_capture.sh run integration` output | `passed` only if the macOS-targeted app smoke and real PTY acceptance targets pass. |
 | Manual local shell smoke | Filled manual template | `passed` only if every required smoke row is successful. |
@@ -91,8 +91,8 @@ The objective can close only when:
 Verification execution has captured evidence in
 `build/local-terminal-verification/20260516T145142Z-all-automated` plus latest
 reruns. Formatting, static analysis, focused completion/P1/P2-P5/
-cross-milestone, and verification-evidence batches passed. Latest `broader`
-passed in `build/local-terminal-verification/20260516T171406Z-broader` and
+cross-milestone, terminal package, and verification-evidence batches passed.
+Latest `broader` passed in `build/local-terminal-verification/20260516T171406Z-broader` and
 latest integration passed in
 `build/local-terminal-verification/20260516T171644Z-integration`.
 Manual/integration-backed gates have passing ledger evidence. The remaining

@@ -45,7 +45,7 @@ batch_gate_hint() {
     completion)
       echo "unitTests, widgetTests"
       ;;
-    p1|cross-milestone|p2-workspace|p3-productivity|p4-policy|p5-visual|verification-evidence)
+    p1|cross-milestone|p2-workspace|p3-productivity|p4-policy|p5-visual|verification-evidence|terminal-packages)
       echo "unitTests"
       ;;
     broader)

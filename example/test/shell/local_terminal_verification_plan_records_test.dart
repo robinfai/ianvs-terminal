@@ -35,6 +35,10 @@ void main() {
     };
 
     expect(
+      commands[LocalTerminalVerificationGate.formatting],
+      contains('packages/ianvs_terminal/lib'),
+    );
+    expect(
       commands[LocalTerminalVerificationGate.unitTests],
       'bash tools/local_terminal_verification_capture.sh run all-automated',
     );
@@ -64,6 +68,15 @@ void main() {
     expect(
       recorder.toBacklogEvidence().status,
       LocalTerminalCompletionBacklogStatus.verified,
+    );
+    expect(
+      plan.records
+          .singleWhere(
+            (record) => record.gate == LocalTerminalVerificationGate.unitTests,
+          )
+          .output
+          .join('\n'),
+      contains('terminal package tests passed'),
     );
     expect(
       plan.records

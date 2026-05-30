@@ -37,6 +37,7 @@ Copy-ready command batches are documented in
 | P4 policy tests | `example/test/policies` | Passed | P4 policy suite passed 22/22 in `20260516T145142Z-all-automated`. |
 | P5 visual tests | `example/test/visual` | Passed | P5 visual suite passed 33/33 in `20260516T145142Z-all-automated`. |
 | Verification evidence tests | `example/test/shell/local_terminal_verification_*test.dart` | Passed | Verification-evidence suite passed 10/10 in `20260516T145142Z-all-automated`. |
+| Terminal package tests | `flutter test packages/ianvs_terminal/test` plus `dart test packages/ianvs_pty/test` | Passed | 2026-05-31 audit passed `ianvs_terminal` 92/92 and `ianvs_pty` 8/8. |
 | UI diagnostics widget tests | `example/test/shell/local_terminal_completion_diagnostics_panel_test.dart` and related diagnostics tests | Passed | Focused diagnostics passed in `20260516T145142Z-all-automated`; broader widget coverage passed in `20260516T171406Z-broader`. |
 | Broader project tests | `flutter test example/test` | Passed | `build/local-terminal-verification/20260516T171406Z-broader`: exit 0; 600 passing tests plus 1 skipped test; `All tests passed!`. |
 | Automated integration smoke | `bash tools/local_terminal_verification_capture.sh run integration` | Passed | `build/local-terminal-verification/20260516T171644Z-integration`: exit 0; smoke 4/4 and real PTY acceptance 7/7 passed. Optional `vttest_gui_test.dart` remains external-binary supplement only. |

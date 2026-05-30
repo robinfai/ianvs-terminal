@@ -75,7 +75,8 @@ itself.
 
 The helper scripts have been executed in this session. Formatting, static
 analysis, focused completion/P1/P2-P5/cross-milestone/verification-evidence
-batches have passing captured evidence. The latest `broader` rerun passed in
+batches have passing captured evidence, and terminal package tests have passing
+2026-05-31 audit evidence. The latest `broader` rerun passed in
 `build/local-terminal-verification/20260516T171406Z-broader`, and the latest
 integration batch passed in
 `build/local-terminal-verification/20260516T171644Z-integration`.

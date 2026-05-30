@@ -43,6 +43,8 @@ refresh.
 - P4 policy: passed 22/22.
 - P5 visual: passed 33/33.
 - Verification evidence: passed 10/10.
+- Terminal package tests: passed 2026-05-31 (`ianvs_terminal` 92/92,
+  `ianvs_pty` 8/8).
 - Broader `flutter test example/test`: passed in
   `build/local-terminal-verification/20260516T171406Z-broader`.
 - Integration smoke and real PTY acceptance: passed in
