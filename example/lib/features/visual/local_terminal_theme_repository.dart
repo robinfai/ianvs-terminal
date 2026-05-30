@@ -22,13 +22,14 @@ class LocalTerminalThemeRepository {
 
     try {
       final raw = await file.readAsString();
-      final decoded = jsonDecode(raw) as List;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        throw const FormatException('Theme preset list must be an array.');
+      }
       return decoded
-          .map(
-            (item) => LocalTerminalThemePreset.fromJson(
-              (item as Map).cast<Object?, Object?>(),
-            ),
-          )
+          .map(_objectMap)
+          .whereType<Map<Object?, Object?>>()
+          .map(LocalTerminalThemePreset.fromJson)
           .toList(growable: false);
     } on Object {
       await _quarantineCorruptFile(file);
@@ -50,7 +51,9 @@ class LocalTerminalThemeRepository {
   Future<File> exportPreset(LocalTerminalThemePreset preset) async {
     final directory = await _directoryResolver();
     await directory.create(recursive: true);
-    final file = File('${directory.path}/${preset.id}.ianvs-terminal-theme.json');
+    final file = File(
+      '${directory.path}/${preset.id}.ianvs-terminal-theme.json',
+    );
     await file.writeAsString(preset.encode());
     return file;
   }
@@ -65,4 +68,14 @@ class LocalTerminalThemeRepository {
         '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
     await file.rename(quarantinedPath);
   }
+}
+
+Map<Object?, Object?>? _objectMap(Object? value) {
+  if (value is Map<Object?, Object?>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.cast<Object?, Object?>();
+  }
+  return null;
 }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/features/visual/local_terminal_theme_repository.dart';
@@ -65,6 +66,42 @@ void main() {
           (entry) => entry.path.contains('ianvs_themes.json.corrupt'),
         ),
         isTrue,
+      );
+    });
+
+    test('skips malformed theme entries without quarantine', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-themes-invalid-entries',
+      );
+      final file = File('${directory.path}/ianvs_themes.json');
+      await file.writeAsString(
+        jsonEncode([
+          'not a preset',
+          {
+            'id': 'custom',
+            'name': 'Custom',
+            'dark': {'background': 'black', 'foreground': 0xeeeeee},
+            'light': {'background': 0xffffff, 'foreground': false},
+          },
+        ]),
+      );
+      final repository = LocalTerminalThemeRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, hasLength(1));
+      expect(loaded.single.id, 'custom');
+      expect(loaded.single.dark.background, 0x000000);
+      expect(loaded.single.dark.foreground, 0xeeeeee);
+      expect(loaded.single.light.background, 0xffffff);
+      expect(loaded.single.light.foreground, 0xffffff);
+      expect(
+        directory.listSync().any(
+          (entry) => entry.path.contains('ianvs_themes.json.corrupt'),
+        ),
+        isFalse,
       );
     });
   });

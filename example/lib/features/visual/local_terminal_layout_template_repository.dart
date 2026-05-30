@@ -23,13 +23,14 @@ class LocalTerminalLayoutTemplateRepository {
 
     try {
       final raw = await file.readAsString();
-      final decoded = jsonDecode(raw) as List;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        throw const FormatException('Layout template list must be an array.');
+      }
       return decoded
-          .map(
-            (item) => LocalTerminalLayoutTemplate.fromJson(
-              (item as Map).cast<Object?, Object?>(),
-            ),
-          )
+          .map(_objectMap)
+          .whereType<Map<Object?, Object?>>()
+          .map(LocalTerminalLayoutTemplate.fromJson)
           .where((template) => template.localOnly)
           .toList(growable: false);
     } on Object {
@@ -62,4 +63,14 @@ class LocalTerminalLayoutTemplateRepository {
         '${file.path}.corrupt.${DateTime.now().millisecondsSinceEpoch}';
     await file.rename(quarantinedPath);
   }
+}
+
+Map<Object?, Object?>? _objectMap(Object? value) {
+  if (value is Map<Object?, Object?>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.cast<Object?, Object?>();
+  }
+  return null;
 }

@@ -30,12 +30,15 @@ class LocalTerminalColorScheme {
 
   static LocalTerminalColorScheme fromJson(Map<Object?, Object?> json) {
     return LocalTerminalColorScheme(
-      background: json['background'] as int? ?? 0x000000,
-      foreground: json['foreground'] as int? ?? 0xffffff,
-      cursor: json['cursor'] as int? ?? 0xffffff,
-      selection: json['selection'] as int? ?? 0x333333,
-      splitDivider: json['splitDivider'] as int? ?? 0x222222,
-      inactivePaneOverlay: json['inactivePaneOverlay'] as int? ?? 0x11000000,
+      background: _intFromJson(json['background'], 0x000000),
+      foreground: _intFromJson(json['foreground'], 0xffffff),
+      cursor: _intFromJson(json['cursor'], 0xffffff),
+      selection: _intFromJson(json['selection'], 0x333333),
+      splitDivider: _intFromJson(json['splitDivider'], 0x222222),
+      inactivePaneOverlay: _intFromJson(
+        json['inactivePaneOverlay'],
+        0x11000000,
+      ),
     );
   }
 }
@@ -74,8 +77,8 @@ class LocalTerminalThemePreset {
 
   static LocalTerminalThemePreset fromJson(Map<Object?, Object?> json) {
     return LocalTerminalThemePreset(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
+      id: _stringOrNull(json['id']) ?? '',
+      name: _stringOrNull(json['name']) ?? '',
       dark: LocalTerminalColorScheme.fromJson(
         _objectMap(json['dark']) ?? const {},
       ),
@@ -140,10 +143,10 @@ class LocalTerminalLayoutTemplate {
 
   static LocalTerminalLayoutTemplate fromJson(Map<Object?, Object?> json) {
     return LocalTerminalLayoutTemplate(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      paneCount: json['paneCount'] as int? ?? 0,
-      localOnly: json['localOnly'] as bool? ?? false,
+      id: _stringOrNull(json['id']) ?? '',
+      name: _stringOrNull(json['name']) ?? '',
+      paneCount: _intFromJson(json['paneCount'], 0),
+      localOnly: _boolFromJson(json['localOnly'], false),
     );
   }
 }
@@ -228,4 +231,22 @@ Map<Object?, Object?>? _objectMap(Object? value) {
     return value.cast<Object?, Object?>();
   }
   return null;
+}
+
+String? _stringOrNull(Object? value) {
+  return value is String ? value : null;
+}
+
+bool _boolFromJson(Object? value, bool fallback) {
+  return value is bool ? value : fallback;
+}
+
+int _intFromJson(Object? value, int fallback) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return fallback;
 }

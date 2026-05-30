@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/features/visual/local_terminal_layout_template_repository.dart';
@@ -61,10 +62,49 @@ void main() {
       expect(loaded, isEmpty);
       expect(
         directory.listSync().any(
-          (entry) =>
-              entry.path.contains('ianvs_layout_templates.json.corrupt'),
+          (entry) => entry.path.contains('ianvs_layout_templates.json.corrupt'),
         ),
         isTrue,
+      );
+    });
+
+    test('skips malformed template entries without quarantine', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-layout-templates-invalid-entries',
+      );
+      final file = File('${directory.path}/ianvs_layout_templates.json');
+      await file.writeAsString(
+        jsonEncode([
+          'not a template',
+          {
+            'id': 'bad-local-flag',
+            'name': 'Bad local flag',
+            'paneCount': 2,
+            'localOnly': 'true',
+          },
+          {
+            'id': 'two-pane',
+            'name': 'Two Pane',
+            'paneCount': 2.0,
+            'localOnly': true,
+          },
+        ]),
+      );
+      final repository = LocalTerminalLayoutTemplateRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, hasLength(1));
+      expect(loaded.single.id, 'two-pane');
+      expect(loaded.single.paneCount, 2);
+      expect(loaded.single.canApply, isTrue);
+      expect(
+        directory.listSync().any(
+          (entry) => entry.path.contains('ianvs_layout_templates.json.corrupt'),
+        ),
+        isFalse,
       );
     });
   });
