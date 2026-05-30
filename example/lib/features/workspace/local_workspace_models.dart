@@ -459,19 +459,38 @@ class TerminalPaneNode {
       return this;
     }
 
-    final clampedRatio = nextRatio.clamp(0.1, 0.9).toDouble();
-    if (children.first.containsPane(paneId) ||
-        children.last.containsPane(paneId)) {
+    final first = children.first;
+    final second = children.last;
+    if (!first.containsPane(paneId) && !second.containsPane(paneId)) {
+      return this;
+    }
+    if (!first.isLeaf && first.containsPane(paneId)) {
       return TerminalPaneNode.split(
         id: id,
         direction: direction!,
-        first: children.first,
-        second: children.last,
-        ratio: clampedRatio,
+        first: first.resizeSplitContainingPane(paneId, nextRatio),
+        second: second,
+        ratio: ratio,
+      );
+    }
+    if (!second.isLeaf && second.containsPane(paneId)) {
+      return TerminalPaneNode.split(
+        id: id,
+        direction: direction!,
+        first: first,
+        second: second.resizeSplitContainingPane(paneId, nextRatio),
+        ratio: ratio,
       );
     }
 
-    return this;
+    final clampedRatio = nextRatio.clamp(0.1, 0.9).toDouble();
+    return TerminalPaneNode.split(
+      id: id,
+      direction: direction!,
+      first: first,
+      second: second,
+      ratio: clampedRatio,
+    );
   }
 
   TerminalPaneNode swapPaneWithSibling(String paneId) {
@@ -479,22 +498,46 @@ class TerminalPaneNode {
       return this;
     }
 
-    if (children.first.containsPane(paneId)) {
+    final first = children.first;
+    final second = children.last;
+    if (!first.containsPane(paneId) && !second.containsPane(paneId)) {
+      return this;
+    }
+    if (!first.isLeaf && first.containsPane(paneId)) {
       return TerminalPaneNode.split(
         id: id,
         direction: direction!,
-        first: children.last,
-        second: children.first,
+        first: first.swapPaneWithSibling(paneId),
+        second: second,
+        ratio: ratio,
+      );
+    }
+    if (!second.isLeaf && second.containsPane(paneId)) {
+      return TerminalPaneNode.split(
+        id: id,
+        direction: direction!,
+        first: first,
+        second: second.swapPaneWithSibling(paneId),
+        ratio: ratio,
+      );
+    }
+
+    if (first.containsPane(paneId)) {
+      return TerminalPaneNode.split(
+        id: id,
+        direction: direction!,
+        first: second,
+        second: first,
         ratio: 1 - ratio,
       );
     }
 
-    if (children.last.containsPane(paneId)) {
+    if (second.containsPane(paneId)) {
       return TerminalPaneNode.split(
         id: id,
         direction: direction!,
-        first: children.last,
-        second: children.first,
+        first: second,
+        second: first,
         ratio: 1 - ratio,
       );
     }

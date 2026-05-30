@@ -169,6 +169,40 @@ void main() {
       expect(resized.toggleZoomActivePane().isZoomed, isFalse);
     });
 
+    test('resize and swap target the nearest nested split', () {
+      final nestedTab = _tab('tab-1')
+          .splitActivePane(
+            splitNodeId: 'root-split',
+            newPaneId: 'pane-2',
+            sessionIntent: const TerminalPaneSessionIntent(
+              profileId: 'default',
+            ),
+            direction: TerminalPaneSplitDirection.right,
+          )
+          .focusPane('pane-1')
+          .splitActivePane(
+            splitNodeId: 'nested-split',
+            newPaneId: 'pane-3',
+            sessionIntent: const TerminalPaneSessionIntent(
+              profileId: 'default',
+            ),
+            direction: TerminalPaneSplitDirection.down,
+          );
+
+      final resized = nestedTab.resizeActiveSplit(0.75);
+      final nestedSplit = resized.root.children.first;
+
+      expect(resized.root.ratio, 0.5);
+      expect(nestedSplit.ratio, 0.75);
+
+      final swapped = resized.swapActivePaneWithSibling();
+      final swappedNestedSplit = swapped.root.children.first;
+
+      expect(swapped.root.children.last.id, 'pane-2');
+      expect(swappedNestedSplit.children.first.id, 'pane-3');
+      expect(swappedNestedSplit.children.last.id, 'pane-1');
+    });
+
     test('new tab and split can inherit active cwd intent', () {
       final workspace = const TerminalWorkspace()
           .addTab(_tab('tab-1', cwd: '/project'))
