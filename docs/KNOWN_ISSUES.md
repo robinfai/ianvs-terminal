@@ -7,7 +7,6 @@
 - 当前只支持 macOS
 - 当前只支持 local shell
 - 还没有 SSH 会话链路
-- 还没有 split pane
 - scrollback 搜索目前只支持本地纯文本搜索
 - 还没有 sync
 - 还没有插件系统
