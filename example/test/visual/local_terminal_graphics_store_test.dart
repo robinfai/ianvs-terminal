@@ -58,6 +58,27 @@ void main() {
       expect(plan.evictIds, ['old']);
     });
 
+    test('does not count replaced image id against capacity', () {
+      final plan = LocalTerminalGraphicsStorePlanner.planInsert(
+        policy: const LocalTerminalGraphicsStoragePolicy(
+          enabled: true,
+          maxBytes: 10,
+        ),
+        existing: const [
+          LocalTerminalGraphicsEntry(id: 'same', bytes: 8, createdAtMillis: 1),
+          LocalTerminalGraphicsEntry(id: 'other', bytes: 3, createdAtMillis: 2),
+        ],
+        next: const LocalTerminalGraphicsEntry(
+          id: ' same ',
+          bytes: 9,
+          createdAtMillis: 3,
+        ),
+      );
+
+      expect(plan.accepted, isTrue);
+      expect(plan.evictIds, ['other']);
+    });
+
     test('rejects insert without a usable image id', () {
       final plan = LocalTerminalGraphicsStorePlanner.planInsert(
         policy: const LocalTerminalGraphicsStoragePolicy(

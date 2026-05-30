@@ -47,8 +47,9 @@ class LocalTerminalGraphicsStorePlanner {
       );
     }
 
+    final nextId = next.id.trim();
     final validExisting = existing
-        .where((entry) => entry.isValid)
+        .where((entry) => entry.isValid && entry.id.trim() != nextId)
         .toList(growable: false);
     final total = validExisting.fold<int>(0, (sum, entry) => sum + entry.bytes);
     final projected = total + next.bytes;
