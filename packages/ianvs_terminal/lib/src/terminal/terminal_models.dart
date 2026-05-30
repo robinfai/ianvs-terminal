@@ -944,7 +944,7 @@ DateTime? _dateTimeFromJson(Object? value) {
 }
 
 TerminalFrameKind _terminalFrameKindFromWire(String? value) {
-  return switch (value) {
+  return switch (value?.trim().toLowerCase()) {
     'delta' => TerminalFrameKind.delta,
     _ => TerminalFrameKind.snapshot,
   };

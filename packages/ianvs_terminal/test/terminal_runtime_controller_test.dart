@@ -423,6 +423,21 @@ void main() {
     expect(frame.windowIconName, isNull);
   });
 
+  test('terminal frames normalize frame kind tokens', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'frame_kind': ' Delta ',
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 0,
+      'viewport_cols': 80,
+      'dirty_ranges': [],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(frame.frameKind, TerminalFrameKind.delta);
+  });
+
   test('terminal frames reject negative cursor and selection coordinates', () {
     final invalid = TerminalFrameDiff.fromJson(const <String, Object?>{
       'rows': [],
