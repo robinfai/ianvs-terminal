@@ -26,6 +26,15 @@ void main() {
     expect(status.errorCode, 12);
   });
 
+  test('hotkey window status rejects fractional error codes', () {
+    final status = HotkeyWindowStatus.fromMap(const <String, Object?>{
+      'registered': true,
+      'errorCode': 12.5,
+    });
+
+    expect(status.errorCode, isNull);
+  });
+
   test('hotkey window status falls back for blank shortcuts', () {
     final status = HotkeyWindowStatus.fromMap(const <String, Object?>{
       'registered': true,

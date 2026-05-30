@@ -223,7 +223,10 @@ String? _stringFromPlatformValue(Object? value) {
 
 int? _intFromPlatformValue(Object? value) {
   if (value is num && value.isFinite) {
-    return value.toInt();
+    final parsed = value.toInt();
+    if (value == parsed) {
+      return parsed;
+    }
   }
   return null;
 }
