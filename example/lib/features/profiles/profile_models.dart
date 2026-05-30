@@ -385,7 +385,10 @@ int _schemaVersionFromJson(
     return 1;
   }
   if (rawValue is num && rawValue.isFinite && rawValue > 0) {
-    return rawValue.toInt();
+    final parsed = rawValue.toInt();
+    if (rawValue == parsed) {
+      return parsed;
+    }
   }
   warnings.add(
     TerminalProfileLoadWarning(

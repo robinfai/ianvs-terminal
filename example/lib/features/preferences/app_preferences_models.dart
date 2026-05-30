@@ -199,7 +199,7 @@ int _schemaVersionFromJson(Object? value, int fallback) {
   }
   if (value is num && value.isFinite) {
     final parsed = value.toInt();
-    return parsed > 0 ? parsed : fallback;
+    return parsed > 0 && value == parsed ? parsed : fallback;
   }
   return fallback;
 }

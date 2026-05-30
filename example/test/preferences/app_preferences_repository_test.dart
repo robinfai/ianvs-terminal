@@ -105,6 +105,17 @@ void main() {
     expect(blank.appearance.themeMode, TerminalThemeMode.system);
   });
 
+  test('app preferences schema version rejects fractional values', () {
+    final document = TerminalAppPreferencesDocument.fromJson(const {
+      'schemaVersion': 2.5,
+    });
+
+    expect(
+      document.schemaVersion,
+      TerminalAppPreferencesDocument.currentSchemaVersion,
+    );
+  });
+
   test(
     'app preferences repository keeps values when only schema version is invalid',
     () async {

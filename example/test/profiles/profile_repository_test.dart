@@ -561,6 +561,27 @@ void main() {
     );
   });
 
+  test('profile document rejects fractional schema versions', () {
+    final document = TerminalProfilesDocument.fromJson(const {
+      'schemaVersion': 2.5,
+      'profiles': [],
+    });
+
+    expect(document.schemaVersion, 1);
+    expect(
+      document.loadWarnings,
+      contains(
+        const TerminalProfileLoadWarning(
+          profileId: 'document',
+          profileName: 'Profiles document',
+          path: 'schemaVersion',
+          rawValueSummary: '2.5',
+          fallbackSummary: 'used schema version 1',
+        ),
+      ),
+    );
+  });
+
   test('profile repository tolerates non-finite schema version', () async {
     final directory = await Directory.systemTemp.createTemp(
       'ianvs terminal-profiles-non-finite-schema',

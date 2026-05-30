@@ -132,7 +132,7 @@ class LocalTerminalConfigDocument {
   }
 
   static int _schemaVersionFromJson(Object? value, int fallback) {
-    return _positiveIntFromJson(value, fallback);
+    return _positiveWholeIntFromJson(value, fallback);
   }
 
   static void _rejectForbiddenTopLevelKeys(Map<String, Object?> json) {
@@ -455,9 +455,15 @@ int _nonNegativeIntFromJson(Object? value, int fallback) {
   return parsed < 0 ? fallback : parsed;
 }
 
-int _positiveIntFromJson(Object? value, int fallback) {
-  final parsed = _intFromJson(value, fallback);
-  return parsed <= 0 ? fallback : parsed;
+int _positiveWholeIntFromJson(Object? value, int fallback) {
+  if (value is int) {
+    return value > 0 ? value : fallback;
+  }
+  if (value is num && value.isFinite) {
+    final parsed = value.toInt();
+    return parsed > 0 && value == parsed ? parsed : fallback;
+  }
+  return fallback;
 }
 
 Set<TerminalActionId> _actionIdSet(Object? value) {

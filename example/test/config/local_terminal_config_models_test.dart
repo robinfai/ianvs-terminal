@@ -172,6 +172,9 @@ void main() {
       final negative = LocalTerminalConfigDocument.fromJson(const {
         'schemaVersion': -1,
       });
+      final fractional = LocalTerminalConfigDocument.fromJson(const {
+        'schemaVersion': 2.5,
+      });
 
       expect(
         zero.schemaVersion,
@@ -179,6 +182,10 @@ void main() {
       );
       expect(
         negative.schemaVersion,
+        LocalTerminalConfigDocument.currentSchemaVersion,
+      );
+      expect(
+        fractional.schemaVersion,
         LocalTerminalConfigDocument.currentSchemaVersion,
       );
     });
