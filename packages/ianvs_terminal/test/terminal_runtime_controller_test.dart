@@ -1297,6 +1297,37 @@ void main() {
     expect(search.errorText, isNull);
   });
 
+  test('terminal runtime normalizes search error text', () {
+    final runtimeBackend = _FakePtyBackend()
+      ..searchRawResponse = jsonEncode(<String, Object?>{
+        'matches': const <Object?>[],
+        'error_text': ' invalid regex ',
+      });
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    final error = runtime.searchTextResult(sessionId, 'ready');
+    runtimeBackend.searchRawResponse = jsonEncode(<String, Object?>{
+      'matches': const <Object?>[],
+      'error_text': '   ',
+    });
+    final blank = runtime.searchTextResult(sessionId, 'ready');
+
+    expect(error.errorText, 'invalid regex');
+    expect(blank.errorText, isNull);
+  });
+
   testWidgets('terminal runtime skips malformed frame payloads', (
     tester,
   ) async {

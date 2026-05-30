@@ -379,14 +379,13 @@ class TerminalRuntimeController {
     if (decoded is Map) {
       final json = _stringKeyedJsonMap(decoded);
       final rawMatches = json['matches'];
-      final errorText = json['error_text'] ?? json['errorText'];
       return TerminalSearchResult(
         matches: rawMatches is List
             ? _decodeSearchMatches(rawMatches)
             : const <TerminalSearchMatch>[],
-        errorText: errorText is String && errorText.isNotEmpty
-            ? errorText
-            : null,
+        errorText: _nonEmptyTrimmedStringFromJsonValue(
+          json['error_text'] ?? json['errorText'],
+        ),
       );
     }
     return TerminalSearchResult.empty;
@@ -1147,6 +1146,11 @@ String? _stringFromJsonValue(Object? value) {
     return value;
   }
   return null;
+}
+
+String? _nonEmptyTrimmedStringFromJsonValue(Object? value) {
+  final text = _stringFromJsonValue(value)?.trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 class _SessionResizeMetric {
