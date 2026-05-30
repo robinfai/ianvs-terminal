@@ -907,7 +907,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         'notification_authorization_failed' =>
           'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
         'notification_delivery_failed' =>
-        'Ianvs Terminal could not deliver a macOS notification right now.',
+          'Ianvs Terminal could not deliver a macOS notification right now.',
         _ => null,
       };
       if (message == null) {
@@ -7847,9 +7847,7 @@ class _ShellTabTone {
   }
 
   static Color _readableTextOn(Color background) {
-    return background.computeLuminance() < 0.5
-        ? Colors.white
-        : Colors.black;
+    return background.computeLuminance() < 0.5 ? Colors.white : Colors.black;
   }
 
   static Color _neutralHighlightFor(Color background, {bool emphasis = false}) {
@@ -12199,7 +12197,7 @@ class _ShellCommandMenuHotkeyStatusState
   }
 }
 
-class _ShellCommandMenu extends StatelessWidget {
+class _ShellCommandMenu extends StatefulWidget {
   const _ShellCommandMenu({
     required this.launcherShortcutLabel,
     required this.newTabShortcutLabel,
@@ -12251,11 +12249,42 @@ class _ShellCommandMenu extends StatelessWidget {
   final bool canSelectCommandOutput;
 
   @override
+  State<_ShellCommandMenu> createState() => _ShellCommandMenuState();
+}
+
+class _ShellCommandMenuState extends State<_ShellCommandMenu> {
+  String _query = '';
+
+  @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
     final maxMenuHeight = (MediaQuery.sizeOf(context).height - 24)
         .clamp(360.0, 560.0)
         .toDouble();
+    final launcherShortcutLabel = widget.launcherShortcutLabel;
+    final newTabShortcutLabel = widget.newTabShortcutLabel;
+    final hotkeyWindowShortcutLabel = widget.hotkeyWindowShortcutLabel;
+    final autocompleteShortcutLabel = widget.autocompleteShortcutLabel;
+    final copyModeShortcutLabel = widget.copyModeShortcutLabel;
+    final sessionCopyShortcutLabel = widget.sessionCopyShortcutLabel;
+    final sessionPasteShortcutLabel = widget.sessionPasteShortcutLabel;
+    final pasteHistoryShortcutLabel = widget.pasteHistoryShortcutLabel;
+    final instantReplayShortcutLabel = widget.instantReplayShortcutLabel;
+    final searchShortcutLabel = widget.searchShortcutLabel;
+    final hasDefaultProfile = widget.hasDefaultProfile;
+    final hasActiveSession = widget.hasActiveSession;
+    final activePaneZoomed = widget.activePaneZoomed;
+    final canReopenClosedTab = widget.canReopenClosedTab;
+    final splitRightUnavailableReason = widget.splitRightUnavailableReason;
+    final splitDownUnavailableReason = widget.splitDownUnavailableReason;
+    final hotkeyWindowStatus = widget.hotkeyWindowStatus;
+    final isActiveSessionReadOnly = widget.isActiveSessionReadOnly;
+    final notificationsBlockedBySystem = widget.notificationsBlockedBySystem;
+    final commandFinishedNotificationsEnabled =
+        widget.commandFinishedNotificationsEnabled;
+    final bellNotificationsEnabled = widget.bellNotificationsEnabled;
+    final activityMonitorEnabled = widget.activityMonitorEnabled;
+    final canSelectCommandOutput = widget.canSelectCommandOutput;
 
     Widget sectionLabel(String text) {
       return Padding(
@@ -12297,6 +12326,40 @@ class _ShellCommandMenu extends StatelessWidget {
         return activeSessionRequired;
       }
       return 'No prompt-marked command output is available yet.';
+    }
+
+    Widget commandTile({
+      Key? key,
+      required TerminalActionId actionId,
+      required IconData icon,
+      required String title,
+      required String subtitle,
+      required bool enabled,
+      String? disabledReason,
+      int subtitleMaxLines = 1,
+      String? shortcutLabel,
+      VoidCallback? onTap,
+    }) {
+      if (!_commandMenuActionMatchesQuery(
+        actionId,
+        _query,
+        title: title,
+        subtitle: subtitle,
+      )) {
+        return const SizedBox.shrink();
+      }
+
+      return _ShellCommandTile(
+        key: key,
+        icon: icon,
+        title: title,
+        subtitle: subtitle,
+        shortcutLabel: shortcutLabel,
+        enabled: enabled,
+        disabledReason: disabledReason,
+        subtitleMaxLines: subtitleMaxLines,
+        onTap: onTap,
+      );
     }
 
     return Material(
@@ -12365,6 +12428,11 @@ class _ShellCommandMenu extends StatelessWidget {
                                 ),
                               ),
                             ),
+                            onChanged: (value) {
+                              setState(() {
+                                _query = value;
+                              });
+                            },
                             onSubmitted: (query) {
                               final action = _commandMenuActionForQuery(query);
                               if (action == null) {
@@ -12383,8 +12451,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         ),
                       ),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-search-scrollback-top'),
+                      actionId: TerminalActionId.search,
                       icon: Icons.search_rounded,
                       title: 'Search terminal output',
                       subtitle:
@@ -12396,20 +12465,21 @@ class _ShellCommandMenu extends StatelessWidget {
                           Navigator.of(context).pop(TerminalActionId.search),
                     ),
                     sectionLabel('App actions'),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-new-tab'),
+                      actionId: TerminalActionId.newTab,
                       icon: Icons.add_box_outlined,
                       title: 'New tab',
-                      subtitle:
-                          'App action • Open the default shell profile.',
+                      subtitle: 'App action • Open the default shell profile.',
                       shortcutLabel: newTabShortcutLabel,
                       enabled: hasDefaultProfile,
                       disabledReason: defaultProfileRequired,
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.newTab),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-command-defaults'),
+                      actionId: TerminalActionId.defaults,
                       icon: Icons.tune_rounded,
                       title: 'Defaults & appearance',
                       subtitle:
@@ -12418,8 +12488,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.defaults),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-reopen-closed-tab'),
+                      actionId: TerminalActionId.reopenClosedTab,
                       icon: Icons.restore_rounded,
                       title: 'Reopen closed tab',
                       subtitle:
@@ -12430,8 +12501,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.reopenClosedTab),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-toolbelt'),
+                      actionId: TerminalActionId.toolbelt,
                       icon: Icons.view_sidebar_rounded,
                       title: 'Toolbelt',
                       subtitle:
@@ -12441,8 +12513,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.toolbelt),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-split-right'),
+                      actionId: TerminalActionId.splitRight,
                       icon: Icons.vertical_split_rounded,
                       title: 'Split right',
                       subtitle: 'Session action • Add a pane to the right.',
@@ -12459,8 +12532,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.splitRight),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-split-down'),
+                      actionId: TerminalActionId.splitDown,
                       icon: Icons.horizontal_split_rounded,
                       title: 'Split down',
                       subtitle: 'Session action • Add a pane below.',
@@ -12476,8 +12550,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.splitDown),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-zoom-pane'),
+                      actionId: TerminalActionId.zoomPane,
                       icon: Icons.zoom_out_map_rounded,
                       title: activePaneZoomed
                           ? 'Unzoom active pane'
@@ -12488,8 +12563,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.zoomPane),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-theme-picker'),
+                      actionId: TerminalActionId.openThemePicker,
                       icon: Icons.palette_rounded,
                       title: 'Terminal color presets',
                       subtitle:
@@ -12499,8 +12575,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.openThemePicker),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-toggle-command-finished-notify'),
+                      actionId: TerminalActionId.toggleCommandFinishedNotify,
                       icon: Icons.notifications_active_rounded,
                       title:
                           '${commandFinishedNotificationsEnabled ? 'Disable' : 'Enable'} command-finished notifications',
@@ -12513,8 +12590,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.toggleCommandFinishedNotify),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-toggle-bell-notify'),
+                      actionId: TerminalActionId.toggleBellNotify,
                       icon: Icons.notifications_rounded,
                       title:
                           '${bellNotificationsEnabled ? 'Disable' : 'Enable'} bell notifications',
@@ -12527,8 +12605,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.toggleBellNotify),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-toggle-activity-monitor'),
+                      actionId: TerminalActionId.toggleActivityMonitor,
                       icon: Icons.notification_important_rounded,
                       title:
                           '${activityMonitorEnabled ? 'Disable' : 'Enable'} activity monitor',
@@ -12541,8 +12620,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.toggleActivityMonitor),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-command-profiles'),
+                      actionId: TerminalActionId.profiles,
                       icon: Icons.folder_open_rounded,
                       title: 'Profiles…',
                       subtitle: 'App action • Open or edit shell profiles.',
@@ -12550,8 +12630,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.profiles),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-dynamic-profiles'),
+                      actionId: TerminalActionId.dynamicProfiles,
                       icon: Icons.data_object_rounded,
                       title: 'Dynamic profiles',
                       subtitle:
@@ -12574,7 +12655,8 @@ class _ShellCommandMenu extends StatelessWidget {
                           ),
                         ),
                       ),
-                    _ShellCommandTile(
+                    commandTile(
+                      actionId: TerminalActionId.copy,
                       icon: Icons.copy_rounded,
                       title: 'Copy selection',
                       subtitle: 'Session action • Copy the current selection.',
@@ -12584,8 +12666,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.copy),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-copy-mode'),
+                      actionId: TerminalActionId.copyMode,
                       icon: Icons.select_all_rounded,
                       title: 'Copy mode',
                       subtitle:
@@ -12596,8 +12679,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.copyMode),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-toggle-read-only'),
+                      actionId: TerminalActionId.toggleReadOnly,
                       icon: Icons.lock_outline_rounded,
                       title:
                           '${isActiveSessionReadOnly ? 'Disable' : 'Enable'} read-only mode',
@@ -12609,8 +12693,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.toggleReadOnly),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-clear-scrollback'),
+                      actionId: TerminalActionId.clearScrollback,
                       icon: Icons.clear_all_rounded,
                       title: 'Clear scrollback',
                       subtitle:
@@ -12621,8 +12706,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.clearScrollback),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-export-scrollback'),
+                      actionId: TerminalActionId.exportScrollback,
                       icon: Icons.ios_share_rounded,
                       title: 'Export scrollback',
                       subtitle:
@@ -12633,8 +12719,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.exportScrollback),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-export-diagnostics'),
+                      actionId: TerminalActionId.exportDiagnostics,
                       icon: Icons.bug_report_rounded,
                       title: 'Export diagnostics',
                       subtitle:
@@ -12645,8 +12732,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.exportDiagnostics),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-annotations'),
+                      actionId: TerminalActionId.annotations,
                       icon: Icons.sticky_note_2_rounded,
                       title: 'Annotations',
                       subtitle:
@@ -12657,8 +12745,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.annotations),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-captured-output'),
+                      actionId: TerminalActionId.capturedOutput,
                       icon: Icons.outbox_rounded,
                       title: 'Captured output',
                       subtitle:
@@ -12669,8 +12758,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.capturedOutput),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-paste-clipboard'),
+                      actionId: TerminalActionId.paste,
                       icon: Icons.content_paste_rounded,
                       title: 'Paste clipboard',
                       subtitle:
@@ -12683,8 +12773,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.paste),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-advanced-paste'),
+                      actionId: TerminalActionId.advancedPaste,
                       icon: Icons.assignment_rounded,
                       title: 'Advanced paste',
                       subtitle:
@@ -12697,8 +12788,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.advancedPaste),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-paste-history'),
+                      actionId: TerminalActionId.pasteHistory,
                       icon: Icons.history_rounded,
                       title: 'Paste history',
                       subtitle:
@@ -12712,8 +12804,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.pasteHistory),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-integration-utilities'),
+                      actionId: TerminalActionId.shellIntegrationUtilities,
                       icon: Icons.integration_instructions_rounded,
                       title: 'Shell integration',
                       subtitle:
@@ -12724,8 +12817,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.shellIntegrationUtilities),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-select-command-output'),
+                      actionId: TerminalActionId.selectCommandOutput,
                       icon: Icons.fact_check_rounded,
                       title: 'Select command output',
                       subtitle:
@@ -12736,8 +12830,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.selectCommandOutput),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-tmux-integration'),
+                      actionId: TerminalActionId.tmuxIntegration,
                       icon: Icons.account_tree_rounded,
                       title: 'tmux integration',
                       subtitle:
@@ -12748,8 +12843,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.tmuxIntegration),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-coprocess'),
+                      actionId: TerminalActionId.coprocess,
                       icon: Icons.hub_rounded,
                       title: 'Coprocess',
                       subtitle:
@@ -12759,8 +12855,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.coprocess),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-password-manager'),
+                      actionId: TerminalActionId.passwordManager,
                       icon: Icons.password_rounded,
                       title: 'Password manager',
                       subtitle:
@@ -12773,8 +12870,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.passwordManager),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-instant-replay'),
+                      actionId: TerminalActionId.instantReplay,
                       icon: Icons.replay_rounded,
                       title: 'Instant replay',
                       subtitle:
@@ -12786,7 +12884,8 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.instantReplay),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
+                      actionId: TerminalActionId.search,
                       icon: Icons.search_rounded,
                       title: 'Search scrollback',
                       subtitle: 'Session action • Find text in local output.',
@@ -12796,8 +12895,9 @@ class _ShellCommandMenu extends StatelessWidget {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.search),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-global-search'),
+                      actionId: TerminalActionId.globalSearch,
                       icon: Icons.manage_search_rounded,
                       title: 'Global search',
                       subtitle: 'Workspace action • Search all tabs at once.',
@@ -12807,8 +12907,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.globalSearch),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-autocomplete'),
+                      actionId: TerminalActionId.autocomplete,
                       icon: Icons.auto_fix_high_rounded,
                       title: 'Autocomplete',
                       subtitle:
@@ -12820,8 +12921,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.autocomplete),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-auto-composer'),
+                      actionId: TerminalActionId.autoComposer,
                       icon: Icons.edit_note_rounded,
                       title: 'Auto Composer',
                       subtitle:
@@ -12834,8 +12936,9 @@ class _ShellCommandMenu extends StatelessWidget {
                         context,
                       ).pop(TerminalActionId.autoComposer),
                     ),
-                    _ShellCommandTile(
+                    commandTile(
                       key: const Key('shell-hotkey-window'),
+                      actionId: TerminalActionId.hotkeyWindow,
                       icon: Icons.keyboard_rounded,
                       title: 'Hotkey window',
                       subtitle:
@@ -12878,136 +12981,98 @@ class _ShellCommandMenu extends StatelessWidget {
   }
 }
 
+const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
+  MapEntry('new tab open default shell profile', TerminalActionId.newTab),
+  MapEntry(
+    'defaults appearance default profile theme',
+    TerminalActionId.defaults,
+  ),
+  MapEntry('reopen closed tab restore tab', TerminalActionId.reopenClosedTab),
+  MapEntry('toolbelt sidebar terminal tools', TerminalActionId.toolbelt),
+  MapEntry('split right vertical pane', TerminalActionId.splitRight),
+  MapEntry('split down horizontal pane', TerminalActionId.splitDown),
+  MapEntry('zoom active pane unzoom focus', TerminalActionId.zoomPane),
+  MapEntry(
+    'theme picker terminal color presets appearance defaults',
+    TerminalActionId.openThemePicker,
+  ),
+  MapEntry('export scrollback save output', TerminalActionId.exportScrollback),
+  MapEntry(
+    'export diagnostics resource cpu memory evidence bundle',
+    TerminalActionId.exportDiagnostics,
+  ),
+  MapEntry(
+    'command finished notifications shell hook completion alerts',
+    TerminalActionId.toggleCommandFinishedNotify,
+  ),
+  MapEntry(
+    'bell notifications terminal bell alerts',
+    TerminalActionId.toggleBellNotify,
+  ),
+  MapEntry(
+    'activity monitor inactive session alerts',
+    TerminalActionId.toggleActivityMonitor,
+  ),
+  MapEntry('profiles edit shell profiles', TerminalActionId.profiles),
+  MapEntry(
+    'dynamic profiles import json iterm profile',
+    TerminalActionId.dynamicProfiles,
+  ),
+  MapEntry('copy selection', TerminalActionId.copy),
+  MapEntry(
+    'copy mode select terminal text keyboard',
+    TerminalActionId.copyMode,
+  ),
+  MapEntry(
+    'read only readonly lock block input',
+    TerminalActionId.toggleReadOnly,
+  ),
+  MapEntry('clear scrollback clear output', TerminalActionId.clearScrollback),
+  MapEntry('annotations notes selected output', TerminalActionId.annotations),
+  MapEntry('captured output trigger lines', TerminalActionId.capturedOutput),
+  MapEntry('paste clipboard', TerminalActionId.paste),
+  MapEntry(
+    'advanced paste transform edit paste',
+    TerminalActionId.advancedPaste,
+  ),
+  MapEntry('paste history recent copied pasted', TerminalActionId.pasteHistory),
+  MapEntry(
+    'shell integration command history directories prompt marks',
+    TerminalActionId.shellIntegrationUtilities,
+  ),
+  MapEntry(
+    'select command output prompt marks',
+    TerminalActionId.selectCommandOutput,
+  ),
+  MapEntry('tmux integration control mode', TerminalActionId.tmuxIntegration),
+  MapEntry('coprocess automate replies output', TerminalActionId.coprocess),
+  MapEntry(
+    'password manager saved passwords prompts',
+    TerminalActionId.passwordManager,
+  ),
+  MapEntry(
+    'instant replay recent terminal frames',
+    TerminalActionId.instantReplay,
+  ),
+  MapEntry('search scrollback find local output', TerminalActionId.search),
+  MapEntry('global search workspace all tabs', TerminalActionId.globalSearch),
+  MapEntry(
+    'autocomplete complete word visible output',
+    TerminalActionId.autocomplete,
+  ),
+  MapEntry(
+    'auto composer command editor completions',
+    TerminalActionId.autoComposer,
+  ),
+  MapEntry('hotkey window summon hide shell', TerminalActionId.hotkeyWindow),
+];
+
 TerminalActionId? _commandMenuActionForQuery(String query) {
   final normalized = _normalizeCommandMenuQuery(query);
   if (normalized.isEmpty) {
     return null;
   }
-  final entries = <MapEntry<String, TerminalActionId>>[
-    const MapEntry(
-      'new tab open default shell profile',
-      TerminalActionId.newTab,
-    ),
-    const MapEntry(
-      'defaults appearance default profile theme',
-      TerminalActionId.defaults,
-    ),
-    const MapEntry(
-      'reopen closed tab restore tab',
-      TerminalActionId.reopenClosedTab,
-    ),
-    const MapEntry(
-      'toolbelt sidebar terminal tools',
-      TerminalActionId.toolbelt,
-    ),
-    const MapEntry('split right vertical pane', TerminalActionId.splitRight),
-    const MapEntry('split down horizontal pane', TerminalActionId.splitDown),
-    const MapEntry('zoom active pane unzoom focus', TerminalActionId.zoomPane),
-    const MapEntry(
-      'theme picker terminal color presets appearance defaults',
-      TerminalActionId.openThemePicker,
-    ),
-    const MapEntry(
-      'export scrollback save output',
-      TerminalActionId.exportScrollback,
-    ),
-    const MapEntry(
-      'export diagnostics resource cpu memory evidence bundle',
-      TerminalActionId.exportDiagnostics,
-    ),
-    const MapEntry(
-      'command finished notifications shell hook completion alerts',
-      TerminalActionId.toggleCommandFinishedNotify,
-    ),
-    const MapEntry(
-      'bell notifications terminal bell alerts',
-      TerminalActionId.toggleBellNotify,
-    ),
-    const MapEntry(
-      'activity monitor inactive session alerts',
-      TerminalActionId.toggleActivityMonitor,
-    ),
-    const MapEntry('profiles edit shell profiles', TerminalActionId.profiles),
-    const MapEntry(
-      'dynamic profiles import json iterm profile',
-      TerminalActionId.dynamicProfiles,
-    ),
-    const MapEntry('copy selection', TerminalActionId.copy),
-    const MapEntry(
-      'copy mode select terminal text keyboard',
-      TerminalActionId.copyMode,
-    ),
-    const MapEntry(
-      'read only readonly lock block input',
-      TerminalActionId.toggleReadOnly,
-    ),
-    const MapEntry(
-      'clear scrollback clear output',
-      TerminalActionId.clearScrollback,
-    ),
-    const MapEntry(
-      'annotations notes selected output',
-      TerminalActionId.annotations,
-    ),
-    const MapEntry(
-      'captured output trigger lines',
-      TerminalActionId.capturedOutput,
-    ),
-    const MapEntry('paste clipboard', TerminalActionId.paste),
-    const MapEntry(
-      'advanced paste transform edit paste',
-      TerminalActionId.advancedPaste,
-    ),
-    const MapEntry(
-      'paste history recent copied pasted',
-      TerminalActionId.pasteHistory,
-    ),
-    const MapEntry(
-      'shell integration command history directories prompt marks',
-      TerminalActionId.shellIntegrationUtilities,
-    ),
-    const MapEntry(
-      'select command output prompt marks',
-      TerminalActionId.selectCommandOutput,
-    ),
-    const MapEntry(
-      'tmux integration control mode',
-      TerminalActionId.tmuxIntegration,
-    ),
-    const MapEntry(
-      'coprocess automate replies output',
-      TerminalActionId.coprocess,
-    ),
-    const MapEntry(
-      'password manager saved passwords prompts',
-      TerminalActionId.passwordManager,
-    ),
-    const MapEntry(
-      'instant replay recent terminal frames',
-      TerminalActionId.instantReplay,
-    ),
-    const MapEntry(
-      'search scrollback find local output',
-      TerminalActionId.search,
-    ),
-    const MapEntry(
-      'global search workspace all tabs',
-      TerminalActionId.globalSearch,
-    ),
-    const MapEntry(
-      'autocomplete complete word visible output',
-      TerminalActionId.autocomplete,
-    ),
-    const MapEntry(
-      'auto composer command editor completions',
-      TerminalActionId.autoComposer,
-    ),
-    const MapEntry(
-      'hotkey window summon hide shell',
-      TerminalActionId.hotkeyWindow,
-    ),
-  ];
-  for (final entry in entries) {
+  for (final entry in _commandMenuActionSearchEntries) {
     final normalizedEntry = _normalizeCommandMenuQuery(entry.key);
     if (normalizedEntry.contains(normalized) ||
         normalized.contains(normalizedEntry)) {
@@ -13015,6 +13080,30 @@ TerminalActionId? _commandMenuActionForQuery(String query) {
     }
   }
   return null;
+}
+
+bool _commandMenuActionMatchesQuery(
+  TerminalActionId actionId,
+  String query, {
+  required String title,
+  required String subtitle,
+}) {
+  final normalized = _normalizeCommandMenuQuery(query);
+  if (normalized.isEmpty) {
+    return true;
+  }
+
+  final fallback = _normalizeCommandMenuQuery(
+    '$title $subtitle ${actionId.name}',
+  );
+  if (fallback.contains(normalized) || normalized.contains(fallback)) {
+    return true;
+  }
+
+  return _commandMenuActionSearchEntries
+      .where((entry) => entry.value == actionId)
+      .map((entry) => _normalizeCommandMenuQuery(entry.key))
+      .any((entry) => entry.contains(normalized) || normalized.contains(entry));
 }
 
 String _normalizeCommandMenuQuery(String value) {

@@ -97,6 +97,43 @@ void main() {
     );
   });
 
+  testWidgets('shell screen command menu filters actions while typing', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('New tab'), findsOneWidget);
+    expect(find.text('Paste history'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'paste history',
+    );
+    await tester.pump();
+
+    expect(find.text('Paste history'), findsOneWidget);
+    expect(find.text('New tab'), findsNothing);
+    expect(find.text('Defaults & appearance'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      '',
+    );
+    await tester.pump();
+
+    expect(find.text('New tab'), findsOneWidget);
+    expect(find.text('Paste history'), findsOneWidget);
+  });
+
   testWidgets('shell screen command menu can create another tab', (
     tester,
   ) async {
