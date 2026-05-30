@@ -44,7 +44,7 @@ class TerminalStyleRun {
   static TerminalStyleRun? tryFromJson(Map<String, Object?> json) {
     final start = _intOrNullFromJson(json['start']);
     final end = _intOrNullFromJson(json['end']);
-    if (start == null || end == null) {
+    if (start == null || start < 0 || end == null || end <= start) {
       return null;
     }
     return TerminalStyleRun(

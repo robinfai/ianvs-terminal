@@ -276,6 +276,8 @@ void main() {
             'bad-style',
             {'start': 0, 'end': 2, 'bold': true},
             {'start': 'bad', 'end': 2},
+            {'start': -1, 'end': 2, 'italic': true},
+            {'start': 2, 'end': 2, 'blink': true},
             {'start': 2, 'end': 3, 'underline': 'yes'},
           ],
         },
