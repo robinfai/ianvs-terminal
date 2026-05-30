@@ -10,7 +10,8 @@ enum PasteHistoryKind {
   paste;
 
   static PasteHistoryKind fromJsonValue(Object? value) {
-    return switch (value) {
+    final normalized = value is String ? value.trim().toLowerCase() : null;
+    return switch (normalized) {
       'copy' => PasteHistoryKind.copy,
       _ => PasteHistoryKind.paste,
     };

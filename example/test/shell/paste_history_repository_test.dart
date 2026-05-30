@@ -100,7 +100,7 @@ void main() {
           'not an entry',
           {
             'text': 'kept',
-            'kind': 'copy',
+            'kind': ' Copy ',
             'createdAt': '2026-05-14T01:02:03.000Z',
           },
           {'text': 7, 'kind': 'paste', 'createdAt': false},
