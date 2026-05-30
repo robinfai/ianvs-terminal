@@ -151,7 +151,7 @@ class WindowBridge {
       }
       if (kDebugMode) {
         // ignore in release; keep diagnostics available in debug only
-        print(
+        debugPrint(
           'Failed to send notification '
           '[${error.code}] ${error.message ?? ''}',
         );
