@@ -75,6 +75,14 @@ void main() {
   test('terminal launch config trims direct json string fields', () {
     final launch = TerminalLaunchConfig.fromJson(const <String, Object?>{
       'program': '  /bin/zsh  ',
+      'env': <Object?, Object?>{
+        ' TERM ': 'xterm-256color',
+        'EMPTY': '',
+        'BAD_BOOL': false,
+        'BAD_NULL': null,
+        '   ': 'blank-key',
+        7: 'numeric-key',
+      },
       'cwd': '  /tmp/project  ',
     });
     final blank = TerminalLaunchConfig.fromJson(const <String, Object?>{
@@ -83,6 +91,10 @@ void main() {
     });
 
     expect(launch.program, '/bin/zsh');
+    expect(launch.env, const <String, String>{
+      'TERM': 'xterm-256color',
+      'EMPTY': '',
+    });
     expect(launch.cwd, '/tmp/project');
     expect(blank.program, '');
     expect(blank.cwd, isNull);

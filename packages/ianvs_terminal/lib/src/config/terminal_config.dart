@@ -852,9 +852,15 @@ List<String> _stringList(
 
 Map<String, String> _stringMap(Object? value) {
   if (value is Map) {
-    return value.map(
-      (key, entry) => MapEntry(key.toString(), entry?.toString() ?? ''),
-    );
+    final values = <String, String>{};
+    for (final entry in value.entries) {
+      final key = entry.key;
+      final entryValue = entry.value;
+      if (key is String && key.trim().isNotEmpty && entryValue is String) {
+        values[key.trim()] = entryValue;
+      }
+    }
+    return values;
   }
   return const <String, String>{};
 }
