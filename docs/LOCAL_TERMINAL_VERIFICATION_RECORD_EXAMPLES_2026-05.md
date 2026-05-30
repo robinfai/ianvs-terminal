@@ -26,15 +26,16 @@ This preserves every required gate as pending before real results are applied.
 
 ## Formatting Record Example
 
-Use only after `dart format example/lib example/test` exits successfully after
-the final edits:
+Use only after the expanded `dart format` gate exits successfully after the
+final edits:
 
 ```dart
 const formattingRecord = LocalTerminalVerificationGateRecord.passed(
   gate: LocalTerminalVerificationGate.formatting,
-  command: 'dart format example/lib example/test',
+  command:
+      'dart format example/lib example/test example/integration_test example/test_driver example/tool packages/ianvs_terminal/lib packages/ianvs_terminal/test packages/ianvs_pty/lib packages/ianvs_pty/test',
   output: [
-    'Formatted example/lib and example/test.',
+    'Formatted app, integration/test-driver/tool, and local package Dart files.',
     'Exit status: 0',
   ],
 );
@@ -45,7 +46,8 @@ If formatting fails:
 ```dart
 const formattingRecord = LocalTerminalVerificationGateRecord.failed(
   gate: LocalTerminalVerificationGate.formatting,
-  command: 'dart format example/lib example/test',
+  command:
+      'dart format example/lib example/test example/integration_test example/test_driver example/tool packages/ianvs_terminal/lib packages/ianvs_terminal/test packages/ianvs_pty/lib packages/ianvs_pty/test',
   output: [
     'Formatter failed.',
     'Exit status: non-zero',

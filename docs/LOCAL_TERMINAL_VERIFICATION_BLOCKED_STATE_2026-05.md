@@ -32,7 +32,8 @@ refresh.
 
 ## Latest Verified Evidence
 
-- `dart format example/lib example/test`: passed, 252 files, 0 changed.
+- Expanded `dart format` gate across app, integration/test-driver/tool files,
+  and local packages: passed, 287 files, 0 changed in the 2026-05-31 audit.
 - `flutter analyze`: passed, no issues found.
 - Focused completion diagnostics: passed 45/45.
 - P1 action wiring: passed 33/33.

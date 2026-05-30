@@ -104,8 +104,7 @@ void main() {
             .listSync()
             .whereType<File>()
             .where(
-              (entry) =>
-                  entry.path.contains('ianvs_preferences.json.corrupt'),
+              (entry) => entry.path.contains('ianvs_preferences.json.corrupt'),
             )
             .length,
         1,

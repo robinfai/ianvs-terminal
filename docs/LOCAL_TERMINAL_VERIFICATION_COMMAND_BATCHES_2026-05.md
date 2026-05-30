@@ -44,7 +44,16 @@ status into the canonical ledger.
 ## Batch 0: Formatting
 
 ```sh
-dart format example/lib example/test
+dart format \
+  example/lib \
+  example/test \
+  example/integration_test \
+  example/test_driver \
+  example/tool \
+  packages/ianvs_terminal/lib \
+  packages/ianvs_terminal/test \
+  packages/ianvs_pty/lib \
+  packages/ianvs_pty/test
 ```
 
 Record against:

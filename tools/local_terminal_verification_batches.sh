@@ -63,7 +63,16 @@ print_batch() {
   case "$1" in
     formatting)
       cat <<'EOF'
-dart format example/lib example/test
+dart format \
+  example/lib \
+  example/test \
+  example/integration_test \
+  example/test_driver \
+  example/tool \
+  packages/ianvs_terminal/lib \
+  packages/ianvs_terminal/test \
+  packages/ianvs_pty/lib \
+  packages/ianvs_pty/test
 EOF
       ;;
     static-analysis)
@@ -195,7 +204,16 @@ run_batch() {
 
   case "$1" in
     formatting)
-      dart format example/lib example/test
+      dart format \
+        example/lib \
+        example/test \
+        example/integration_test \
+        example/test_driver \
+        example/tool \
+        packages/ianvs_terminal/lib \
+        packages/ianvs_terminal/test \
+        packages/ianvs_pty/lib \
+        packages/ianvs_pty/test
       ;;
     static-analysis)
       flutter analyze

@@ -45,7 +45,8 @@ What exists:
 
 Latest verification evidence:
 
-- Formatting passed with `Formatted 252 files (0 changed)`.
+- Formatting passed; the latest expanded 2026-05-31 scope audit reported
+  `Formatted 287 files (0 changed)`.
 - Latest static analysis passed with `No issues found!` in
   `20260516T171224Z-static-analysis`.
 - Focused completion diagnostics passed 45/45.

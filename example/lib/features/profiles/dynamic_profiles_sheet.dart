@@ -128,9 +128,9 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                   const SizedBox(height: 8),
                   Text(
                     'Paste an iTerm2 dynamic profile JSON document. This local build only launches local commands.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: palette.textSubtle,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
                   ),
                   const SizedBox(height: 8),
                   Flexible(

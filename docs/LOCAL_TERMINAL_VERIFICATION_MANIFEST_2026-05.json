@@ -45,7 +45,7 @@
     "outputLog": "build/local-terminal-verification/20260516T145142Z-all-automated/output.log",
     "summary": "build/local-terminal-verification/20260516T145142Z-all-automated/summary.txt",
     "ledgerEntry": "build/local-terminal-verification/20260516T145142Z-all-automated/ledger-entry.md",
-    "formatting": "passed: Formatted 252 files (0 changed).",
+    "formatting": "passed: expanded 2026-05-31 scope audit reported Formatted 287 files (0 changed).",
     "staticAnalysis": "passed: latest rerun build/local-terminal-verification/20260516T171224Z-static-analysis exited 0 with No issues found.",
     "staticAnalysisRerunDirectory": "build/local-terminal-verification/20260516T171224Z-static-analysis",
     "completion": "passed: 45/45.",
@@ -182,7 +182,7 @@
   "batches": [
     {
       "id": "formatting",
-      "command": "dart format example/lib example/test",
+      "command": "dart format example/lib example/test example/integration_test example/test_driver example/tool packages/ianvs_terminal/lib packages/ianvs_terminal/test packages/ianvs_pty/lib packages/ianvs_pty/test",
       "recordsGates": [
         "formatting"
       ],

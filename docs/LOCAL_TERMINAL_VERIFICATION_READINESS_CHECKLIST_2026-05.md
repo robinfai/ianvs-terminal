@@ -28,7 +28,7 @@ Copy-ready command batches are documented in
 
 | Required gate | Entry point | Readiness | Missing before closure |
 | --- | --- | --- | --- |
-| Formatting | `dart format example/lib example/test` from `LOCAL_TERMINAL_VERIFICATION_COMMAND_PLAN_2026-05.md` | Passed | `build/local-terminal-verification/20260516T145142Z-all-automated`: `Formatted 252 files (0 changed)`. |
+| Formatting | Expanded `dart format` command from `LOCAL_TERMINAL_VERIFICATION_COMMAND_PLAN_2026-05.md` | Passed | `build/local-terminal-verification/20260516T145142Z-all-automated`: `Formatted 252 files (0 changed)`. 2026-05-31 scope audit confirmed `Formatted 287 files (0 changed)`. |
 | Static analysis | `flutter analyze` from `LOCAL_TERMINAL_VERIFICATION_COMMAND_PLAN_2026-05.md` | Passed | `build/local-terminal-verification/20260516T145142Z-all-automated`: `No issues found!`. |
 | Completion evidence tests | `example/test/shell/local_terminal_*completion*_test.dart` plus explicit diagnostics files from T-245 through T-272 | Passed | Focused completion suite passed 45/45 in `20260516T145142Z-all-automated`. |
 | P1 action wiring tests | `example/test/shell/shell_action_*test.dart` plus action-domain router/domain summary tests | Passed | Focused P1 suite passed 33/33 in `20260516T145142Z-all-automated`. |

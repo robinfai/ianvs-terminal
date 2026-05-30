@@ -56,7 +56,7 @@ This runbook does not claim that any evidence has been collected.
 
 | Gate | Record source | Status rule |
 | --- | --- | --- |
-| Formatting | `dart format example/lib example/test` output | `passed` only if command exits cleanly after final edits. |
+| Formatting | Expanded `dart format` output covering app, integration/test-driver/tool files, and local packages | `passed` only if command exits cleanly after final edits. |
 | Static analysis | `flutter analyze` output | `passed` only if analyzer has no blocking issues. |
 | Unit tests | `bash tools/local_terminal_verification_capture.sh run all-automated` or carried-forward focused evidence plus a successful `broader` rerun | `passed` only if required focused and broader unit scopes pass. |
 | Widget tests | `bash tools/local_terminal_verification_capture.sh run broader` output plus focused diagnostics evidence | `passed` only if UI focus/diagnostic behavior passes after the latest visibility fix. |

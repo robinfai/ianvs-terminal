@@ -39,7 +39,7 @@ not close a row unless the row explicitly asks only for foundation work.
 | Production wiring checklist satisfied | `docs/LOCAL_TERMINAL_PRODUCTION_WIRING_CHECKLIST_2026-05.md` rows closed with evidence | Current task records T-230 and T-239 show no known action-level implementation blocker for the required baseline; final verification and current verified backlog evidence are recorded | Verified | None. |
 | Unit tests passed | Relevant `flutter test` / `dart test` output covering P0-P5 foundation and production wiring artifacts | Focused completion/P1/P2-P5/cross-milestone/verification-evidence suites passed in `build/local-terminal-verification/20260516T145142Z-all-automated`; latest broader `bash tools/local_terminal_verification_capture.sh run broader` passed in `build/local-terminal-verification/20260516T171406Z-broader` with 601 passing tests plus 1 skipped test; latest verification-evidence rerun passed 13/13 in `build/local-terminal-verification/20260516T171327Z-verification-evidence`; latest focused current-state/facade verification tests passed after `currentVerified` wiring | Passed | None. |
 | Static analysis passed | `flutter analyze` or equivalent output after production wiring | Latest rerun after paste, zoom, hotkey visible-failure, and verified completion-state changes passed: `No issues found!`; captured static-analysis evidence remains `build/local-terminal-verification/20260516T171224Z-static-analysis` | Passed | None. |
-| Formatting is clean | `dart format` or equivalent output after edits | `build/local-terminal-verification/20260516T145142Z-all-automated`: `Formatted 252 files (0 changed)`; later touched verification-plan and completion-state files were individually formatted with `dart format` | Passed/updated | None. |
+| Formatting is clean | Expanded `dart format` output after edits | `build/local-terminal-verification/20260516T145142Z-all-automated`: `Formatted 252 files (0 changed)`; later touched files were individually formatted, and the 2026-05-31 scope audit confirmed app, integration/test-driver/tool, and package formatting with `Formatted 287 files (0 changed)` | Passed/updated | None. |
 | Manual/integration gates complete | Smoke/manual evidence from `docs/LOCAL_TERMINAL_FEATURE_PLAN.md` test plan | Latest integration passed in `build/local-terminal-verification/20260516T171644Z-integration`: macOS smoke 4/4 and real PTY acceptance 7/7. Manual/integration-backed ledger rows are passed for local shell smoke, paste/focus safety, multipane behavior, notification behavior, and hotkey-window failure path. | Passed | None. |
 
 ## Required completion evidence
@@ -352,7 +352,9 @@ Latest full-run evidence directory:
 
 Passing evidence from that run:
 
-- `dart format example/lib example/test`: `Formatted 252 files (0 changed)`.
+- Expanded `dart format` gate across app, integration/test-driver/tool files,
+  and local packages: latest 2026-05-31 scope audit reported
+  `Formatted 287 files (0 changed)`.
 - `flutter analyze`: `No issues found!`.
 - Completion diagnostics suite: 45/45 passed.
 - P1 action wiring suite: 33/33 passed.

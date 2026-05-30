@@ -304,12 +304,13 @@ class TerminalAnsiColors {
   }
 }
 
-const TerminalSpecialColors defaultTerminalSpecialColors = TerminalSpecialColors(
-  foreground: '#C0C0C0',
-  background: '#000000',
-  cursor: '#C0C0C0',
-  selection: '#B5D5FF',
-);
+const TerminalSpecialColors defaultTerminalSpecialColors =
+    TerminalSpecialColors(
+      foreground: '#C0C0C0',
+      background: '#000000',
+      cursor: '#C0C0C0',
+      selection: '#B5D5FF',
+    );
 
 const TerminalAnsiColors defaultTerminalAnsiColors = TerminalAnsiColors(
   black: '#14191E',
@@ -361,7 +362,9 @@ class TerminalColorPalette {
     );
   }
 
-  TerminalColorPalette resolveWith([TerminalColorPalette defaults = defaultTerminalColorPalette]) {
+  TerminalColorPalette resolveWith([
+    TerminalColorPalette defaults = defaultTerminalColorPalette,
+  ]) {
     return TerminalColorPalette(
       special: special.resolveWith(defaults.special),
       normal: normal.resolveWith(defaults.normal),
@@ -1243,7 +1246,11 @@ TerminalAnsiColors _ansiColorsFromProfileJson(
       path: '$path.black',
       onWarning: onWarning,
     ),
-    red: _nullableHexColor(colors['red'], path: '$path.red', onWarning: onWarning),
+    red: _nullableHexColor(
+      colors['red'],
+      path: '$path.red',
+      onWarning: onWarning,
+    ),
     green: _nullableHexColor(
       colors['green'],
       path: '$path.green',

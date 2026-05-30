@@ -31,7 +31,7 @@ remain blockers.
 
 | Gate | Command | Required evidence | Notes |
 | --- | --- | --- | --- |
-| Formatting | `dart format example/lib example/test` | Command exits successfully after production wiring edits | Run after final code edits, not before. |
+| Formatting | `dart format example/lib example/test example/integration_test example/test_driver example/tool packages/ianvs_terminal/lib packages/ianvs_terminal/test packages/ianvs_pty/lib packages/ianvs_pty/test` | Command exits successfully after production wiring edits | Run after final code edits, not before; cover app, integration helpers, test driver, tools, and local packages. |
 | Static analysis | `flutter analyze` | Command exits successfully with zero blocking analyzer issues | Run from repository root unless project conventions require `example/`. |
 | Unit tests | Focused `flutter test` commands for shell/config/workspace/productivity/policies/visual foundation and wiring tests plus `flutter test example/test` broader scope | Passing test output covering P0-P5 closure/manifests/callback gates | Focused groups passed in `20260516T145142Z-all-automated`; latest broader passed in `20260516T171406Z-broader`. |
 | Widget tests | Existing shell widget tests plus new command-menu/shortcut/focus diagnostics tests, including broader `example/test` widget coverage | Passing output showing UI actions do not leak input and diagnostics render correctly | Focused diagnostics passed; latest broader widget coverage passed in `20260516T171406Z-broader`. |
