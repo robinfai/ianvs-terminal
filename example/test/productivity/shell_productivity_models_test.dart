@@ -38,6 +38,21 @@ void main() {
       expect(state.lastCommandOutputRange()!.commandId, 'ok');
     });
 
+    test('command output ranges reject negative rows', () {
+      const state = ShellProductivityState(
+        commandOutputRanges: [
+          ShellCommandOutputRange(
+            commandId: 'negative',
+            startRow: -4,
+            endRow: -1,
+          ),
+        ],
+      );
+
+      expect(state.canSelectCommandOutput, isFalse);
+      expect(state.lastCommandOutputRange(), isNull);
+    });
+
     test('read only mode blocks text send and paste', () {
       const state = ShellProductivityState(readOnly: true);
 

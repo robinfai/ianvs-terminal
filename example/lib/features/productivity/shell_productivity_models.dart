@@ -43,7 +43,7 @@ class ShellCommandOutputRange {
   final int startRow;
   final int endRow;
 
-  bool get isValid => startRow <= endRow;
+  bool get isValid => startRow >= 0 && endRow >= startRow;
 }
 
 class ShellProductivityState {
