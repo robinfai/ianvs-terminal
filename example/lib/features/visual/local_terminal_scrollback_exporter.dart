@@ -50,10 +50,24 @@ class LocalTerminalScrollbackExporter {
     }
 
     await directory.create(recursive: true);
-    final file = File('${directory.path}/$basename.${export.fileExtension()}');
+    final safeBasename = _safeBasename(basename);
+    final file = File(
+      '${directory.path}/$safeBasename.${export.fileExtension()}',
+    );
     await file.writeAsString(
       export.encode(includeMetadata: policy.includeMetadata),
     );
     return file;
+  }
+
+  static String _safeBasename(String basename) {
+    final safe = basename
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+        .replaceAll(RegExp('-+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    if (safe.isEmpty) {
+      return 'scrollback-${DateTime.now().millisecondsSinceEpoch}';
+    }
+    return safe;
   }
 }

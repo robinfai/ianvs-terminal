@@ -47,6 +47,29 @@ void main() {
       expect(raw, contains('hello'));
     });
 
+    test('sanitizes unsafe export basename inside target directory', () async {
+      final root = await Directory.systemTemp.createTemp(
+        'ianvs terminal-scrollback-safe-name',
+      );
+      final directory = Directory('${root.path}/exports');
+
+      final file = await LocalTerminalScrollbackExporter.write(
+        directory: directory,
+        basename: '../escaped/session:name',
+        export: const LocalTerminalScrollbackExport(
+          format: LocalTerminalExportFormat.plainText,
+          content: 'hello',
+        ),
+        policy: const LocalTerminalScrollbackExportPolicy(),
+      );
+
+      final directoryPath = await directory.resolveSymbolicLinks();
+      final filePath = await file.resolveSymbolicLinks();
+      expect(filePath, startsWith('$directoryPath${Platform.pathSeparator}'));
+      expect(file.path, contains('..-escaped-session-name.txt'));
+      expect(File('${root.path}/escaped.txt').existsSync(), isFalse);
+    });
+
     test('rejects disabled export policy', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-scrollback-disabled',
