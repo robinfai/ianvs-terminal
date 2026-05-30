@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -90,4 +91,40 @@ void main() {
       expect(quarantinedFiles, hasLength(1));
     },
   );
+
+  test('skips malformed history entries without quarantine', () async {
+    final file = File('${directory.path}/ianvs_paste_history.json');
+    await file.writeAsString(
+      jsonEncode({
+        'entries': [
+          'not an entry',
+          {
+            'text': 'kept',
+            'kind': 'copy',
+            'createdAt': '2026-05-14T01:02:03.000Z',
+          },
+          {'text': 7, 'kind': 'paste', 'createdAt': false},
+          {'text': 'epoch fallback', 'kind': 'unknown', 'createdAt': 42},
+        ],
+      }),
+    );
+
+    final loaded = await repository.load();
+    final quarantinedFiles = await directory
+        .list()
+        .where((entity) => entity.path.contains('.corrupt.'))
+        .toList();
+
+    expect(loaded?.entries, hasLength(2));
+    expect(loaded?.entries.first.text, 'kept');
+    expect(loaded?.entries.first.kind, PasteHistoryKind.copy);
+    expect(loaded?.entries.first.createdAt, DateTime.utc(2026, 5, 14, 1, 2, 3));
+    expect(loaded?.entries.last.text, 'epoch fallback');
+    expect(loaded?.entries.last.kind, PasteHistoryKind.paste);
+    expect(
+      loaded?.entries.last.createdAt,
+      DateTime.fromMillisecondsSinceEpoch(0),
+    );
+    expect(quarantinedFiles, isEmpty);
+  });
 }

@@ -38,10 +38,10 @@ class PasteHistoryEntry {
 
   static PasteHistoryEntry fromJson(Map<Object?, Object?> json) {
     return PasteHistoryEntry(
-      text: json['text'] as String? ?? '',
+      text: _stringOrNull(json['text']) ?? '',
       kind: PasteHistoryKind.fromJsonValue(json['kind']),
       createdAt:
-          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.tryParse(_stringOrNull(json['createdAt']) ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
@@ -60,15 +60,37 @@ class PasteHistoryDocument {
 
   static PasteHistoryDocument fromJson(Map<String, Object?> json) {
     return PasteHistoryDocument(
-      entries: (json['entries'] as List<dynamic>? ?? const [])
-          .map(
-            (entry) =>
-                PasteHistoryEntry.fromJson(entry as Map<Object?, Object?>),
-          )
+      entries: _objectList(json['entries'])
+          .map(PasteHistoryEntry.fromJson)
           .where((entry) => entry.text.isNotEmpty)
           .toList(),
     );
   }
+}
+
+Map<Object?, Object?>? _objectMap(Object? value) {
+  if (value is Map<Object?, Object?>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.cast<Object?, Object?>();
+  }
+  return null;
+}
+
+List<Map<Object?, Object?>> _objectList(Object? value) {
+  if (value is! List) {
+    return const <Map<Object?, Object?>>[];
+  }
+
+  return value
+      .map(_objectMap)
+      .whereType<Map<Object?, Object?>>()
+      .toList(growable: false);
+}
+
+String? _stringOrNull(Object? value) {
+  return value is String ? value : null;
 }
 
 class PasteHistoryRepository {

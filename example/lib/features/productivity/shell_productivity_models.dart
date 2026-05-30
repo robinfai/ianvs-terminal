@@ -149,9 +149,9 @@ class ShellRecentCommandEntry {
 
   static ShellRecentCommandEntry fromJson(Map<Object?, Object?> json) {
     return ShellRecentCommandEntry(
-      command: json['command'] as String? ?? '',
-      cwd: json['cwd'] as String?,
-      exitCode: json['exitCode'] as int?,
+      command: _stringOrNull(json['command']) ?? '',
+      cwd: _stringOrNull(json['cwd']),
+      exitCode: _intOrNull(json['exitCode']),
     );
   }
 }
@@ -170,8 +170,8 @@ class ShellRecentDirectoryEntry {
 
   static ShellRecentDirectoryEntry fromJson(Map<Object?, Object?> json) {
     return ShellRecentDirectoryEntry(
-      path: json['path'] as String? ?? '',
-      label: json['label'] as String?,
+      path: _stringOrNull(json['path']) ?? '',
+      label: _stringOrNull(json['label']),
     );
   }
 }
@@ -233,13 +233,15 @@ class ShellRecentItemsState {
 
   static ShellRecentItemsState fromJson(Map<Object?, Object?> json) {
     return ShellRecentItemsState(
-      limit: json['limit'] as int? ?? 50,
-      commands: _objectList(
-        json['commands'],
-      ).map(ShellRecentCommandEntry.fromJson).toList(growable: false),
-      directories: _objectList(
-        json['directories'],
-      ).map(ShellRecentDirectoryEntry.fromJson).toList(growable: false),
+      limit: _limitFromJson(json['limit']),
+      commands: _objectList(json['commands'])
+          .map(ShellRecentCommandEntry.fromJson)
+          .where((entry) => entry.command.isNotEmpty)
+          .toList(growable: false),
+      directories: _objectList(json['directories'])
+          .map(ShellRecentDirectoryEntry.fromJson)
+          .where((entry) => entry.path.isNotEmpty)
+          .toList(growable: false),
     ).trimmed();
   }
 }
@@ -366,6 +368,28 @@ Map<Object?, Object?>? _objectMap(Object? value) {
     return value.cast<Object?, Object?>();
   }
   return null;
+}
+
+String? _stringOrNull(Object? value) {
+  return value is String ? value : null;
+}
+
+int? _intOrNull(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return null;
+}
+
+int _limitFromJson(Object? value) {
+  final parsed = _intOrNull(value);
+  if (parsed == null || parsed < 0) {
+    return 50;
+  }
+  return parsed;
 }
 
 List<Map<Object?, Object?>> _objectList(Object? value) {
