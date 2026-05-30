@@ -33,6 +33,39 @@ void main() {
       expect(split.activeTab!.root.direction, TerminalPaneSplitDirection.right);
     });
 
+    test('split action recovers a stale active pane id', () {
+      final workspace = TerminalWorkspace(
+        tabs: [
+          TerminalWorkspaceTab(
+            id: 'tab-1',
+            activePaneId: 'missing-pane',
+            root: TerminalPaneNode.leaf(
+              id: 'pane-1',
+              sessionIntent: const TerminalPaneSessionIntent(
+                profileId: 'default',
+                cwd: '/project',
+              ),
+            ),
+          ),
+        ],
+        activeTabId: 'tab-1',
+      );
+
+      final split = LocalWorkspaceActionReducer.reduce(
+        workspace: workspace,
+        actionId: TerminalActionId.splitDown,
+        context: _context(pane: 'pane-2', split: 'split-1'),
+      );
+
+      expect(split.activeTab!.root.containsPane('pane-1'), isTrue);
+      expect(split.activeTab!.root.containsPane('pane-2'), isTrue);
+      expect(split.activeTab!.activePaneId, 'pane-2');
+      expect(
+        split.activeTab!.root.findPane('pane-2')!.sessionIntent!.cwd,
+        '/project',
+      );
+    });
+
     test('close and reopen tab actions roundtrip closed tab stack', () {
       final initial = LocalWorkspaceActionReducer.reduce(
         workspace: const TerminalWorkspace(),

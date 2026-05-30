@@ -181,20 +181,32 @@ class TerminalWorkspaceTab {
   final String? zoomedPaneId;
 
   bool get hasActivePane => root.containsPane(activePaneId);
-  bool get isZoomed => zoomedPaneId != null;
+  String get effectiveActivePaneId {
+    return hasActivePane ? activePaneId : root.firstLeafId;
+  }
+
+  String? get effectiveZoomedPaneId {
+    final paneId = zoomedPaneId;
+    if (paneId == null || !root.containsPane(paneId)) {
+      return null;
+    }
+    return paneId;
+  }
+
+  bool get isZoomed => effectiveZoomedPaneId != null;
   TerminalPaneSessionIntent? get activeSessionIntent {
-    return root.findPane(activePaneId)?.sessionIntent;
+    return root.findPane(effectiveActivePaneId)?.sessionIntent;
   }
 
   Map<String, Object?> toJson() {
     return {
       'id': id,
-      'activePaneId': activePaneId,
+      'activePaneId': effectiveActivePaneId,
       'root': root.toJson(),
       'closedPanes': closedPanes
           .map((pane) => pane.toJson())
           .toList(growable: false),
-      'zoomedPaneId': zoomedPaneId,
+      'zoomedPaneId': effectiveZoomedPaneId,
     };
   }
 
@@ -233,37 +245,41 @@ class TerminalWorkspaceTab {
       root: root,
       activePaneId: paneId,
       closedPanes: closedPanes,
-      zoomedPaneId: zoomedPaneId,
+      zoomedPaneId: effectiveZoomedPaneId,
     );
   }
 
   TerminalWorkspaceTab resizeActiveSplit(double ratio) {
+    final targetPaneId = effectiveActivePaneId;
     return TerminalWorkspaceTab(
       id: id,
-      root: root.resizeSplitContainingPane(activePaneId, ratio),
-      activePaneId: activePaneId,
+      root: root.resizeSplitContainingPane(targetPaneId, ratio),
+      activePaneId: targetPaneId,
       closedPanes: closedPanes,
-      zoomedPaneId: zoomedPaneId,
+      zoomedPaneId: effectiveZoomedPaneId,
     );
   }
 
   TerminalWorkspaceTab swapActivePaneWithSibling() {
+    final targetPaneId = effectiveActivePaneId;
     return TerminalWorkspaceTab(
       id: id,
-      root: root.swapPaneWithSibling(activePaneId),
-      activePaneId: activePaneId,
+      root: root.swapPaneWithSibling(targetPaneId),
+      activePaneId: targetPaneId,
       closedPanes: closedPanes,
-      zoomedPaneId: zoomedPaneId,
+      zoomedPaneId: effectiveZoomedPaneId,
     );
   }
 
   TerminalWorkspaceTab toggleZoomActivePane() {
+    final targetPaneId = effectiveActivePaneId;
+    final currentZoomedPaneId = effectiveZoomedPaneId;
     return TerminalWorkspaceTab(
       id: id,
       root: root,
-      activePaneId: activePaneId,
+      activePaneId: targetPaneId,
       closedPanes: closedPanes,
-      zoomedPaneId: zoomedPaneId == activePaneId ? null : activePaneId,
+      zoomedPaneId: currentZoomedPaneId == targetPaneId ? null : targetPaneId,
     );
   }
 
@@ -273,7 +289,8 @@ class TerminalWorkspaceTab {
     required TerminalPaneSessionIntent sessionIntent,
     required TerminalPaneSplitDirection direction,
   }) {
-    final active = root.findPane(activePaneId);
+    final targetPaneId = effectiveActivePaneId;
+    final active = root.findPane(targetPaneId);
     if (active == null || !active.isLeaf) {
       return this;
     }
@@ -290,20 +307,31 @@ class TerminalWorkspaceTab {
 
     return TerminalWorkspaceTab(
       id: id,
-      root: root.replacePane(activePaneId, replacement),
+      root: root.replacePane(targetPaneId, replacement),
       activePaneId: newPaneId,
       closedPanes: closedPanes,
-      zoomedPaneId: zoomedPaneId,
+      zoomedPaneId: effectiveZoomedPaneId,
     );
   }
 
   TerminalWorkspaceTab closeActivePane() {
+    final targetPaneId = effectiveActivePaneId;
+    final currentZoomedPaneId = effectiveZoomedPaneId;
     if (root.isLeaf) {
-      return this;
+      if (targetPaneId == activePaneId) {
+        return this;
+      }
+      return TerminalWorkspaceTab(
+        id: id,
+        root: root,
+        activePaneId: targetPaneId,
+        closedPanes: closedPanes,
+        zoomedPaneId: currentZoomedPaneId,
+      );
     }
 
-    final active = root.findPane(activePaneId);
-    final nextRoot = root.removePane(activePaneId);
+    final active = root.findPane(targetPaneId);
+    final nextRoot = root.removePane(targetPaneId);
     if (nextRoot == null) {
       return this;
     }
@@ -313,7 +341,9 @@ class TerminalWorkspaceTab {
       root: nextRoot,
       activePaneId: nextRoot.firstLeafId,
       closedPanes: [?active, ...closedPanes],
-      zoomedPaneId: zoomedPaneId == activePaneId ? null : zoomedPaneId,
+      zoomedPaneId: currentZoomedPaneId == targetPaneId
+          ? null
+          : currentZoomedPaneId,
     );
   }
 
@@ -338,7 +368,7 @@ class TerminalWorkspaceTab {
       root: replacement,
       activePaneId: pane.firstLeafId,
       closedPanes: closedPanes.skip(1).toList(growable: false),
-      zoomedPaneId: zoomedPaneId,
+      zoomedPaneId: effectiveZoomedPaneId,
     );
   }
 }

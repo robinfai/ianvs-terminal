@@ -310,6 +310,39 @@ void main() {
       expect(resized.toggleZoomActivePane().isZoomed, isFalse);
     });
 
+    test('direct tab operations recover from a stale active pane id', () {
+      final staleTab = TerminalWorkspaceTab(
+        id: 'tab-1',
+        activePaneId: 'missing-pane',
+        zoomedPaneId: 'missing-pane',
+        root: TerminalPaneNode.leaf(
+          id: 'pane-1',
+          sessionIntent: const TerminalPaneSessionIntent(
+            profileId: 'default',
+            cwd: '/project',
+          ),
+        ),
+      );
+
+      expect(staleTab.effectiveActivePaneId, 'pane-1');
+      expect(staleTab.effectiveZoomedPaneId, isNull);
+      expect(staleTab.isZoomed, isFalse);
+      expect(staleTab.activeSessionIntent!.cwd, '/project');
+      expect(staleTab.toJson()['activePaneId'], 'pane-1');
+      expect(staleTab.toJson()['zoomedPaneId'], isNull);
+
+      final split = staleTab.splitActivePane(
+        splitNodeId: 'split-1',
+        newPaneId: 'pane-2',
+        sessionIntent: staleTab.activeSessionIntent!,
+        direction: TerminalPaneSplitDirection.right,
+      );
+
+      expect(split.root.containsPane('pane-1'), isTrue);
+      expect(split.root.containsPane('pane-2'), isTrue);
+      expect(split.activePaneId, 'pane-2');
+    });
+
     test('resize and swap target the nearest nested split', () {
       final nestedTab = _tab('tab-1')
           .splitActivePane(
