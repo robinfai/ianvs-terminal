@@ -15,11 +15,12 @@ class ShellActionProductionActionNameResolver {
   };
 
   TerminalActionId? resolve(String actionName) {
-    final directMatch = _directActionIdsByName[actionName];
+    final normalized = actionName.trim();
+    final directMatch = _directActionIdsByName[normalized];
     if (directMatch != null) {
       return directMatch;
     }
-    return aliases[actionName];
+    return aliases[normalized];
   }
 
   bool contains(String actionName) {

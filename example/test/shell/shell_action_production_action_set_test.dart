@@ -7,10 +7,14 @@ import 'package:app/features/shell/shell_action_runtime_bindings.dart';
 void main() {
   test('resolves configured production action names to action ids', () {
     const actionSet = ShellActionProductionActionSet(
-      requiredActionNames: {'newTab', 'notRegisteredYet'},
+      requiredActionNames: {' newTab ', ' closeTab ', 'notRegisteredYet'},
     );
 
     expect(actionSet.requiredActionIds, contains(TerminalActionId.newTab));
+    expect(
+      actionSet.requiredActionIds,
+      contains(TerminalActionId.closeActiveTab),
+    );
     expect(actionSet.unknownRequiredActionNames, {'notRegisteredYet'});
   });
 

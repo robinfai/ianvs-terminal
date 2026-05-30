@@ -9,10 +9,10 @@ void main() {
   test('builds runtime bindings from action names', () async {
     final builder = ShellActionProductionBindingBuilder(
       actionSet: const ShellActionProductionActionSet(
-        requiredActionNames: {'newTab'},
+        requiredActionNames: {' newTab '},
       ),
       bindingsByName: {
-        'newTab': (_) => const ShellActionBindingResult.completed('created'),
+        ' newTab ': (_) => const ShellActionBindingResult.completed('created'),
       },
     );
 
