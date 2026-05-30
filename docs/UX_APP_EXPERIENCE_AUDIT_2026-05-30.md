@@ -19,19 +19,19 @@
 
 ## Non-Blocking Findings
 
-1. `flutter analyze` currently reports five existing `use_null_aware_elements` info items:
+1. `flutter analyze` previously reported five existing `use_null_aware_elements` info items:
    - `example/test/benchmarks/cat_log_benchmark_test.dart:302`
    - `example/test/benchmarks/cat_log_benchmark_test.dart:303`
    - `example/tool/cat_log_trace_capture.dart:270`
    - `example/tool/cat_log_trace_capture.dart:304`
    - `example/tool/cat_log_trace_capture.dart:423`
-   These files already have unrelated local modifications, so this audit records the analyzer noise instead of changing them.
+   Status: resolved by the null-aware map entry follow-up; the latest `flutter analyze` run reports no issues.
 
 ## Verification
 
 - `flutter run -d macos`: built and launched the debug app successfully before the lock-screen blocker stopped GUI inspection.
 - `flutter test test/widget_test.dart`: passed, 88 tests.
-- `flutter analyze`: failed only on the five non-blocking info items listed above.
+- `flutter analyze`: initially failed only on the five non-blocking info items listed above; the latest follow-up run reports no issues.
 
 ## Next Desktop Iteration
 
@@ -77,5 +77,5 @@ Superseded by the 19:45 CST desktop iteration below:
 - `flutter test test/widget_test.dart --plain-name native\ find\ menu\ opens\ search\ without\ leaking\ input`: passed.
 - `flutter test test/widget_test.dart`: passed, 89 tests.
 - `flutter build macos --debug`: passed.
-- `flutter analyze`: still reports only the five pre-existing `use_null_aware_elements` info items listed earlier in this document.
+- `flutter analyze`: passes with no issues after the null-aware map entry cleanup.
 - Manual visual retest: LaunchServices launch, `Cmd+F`, search typing, `Cmd+T`, and `Cmd+Shift+D` all behaved correctly.
