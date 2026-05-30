@@ -19,7 +19,24 @@ class ShellShortcutBridge {
     LocalTerminalKeybindingsConfig config =
         const LocalTerminalKeybindingsConfig(),
   }) {
-    final snapshot = LocalTerminalKeyEventSnapshot(
+    final bindings = LocalTerminalKeyBindingResolver.resolve(config: config);
+    final exactSnapshot = LocalTerminalKeyEventSnapshot(
+      key: key,
+      scope: scope,
+      meta: isMetaPressed,
+      control: isControlPressed,
+      shift: isShiftPressed,
+      alt: isAltPressed,
+    );
+    final exactAction = LocalTerminalKeyEventResolver.resolve(
+      event: exactSnapshot,
+      bindings: bindings,
+    );
+    if (exactAction != null) {
+      return exactAction;
+    }
+
+    final platformSnapshot = LocalTerminalKeyEventSnapshot(
       key: key,
       scope: scope,
       meta: usesMetaShortcuts
@@ -31,8 +48,8 @@ class ShellShortcutBridge {
     );
 
     return LocalTerminalKeyEventResolver.resolve(
-      event: snapshot,
-      bindings: LocalTerminalKeyBindingResolver.resolve(config: config),
+      event: platformSnapshot,
+      bindings: bindings,
     );
   }
 }

@@ -86,5 +86,30 @@ void main() {
 
       expect(action, TerminalActionId.newTab);
     });
+
+    test('maps explicit control override before platform fallback', () {
+      final action = ShellShortcutBridge.resolve(
+        key: LogicalKeyboardKey.keyT,
+        usesMetaShortcuts: false,
+        isMetaPressed: false,
+        isControlPressed: true,
+        isShiftPressed: false,
+        isAltPressed: false,
+        scope: TerminalKeyBindingScope.focusedApp,
+        config: const LocalTerminalKeybindingsConfig(
+          overrides: {
+            TerminalActionId.openDefaults: LocalTerminalKeyBindingOverride(
+              binding: LocalTerminalKeyBinding(
+                scope: TerminalKeyBindingScope.focusedApp,
+                key: 'Key T',
+                control: true,
+              ),
+            ),
+          },
+        ),
+      );
+
+      expect(action, TerminalActionId.openDefaults);
+    });
   });
 }
