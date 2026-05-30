@@ -304,7 +304,9 @@ void main() {
       ),
     ]);
     expect(loaded.profiles.single.args, const ['-l']);
-    expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'ianvs terminal'});
+    expect(loaded.profiles.single.env, const {
+      'TERM_PROGRAM': 'ianvs terminal',
+    });
     expect(loaded.profiles.single.cwd, '/tmp');
     expect(loaded.profiles.single.terminalEmulation, TerminalEmulation.vt220);
     expect(loaded.profiles.single.scrollbackLines, 4096);
@@ -378,7 +380,11 @@ void main() {
             'launch': {
               'program': 7,
               'args': const ['-l', 3, ''],
-              'env': const {'TERM_PROGRAM': 'ianvs terminal', 'BAD': 9, '': 'empty'},
+              'env': const {
+                'TERM_PROGRAM': 'ianvs terminal',
+                'BAD': 9,
+                '': 'empty',
+              },
               'cwd': 42,
             },
             'terminal': {'emulation': 'ansi', 'scrollbackLines': -1},
@@ -436,7 +442,9 @@ void main() {
       ]);
       expect(loaded.profiles.single.shell, defaultTerminalProfile().shell);
       expect(loaded.profiles.single.args, const ['-l']);
-      expect(loaded.profiles.single.env, const {'TERM_PROGRAM': 'ianvs terminal'});
+      expect(loaded.profiles.single.env, const {
+        'TERM_PROGRAM': 'ianvs terminal',
+      });
       expect(loaded.profiles.single.cwd, isNull);
       expect(
         loaded.profiles.single.terminalEmulation,
@@ -509,6 +517,49 @@ void main() {
       expect(loaded.toJson().containsKey('loadWarnings'), isFalse);
     },
   );
+
+  test('profile repository tolerates invalid schema version', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs terminal-profiles-invalid-schema',
+    );
+    final file = File('${directory.path}/ianvs_profiles.json');
+    await file.parent.create(recursive: true);
+    await file.writeAsString(
+      jsonEncode({
+        'schemaVersion': 'latest',
+        'profiles': [
+          {
+            'id': 'default',
+            'name': 'Local Shell',
+            'launch': {
+              'program': '/bin/zsh',
+              'args': const ['-l'],
+            },
+          },
+        ],
+      }),
+    );
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
+
+    final loaded = await repository.load();
+
+    expect(loaded.schemaVersion, 1);
+    expect(loaded.profiles.single.id, 'default');
+    expect(
+      loaded.loadWarnings,
+      contains(
+        const TerminalProfileLoadWarning(
+          profileId: 'document',
+          profileName: 'Profiles document',
+          path: 'schemaVersion',
+          rawValueSummary: '"latest"',
+          fallbackSummary: 'used schema version 1',
+        ),
+      ),
+    );
+  });
 
   test(
     'profile repository upgrades built-in shell presets without explicit login args',

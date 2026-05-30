@@ -370,11 +370,33 @@ class TerminalProfilesDocument {
     }
 
     return TerminalProfilesDocument(
-      schemaVersion: (json['schemaVersion'] as num?)?.toInt() ?? 1,
+      schemaVersion: _schemaVersionFromJson(json['schemaVersion'], warnings),
       profiles: profiles,
       loadWarnings: warnings,
     );
   }
+}
+
+int _schemaVersionFromJson(
+  Object? rawValue,
+  List<TerminalProfileLoadWarning> warnings,
+) {
+  if (rawValue == null) {
+    return 1;
+  }
+  if (rawValue is num) {
+    return rawValue.toInt();
+  }
+  warnings.add(
+    TerminalProfileLoadWarning(
+      profileId: 'document',
+      profileName: 'Profiles document',
+      path: 'schemaVersion',
+      rawValueSummary: _rawValueSummary(rawValue),
+      fallbackSummary: 'used schema version 1',
+    ),
+  );
+  return 1;
 }
 
 Map<String, Object?> _dynamicProfileToProfileJson(
