@@ -117,8 +117,8 @@ class TerminalFrameModes {
       bracketedPaste: _boolFromJson(json['bracketed_paste'], fallback: false),
       focusTracking: _boolFromJson(json['focus_tracking'], fallback: false),
       charProtected: _boolFromJson(json['char_protected'], fallback: false),
-      mouseMode: _stringFromJson(json['mouse_mode']) ?? 'off',
-      mouseEncoding: _stringFromJson(json['mouse_encoding']) ?? 'default',
+      mouseMode: _terminalMouseModeFromJson(json['mouse_mode']),
+      mouseEncoding: _terminalMouseEncodingFromJson(json['mouse_encoding']),
     );
   }
 }
@@ -825,6 +825,26 @@ String? _stringFromJson(Object? value) {
     return value;
   }
   return null;
+}
+
+String _terminalMouseModeFromJson(Object? value) {
+  final normalized = value is String ? value.trim().toLowerCase() : null;
+  return switch (normalized) {
+    'normal' => 'normal',
+    'button_event' => 'button_event',
+    'any_event' => 'any_event',
+    _ => 'off',
+  };
+}
+
+String _terminalMouseEncodingFromJson(Object? value) {
+  final normalized = value is String ? value.trim().toLowerCase() : null;
+  return switch (normalized) {
+    'sgr' => 'sgr',
+    'urxvt' => 'urxvt',
+    'utf8' => 'utf8',
+    _ => 'default',
+  };
 }
 
 DateTime? _dateTimeFromJson(Object? value) {

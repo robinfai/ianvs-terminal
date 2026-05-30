@@ -172,6 +172,22 @@ void main() {
     expect(modes.alternateScreen, isTrue);
   });
 
+  test('terminal frame modes normalize mouse tokens', () {
+    final modes = TerminalFrameModes.fromJson(const <String, Object?>{
+      'mouse_mode': ' Any_Event ',
+      'mouse_encoding': ' SGR ',
+    });
+    final invalid = TerminalFrameModes.fromJson(const <String, Object?>{
+      'mouse_mode': 'hover',
+      'mouse_encoding': 'kitty',
+    });
+
+    expect(modes.mouseMode, 'any_event');
+    expect(modes.mouseEncoding, 'sgr');
+    expect(invalid.mouseMode, 'off');
+    expect(invalid.mouseEncoding, 'default');
+  });
+
   test('terminal frames parse row timestamp metadata', () {
     final modifiedAt = DateTime.parse('2026-05-13T08:09:10Z');
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
