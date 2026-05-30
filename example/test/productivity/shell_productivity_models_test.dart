@@ -87,10 +87,35 @@ void main() {
       expect(state.clear().isActive, isFalse);
     });
 
+    test('search state skips invalid matches', () {
+      const state = ShellSearchState(
+        query: 'build',
+        matches: [
+          ShellSearchMatch(row: -1, column: 0, length: 5),
+          ShellSearchMatch(row: 3, column: -1, length: 5),
+          ShellSearchMatch(row: 5, column: 2, length: 0),
+          ShellSearchMatch(row: 8, column: 1, length: 5),
+        ],
+        activeMatchIndex: 0,
+      );
+      const invalidOnly = ShellSearchState(
+        query: 'build',
+        matches: [ShellSearchMatch(row: -1, column: 0, length: 5)],
+      );
+
+      expect(state.hasMatches, isTrue);
+      expect(state.activeMatch, isNull);
+      expect(state.nextMatch().activeMatch!.row, 8);
+      expect(state.previousMatch().activeMatch!.row, 8);
+      expect(invalidOnly.hasMatches, isFalse);
+      expect(invalidOnly.nextMatch().activeMatch, isNull);
+    });
+
     test('search state can scope matches to a command block', () {
       const state = ShellSearchState(
         query: 'test',
         matches: [
+          ShellSearchMatch(row: -1, column: 0, length: 4, blockId: 'b2'),
           ShellSearchMatch(row: 2, column: 0, length: 4, blockId: 'b1'),
           ShellSearchMatch(row: 8, column: 0, length: 4, blockId: 'b2'),
         ],
@@ -110,9 +135,17 @@ void main() {
         startRow: 4,
         endRow: 9,
       );
+      const invalid = ShellCommandBlock(
+        id: 'bad',
+        command: 'flutter test',
+        startRow: -4,
+        endRow: -1,
+      );
 
       expect(block.containsRow(6), isTrue);
       expect(block.containsRow(10), isFalse);
+      expect(invalid.isValid, isFalse);
+      expect(invalid.containsRow(-2), isFalse);
     });
 
     test('recent commands and directories keep newest unique entries', () {

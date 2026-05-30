@@ -279,8 +279,10 @@ class ShellCommandBlock {
   final int startRow;
   final int endRow;
 
+  bool get isValid => startRow >= 0 && endRow >= startRow;
+
   bool containsRow(int row) {
-    return row >= startRow && row <= endRow;
+    return isValid && row >= startRow && row <= endRow;
   }
 }
 
@@ -296,6 +298,8 @@ class ShellSearchMatch {
   final int column;
   final int length;
   final String? blockId;
+
+  bool get isValid => row >= 0 && column >= 0 && length > 0;
 }
 
 class ShellSearchState {
@@ -312,35 +316,35 @@ class ShellSearchState {
   final String? scopedBlockId;
 
   bool get isActive => query.isNotEmpty;
-  bool get hasMatches => matches.isNotEmpty;
+  bool get hasMatches => matches.any((match) => match.isValid);
   ShellSearchMatch? get activeMatch {
     if (activeMatchIndex < 0 || activeMatchIndex >= matches.length) {
       return null;
     }
-    return matches[activeMatchIndex];
+    final match = matches[activeMatchIndex];
+    return match.isValid ? match : null;
   }
 
   ShellSearchState nextMatch() {
-    if (matches.isEmpty) {
+    final nextIndex = _nextValidMatchIndex(matches, activeMatchIndex);
+    if (nextIndex == null) {
       return this;
     }
 
     return ShellSearchState(
       query: query,
       matches: matches,
-      activeMatchIndex: (activeMatchIndex + 1) % matches.length,
+      activeMatchIndex: nextIndex,
       scopedBlockId: scopedBlockId,
     );
   }
 
   ShellSearchState previousMatch() {
-    if (matches.isEmpty) {
+    final nextIndex = _previousValidMatchIndex(matches, activeMatchIndex);
+    if (nextIndex == null) {
       return this;
     }
 
-    final nextIndex = activeMatchIndex <= 0
-        ? matches.length - 1
-        : activeMatchIndex - 1;
     return ShellSearchState(
       query: query,
       matches: matches,
@@ -354,17 +358,51 @@ class ShellSearchState {
   }
 
   ShellSearchState scopedToBlock(String blockId) {
+    final scopedMatches = matches
+        .where((match) => match.isValid && match.blockId == blockId)
+        .toList(growable: false);
     return ShellSearchState(
       query: query,
-      matches: matches
-          .where((match) => match.blockId == blockId)
-          .toList(growable: false),
-      activeMatchIndex: matches.any((match) => match.blockId == blockId)
-          ? 0
-          : -1,
+      matches: scopedMatches,
+      activeMatchIndex: scopedMatches.isEmpty ? -1 : 0,
       scopedBlockId: blockId,
     );
   }
+}
+
+int? _nextValidMatchIndex(List<ShellSearchMatch> matches, int currentIndex) {
+  if (matches.isEmpty) {
+    return null;
+  }
+
+  final startIndex = currentIndex < 0 ? -1 : currentIndex;
+  for (var offset = 1; offset <= matches.length; offset += 1) {
+    final index = (startIndex + offset) % matches.length;
+    if (matches[index].isValid) {
+      return index;
+    }
+  }
+  return null;
+}
+
+int? _previousValidMatchIndex(
+  List<ShellSearchMatch> matches,
+  int currentIndex,
+) {
+  if (matches.isEmpty) {
+    return null;
+  }
+
+  final startIndex = currentIndex < 0 || currentIndex >= matches.length
+      ? 0
+      : currentIndex;
+  for (var offset = 1; offset <= matches.length; offset += 1) {
+    final index = (startIndex - offset + matches.length * 2) % matches.length;
+    if (matches[index].isValid) {
+      return index;
+    }
+  }
+  return null;
 }
 
 List<T> _prependUnique<T>(
