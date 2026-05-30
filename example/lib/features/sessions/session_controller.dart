@@ -1365,10 +1365,10 @@ class SessionController extends Notifier<SessionState> {
     required _LocalConfigUpdater localConfigUpdater,
   }) async {
     if (_usesLocalConfigPersistence) {
-      _localConfigDocument = localConfigUpdater(_localConfigDocument);
-      await ref
-          .read(localTerminalConfigRepositoryProvider)
-          .save(_localConfigDocument);
+      final repository = ref.read(localTerminalConfigRepositoryProvider);
+      final latestConfig = await repository.load() ?? _localConfigDocument;
+      _localConfigDocument = localConfigUpdater(latestConfig);
+      await repository.save(_localConfigDocument);
     } else {
       await ref.read(appPreferencesRepositoryProvider).save(_appPreferences);
     }

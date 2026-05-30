@@ -1829,6 +1829,63 @@ void main() {
   );
 
   test(
+    'setDefaultProfile merges the latest local config before saving',
+    () async {
+      final profileRepository = _TestProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+      );
+      final localConfigRepository = _TestLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          defaultProfileId: 'default',
+          notifications: LocalTerminalNotificationsConfig(enabled: true),
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            localConfigRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await localConfigRepository.save(
+        const LocalTerminalConfigDocument(
+          defaultProfileId: 'default',
+          notifications: LocalTerminalNotificationsConfig(
+            enabled: true,
+            commandFinished: false,
+            bell: true,
+            activity: false,
+          ),
+          paste: LocalTerminalPasteConfig(confirmMultilinePaste: false),
+        ),
+      );
+      localConfigRepository.savedDocuments.clear();
+
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setDefaultProfile('ssh');
+
+      expect(localConfigRepository.savedDocuments, hasLength(1));
+      final saved = localConfigRepository.savedDocuments.single;
+      expect(saved.defaultProfileId, 'ssh');
+      expect(saved.notifications.enabled, isTrue);
+      expect(saved.notifications.commandFinished, isFalse);
+      expect(saved.notifications.bell, isTrue);
+      expect(saved.notifications.activity, isFalse);
+      expect(saved.paste.confirmMultilinePaste, isFalse);
+    },
+  );
+
+  test(
     'appearance settings persist to local config when it supplied bootstrap',
     () async {
       final legacyPreferencesRepository = _TestAppPreferencesRepository(null);
