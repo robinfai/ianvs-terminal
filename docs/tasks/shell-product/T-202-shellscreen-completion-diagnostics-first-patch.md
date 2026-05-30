@@ -39,5 +39,6 @@ imports the shell UI wiring export surface, holds a pending completion
 diagnostics snapshot, and renders `LocalTerminalCompletionDiagnosticsPanel`
 inside the existing toolbelt without changing terminal runtime behavior.
 
-Verification is still pending. No analyze, tests, formatting, or manual UI
-checks have been run for this patch.
+Focused widget verification passed on 2026-05-29:
+
+- `cd example && flutter test test/widget_test.dart --plain-name "toolbelt opens a sidebar with terminal tool shortcuts"` passed after rerun. The first parallel attempt failed in Flutter native asset setup before test execution because `objective_c.dylib` was temporarily missing during concurrent startup.

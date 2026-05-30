@@ -62,12 +62,16 @@ Before marking the objective complete, collect all of the following:
 
 ## Current conclusion
 
-The objective is not complete. Current state has broad P0-P5 planning,
-foundation, production callback contracts, closure manifests, audit checklists,
-core production UI/runtime wiring for the required local-terminal surface, and
-passing automated, integration, and manual/integration-backed evidence. It
-still lacks conversion of the captured results into canonical verification
-records and selected advanced follow-up hardening.
+The required local-terminal closure baseline is verified. Current state has
+broad P0-P5 planning, foundation, production callback contracts, closure
+manifests, audit checklists, core production UI/runtime wiring for the required
+local-terminal surface, passing automated, integration, and
+manual/integration-backed evidence, canonical verification records through
+`LocalTerminalVerificationPlanRecords.latestPassed()`, and a closeable
+`LocalTerminalCurrentCompletionState.verified(...)` report.
+
+Selected advanced visual/productivity/policy hardening remains follow-up scope
+outside the required closure baseline.
 
 ## Added real wiring backlog dependency
 

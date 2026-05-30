@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -25,6 +26,8 @@ const String _coreLibPath = String.fromEnvironment(
   defaultValue: '',
 );
 const double _droppedFrameThresholdMs = 16.67;
+const String _urlHeavyScenario = 'url-heavy';
+const int _urlProbeColumn = 24;
 
 void main() {
   testWidgets('cat log benchmark exports metrics', (tester) async {
@@ -36,6 +39,10 @@ void main() {
         .cast<String, Object?>();
     final scenario = traceJson['scenario'] as String? ?? 'bulk-output';
     final inputEcho = (traceJson['inputEcho'] as Map?)?.cast<String, Object?>();
+    final pasteProbe = (traceJson['pasteProbe'] as Map?)
+        ?.cast<String, Object?>();
+    final searchProbe = (traceJson['searchProbe'] as Map?)
+        ?.cast<String, Object?>();
     final viewport = (traceJson['viewport']! as Map).cast<String, Object?>();
     final frames = (traceJson['frames'] as List<dynamic>? ?? const [])
         .cast<Map>()
@@ -65,6 +72,7 @@ void main() {
 
     TerminalViewportController? viewportController;
     Size measuredCellSize = const Size(14, 22);
+    final openedLinks = <String>[];
     if (hasRawFrames) {
       tester.view.devicePixelRatio = devicePixelRatio;
       tester.view.physicalSize = Size(
@@ -96,6 +104,7 @@ void main() {
                 inputController: inputController,
                 onScrollLines: (_) {},
                 onScrollToOffset: (_) {},
+                onOpenLink: openedLinks.add,
               ),
             ),
           ),
@@ -209,6 +218,14 @@ void main() {
     }
 
     expect(frameSamples, isNotEmpty);
+    final visibleUrlProbe = hasRawFrames && scenario == _urlHeavyScenario
+        ? await _probeVisibleUrlLinks(
+            tester: tester,
+            measuredCellSize: measuredCellSize,
+            frame: viewportController!.frame,
+            openedLinks: openedLinks,
+          )
+        : null;
 
     final metricsFile = File('${outDir.path}/cat-log-benchmark.metrics.json');
     final metrics = <String, Object?>{
@@ -275,6 +292,15 @@ void main() {
             'observed': inputEcho['observed'] as bool? ?? false,
             'inputToDisplayMicros': inputEcho['inputToDisplayMicros'],
           },
+        if (pasteProbe != null)
+          'pasteProbe': <String, Object?>{
+            'observed': pasteProbe['observed'] as bool? ?? false,
+            'inputToDisplayMicros': pasteProbe['inputToDisplayMicros'],
+            'payloadBytes': pasteProbe['payloadBytes'],
+            'payloadLines': pasteProbe['payloadLines'],
+          },
+        if (searchProbe != null) 'searchProbe': searchProbe,
+        if (visibleUrlProbe != null) 'visibleUrlProbe': visibleUrlProbe,
         'droppedFrames': <String, Object?>{
           'thresholdMs': _droppedFrameThresholdMs,
           'count': frameDurationsMicros
@@ -312,6 +338,51 @@ void main() {
 
 RenderTerminalViewport _terminalRenderObject(WidgetTester tester) {
   return tester.allRenderObjects.whereType<RenderTerminalViewport>().last;
+}
+
+Future<Map<String, Object?>> _probeVisibleUrlLinks({
+  required WidgetTester tester,
+  required Size measuredCellSize,
+  required TerminalFrameDiff frame,
+  required List<String> openedLinks,
+}) async {
+  final renderObject = _terminalRenderObject(tester);
+  final urlRows = frame.rows
+      .where((row) => row.text.contains('https://'))
+      .map((row) => row.index)
+      .toList(growable: false);
+  expect(urlRows, isNotEmpty, reason: 'url-heavy trace should expose URLs');
+  final probeRows = <int>{
+    urlRows.first,
+    urlRows[urlRows.length ~/ 2],
+  }.toList(growable: false);
+  final openedBefore = openedLinks.length;
+  final watch = Stopwatch()..start();
+  for (final row in probeRows) {
+    final probePosition = renderObject.localToGlobal(
+      Offset(
+        (_urlProbeColumn + 0.5) * measuredCellSize.width,
+        (row + 0.5) * measuredCellSize.height,
+      ),
+    );
+    await tester.tapAt(probePosition);
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 1));
+  }
+  watch.stop();
+  final openedDuringProbe = openedLinks
+      .skip(openedBefore)
+      .toList(growable: false);
+  expect(
+    openedDuringProbe,
+    hasLength(probeRows.length),
+    reason: 'url-heavy probe should open one visible URL per tapped row',
+  );
+  return <String, Object?>{
+    'attempts': probeRows.length,
+    'openedCount': openedDuringProbe.length,
+    'elapsedMicros': watch.elapsedMicroseconds,
+    'links': openedDuringProbe,
+  };
 }
 
 int _dirtyRowCount(List<TerminalDirtyRange> ranges) {

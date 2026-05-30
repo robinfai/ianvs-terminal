@@ -903,14 +903,24 @@ class TerminalRuntimeController {
       return;
     }
     final raw = payload['data'] as String?;
-    if (raw == null || raw.isEmpty) {
+    if (raw == null) {
       return;
     }
-    final decoded = utf8.decode(base64.decode(raw), allowMalformed: true);
-    if (decoded.isEmpty) {
+    final bytes = _decodeOsc52ClipboardPayload(raw);
+    if (bytes == null) {
       return;
     }
+    final decoded = utf8.decode(bytes, allowMalformed: true);
     await copyToClipboard(decoded);
+  }
+
+  Uint8List? _decodeOsc52ClipboardPayload(String raw) {
+    final normalized = raw.replaceAll(RegExp(r'\s+'), '');
+    try {
+      return Uint8List.fromList(base64.decode(normalized));
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<void> _handleClipboardPasteRequestEvent(

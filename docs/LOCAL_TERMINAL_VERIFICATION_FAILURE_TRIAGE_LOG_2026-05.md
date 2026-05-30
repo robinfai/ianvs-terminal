@@ -90,4 +90,5 @@ The integration batch was then fixed and the latest run passed in
 
 No unresolved automated, integration, or manual product failure row remains.
 Manual/integration-backed verification rows are recorded as passed in the
-evidence ledger. Ledger-to-code evidence conversion remains pending.
+evidence ledger. Ledger-to-code evidence conversion is represented by
+`LocalTerminalVerificationPlanRecords.latestPassed()`.

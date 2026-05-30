@@ -14,29 +14,31 @@ cross-milestone closure manifests. Core production wiring has also been added
 across `ShellScreen`, `SessionController`, preferences, runtime, and native
 scrollback request paths for the current required local-terminal baseline.
 
-The work is not complete because verification evidence has not been collected
-and selected advanced or policy-hardening paths remain follow-up scope.
+The required local-terminal closure baseline is verified. Selected advanced or
+policy-hardening paths remain follow-up scope outside that baseline.
 
 ## Execution order
 
 1. Wire P1 action production callbacks into the current shell dispatch path.
-   Status: core required baseline wired, verification pending.
+   Status: core required baseline wired and verified.
 2. Wire P2 workspace callbacks into real tab/pane/layout behavior.
-   Status: core workspace behavior wired, verification pending.
+   Status: core workspace behavior wired and verified.
 3. Wire P3 productivity callbacks into shell integration, search, scrollback,
    and read-only behavior.
-   Status: core productivity behavior wired, verification pending.
+   Status: core productivity behavior wired and verified.
 4. Wire P4 policy callbacks into paste, clipboard, notifications, and hotkey
    window behavior.
-   Status: mixed foundation/wired; verification and policy-hardening pending.
+   Status: required policy baseline wired and verified; advanced
+   policy-hardening remains follow-up scope.
 5. Wire P5 visual callbacks into theme, layout template, export, and advanced
    visual behavior.
-   Status: mixed foundation/wired; verification and advanced follow-up pending.
+   Status: required visual baseline wired and verified; advanced follow-up
+   remains follow-up scope.
 6. Populate P0-P5 closure manifests from real wiring and verification evidence.
-   Status: T-164 through T-168 now report implemented-but-unverified evidence;
-   T-169 remains pending.
+   Status: T-164 through T-169 report verified evidence through
+   `LocalTerminalRealWiringBacklogEvidence.currentVerified(...)`.
 7. Run and record the required tests, static analysis, formatting, and manual or
-   integration gates.
+   integration gates. Status: complete for the required baseline.
 
 ## Backlog
 

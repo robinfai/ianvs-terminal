@@ -438,6 +438,25 @@ class _TerminalViewportState extends State<TerminalViewport>
     _applyRawScrollLines(rawDeltaLines);
   }
 
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) {
+      return;
+    }
+    GestureBinding.instance.pointerSignalResolver.register(event, (
+      PointerSignalEvent resolvedEvent,
+    ) {
+      final scrollEvent = resolvedEvent as PointerScrollEvent;
+      if (_terminalMouseEnabled) {
+        _sendMouseWheel(
+          scrollEvent.scrollDelta.dy,
+          globalPosition: scrollEvent.position,
+        );
+      } else {
+        _handleScrollDelta(scrollEvent.scrollDelta.dy);
+      }
+    });
+  }
+
   double _rawScrollLinesForDelta(double deltaY) {
     final lineHeight = _lineHeight;
     if (lineHeight <= 0) {
@@ -1228,7 +1247,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     return text.isEmpty ? null : text;
   }
 
-  Widget? _buildComposingOverlay(TerminalViewportColors colors) {
+  Widget? _buildComposingOverlay(
+    TerminalViewportColors colors, {
+    required double viewportWidth,
+  }) {
     final text = _composingText;
     if (text == null) {
       return null;
@@ -1242,23 +1264,42 @@ class _TerminalViewportState extends State<TerminalViewport>
       return null;
     }
     final composingForeground = _composingForegroundColor(colors);
+    final viewportRenderObject = context.findRenderObject();
+    final viewportBoxWidth = viewportRenderObject is RenderBox
+        ? viewportRenderObject.size.width
+        : double.infinity;
+    final visibleWidth =
+        math.min(
+          viewportWidth.isFinite ? viewportWidth : double.infinity,
+          math.min(viewportBoxWidth, renderObject.size.width),
+        ) -
+        widget.contentPadding.horizontal;
+    final maxWidth = math.max(0.0, visibleWidth - caretCellRect.left);
     return Positioned(
       left: widget.contentPadding.left + caretCellRect.left,
       top: widget.contentPadding.top + caretCellRect.top,
       child: IgnorePointer(
-        child: DecoratedBox(
-          decoration: BoxDecoration(color: colors.canvasBackground),
-          child: Text(
-            text,
-            maxLines: 1,
-            style: TextStyle(
-              fontFamily: widget.font.family,
-              fontFamilyFallback: widget.font.fallback,
-              fontSize: widget.font.size,
-              height: widget.font.lineHeight,
-              color: composingForeground,
-              decoration: TextDecoration.underline,
-              decorationColor: composingForeground,
+        child: SizedBox(
+          key: const Key('terminal-composing-overlay'),
+          width: maxWidth,
+          child: ClipRect(
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: colors.canvasBackground),
+              child: Text(
+                text,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.clip,
+                style: TextStyle(
+                  fontFamily: widget.font.family,
+                  fontFamilyFallback: widget.font.fallback,
+                  fontSize: widget.font.size,
+                  height: widget.font.lineHeight,
+                  color: composingForeground,
+                  decoration: TextDecoration.underline,
+                  decorationColor: composingForeground,
+                ),
+              ),
             ),
           ),
         ),
@@ -1292,18 +1333,7 @@ class _TerminalViewportState extends State<TerminalViewport>
           onPointerHover: _handlePointerHover,
           onPointerUp: _handlePointerUp,
           onPointerCancel: _handlePointerCancel,
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent) {
-              if (_terminalMouseEnabled) {
-                _sendMouseWheel(
-                  event.scrollDelta.dy,
-                  globalPosition: event.position,
-                );
-              } else {
-                _handleScrollDelta(event.scrollDelta.dy);
-              }
-            }
-          },
+          onPointerSignal: _handlePointerSignal,
           onPointerPanZoomStart: _handlePanZoomStart,
           onPointerPanZoomUpdate: _handlePanZoomUpdate,
           onPointerPanZoomEnd: _handlePanZoomEnd,
@@ -1365,7 +1395,11 @@ class _TerminalViewportState extends State<TerminalViewport>
                               onScrollToOffset: widget.onScrollToOffset,
                             ),
                           ),
-                        if (_buildComposingOverlay(colors) case final overlay?)
+                        if (_buildComposingOverlay(
+                              colors,
+                              viewportWidth: constraints.maxWidth,
+                            )
+                            case final overlay?)
                           overlay,
                       ],
                     ),
@@ -1490,6 +1524,8 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   @override
   void updateEditingValue(TextEditingValue value) {
+    final previousValue = _textInputValue;
+    final hadActiveComposition = _hasActiveImeComposition(previousValue);
     final hasActiveComposition = _hasActiveImeComposition(value);
     _updateTextInputState(() {
       _textInputValue = value;
@@ -1501,11 +1537,69 @@ class _TerminalViewportState extends State<TerminalViewport>
       _scheduleTextInputGeometrySync();
       return;
     }
-    final text = value.text;
+    final text = _committedTextFromEditingValue(
+      value,
+      previousValue: previousValue,
+      hadActiveComposition: hadActiveComposition,
+    );
     if (text.isNotEmpty && _shouldForwardCommittedText(text)) {
       widget.inputController.sendText(text);
     }
     _clearTextInputState();
+  }
+
+  String _committedTextFromEditingValue(
+    TextEditingValue value, {
+    required TextEditingValue previousValue,
+    required bool hadActiveComposition,
+  }) {
+    final text = value.text;
+    if (!hadActiveComposition || text.isEmpty) {
+      return text;
+    }
+
+    final previousText = previousValue.text;
+    if (previousText.isEmpty) {
+      return text;
+    }
+
+    final replacement = _replacementTextBetween(previousText, text);
+    if (replacement.isNotEmpty || text != previousText) {
+      return replacement;
+    }
+
+    final previousComposingRange = previousValue.composing;
+    if (previousComposingRange.isValid && !previousComposingRange.isCollapsed) {
+      final composingText = previousComposingRange.textInside(previousText);
+      if (composingText.isNotEmpty) {
+        return composingText;
+      }
+    }
+    return text;
+  }
+
+  String _replacementTextBetween(String previousText, String text) {
+    final previousRunes = previousText.runes.toList(growable: false);
+    final textRunes = text.runes.toList(growable: false);
+    var prefixLength = 0;
+    final previousLength = previousRunes.length;
+    final textLength = textRunes.length;
+    while (prefixLength < previousLength &&
+        prefixLength < textLength &&
+        previousRunes[prefixLength] == textRunes[prefixLength]) {
+      prefixLength += 1;
+    }
+
+    var previousSuffix = previousLength;
+    var textSuffix = textLength;
+    while (previousSuffix > prefixLength &&
+        textSuffix > prefixLength &&
+        previousRunes[previousSuffix - 1] == textRunes[textSuffix - 1]) {
+      previousSuffix -= 1;
+      textSuffix -= 1;
+    }
+
+    return String.fromCharCodes(textRunes.sublist(prefixLength, textSuffix));
   }
 
   @override

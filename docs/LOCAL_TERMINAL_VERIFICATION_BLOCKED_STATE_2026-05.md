@@ -7,13 +7,13 @@ objective.
 
 ## Current State
 
-The local-terminal P0-P5 objective is blocked, not complete.
+The local-terminal P0-P5 required closure baseline is verified.
 
-The blocker is no longer missing planning, mapping, helper scripts, handoff
-documents, authorization, formatting evidence, static-analysis evidence,
-focused automated test evidence, broader test evidence, or integration
-evidence. The blocker is incomplete manual verification evidence plus
-completion evidence record refresh.
+The former blockers are no longer missing planning, mapping, helper scripts,
+handoff documents, authorization, formatting evidence, static-analysis
+evidence, focused automated test evidence, broader test evidence, integration
+evidence, manual/integration-backed evidence, or completion evidence record
+refresh.
 
 ## What Is Already Prepared
 
@@ -50,9 +50,10 @@ completion evidence record refresh.
 
 ## What Is Still Missing
 
-- Canonical `LocalTerminalVerificationGateRecord` values based on real outputs.
-- T-164 through T-169 verified backlog evidence.
-- Final completion report showing closure from real evidence.
+- No required T-169 closure evidence remains missing for the current
+  local-terminal baseline.
+- Optional advanced visual/productivity/policy hardening remains follow-up
+  scope outside this closure baseline.
 
 ## Stop Rule
 
@@ -61,10 +62,9 @@ verification.
 
 The next meaningful step is one of:
 
-1. Convert captured ledger entries into `LocalTerminalVerificationGateRecord`
-   values and rebuild completion evidence.
-2. User scopes a specific implementation fix or feature task.
-3. User chooses to stop/pause with the objective still blocked.
+1. User scopes a specific implementation fix or feature task.
+2. Continue optional advanced hardening outside the required closure baseline.
+3. User chooses to stop/pause with the local-terminal closure baseline verified.
 
 ## Authorization Shortcut
 

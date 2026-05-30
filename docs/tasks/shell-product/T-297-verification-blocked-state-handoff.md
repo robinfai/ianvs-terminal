@@ -39,5 +39,7 @@ Not run. This task only updates documentation and records no passing evidence.
 
 ## Remaining Risks
 
-- The objective remains incomplete until verification is authorized, executed,
-  and recorded.
+- Historical at task creation: the objective remained incomplete until
+  verification was authorized, executed, and recorded.
+- Current state: verification was authorized and executed; required baseline
+  evidence is recorded.

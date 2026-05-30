@@ -45,6 +45,7 @@ class TerminalResolvedCell {
     required this.text,
     required this.foreground,
     required this.background,
+    required this.fontWeight,
     required this.glyphClass,
     required this.usesCustomGeometry,
     required this.placementPolicy,
@@ -60,6 +61,7 @@ class TerminalResolvedCell {
   final String text;
   final Color foreground;
   final Color? background;
+  final FontWeight fontWeight;
   final TerminalGlyphClass glyphClass;
   final bool usesCustomGeometry;
   final TerminalGlyphPlacementPolicy placementPolicy;
@@ -678,6 +680,7 @@ class RenderTerminalViewport extends RenderBox {
           text: glyph,
           foreground: foreground,
           background: style.background,
+          fontWeight: style.fontWeight,
           glyphClass: glyphClass,
           paragraph: paragraph,
           glyphSize: glyphSize,
@@ -767,6 +770,7 @@ class RenderTerminalViewport extends RenderBox {
           text: cell.text,
           foreground: cell.foreground,
           background: cell.background,
+          fontWeight: cell.fontWeight,
           glyphClass: cell.glyphClass,
           usesCustomGeometry: cell.usesCustomGeometry,
           placementPolicy: cell.placementPolicy,
@@ -803,6 +807,7 @@ class RenderTerminalViewport extends RenderBox {
       text: cell.text,
       foreground: cell.foreground,
       background: cell.background,
+      fontWeight: cell.fontWeight,
       glyphClass: cell.glyphClass,
       usesCustomGeometry: cell.usesCustomGeometry,
       placementPolicy: cell.placementPolicy,
@@ -1609,6 +1614,7 @@ class _PaintCell {
     required this.text,
     required this.foreground,
     required this.background,
+    required this.fontWeight,
     required this.glyphClass,
     required this.paragraph,
     required this.glyphSize,
@@ -1623,6 +1629,7 @@ class _PaintCell {
   final String text;
   final Color foreground;
   final Color? background;
+  final FontWeight fontWeight;
   final TerminalGlyphClass glyphClass;
   final ui.Paragraph? paragraph;
   final Size glyphSize;

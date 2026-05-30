@@ -7,6 +7,22 @@ use crate::terminal::Terminal;
 use vte::Params;
 
 impl Terminal {
+    fn color_from_sgr_subparams(param_slice: &[u16]) -> Option<Color> {
+        match *param_slice.get(1)? {
+            2 => {
+                let rgb_start = if param_slice.len() >= 6 { 3 } else { 2 };
+                let r = param_slice.get(rgb_start).copied()? as u8;
+                let g = param_slice.get(rgb_start + 1).copied()? as u8;
+                let b = param_slice.get(rgb_start + 2).copied()? as u8;
+                Some(Color::Rgb(r, g, b))
+            }
+            5 => param_slice
+                .get(2)
+                .map(|idx| Color::from_ansi_code(*idx as u8)),
+            _ => None,
+        }
+    }
+
     pub(crate) fn handle_csi_style(&mut self, action: char, params: &Params, intermediates: &[u8]) {
         if action == 'm' {
             // Check for modifyOtherKeys mode setting: CSI > 4 ; mode m
@@ -118,20 +134,9 @@ impl Terminal {
                         }
                         30..=37 => self.fg = Color::Named(NamedColor::from_u8((param - 30) as u8)),
                         38 => {
-                            if let Some(&mode) = param_slice.get(1) {
-                                match mode {
-                                    2 => {
-                                        let r = param_slice.get(2).copied().unwrap_or(0) as u8;
-                                        let g = param_slice.get(3).copied().unwrap_or(0) as u8;
-                                        let b = param_slice.get(4).copied().unwrap_or(0) as u8;
-                                        self.fg = Color::Rgb(r, g, b);
-                                    }
-                                    5 => {
-                                        if let Some(&idx) = param_slice.get(2) {
-                                            self.fg = Color::from_ansi_code(idx as u8);
-                                        }
-                                    }
-                                    _ => {}
+                            if param_slice.len() > 1 {
+                                if let Some(color) = Self::color_from_sgr_subparams(param_slice) {
+                                    self.fg = color;
                                 }
                             } else if let Some(next) = iter.next() {
                                 if let Some(&mode) = next.first() {
@@ -170,20 +175,9 @@ impl Terminal {
                         39 => self.fg = self.default_fg,
                         40..=47 => self.bg = Color::Named(NamedColor::from_u8((param - 40) as u8)),
                         48 => {
-                            if let Some(&mode) = param_slice.get(1) {
-                                match mode {
-                                    2 => {
-                                        let r = param_slice.get(2).copied().unwrap_or(0) as u8;
-                                        let g = param_slice.get(3).copied().unwrap_or(0) as u8;
-                                        let b = param_slice.get(4).copied().unwrap_or(0) as u8;
-                                        self.bg = Color::Rgb(r, g, b);
-                                    }
-                                    5 => {
-                                        if let Some(&idx) = param_slice.get(2) {
-                                            self.bg = Color::from_ansi_code(idx as u8);
-                                        }
-                                    }
-                                    _ => {}
+                            if param_slice.len() > 1 {
+                                if let Some(color) = Self::color_from_sgr_subparams(param_slice) {
+                                    self.bg = color;
                                 }
                             } else if let Some(next) = iter.next() {
                                 if let Some(&mode) = next.first() {
@@ -222,22 +216,8 @@ impl Terminal {
                         49 => self.bg = self.default_bg,
                         58 => {
                             // Set underline color
-                            if let Some(&mode) = param_slice.get(1) {
-                                match mode {
-                                    2 => {
-                                        let r = param_slice.get(2).copied().unwrap_or(0) as u8;
-                                        let g = param_slice.get(3).copied().unwrap_or(0) as u8;
-                                        let b = param_slice.get(4).copied().unwrap_or(0) as u8;
-                                        self.underline_color = Some(Color::Rgb(r, g, b));
-                                    }
-                                    5 => {
-                                        if let Some(&idx) = param_slice.get(2) {
-                                            self.underline_color =
-                                                Some(Color::from_ansi_code(idx as u8));
-                                        }
-                                    }
-                                    _ => {}
-                                }
+                            if let Some(color) = Self::color_from_sgr_subparams(param_slice) {
+                                self.underline_color = Some(color);
                             }
                         }
                         59 => self.underline_color = None,

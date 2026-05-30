@@ -31,14 +31,16 @@ Decide and, if accepted, add ianvs terminal support for kitty keyboard protocol 
 
 - `rg -n "kitty|CSI u|disambiguate" packages/ianvs_terminal/lib native/core/src example/test packages/ianvs_terminal/test` finds no ianvs terminal kitty keyboard protocol mode or `CSI u` input path.
 - `cd packages/ianvs_terminal && flutter test test/terminal_input_controller_test.dart --plain-name "Control letters"` passes local Control A-Z C0-byte mapping, including Ctrl-C, but it does not exercise kitty mode.
+- Computer Use manual pass on 2026-05-29, macOS 15.7.7: in fish normal mode, `sleep 10` was interrupted by ETX and the terminal showed `^C` plus `[SIGINT]`.
 - Kitty protocol support remains a product-scope decision queued in [../../XTERM_MANUAL_CONFIRMATION_QUEUE.md](../../XTERM_MANUAL_CONFIRMATION_QUEUE.md) item M-010 before any implementation.
+- The audit row is deferred until M-010 decides whether kitty keyboard protocol belongs in ianvs terminal's supported surface; default xterm key sequences remain unchanged.
 
 ## Functional Acceptance
 
-- A scope note states whether kitty keyboard protocol is in ianvs terminal's supported terminal surface.
+- A scope note states whether kitty keyboard protocol is in ianvs terminal's supported terminal surface. Current decision: deferred pending M-010 product-scope confirmation.
 - If in scope, parser tests cover enabling/disabling the relevant kitty keyboard flags.
 - If in scope, input tests cover space, enter, tab, backspace, modifier-only events, and Ctrl-C under kitty mode.
-- If out of scope, the audit rows are marked `Deferred` with an explicit rationale.
+- If out of scope, the audit rows are marked `Deferred` with an explicit rationale. Done in `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md` pending M-010.
 
 ## Verification Commands
 

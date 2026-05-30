@@ -211,6 +211,27 @@ void main() {
     expect(exits.single.exitCode, 12);
     expect(terminal.isOpen, isFalse);
   });
+
+  testWidgets('terminal facade rejects zero resize dimensions', (tester) async {
+    final backend = _FakePtyBackend();
+    final runtime = _runtimeFor(backend);
+    addTearDown(runtime.dispose);
+    final terminal = Terminal(
+      runtime: runtime,
+      sessionConfig: const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    addTearDown(terminal.dispose);
+    terminal.open();
+
+    final resizeCallCount = backend.resizeCalls.length;
+    expect(() => terminal.resize(0, 24), throwsRangeError);
+    expect(() => terminal.resize(80, 0), throwsRangeError);
+    expect(backend.resizeCalls, hasLength(resizeCallCount));
+    expect(terminal.cols, 80);
+    expect(terminal.rows, 24);
+  });
 }
 
 TerminalRuntimeController _runtimeFor(_FakePtyBackend backend) {

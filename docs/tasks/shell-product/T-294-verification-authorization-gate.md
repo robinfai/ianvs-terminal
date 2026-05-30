@@ -41,5 +41,8 @@ Not run. This task only updates documentation and records no passing evidence.
 
 ## Remaining Risks
 
-- The objective remains blocked until authorization is given and verification
-  evidence is recorded.
+- Historical at task creation: the objective remained blocked until
+  authorization and verification evidence were recorded.
+- Current state: authorization was later given, verification was executed, and
+  required baseline evidence is recorded in the ledger and latest passed
+  verification records.

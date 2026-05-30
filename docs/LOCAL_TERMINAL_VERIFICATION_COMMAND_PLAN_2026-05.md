@@ -83,7 +83,9 @@ verification-evidence batches have passing captured evidence in
 The remaining automated blocker has been resolved. Latest broader passed in
 `20260516T171406Z-broader`, integration/smoke passed in
 `20260516T171644Z-integration`, and manual/integration-backed gates are recorded
-as passed in the evidence ledger. Canonical evidence conversion remains.
+as passed in the evidence ledger. Canonical evidence conversion is represented
+by `LocalTerminalVerificationPlanRecords.latestPassed()` and the verified
+current completion-state report.
 
 ## Added focused test target mapping
 

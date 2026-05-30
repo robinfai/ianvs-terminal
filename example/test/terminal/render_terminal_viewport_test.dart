@@ -402,6 +402,149 @@ void main() {
   });
 
   testWidgets(
+    'terminal viewport claims alternate scroll wheel before parent scrollables',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final parentScrollController = ScrollController();
+      addTearDown(parentScrollController.dispose);
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 10,
+            modes: TerminalFrameModes(
+              alternateScreen: true,
+              alternateScroll: true,
+            ),
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(bindings),
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: SingleChildScrollView(
+                controller: parentScrollController,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: 400,
+                      height: 200,
+                      child: TerminalViewport(
+                        controller: controller,
+                        selectionController: SelectionController(),
+                        inputController: inputController,
+                        onScrollLines: scrollLines.add,
+                        onScrollToOffset: (_) {},
+                      ),
+                    ),
+                    const SizedBox(height: 800),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(TerminalViewport));
+      await tester.sendEventToBinding(
+        PointerScrollEvent(position: center, scrollDelta: const Offset(0, 40)),
+      );
+      await tester.pump();
+
+      expect(parentScrollController.offset, 0);
+      expect(scrollLines, isEmpty);
+      expect(bindings.writes, hasLength(1));
+      expect(ascii.decode(bindings.writes.single), '\x1B[B\x1B[B');
+    },
+  );
+
+  testWidgets(
+    'terminal viewport accumulates partial alternate scroll wheel deltas',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'hello')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 10,
+            modes: TerminalFrameModes(
+              alternateScreen: true,
+              alternateScroll: true,
+            ),
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(bindings),
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      final scrollLines = <int>[];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                onScrollLines: scrollLines.add,
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final center = tester.getCenter(find.byType(TerminalViewport));
+      await tester.sendEventToBinding(
+        PointerScrollEvent(position: center, scrollDelta: const Offset(0, 6)),
+      );
+      await tester.pump();
+
+      expect(scrollLines, isEmpty);
+      expect(bindings.writes, isEmpty);
+
+      await tester.sendEventToBinding(
+        PointerScrollEvent(position: center, scrollDelta: const Offset(0, 6)),
+      );
+      await tester.pump();
+
+      expect(scrollLines, isEmpty);
+      expect(bindings.writes, hasLength(1));
+      expect(ascii.decode(bindings.writes.single), '\x1B[B');
+    },
+  );
+
+  testWidgets(
     'terminal viewport only rebuilds dirty row visuals for delta frames',
     (tester) async {
       final controller = TerminalViewportController()
@@ -1230,6 +1373,119 @@ void main() {
       expect(selectionController.selection, isNotNull);
     },
   );
+
+  testWidgets('terminal viewport keeps selection paint inside cell bounds', (
+    tester,
+  ) async {
+    const boundaryKey = Key('selection-cell-bounds-boundary');
+    const colors = TerminalViewportColors(
+      canvasBackground: Color(0xFF000000),
+      foreground: Color(0xFFFFFFFF),
+      cursor: Color(0xFFFFFFFF),
+      selection: Color(0xFF3366CC),
+      scrollbarTrack: Color(0x00000000),
+      scrollbarThumb: Color(0x00000000),
+    );
+    final selectionController = SelectionController()
+      ..setSelection(
+        const TerminalSelection(startRow: 0, startCol: 1, endRow: 0, endCol: 2),
+      );
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: '   ')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: false),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: TerminalInputController(
+                  sessionId: '1',
+                  runtime: testRuntime(FakePtyBackend()),
+                  readFrame: () => controller.frame,
+                  readSelection: () => '',
+                  copySelection: (_) async {},
+                  readClipboard: () async => '',
+                ),
+                colors: colors,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = _terminalRenderObject(tester);
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(boundaryKey),
+    );
+    final dpr = tester.view.devicePixelRatio;
+    final image = await _runUiAsync(
+      tester,
+      () => boundary.toImage(pixelRatio: dpr),
+    );
+
+    try {
+      final imageData = await _runUiAsync(
+        tester,
+        () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+      );
+      if (imageData == null) {
+        throw StateError('Failed to read selection bounds image bytes.');
+      }
+      final imageBytes = imageData.buffer.asUint8List();
+      final cellWidth = renderObject.debugCellSize.width;
+      final cellHeight = renderObject.debugCellSize.height;
+
+      int samplePixel(double logicalX, double logicalY) {
+        final x = (logicalX * dpr).round().clamp(0, image.width - 1);
+        final y = (logicalY * dpr).round().clamp(0, image.height - 1);
+        final pixelOffset = ((y * image.width) + x) * 4;
+        return Color.fromARGB(
+          imageBytes[pixelOffset + 3],
+          imageBytes[pixelOffset],
+          imageBytes[pixelOffset + 1],
+          imageBytes[pixelOffset + 2],
+        ).toARGB32();
+      }
+
+      expect(
+        samplePixel(cellWidth * 1.5, cellHeight / 2),
+        colors.selection.toARGB32(),
+      );
+      expect(
+        samplePixel(cellWidth - 1, cellHeight / 2),
+        colors.canvasBackground.toARGB32(),
+      );
+      expect(
+        samplePixel(cellWidth * 2 + 1, cellHeight / 2),
+        colors.canvasBackground.toARGB32(),
+      );
+      expect(
+        samplePixel(cellWidth + 1, cellHeight - 1),
+        colors.selection.toARGB32(),
+      );
+    } finally {
+      image.dispose();
+    }
+  });
 
   testWidgets(
     'terminal viewport double-click selects a whole xterm-style word',
@@ -2183,6 +2439,101 @@ void main() {
     },
   );
 
+  testWidgets(
+    'terminal viewport cancels lifecycle timers across repeated mount cycles',
+    (tester) async {
+      final openedLinks = <String>[];
+      final scrollLines = <int>[];
+
+      for (var cycle = 0; cycle < 3; cycle += 1) {
+        final focusNode = FocusNode(debugLabel: 'timer-cycle-$cycle');
+        final controller = TerminalViewportController()
+          ..updateFrame(
+            const TerminalFrameDiff(
+              rows: [TerminalRow(index: 0, text: 'open docs')],
+              cursor: TerminalCursor(row: 0, col: 0, visible: true),
+              viewportRows: 24,
+              viewportCols: 80,
+              dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+              scrollbackOffset: 0,
+              scrollbackMaxOffset: 20,
+              hyperlinks: [
+                TerminalHyperlinkRange(
+                  row: 0,
+                  startCol: 5,
+                  endCol: 9,
+                  uri: 'https://example.com/docs',
+                ),
+              ],
+            ),
+          );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 200,
+                child: TerminalViewport(
+                  focusNode: focusNode,
+                  controller: controller,
+                  selectionController: SelectionController(),
+                  inputController: TerminalInputController(
+                    sessionId: '1',
+                    runtime: testRuntime(FakePtyBackend()),
+                    readFrame: () => controller.frame,
+                    readSelection: () => '',
+                    copySelection: (_) async {},
+                    readClipboard: () async => '',
+                  ),
+                  onScrollLines: scrollLines.add,
+                  onScrollToOffset: (_) {},
+                  onOpenLink: openedLinks.add,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        focusNode.requestFocus();
+        await tester.pump();
+
+        final renderObject = _terminalRenderObject(tester);
+        final cellSize = renderObject.debugCellSize;
+        final center = tester.getCenter(find.byType(TerminalViewport));
+        final trackpad = TestPointer(cycle + 1, PointerDeviceKind.trackpad);
+        await tester.sendEventToBinding(trackpad.panZoomStart(center));
+        await tester.pump();
+        await tester.sendEventToBinding(
+          trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.sendEventToBinding(
+          trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
+        );
+        await tester.pump();
+        await tester.sendEventToBinding(trackpad.panZoomEnd());
+        await _mouseClickAt(
+          tester,
+          renderObject.localToGlobal(
+            Offset(cellSize.width * 6, cellSize.height / 2),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        focusNode.dispose();
+        await tester.pump(
+          kDoubleTapTimeout + const Duration(milliseconds: 700),
+        );
+      }
+
+      expect(scrollLines, isNotEmpty);
+      expect(openedLinks, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('terminal viewport opens OSC 8 hyperlink on explicit tap', (
     tester,
   ) async {
@@ -2247,6 +2598,86 @@ void main() {
     await tester.pump();
 
     expect(opened, ['https://example.com/docs']);
+  });
+
+  testWidgets('terminal viewport clears stale OSC 8 hit targets', (
+    tester,
+  ) async {
+    final opened = <String>[];
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'open docs')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          hyperlinks: [
+            TerminalHyperlinkRange(
+              row: 0,
+              startCol: 5,
+              endCol: 9,
+              uri: 'https://example.com/docs',
+            ),
+          ],
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: SelectionController(),
+              inputController: TerminalInputController(
+                sessionId: '1',
+                runtime: testRuntime(FakePtyBackend()),
+                readFrame: () => controller.frame,
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onOpenLink: opened.add,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    controller.updateFrame(
+      const TerminalFrameDiff(
+        frameKind: TerminalFrameKind.delta,
+        rows: [TerminalRow(index: 0, text: 'plain row')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+    await tester.pump();
+
+    final renderObject = _terminalRenderObject(tester);
+    final cellSize = renderObject.debugCellSize;
+    await _mouseClickAt(
+      tester,
+      renderObject.localToGlobal(
+        Offset(cellSize.width * 6, cellSize.height / 2),
+      ),
+    );
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pump();
+
+    expect(controller.frame.hyperlinks, isEmpty);
+    expect(opened, isEmpty);
   });
 
   testWidgets('terminal viewport opens visible URL hints on explicit tap', (
@@ -2662,13 +3093,13 @@ void main() {
           rows: [
             TerminalRow(
               index: 0,
-              text: 'a',
+              text: 'ab',
               styleRuns: [
-                TerminalStyleRun(start: 0, end: 1, bold: true, dim: true),
+                TerminalStyleRun(start: 1, end: 2, bold: true, dim: true),
               ],
             ),
           ],
-          cursor: TerminalCursor(row: 0, col: 1, visible: true),
+          cursor: TerminalCursor(row: 0, col: 2, visible: true),
           viewportRows: 24,
           viewportCols: 80,
           dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
@@ -2677,12 +3108,15 @@ void main() {
         ),
       );
 
-      final cell = renderObject.debugResolvedCellsForRow(0).single;
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      final cell = cells[1];
       final expectedForeground = Color.alphaBlend(
         const Color(0xFFF8FAFC).withValues(alpha: 0.65),
         const Color(0xFF050608),
       );
 
+      expect(cells[0].fontWeight, FontWeight.w400);
+      expect(cell.fontWeight, FontWeight.w700);
       expect(cell.foreground.toARGB32(), expectedForeground.toARGB32());
     },
   );
@@ -3050,6 +3484,79 @@ void main() {
       final cursorRect = renderObject.debugCursorRect!;
       expect(cursorRect.left, 3 * renderObject.debugCellSize.width);
       expect(cursorRect.width, renderObject.debugCellSize.width);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport keeps open-screen scan-line glyphs in single cells',
+    (tester) async {
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '⎺⎻⎼⎽a')],
+            cursor: TerminalCursor(row: 0, col: 5, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+      final selectionController = SelectionController();
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: controller,
+                selectionController: selectionController,
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final renderObject = _terminalRenderObject(tester);
+      final cells = renderObject.debugResolvedCellsForRow(0);
+      final cellWidth = renderObject.debugCellSize.width;
+
+      expect(cells.map((cell) => cell.text).toList(), [
+        '⎺',
+        '⎻',
+        '⎼',
+        '⎽',
+        'a',
+      ]);
+      expect(cells.map((cell) => cell.column).toList(), [0, 1, 2, 3, 4]);
+      expect(
+        cells.map((cell) => cell.glyphClass).toList(),
+        List<TerminalGlyphClass>.filled(5, TerminalGlyphClass.text),
+      );
+      expect(cells.any((cell) => cell.usesCustomGeometry), isFalse);
+      for (final cell in cells) {
+        expect(
+          cell.placementRect.left,
+          closeTo(cell.column * cellWidth, 0.001),
+        );
+      }
+
+      final cursorRect = renderObject.debugCursorRect!;
+      expect(cursorRect.left, closeTo(5 * cellWidth, 0.001));
+      expect(cursorRect.width, cellWidth);
     },
   );
 
@@ -4128,92 +4635,105 @@ void main() {
   testWidgets(
     'terminal viewport snaps baselines, background spans, and powerline rects to device pixels',
     (tester) async {
-      tester.view.devicePixelRatio = 2.5;
-      tester.view.physicalSize = const Size(2400, 1600);
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
 
-      final controller = TerminalViewportController()
-        ..updateFrame(
-          const TerminalFrameDiff(
-            rows: [
-              TerminalRow(
-                index: 0,
-                text: 'A󰀵B',
-                styleRuns: [
-                  TerminalStyleRun(
-                    start: 0,
-                    end: 3,
-                    foreground: Color(0xFF11111B),
-                    background: Color(0xFFF38BA8),
-                  ),
-                  TerminalStyleRun(
-                    start: 3,
-                    end: 4,
-                    foreground: Color(0xFF11111B),
-                    background: Color(0xFFFAB387),
-                  ),
-                ],
-              ),
-            ],
-            cursor: TerminalCursor(row: 0, col: 4, visible: true),
-            viewportRows: 24,
-            viewportCols: 80,
-            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
-            scrollbackOffset: 0,
-            scrollbackMaxOffset: 0,
-          ),
+      for (final dpr in <double>[1.25, 1.5, 2.5]) {
+        tester.view.devicePixelRatio = dpr;
+        tester.view.physicalSize = const Size(2400, 1600);
+
+        final controller = TerminalViewportController()
+          ..updateFrame(
+            const TerminalFrameDiff(
+              rows: [
+                TerminalRow(
+                  index: 0,
+                  text: 'A󰀵B',
+                  styleRuns: [
+                    TerminalStyleRun(
+                      start: 0,
+                      end: 3,
+                      foreground: Color(0xFF11111B),
+                      background: Color(0xFFF38BA8),
+                    ),
+                    TerminalStyleRun(
+                      start: 3,
+                      end: 4,
+                      foreground: Color(0xFF11111B),
+                      background: Color(0xFFFAB387),
+                    ),
+                  ],
+                ),
+              ],
+              cursor: TerminalCursor(row: 0, col: 4, visible: true),
+              viewportRows: 24,
+              viewportCols: 80,
+              dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+              scrollbackOffset: 0,
+              scrollbackMaxOffset: 0,
+            ),
+          );
+
+        final selectionController = SelectionController();
+        final inputController = TerminalInputController(
+          sessionId: '1',
+          runtime: testRuntime(FakePtyBackend()),
+          readSelection: () => '',
+          copySelection: (_) async {},
+          readClipboard: () async => '',
         );
 
-      final selectionController = SelectionController();
-      final inputController = TerminalInputController(
-        sessionId: '1',
-        runtime: testRuntime(FakePtyBackend()),
-        readSelection: () => '',
-        copySelection: (_) async {},
-        readClipboard: () async => '',
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SizedBox(
-              width: 400,
-              height: 200,
-              child: TerminalViewport(
-                controller: controller,
-                selectionController: selectionController,
-                inputController: inputController,
-                onScrollLines: (_) {},
-                onScrollToOffset: (_) {},
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 200,
+                child: TerminalViewport(
+                  controller: controller,
+                  selectionController: selectionController,
+                  inputController: inputController,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
               ),
             ),
           ),
-        ),
-      );
-
-      final renderObject = tester.allRenderObjects
-          .whereType<RenderTerminalViewport>()
-          .last;
-      final cells = renderObject.debugResolvedCellsForRow(0);
-      final spans = renderObject.debugBackgroundSpansForRow(0);
-      final dpr = tester.view.devicePixelRatio;
-
-      for (final cell in cells.where((cell) => !cell.usesCustomGeometry)) {
-        expect(
-          cell.drawOffset.dy + cell.glyphBaseline,
-          closeTo(cell.baselineY, 0.001),
         );
-        expect(_isSnappedToDevicePixel(cell.baselineY, dpr), isTrue);
-      }
-      for (final cell in cells.where((cell) => cell.usesCustomGeometry)) {
-        expect(_isSnappedToDevicePixel(cell.baselineY, dpr), isTrue);
-      }
-      for (final span in spans) {
-        _expectRectSnapped(span.rect, dpr);
-      }
-      for (final cell in cells.where((cell) => cell.usesCustomGeometry)) {
-        _expectRectSnapped(cell.placementRect, dpr);
+
+        final renderObject = tester.allRenderObjects
+            .whereType<RenderTerminalViewport>()
+            .last;
+        final cells = renderObject.debugResolvedCellsForRow(0);
+        final spans = renderObject.debugBackgroundSpansForRow(0);
+
+        for (final cell in cells.where((cell) => !cell.usesCustomGeometry)) {
+          expect(
+            cell.drawOffset.dy + cell.glyphBaseline,
+            closeTo(cell.baselineY, 0.001),
+            reason: 'DPR $dpr should keep text baselines consistent.',
+          );
+          expect(
+            _isSnappedToDevicePixel(cell.baselineY, dpr),
+            isTrue,
+            reason: 'DPR $dpr should snap text baselines to pixels.',
+          );
+        }
+        for (final cell in cells.where((cell) => cell.usesCustomGeometry)) {
+          expect(
+            _isSnappedToDevicePixel(cell.baselineY, dpr),
+            isTrue,
+            reason: 'DPR $dpr should snap custom glyph baselines.',
+          );
+        }
+        for (final span in spans) {
+          _expectRectSnapped(span.rect, dpr);
+        }
+        for (final cell in cells.where((cell) => cell.usesCustomGeometry)) {
+          _expectRectSnapped(cell.placementRect, dpr);
+        }
+
+        await tester.pumpWidget(const SizedBox.shrink());
       }
     },
   );

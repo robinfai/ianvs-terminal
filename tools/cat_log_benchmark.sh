@@ -5,7 +5,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  tools/cat_log_benchmark.sh --out-dir /absolute/output/dir [--scenario bulk-output|streaming-scroll|resize|alternate-screen|input-echo] [--fixture /absolute/fixture.log] [--timeout-sec 20] [--profile release|debug] [--include-raw-frames]
+  tools/cat_log_benchmark.sh --out-dir /absolute/output/dir [--scenario bulk-output|streaming-scroll|resize|url-heavy|unicode-heavy|search-extraction|parser-heavy|paste-throughput|alternate-screen|input-echo] [--fixture /absolute/fixture.log] [--timeout-sec 20] [--profile release|debug] [--include-raw-frames]
 EOF
 }
 
@@ -107,10 +107,10 @@ if [[ "$profile" != "release" && "$profile" != "debug" ]]; then
 fi
 
 case "$scenario" in
-  bulk-output|streaming-scroll|resize|alternate-screen|input-echo)
+  bulk-output|streaming-scroll|resize|url-heavy|unicode-heavy|search-extraction|parser-heavy|paste-throughput|alternate-screen|input-echo)
     ;;
   *)
-    echo "--scenario must be bulk-output, streaming-scroll, resize, alternate-screen, or input-echo" >&2
+    echo "--scenario must be bulk-output, streaming-scroll, resize, url-heavy, unicode-heavy, search-extraction, parser-heavy, paste-throughput, alternate-screen, or input-echo" >&2
     exit 1
     ;;
 esac
@@ -176,7 +176,13 @@ fi
 time_field() {
   local field="$1"
   local file="$2"
-  awk -v field="$field" '$1 == field {print $2}' "$file" | tail -n 1
+  awk -v field="$field" '{
+    for (i = 1; i < NF; i += 1) {
+      if ($i == field || $i ~ ("\\.\\.\\." field "$")) {
+        print $(i + 1)
+      }
+    }
+  }' "$file" | tail -n 1
 }
 
 cpu_percent_for() {
@@ -204,16 +210,24 @@ file_size() {
 capture_real_sec="$(time_field real "$capture_time_log")"
 capture_user_sec="$(time_field user "$capture_time_log")"
 capture_sys_sec="$(time_field sys "$capture_time_log")"
+capture_real_sec="${capture_real_sec:-0}"
+capture_user_sec="${capture_user_sec:-0}"
+capture_sys_sec="${capture_sys_sec:-0}"
 capture_cpu_percent="$(cpu_percent_for "$capture_real_sec" "$capture_user_sec" "$capture_sys_sec")"
 replay_real_sec="$(time_field real "$replay_time_log")"
 replay_user_sec="$(time_field user "$replay_time_log")"
 replay_sys_sec="$(time_field sys "$replay_time_log")"
+replay_real_sec="${replay_real_sec:-0}"
+replay_user_sec="${replay_user_sec:-0}"
+replay_sys_sec="${replay_sys_sec:-0}"
 replay_cpu_percent="$(cpu_percent_for "$replay_real_sec" "$replay_user_sec" "$replay_sys_sec")"
 trace_file="$out_dir/cat-log-benchmark.trace.json"
 metrics_file="$out_dir/cat-log-benchmark.metrics.json"
 fixture_bytes="0"
 if [[ -n "$fixture" ]]; then
   fixture_bytes="$(file_size "$fixture")"
+elif [[ -f "$out_dir/$scenario.fixture.log" ]]; then
+  fixture_bytes="$(file_size "$out_dir/$scenario.fixture.log")"
 else
   fixture_bytes="$(file_size "$out_dir/cat-log-benchmark.fixture.log")"
 fi

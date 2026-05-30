@@ -72,6 +72,22 @@ struct TerminalSearchResponse {
     error_text: Option<&'static str>,
 }
 
+#[derive(Debug)]
+struct TerminalSearchRow {
+    row: usize,
+    text: String,
+    wrapped: bool,
+    scrollback_offset: usize,
+}
+
+#[derive(Debug)]
+struct TerminalSearchLogicalSegment {
+    row: usize,
+    text: String,
+    start_byte: usize,
+    scrollback_offset: usize,
+}
+
 static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
 
 #[derive(Clone, Debug)]
@@ -1192,8 +1208,7 @@ impl TerminalSession {
         let terminal = &state.terminal;
         let theme = terminal_theme_snapshot(terminal);
         let (_viewport_cols, viewport_rows) = terminal.size();
-        let mut matches = Vec::new();
-
+        let mut rows = Vec::new();
         if terminal.is_alt_screen_active() {
             for row in 0..viewport_rows {
                 let extracted = extract_row(
@@ -1201,40 +1216,44 @@ impl TerminalSession {
                     terminal.alt_grid().is_line_wrapped(row),
                     &theme,
                 );
-                collect_text_matches(&mut matches, &extracted.text, &pattern, row, 0);
+                rows.push(TerminalSearchRow {
+                    row,
+                    text: extracted.text,
+                    wrapped: extracted.wrapped,
+                    scrollback_offset: 0,
+                });
             }
-            return Ok(matches);
+        } else {
+            let grid = terminal.grid();
+            let scrollback_len = grid.scrollback_len();
+            let total_lines = scrollback_len + viewport_rows;
+
+            for visible_index in 0..total_lines {
+                let extracted = if visible_index < scrollback_len {
+                    extract_row(
+                        grid.scrollback_line(visible_index),
+                        grid.is_scrollback_wrapped(visible_index),
+                        &theme,
+                    )
+                } else {
+                    let screen_row = visible_index.saturating_sub(scrollback_len);
+                    extract_row(
+                        grid.row(screen_row),
+                        grid.is_line_wrapped(screen_row),
+                        &theme,
+                    )
+                };
+                rows.push(TerminalSearchRow {
+                    row: visible_index,
+                    text: extracted.text,
+                    wrapped: extracted.wrapped,
+                    scrollback_offset: total_lines.saturating_sub(viewport_rows + visible_index),
+                });
+            }
         }
 
-        let grid = terminal.grid();
-        let scrollback_len = grid.scrollback_len();
-        let total_lines = scrollback_len + viewport_rows;
-
-        for visible_index in 0..total_lines {
-            let extracted = if visible_index < scrollback_len {
-                extract_row(
-                    grid.scrollback_line(visible_index),
-                    grid.is_scrollback_wrapped(visible_index),
-                    &theme,
-                )
-            } else {
-                let screen_row = visible_index.saturating_sub(scrollback_len);
-                extract_row(
-                    grid.row(screen_row),
-                    grid.is_line_wrapped(screen_row),
-                    &theme,
-                )
-            };
-            let scrollback_offset = total_lines.saturating_sub(viewport_rows + visible_index);
-            collect_text_matches(
-                &mut matches,
-                &extracted.text,
-                &pattern,
-                visible_index,
-                scrollback_offset,
-            );
-        }
-
+        let mut matches = Vec::new();
+        collect_search_matches(&mut matches, rows, &pattern);
         Ok(matches)
     }
 
@@ -2367,24 +2386,78 @@ impl TerminalSearchPattern {
     }
 }
 
-fn collect_text_matches(
+fn collect_search_matches(
     matches: &mut Vec<TerminalSearchMatch>,
-    text: &str,
+    rows: Vec<TerminalSearchRow>,
     pattern: &TerminalSearchPattern,
-    row: usize,
-    scrollback_offset: usize,
 ) {
-    for result in pattern.regex.find_iter(text) {
-        let start = result.start();
-        let end = result.end();
+    let mut logical_text = String::new();
+    let mut segments = Vec::new();
+
+    for row in rows {
+        let start_byte = logical_text.len();
+        logical_text.push_str(&row.text);
+        segments.push(TerminalSearchLogicalSegment {
+            row: row.row,
+            text: row.text,
+            start_byte,
+            scrollback_offset: row.scrollback_offset,
+        });
+
+        if !row.wrapped {
+            collect_logical_text_matches(matches, &logical_text, &segments, pattern);
+            logical_text.clear();
+            segments.clear();
+        }
+    }
+
+    if !segments.is_empty() {
+        collect_logical_text_matches(matches, &logical_text, &segments, pattern);
+    }
+}
+
+fn collect_logical_text_matches(
+    matches: &mut Vec<TerminalSearchMatch>,
+    logical_text: &str,
+    segments: &[TerminalSearchLogicalSegment],
+    pattern: &TerminalSearchPattern,
+) {
+    for result in pattern.regex.find_iter(logical_text) {
+        let Some((segment, byte_offset)) =
+            segment_for_logical_byte_index(segments, result.start(), logical_text.len())
+        else {
+            continue;
+        };
+        let start_col = column_for_byte_index(&segment.text, byte_offset);
+        let match_width = column_for_byte_index(result.as_str(), result.as_str().len());
         matches.push(TerminalSearchMatch {
-            row,
-            start_col: column_for_byte_index(text, start),
-            end_col: column_for_byte_index(text, end),
+            row: segment.row,
+            start_col,
+            end_col: start_col.saturating_add(match_width),
             text: result.as_str().to_string(),
-            scrollback_offset,
+            scrollback_offset: segment.scrollback_offset,
         });
     }
+}
+
+fn segment_for_logical_byte_index(
+    segments: &[TerminalSearchLogicalSegment],
+    byte_index: usize,
+    logical_len: usize,
+) -> Option<(&TerminalSearchLogicalSegment, usize)> {
+    if byte_index == logical_len {
+        let segment = segments.last()?;
+        return Some((segment, segment.text.len()));
+    }
+
+    segments.iter().rev().find_map(|segment| {
+        let segment_end = segment.start_byte.saturating_add(segment.text.len());
+        if byte_index >= segment.start_byte && byte_index < segment_end {
+            Some((segment, byte_index.saturating_sub(segment.start_byte)))
+        } else {
+            None
+        }
+    })
 }
 
 fn selection_text_for_state(state: &TerminalState, request: TerminalSelectionRequest) -> String {

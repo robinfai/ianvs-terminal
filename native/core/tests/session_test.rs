@@ -3,6 +3,8 @@ use ianvs_core::model::{
     TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
 };
 use ianvs_core::session;
+use par_term_emu_core_rust::color::{Color, NamedColor};
+use par_term_emu_core_rust::terminal::Terminal as ParserTerminal;
 use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::fs;
@@ -98,6 +100,20 @@ fn prompt_like_profile() -> TerminalProfile {
         vec![
             "-lc".to_string(),
             r"printf '\x1b[38;5;196m\x1b[48;5;46mabc   \x1b[0m\n'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn sgr_colon_truecolor_profile() -> TerminalProfile {
+    local_profile(
+        "sgr-colon-truecolor",
+        "SGR Colon Truecolor",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r"printf '\x1b[38:2::255:0:0mR\x1b[0m\x1b[48:2::0:0:255mB\x1b[0m\n'".to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -337,6 +353,34 @@ fn clipboard_paste_request_profile() -> TerminalProfile {
     )
 }
 
+fn apc_unsupported_noop_profile() -> TerminalProfile {
+    local_profile(
+        "apc-unsupported-noop",
+        "APC Unsupported Noop",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf 'before\\033_APC-LEAK\\033\\\\after\\n'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn non_csi_string_controls_profile() -> TerminalProfile {
+    local_profile(
+        "non-csi-string-controls",
+        "Non-CSI String Controls",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf 'pre\\033^PM-LEAK\\033\\\\mid\\033XSOS-LEAK\\033\\\\post\\n'".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn hyperlink_profile() -> TerminalProfile {
     local_profile(
         "hyperlink",
@@ -404,6 +448,42 @@ fn alternate_scroll_profile() -> TerminalProfile {
     )
 }
 
+fn alternate_wrapped_line_profile() -> TerminalProfile {
+    local_profile(
+        "alternate-wrapped-line",
+        "Alternate Wrapped Line",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 - <<'PY'
+import sys
+import time
+time.sleep(0.2)
+sys.stdout.write('\x1b[?1049hABCDEFGHIJK')
+sys.stdout.flush()
+PY"#
+            .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn synchronized_output_profile() -> TerminalProfile {
+    local_profile(
+        "synchronized-output",
+        "Synchronized Output",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys,time; time.sleep(0.2); sys.stdout.write("\x1b[?2026h"); sys.stdout.flush(); time.sleep(0.2); sys.stdout.write("\rSYNC-MID"); sys.stdout.flush(); time.sleep(0.8); sys.stdout.write("\rSYNC-FINAL\x1b[?2026l\n"); sys.stdout.flush()'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn vt220_da_profile() -> TerminalProfile {
     local_profile(
         "vt220-da",
@@ -427,6 +507,21 @@ fn pixel_size_query_profile() -> TerminalProfile {
         vec![
             "-lc".to_string(),
             r#"python3 -c 'import os,sys,termios,tty,time; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b[14t"); sys.stdout.flush(); data=os.read(0,128); termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"PIXEL-RESPONSE:"+repr(data).encode()+b"\n")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc4_query_profile() -> TerminalProfile {
+    local_profile(
+        "osc4-query",
+        "OSC 4 Query",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]4;1;rgba:12/34/56/78\x1b\\"); os.write(1,b"\x1b]4;1;?\x1b\\"); sys.stdout.flush(); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,128) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"OSC4-RESPONSE:"+repr(data).encode()+b"\n")'"#
                 .to_string(),
         ],
         BTreeMap::new(),
@@ -978,6 +1073,59 @@ fn session_frame_diff_exposes_alternate_scroll_mode() {
 }
 
 #[test]
+fn session_preserves_wrapped_line_metadata_in_alternate_screen() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&alternate_wrapped_line_profile()).unwrap())
+            .unwrap();
+    session::resize_session(session_id, 5, 4, 0, 0).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "K");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["modes"]["alternate_screen"].as_bool(), Some(true));
+    assert_eq!(
+        frame_row_at_index(&parsed, 0)["text"].as_str(),
+        Some("ABCDE")
+    );
+    assert_eq!(
+        frame_row_at_index(&parsed, 0)["wrapped"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        frame_row_at_index(&parsed, 1)["text"].as_str(),
+        Some("FGHIJ")
+    );
+    assert_eq!(
+        frame_row_at_index(&parsed, 1)["wrapped"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        frame_row_at_index(&parsed, 2)["text"]
+            .as_str()
+            .unwrap_or_default()
+            .trim_end(),
+        "K"
+    );
+    assert_eq!(
+        frame_row_at_index(&parsed, 2)["wrapped"].as_bool(),
+        Some(false)
+    );
+    assert!(
+        logical_rows_from_frame(&frame)
+            .iter()
+            .any(|row| row == "ABCDEFGHIJK"),
+        "alternate-screen wrapped rows should reassemble as one logical row: {}",
+        serde_json::to_string_pretty(&parsed).unwrap()
+    );
+
+    let text =
+        session::selection_text_session(session_id, &selection_request(0, 3, 2, 1, false)).unwrap();
+    assert_eq!(text, "DEFGHIJK");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn vt220_sessions_reply_with_vt220_primary_device_attributes() {
     let session_id =
         session::create_session(&serde_json::to_string(&vt220_da_profile()).unwrap()).unwrap();
@@ -1073,7 +1221,10 @@ fn session_emits_shell_hook_events_from_dcs_hooks() {
 
     let event = wait_for_event(session_id, "shell_hook");
     assert_eq!(event["payload"]["hook"].as_str(), Some("precmd"));
-    assert_eq!(event["payload"]["pwd"].as_str(), Some("/tmp/ianvs terminal"));
+    assert_eq!(
+        event["payload"]["pwd"].as_str(),
+        Some("/tmp/ianvs terminal")
+    );
 
     session::close_session(session_id).unwrap();
 }
@@ -1530,7 +1681,11 @@ fn bash_shell_hook_integration_disabled_emits_no_shell_hooks() {
     };
 
     let home = tempdir().unwrap();
-    fs::write(home.path().join(".bashrc"), "PS1='ianvs terminal-disabled$ '\n").unwrap();
+    fs::write(
+        home.path().join(".bashrc"),
+        "PS1='ianvs terminal-disabled$ '\n",
+    )
+    .unwrap();
     let mut env = BTreeMap::new();
     env.insert(
         "HOME".to_string(),
@@ -1881,6 +2036,57 @@ fn session_pixel_only_resize_updates_xtwinops_pixel_size() {
 }
 
 #[test]
+fn session_synchronized_output_defers_intermediate_frames_until_disable() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&synchronized_output_profile()).unwrap())
+            .unwrap();
+
+    thread::sleep(Duration::from_millis(700));
+    let mut final_frame = None;
+    for _ in 0..5 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let visible_text = logical_rows_from_frame(&frame).join("\n");
+            assert!(
+                !visible_text.contains("SYNC-MID"),
+                "synchronized output must not publish the intermediate frame: {frame}"
+            );
+            if visible_text.contains("SYNC-FINAL") {
+                final_frame = Some(frame);
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    let frame = final_frame.unwrap_or_else(|| wait_for_frame_containing(session_id, "SYNC-FINAL"));
+    let visible_text = logical_rows_from_frame(&frame).join("\n");
+    assert!(
+        visible_text.contains("SYNC-FINAL"),
+        "expected synchronized output to flush the final frame: {frame}"
+    );
+    assert!(
+        !visible_text.contains("SYNC-MID"),
+        "final synchronized frame should only expose the latest output: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_osc4_query_reports_rgb_for_alpha_color_specs() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc4_query_profile()).unwrap()).unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC4-RESPONSE");
+    assert!(
+        frame.contains(r"OSC4-RESPONSE:b'\\x1b]4;1;rgb:1212/3434/5656\\x1b\\\\'"),
+        "expected OSC 4 query to report the RGB portion of an alpha color spec: {frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_emits_clipboard_copy_events_from_osc_52() {
     let session_id =
         session::create_session(&serde_json::to_string(&clipboard_copy_profile()).unwrap())
@@ -1928,6 +2134,70 @@ fn vt220_sessions_do_not_emit_clipboard_paste_requests_from_osc_52_queries() {
     .unwrap();
 
     assert_event_kind_never_arrives(session_id, "clipboard_paste_request");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_apc_sequence_is_unsupported_noop() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&apc_unsupported_noop_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "before");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let rows = logical_rows_from_frame(&frame);
+    assert!(
+        rows.iter().any(|row| row.contains("beforeafter")),
+        "APC should not interrupt surrounding printable text: {rows:?}"
+    );
+    assert!(
+        !frame.contains("APC-LEAK"),
+        "APC payload must not render into terminal rows: {frame}"
+    );
+    assert!(
+        parsed["rows"]
+            .as_array()
+            .expect("expected rows")
+            .iter()
+            .all(|row| !row["text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("APC-LEAK"))
+    );
+
+    let events = session::poll_events(session_id).unwrap();
+    assert!(
+        !events.contains("APC-LEAK"),
+        "APC payload must not surface through app events: {events}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_pm_and_sos_sequences_are_unsupported_noops() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&non_csi_string_controls_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "pre");
+    let rows = logical_rows_from_frame(&frame);
+    assert!(
+        rows.iter().any(|row| row.contains("premidpost")),
+        "PM/SOS should not interrupt surrounding printable text: {rows:?}"
+    );
+    assert!(
+        !frame.contains("PM-LEAK") && !frame.contains("SOS-LEAK"),
+        "PM/SOS payloads must not render into terminal rows: {frame}"
+    );
+
+    let events = session::poll_events(session_id).unwrap();
+    assert!(
+        !events.contains("PM-LEAK") && !events.contains("SOS-LEAK"),
+        "PM/SOS payloads must not surface through app events: {events}"
+    );
 
     session::close_session(session_id).unwrap();
 }
@@ -2111,6 +2381,42 @@ fn session_search_empty_query_returns_no_matches() {
     let matches: serde_json::Value = serde_json::from_str(&search).unwrap();
 
     assert_eq!(matches.as_array().map(Vec::len), Some(0));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_wrapped_line_search_matches_across_visual_rows() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&wrapped_selection_profile()).unwrap())
+            .unwrap();
+
+    thread::sleep(Duration::from_millis(200));
+    session::resize_session(session_id, 5, 4, 50, 80).unwrap();
+    let _ = wait_for_frame_where(session_id, |frame| {
+        logical_rows_from_frame(frame)
+            .iter()
+            .any(|row| row == "abcdefghij")
+    });
+
+    let search = session::search_session(session_id, "defg").unwrap();
+    let matches: serde_json::Value = serde_json::from_str(&search).unwrap();
+    let first = matches
+        .as_array()
+        .and_then(|entries| entries.first())
+        .expect("expected wrapped search match");
+
+    assert_eq!(first["text"].as_str(), Some("defg"));
+    assert_eq!(first["row"].as_u64(), Some(0));
+    assert_eq!(first["start_col"].as_u64(), Some(3));
+    assert_eq!(first["end_col"].as_u64(), Some(7));
+    assert_eq!(first["scrollback_offset"].as_u64(), Some(0));
+
+    let frame_after = session::take_frame_diff(session_id).unwrap();
+    assert!(
+        frame_after.is_none(),
+        "search should not dirty or scroll the terminal"
+    );
 
     session::close_session(session_id).unwrap();
 }
@@ -2577,4 +2883,72 @@ fn session_preserves_trailing_spaces_in_row_text() {
     assert_eq!(first_run["foreground"].as_str(), Some("#ff0000"));
 
     session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_sgr_colon_truecolor_skips_empty_color_space_id() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&sgr_colon_truecolor_profile()).unwrap())
+            .unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let rows = parsed["rows"].as_array().expect("expected rows");
+    assert!(
+        rows[0]["text"]
+            .as_str()
+            .expect("expected row text")
+            .starts_with("RB"),
+        "expected row to start with styled cells: {frame}"
+    );
+
+    let style_runs = rows[0]["style_runs"]
+        .as_array()
+        .expect("expected style runs");
+    assert_eq!(style_runs[0]["foreground"].as_str(), Some("#ff0000"));
+    assert_eq!(style_runs[1]["background"].as_str(), Some("#0000ff"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn parser_sgr_reset_cases_clear_individual_attributes() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    terminal.process(b"\x1b[1;2;3;4;5;7;8;9;53m\x1b[38;5;1m\x1b[48;5;2m\x1b[58:5:3mA");
+    terminal.process(b"\x1b[22;23;24;25;27;28;29;39;49;55;59mB");
+
+    let rows = terminal.get_row_range(0, 1);
+    let styled = &rows[0][0];
+    assert!(styled.flags.bold());
+    assert!(styled.flags.dim());
+    assert!(styled.flags.italic());
+    assert!(styled.flags.underline());
+    assert!(styled.flags.blink());
+    assert!(styled.flags.reverse());
+    assert!(styled.flags.hidden());
+    assert!(styled.flags.strikethrough());
+    assert!(styled.flags.overline());
+    assert_eq!(styled.fg, Color::Named(NamedColor::Red));
+    assert_eq!(styled.bg, Color::Named(NamedColor::Green));
+    assert_eq!(
+        styled.underline_color,
+        Some(Color::Named(NamedColor::Yellow))
+    );
+
+    let reset = &rows[0][1];
+    assert!(!reset.flags.bold());
+    assert!(!reset.flags.dim());
+    assert!(!reset.flags.italic());
+    assert!(!reset.flags.underline());
+    assert!(!reset.flags.blink());
+    assert!(!reset.flags.reverse());
+    assert!(!reset.flags.hidden());
+    assert!(!reset.flags.strikethrough());
+    assert!(!reset.flags.overline());
+    assert_eq!(reset.fg, Color::Named(NamedColor::White));
+    assert_eq!(reset.bg, Color::Named(NamedColor::Black));
+    assert_eq!(reset.underline_color, None);
 }

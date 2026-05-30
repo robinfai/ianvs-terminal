@@ -67,12 +67,10 @@ Latest verification evidence:
 
 What is still missing:
 
-- Conversion of the ledger rows into `LocalTerminalVerificationGateRecord`
-  values.
-- Rebuilt `LocalTerminalVerificationEvidence`.
-- Rebuilt T-169 evidence.
-- Verified T-164 through T-169 backlog evidence from the converted records.
-- Rebuilt completion evidence report.
+- No required T-169 closure evidence remains missing for the current
+  local-terminal baseline.
+- Optional advanced visual/productivity/policy hardening remains follow-up
+  scope outside the required closure baseline.
 
 ## Required Reading Order
 
@@ -98,12 +96,17 @@ Current execution sequence:
 3. Integration evidence has been captured in
    `build/local-terminal-verification/20260516T171644Z-integration`.
 4. Manual/integration-backed gates have been recorded in the ledger.
-5. Convert ledger entries into `LocalTerminalVerificationGateRecord` values.
-6. Rebuild verification evidence.
-7. Rebuild T-169 evidence.
-8. Verify T-164 through T-168 only if their relevant evidence is passing.
-9. Rebuild completion evidence report.
-10. Update the completion audit checklist with final code evidence references.
+5. Ledger entries have been converted into
+   `LocalTerminalVerificationGateRecord` values by
+   `LocalTerminalVerificationPlanRecords.latestPassed()`.
+6. Verification evidence is rebuilt through
+   `LocalTerminalVerificationPlanRecords.latestPassed().toRecorder()`.
+7. T-169 evidence is rebuilt from the verified verification evidence.
+8. T-164 through T-168 are verified by
+   `LocalTerminalRealWiringBacklogEvidence.currentVerified(...)`.
+9. The completion evidence report is rebuilt by
+   `LocalTerminalCurrentCompletionState.verified(...)`.
+10. The completion audit checklist references the final code evidence.
 
 Optional helper:
 

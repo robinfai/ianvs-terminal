@@ -682,6 +682,404 @@ void main() {
   );
 
   testWidgets(
+    'terminal viewport clips long composing text to the terminal bounds',
+    (tester) async {
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '')],
+            cursor: TerminalCursor(row: 0, col: 26, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 200,
+              child: TerminalViewport(
+                controller: viewportController,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      const composingText = 'composition-near-right-edge-overflow-probe';
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: composingText,
+          selection: TextSelection.collapsed(offset: composingText.length),
+          composing: TextRange(start: 0, end: composingText.length),
+        ),
+      );
+      await tester.pump();
+
+      final terminalRect = tester.getRect(find.byType(TerminalViewport));
+      final overlayRect = tester.getRect(
+        find.byKey(const Key('terminal-composing-overlay')),
+      );
+      expect(overlayRect.left, greaterThanOrEqualTo(terminalRect.left));
+      expect(overlayRect.right, lessThanOrEqualTo(terminalRect.right));
+      expect(find.text(composingText), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'terminal input commits only the replaced IME segment from middle composition',
+    (tester) async {
+      final bindings = FakePtyBackend();
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(bindings),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: TerminalViewport(
+              controller: viewportController,
+              selectionController: SelectionController(),
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'leftni-right',
+          selection: TextSelection.collapsed(offset: 6),
+          composing: TextRange(start: 4, end: 6),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('ni'), findsOneWidget);
+      expect(bindings.writes, isEmpty);
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'left你-right',
+          selection: TextSelection.collapsed(offset: 5),
+        ),
+      );
+      await tester.pump();
+
+      expect(bindings.writes, hasLength(1));
+      expect(bindings.writes.single, utf8.encode('你'));
+    },
+  );
+
+  testWidgets('terminal input renders and commits RTL IME composition text', (
+    tester,
+  ) async {
+    final bindings = FakePtyBackend();
+    final viewportController = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: '')],
+          cursor: TerminalCursor(row: 0, col: 20, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: testRuntime(bindings),
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: viewportController,
+              selectionController: SelectionController(),
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+
+    const composingText = 'שלום';
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: composingText,
+        selection: TextSelection.collapsed(offset: composingText.length),
+        composing: TextRange(start: 0, end: composingText.length),
+      ),
+    );
+    await tester.pump();
+
+    final terminalRect = tester.getRect(find.byType(TerminalViewport));
+    final overlayRect = tester.getRect(
+      find.byKey(const Key('terminal-composing-overlay')),
+    );
+    expect(find.text(composingText), findsOneWidget);
+    expect(overlayRect.left, greaterThanOrEqualTo(terminalRect.left));
+    expect(overlayRect.right, lessThanOrEqualTo(terminalRect.right));
+    expect(bindings.writes, isEmpty);
+
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: composingText,
+        selection: TextSelection.collapsed(offset: composingText.length),
+      ),
+    );
+    await tester.pump();
+
+    expect(bindings.writes, hasLength(1));
+    expect(bindings.writes.single, utf8.encode(composingText));
+  });
+
+  testWidgets(
+    'terminal viewport keeps composing overlay anchored after resize',
+    (tester) async {
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      Future<void> pumpTerminal(Size size) {
+        return tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: size.width,
+                height: size.height,
+                child: TerminalViewport(
+                  controller: viewportController,
+                  selectionController: SelectionController(),
+                  inputController: inputController,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      await pumpTerminal(const Size(400, 200));
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      final initialOverlayRect = tester.getRect(
+        find.byKey(const Key('terminal-composing-overlay')),
+      );
+
+      viewportController.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: '')],
+          cursor: TerminalCursor(row: 2, col: 12, visible: true),
+          viewportRows: 12,
+          viewportCols: 48,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      await pumpTerminal(const Size(320, 160));
+      await tester.pump();
+
+      final resizedOverlayRect = tester.getRect(
+        find.byKey(const Key('terminal-composing-overlay')),
+      );
+      final terminalRect = tester.getRect(find.byType(TerminalViewport));
+
+      expect(resizedOverlayRect.left, greaterThan(initialOverlayRect.left));
+      expect(resizedOverlayRect.top, greaterThan(initialOverlayRect.top));
+      expect(resizedOverlayRect.right, lessThanOrEqualTo(terminalRect.right));
+      expect(find.text('ni'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'terminal viewport reports IME geometry at non-zero DPR after resize',
+    (tester) async {
+      tester.view.devicePixelRatio = 2.5;
+      tester.view.physicalSize = const Size(1000, 500);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final textInputControl = _RecordingTextInputControl();
+      TextInput.setInputControl(textInputControl);
+      addTearDown(TextInput.restorePlatformInputControl);
+
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: '')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 24,
+            viewportCols: 80,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: testRuntime(FakePtyBackend()),
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      Future<void> pumpTerminal(Size size) {
+        return tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: size.width,
+                height: size.height,
+                child: TerminalViewport(
+                  controller: viewportController,
+                  selectionController: SelectionController(),
+                  inputController: inputController,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      await pumpTerminal(const Size(400, 200));
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'ni',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      expect(textInputControl.editableSizes, isNotEmpty);
+      expect(textInputControl.editableTransforms, isNotEmpty);
+      expect(textInputControl.composingRects, isNotEmpty);
+      expect(textInputControl.caretRects, isNotEmpty);
+
+      final initialEditableSize = textInputControl.editableSizes.last;
+      final initialComposingRect = textInputControl.composingRects.last;
+      expect(initialEditableSize.width, moreOrLessEquals(400));
+      expect(initialEditableSize.height, moreOrLessEquals(200));
+      expect(initialComposingRect.left, moreOrLessEquals(0));
+      expect(initialComposingRect.top, moreOrLessEquals(0));
+
+      viewportController.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: '')],
+          cursor: TerminalCursor(row: 2, col: 12, visible: true),
+          viewportRows: 12,
+          viewportCols: 48,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      await pumpTerminal(const Size(320, 160));
+      await tester.pump();
+
+      final resizedEditableSize = textInputControl.editableSizes.last;
+      final resizedEditableTransform = textInputControl.editableTransforms.last;
+      final resizedComposingRect = textInputControl.composingRects.last;
+      final resizedCaretRect = textInputControl.caretRects.last;
+
+      expect(resizedEditableSize.width, moreOrLessEquals(320));
+      expect(resizedEditableSize.height, moreOrLessEquals(160));
+      expect(
+        resizedEditableTransform.storage.every((value) => value.isFinite),
+        isTrue,
+      );
+      expect(resizedComposingRect.left, greaterThan(initialComposingRect.left));
+      expect(resizedComposingRect.top, greaterThan(initialComposingRect.top));
+      expect(resizedComposingRect, resizedCaretRect);
+      expect(find.text('ni'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'terminal input leaves arrow keys with active IME composition to macOS text input',
     (tester) async {
       final bindings = FakePtyBackend();
@@ -1322,4 +1720,27 @@ void main() {
       expect(bytes, utf8.encode('plain'));
     },
   );
+}
+
+class _RecordingTextInputControl with TextInputControl {
+  final editableSizes = <Size>[];
+  final editableTransforms = <Matrix4>[];
+  final composingRects = <Rect>[];
+  final caretRects = <Rect>[];
+
+  @override
+  void setEditableSizeAndTransform(Size editableBoxSize, Matrix4 transform) {
+    editableSizes.add(editableBoxSize);
+    editableTransforms.add(transform.clone());
+  }
+
+  @override
+  void setComposingRect(Rect rect) {
+    composingRects.add(rect);
+  }
+
+  @override
+  void setCaretRect(Rect rect) {
+    caretRects.add(rect);
+  }
 }

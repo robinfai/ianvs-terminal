@@ -8,8 +8,9 @@ Usage:
   tools/technical_blog_action_benchmark.sh --out-dir /absolute/output/dir [--timeout-sec 20] [--profile release|debug] [--include-raw-frames]
 
 Runs the project-action benchmark scenarios derived from the technical-blog
-feedback: bulk output, streaming scroll, resize fallback, alternate screen,
-and input echo latency.
+feedback: bulk output, streaming scroll, resize fallback, URL-heavy visible
+link probing, Unicode-heavy rendering, search extraction, parser-heavy escape
+handling, paste throughput, alternate screen, and input echo latency.
 USAGE
 }
 
@@ -78,7 +79,7 @@ esac
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$out_dir"
 
-scenarios=(bulk-output streaming-scroll resize alternate-screen input-echo)
+scenarios=(bulk-output streaming-scroll resize url-heavy unicode-heavy search-extraction parser-heavy paste-throughput alternate-screen input-echo)
 commands_file="$out_dir/commands.txt"
 environment_file="$out_dir/environment.txt"
 summary_file="$out_dir/benchmark-summary.md"

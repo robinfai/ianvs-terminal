@@ -25,9 +25,9 @@ Add a native/runtime search regression for matches that span wrapped terminal ro
 
 ## Probe Evidence
 
-- `Session::search` currently extracts each row independently and calls `collect_text_matches` per row; the `wrapped` flag is not used to join logical wrapped lines.
-- `cargo test --test session_test session_searches` passes only single-row scrollback search.
-- `cargo test --test session_test session_search_empty_query_returns_no_matches` passes after the audit probe, proving empty search is covered separately.
+- `Session::search` now groups consecutive wrapped visual rows into logical rows before searching, then maps each match start back to the visual row, start column, logical end column, text, and scrollback offset.
+- `cargo test --manifest-path native/core/Cargo.toml --test session_test wrapped_line_search` passes and covers a query spanning a soft-wrap boundary.
+- `cargo test --manifest-path native/core/Cargo.toml --test session_test session_search` passes the existing scrollback, empty-query, substring-mode, and regex-mode search coverage.
 
 ## Functional Acceptance
 
@@ -54,10 +54,14 @@ cargo test --test session_test session_search_empty_query_returns_no_matches
 
 ## Done When
 
-- Wrapped-line search has a named regression.
-- Empty search remains covered.
-- The audit links this task or marks the row `Covered` with evidence.
+- Wrapped-line search has a named regression. Done:
+  `session_wrapped_line_search_matches_across_visual_rows`.
+- Empty search remains covered. Done: `session_search_empty_query_returns_no_matches`.
+- The audit links this task or marks the row `Covered` with evidence. Done:
+  `TERMINAL_XTERM_RECENT_FIX_AUDIT.md` records the focused commands.
 
 ## Risks / Follow-ups
 
-- Search match coordinates may need a compatibility decision if a logical match spans more than one visual row.
+- Search match coordinates keep the existing JSON shape. A match that spans
+  multiple visual rows reports the start visual row and start column, with
+  `end_col` extending by the logical match width from that start column.

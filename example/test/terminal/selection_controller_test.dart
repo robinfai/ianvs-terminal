@@ -128,6 +128,54 @@ void main() {
     expect(text, 'lpha\nbe');
   });
 
+  test('selectionForFrame remaps stable selections after vertical resize', () {
+    final controller = SelectionController();
+    controller.begin(const TerminalCellPosition(1, 1), viewportStartRow: 100);
+    controller.update(const TerminalCellPosition(3, 3), viewportStartRow: 100);
+
+    final resizedFrame = const TerminalFrameDiff(
+      rows: [
+        TerminalRow(index: 0, text: 'alpha'),
+        TerminalRow(index: 1, text: 'beta'),
+      ],
+      cursor: TerminalCursor(row: 0, col: 0, visible: true),
+      viewportRows: 2,
+      viewportCols: 80,
+      dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+      scrollbackOffset: 0,
+      scrollbackMaxOffset: 0,
+      viewportStartRow: 101,
+    );
+
+    final visibleSelection = controller.selectionForFrame(resizedFrame);
+    expect(visibleSelection, isNotNull);
+    expect(
+      (
+        visibleSelection!.startRow,
+        visibleSelection.startCol,
+        visibleSelection.endRow,
+        visibleSelection.endCol,
+      ),
+      (0, 1, 1, 80),
+    );
+    expect(controller.textForFrame(resizedFrame), 'lpha\nbeta');
+
+    final offscreenFrame = const TerminalFrameDiff(
+      rows: [TerminalRow(index: 0, text: 'after')],
+      cursor: TerminalCursor(row: 0, col: 0, visible: true),
+      viewportRows: 1,
+      viewportCols: 80,
+      dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+      scrollbackOffset: 0,
+      scrollbackMaxOffset: 0,
+      viewportStartRow: 104,
+    );
+
+    expect(controller.selection, isNotNull);
+    expect(controller.selectionForFrame(offscreenFrame), isNull);
+    expect(controller.textForFrame(offscreenFrame), isEmpty);
+  });
+
   test(
     'textForFrame clips stable selections entering from above the viewport',
     () {

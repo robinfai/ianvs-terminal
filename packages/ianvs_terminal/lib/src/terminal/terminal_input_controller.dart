@@ -163,13 +163,22 @@ class TerminalInputController {
     required String text,
   }) {
     if (emulation == TerminalEmulation.xterm256 && modes.bracketedPaste) {
+      final sanitizedText = _sanitizeBracketedPasteText(text);
       return Uint8List.fromList(
         ascii.encode('\x1B[200~') +
-            utf8.encode(text) +
+            utf8.encode(sanitizedText) +
             ascii.encode('\x1B[201~'),
       );
     }
     return Uint8List.fromList(utf8.encode(text));
+  }
+
+  static String _sanitizeBracketedPasteText(String text) {
+    return text
+        .replaceAll('\x1B[200~', '')
+        .replaceAll('\x1B[201~', '')
+        .replaceAll('\u{009B}200~', '')
+        .replaceAll('\u{009B}201~', '');
   }
 
   static List<int>? keyBytesFor({

@@ -19,9 +19,9 @@ verification was executed through the capture helper.
 Latest full-run evidence directory:
 `build/local-terminal-verification/20260516T145142Z-all-automated`.
 
-Current execution blocker: all required verification gates now have passing
-ledger evidence. The remaining work is canonical evidence conversion and final
-completion-report rebuild.
+Current execution blocker: none for the required local-terminal closure
+baseline. All required verification gates have passing ledger evidence,
+canonical latest-passed records, and verified current completion-state evidence.
 
 ## What Counts As Authorization
 
@@ -102,6 +102,6 @@ Even after authorization and execution, do not mark the objective complete until
 
 ## Current Status
 
-Verification authorization has been given and partial automated evidence has
-been recorded. The objective remains blocked because broader, integration/smoke,
-manual gates, and canonical verification-evidence conversion are not complete.
+Verification authorization has been given. Automated, integration/smoke,
+manual/integration-backed gates, and canonical verification-evidence conversion
+are complete for the required closure baseline.

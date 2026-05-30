@@ -29,18 +29,23 @@ Add visual or automated probes for xterm.js rendering/glyph/DPR rows that are re
 
 ## Probe Evidence
 
-- `cd example && flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "bold and dim"` passes and covers the dim-color resolution portion of a combined bold+dim style run.
-- `flutter test test/terminal/render_terminal_viewport_test.dart --plain-name style` passes existing style-color and default-style-adjacent tests, but not the exact bold+faint or default-font-weight assertions.
-- Render code resolves default font weight as `FontWeight.w400` and bold as `FontWeight.w700`; no test names the default-weight xterm row.
-- `flutter test test/terminal/selection_controller_test.dart` passes text/cell geometry for wide, emoji, and combining glyphs, but does not include the upstream open-screen code points.
-- Render tests include device-pixel snapping, but no screenshot probe for fractional 1.25x/1.5x text blur.
-- Visual-only checks are queued in [../../XTERM_MANUAL_CONFIRMATION_QUEUE.md](../../XTERM_MANUAL_CONFIRMATION_QUEUE.md): rounded selection corners (M-005), fractional DPR blur (M-006), high-DPI/open-screen glyphs (M-007), and default/bold+faint visual weight (M-008).
+- `cd example && flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "bold and dim"` passes and now covers the dim-color resolution portion of a combined bold+dim style run, `FontWeight.w700` for the bold+dim cell, and `FontWeight.w400` for the adjacent default cell.
+- `flutter test test/terminal/render_terminal_viewport_test.dart --plain-name style` passes existing style-color and default-style-adjacent tests.
+- Render debug cells expose resolved `fontWeight`, so the default-weight and bold+faint xterm rows are pinned without relying only on visual inspection.
+- `flutter test test/terminal/selection_controller_test.dart` passes text/cell geometry for wide, emoji, and combining glyphs.
+- `flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport keeps selection paint inside cell bounds"` passes and samples selected-cell interior plus adjacent edges to prove selection paint stays inside selected terminal cell bounds.
+- `flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport keeps open-screen scan-line glyphs in single cells"` passes and verifies `U+23BA` through `U+23BD` occupy sequential single cells with the cursor aligned after them.
+- `flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport snaps baselines, background spans, and powerline rects to device pixels"` passes at DPR 1.25, 1.5, and 2.5 and covers text baseline, background span, and powerline placement rect snapping.
+- Render tests include explicit fractional-DPR device-pixel snapping, but no host-display screenshot probe for fractional 1.25x/1.5x text blur.
+- Computer Use visual pass on 2026-05-29, macOS 15.7.7 DPR 2.0: multi-row selection corners looked clean, ANSI default/bold/faint/bold+faint rows had the expected relative visual weight, and powerline/open-screen scan-line glyphs plus wide CJK and emoji rendered without fallback boxes or obvious overlap.
+- Fractional-DPR host blur remains unconfirmed because the current Computer Use visual run used DPR 2.0, not 125% or 150% display scaling. The widget harness now covers the fractional snapping geometry at DPR 1.25 and 1.5.
+- Rendering visual checks M-005, M-007, and M-008 are recorded as covered for the current product behavior. The remaining visual-only queue item is fractional DPR blur at 125%/150% display scaling in [../../XTERM_MANUAL_CONFIRMATION_QUEUE.md](../../XTERM_MANUAL_CONFIRMATION_QUEUE.md) item M-006.
 
 ## Functional Acceptance
 
-- Add a test for a single style run that is both bold and dim/faint.
-- Add a default-font-weight assertion on resolved cells or text style.
-- Add open-screen Unicode code point fixtures from the upstream xterm.js change.
+- Add a test for a single style run that is both bold and dim/faint. Done in `example/test/terminal/render_terminal_viewport_test.dart`.
+- Add a default-font-weight assertion on resolved cells or text style. Done through `TerminalResolvedCell.fontWeight`.
+- Add open-screen Unicode code point fixtures from the upstream xterm.js change. Done for scan-line glyphs `U+23BA` through `U+23BD`.
 - Add a fractional-DPR screenshot or pixel-snapping probe if the test harness can set the needed DPR.
 - Document any visual-only residual risk in the audit.
 
@@ -51,6 +56,9 @@ See [../../TESTING.md](../../TESTING.md).
 ```bash
 cd example
 flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "bold and dim"
+flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport keeps selection paint inside cell bounds"
+flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport keeps open-screen scan-line glyphs in single cells"
+flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport snaps baselines, background spans, and powerline rects to device pixels"
 flutter test test/terminal/render_terminal_viewport_test.dart --plain-name style
 flutter test test/terminal/render_terminal_viewport_test.dart --plain-name device-pixel
 flutter test test/terminal/selection_controller_test.dart
@@ -61,6 +69,7 @@ flutter test test/terminal/selection_controller_test.dart
 1. On a display scaled to 125% or 150%, render dense terminal text and compare screenshots before/after probe changes.
 2. Select text with rounded selection styling and inspect corner clipping.
 3. Render the upstream open-screen Unicode code points and confirm cell widths.
+4. Compare ANSI default, bold, faint, and bold+faint rows in the example app.
 
 ## Done When
 

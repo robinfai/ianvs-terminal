@@ -77,5 +77,12 @@ Avoid:
 
 ## Current status
 
-Patch checklist created. The production file has not been changed by this
-checklist, and no verification has been run in this session.
+Implemented and focused-tested. `ShellScreen` imports
+`local_terminal_shell_ui_wiring_exports.dart`, holds a pending completion
+diagnostics snapshot outside `build`, and renders
+`LocalTerminalCompletionDiagnosticsPanel` in the existing toolbelt without
+changing tab, pane, paste, notification, visual, or action execution behavior.
+
+Verification on 2026-05-29:
+
+- `cd example && flutter test test/widget_test.dart --plain-name "toolbelt opens a sidebar with terminal tool shortcuts"` passed after rerun. The first parallel attempt failed in Flutter native asset setup before test execution because `objective_c.dylib` was temporarily missing during concurrent startup.

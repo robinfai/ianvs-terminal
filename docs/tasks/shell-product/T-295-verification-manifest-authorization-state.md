@@ -8,7 +8,7 @@ verification manifest.
 ## Scope
 
 - Update `docs/LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json` with the
-  authorization gate document and current `not_authorized` state.
+  authorization gate document and the then-current not-authorized state.
 - Update manifest maintenance rules.
 - Update task and status indexes.
 
@@ -22,7 +22,7 @@ verification manifest.
 ## Acceptance
 
 - The manifest lists the authorization gate document.
-- The manifest records that verification is currently not authorized.
+- The manifest records the authorization state for the task moment.
 - The manifest includes examples of authorizing and non-authorizing requests.
 
 ## Verification Commands
@@ -40,6 +40,8 @@ evidence.
 
 ## Remaining Risks
 
-- The JSON manifest still needs syntax validation before tooling relies on it.
-- Verification remains blocked until explicit authorization and recorded
-  passing evidence exist.
+- Historical at task creation: the JSON manifest still needed syntax validation
+  and verification remained blocked until explicit authorization and passing
+  evidence existed.
+- Current state: the manifest now records authorized/verified state and was
+  parsed successfully; required baseline evidence is recorded.

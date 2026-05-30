@@ -28,15 +28,16 @@ Define and implement a ianvs terminal runtime contract for xterm synchronized ou
 
 ## Probe Evidence
 
-- `rg -n "2026|synchronized" native/core/src native/vendor/par-term-emu-core-rust/src` shows a vendored parser toggle, but no ianvs terminal `TerminalFrameModes` field or runtime frame deferral contract.
+- `cargo test --manifest-path native/core/Cargo.toml --test session_test synchronized_output` passes and proves output between `CSI ? 2026 h` and `CSI ? 2026 l` is not published as an intermediate frame; disabling synchronized output flushes the final visible frame.
+- The vendored parser still owns the `CSI ? 2026 h/l` mode toggle and update buffer. The ianvs session contract is frame-publication level: Flutter receives only the final native frame, so no separate viewport deferral state is required.
 - `cargo test --manifest-path native/vendor/par-term-emu-core-rust/Cargo.toml test_synchronized_updates_mode_toggle` is not currently usable on this host; it fails at link time with unresolved Python/PyO3 symbols.
 
 ## Functional Acceptance
 
-- A native regression proves output written between `CSI ? 2026 h` and `CSI ? 2026 l` is not published as intermediate visible frames.
-- Disabling synchronized output flushes the latest visible frame exactly once.
+- A native regression proves output written between `CSI ? 2026 h` and `CSI ? 2026 l` is not published as intermediate visible frames. Done with `session_synchronized_output_defers_intermediate_frames_until_disable`.
+- Disabling synchronized output flushes the latest visible frame exactly once. Done with `session_synchronized_output_defers_intermediate_frames_until_disable`.
 - Resize and clipboard events still flow while synchronized output is active.
-- The audit rows for xterm.js #5453 and #5770 are updated with the final command evidence.
+- The audit rows for xterm.js #5453 and #5770 are updated with the final command evidence. Done in `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md`.
 
 ## Verification Commands
 

@@ -78,7 +78,7 @@
 
 ## Completion Audit
 
-Current conclusion: **not complete**.
+Current conclusion: **required local-terminal closure baseline verified**.
 
 The milestone plans now have broad foundation coverage across schema, models,
 repositories, reducers, policy decisions, diagnostics, UI adapters, dispatch
@@ -87,9 +87,11 @@ core required local-terminal runtime/UI baseline is now broadly wired, and the
 2026-05-16 automated loop has passing evidence for formatting, static analysis,
 completion diagnostics, P1, cross-milestone wiring, P2, P3, P4, P5,
 verification-evidence focused suites, broader project tests, and macOS
-integration smoke/real-PTY acceptance. The objective “推进完成所有计划” still
-cannot be marked complete until manual gates pass and the captured results are
-converted into canonical verification evidence.
+integration smoke/real-PTY acceptance. Manual/integration-backed gates are
+recorded, canonical verification records are represented by
+`LocalTerminalVerificationPlanRecords.latestPassed()`, and verified current
+completion state is represented by
+`LocalTerminalCurrentCompletionState.verified(...)`.
 
 Historical task log below records when foundation slices were added. Some older
 entries still describe their original foundation-stage remaining work; the
@@ -148,7 +150,7 @@ T-263, T-264, T-265, T-266, T-267, T-268, T-269, T-270, T-271, T-272, T-273, T-2
 
 - T-163 Local terminal completion audit checklist: CREATED. Added `docs/LOCAL_TERMINAL_COMPLETION_AUDIT_CHECKLIST_2026-05.md` to map the active objective to concrete evidence requirements and explicitly record remaining production wiring and verification blockers.
 
-- T-164 through T-169 real wiring backlog: WIRED / UNVERIFIED. Added `docs/LOCAL_TERMINAL_REAL_WIRING_BACKLOG_2026-05.md` and six tasks for P1-P5 production wiring plus final verification/closure. T-164 through T-168 now have implemented-but-unverified evidence; T-169 verification remains pending.
+- T-164 through T-169 real wiring backlog: VERIFIED. Added `docs/LOCAL_TERMINAL_REAL_WIRING_BACKLOG_2026-05.md` and six tasks for P1-P5 production wiring plus final verification/closure. T-164 through T-169 now have verified evidence through `LocalTerminalRealWiringBacklogEvidence.currentVerified(...)`.
 
 - T-170 Local terminal action domain router: FOUNDATION. Added routing from workspace/productivity/policy/visual production wiring into shell action callbacks while preserving missing-operation blockers; real ShellScreen domain callback population remains pending.
 
@@ -318,13 +320,13 @@ state.
 
 - T-293 Root README verification link: CREATED. Linked the local-terminal final verification handoff and helper index from the repository root README; no helper or verification command was run.
 
-- T-294 Verification authorization gate: CREATED. Added `docs/LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md` to define what counts as explicit authorization to run final verification; no authorization has been given and no verification was run.
+- T-294 Verification authorization gate: CREATED / SUPERSEDED. Added `docs/LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md` to define what counts as explicit authorization to run final verification; later verification was authorized and executed.
 
-- T-295 Verification manifest authorization state: CREATED / NOT VALIDATED. Updated `docs/LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json` with the authorization gate path and current `not_authorized` state; the JSON was not parsed and no verification was run.
+- T-295 Verification manifest authorization state: CREATED / SUPERSEDED. Updated `docs/LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json` with the authorization gate path and the then-current not-authorized state; later the manifest was updated to authorized/verified state and parsed successfully.
 
-- T-296 Verification status authorization state: CREATED / NOT RUN. Updated `tools/local_terminal_verification_status.sh` to print the current `not authorized` verification state and authorization gate path; the helper has not been executed and no verification was run.
+- T-296 Verification status authorization state: CREATED / SUPERSEDED. Updated `tools/local_terminal_verification_status.sh` to print the authorization state and gate path; later the helper was updated and run with verified status.
 
-- T-297 Verification blocked-state handoff: CREATED. Added `docs/LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md` to record that the remaining blocker is verification authorization and real evidence, not additional preparation artifacts; no verification was run.
+- T-297 Verification blocked-state handoff: CREATED / SUPERSEDED. Added `docs/LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md` to record that the remaining blocker was verification authorization and real evidence, not additional preparation artifacts; later the required baseline evidence was recorded.
 
 - T-298 Verification execution state refresh: PARTIAL / BLOCKED. Verification
   was authorized and executed through
@@ -582,9 +584,9 @@ state.
 - T-333 Verification ledger status refresh: UPDATED. Updated the evidence
   ledger, manifest, final handoff, audit checklist, failure triage log, and
   status helper so all required automated, integration, and manual/integration-
-  backed gates point at the latest passing evidence. Remaining closure work is
-  ledger-to-`LocalTerminalVerificationGateRecord` conversion and completion-
-  evidence rebuild, not more verification execution.
+  backed gates point at the latest passing evidence. This was superseded by
+  T-334 through T-336, which completed ledger-to-`LocalTerminalVerificationGateRecord`
+  conversion and completion-evidence rebuild.
 
 ### T-334 - Persist final passed verification records
 - Status: completed
@@ -600,3 +602,17 @@ state.
 - Status: completed
 - Evidence: `LocalTerminalRealWiringBacklogEvidence.currentVerified`, `LocalTerminalCurrentCompletionState.verified`, and `LocalTerminalCompletionController.verified` now convert the final passed gate evidence into a closeable `LocalTerminalCompletionEvidenceReport`.
 - Verification: focused completion-state/facade/controller/verification-plan tests passed 15/15; final `flutter analyze` reported no issues.
+
+### T-337 - Local terminal status document alignment
+- Status: completed
+- Evidence: handoff, audit checklist, audit snapshot, authorization gate,
+  blocked-state handoff, helper index, failure triage log, manifest
+  maintenance notes, real wiring backlog, T-169, and historical authorization
+  task notes now reflect that the required local-terminal closure baseline is
+  verified.
+- Verification: `flutter test
+  example/test/shell/local_terminal_verification_plan_records_test.dart
+  example/test/shell/local_terminal_current_completion_state_test.dart` passed
+  8/8, `bash tools/local_terminal_verification_status.sh` prints `verified`,
+  stale blocked/conversion-pending status search returned no matches, and
+  `git diff --check` passed.

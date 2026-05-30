@@ -80,4 +80,5 @@ batches have passing captured evidence. The latest `broader` rerun passed in
 integration batch passed in
 `build/local-terminal-verification/20260516T171644Z-integration`.
 
-Ledger-to-record conversion remains pending.
+Ledger-to-record conversion is represented by
+`LocalTerminalVerificationPlanRecords.latestPassed()`.

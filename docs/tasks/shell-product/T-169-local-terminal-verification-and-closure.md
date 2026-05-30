@@ -35,4 +35,19 @@ P0-P5 execution plan.
 
 ## Status
 
-Pending.
+Verified for the required local-terminal closure baseline.
+
+Evidence:
+
+- All required verification gates are recorded as passed in
+  `docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md`.
+- Canonical gate records are represented by
+  `LocalTerminalVerificationPlanRecords.latestPassed()`.
+- T-164 through T-169 verified backlog evidence is represented by
+  `LocalTerminalRealWiringBacklogEvidence.currentVerified(...)`.
+- `LocalTerminalCurrentCompletionState.verified(...)` builds a closeable
+  completion evidence report.
+- 2026-05-29 maintenance check: `flutter test
+  example/test/shell/local_terminal_verification_plan_records_test.dart
+  example/test/shell/local_terminal_current_completion_state_test.dart` passed
+  8/8 after status-document alignment.

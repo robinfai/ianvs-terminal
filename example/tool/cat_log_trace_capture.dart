@@ -11,6 +11,8 @@ const int _viewportRows = 40;
 const int _viewportCols = 142;
 const Duration _pollPause = Duration(milliseconds: 1);
 const int _defaultTimeoutSeconds = 20;
+const String _pasteSentinel = 'ianvs-paste-end';
+const String _searchQuery = 'search-needle';
 
 Future<void> main(List<String> args) async {
   final options = _BenchmarkArgs.parse(args);
@@ -34,6 +36,10 @@ Future<void> main(List<String> args) async {
   final resizeEvents = <Map<String, Object?>>[];
   final inputEchoText =
       'ianvs-input-echo-${DateTime.now().microsecondsSinceEpoch}';
+  final pastePayloadText =
+      options.scenario == _BenchmarkScenario.pasteThroughput
+      ? fixtureFile.readAsStringSync()
+      : '';
   final timeout = Stopwatch()..start();
   final timeoutLimit = Duration(seconds: options.timeoutSeconds);
   var seenExit = false;
@@ -42,8 +48,13 @@ Future<void> main(List<String> args) async {
   var resizeApplied = false;
   var inputEchoSent = false;
   var inputEchoObserved = false;
+  var pasteSent = false;
+  var pasteObserved = false;
   Stopwatch? inputEchoWatch;
+  Stopwatch? pasteWatch;
   int? inputToDisplayMicros;
+  int? pasteToDisplayMicros;
+  Map<String, Object?>? searchProbe;
   Map<String, Object?> sessionDebugStats = const <String, Object?>{};
 
   try {
@@ -58,6 +69,11 @@ Future<void> main(List<String> args) async {
       inputEchoSent = true;
       inputEchoWatch = Stopwatch()..start();
       backend.writeInput(sessionId, utf8.encode('$inputEchoText\n'));
+    }
+    if (options.scenario == _BenchmarkScenario.pasteThroughput) {
+      pasteSent = true;
+      pasteWatch = Stopwatch()..start();
+      backend.writeInput(sessionId, utf8.encode(pastePayloadText));
     }
 
     while (!seenExit || emptyPollsAfterExit < 3) {
@@ -134,6 +150,14 @@ Future<void> main(List<String> args) async {
           inputToDisplayMicros = inputEchoWatch?.elapsedMicroseconds;
           backend.writeInput(sessionId, utf8.encode('exit\n'));
         }
+        if (options.scenario == _BenchmarkScenario.pasteThroughput &&
+            pasteSent &&
+            !pasteObserved &&
+            rawFrame.contains(_pasteSentinel)) {
+          pasteObserved = true;
+          pasteWatch?.stop();
+          pasteToDisplayMicros = pasteWatch?.elapsedMicroseconds;
+        }
       } else if (seenExit) {
         emptyPollsAfterExit += 1;
       }
@@ -148,6 +172,9 @@ Future<void> main(List<String> args) async {
       if (rawFrame == null || rawFrame.isEmpty) {
         await Future<void>.delayed(_pollPause);
       }
+    }
+    if (options.scenario == _BenchmarkScenario.searchExtraction && !timedOut) {
+      searchProbe = _runSearchProbe(backend, sessionId);
     }
   } finally {
     final rawSessionDebugStats = backend.takeDiagnosticsJson(
@@ -174,6 +201,9 @@ Future<void> main(List<String> args) async {
     resizeEvents: resizeEvents,
     inputEchoText: inputEchoText,
     inputToDisplayMicros: inputToDisplayMicros,
+    pastePayloadText: pastePayloadText,
+    pasteToDisplayMicros: pasteToDisplayMicros,
+    searchProbe: searchProbe,
   );
   if (timedOut) {
     exitCode = 1;
@@ -193,6 +223,9 @@ void _writeTrace({
   required List<Map<String, Object?>> resizeEvents,
   required String inputEchoText,
   required int? inputToDisplayMicros,
+  required String pastePayloadText,
+  required int? pasteToDisplayMicros,
+  required Map<String, Object?>? searchProbe,
 }) {
   final traceFile = File('${outDir.path}/cat-log-benchmark.trace.json');
   final snapshotFrames = traceFrames
@@ -226,6 +259,15 @@ void _writeTrace({
           'observed': inputToDisplayMicros != null,
           'inputToDisplayMicros': inputToDisplayMicros,
         },
+      if (scenario == _BenchmarkScenario.pasteThroughput)
+        'pasteProbe': <String, Object?>{
+          'sentinel': _pasteSentinel,
+          'observed': pasteToDisplayMicros != null,
+          'inputToDisplayMicros': pasteToDisplayMicros,
+          'payloadBytes': utf8.encode(pastePayloadText).length,
+          'payloadLines': '\n'.allMatches(pastePayloadText).length,
+        },
+      if (searchProbe != null) 'searchProbe': searchProbe,
       'viewport': <String, Object?>{
         'logicalWidth': _logicalWidth,
         'logicalHeight': _logicalHeight,
@@ -257,6 +299,9 @@ void _writeTrace({
         'meanJsonBytes': frameCount == 0 ? 0 : totalJsonBytes / frameCount,
         if (scenario == _BenchmarkScenario.inputEcho)
           'inputToDisplayMicros': inputToDisplayMicros,
+        if (scenario == _BenchmarkScenario.pasteThroughput)
+          'pasteToDisplayMicros': pasteToDisplayMicros,
+        if (searchProbe != null) 'searchProbe': searchProbe,
         'sessionDebugStats': sessionDebugStats,
       },
       'frames': traceFrames,
@@ -308,6 +353,15 @@ String _scenarioCommand(_BenchmarkScenario scenario, File fixtureFile) {
           r'printf "stream-scroll frame %04d payload=%048d\\n" "$i" "$i"; '
           r'i=$((i + 1)); sleep 0.001; done',
     _BenchmarkScenario.resize => 'sleep 0.06; exec /bin/cat $fixture',
+    _BenchmarkScenario.urlHeavy => 'sleep 0.06; exec /bin/cat $fixture',
+    _BenchmarkScenario.unicodeHeavy => 'sleep 0.06; exec /bin/cat $fixture',
+    _BenchmarkScenario.searchExtraction => 'sleep 0.06; exec /bin/cat $fixture',
+    _BenchmarkScenario.parserHeavy => 'sleep 0.06; exec /bin/cat $fixture',
+    _BenchmarkScenario.pasteThroughput =>
+      r'sleep 0.06; printf "paste-ready\n"; '
+          r'while IFS= read -r line; do '
+          r'printf "paste-echo:%s\n" "$line"; '
+          r'[ "$line" = "ianvs-paste-end" ] && exit 0; done',
     _BenchmarkScenario.alternateScreen =>
       'sleep 0.06; printf "\\033[?1049h"; '
           r'i=0; while [ "$i" -lt 220 ]; do '
@@ -325,16 +379,160 @@ String _shellQuote(String value) {
   return "'${value.replaceAll("'", "'\"'\"'")}'";
 }
 
+Map<String, Object?> _runSearchProbe(
+  NativePtyBackend backend,
+  String sessionId,
+) {
+  final samples = <int>[];
+  var matchCount = 0;
+  var resultBytes = 0;
+  String? errorText;
+  for (var attempt = 0; attempt < 3; attempt += 1) {
+    final watch = Stopwatch()..start();
+    final raw = backend.requestSessionJson(
+      sessionId,
+      jsonEncode(<String, Object?>{
+        'kind': 'terminal.search_text',
+        'query': _searchQuery,
+        'mode': 'case_sensitive_substring',
+      }),
+    );
+    watch.stop();
+    samples.add(watch.elapsedMicroseconds);
+    if (raw == null || raw.isEmpty) {
+      continue;
+    }
+    resultBytes = utf8.encode(raw).length;
+    final decoded = (jsonDecode(raw) as Map).cast<String, Object?>();
+    final matches = decoded['matches'];
+    if (matches is List) {
+      matchCount = matches.length;
+    }
+    final rawErrorText = decoded['error_text'] ?? decoded['errorText'];
+    if (rawErrorText is String && rawErrorText.isNotEmpty) {
+      errorText = rawErrorText;
+    }
+  }
+  return <String, Object?>{
+    'query': _searchQuery,
+    'mode': 'case_sensitive_substring',
+    'attempts': samples.length,
+    'elapsedMicros': _microsSummary(samples),
+    'matchCount': matchCount,
+    'resultBytes': resultBytes,
+    if (errorText != null) 'errorText': errorText,
+  };
+}
+
+Map<String, Object?> _microsSummary(List<int> values) {
+  if (values.isEmpty) {
+    return const <String, Object?>{
+      'count': 0,
+      'min': 0,
+      'max': 0,
+      'mean': 0,
+      'p50': 0,
+      'p95': 0,
+    };
+  }
+  final sorted = values.toList()..sort();
+  final total = values.fold<int>(0, (sum, value) => sum + value);
+  return <String, Object?>{
+    'count': values.length,
+    'min': sorted.first,
+    'max': sorted.last,
+    'mean': total / values.length,
+    'p50': _percentile(sorted, 0.50),
+    'p95': _percentile(sorted, 0.95),
+  };
+}
+
+int _percentile(List<int> sorted, double percentile) {
+  if (sorted.length == 1) {
+    return sorted.single;
+  }
+  final index = ((sorted.length - 1) * percentile).round();
+  return sorted[index.clamp(0, sorted.length - 1)];
+}
+
 String _buildFixtureText(_BenchmarkScenario scenario) {
   final buffer = StringBuffer();
   final lineCount = switch (scenario) {
     _BenchmarkScenario.bulkOutput => 6000,
     _BenchmarkScenario.resize => 1800,
+    _BenchmarkScenario.urlHeavy => 3200,
+    _BenchmarkScenario.unicodeHeavy => 2400,
+    _BenchmarkScenario.searchExtraction => 4200,
+    _BenchmarkScenario.parserHeavy => 3200,
+    _BenchmarkScenario.pasteThroughput => 640,
     _BenchmarkScenario.streamingScroll => 900,
     _BenchmarkScenario.alternateScreen => 220,
     _BenchmarkScenario.inputEcho => 8,
   };
   for (var index = 0; index < lineCount; index += 1) {
+    if (scenario == _BenchmarkScenario.urlHeavy) {
+      final padded = index.toString().padLeft(6, '0');
+      buffer.writeln(
+        'url-heavy $padded https://example.test/log/$padded?q=alpha '
+        'http://127.0.0.1:8080/s/$padded file:///tmp/ianvs/$padded.json',
+      );
+      continue;
+    }
+    if (scenario == _BenchmarkScenario.unicodeHeavy) {
+      final padded = index.toString().padLeft(6, '0');
+      final cluster = switch (index % 4) {
+        0 =>
+          '\u6f22\u5b57\u304b\u306a\u30ab\u30ca '
+              '\ud55c\uae00 e\u0301 a\u0308 \u{1f642}\u{1f680}',
+        1 =>
+          '\u05e9\u05dc\u05d5\u05dd '
+              '\u0645\u0631\u062d\u0628\u0627 '
+              '\u{1f469}\u200d\u{1f4bb} \u2713',
+        2 =>
+          '\u0e2a\u0e27\u0e31\u0e2a\u0e14\u0e35 '
+              '\u0928\u092e\u0938\u094d\u0924\u0947 '
+              '\u{1f3f3}\ufe0f\u200d\u{1f308}',
+        _ =>
+          '\u0394\u03bf\u03ba\u03b9\u03bc\u03ae '
+              '\u043f\u0440\u0438\u0432\u0435\u0442 '
+              '\u4e2d\u6587\u6df7\u6392',
+      };
+      buffer.writeln(
+        'unicode-heavy $padded $cluster width=${index % 17} '
+        'path=/tmp/ianvs/unicode/$padded status=ok',
+      );
+      continue;
+    }
+    if (scenario == _BenchmarkScenario.searchExtraction) {
+      final padded = index.toString().padLeft(6, '0');
+      buffer.writeln(
+        'search-extraction $padded $_searchQuery bucket=${index % 31} '
+        'message="indexed text extraction benchmark line $index"',
+      );
+      continue;
+    }
+    if (scenario == _BenchmarkScenario.parserHeavy) {
+      final padded = index.toString().padLeft(6, '0');
+      final red = (index * 17) % 256;
+      final green = (index * 29) % 256;
+      final blue = (index * 43) % 256;
+      buffer.writeln(
+        '\x1B[${30 + (index % 8)}mparser-heavy $padded\x1B[0m '
+        '\x1B[38;2;$red;$green;${blue}mtruecolor-$padded\x1B[0m '
+        '\x1B]8;;https://parser.example/$padded\x07link-$padded\x1B]8;;\x07 '
+        '\x1B[1;3;4mstyled\x1B[22;23;24m plain text payload=$index',
+      );
+      continue;
+    }
+    if (scenario == _BenchmarkScenario.pasteThroughput) {
+      final padded = index.toString().padLeft(6, '0');
+      final line = index == lineCount - 1
+          ? _pasteSentinel
+          : 'paste-throughput $padded payload=${index % 97} '
+                'abcdefghijklmnopqrstuvwxyz0123456789';
+      buffer.writeln(line);
+      continue;
+    }
     final level = switch (index % 5) {
       0 => 'INFO',
       1 => 'DEBUG',
@@ -370,6 +568,11 @@ enum _BenchmarkScenario {
   bulkOutput('bulk-output'),
   streamingScroll('streaming-scroll'),
   resize('resize'),
+  urlHeavy('url-heavy'),
+  unicodeHeavy('unicode-heavy'),
+  searchExtraction('search-extraction'),
+  parserHeavy('parser-heavy'),
+  pasteThroughput('paste-throughput'),
   alternateScreen('alternate-screen'),
   inputEcho('input-echo');
 
@@ -383,9 +586,10 @@ enum _BenchmarkScenario {
         return scenario;
       }
     }
+    final expected = values.map((scenario) => scenario.id).join(', ');
     _BenchmarkArgs._usageAndExit(
       'Unknown --scenario: $value '
-      '(expected bulk-output, streaming-scroll, resize, alternate-screen, or input-echo)',
+      '(expected $expected)',
     );
   }
 }
@@ -475,7 +679,7 @@ class _BenchmarkArgs {
     stderr.writeln(
       'Usage: dart run tool/cat_log_trace_capture.dart '
       '--out-dir /absolute/output/dir '
-      '[--scenario bulk-output|streaming-scroll|resize|alternate-screen|input-echo] '
+      '[--scenario bulk-output|streaming-scroll|resize|url-heavy|unicode-heavy|search-extraction|parser-heavy|paste-throughput|alternate-screen|input-echo] '
       '[--fixture /absolute/fixture.log] [--timeout-sec 20] '
       '[--include-raw-frames]',
     );

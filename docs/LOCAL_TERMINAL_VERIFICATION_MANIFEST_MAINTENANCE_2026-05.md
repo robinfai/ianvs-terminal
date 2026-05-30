@@ -70,8 +70,8 @@ The manifest cannot:
 ## Current Status
 
 The manifest has been updated to mirror the authorized state after automated
-and integration gates passed, with manual gates and evidence conversion still
-pending. It was parsed with
+and integration gates passed; manual/integration-backed gates and evidence
+conversion are complete for the required baseline. It was parsed with
 `python3 -m json.tool docs/LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json`.
 
 It still must not be used as passing verification evidence. The canonical

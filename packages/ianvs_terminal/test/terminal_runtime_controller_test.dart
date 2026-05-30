@@ -1303,6 +1303,133 @@ void main() {
     },
   );
 
+  testWidgets(
+    'terminal runtime controller applies resize before queued write frames',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final timeline = <String>[];
+      final eventSubscription = runtime.events.listen((event) {
+        if (event is TerminalSessionFrameEvent) {
+          timeline.add(
+            'frame:${event.frame.viewportCols}x'
+            '${event.frame.viewportRows}:'
+            '${event.frame.rows.first.text}',
+          );
+        }
+      });
+      addTearDown(eventSubscription.cancel);
+      final resizeSubscription = runtime.resizeEvents.listen((event) {
+        timeline.add('resize:${event.cols}x${event.rows}');
+      });
+      addTearDown(resizeSubscription.cancel);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtime.resizeSession(sessionId, const Size(180, 144), 1);
+      await tester.pump();
+      timeline.clear();
+
+      runtimeBackend.enqueueFrame(
+        sessionId,
+        _singleRowSnapshot(
+          'write before resize',
+          viewportCols: 20,
+          viewportRows: 8,
+        ),
+      );
+      runtimeBackend.setFrame(
+        sessionId,
+        _singleRowSnapshot('resize settled', viewportCols: 21, viewportRows: 9),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'resize',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'cols': 21, 'rows': 9},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+      await tester.pump();
+      await tester.pump();
+
+      expect(utf8.decode(runtimeBackend.writeCalls.last), 'A');
+      expect(runtimeBackend.resizeCalls.last, <Object?>['1', 21, 9, 189, 162]);
+      expect(timeline, <String>['resize:21x9', 'frame:21x9:resize settled']);
+      expect(
+        runtime.viewportFor(sessionId).frame.rows.first.text,
+        'resize settled',
+      );
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller handles OSC 52 base64 copy edge cases',
+    (tester) async {
+      final copiedTexts = <String>[];
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (text) async {
+          copiedTexts.add(text);
+        },
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final paddedPayload = base64.encode(utf8.encode('padded ok'));
+      final whitespacePayload =
+          '${paddedPayload.substring(0, 4)}\n ${paddedPayload.substring(4)}';
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        const PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: '1',
+          payload: <String, Object?>{'data': 'not-valid-base64!!!'},
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{'data': whitespacePayload},
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'data': ''},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(copiedTexts, <String>['padded ok', '']);
+    },
+  );
+
   testWidgets('terminal runtime controller dispose closes active sessions', (
     tester,
   ) async {
@@ -1693,15 +1820,19 @@ class _StartedEventPtyBackend extends _FakePtyBackend {
   }
 }
 
-Map<String, Object?> _singleRowSnapshot(String text) {
+Map<String, Object?> _singleRowSnapshot(
+  String text, {
+  int viewportRows = 24,
+  int viewportCols = 80,
+}) {
   return <String, Object?>{
     'frame_kind': 'snapshot',
     'rows': <Object?>[
       <String, Object?>{'index': 0, 'text': text, 'style_runs': const []},
     ],
     'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
-    'viewport_rows': 24,
-    'viewport_cols': 80,
+    'viewport_rows': viewportRows,
+    'viewport_cols': viewportCols,
     'dirty_ranges': <Object?>[
       <String, Object?>{'start': 0, 'end': 1},
     ],

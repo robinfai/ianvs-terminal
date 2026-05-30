@@ -115,6 +115,16 @@ void main() {
     }
   });
 
+  test('bracketed paste removes embedded paste markers before wrapping', () {
+    final bytes = TerminalInputController.clipboardPasteBytesFor(
+      emulation: TerminalEmulation.xterm256,
+      modes: const TerminalFrameModes(bracketedPaste: true),
+      text: 'safe\x1B[201~echo unsafe\x1B[200~tail\u{009B}201~end',
+    );
+
+    expect(utf8.decode(bytes), '\x1B[200~safeecho unsafetailend\x1B[201~');
+  });
+
   testWidgets('terminal viewport forwards repeated backspace events', (
     tester,
   ) async {

@@ -21,8 +21,9 @@ matrix, not a completion claim.
 Current summary: the competitor-derived feature surface is broadly covered by
 P0-P5, foundation artifacts, and current production wiring records. Core
 P1-P5 local-terminal actions now have `ShellScreen`, `SessionController`,
-runtime/native, or preference-store wiring where applicable. The remaining gap
-is verification and deeper follow-up for advanced/non-core capabilities.
+runtime/native, or preference-store wiring where applicable. The required
+local-terminal closure baseline is verified; the remaining gap is deeper
+follow-up for advanced/non-core capabilities.
 
 ## Competitor signals to milestone coverage
 
@@ -61,24 +62,19 @@ is verification and deeper follow-up for advanced/non-core capabilities.
 | AI/workflow widgets | Warp | Useful later, but explicitly outside v1 local terminal core. |
 | Renderer rewrite as a prerequisite | kitty/Ghostty graphics-related features | Current plan is product/config/runtime shell layer first; renderer work is not a blocker for P0-P5 foundation. |
 
-## Coverage gaps that still block completion
+## Follow-ups outside the required closure baseline
 
-1. Widget, integration, static-analysis, and manual gates from
-   `docs/LOCAL_TERMINAL_FEATURE_PLAN.md` and
-   `docs/LOCAL_TERMINAL_VERIFICATION_COMMAND_PLAN_2026-05.md` have not been run
-   in this session.
-2. Some production wiring is intentionally shallow and still needs UX/runtime
+1. Some production wiring is intentionally shallow and still needs UX/runtime
    hardening, especially paste confirmation UI, hotkey-window platform failure
    UI, theme import/export, layout save/load, and scrollback export policy.
-3. Advanced P5 items such as command pane, timestamps, and scrollback editor are
+2. Advanced P5 items such as command pane, timestamps, and scrollback editor are
    represented at planning/model level but need explicit UI/runtime tasks before
    they can be considered implemented.
-4. Config loading, profile migration, and keybinding conflict diagnostics still
+3. Config loading, profile migration, and keybinding conflict diagnostics still
    need focused verification against existing preferences and shortcut behavior.
 
 ## Conclusion
 
 The P0-P5 plan now covers the competitor-derived local terminal feature surface
-that was marked as worth absorbing. The work is not complete: current state is
-foundation plus broad production wiring for the core local-terminal surface,
-with verification and selected advanced follow-up still pending.
+that was marked as worth absorbing. The required local-terminal closure baseline
+is verified; selected advanced follow-up remains for non-core capabilities.

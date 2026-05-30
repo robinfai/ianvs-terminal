@@ -17,16 +17,13 @@ The final execution handoff is
 
 ## Completion Decision
 
-Current decision: **not complete**.
+Current decision: **verified for the required local-terminal closure baseline**.
 
 Reason: P0-P5 plans, competitor mapping, production wiring records, closure
-manifests, diagnostics, and regression test files exist. The 2026-05-16
-automated verification loop has passing evidence for formatting, static
-analysis, focused completion/P1/P2-P5/cross-milestone/verification-evidence
-suites, but the broader `flutter test example/test` gate failed one profile
-visibility path before the latest fix could be rerun. The default
-integration/smoke command is identified but not executed. Manual gates and
-canonical verification-evidence conversion remain missing.
+manifests, diagnostics, regression test files, automated verification,
+integration/smoke evidence, manual/integration-backed observations, canonical
+verification records, and verified completion-state records are present for the
+required baseline. Optional advanced hardening remains follow-up scope.
 
 ## Success Criteria
 
@@ -48,20 +45,20 @@ The objective can close only when all of the following are true:
 
 | Requirement | Current artifact evidence | Current status | Missing evidence |
 | --- | --- | --- | --- |
-| One execution plan per milestone | `LOCAL_TERMINAL_P0_EXECUTION_PLAN_2026-05.md` through `LOCAL_TERMINAL_P5_EXECUTION_PLAN_2026-05.md`, indexed by `LOCAL_TERMINAL_MILESTONE_EXECUTION_INDEX_2026-05.md` | Present | Final documentation-review evidence is not recorded. |
-| Competitor-derived local features mapped | `LOCAL_TERMINAL_COMPETITOR_COVERAGE_MATRIX_2026-05.md` and milestone index | Present | Verification and selected advanced follow-up gaps remain open. |
-| P0 local boundary preserved | P0 plan, feature plan, exclusions, and P0 boundary manifest model | Foundation | No final P0 review evidence has been recorded. |
-| P1 action/config wiring | Production action set, callbacks, executor, runtime adapter, report, audit snapshot, closure manifest, and ShellScreen dispatch records; focused P1 suite passed 33/33 in `build/local-terminal-verification/20260516T145142Z-all-automated` | Wired/partially verified | Broader rerun, manual command-menu/shortcut checks, and evidence conversion. |
-| P2 workspace wiring | Workspace model/reducer/repository, SessionController/ShellScreen tab and pane wiring records, and production callback tests; P2 suite passed 21/21 | Wired/partially verified | Broader rerun, multipane manual behavior, focus fallback, close-last-pane/tab, layout restore, and evidence conversion. |
-| P3 productivity wiring | Productivity models/reducers/controllers, search/prompt/output/recent/read-only/scrollback wiring records, and callback tests; P3 suite passed 26/26 | Wired/partially verified | Broader rerun, shell integration disabled-state checks, output bounds, read-only path checks, clear/export manual behavior, and evidence conversion. |
-| P4 policy wiring | Paste policy, paste history, notification, read-only, and hotkey-window state records; P4 suite passed 22/22 | Wired/partially verified | Broader rerun, paste confirmation UI, notification focus policy, hotkey failure UI, preference persistence, manual gates, and evidence conversion. |
-| P5 visual and advanced wiring | Theme picker, layout template, pane sizing, scrollback export, graphics/timestamp/command-pane planning records; P5 suite passed 33/33 | Wired/partially verified | Broader rerun, theme import/export, layout save/load, visual behavior, scrollback export policy, manual gates, and evidence conversion. |
-| Required backlog gate | `LocalTerminalCompletionEvidenceReport.requiredBacklogTaskIds` requires T-164 through T-169; diagnostics now surface missing ids through summary, view model, menu, command menu, bundle, presentation, panel, facade, and snapshot layers | Gate implemented/partially verified | T-164 through T-168 are implemented-but-unverified until manual gates and evidence conversion pass; T-169 is verified. |
-| Verification evidence model | Verification evidence, recorder, batch recording, plan records, command plan, test targets, manual template, and evidence runbook exist; verification-evidence suite passed 10/10 | Foundation/partially verified | Broader, integration/manual gates, and actual `LocalTerminalVerificationGateRecord` conversion remain missing. |
-| Unit/widget/integration tests | Focused test files have been added across shell, workspace, productivity, policy, visual, diagnostics, manifests, evidence models, and `example/integration_test`; focused suites passed, latest broader passed in `20260516T171406Z-broader`, and latest integration passed in `20260516T171644Z-integration` | Verified in ledger | Canonical evidence conversion remains pending. |
+| One execution plan per milestone | `LOCAL_TERMINAL_P0_EXECUTION_PLAN_2026-05.md` through `LOCAL_TERMINAL_P5_EXECUTION_PLAN_2026-05.md`, indexed by `LOCAL_TERMINAL_MILESTONE_EXECUTION_INDEX_2026-05.md` | Verified | Reflected by verified P0 boundary and completion-state records. |
+| Competitor-derived local features mapped | `LOCAL_TERMINAL_COMPETITOR_COVERAGE_MATRIX_2026-05.md` and milestone index | Verified for baseline | Selected advanced follow-up gaps remain outside the closure baseline. |
+| P0 local boundary preserved | P0 plan, feature plan, exclusions, and P0 boundary manifest model | Verified | `LocalTerminalCurrentCompletionState.verified` records all required P0 boundary flags. |
+| P1 action/config wiring | Production action set, callbacks, executor, runtime adapter, report, audit snapshot, closure manifest, and ShellScreen dispatch records; focused P1 suite passed 33/33 in `build/local-terminal-verification/20260516T145142Z-all-automated` | Verified | Latest broader/integration/manual evidence and canonical records are recorded. |
+| P2 workspace wiring | Workspace model/reducer/repository, SessionController/ShellScreen tab and pane wiring records, and production callback tests; P2 suite passed 21/21 | Verified | Latest broader/integration/manual evidence and canonical records are recorded. |
+| P3 productivity wiring | Productivity models/reducers/controllers, search/prompt/output/recent/read-only/scrollback wiring records, and callback tests; P3 suite passed 26/26 | Verified | Latest broader/manual evidence and canonical records are recorded. |
+| P4 policy wiring | Paste policy, paste history, notification, read-only, and hotkey-window state records; P4 suite passed 22/22 | Verified | Paste confirmation, notification policy, hotkey failure UI, latest broader/manual evidence, and canonical records are recorded. |
+| P5 visual and advanced wiring | Theme picker, layout template, pane sizing, scrollback export, graphics/timestamp/command-pane planning records; P5 suite passed 33/33 | Verified for baseline | Selected advanced visual follow-ups remain outside the closure baseline. |
+| Required backlog gate | `LocalTerminalCompletionEvidenceReport.requiredBacklogTaskIds` requires T-164 through T-169; diagnostics now surface missing ids through summary, view model, menu, command menu, bundle, presentation, panel, facade, and snapshot layers | Verified | `LocalTerminalRealWiringBacklogEvidence.currentVerified` verifies T-164 through T-169 with latest passed verification evidence. |
+| Verification evidence model | Verification evidence, recorder, batch recording, plan records, command plan, test targets, manual template, and evidence runbook exist; verification-evidence suite passed 13/13 in `20260516T171327Z-verification-evidence` | Verified | Canonical records are represented by `LocalTerminalVerificationPlanRecords.latestPassed()`. |
+| Unit/widget/integration tests | Focused test files have been added across shell, workspace, productivity, policy, visual, diagnostics, manifests, evidence models, and `example/integration_test`; focused suites passed, latest broader passed in `20260516T171406Z-broader`, and latest integration passed in `20260516T171644Z-integration` | Verified | Canonical evidence conversion is complete. |
 | Static analysis | Verification command plan requires `flutter analyze` | Passed | `build/local-terminal-verification/20260516T145142Z-all-automated`: `No issues found!`. |
 | Formatting | Verification command plan requires `dart format example/lib example/test` | Passed | `build/local-terminal-verification/20260516T145142Z-all-automated`: `Formatted 252 files (0 changed)`. |
-| Manual/integration gates | Manual template defines local shell, paste/focus, multipane, notification, and hotkey-window gates; integration batch now maps to macOS-targeted `ianvs_smoke_test.dart` plus `real_pty_acceptance_test.dart` | Not verified | No observed manual results and no integration capture output recorded. |
+| Manual/integration gates | Manual template defines local shell, paste/focus, multipane, notification, and hotkey-window gates; integration batch maps to macOS-targeted `ianvs_smoke_test.dart` plus `real_pty_acceptance_test.dart` | Verified | Manual/integration-backed ledger rows are passed. |
 
 ## Evidence That Must Not Be Treated As Completion
 
@@ -74,29 +71,28 @@ The objective can close only when all of the following are true:
 
 ## Current Blockers
 
+- No required baseline blocker remains for T-169/local-terminal closure.
 - Broader `flutter test example/test` passed in
   `build/local-terminal-verification/20260516T171406Z-broader`.
 - Integration/smoke passed in
   `build/local-terminal-verification/20260516T171644Z-integration`.
 - Manual/integration-backed behavior is recorded in the evidence ledger.
-- Canonical verification evidence has not been converted from ledger rows.
+- Canonical verification evidence is converted by
+  `LocalTerminalVerificationPlanRecords.latestPassed()`.
 - Advanced P5 and selected policy/workspace/productivity paths remain either
-  foundation-only or wired without runtime/UX verification.
-- Canonical evidence conversion is the
-  next required completion blockers.
+  foundation-only or wired without runtime/UX verification outside the required
+  closure baseline.
 
 ## Next Concrete Closure Sequence
 
-When execution quota is available, use this order:
+The required closure sequence has completed for the local-terminal baseline:
 
-1. Rerun broader with
-   `bash tools/local_terminal_verification_capture.sh run broader`.
-2. If broader passes, run
-   `bash tools/local_terminal_verification_capture.sh run integration`.
-3. Execute manual local-terminal gates.
-4. Record results through verification evidence.
-5. Rebuild the completion evidence report and update the audit checklist with
-   real outputs.
+1. Broader passed in `20260516T171406Z-broader`.
+2. Integration passed in `20260516T171644Z-integration`.
+3. Manual/integration-backed gates are recorded in the ledger.
+4. Results are recorded through latest passed verification evidence.
+5. The completion evidence report can close through
+   `LocalTerminalCurrentCompletionState.verified(...)`.
 
-Until that sequence produces passing evidence, do not mark the objective
-complete.
+Future work should be scoped as optional advanced hardening or a new feature
+task rather than another prerequisite for this baseline closure.

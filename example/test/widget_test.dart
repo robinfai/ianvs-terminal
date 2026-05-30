@@ -2891,6 +2891,11 @@ void main() {
     expect(find.text('Toolbelt'), findsOneWidget);
     expect(find.text('1 captured line'), findsOneWidget);
     expect(find.byKey(const Key('toolbelt-captured-output')), findsOneWidget);
+    expect(
+      find.byKey(const Key('toolbelt-completion-diagnostics')),
+      findsOneWidget,
+    );
+    expect(find.text('Local terminal objective is blocked'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('toolbelt-captured-output')));
     await tester.pumpAndSettle();
