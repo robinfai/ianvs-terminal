@@ -70,7 +70,7 @@ Superseded by the 19:45 CST desktop iteration below:
 
 2. Wide windows distribute two tabs across very large tab cells.
    - Evidence: after `Cmd+T`, each tab occupied roughly half the tab strip.
-   - Status: visual polish only; not fixed in this pass because tab creation and activation remained functional.
+   - Status: intentional design choice. Full-width tab cells favor large click targets, stable drag/reorder zones, and a clear workspace feel over compact terminal tab density. Do not treat this as a visual polish bug unless future user evidence shows it hurts daily use.
 
 ### Verification
 

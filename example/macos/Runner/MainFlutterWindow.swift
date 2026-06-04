@@ -148,11 +148,75 @@ private func fourCharCode(_ value: String) -> OSType {
 }
 
 class MainFlutterWindow: NSWindow {
+  private struct NativeWindowDragState {
+    let startFrameOrigin: NSPoint
+    let startMouseLocation: NSPoint
+  }
+
   private static let chromeBarHeight: CGFloat = 44
+  private static let leadingWindowDragWidth: CGFloat = 132
 
   private var windowBridgeChannel: FlutterMethodChannel?
   private var hotkeyWindowController: HotkeyWindowController?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
+  private var nativeWindowDragState: NativeWindowDragState?
+
+  static func shouldStartNativeWindowDrag(
+    at point: NSPoint,
+    contentSize: NSSize,
+    standardButtonFrames: [NSRect] = []
+  ) -> Bool {
+    guard contentSize.width > 0, contentSize.height > 0 else {
+      return false
+    }
+
+    let dragWidth = min(leadingWindowDragWidth, contentSize.width)
+    guard
+      point.x >= 0,
+      point.x <= dragWidth,
+      point.y >= contentSize.height - chromeBarHeight,
+      point.y <= contentSize.height
+    else {
+      return false
+    }
+
+    return !standardButtonFrames.contains { $0.contains(point) }
+  }
+
+  static func shouldStartNativeWindowDrag(
+    atMouseLocation mouseLocation: NSPoint,
+    windowFrame: NSRect,
+    standardButtonFrames: [NSRect] = []
+  ) -> Bool {
+    guard windowFrame.width > 0, windowFrame.height > 0 else {
+      return false
+    }
+
+    let xFromLeft = mouseLocation.x - windowFrame.minX
+    let yFromTop = windowFrame.maxY - mouseLocation.y
+    let dragWidth = min(leadingWindowDragWidth, windowFrame.width)
+    guard
+      xFromLeft >= 0,
+      xFromLeft <= dragWidth,
+      yFromTop >= 0,
+      yFromTop <= chromeBarHeight
+    else {
+      return false
+    }
+
+    return !standardButtonFrames.contains { $0.contains(mouseLocation) }
+  }
+
+  static func nativeWindowDragOrigin(
+    startFrameOrigin: NSPoint,
+    startMouseLocation: NSPoint,
+    currentMouseLocation: NSPoint
+  ) -> NSPoint {
+    NSPoint(
+      x: startFrameOrigin.x + currentMouseLocation.x - startMouseLocation.x,
+      y: startFrameOrigin.y + currentMouseLocation.y - startMouseLocation.y
+    )
+  }
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -276,6 +340,40 @@ class MainFlutterWindow: NSWindow {
     scheduleTrafficLightCentering()
   }
 
+  override func sendEvent(_ event: NSEvent) {
+    let eventMouseLocation = convertPoint(toScreen: event.locationInWindow)
+    switch event.type {
+    case .leftMouseDown where shouldStartNativeWindowDrag(
+      atMouseLocation: eventMouseLocation
+    ):
+      nativeWindowDragState = NativeWindowDragState(
+        startFrameOrigin: frame.origin,
+        startMouseLocation: eventMouseLocation
+      )
+      return
+    case .leftMouseDragged:
+      if let dragState = nativeWindowDragState {
+        setFrameOrigin(
+          Self.nativeWindowDragOrigin(
+            startFrameOrigin: dragState.startFrameOrigin,
+            startMouseLocation: dragState.startMouseLocation,
+            currentMouseLocation: eventMouseLocation
+          )
+        )
+        return
+      }
+    case .leftMouseUp:
+      if nativeWindowDragState != nil {
+        nativeWindowDragState = nil
+        return
+      }
+    default:
+      break
+    }
+
+    super.sendEvent(event)
+  }
+
   override func becomeKey() {
     super.becomeKey()
     scheduleTrafficLightCentering()
@@ -377,6 +475,34 @@ class MainFlutterWindow: NSWindow {
     }
   }
 
+  private func shouldStartNativeWindowDrag(atMouseLocation mouseLocation: NSPoint) -> Bool {
+    Self.shouldStartNativeWindowDrag(
+      atMouseLocation: mouseLocation,
+      windowFrame: frame,
+      standardButtonFrames: standardWindowButtonFramesInScreenCoordinates()
+    )
+  }
+
+  private func standardWindowButtonFramesInWindowCoordinates() -> [NSRect] {
+    [
+      NSWindow.ButtonType.closeButton,
+      .miniaturizeButton,
+      .zoomButton
+    ].compactMap { buttonType in
+      guard
+        let button = standardWindowButton(buttonType),
+        !button.isHidden
+      else {
+        return nil
+      }
+      return button.convert(button.bounds, to: nil)
+    }
+  }
+
+  private func standardWindowButtonFramesInScreenCoordinates() -> [NSRect] {
+    standardWindowButtonFramesInWindowCoordinates().map { convertToScreen($0) }
+  }
+
   private func showNotification(arguments: Any?, result: @escaping FlutterResult) {
     guard
       let arguments = arguments as? [String: Any],
@@ -443,7 +569,7 @@ class MainFlutterWindow: NSWindow {
     }
   }
 
-  fileprivate func notificationAuthorizationFailedError(message: String) -> FlutterError {
+  func notificationAuthorizationFailedError(message: String) -> FlutterError {
     FlutterError(
       code: "notification_authorization_failed",
       message: message,

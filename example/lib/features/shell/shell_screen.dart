@@ -7453,32 +7453,54 @@ class _MacWindowDragHandle extends StatefulWidget {
 }
 
 class _MacWindowDragHandleState extends State<_MacWindowDragHandle> {
+  static const double _trafficLightCursorShieldLeft = 8;
+  static const double _trafficLightCursorShieldTop = 8;
+  static const double _trafficLightCursorShieldWidth = 70;
+  static const double _trafficLightCursorShieldHeight = 28;
+
   bool _dragging = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: _dragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onPanStart: (_) {
-          setState(() {
-            _dragging = true;
-          });
-          unawaited(WindowBridge.beginWindowDrag());
-        },
-        onPanEnd: (_) {
-          setState(() {
-            _dragging = false;
-          });
-        },
-        onPanCancel: () {
-          setState(() {
-            _dragging = false;
-          });
-        },
-        child: Tooltip(message: 'Drag window', child: widget.child),
-      ),
+    return Stack(
+      children: [
+        MouseRegion(
+          cursor: _dragging
+              ? SystemMouseCursors.grabbing
+              : SystemMouseCursors.grab,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) {
+              setState(() {
+                _dragging = true;
+              });
+              unawaited(WindowBridge.beginWindowDrag());
+            },
+            onPointerUp: (_) {
+              setState(() {
+                _dragging = false;
+              });
+            },
+            onPointerCancel: (_) {
+              setState(() {
+                _dragging = false;
+              });
+            },
+            child: Tooltip(message: 'Drag window', child: widget.child),
+          ),
+        ),
+        const Positioned(
+          left: _trafficLightCursorShieldLeft,
+          top: _trafficLightCursorShieldTop,
+          width: _trafficLightCursorShieldWidth,
+          height: _trafficLightCursorShieldHeight,
+          child: MouseRegion(
+            key: Key('shell-window-traffic-light-cursor-shield'),
+            cursor: SystemMouseCursors.basic,
+            child: SizedBox.expand(),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -8552,82 +8574,97 @@ class _ShellTabButton extends StatelessWidget {
           child: DecoratedBox(
             key: Key('shell-tab-border-${tab.sessionId}'),
             decoration: BoxDecoration(border: tabBorder),
-            child: TextButton(
-              key: Key('shell-tab-${tab.sessionId}'),
-              style: ButtonStyle(
-                minimumSize: const WidgetStatePropertyAll(Size(0, 34)),
-                padding: WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(horizontal: palette.spacing.md),
-                ),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: const VisualDensity(
-                  horizontal: -1,
-                  vertical: -2,
-                ),
-                foregroundColor: WidgetStatePropertyAll(
-                  isActive ? tone.primaryText : tone.mutedText,
-                ),
-                overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-                backgroundColor: WidgetStateProperty.resolveWith((states) {
-                  if (isActive) {
-                    return tone.activeBackground;
-                  }
-                  if (states.contains(WidgetState.hovered) ||
-                      states.contains(WidgetState.focused)) {
-                    return tone.hoverBackground;
-                  }
-                  return Colors.transparent;
-                }),
-                side: const WidgetStatePropertyAll(BorderSide.none),
-                shape: const WidgetStatePropertyAll(RoundedRectangleBorder()),
-              ),
-              onPressed: onActivate,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: dragRegionBuilder(
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (shortcutIndex != null) ...[
-                            Text(
-                              '⌘$shortcutIndex',
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: isActive
-                                        ? tone.subtleText
-                                        : tone.subtleText,
-                                    fontWeight: FontWeight.w500,
+            child: Stack(
+              children: [
+                dragRegionBuilder(
+                  SizedBox.expand(
+                    child: TextButton(
+                      key: Key('shell-tab-${tab.sessionId}'),
+                      style: ButtonStyle(
+                        minimumSize: const WidgetStatePropertyAll(Size(0, 34)),
+                        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: const VisualDensity(
+                          horizontal: -1,
+                          vertical: -2,
+                        ),
+                        foregroundColor: WidgetStatePropertyAll(
+                          isActive ? tone.primaryText : tone.mutedText,
+                        ),
+                        overlayColor: const WidgetStatePropertyAll(
+                          Colors.transparent,
+                        ),
+                        backgroundColor: WidgetStateProperty.resolveWith((
+                          states,
+                        ) {
+                          if (isActive) {
+                            return tone.activeBackground;
+                          }
+                          if (states.contains(WidgetState.hovered) ||
+                              states.contains(WidgetState.focused)) {
+                            return tone.hoverBackground;
+                          }
+                          return Colors.transparent;
+                        }),
+                        side: const WidgetStatePropertyAll(BorderSide.none),
+                        shape: const WidgetStatePropertyAll(
+                          RoundedRectangleBorder(),
+                        ),
+                      ),
+                      onPressed: onActivate,
+                      child: Center(
+                        child: KeyedSubtree(
+                          key: Key('shell-tab-title-${tab.sessionId}'),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (shortcutIndex != null) ...[
+                                Text(
+                                  '⌘$shortcutIndex',
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: isActive
+                                            ? tone.subtleText
+                                            : tone.subtleText,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              if (hasNewOutput && !isActive) ...[
+                                _ShellTabNewOutputDot(
+                                  key: Key(
+                                    'shell-tab-new-output-${tab.sessionId}',
                                   ),
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          if (hasNewOutput && !isActive) ...[
-                            _ShellTabNewOutputDot(
-                              key: Key('shell-tab-new-output-${tab.sessionId}'),
-                              palette: palette,
-                            ),
-                            const SizedBox(width: 6),
-                          ],
-                          Flexible(
-                            child: AnimatedDefaultTextStyle(
-                              duration: const Duration(milliseconds: 140),
-                              style: tabTextStyle,
-                              child: Text(
-                                tab.title,
-                                overflow: TextOverflow.ellipsis,
+                                  palette: palette,
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              Flexible(
+                                child: AnimatedDefaultTextStyle(
+                                  duration: const Duration(milliseconds: 140),
+                                  style: tabTextStyle,
+                                  child: Text(
+                                    tab.title,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 5),
-                  Tooltip(
+                ),
+                Positioned(
+                  top: 0,
+                  right: palette.spacing.sm,
+                  bottom: 0,
+                  child: Tooltip(
                     message: 'Close ${tab.title}',
                     child: GestureDetector(
+                      key: Key('shell-tab-close-${tab.sessionId}'),
                       behavior: HitTestBehavior.opaque,
                       onTap: onClose,
                       child: Icon(
@@ -8639,8 +8676,8 @@ class _ShellTabButton extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -13086,7 +13123,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                     commandTile(
                       actionId: TerminalActionId.search,
                       icon: Icons.search_rounded,
-                      title: 'Search scrollback',
+                      title: 'Search terminal output',
                       subtitle: 'Session action • Find text in local output.',
                       shortcutLabel: searchShortcutLabel,
                       enabled: hasActiveSession,

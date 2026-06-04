@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -400,13 +402,56 @@ void main() {
 
       final dragHandle = find.byKey(const Key('shell-window-drag-leading'));
       expect(dragHandle, findsOneWidget);
+      final dragHandleRect = tester.getRect(dragHandle);
 
-      final gesture = await tester.startGesture(tester.getCenter(dragHandle));
+      final gesture = await tester.startGesture(
+        dragHandleRect.centerLeft + const Offset(100, 0),
+      );
+      await tester.pump();
+      expect(methodCalls, contains('beginWindowDrag'));
+
       await gesture.moveBy(const Offset(28, 0));
       await tester.pumpAndSettle();
       await gesture.up();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-      expect(methodCalls, contains('beginWindowDrag'));
+  testWidgets(
+    'shell chrome traffic lights keep the default cursor',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      final dragHandle = find.byKey(const Key('shell-window-drag-leading'));
+      expect(dragHandle, findsOneWidget);
+      final dragHandleRect = tester.getRect(dragHandle);
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+        pointer: 21,
+      );
+      await gesture.addPointer(location: const Offset(1000, 1000));
+
+      await gesture.moveTo(dragHandleRect.topLeft + const Offset(24, 22));
+      await tester.pump();
+
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.basic,
+      );
+
+      await gesture.moveTo(dragHandleRect.topLeft + const Offset(100, 22));
+      await tester.pump();
+
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.grab,
+      );
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
@@ -464,6 +509,61 @@ void main() {
           isButton: true,
           isSelected: true,
         ),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell tab full-width body is draggable while close stays right',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      for (var index = 0; index < 2; index += 1) {
+        await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+        await tester.pumpAndSettle();
+      }
+
+      final tabOne = find.byKey(const Key('shell-tab-1'));
+      final tabTwo = find.byKey(const Key('shell-tab-2'));
+      final tabThree = find.byKey(const Key('shell-tab-3'));
+      final tabOneTitle = find.byKey(const Key('shell-tab-title-1'));
+      final tabOneClose = find.byKey(const Key('shell-tab-close-1'));
+
+      expect(tabOneTitle, findsOneWidget);
+      expect(tabOneClose, findsOneWidget);
+
+      final tabOneRect = tester.getRect(tabOne);
+      final titleRect = tester.getRect(tabOneTitle);
+      final closeRect = tester.getRect(tabOneClose);
+      expect(titleRect.center.dx, closeTo(tabOneRect.center.dx, 1));
+      expect(closeRect.right, greaterThan(tabOneRect.right - 28));
+      expect(closeRect.right, lessThan(tabOneRect.right - 4));
+
+      final tabOneBodyDragStart = Offset(
+        tabOneRect.left + tabOneRect.width * 0.18,
+        tabOneRect.center.dy,
+      );
+      final gesture = await tester.startGesture(tabOneBodyDragStart);
+      await tester.pump(const Duration(milliseconds: 80));
+      await gesture.moveBy(const Offset(360, 0));
+      await tester.pump(const Duration(milliseconds: 360));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getCenter(tabTwo).dx,
+        lessThan(tester.getCenter(tabThree).dx),
+      );
+      expect(
+        tester.getCenter(tabThree).dx,
+        lessThan(tester.getCenter(tabOne).dx),
       );
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),

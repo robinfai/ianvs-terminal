@@ -74,6 +74,8 @@ void main() {
     expect(find.text('Top actions'), findsOneWidget);
     expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
     expect(find.text('New tab'), findsOneWidget);
+    expect(find.text('Search terminal output'), findsWidgets);
+    expect(find.text('Search scrollback'), findsNothing);
     expect(find.text('Copy selection'), findsOneWidget);
     expect(find.text('Paste clipboard'), findsOneWidget);
     expect(find.text('Defaults & appearance'), findsOneWidget);

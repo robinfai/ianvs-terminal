@@ -1,0 +1,672 @@
+[
+  {
+    "screenshot": "04-driver-start.png",
+    "note": "Driver app start with local shell surface.",
+    "snapshot": {
+      "commandMenuOpen": false,
+      "defaultsOpen": false,
+      "profilesOpen": false,
+      "visibleOverlay": "none",
+      "terminalHasVisibleContent": true,
+      "terminalPreview": "󰀵 robinfai ~   14:16  ❯",
+      "activeTabCount": 1,
+      "activeSessionId": "1",
+      "themeMode": "system",
+      "snapshotVersion": 4,
+      "terminalFrameSnapshot": {
+        "viewportRows": 22,
+        "viewportCols": 93,
+        "scrollbackOffset": 0,
+        "scrollbackMaxOffset": 0,
+        "rows": [
+          {
+            "index": 0,
+            "text": "󰀵 robinfai ~   14:16  ❯                                                              ",
+            "wrapped": false
+          },
+          {
+            "index": 1,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 2,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 3,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 4,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 5,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 6,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 7,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 8,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 9,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 10,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 11,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 12,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 13,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 14,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 15,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 16,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 17,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 18,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 19,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 20,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 21,
+            "text": "                                                                                             ",
+            "wrapped": false
+          }
+        ]
+      }
+    }
+  },
+  {
+    "screenshot": "05-command-menu.png",
+    "note": "Command menu opened from chrome action.",
+    "snapshot": {
+      "commandMenuOpen": true,
+      "defaultsOpen": false,
+      "profilesOpen": false,
+      "visibleOverlay": "commandMenu",
+      "terminalHasVisibleContent": true,
+      "terminalPreview": "󰀵 robinfai ~   14:16  ❯",
+      "activeTabCount": 1,
+      "activeSessionId": "1",
+      "themeMode": "system",
+      "snapshotVersion": 5,
+      "terminalFrameSnapshot": {
+        "viewportRows": 22,
+        "viewportCols": 93,
+        "scrollbackOffset": 0,
+        "scrollbackMaxOffset": 0,
+        "rows": [
+          {
+            "index": 0,
+            "text": "󰀵 robinfai ~   14:16  ❯                                                              ",
+            "wrapped": false
+          },
+          {
+            "index": 1,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 2,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 3,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 4,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 5,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 6,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 7,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 8,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 9,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 10,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 11,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 12,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 13,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 14,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 15,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 16,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 17,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 18,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 19,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 20,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 21,
+            "text": "                                                                                             ",
+            "wrapped": false
+          }
+        ]
+      }
+    }
+  },
+  {
+    "screenshot": "06-new-tab.png",
+    "note": "New tab selected from command menu.",
+    "snapshot": {
+      "commandMenuOpen": false,
+      "defaultsOpen": false,
+      "profilesOpen": false,
+      "visibleOverlay": "none",
+      "terminalHasVisibleContent": true,
+      "terminalPreview": "󰀵 robinfai ~   14:16  ❯",
+      "activeTabCount": 2,
+      "activeSessionId": "2",
+      "themeMode": "system",
+      "snapshotVersion": 11,
+      "terminalFrameSnapshot": {
+        "viewportRows": 22,
+        "viewportCols": 93,
+        "scrollbackOffset": 0,
+        "scrollbackMaxOffset": 0,
+        "rows": [
+          {
+            "index": 0,
+            "text": "󰀵 robinfai ~   14:16  ❯                                                              ",
+            "wrapped": false
+          },
+          {
+            "index": 1,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 2,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 3,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 4,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 5,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 6,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 7,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 8,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 9,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 10,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 11,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 12,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 13,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 14,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 15,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 16,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 17,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 18,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 19,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 20,
+            "text": "                                                                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 21,
+            "text": "                                                                                             ",
+            "wrapped": false
+          }
+        ]
+      }
+    }
+  },
+  {
+    "screenshot": "07-split-right.png",
+    "note": "Split right selected from command menu.",
+    "snapshot": {
+      "commandMenuOpen": false,
+      "defaultsOpen": false,
+      "profilesOpen": false,
+      "visibleOverlay": "none",
+      "terminalHasVisibleContent": true,
+      "terminalPreview": "󰀵 robinfai ~   14:16  ❯",
+      "activeTabCount": 2,
+      "activeSessionId": "3",
+      "themeMode": "system",
+      "snapshotVersion": 22,
+      "terminalFrameSnapshot": {
+        "viewportRows": 22,
+        "viewportCols": 45,
+        "scrollbackOffset": 0,
+        "scrollbackMaxOffset": 0,
+        "rows": [
+          {
+            "index": 0,
+            "text": "󰀵 robinfai ~   14:16  ❯              ",
+            "wrapped": false
+          },
+          {
+            "index": 1,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 2,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 3,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 4,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 5,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 6,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 7,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 8,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 9,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 10,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 11,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 12,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 13,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 14,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 15,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 16,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 17,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 18,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 19,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 20,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 21,
+            "text": "                                             ",
+            "wrapped": false
+          }
+        ]
+      }
+    }
+  },
+  {
+    "screenshot": "08-search-scrollback.png",
+    "note": "Search scrollback opened from command menu.",
+    "snapshot": {
+      "commandMenuOpen": false,
+      "defaultsOpen": false,
+      "profilesOpen": false,
+      "visibleOverlay": "none",
+      "terminalHasVisibleContent": true,
+      "terminalPreview": "󰀵 robinfai ~   14:16  ❯",
+      "activeTabCount": 2,
+      "activeSessionId": "3",
+      "themeMode": "system",
+      "snapshotVersion": 24,
+      "terminalFrameSnapshot": {
+        "viewportRows": 22,
+        "viewportCols": 45,
+        "scrollbackOffset": 0,
+        "scrollbackMaxOffset": 0,
+        "rows": [
+          {
+            "index": 0,
+            "text": "󰀵 robinfai ~   14:16  ❯              ",
+            "wrapped": false
+          },
+          {
+            "index": 1,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 2,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 3,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 4,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 5,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 6,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 7,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 8,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 9,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 10,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 11,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 12,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 13,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 14,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 15,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 16,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 17,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 18,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 19,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 20,
+            "text": "                                             ",
+            "wrapped": false
+          },
+          {
+            "index": 21,
+            "text": "                                             ",
+            "wrapped": false
+          }
+        ]
+      }
+    }
+  }
+]
