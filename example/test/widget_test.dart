@@ -10,6 +10,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/instant_replay_store.dart';
 import 'package:app/features/shell/paste_history_repository.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
@@ -95,6 +96,7 @@ Future<void> _pumpShellScreen(
   required PtySessionBackend bindings,
   required MemoryProfileRepository repository,
   PasteHistoryRepository? pasteHistoryRepository,
+  InstantReplayStore? instantReplayStore,
   ShellNotificationSender? notificationSender,
   bool settle = true,
 }) async {
@@ -106,6 +108,8 @@ Future<void> _pumpShellScreen(
         pasteHistoryRepositoryProvider.overrideWithValue(
           pasteHistoryRepository ?? MemoryPasteHistoryRepository(),
         ),
+        if (instantReplayStore != null)
+          instantReplayStoreProvider.overrideWithValue(instantReplayStore),
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
@@ -1057,10 +1061,15 @@ void main() {
   });
 
   testWidgets(
-    'command-option-b copies erased text from instant replay',
+    'command-option-b opens replay workspace backed by terminal viewport',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       String? copiedText;
+      final windowBridgeCalls = <MethodCall>[];
+      var windowMetricsCalls = 0;
+      const windowBridgeChannel = MethodChannel('app/window_bridge');
+      var replayNow = DateTime(2026, 1, 1, 12);
+      final instantReplayStore = InstantReplayStore(now: () => replayNow);
 
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
@@ -1075,12 +1084,36 @@ void main() {
           return null;
         },
       );
-      addTearDown(
-        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        windowBridgeChannel,
+        (methodCall) async {
+          windowBridgeCalls.add(methodCall);
+          if (methodCall.method == 'windowMetrics') {
+            windowMetricsCalls += 1;
+            final contentSize = windowMetricsCalls == 1
+                ? const Size(900, 600)
+                : const Size(760, 540);
+            return <String, Object?>{
+              'contentWidth': contentSize.width,
+              'contentHeight': contentSize.height,
+              'frameWidth': contentSize.width + 40,
+              'frameHeight': contentSize.height + 60,
+              'devicePixelRatio': 2.0,
+            };
+          }
+          return null;
+        },
+      );
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
           SystemChannels.platform,
           null,
-        ),
-      );
+        );
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          windowBridgeChannel,
+          null,
+        );
+      });
 
       await _pumpShellScreen(
         tester,
@@ -1088,11 +1121,16 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
+        instantReplayStore: instantReplayStore,
       );
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 0, 'text': 'important output', 'style_runs': const []},
+          {
+            'index': 0,
+            'text': '󰀵ab important output important',
+            'style_runs': const [],
+          },
         ],
         'cursor': {'row': 0, 'col': 0, 'visible': true},
         'selection': null,
@@ -1105,6 +1143,7 @@ void main() {
         'scrollback_max_offset': 0,
       });
       await tester.pump(const Duration(milliseconds: 40));
+      replayNow = replayNow.add(const Duration(milliseconds: 3200));
       fakeBindings.setFrame(1, {
         'rows': [
           {'index': 0, 'text': '', 'style_runs': const []},
@@ -1125,14 +1164,189 @@ void main() {
       await tester.pump();
       await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
 
-      expect(find.byKey(const Key('instant-replay-sheet')), findsOneWidget);
-      expect(find.text('important output'), findsOneWidget);
+      expect(find.byKey(const Key('instant-replay-sheet')), findsNothing);
+      expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('instant-replay-workspace')),
+          matching: find.byKey(const Key('instant-replay-viewport')),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('instant-replay-controls')), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const Key('instant-replay-controls'))).dy,
+        greaterThanOrEqualTo(
+          tester
+              .getBottomLeft(find.byKey(const Key('instant-replay-viewport')))
+              .dy,
+        ),
+      );
+      expect(find.textContaining('Recorded at 80x24'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
+      expect(
+        windowBridgeCalls.where((call) => call.method == 'windowMetrics'),
+        hasLength(1),
+      );
+      expect(
+        windowBridgeCalls.where((call) => call.method == 'resizeBy'),
+        isEmpty,
+      );
+      final timelineFinder = find.byKey(const Key('instant-replay-timeline'));
+      var timeline = tester.widget<Slider>(timelineFinder);
+      final startingTimelineValue = timeline.value;
+      expect(startingTimelineValue, lessThan(timeline.max));
+      expect(timeline.max, greaterThanOrEqualTo(2000.0));
+      expect(timeline.max, lessThan(2200.0));
+      expect(
+        find.byKey(const Key('instant-replay-quiet-track')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('instant-replay-change-marker')),
+        findsWidgets,
+      );
+      expect(
+        find.byKey(const Key('instant-replay-idle-marker')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Tooltip>(
+              find.byKey(const Key('instant-replay-idle-marker')),
+            )
+            .message,
+        startsWith('Idle gap: '),
+      );
 
-      await tester.tap(find.byKey(const Key('instant-replay-copy')));
+      await tester.tap(
+        find.byKey(const Key('instant-replay-fit-recorded-size')),
+      );
       await tester.pumpAndSettle();
 
-      expect(copiedText, 'important output');
+      expect(
+        windowBridgeCalls.where((call) => call.method == 'resizeBy'),
+        hasLength(1),
+      );
+      final resizeCall = windowBridgeCalls.singleWhere(
+        (call) => call.method == 'resizeBy',
+      );
+      expect(resizeCall.arguments, containsPair('widthDelta', 140.0));
+      expect(resizeCall.arguments, containsPair('heightDelta', 60.0));
+
+      await tester.tap(find.byTooltip('Play replay'));
+      await tester.pump(const Duration(milliseconds: 120));
+
+      timeline = tester.widget<Slider>(timelineFinder);
+      expect(timeline.value, greaterThan(startingTimelineValue));
+      expect(timeline.value, lessThan(timeline.max));
+      expect(find.byTooltip('Pause replay'), findsOneWidget);
+
+      timeline.onChanged!(startingTimelineValue);
+      await tester.pumpAndSettle();
+
+      timeline = tester.widget<Slider>(timelineFinder);
+      expect(timeline.value, startingTimelineValue);
+
+      await tester.enterText(
+        find.byKey(const Key('instant-replay-search')),
+        'important',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('2 matches across'), findsOneWidget);
+      final replayRenderObject = _terminalRenderObject(tester);
+      final replayCellSize = replayRenderObject.debugCellSize;
+      final replaySearchRects = replayRenderObject.debugSearchHighlightRects;
+      expect(replaySearchRects, hasLength(2));
+      _expectRectClose(
+        replaySearchRects.first,
+        Rect.fromLTWH(
+          replayCellSize.width * 4,
+          0,
+          replayCellSize.width * 9,
+          replayCellSize.height,
+        ),
+      );
+      expect(
+        tester
+            .widget<TerminalViewport>(
+              find.byKey(const Key('instant-replay-viewport')),
+            )
+            .activeSearchMatchIndex,
+        0,
+      );
+
+      await tester.tap(find.byKey(const Key('instant-replay-search-next')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<TerminalViewport>(
+              find.byKey(const Key('instant-replay-viewport')),
+            )
+            .activeSearchMatchIndex,
+        1,
+      );
+
+      await tester.tap(find.byKey(const Key('instant-replay-search-previous')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<TerminalViewport>(
+              find.byKey(const Key('instant-replay-viewport')),
+            )
+            .activeSearchMatchIndex,
+        0,
+      );
+
+      await tester.tap(find.byKey(const Key('instant-replay-search')));
+      await tester.pump();
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.enter,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter, platform: 'macos');
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<TerminalViewport>(
+              find.byKey(const Key('instant-replay-viewport')),
+            )
+            .activeSearchMatchIndex,
+        1,
+      );
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.enter,
+        platform: 'macos',
+      );
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'macos',
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<TerminalViewport>(
+              find.byKey(const Key('instant-replay-viewport')),
+            )
+            .activeSearchMatchIndex,
+        0,
+      );
+
+      await tester.tap(find.byKey(const Key('instant-replay-copy-visible')));
+      await tester.pumpAndSettle();
+
+      expect(copiedText, '󰀵ab important output important');
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
