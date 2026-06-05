@@ -15,7 +15,7 @@ final class InstantReplayCommandBlockSource {
           ? 'Unknown command'
           : block.command.trim(),
       cwd: block.cwd?.trim(),
-      statusLabel: _statusLabel(block),
+      statusLabel: _instantReplayCommandBlockStatusLabel(block),
     );
   }
 
@@ -67,6 +67,16 @@ Future<bool> executeInstantReplayCommandBlockAction({
   }
   await openReplay(source);
   return true;
+}
+
+String _instantReplayCommandBlockStatusLabel(ShellCommandBlock block) {
+  return switch (block.status) {
+    ShellCommandBlockStatus.succeeded => 'exit 0',
+    ShellCommandBlockStatus.failed =>
+      block.exitCode == null ? 'failed' : 'exit ${block.exitCode}',
+    ShellCommandBlockStatus.running => 'running',
+    ShellCommandBlockStatus.unknown => 'unknown',
+  };
 }
 
 class _InstantReplayWorkspace extends StatefulWidget {

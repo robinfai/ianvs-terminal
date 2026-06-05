@@ -620,6 +620,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           final cleared = ref
               .read(terminalRuntimeControllerProvider)
               .clearScrollback(currentSessionId);
+          if (cleared && mounted) {
+            _mutateState(() {
+              _commandBlockSnapshotsBySession.remove(currentSessionId);
+              _isHistoryPeekOpen = false;
+            });
+          }
           if (!cleared && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(

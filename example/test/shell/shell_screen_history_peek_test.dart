@@ -112,6 +112,46 @@ void main() {
       expect(find.text('npm test'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('narrow constraints keep sheet within available width', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          Center(
+            child: SizedBox(
+              width: 180,
+              height: 360,
+              child: ShellHistoryPeekSheet(
+                maxWidth: shellHistoryPeekWidthForAvailableWidth(180),
+                blocks: [
+                  _block(
+                    id: 'failed',
+                    command: 'flutter test --very-long-filter-name',
+                    cwd: '/repo/packages/example',
+                    exitCode: 1,
+                    status: ShellCommandBlockStatus.failed,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final sheetSize = tester.getSize(
+        find.byKey(const Key('shell-history-peek-sheet')),
+      );
+      expect(sheetSize.width, lessThanOrEqualTo(180));
+      expect(tester.takeException(), isNull);
+    });
+
+    test('side pane width keeps terminal space on narrow layouts', () {
+      expect(shellHistoryPeekSidePaneWidthForAvailableWidth(700), 320);
+      expect(shellHistoryPeekSidePaneWidthForAvailableWidth(500), 220);
+      expect(shellHistoryPeekSidePaneWidthForAvailableWidth(400), 0);
+      expect(shellHistoryPeekSidePaneWidthForAvailableWidth(260), 0);
+    });
   });
 
   group('ShellCommandBlockShellHookReducer', () {
@@ -221,7 +261,9 @@ void main() {
             flags: _commandBlocksFlags,
             sessionId: 'session-1',
             hook: 'command_finished',
-            command: 'flutter test',
+            command: viewportEndRow == 47
+                ? 'flutter test'
+                : 'flutter test --rerun',
             exitCode: 1,
             promptMarks: const [
               TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
@@ -234,6 +276,90 @@ void main() {
         expect(snapshot.blocks.single.id, 'session-1:command:40:47');
       },
     );
+
+    test('clears pending prompt after finish without end prompt', () {
+      var snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'flutter test',
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+        ],
+      );
+
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'flutter test',
+        exitCode: 1,
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+        ],
+        viewportEndRow: 47,
+      );
+
+      expect(snapshot.blocks, hasLength(1));
+      expect(snapshot.lastPrompt, isNull);
+    });
+
+    test(
+      'cleared snapshot allows same start and command to generate again',
+      () {
+        ShellCommandBlockSnapshot runOnce() {
+          var snapshot = ShellCommandBlockShellHookReducer.reduce(
+            snapshot: const ShellCommandBlockSnapshot(),
+            flags: _commandBlocksFlags,
+            sessionId: 'session-1',
+            hook: 'preexec',
+            command: 'flutter test',
+            promptMarks: const [
+              TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+            ],
+          );
+          return ShellCommandBlockShellHookReducer.reduce(
+            snapshot: snapshot,
+            flags: _commandBlocksFlags,
+            sessionId: 'session-1',
+            hook: 'command_finished',
+            command: 'flutter test',
+            exitCode: 1,
+            promptMarks: const [
+              TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+            ],
+            viewportEndRow: 47,
+          );
+        }
+
+        final first = runOnce();
+        final cleared = shellCommandBlockSnapshotAfterScrollbackClear(first);
+        final second = runOnce();
+
+        expect(first.blocks, hasLength(1));
+        expect(cleared.blocks, isEmpty);
+        expect(second.blocks, hasLength(1));
+        expect(second.blocks.single.id, first.blocks.single.id);
+      },
+    );
+
+    test('cwd event with unchanged cwd returns the same snapshot', () {
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(
+        currentCwd: '/repo',
+      );
+
+      final next = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'cwd',
+        cwd: '/repo',
+      );
+
+      expect(next, same(snapshot));
+    });
 
     test('returns empty snapshot when flags are off', () {
       final snapshot = ShellCommandBlockSnapshot.withBlocks(

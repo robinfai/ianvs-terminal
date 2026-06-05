@@ -72,6 +72,9 @@ class ShellCommandBlockShellHookReducer {
     if (currentCwd == null) {
       return snapshot;
     }
+    if (snapshot.currentCwd == currentCwd) {
+      return snapshot;
+    }
     return ShellCommandBlockController.reduce(
       snapshot,
       ShellCwdChangedEvent(currentCwd),
@@ -136,20 +139,6 @@ class ShellCommandBlockShellHookReducer {
     );
     if (plan == null) {
       return snapshot;
-    }
-
-    if (_hasCommandBlockForCommandStart(
-      snapshot,
-      startRow: plan.startRow,
-      command: commandText,
-    )) {
-      return _recordEndPromptIfNeeded(
-        snapshot: snapshot,
-        flags: flags,
-        sessionId: sessionId,
-        endPromptRow: plan.endPromptRow,
-        endCwd: plan.endCwd,
-      );
     }
 
     final commandId = _commandBlockId(
@@ -217,18 +206,18 @@ class ShellCommandBlockShellHookReducer {
         flags: flags,
       );
     }
-    return snapshot;
+    return _clearPendingPrompt(snapshot);
   }
 
-  static bool _hasCommandBlockForCommandStart(
-    ShellCommandBlockSnapshot snapshot, {
-    required int startRow,
-    required String command,
-  }) {
-    return snapshot.blocks.any(
-      (block) =>
-          block.outputRange.commandRow == startRow &&
-          _trimmedShellHookText(block.command) == command,
+  static ShellCommandBlockSnapshot _clearPendingPrompt(
+    ShellCommandBlockSnapshot snapshot,
+  ) {
+    if (snapshot.lastPrompt == null && snapshot.pendingRange == null) {
+      return snapshot;
+    }
+    return ShellCommandBlockSnapshot.withBlocks(
+      blocks: snapshot.blocks,
+      currentCwd: snapshot.currentCwd,
     );
   }
 
@@ -357,6 +346,22 @@ class ShellCommandBlockShellHookReducer {
   }
 }
 
+ShellCommandBlockSnapshot shellCommandBlockSnapshotAfterScrollbackClear(
+  ShellCommandBlockSnapshot snapshot,
+) {
+  if (!_commandBlockSnapshotHasState(snapshot)) {
+    return snapshot;
+  }
+  return const ShellCommandBlockSnapshot();
+}
+
+bool _commandBlockSnapshotHasState(ShellCommandBlockSnapshot snapshot) {
+  return snapshot.blocks.isNotEmpty ||
+      snapshot.lastPrompt != null ||
+      snapshot.pendingRange != null ||
+      snapshot.currentCwd != null;
+}
+
 class _ShellCommandBlockFinishPlan {
   const _ShellCommandBlockFinishPlan({
     required this.startRow,
@@ -466,10 +471,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       event.sessionId,
       sessionState: ref.read(sessionControllerProvider),
     );
+    final previousSnapshot = _commandBlockSnapshotsBySession[event.sessionId];
     final snapshot = ShellCommandBlockShellHookReducer.reduce(
-      snapshot:
-          _commandBlockSnapshotsBySession[event.sessionId] ??
-          const ShellCommandBlockSnapshot(),
+      snapshot: previousSnapshot ?? const ShellCommandBlockSnapshot(),
       flags: _commandBlocksHistoryFeatureFlags,
       sessionId: event.sessionId,
       hook: event.hook,
@@ -485,6 +489,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     );
 
     if (!mounted) {
+      return;
+    }
+    if (identical(snapshot, previousSnapshot) ||
+        (previousSnapshot == null &&
+            !_commandBlockSnapshotHasState(snapshot))) {
       return;
     }
     _mutateState(() {

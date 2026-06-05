@@ -1,10 +1,41 @@
 part of 'shell_screen.dart';
 
+const double _shellHistoryPeekPreferredWidth = 320;
+const double _shellHistoryPeekMinimumTerminalWidth = 280;
+const double _shellHistoryPeekMinimumSheetWidth = 160;
+
+double shellHistoryPeekWidthForAvailableWidth(double availableWidth) {
+  if (!availableWidth.isFinite) {
+    return _shellHistoryPeekPreferredWidth;
+  }
+  if (availableWidth <= 0) {
+    return 0;
+  }
+  return math.min(_shellHistoryPeekPreferredWidth, availableWidth);
+}
+
+double shellHistoryPeekSidePaneWidthForAvailableWidth(double availableWidth) {
+  if (!availableWidth.isFinite) {
+    return _shellHistoryPeekPreferredWidth;
+  }
+  final remainingWidth = availableWidth - _shellHistoryPeekMinimumTerminalWidth;
+  if (remainingWidth < _shellHistoryPeekMinimumSheetWidth) {
+    return 0;
+  }
+  return math.min(_shellHistoryPeekPreferredWidth, remainingWidth);
+}
+
 class ShellHistoryPeekSheet extends StatelessWidget {
-  const ShellHistoryPeekSheet({super.key, required this.blocks, this.onClose});
+  const ShellHistoryPeekSheet({
+    super.key,
+    required this.blocks,
+    this.onClose,
+    this.maxWidth,
+  });
 
   final List<ShellCommandBlock> blocks;
   final VoidCallback? onClose;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -16,74 +47,84 @@ class ShellHistoryPeekSheet extends StatelessWidget {
         .where((block) => block.failed || block.markers.isNotEmpty)
         .toList(growable: false);
 
-    final sheetWidth = math.min(320.0, MediaQuery.sizeOf(context).width);
+    final preferredWidth = math.min(
+      maxWidth ?? _shellHistoryPeekPreferredWidth,
+      MediaQuery.sizeOf(context).width,
+    );
 
-    return SizedBox(
-      key: const Key('shell-history-peek-sheet'),
-      width: sheetWidth,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: palette.chromeElevated,
-          border: Border(left: BorderSide(color: palette.borderStrong)),
-          boxShadow: palette.elevation.floating,
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                palette.spacing.lg,
-                palette.spacing.lg,
-                palette.spacing.lg,
-                palette.spacing.xl,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final sheetWidth = constraints.maxWidth.isFinite
+            ? math.min(preferredWidth, constraints.maxWidth)
+            : preferredWidth;
+        return SizedBox(
+          key: const Key('shell-history-peek-sheet'),
+          width: sheetWidth,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: palette.chromeElevated,
+              border: Border(left: BorderSide(color: palette.borderStrong)),
+              boxShadow: palette.elevation.floating,
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    palette.spacing.lg,
+                    palette.spacing.lg,
+                    palette.spacing.lg,
+                    palette.spacing.xl,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          'History Peek',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: palette.textPrimary,
-                            fontWeight: FontWeight.w800,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'History Peek',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
-                        ),
+                          if (onClose != null)
+                            _buildSheetCloseButton(
+                              tooltip: 'Close History Peek',
+                              buttonKey: const Key('shell-history-peek-close'),
+                              onPressed: onClose!,
+                            ),
+                        ],
                       ),
-                      if (onClose != null)
-                        _buildSheetCloseButton(
-                          tooltip: 'Close History Peek',
-                          buttonKey: const Key('shell-history-peek-close'),
-                          onPressed: onClose!,
-                        ),
+                      SizedBox(height: palette.spacing.sm),
+                      Expanded(
+                        child: visibleBlocks.isEmpty
+                            ? _ShellHistoryPeekEmptyState(palette: palette)
+                            : ListView.separated(
+                                itemCount: visibleBlocks.length,
+                                separatorBuilder: (_, _) =>
+                                    SizedBox(height: palette.spacing.sm),
+                                itemBuilder: (context, index) {
+                                  return _ShellHistoryPeekBlockTile(
+                                    block: visibleBlocks[index],
+                                    palette: palette,
+                                  );
+                                },
+                              ),
+                      ),
                     ],
                   ),
-                  SizedBox(height: palette.spacing.sm),
-                  Expanded(
-                    child: visibleBlocks.isEmpty
-                        ? _ShellHistoryPeekEmptyState(palette: palette)
-                        : ListView.separated(
-                            itemCount: visibleBlocks.length,
-                            separatorBuilder: (_, _) =>
-                                SizedBox(height: palette.spacing.sm),
-                            itemBuilder: (context, index) {
-                              return _ShellHistoryPeekBlockTile(
-                                block: visibleBlocks[index],
-                                palette: palette,
-                              );
-                            },
-                          ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

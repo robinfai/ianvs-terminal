@@ -833,11 +833,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               if (_historyPeekVisibleForSession(
                                 activeSessionId,
                               ))
-                                ShellHistoryPeekSheet(
-                                  blocks: _commandBlocksForSession(
-                                    activeSessionId,
-                                  ),
-                                  onClose: _closeHistoryPeek,
+                                Builder(
+                                  builder: (context) {
+                                    final width =
+                                        shellHistoryPeekSidePaneWidthForAvailableWidth(
+                                          MediaQuery.sizeOf(context).width,
+                                        );
+                                    if (width <= 0) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return SizedBox(
+                                      width: width,
+                                      child: ShellHistoryPeekSheet(
+                                        maxWidth: width,
+                                        blocks: _commandBlocksForSession(
+                                          activeSessionId,
+                                        ),
+                                        onClose: _closeHistoryPeek,
+                                      ),
+                                    );
+                                  },
                                 ),
                               if (_isToolbeltOpen)
                                 _ShellToolbelt(
