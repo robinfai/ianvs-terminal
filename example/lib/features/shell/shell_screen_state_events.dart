@@ -138,12 +138,11 @@ class ShellCommandBlockShellHookReducer {
       return snapshot;
     }
 
-    final commandId = _commandBlockId(
-      sessionId,
-      plan.startRow,
-      plan.outputEndRow,
-    );
-    if (_hasCommandBlock(snapshot, commandId)) {
+    if (_hasCommandBlockForCommandStart(
+      snapshot,
+      startRow: plan.startRow,
+      command: commandText,
+    )) {
       return _recordEndPromptIfNeeded(
         snapshot: snapshot,
         flags: flags,
@@ -153,6 +152,11 @@ class ShellCommandBlockShellHookReducer {
       );
     }
 
+    final commandId = _commandBlockId(
+      sessionId,
+      plan.startRow,
+      plan.outputEndRow,
+    );
     var next = snapshot;
     if (next.lastPrompt?.row != plan.startRow) {
       next = ShellCommandBlockController.reduce(
@@ -216,11 +220,16 @@ class ShellCommandBlockShellHookReducer {
     return snapshot;
   }
 
-  static bool _hasCommandBlock(
-    ShellCommandBlockSnapshot snapshot,
-    String commandId,
-  ) {
-    return snapshot.blocks.any((block) => block.id == commandId);
+  static bool _hasCommandBlockForCommandStart(
+    ShellCommandBlockSnapshot snapshot, {
+    required int startRow,
+    required String command,
+  }) {
+    return snapshot.blocks.any(
+      (block) =>
+          block.outputRange.commandRow == startRow &&
+          _trimmedShellHookText(block.command) == command,
+    );
   }
 
   static _ShellCommandBlockFinishPlan? _finishPlan({

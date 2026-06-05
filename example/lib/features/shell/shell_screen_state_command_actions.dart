@@ -1207,20 +1207,17 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         _openHistoryPeek();
         return;
       case TerminalActionId.replayFromCommandBlock:
-        final commandBlockSource = resolveInstantReplayCommandBlockActionSource(
+        await executeInstantReplayCommandBlockAction(
           actionId: action,
           flags: _commandBlocksHistoryFeatureFlags,
           currentSessionId: currentSessionId,
           commandBlocks: currentSessionId == null
               ? const <ShellCommandBlock>[]
               : _commandBlocksForSession(currentSessionId),
-        );
-        if (commandBlockSource == null) {
-          return;
-        }
-        await _openInstantReplay(
-          currentState,
-          commandBlockSource: commandBlockSource,
+          openReplay: (commandBlockSource) => _openInstantReplay(
+            currentState,
+            commandBlockSource: commandBlockSource,
+          ),
         );
         return;
       case TerminalActionId.search:

@@ -201,36 +201,39 @@ void main() {
       },
     );
 
-    test('does not append duplicate block for repeated finish events', () {
-      var snapshot = ShellCommandBlockShellHookReducer.reduce(
-        snapshot: const ShellCommandBlockSnapshot(),
-        flags: _commandBlocksFlags,
-        sessionId: 'session-1',
-        hook: 'preexec',
-        command: 'flutter test',
-        promptMarks: const [
-          TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
-        ],
-      );
-
-      for (var index = 0; index < 2; index += 1) {
-        snapshot = ShellCommandBlockShellHookReducer.reduce(
-          snapshot: snapshot,
+    test(
+      'does not append duplicate block when repeated finish sees new viewport end',
+      () {
+        var snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: const ShellCommandBlockSnapshot(),
           flags: _commandBlocksFlags,
           sessionId: 'session-1',
-          hook: 'command_finished',
+          hook: 'preexec',
           command: 'flutter test',
-          exitCode: 1,
           promptMarks: const [
             TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
           ],
-          viewportEndRow: 47,
         );
-      }
 
-      expect(snapshot.blocks, hasLength(1));
-      expect(snapshot.blocks.single.id, 'session-1:command:40:47');
-    });
+        for (final viewportEndRow in const [47, 55]) {
+          snapshot = ShellCommandBlockShellHookReducer.reduce(
+            snapshot: snapshot,
+            flags: _commandBlocksFlags,
+            sessionId: 'session-1',
+            hook: 'command_finished',
+            command: 'flutter test',
+            exitCode: 1,
+            promptMarks: const [
+              TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+            ],
+            viewportEndRow: viewportEndRow,
+          );
+        }
+
+        expect(snapshot.blocks, hasLength(1));
+        expect(snapshot.blocks.single.id, 'session-1:command:40:47');
+      },
+    );
 
     test('returns empty snapshot when flags are off', () {
       final snapshot = ShellCommandBlockSnapshot.withBlocks(
@@ -257,55 +260,76 @@ void main() {
   });
 
   group('InstantReplayCommandBlockSource', () {
-    test('action resolver uses the latest current session command block', () {
-      final source = resolveInstantReplayCommandBlockActionSource(
-        actionId: TerminalActionId.replayFromCommandBlock,
-        flags: _commandBlocksFlags,
-        currentSessionId: 'session-1',
-        commandBlocks: [
-          _block(id: 'older', command: 'dart analyze'),
-          _block(
-            id: 'latest',
-            command: 'flutter test',
-            cwd: '/repo',
-            exitCode: 1,
-            status: ShellCommandBlockStatus.failed,
-          ),
-        ],
-      );
+    test(
+      'action execution opens replay for the latest command block',
+      () async {
+        var openCount = 0;
+        InstantReplayCommandBlockSource? openedSource;
 
-      expect(source, isNotNull);
-      expect(source!.commandBlockId, 'latest');
-      expect(source.command, 'flutter test');
-      expect(source.cwd, '/repo');
-      expect(source.statusLabel, 'exit 1');
-      expect(source.replayHeaderLabel, 'Replay from: flutter test');
-    });
+        final executed = await executeInstantReplayCommandBlockAction(
+          actionId: TerminalActionId.replayFromCommandBlock,
+          flags: _commandBlocksFlags,
+          currentSessionId: 'session-1',
+          commandBlocks: [
+            _block(id: 'older', command: 'dart analyze'),
+            _block(
+              id: 'latest',
+              command: 'flutter test',
+              cwd: '/repo',
+              exitCode: 1,
+              status: ShellCommandBlockStatus.failed,
+            ),
+          ],
+          openReplay: (source) async {
+            openCount += 1;
+            openedSource = source;
+          },
+        );
 
-    test('action resolver ignores non replay command block actions', () {
-      final source = resolveInstantReplayCommandBlockActionSource(
+        expect(executed, isTrue);
+        expect(openCount, 1);
+        expect(openedSource, isNotNull);
+        expect(openedSource!.commandBlockId, 'latest');
+        expect(openedSource!.command, 'flutter test');
+        expect(openedSource!.cwd, '/repo');
+        expect(openedSource!.statusLabel, 'exit 1');
+        expect(openedSource!.replayHeaderLabel, 'Replay from: flutter test');
+      },
+    );
+
+    test('action execution ignores non replay command block actions', () async {
+      var openCount = 0;
+
+      final executed = await executeInstantReplayCommandBlockAction(
         actionId: TerminalActionId.instantReplay,
         flags: _commandBlocksFlags,
         currentSessionId: 'session-1',
         commandBlocks: [_block(id: 'latest')],
+        openReplay: (_) async {
+          openCount += 1;
+        },
       );
 
-      expect(source, isNull);
+      expect(executed, isFalse);
+      expect(openCount, 0);
     });
 
-    test(
-      'action resolver returns null when review entrypoints are disabled',
-      () {
-        final source = resolveInstantReplayCommandBlockActionSource(
-          actionId: TerminalActionId.replayFromCommandBlock,
-          flags: _commandBlocksWithoutReviewFlags,
-          currentSessionId: 'session-1',
-          commandBlocks: [_block(id: 'latest')],
-        );
+    test('action execution ignores disabled review entrypoints', () async {
+      var openCount = 0;
 
-        expect(source, isNull);
-      },
-    );
+      final executed = await executeInstantReplayCommandBlockAction(
+        actionId: TerminalActionId.replayFromCommandBlock,
+        flags: _commandBlocksWithoutReviewFlags,
+        currentSessionId: 'session-1',
+        commandBlocks: [_block(id: 'latest')],
+        openReplay: (_) async {
+          openCount += 1;
+        },
+      );
+
+      expect(executed, isFalse);
+      expect(openCount, 0);
+    });
 
     test('builds replay header label from command block', () {
       final source = InstantReplayCommandBlockSource.fromBlock(

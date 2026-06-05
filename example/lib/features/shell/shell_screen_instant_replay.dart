@@ -48,6 +48,27 @@ InstantReplayCommandBlockSource? resolveInstantReplayCommandBlockActionSource({
   return null;
 }
 
+Future<bool> executeInstantReplayCommandBlockAction({
+  required TerminalActionId? actionId,
+  required CommandBlocksHistoryFeatureFlags flags,
+  required String? currentSessionId,
+  required List<ShellCommandBlock> commandBlocks,
+  required Future<void> Function(InstantReplayCommandBlockSource source)
+  openReplay,
+}) async {
+  final source = resolveInstantReplayCommandBlockActionSource(
+    actionId: actionId,
+    flags: flags,
+    currentSessionId: currentSessionId,
+    commandBlocks: commandBlocks,
+  );
+  if (source == null) {
+    return false;
+  }
+  await openReplay(source);
+  return true;
+}
+
 class _InstantReplayWorkspace extends StatefulWidget {
   const _InstantReplayWorkspace({
     super.key,
