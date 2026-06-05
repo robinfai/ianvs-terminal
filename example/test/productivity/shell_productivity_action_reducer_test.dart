@@ -79,5 +79,15 @@ void main() {
         '/repo',
       );
     });
+
+    test('command block actions return command block action result', () {
+      final result = ShellProductivityActionReducer.reduce(
+        state: const ShellProductivityState(),
+        actionId: TerminalActionId.openHistoryPeek,
+        context: const ShellProductivityActionContext(),
+      );
+
+      expect(result, isA<ShellProductivityCommandBlockActionResult>());
+    });
   });
 }

@@ -1,3 +1,4 @@
+import '../productivity/command_blocks_history_feature_flags.dart';
 import '../productivity/shell_productivity_models.dart';
 import 'shell_action_registry.dart';
 
@@ -7,6 +8,8 @@ enum ShellActionDisabledReason {
   readOnly,
   missingCommandOutput,
   missingRecentDirectory,
+  commandBlocksHistoryDisabled,
+  missingCommandBlock,
 }
 
 extension ShellActionDisabledReasonText on ShellActionDisabledReason {
@@ -20,6 +23,10 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
         'No command output available',
       ShellActionDisabledReason.missingRecentDirectory =>
         'No recent directory available',
+      ShellActionDisabledReason.commandBlocksHistoryDisabled =>
+        'Command Blocks disabled',
+      ShellActionDisabledReason.missingCommandBlock =>
+        'No command block available',
     };
   }
 
@@ -35,6 +42,10 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
         'Run a command with captured output before using this action.',
       ShellActionDisabledReason.missingRecentDirectory =>
         'Visit a local directory before opening the recent directory list.',
+      ShellActionDisabledReason.commandBlocksHistoryDisabled =>
+        'Enable Command Blocks history tools before using this action.',
+      ShellActionDisabledReason.missingCommandBlock =>
+        'Run a command with captured output before using this action.',
     };
   }
 }
@@ -59,6 +70,9 @@ class ShellActionAvailabilityResolver {
     required TerminalActionId actionId,
     required bool hasActiveSession,
     required ShellProductivityState productivity,
+    CommandBlocksHistoryFeatureFlags commandBlocksHistory =
+        CommandBlocksHistoryFeatureFlags.disabled,
+    bool hasCommandBlocks = false,
   }) {
     final descriptor = ShellActionRegistry.actions[actionId];
     if (descriptor?.requiresActiveSession == true && !hasActiveSession) {
@@ -96,8 +110,49 @@ class ShellActionAvailabilityResolver {
             : ShellActionAvailability.disabled(
                 ShellActionDisabledReason.readOnly,
               );
+      case TerminalActionId.openHistoryPeek:
+        return _resolveCommandBlockAction(
+          featureEnabled: commandBlocksHistory.historyPeek,
+          hasCommandBlocks: hasCommandBlocks,
+        );
+      case TerminalActionId.replayFromCommandBlock:
+        return _resolveCommandBlockAction(
+          featureEnabled: commandBlocksHistory.reviewWorkspaceEntrypoints,
+          hasCommandBlocks: hasCommandBlocks,
+        );
+      case TerminalActionId.saveCommandSnapshot:
+        return _resolveCommandBlockAction(
+          featureEnabled: commandBlocksHistory.failureSnapshots,
+          hasCommandBlocks: hasCommandBlocks,
+        );
+      case TerminalActionId.compareLastCommandRun:
+        return _resolveCommandBlockAction(
+          featureEnabled: commandBlocksHistory.outputDiff,
+          hasCommandBlocks: hasCommandBlocks,
+        );
+      case TerminalActionId.markCommandBlock:
+        return _resolveCommandBlockAction(
+          featureEnabled: commandBlocksHistory.commandBlocks,
+          hasCommandBlocks: hasCommandBlocks,
+        );
       default:
         return ShellActionAvailability.enabledAction;
     }
+  }
+
+  static ShellActionAvailability _resolveCommandBlockAction({
+    required bool featureEnabled,
+    required bool hasCommandBlocks,
+  }) {
+    if (!featureEnabled) {
+      return ShellActionAvailability.disabled(
+        ShellActionDisabledReason.commandBlocksHistoryDisabled,
+      );
+    }
+    return hasCommandBlocks
+        ? ShellActionAvailability.enabledAction
+        : ShellActionAvailability.disabled(
+            ShellActionDisabledReason.missingCommandBlock,
+          );
   }
 }

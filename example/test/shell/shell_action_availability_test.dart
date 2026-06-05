@@ -1,3 +1,4 @@
+import 'package:app/features/productivity/command_blocks_history_feature_flags.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_action_availability.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
@@ -63,6 +64,126 @@ void main() {
       expect(
         ShellActionDisabledReason.missingRecentDirectory.description,
         contains('local directory'),
+      );
+    });
+
+    test('command block actions are disabled when feature flags are off', () {
+      final availability = ShellActionAvailabilityResolver.resolve(
+        actionId: TerminalActionId.openHistoryPeek,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: CommandBlocksHistoryFeatureFlags.disabled,
+        hasCommandBlocks: true,
+      );
+
+      expect(availability.enabled, isFalse);
+      expect(
+        availability.reason,
+        ShellActionDisabledReason.commandBlocksHistoryDisabled,
+      );
+    });
+
+    test('history peek is enabled only when flag and command blocks exist', () {
+      const flags = CommandBlocksHistoryFeatureFlags(
+        enabled: true,
+        commandBlocks: true,
+        historyPeek: true,
+        failureSnapshots: false,
+        reviewWorkspaceEntrypoints: false,
+        outputDiff: false,
+      );
+
+      final availability = ShellActionAvailabilityResolver.resolve(
+        actionId: TerminalActionId.openHistoryPeek,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: flags,
+        hasCommandBlocks: true,
+      );
+
+      expect(availability.enabled, isTrue);
+    });
+
+    test('command block actions require captured command blocks', () {
+      const flags = CommandBlocksHistoryFeatureFlags(
+        enabled: true,
+        commandBlocks: true,
+        historyPeek: true,
+        failureSnapshots: true,
+        reviewWorkspaceEntrypoints: true,
+        outputDiff: true,
+      );
+
+      final availability = ShellActionAvailabilityResolver.resolve(
+        actionId: TerminalActionId.compareLastCommandRun,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: flags,
+        hasCommandBlocks: false,
+      );
+
+      expect(availability.enabled, isFalse);
+      expect(
+        availability.reason,
+        ShellActionDisabledReason.missingCommandBlock,
+      );
+    });
+
+    test('command block actions are gated by their matching sub-flags', () {
+      const flags = CommandBlocksHistoryFeatureFlags(
+        enabled: true,
+        commandBlocks: true,
+        historyPeek: false,
+        failureSnapshots: false,
+        reviewWorkspaceEntrypoints: false,
+        outputDiff: false,
+      );
+
+      final cases = <TerminalActionId>[
+        TerminalActionId.replayFromCommandBlock,
+        TerminalActionId.saveCommandSnapshot,
+        TerminalActionId.compareLastCommandRun,
+      ];
+
+      for (final actionId in cases) {
+        final availability = ShellActionAvailabilityResolver.resolve(
+          actionId: actionId,
+          hasActiveSession: true,
+          productivity: const ShellProductivityState(),
+          commandBlocksHistory: flags,
+          hasCommandBlocks: true,
+        );
+
+        expect(
+          availability.reason,
+          ShellActionDisabledReason.commandBlocksHistoryDisabled,
+          reason: '$actionId should be disabled by its sub-flag',
+        );
+      }
+    });
+
+    test('mark command block is gated by the command blocks flag', () {
+      const flags = CommandBlocksHistoryFeatureFlags(
+        enabled: true,
+        commandBlocks: false,
+        historyPeek: true,
+        failureSnapshots: true,
+        reviewWorkspaceEntrypoints: true,
+        outputDiff: true,
+      );
+
+      final availability = ShellActionAvailabilityResolver.resolve(
+        actionId: TerminalActionId.markCommandBlock,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: flags,
+        hasCommandBlocks: true,
+      );
+
+      expect(availability.enabled, isFalse);
+      expect(
+        availability.reason,
+        ShellActionDisabledReason.commandBlocksHistoryDisabled,
       );
     });
   });
