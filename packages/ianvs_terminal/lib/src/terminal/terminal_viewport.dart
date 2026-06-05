@@ -162,6 +162,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   TextEditingValue _textInputValue = TextEditingValue.empty;
   bool _hadImeComposition = false;
   bool _awaitingSystemTextCommit = false;
+  String _deferredImeRawText = '';
   bool _textInputGeometrySyncScheduled = false;
 
   FocusNode get _focusNode =>
@@ -292,6 +293,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _textInputValue = TextEditingValue.empty;
     _hadImeComposition = false;
     _awaitingSystemTextCommit = false;
+    _deferredImeRawText = '';
   }
 
   void _clearTextInputState() {
@@ -1190,6 +1192,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       return KeyEventResult.ignored;
     }
     if (_shouldDeferKeyPressToSystemTextInput(event)) {
+      _recordDeferredImeKey(event);
       final character = event.character;
       if (_isDeferredTextCommitCharacter(character)) {
         _awaitingSystemTextCommit = true;
@@ -1227,6 +1230,30 @@ class _TerminalViewportState extends State<TerminalViewport>
 
     final character = event.character;
     return _isDeferredTextCommitCharacter(character);
+  }
+
+  void _recordDeferredImeKey(KeyEvent event) {
+    if (event.logicalKey == LogicalKeyboardKey.backspace) {
+      if (_deferredImeRawText.isNotEmpty) {
+        final runes = _deferredImeRawText.runes.toList(growable: false);
+        _deferredImeRawText = String.fromCharCodes(
+          runes.take(runes.length - 1),
+        );
+      }
+      return;
+    }
+
+    if (HardwareKeyboard.instance.isAltPressed ||
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed) {
+      return;
+    }
+
+    final character = event.character;
+    if (character == null || !_isPrintableAscii(character)) {
+      return;
+    }
+    _deferredImeRawText += character;
   }
 
   bool _isDeferredTextCommitCharacter(String? character) {
@@ -1561,17 +1588,22 @@ class _TerminalViewportState extends State<TerminalViewport>
       return text;
     }
 
+    final previousComposingText = _activeComposingText(previousValue);
+    if (previousComposingText != null &&
+        _isPrintableAscii(previousComposingText) &&
+        _isPrintableAscii(text)) {
+      return _deferredImeRawText.isNotEmpty
+          ? _deferredImeRawText
+          : previousComposingText;
+    }
+
     final replacement = _replacementTextBetween(previousText, text);
     if (replacement.isNotEmpty || text != previousText) {
       return replacement;
     }
 
-    final previousComposingRange = previousValue.composing;
-    if (previousComposingRange.isValid && !previousComposingRange.isCollapsed) {
-      final composingText = previousComposingRange.textInside(previousText);
-      if (composingText.isNotEmpty) {
-        return composingText;
-      }
+    if (previousComposingText != null && previousComposingText.isNotEmpty) {
+      return previousComposingText;
     }
     return text;
   }
@@ -1626,11 +1658,23 @@ class _TerminalViewportState extends State<TerminalViewport>
     return value.composing.isValid && !value.composing.isCollapsed;
   }
 
+  String? _activeComposingText(TextEditingValue value) {
+    if (!_hasActiveImeComposition(value)) {
+      return null;
+    }
+    return value.composing.textInside(value.text);
+  }
+
   bool _shouldForwardCommittedText(String text) {
     return _hadImeComposition ||
         _awaitingSystemTextCommit ||
         _containsNonAscii(text) ||
         text.runes.length > 1;
+  }
+
+  bool _isPrintableAscii(String text) {
+    return text.isNotEmpty &&
+        text.runes.every((codePoint) => codePoint >= 0x20 && codePoint <= 0x7e);
   }
 
   bool _containsNonAscii(String text) {

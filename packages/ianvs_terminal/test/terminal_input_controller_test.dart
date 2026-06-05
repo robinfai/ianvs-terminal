@@ -179,6 +179,96 @@ void main() {
     );
   });
 
+  testWidgets('terminal viewport forwards raw ASCII IME composition on enter', (
+    tester,
+  ) async {
+    final previousOverride = debugDefaultTargetPlatformOverride;
+    try {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewportController = TerminalViewportController()
+        ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+      final inputController = TerminalInputController(
+        sessionId: sessionId,
+        runtime: runtime,
+        readFrame: () => viewportController.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 640,
+              height: 240,
+              child: TerminalViewport(
+                controller: viewportController,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyP, character: 'p');
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'p',
+          composing: TextRange(start: 0, end: 1),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyW, character: 'w');
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'p w',
+          composing: TextRange(start: 0, end: 3),
+        ),
+      );
+      await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyD, character: 'd');
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'p w d',
+          composing: TextRange(start: 0, end: 5),
+        ),
+      );
+      await tester.pump();
+
+      expect(backend.writeCalls, isEmpty);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'p w d',
+          selection: TextSelection.collapsed(offset: 5),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        backend.writeCalls.map(utf8.decode).toList(growable: false),
+        <String>['pwd'],
+      );
+    } finally {
+      debugDefaultTargetPlatformOverride = previousOverride;
+    }
+  });
+
   testWidgets(
     'terminal input controller does not repeat app-modifier paste shortcuts',
     (tester) async {
