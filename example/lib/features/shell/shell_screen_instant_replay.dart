@@ -27,12 +27,14 @@ final class InstantReplayCommandBlockSource {
   String get replayHeaderLabel => 'Replay from: $command';
 }
 
-InstantReplayCommandBlockSource? resolveInstantReplayCommandBlockSource({
+InstantReplayCommandBlockSource? resolveInstantReplayCommandBlockActionSource({
+  required TerminalActionId? actionId,
   required CommandBlocksHistoryFeatureFlags flags,
   required String? currentSessionId,
   required List<ShellCommandBlock> commandBlocks,
 }) {
-  if (currentSessionId == null ||
+  if (actionId != TerminalActionId.replayFromCommandBlock ||
+      currentSessionId == null ||
       !flags.enabled ||
       !flags.commandBlocks ||
       !flags.reviewWorkspaceEntrypoints) {

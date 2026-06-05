@@ -2,6 +2,7 @@ import 'package:app/features/productivity/command_blocks_history_feature_flags.d
 import 'package:app/features/productivity/shell_command_block_controller.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/sessions/session_state.dart';
+import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
@@ -179,6 +180,58 @@ void main() {
       );
     });
 
+    test(
+      'does not create block from old prompt marks without a command start',
+      () {
+        final snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: const ShellCommandBlockSnapshot(),
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'command_finished',
+          command: 'flutter test',
+          exitCode: 1,
+          promptMarks: const [
+            TerminalShellPromptMark(scrollbackOffset: 10, cwd: '/old'),
+            TerminalShellPromptMark(scrollbackOffset: 20, cwd: '/old'),
+          ],
+          viewportEndRow: 47,
+        );
+
+        expect(snapshot.blocks, isEmpty);
+      },
+    );
+
+    test('does not append duplicate block for repeated finish events', () {
+      var snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'flutter test',
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+        ],
+      );
+
+      for (var index = 0; index < 2; index += 1) {
+        snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: snapshot,
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'command_finished',
+          command: 'flutter test',
+          exitCode: 1,
+          promptMarks: const [
+            TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+          ],
+          viewportEndRow: 47,
+        );
+      }
+
+      expect(snapshot.blocks, hasLength(1));
+      expect(snapshot.blocks.single.id, 'session-1:command:40:47');
+    });
+
     test('returns empty snapshot when flags are off', () {
       final snapshot = ShellCommandBlockSnapshot.withBlocks(
         blocks: [
@@ -205,7 +258,8 @@ void main() {
 
   group('InstantReplayCommandBlockSource', () {
     test('action resolver uses the latest current session command block', () {
-      final source = resolveInstantReplayCommandBlockSource(
+      final source = resolveInstantReplayCommandBlockActionSource(
+        actionId: TerminalActionId.replayFromCommandBlock,
         flags: _commandBlocksFlags,
         currentSessionId: 'session-1',
         commandBlocks: [
@@ -228,10 +282,22 @@ void main() {
       expect(source.replayHeaderLabel, 'Replay from: flutter test');
     });
 
+    test('action resolver ignores non replay command block actions', () {
+      final source = resolveInstantReplayCommandBlockActionSource(
+        actionId: TerminalActionId.instantReplay,
+        flags: _commandBlocksFlags,
+        currentSessionId: 'session-1',
+        commandBlocks: [_block(id: 'latest')],
+      );
+
+      expect(source, isNull);
+    });
+
     test(
       'action resolver returns null when review entrypoints are disabled',
       () {
-        final source = resolveInstantReplayCommandBlockSource(
+        final source = resolveInstantReplayCommandBlockActionSource(
+          actionId: TerminalActionId.replayFromCommandBlock,
           flags: _commandBlocksWithoutReviewFlags,
           currentSessionId: 'session-1',
           commandBlocks: [_block(id: 'latest')],

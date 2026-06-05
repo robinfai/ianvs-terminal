@@ -1207,7 +1207,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         _openHistoryPeek();
         return;
       case TerminalActionId.replayFromCommandBlock:
-        final commandBlockSource = resolveInstantReplayCommandBlockSource(
+        final commandBlockSource = resolveInstantReplayCommandBlockActionSource(
+          actionId: action,
           flags: _commandBlocksHistoryFeatureFlags,
           currentSessionId: currentSessionId,
           commandBlocks: currentSessionId == null

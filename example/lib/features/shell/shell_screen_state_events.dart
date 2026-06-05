@@ -138,6 +138,21 @@ class ShellCommandBlockShellHookReducer {
       return snapshot;
     }
 
+    final commandId = _commandBlockId(
+      sessionId,
+      plan.startRow,
+      plan.outputEndRow,
+    );
+    if (_hasCommandBlock(snapshot, commandId)) {
+      return _recordEndPromptIfNeeded(
+        snapshot: snapshot,
+        flags: flags,
+        sessionId: sessionId,
+        endPromptRow: plan.endPromptRow,
+        endCwd: plan.endCwd,
+      );
+    }
+
     var next = snapshot;
     if (next.lastPrompt?.row != plan.startRow) {
       next = ShellCommandBlockController.reduce(
@@ -153,7 +168,7 @@ class ShellCommandBlockShellHookReducer {
     next = ShellCommandBlockController.reduce(
       next,
       ShellCommandOutputRangeEvent(
-        commandId: _commandBlockId(sessionId, plan.startRow, plan.outputEndRow),
+        commandId: commandId,
         startRow: plan.startRow + 1,
         endRow: plan.outputEndRow,
       ),
@@ -168,19 +183,44 @@ class ShellCommandBlockShellHookReducer {
       ),
       flags: flags,
     );
-    final endPromptRow = plan.endPromptRow;
+    return _recordEndPromptIfNeeded(
+      snapshot: next,
+      flags: flags,
+      sessionId: sessionId,
+      endPromptRow: plan.endPromptRow,
+      endCwd: plan.endCwd,
+    );
+  }
+
+  static ShellCommandBlockSnapshot _recordEndPromptIfNeeded({
+    required ShellCommandBlockSnapshot snapshot,
+    required CommandBlocksHistoryFeatureFlags flags,
+    required String sessionId,
+    required int? endPromptRow,
+    required String? endCwd,
+  }) {
     if (endPromptRow != null) {
-      next = ShellCommandBlockController.reduce(
-        next,
+      if (snapshot.lastPrompt?.row == endPromptRow) {
+        return snapshot;
+      }
+      return ShellCommandBlockController.reduce(
+        snapshot,
         ShellPromptMarkEvent(
           id: _promptMarkId(sessionId, endPromptRow),
           row: endPromptRow,
-          cwd: plan.endCwd,
+          cwd: endCwd,
         ),
         flags: flags,
       );
     }
-    return next;
+    return snapshot;
+  }
+
+  static bool _hasCommandBlock(
+    ShellCommandBlockSnapshot snapshot,
+    String commandId,
+  ) {
+    return snapshot.blocks.any((block) => block.id == commandId);
   }
 
   static _ShellCommandBlockFinishPlan? _finishPlan({
@@ -222,26 +262,6 @@ class ShellCommandBlockShellHookReducer {
       }
     }
 
-    if (marks.length >= 2) {
-      final startMark = marks[marks.length - 2];
-      final endMark = marks.last;
-      return _finishPlanIfValid(
-        startRow: startMark.scrollbackOffset,
-        startCwd: startMark.cwd,
-        outputEndRow: endMark.scrollbackOffset - 1,
-        endPromptRow: endMark.scrollbackOffset,
-        endCwd: endMark.cwd,
-      );
-    }
-
-    if (marks.length == 1) {
-      final startMark = marks.single;
-      return _finishPlanIfValid(
-        startRow: startMark.scrollbackOffset,
-        startCwd: startMark.cwd,
-        outputEndRow: viewportEnd,
-      );
-    }
     return null;
   }
 
