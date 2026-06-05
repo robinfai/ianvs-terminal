@@ -301,6 +301,17 @@ class MainFlutterWindow: NSWindow {
           status["errorCode"] = Int(error)
         }
         result(status)
+      case "windowMetrics":
+        var metrics: [String: Any] = [
+          "frameWidth": Double(self.frame.size.width),
+          "frameHeight": Double(self.frame.size.height),
+          "devicePixelRatio": Double(self.backingScaleFactor)
+        ]
+        if let contentSize = self.contentView?.bounds.size {
+          metrics["contentWidth"] = Double(contentSize.width)
+          metrics["contentHeight"] = Double(contentSize.height)
+        }
+        result(metrics)
       case "openExternalUrl":
         guard
           let arguments = call.arguments as? [String: Any],

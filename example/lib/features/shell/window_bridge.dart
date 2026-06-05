@@ -116,6 +116,23 @@ class WindowBridge {
     }
   }
 
+  static Future<WindowMetrics?> metrics() async {
+    if (BindingBase.debugBindingType() == null) {
+      return null;
+    }
+    try {
+      final metrics = await _channel.invokeMapMethod<String, Object?>(
+        'windowMetrics',
+      );
+      if (metrics == null) {
+        return null;
+      }
+      return WindowMetrics.fromMap(metrics);
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   static Future<void> openExternalUrl(String url) async {
     if (BindingBase.debugBindingType() == null) {
       return;
@@ -159,6 +176,31 @@ class WindowBridge {
     } on MissingPluginException {
       return;
     }
+  }
+}
+
+class WindowMetrics {
+  const WindowMetrics({
+    this.contentSize,
+    this.frameSize,
+    this.devicePixelRatio,
+  });
+
+  final Size? contentSize;
+  final Size? frameSize;
+  final double? devicePixelRatio;
+
+  factory WindowMetrics.fromMap(Map<String, Object?> map) {
+    return WindowMetrics(
+      contentSize: _sizeFromPlatformValues(
+        map['contentWidth'],
+        map['contentHeight'],
+      ),
+      frameSize: _sizeFromPlatformValues(map['frameWidth'], map['frameHeight']),
+      devicePixelRatio: _positiveFiniteDoubleFromPlatformValue(
+        map['devicePixelRatio'],
+      ),
+    );
   }
 }
 
@@ -217,6 +259,22 @@ String? _stringFromPlatformValue(Object? value) {
     if (trimmed.isNotEmpty) {
       return trimmed;
     }
+  }
+  return null;
+}
+
+Size? _sizeFromPlatformValues(Object? widthValue, Object? heightValue) {
+  final width = _positiveFiniteDoubleFromPlatformValue(widthValue);
+  final height = _positiveFiniteDoubleFromPlatformValue(heightValue);
+  if (width == null || height == null) {
+    return null;
+  }
+  return Size(width, height);
+}
+
+double? _positiveFiniteDoubleFromPlatformValue(Object? value) {
+  if (value is num && value.isFinite && value > 0) {
+    return value.toDouble();
   }
   return null;
 }
