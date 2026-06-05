@@ -36,6 +36,8 @@ class ShellCommandBlockOverlayItem {
   final ShellCommandBlockStatus status;
   final String statusLabel;
   final bool active;
+
+  /// Failed-only failure snapshot action.
   final bool showFailureSnapshotAction;
   final bool showReplayAction;
   final bool showDiffAction;
@@ -58,11 +60,17 @@ class ShellCommandBlockViewModelBuilder {
       return const ShellCommandBlocksOverlayViewModel();
     }
     final visible = <ShellCommandBlockOverlayItem>[];
+    final previousValidBlocks = <ShellCommandBlock>[];
     for (final block in blocks) {
       if (!block.isValid) {
         continue;
       }
+      final hasPreviousSameCommandAndCwd = previousValidBlocks.any(
+        (previous) =>
+            previous.command == block.command && previous.cwd == block.cwd,
+      );
       if (block.endRow < viewportStartRow || block.startRow > viewportEndRow) {
+        previousValidBlocks.add(block);
         continue;
       }
       final visibleStart = max(block.startRow, viewportStartRow);
@@ -80,9 +88,10 @@ class ShellCommandBlockViewModelBuilder {
               flags.failureSnapshots &&
               block.status == ShellCommandBlockStatus.failed,
           showReplayAction: flags.reviewWorkspaceEntrypoints,
-          showDiffAction: flags.outputDiff,
+          showDiffAction: flags.outputDiff && hasPreviousSameCommandAndCwd,
         ),
       );
+      previousValidBlocks.add(block);
     }
     return ShellCommandBlocksOverlayViewModel.withBlocks(visible);
   }

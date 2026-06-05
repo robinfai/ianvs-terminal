@@ -143,7 +143,7 @@ void main() {
       expect(viewModel.blocks.single.statusLabel, 'failed');
     });
 
-    test('outputDiff flag drives showDiffAction', () {
+    test('single block with outputDiff flag does not show diff action', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [_commandBlock(startRow: 1, endRow: 4)],
         viewportStartRow: 0,
@@ -151,17 +151,138 @@ void main() {
         flags: _enabledFlags(outputDiff: true),
       );
 
+      expect(viewModel.blocks.single.showDiffAction, isFalse);
+    });
+
+    test('previous matching command and cwd enables diff action', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(startRow: 1, endRow: 4, cwd: '/repo'),
+          _commandBlock(startRow: 10, endRow: 12, cwd: '/repo'),
+        ],
+        viewportStartRow: 10,
+        viewportEndRow: 12,
+        flags: _enabledFlags(outputDiff: true),
+      );
+
       expect(viewModel.blocks.single.showDiffAction, isTrue);
+    });
+
+    test('future matching command and cwd does not enable diff action', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(startRow: 10, endRow: 12, cwd: '/repo'),
+          _commandBlock(startRow: 20, endRow: 24, cwd: '/repo'),
+        ],
+        viewportStartRow: 10,
+        viewportEndRow: 12,
+        flags: _enabledFlags(outputDiff: true),
+      );
+
+      expect(viewModel.blocks.single.showDiffAction, isFalse);
+    });
+
+    test('previous command mismatch does not enable diff action', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 1,
+            endRow: 4,
+            command: 'dart test',
+            cwd: '/repo',
+          ),
+          _commandBlock(startRow: 10, endRow: 12, cwd: '/repo'),
+        ],
+        viewportStartRow: 10,
+        viewportEndRow: 12,
+        flags: _enabledFlags(outputDiff: true),
+      );
+
+      expect(viewModel.blocks.single.showDiffAction, isFalse);
+    });
+
+    test('previous cwd mismatch does not enable diff action', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(startRow: 1, endRow: 4, cwd: '/other'),
+          _commandBlock(startRow: 10, endRow: 12, cwd: '/repo'),
+        ],
+        viewportStartRow: 10,
+        viewportEndRow: 12,
+        flags: _enabledFlags(outputDiff: true),
+      );
+
+      expect(viewModel.blocks.single.showDiffAction, isFalse);
+    });
+
+    test('succeeded block does not show failure snapshot action', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 1, endRow: 4)],
+        viewportStartRow: 0,
+        viewportEndRow: 10,
+        flags: _enabledFlags(failureSnapshots: true),
+      );
+
+      expect(viewModel.blocks.single.showFailureSnapshotAction, isFalse);
+    });
+
+    test(
+      'failed block without failureSnapshots flag hides snapshot action',
+      () {
+        final viewModel = ShellCommandBlockViewModelBuilder.build(
+          blocks: [
+            _commandBlock(
+              startRow: 1,
+              endRow: 4,
+              status: ShellCommandBlockStatus.failed,
+            ),
+          ],
+          viewportStartRow: 0,
+          viewportEndRow: 10,
+          flags: _enabledFlags(failureSnapshots: false),
+        );
+
+        expect(viewModel.blocks.single.showFailureSnapshotAction, isFalse);
+      },
+    );
+
+    test('block ending on viewport start is visible', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 5, endRow: 10)],
+        viewportStartRow: 10,
+        viewportEndRow: 12,
+        flags: _enabledFlags(),
+      );
+
+      expect(viewModel.blocks, hasLength(1));
+      expect(viewModel.blocks.single.rowOffset, 0);
+      expect(viewModel.blocks.single.rowSpan, 1);
+    });
+
+    test('block starting on viewport end is visible', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 12, endRow: 12)],
+        viewportStartRow: 10,
+        viewportEndRow: 12,
+        flags: _enabledFlags(),
+      );
+
+      expect(viewModel.blocks, hasLength(1));
+      expect(viewModel.blocks.single.rowOffset, 2);
+      expect(viewModel.blocks.single.rowSpan, 1);
     });
   });
 }
 
-CommandBlocksHistoryFeatureFlags _enabledFlags({bool outputDiff = false}) {
+CommandBlocksHistoryFeatureFlags _enabledFlags({
+  bool failureSnapshots = true,
+  bool outputDiff = false,
+}) {
   return CommandBlocksHistoryFeatureFlags(
     enabled: true,
     commandBlocks: true,
     historyPeek: false,
-    failureSnapshots: true,
+    failureSnapshots: failureSnapshots,
     reviewWorkspaceEntrypoints: true,
     outputDiff: outputDiff,
   );
@@ -170,14 +291,17 @@ CommandBlocksHistoryFeatureFlags _enabledFlags({bool outputDiff = false}) {
 ShellCommandBlock _commandBlock({
   required int startRow,
   required int endRow,
+  String command = 'flutter test',
+  String? cwd,
   ShellCommandBlockStatus status = ShellCommandBlockStatus.succeeded,
 }) {
   return ShellCommandBlock(
     id: 'cmd-$startRow-$endRow',
-    command: 'flutter test',
+    command: command,
+    cwd: cwd,
     outputRange: ShellCommandBlockRange(
       commandRow: startRow,
-      outputStartRow: startRow + 1,
+      outputStartRow: startRow == endRow ? startRow : startRow + 1,
       outputEndRow: endRow,
     ),
     status: status,
