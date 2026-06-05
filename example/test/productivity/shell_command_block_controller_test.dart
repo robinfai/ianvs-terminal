@@ -132,6 +132,95 @@ void main() {
       expect(block.failureSnapshot!.cwd, '/repo');
     });
 
+    test('prompt cwd updates current cwd for later finish events', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellPromptMarkEvent(id: 'p1', row: 10, cwd: '  /repo  '),
+        flags: _enabledFlags,
+      );
+
+      expect(snapshot.currentCwd, '/repo');
+      expect(snapshot.lastPrompt!.cwd, '/repo');
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-1',
+          startRow: 11,
+          endRow: 18,
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: null,
+          exitCode: 0,
+        ),
+        flags: _enabledFlags,
+      );
+
+      expect(snapshot.blocks.single.cwd, '/repo');
+      expect(snapshot.currentCwd, '/repo');
+    });
+
+    test('finish cwd updates current cwd without a pending range', () {
+      final snapshot = ShellCommandBlockController.reduce(
+        const ShellCommandBlockSnapshot(),
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: '  /repo  ',
+          exitCode: 0,
+        ),
+        flags: _enabledFlags,
+      );
+
+      expect(snapshot.blocks, isEmpty);
+      expect(snapshot.pendingRange, isNull);
+      expect(snapshot.currentCwd, '/repo');
+    });
+
+    test('finish cwd takes precedence over prompt and current cwd', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCwdChangedEvent('/current'),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellPromptMarkEvent(id: 'p1', row: 10, cwd: '/prompt'),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-1',
+          startRow: 11,
+          endRow: 18,
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: '  /finish  ',
+          exitCode: 1,
+        ),
+        flags: _enabledFlags,
+      );
+
+      final block = snapshot.blocks.single;
+      expect(block.cwd, '/finish');
+      expect(block.failureSnapshot!.cwd, '/finish');
+      expect(snapshot.currentCwd, '/finish');
+    });
+
     test('does not create failure snapshot when snapshots are disabled', () {
       var snapshot = const ShellCommandBlockSnapshot();
 
@@ -276,18 +365,74 @@ void main() {
       expect(snapshot.previousRunFor(unsaved)!.id, 'latest');
     });
 
-    test('rejects blank command id output ranges', () {
-      final snapshot = ShellCommandBlockController.reduce(
-        const ShellCommandBlockSnapshot(),
+    test('clears stale pending range for blank command id output ranges', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
         const ShellCommandOutputRangeEvent(
-          commandId: '   ',
+          commandId: 'cmd-old',
           startRow: 2,
           endRow: 8,
         ),
         flags: _enabledFlags,
       );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: '   ',
+          startRow: 9,
+          endRow: 12,
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: '/repo',
+          exitCode: 0,
+        ),
+        flags: _enabledFlags,
+      );
 
       expect(snapshot.pendingRange, isNull);
+      expect(snapshot.blocks, isEmpty);
+    });
+
+    test('clears stale pending range for invalid output range rows', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-old',
+          startRow: 2,
+          endRow: 8,
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-bad',
+          startRow: 12,
+          endRow: 9,
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: '/repo',
+          exitCode: 0,
+        ),
+        flags: _enabledFlags,
+      );
+
+      expect(snapshot.pendingRange, isNull);
+      expect(snapshot.blocks, isEmpty);
     });
 
     test('clears pending range when finished command is blank', () {

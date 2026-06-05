@@ -85,15 +85,13 @@ class ShellCommandBlockController {
     if (id.isEmpty || event.row < 0) {
       return snapshot;
     }
+    final eventCwd = _trimmed(event.cwd);
+    final currentCwd = eventCwd ?? snapshot.currentCwd;
     return ShellCommandBlockSnapshot.withBlocks(
       blocks: snapshot.blocks,
-      lastPrompt: ShellPromptMark(
-        id: id,
-        row: event.row,
-        cwd: _trimmed(event.cwd) ?? snapshot.currentCwd,
-      ),
+      lastPrompt: ShellPromptMark(id: id, row: event.row, cwd: currentCwd),
       pendingRange: snapshot.pendingRange,
-      currentCwd: snapshot.currentCwd,
+      currentCwd: currentCwd,
     );
   }
 
@@ -105,7 +103,12 @@ class ShellCommandBlockController {
     if (commandId.isEmpty ||
         event.startRow < 0 ||
         event.endRow < event.startRow) {
-      return snapshot;
+      return ShellCommandBlockSnapshot.withBlocks(
+        blocks: snapshot.blocks,
+        lastPrompt: snapshot.lastPrompt,
+        pendingRange: null,
+        currentCwd: snapshot.currentCwd,
+      );
     }
     return ShellCommandBlockSnapshot.withBlocks(
       blocks: snapshot.blocks,
@@ -125,16 +128,26 @@ class ShellCommandBlockController {
     required CommandBlocksHistoryFeatureFlags flags,
   }) {
     final command = event.command.trim();
+    final eventCwd = _trimmed(event.cwd);
+    final currentCwd = eventCwd ?? snapshot.currentCwd;
     final range = snapshot.pendingRange;
     if (range == null) {
-      return snapshot;
+      if (eventCwd == null) {
+        return snapshot;
+      }
+      return ShellCommandBlockSnapshot.withBlocks(
+        blocks: snapshot.blocks,
+        lastPrompt: snapshot.lastPrompt,
+        pendingRange: null,
+        currentCwd: currentCwd,
+      );
     }
     if (command.isEmpty || !range.isValid) {
       return ShellCommandBlockSnapshot.withBlocks(
         blocks: snapshot.blocks,
         lastPrompt: snapshot.lastPrompt,
         pendingRange: null,
-        currentCwd: snapshot.currentCwd,
+        currentCwd: currentCwd,
       );
     }
     final status = switch (event.exitCode) {
@@ -152,11 +165,10 @@ class ShellCommandBlockController {
         blocks: snapshot.blocks,
         lastPrompt: snapshot.lastPrompt,
         pendingRange: null,
-        currentCwd: snapshot.currentCwd,
+        currentCwd: currentCwd,
       );
     }
-    final cwd =
-        _trimmed(event.cwd) ?? snapshot.lastPrompt?.cwd ?? snapshot.currentCwd;
+    final cwd = eventCwd ?? snapshot.lastPrompt?.cwd ?? snapshot.currentCwd;
     final block = ShellCommandBlock(
       id: range.commandId,
       command: command,
@@ -179,7 +191,7 @@ class ShellCommandBlockController {
       blocks: [...snapshot.blocks, block],
       lastPrompt: snapshot.lastPrompt,
       pendingRange: null,
-      currentCwd: snapshot.currentCwd,
+      currentCwd: currentCwd,
     );
   }
 }
