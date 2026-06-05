@@ -13,6 +13,15 @@ const _enabledFlags = CommandBlocksHistoryFeatureFlags(
   outputDiff: false,
 );
 
+const _flagsWithoutFailureSnapshots = CommandBlocksHistoryFeatureFlags(
+  enabled: true,
+  commandBlocks: true,
+  historyPeek: false,
+  failureSnapshots: false,
+  reviewWorkspaceEntrypoints: false,
+  outputDiff: false,
+);
+
 void main() {
   group('ShellCommandBlockController', () {
     test('does not build blocks or state when flags are disabled', () {
@@ -86,6 +95,75 @@ void main() {
       expect(block.failureSnapshot!.exitCode, 1);
     });
 
+    test('uses current cwd when prompt and finish do not provide cwd', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCwdChangedEvent('/repo'),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellPromptMarkEvent(id: 'p1', row: 10),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-1',
+          startRow: 11,
+          endRow: 18,
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: null,
+          exitCode: 1,
+        ),
+        flags: _enabledFlags,
+      );
+
+      final block = snapshot.blocks.single;
+      expect(block.cwd, '/repo');
+      expect(block.failureSnapshot!.cwd, '/repo');
+    });
+
+    test('does not create failure snapshot when snapshots are disabled', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellPromptMarkEvent(id: 'p1', row: 10, cwd: '/repo'),
+        flags: _flagsWithoutFailureSnapshots,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-1',
+          startRow: 11,
+          endRow: 18,
+        ),
+        flags: _flagsWithoutFailureSnapshots,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: '/repo',
+          exitCode: 1,
+        ),
+        flags: _flagsWithoutFailureSnapshots,
+      );
+
+      final block = snapshot.blocks.single;
+      expect(block.status, ShellCommandBlockStatus.failed);
+      expect(block.failureSnapshot, isNull);
+    });
+
     test('finds previous run with same cwd and command', () {
       final previous = ShellCommandBlock(
         id: 'old',
@@ -115,6 +193,87 @@ void main() {
       );
 
       expect(snapshot.previousRunFor(current)!.id, 'old');
+    });
+
+    test('finds previous run before a block in the snapshot', () {
+      final old = ShellCommandBlock(
+        id: 'old',
+        command: 'flutter test',
+        cwd: '/repo',
+        outputRange: const ShellCommandBlockRange(
+          commandRow: 1,
+          outputStartRow: 2,
+          outputEndRow: 8,
+        ),
+        status: ShellCommandBlockStatus.succeeded,
+      );
+      final mid = ShellCommandBlock(
+        id: 'mid',
+        command: 'flutter test',
+        cwd: '/repo',
+        outputRange: const ShellCommandBlockRange(
+          commandRow: 10,
+          outputStartRow: 11,
+          outputEndRow: 18,
+        ),
+        status: ShellCommandBlockStatus.failed,
+      );
+      final latest = ShellCommandBlock(
+        id: 'latest',
+        command: 'flutter test',
+        cwd: '/repo',
+        outputRange: const ShellCommandBlockRange(
+          commandRow: 20,
+          outputStartRow: 21,
+          outputEndRow: 28,
+        ),
+        status: ShellCommandBlockStatus.succeeded,
+      );
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(
+        blocks: [old, mid, latest],
+      );
+
+      expect(snapshot.previousRunFor(mid)!.id, 'old');
+    });
+
+    test('finds latest matching run when block is not in the snapshot', () {
+      final old = ShellCommandBlock(
+        id: 'old',
+        command: 'flutter test',
+        cwd: '/repo',
+        outputRange: const ShellCommandBlockRange(
+          commandRow: 1,
+          outputStartRow: 2,
+          outputEndRow: 8,
+        ),
+        status: ShellCommandBlockStatus.succeeded,
+      );
+      final latest = ShellCommandBlock(
+        id: 'latest',
+        command: 'flutter test',
+        cwd: '/repo',
+        outputRange: const ShellCommandBlockRange(
+          commandRow: 10,
+          outputStartRow: 11,
+          outputEndRow: 18,
+        ),
+        status: ShellCommandBlockStatus.failed,
+      );
+      const unsaved = ShellCommandBlock(
+        id: 'unsaved',
+        command: 'flutter test',
+        cwd: '/repo',
+        outputRange: ShellCommandBlockRange(
+          commandRow: 20,
+          outputStartRow: 21,
+          outputEndRow: 28,
+        ),
+      );
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(
+        blocks: [old, latest],
+      );
+
+      expect(snapshot.previousRunFor(unsaved)!.id, 'latest');
     });
 
     test('rejects blank command id output ranges', () {

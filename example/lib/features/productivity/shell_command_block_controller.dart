@@ -3,26 +3,33 @@ import 'shell_productivity_models.dart';
 import 'shell_productivity_reducer.dart';
 
 class ShellCommandBlockSnapshot {
-  const ShellCommandBlockSnapshot({this.lastPrompt, this.pendingRange})
-    : _blocks = const <ShellCommandBlock>[];
+  const ShellCommandBlockSnapshot({
+    this.lastPrompt,
+    this.pendingRange,
+    this.currentCwd,
+  }) : _blocks = const <ShellCommandBlock>[];
 
   ShellCommandBlockSnapshot.withBlocks({
     List<ShellCommandBlock> blocks = const <ShellCommandBlock>[],
     this.lastPrompt,
     this.pendingRange,
+    this.currentCwd,
   }) : _blocks = List<ShellCommandBlock>.unmodifiable(blocks);
 
   final ShellPromptMark? lastPrompt;
   final ShellCommandOutputRange? pendingRange;
+  final String? currentCwd;
   final List<ShellCommandBlock> _blocks;
 
   List<ShellCommandBlock> get blocks => _blocks;
 
   ShellCommandBlock? previousRunFor(ShellCommandBlock block) {
-    for (final candidate in blocks.reversed) {
-      if (candidate.id == block.id) {
-        continue;
-      }
+    final targetIndex = blocks.indexWhere(
+      (candidate) => candidate.id == block.id,
+    );
+    final endIndex = targetIndex < 0 ? blocks.length : targetIndex;
+    for (var index = endIndex - 1; index >= 0; index -= 1) {
+      final candidate = blocks[index];
       if (candidate.command == block.command && candidate.cwd == block.cwd) {
         return candidate;
       }
@@ -50,8 +57,24 @@ class ShellCommandBlockController {
         event,
         flags: flags,
       ),
-      ShellCwdChangedEvent() => snapshot,
+      ShellCwdChangedEvent() => _cwdChanged(snapshot, event),
     };
+  }
+
+  static ShellCommandBlockSnapshot _cwdChanged(
+    ShellCommandBlockSnapshot snapshot,
+    ShellCwdChangedEvent event,
+  ) {
+    final cwd = _trimmed(event.cwd);
+    if (cwd == null) {
+      return snapshot;
+    }
+    return ShellCommandBlockSnapshot.withBlocks(
+      blocks: snapshot.blocks,
+      lastPrompt: snapshot.lastPrompt,
+      pendingRange: snapshot.pendingRange,
+      currentCwd: cwd,
+    );
   }
 
   static ShellCommandBlockSnapshot _promptMark(
@@ -67,9 +90,10 @@ class ShellCommandBlockController {
       lastPrompt: ShellPromptMark(
         id: id,
         row: event.row,
-        cwd: _trimmed(event.cwd),
+        cwd: _trimmed(event.cwd) ?? snapshot.currentCwd,
       ),
       pendingRange: snapshot.pendingRange,
+      currentCwd: snapshot.currentCwd,
     );
   }
 
@@ -91,6 +115,7 @@ class ShellCommandBlockController {
         startRow: event.startRow,
         endRow: event.endRow,
       ),
+      currentCwd: snapshot.currentCwd,
     );
   }
 
@@ -109,6 +134,7 @@ class ShellCommandBlockController {
         blocks: snapshot.blocks,
         lastPrompt: snapshot.lastPrompt,
         pendingRange: null,
+        currentCwd: snapshot.currentCwd,
       );
     }
     final status = switch (event.exitCode) {
@@ -126,9 +152,11 @@ class ShellCommandBlockController {
         blocks: snapshot.blocks,
         lastPrompt: snapshot.lastPrompt,
         pendingRange: null,
+        currentCwd: snapshot.currentCwd,
       );
     }
-    final cwd = _trimmed(event.cwd) ?? snapshot.lastPrompt?.cwd;
+    final cwd =
+        _trimmed(event.cwd) ?? snapshot.lastPrompt?.cwd ?? snapshot.currentCwd;
     final block = ShellCommandBlock(
       id: range.commandId,
       command: command,
@@ -151,6 +179,7 @@ class ShellCommandBlockController {
       blocks: [...snapshot.blocks, block],
       lastPrompt: snapshot.lastPrompt,
       pendingRange: null,
+      currentCwd: snapshot.currentCwd,
     );
   }
 }
