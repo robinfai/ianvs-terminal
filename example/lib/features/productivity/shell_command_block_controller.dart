@@ -4,14 +4,16 @@ import 'shell_productivity_reducer.dart';
 
 class ShellCommandBlockSnapshot {
   const ShellCommandBlockSnapshot({
-    this.blocks = const <ShellCommandBlock>[],
+    List<ShellCommandBlock> blocks = const <ShellCommandBlock>[],
     this.lastPrompt,
     this.pendingRange,
-  });
+  }) : _blocks = blocks;
 
-  final List<ShellCommandBlock> blocks;
   final ShellPromptMark? lastPrompt;
   final ShellCommandOutputRange? pendingRange;
+  final List<ShellCommandBlock> _blocks;
+
+  List<ShellCommandBlock> get blocks => List.unmodifiable(_blocks);
 
   ShellCommandBlock? previousRunFor(ShellCommandBlock block) {
     for (final candidate in blocks.reversed) {
@@ -72,14 +74,17 @@ class ShellCommandBlockController {
     ShellCommandBlockSnapshot snapshot,
     ShellCommandOutputRangeEvent event,
   ) {
-    if (event.startRow < 0 || event.endRow < event.startRow) {
+    final commandId = event.commandId.trim();
+    if (commandId.isEmpty ||
+        event.startRow < 0 ||
+        event.endRow < event.startRow) {
       return snapshot;
     }
     return ShellCommandBlockSnapshot(
       blocks: snapshot.blocks,
       lastPrompt: snapshot.lastPrompt,
       pendingRange: ShellCommandOutputRange(
-        commandId: event.commandId,
+        commandId: commandId,
         startRow: event.startRow,
         endRow: event.endRow,
       ),
@@ -93,8 +98,15 @@ class ShellCommandBlockController {
   }) {
     final command = event.command.trim();
     final range = snapshot.pendingRange;
-    if (command.isEmpty || range == null || !range.isValid) {
+    if (range == null) {
       return snapshot;
+    }
+    if (command.isEmpty || !range.isValid) {
+      return ShellCommandBlockSnapshot(
+        blocks: snapshot.blocks,
+        lastPrompt: snapshot.lastPrompt,
+        pendingRange: null,
+      );
     }
     final status = switch (event.exitCode) {
       0 => ShellCommandBlockStatus.succeeded,
@@ -106,6 +118,13 @@ class ShellCommandBlockController {
       outputStartRow: range.startRow,
       outputEndRow: range.endRow,
     );
+    if (!outputRange.isValid) {
+      return ShellCommandBlockSnapshot(
+        blocks: snapshot.blocks,
+        lastPrompt: snapshot.lastPrompt,
+        pendingRange: null,
+      );
+    }
     final cwd = _trimmed(event.cwd) ?? snapshot.lastPrompt?.cwd;
     final block = ShellCommandBlock(
       id: range.commandId,

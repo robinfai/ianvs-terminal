@@ -320,15 +320,17 @@ class ShellFailureSnapshot {
     required this.cwd,
     required this.exitCode,
     required this.outputRange,
-    this.keyErrorLines = const <String>[],
-  });
+    List<String> keyErrorLines = const <String>[],
+  }) : _keyErrorLines = keyErrorLines;
 
   final String commandBlockId;
   final String command;
   final String? cwd;
   final int? exitCode;
   final ShellCommandBlockRange outputRange;
-  final List<String> keyErrorLines;
+  final List<String> _keyErrorLines;
+
+  List<String> get keyErrorLines => List.unmodifiable(_keyErrorLines);
 }
 
 class ShellHistoryMarker {
@@ -354,27 +356,28 @@ class ShellCommandBlock {
     required this.id,
     required this.command,
     ShellCommandBlockRange? outputRange,
-    int startRow = 0,
-    int endRow = 0,
+    int startRow = -1,
+    int endRow = -1,
     this.cwd,
     this.exitCode,
     this.status = ShellCommandBlockStatus.unknown,
-    this.markers = const <ShellHistoryMarker>[],
+    List<ShellHistoryMarker> markers = const <ShellHistoryMarker>[],
     this.failureSnapshot,
   }) : _outputRange = outputRange,
        _legacyStartRow = startRow,
-       _legacyEndRow = endRow;
+       _legacyEndRow = endRow,
+       _markers = markers;
 
   final String id;
   final String command;
   final String? cwd;
   final int? exitCode;
   final ShellCommandBlockStatus status;
-  final List<ShellHistoryMarker> markers;
   final ShellFailureSnapshot? failureSnapshot;
   final ShellCommandBlockRange? _outputRange;
   final int _legacyStartRow;
   final int _legacyEndRow;
+  final List<ShellHistoryMarker> _markers;
 
   ShellCommandBlockRange get outputRange {
     return _outputRange ??
@@ -389,6 +392,7 @@ class ShellCommandBlock {
   int get endRow => outputRange.outputEndRow;
   bool get isValid => id.trim().isNotEmpty && outputRange.isValid;
   bool get failed => status == ShellCommandBlockStatus.failed;
+  List<ShellHistoryMarker> get markers => List.unmodifiable(_markers);
 
   bool containsRow(int row) {
     return isValid && outputRange.containsRow(row);
