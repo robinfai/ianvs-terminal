@@ -1206,6 +1206,24 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       case TerminalActionId.openHistoryPeek:
         _openHistoryPeek();
         return;
+      case TerminalActionId.replayFromCommandBlock:
+        if (currentSessionId == null ||
+            !_commandBlocksHistoryFeatureFlags.enabled ||
+            !_commandBlocksHistoryFeatureFlags.commandBlocks ||
+            !_commandBlocksHistoryFeatureFlags.reviewWorkspaceEntrypoints) {
+          return;
+        }
+        final commandBlock = _latestCommandBlockForSession(currentSessionId);
+        if (commandBlock == null) {
+          return;
+        }
+        await _openInstantReplay(
+          currentState,
+          commandBlockSource: InstantReplayCommandBlockSource.fromBlock(
+            commandBlock,
+          ),
+        );
+        return;
       case TerminalActionId.search:
         if (currentSessionId == null) {
           return;

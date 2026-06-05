@@ -181,6 +181,12 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         commandBlocksHistoryFeatureFlags.commandBlocks &&
         commandBlocksHistoryFeatureFlags.historyPeek &&
         hasCommandBlocks;
+    final replayFromCommandBlockEnabled =
+        hasActiveSession &&
+        commandBlocksHistoryFeatureFlags.enabled &&
+        commandBlocksHistoryFeatureFlags.commandBlocks &&
+        commandBlocksHistoryFeatureFlags.reviewWorkspaceEntrypoints &&
+        hasCommandBlocks;
 
     String historyPeekUnavailableReason() {
       if (!hasActiveSession) {
@@ -190,6 +196,18 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
           !commandBlocksHistoryFeatureFlags.commandBlocks ||
           !commandBlocksHistoryFeatureFlags.historyPeek) {
         return 'Command Blocks history unavailable.';
+      }
+      return 'No command block available.';
+    }
+
+    String replayFromCommandBlockUnavailableReason() {
+      if (!hasActiveSession) {
+        return activeSessionRequired;
+      }
+      if (!commandBlocksHistoryFeatureFlags.enabled ||
+          !commandBlocksHistoryFeatureFlags.commandBlocks ||
+          !commandBlocksHistoryFeatureFlags.reviewWorkspaceEntrypoints) {
+        return 'Command Blocks review unavailable.';
       }
       return 'No command block available.';
     }
@@ -764,6 +782,19 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       ).pop(TerminalActionId.openHistoryPeek),
                     ),
                     commandTile(
+                      key: const Key('shell-replay-from-command-block'),
+                      actionId: TerminalActionId.replayFromCommandBlock,
+                      icon: Icons.replay_rounded,
+                      title: 'Replay from command block',
+                      subtitle:
+                          'Session action • Open replay with command context.',
+                      enabled: replayFromCommandBlockEnabled,
+                      disabledReason: replayFromCommandBlockUnavailableReason(),
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.replayFromCommandBlock),
+                    ),
+                    commandTile(
                       actionId: TerminalActionId.search,
                       icon: Icons.search_rounded,
                       title: 'Search terminal output',
@@ -936,6 +967,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry(
     'history peek failed marked command blocks review',
     TerminalActionId.openHistoryPeek,
+  ),
+  MapEntry(
+    'replay from command block review command context',
+    TerminalActionId.replayFromCommandBlock,
   ),
   MapEntry('search scrollback find local output', TerminalActionId.search),
   MapEntry('global search workspace all tabs', TerminalActionId.globalSearch),

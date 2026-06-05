@@ -23,6 +23,8 @@ final class InstantReplayCommandBlockSource {
   final String command;
   final String? cwd;
   final String? statusLabel;
+
+  String get replayHeaderLabel => 'Replay from: $command';
 }
 
 class _InstantReplayWorkspace extends StatefulWidget {
@@ -883,7 +885,7 @@ class _InstantReplayControlHeader extends StatelessWidget {
     final source = commandBlockSource;
     final detail = source == null
         ? '$sourceLabel • $frameDetail'
-        : 'Replay from: ${source.command} • $sourceLabel • $frameDetail';
+        : '${source.replayHeaderLabel} • $sourceLabel • $frameDetail';
     return Row(
       children: [
         DecoratedBox(

@@ -1,4 +1,7 @@
+import 'package:app/features/productivity/command_blocks_history_feature_flags.dart';
+import 'package:app/features/productivity/shell_command_block_controller.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
+import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
@@ -109,7 +112,107 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('ShellCommandBlockShellHookReducer', () {
+    test(
+      'creates block without prompt offset from prompt mark and viewport end',
+      () {
+        var snapshot = const ShellCommandBlockSnapshot();
+
+        snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: snapshot,
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'precmd.pwd',
+          cwd: '/repo',
+        );
+        snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: snapshot,
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'preexec',
+          command: 'flutter test',
+          promptMarks: const [
+            TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+          ],
+        );
+        snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: snapshot,
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'command_finished',
+          command: 'flutter test',
+          exitCode: 1,
+          promptMarks: const [
+            TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+          ],
+          viewportEndRow: 47,
+        );
+
+        expect(snapshot.blocks, hasLength(1));
+        final block = snapshot.blocks.single;
+        expect(block.command, 'flutter test');
+        expect(block.cwd, '/repo');
+        expect(block.status, ShellCommandBlockStatus.failed);
+        expect(block.outputRange.commandRow, 40);
+        expect(block.outputRange.outputStartRow, 41);
+        expect(block.outputRange.outputEndRow, 47);
+      },
+    );
+
+    test('returns empty snapshot when flags are off', () {
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(
+        blocks: [
+          _block(id: 'existing', status: ShellCommandBlockStatus.failed),
+        ],
+      );
+
+      final next = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: CommandBlocksHistoryFeatureFlags.disabled,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'flutter test',
+        exitCode: 1,
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+        ],
+        viewportEndRow: 47,
+      );
+
+      expect(next.blocks, isEmpty);
+    });
+  });
+
+  group('InstantReplayCommandBlockSource', () {
+    test('builds replay header label from command block', () {
+      final source = InstantReplayCommandBlockSource.fromBlock(
+        _block(
+          id: 'failed',
+          command: 'flutter test',
+          cwd: '/repo',
+          exitCode: 1,
+          status: ShellCommandBlockStatus.failed,
+        ),
+      );
+
+      expect(source.commandBlockId, 'failed');
+      expect(source.command, 'flutter test');
+      expect(source.cwd, '/repo');
+      expect(source.statusLabel, 'exit 1');
+      expect(source.replayHeaderLabel, 'Replay from: flutter test');
+    });
+  });
 }
+
+const _commandBlocksFlags = CommandBlocksHistoryFeatureFlags(
+  enabled: true,
+  commandBlocks: true,
+  historyPeek: true,
+  failureSnapshots: true,
+  reviewWorkspaceEntrypoints: true,
+  outputDiff: true,
+);
 
 Widget _wrap(Widget child) {
   return MaterialApp(
