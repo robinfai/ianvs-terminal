@@ -63,9 +63,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         ? const <ShellCommandBlock>[]
         : _commandBlocksForSession(activeSessionIdBeforeOpen);
     final hasCommandBlocks = commandBlocks.isNotEmpty;
-    final hasHistoryPeekCommandBlocks = shellHistoryPeekHasVisibleBlocks(
-      commandBlocks,
-    );
+    final hasHistoryPeekCommandBlocks = hasCommandBlocks;
     final activePaneZoomed =
         activeSessionIdBeforeOpen != null &&
         _zoomedPaneSessionId == activeSessionIdBeforeOpen;

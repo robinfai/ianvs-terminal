@@ -777,7 +777,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       icon: Icons.history_rounded,
                       title: 'History Peek',
                       subtitle:
-                          'Session action • Review failed and marked commands.',
+                          'Session action • Filter and search command history.',
                       enabled: historyPeekEnabled,
                       disabledReason: historyPeekUnavailableReason(),
                       onTap: () => Navigator.of(
@@ -968,7 +968,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.instantReplay,
   ),
   MapEntry(
-    'history peek failed marked command blocks review',
+    'history peek command history filters search review',
     TerminalActionId.openHistoryPeek,
   ),
   MapEntry(

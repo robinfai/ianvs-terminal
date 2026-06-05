@@ -11,7 +11,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
   group('ShellHistoryPeekSheet', () {
-    testWidgets('history peek lists failed and marked commands', (
+    testWidgets('history peek lists captured commands by default', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -52,11 +52,69 @@ void main() {
       expect(find.text('History Peek'), findsOneWidget);
       expect(find.text('flutter test'), findsOneWidget);
       expect(find.text('dart analyze'), findsOneWidget);
-      expect(find.text('echo ok'), findsNothing);
+      expect(find.text('echo ok'), findsOneWidget);
       expect(find.text('/repo'), findsOneWidget);
       expect(find.text('/repo/packages/app'), findsOneWidget);
       expect(find.text('exit 1'), findsOneWidget);
       expect(find.text('Needs review'), findsOneWidget);
+    });
+
+    testWidgets('filters and searches command history', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          ShellHistoryPeekSheet(
+            blocks: [
+              _block(
+                id: 'failed',
+                command: 'flutter test',
+                cwd: '/repo',
+                exitCode: 1,
+                status: ShellCommandBlockStatus.failed,
+              ),
+              _block(
+                id: 'marked',
+                command: 'dart analyze',
+                cwd: '/repo/packages/app',
+                status: ShellCommandBlockStatus.succeeded,
+                markers: const [
+                  ShellHistoryMarker(
+                    id: 'manual-marker',
+                    row: 12,
+                    kind: ShellHistoryMarkerKind.manual,
+                    label: 'Needs review',
+                  ),
+                ],
+              ),
+              _block(
+                id: 'plain',
+                command: 'echo ok',
+                status: ShellCommandBlockStatus.succeeded,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.tap(
+        find.byKey(const Key('shell-history-peek-filter-Failed')),
+      );
+      await tester.pump();
+
+      expect(find.text('flutter test'), findsOneWidget);
+      expect(find.text('dart analyze'), findsNothing);
+      expect(find.text('echo ok'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('shell-history-peek-filter-All')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('shell-history-peek-search')),
+        'analyze',
+      );
+      await tester.pump();
+
+      expect(find.text('flutter test'), findsNothing);
+      expect(find.text('dart analyze'), findsOneWidget);
+      expect(find.text('echo ok'), findsNothing);
     });
 
     testWidgets('empty blocks render an empty state', (tester) async {
@@ -65,7 +123,7 @@ void main() {
       );
 
       expect(find.text('History Peek'), findsOneWidget);
-      expect(find.text('No failed or marked commands yet.'), findsOneWidget);
+      expect(find.text('No commands captured yet.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

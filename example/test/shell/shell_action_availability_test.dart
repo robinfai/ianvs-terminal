@@ -108,7 +108,7 @@ void main() {
       expect(availability.enabled, isTrue);
     });
 
-    test('history peek requires a failed or marked command block', () {
+    test('history peek uses any captured command block', () {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: true,
@@ -124,7 +124,13 @@ void main() {
         productivity: const ShellProductivityState(),
         commandBlocksHistory: flags,
         hasCommandBlocks: true,
-        hasHistoryPeekCommandBlocks: false,
+      );
+      final historyPeekWithoutBlocks = ShellActionAvailabilityResolver.resolve(
+        actionId: TerminalActionId.openHistoryPeek,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: flags,
+        hasCommandBlocks: false,
       );
       final replay = ShellActionAvailabilityResolver.resolve(
         actionId: TerminalActionId.replayFromCommandBlock,
@@ -135,8 +141,12 @@ void main() {
         hasHistoryPeekCommandBlocks: false,
       );
 
-      expect(historyPeek.enabled, isFalse);
-      expect(historyPeek.reason, ShellActionDisabledReason.missingCommandBlock);
+      expect(historyPeek.enabled, isTrue);
+      expect(historyPeekWithoutBlocks.enabled, isFalse);
+      expect(
+        historyPeekWithoutBlocks.reason,
+        ShellActionDisabledReason.missingCommandBlock,
+      );
       expect(replay.enabled, isTrue);
     });
 

@@ -11,13 +11,11 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
   }
 
   List<ShellCommandBlock> _historyPeekBlocksForSession(String sessionId) {
-    return shellHistoryPeekVisibleBlocks(_commandBlocksForSession(sessionId));
+    return _commandBlocksForSession(sessionId);
   }
 
   bool _hasHistoryPeekBlocksForSession(String sessionId) {
-    return shellHistoryPeekHasVisibleBlocks(
-      _commandBlocksForSession(sessionId),
-    );
+    return _commandBlocksForSession(sessionId).isNotEmpty;
   }
 
   String? get _activeCommandBlockId => null;
