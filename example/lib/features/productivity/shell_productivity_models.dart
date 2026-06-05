@@ -320,8 +320,16 @@ class ShellFailureSnapshot {
     required this.cwd,
     required this.exitCode,
     required this.outputRange,
+  }) : _keyErrorLines = const <String>[];
+
+  ShellFailureSnapshot.withKeyErrorLines({
+    required this.commandBlockId,
+    required this.command,
+    required this.cwd,
+    required this.exitCode,
+    required this.outputRange,
     List<String> keyErrorLines = const <String>[],
-  }) : _keyErrorLines = keyErrorLines;
+  }) : _keyErrorLines = List<String>.unmodifiable(keyErrorLines);
 
   final String commandBlockId;
   final String command;
@@ -330,7 +338,7 @@ class ShellFailureSnapshot {
   final ShellCommandBlockRange outputRange;
   final List<String> _keyErrorLines;
 
-  List<String> get keyErrorLines => List.unmodifiable(_keyErrorLines);
+  List<String> get keyErrorLines => _keyErrorLines;
 }
 
 class ShellHistoryMarker {
@@ -361,12 +369,27 @@ class ShellCommandBlock {
     this.cwd,
     this.exitCode,
     this.status = ShellCommandBlockStatus.unknown,
+    this.failureSnapshot,
+  }) : _outputRange = outputRange,
+       _legacyStartRow = startRow,
+       _legacyEndRow = endRow,
+       _markers = const <ShellHistoryMarker>[];
+
+  ShellCommandBlock.withMarkers({
+    required this.id,
+    required this.command,
+    ShellCommandBlockRange? outputRange,
+    int startRow = -1,
+    int endRow = -1,
+    this.cwd,
+    this.exitCode,
+    this.status = ShellCommandBlockStatus.unknown,
     List<ShellHistoryMarker> markers = const <ShellHistoryMarker>[],
     this.failureSnapshot,
   }) : _outputRange = outputRange,
        _legacyStartRow = startRow,
        _legacyEndRow = endRow,
-       _markers = markers;
+       _markers = List<ShellHistoryMarker>.unmodifiable(markers);
 
   final String id;
   final String command;
@@ -392,7 +415,7 @@ class ShellCommandBlock {
   int get endRow => outputRange.outputEndRow;
   bool get isValid => id.trim().isNotEmpty && outputRange.isValid;
   bool get failed => status == ShellCommandBlockStatus.failed;
-  List<ShellHistoryMarker> get markers => List.unmodifiable(_markers);
+  List<ShellHistoryMarker> get markers => _markers;
 
   bool containsRow(int row) {
     return isValid && outputRange.containsRow(row);
@@ -408,7 +431,7 @@ class ShellCommandBlock {
     List<ShellHistoryMarker>? markers,
     Object? failureSnapshot = _shellCommandBlockNoChange,
   }) {
-    return ShellCommandBlock(
+    return ShellCommandBlock.withMarkers(
       id: id ?? this.id,
       command: command ?? this.command,
       cwd: identical(cwd, _shellCommandBlockNoChange)

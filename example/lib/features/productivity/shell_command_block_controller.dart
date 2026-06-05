@@ -3,17 +3,20 @@ import 'shell_productivity_models.dart';
 import 'shell_productivity_reducer.dart';
 
 class ShellCommandBlockSnapshot {
-  const ShellCommandBlockSnapshot({
+  const ShellCommandBlockSnapshot({this.lastPrompt, this.pendingRange})
+    : _blocks = const <ShellCommandBlock>[];
+
+  ShellCommandBlockSnapshot.withBlocks({
     List<ShellCommandBlock> blocks = const <ShellCommandBlock>[],
     this.lastPrompt,
     this.pendingRange,
-  }) : _blocks = blocks;
+  }) : _blocks = List<ShellCommandBlock>.unmodifiable(blocks);
 
   final ShellPromptMark? lastPrompt;
   final ShellCommandOutputRange? pendingRange;
   final List<ShellCommandBlock> _blocks;
 
-  List<ShellCommandBlock> get blocks => List.unmodifiable(_blocks);
+  List<ShellCommandBlock> get blocks => _blocks;
 
   ShellCommandBlock? previousRunFor(ShellCommandBlock block) {
     for (final candidate in blocks.reversed) {
@@ -59,7 +62,7 @@ class ShellCommandBlockController {
     if (id.isEmpty || event.row < 0) {
       return snapshot;
     }
-    return ShellCommandBlockSnapshot(
+    return ShellCommandBlockSnapshot.withBlocks(
       blocks: snapshot.blocks,
       lastPrompt: ShellPromptMark(
         id: id,
@@ -80,7 +83,7 @@ class ShellCommandBlockController {
         event.endRow < event.startRow) {
       return snapshot;
     }
-    return ShellCommandBlockSnapshot(
+    return ShellCommandBlockSnapshot.withBlocks(
       blocks: snapshot.blocks,
       lastPrompt: snapshot.lastPrompt,
       pendingRange: ShellCommandOutputRange(
@@ -102,7 +105,7 @@ class ShellCommandBlockController {
       return snapshot;
     }
     if (command.isEmpty || !range.isValid) {
-      return ShellCommandBlockSnapshot(
+      return ShellCommandBlockSnapshot.withBlocks(
         blocks: snapshot.blocks,
         lastPrompt: snapshot.lastPrompt,
         pendingRange: null,
@@ -119,7 +122,7 @@ class ShellCommandBlockController {
       outputEndRow: range.endRow,
     );
     if (!outputRange.isValid) {
-      return ShellCommandBlockSnapshot(
+      return ShellCommandBlockSnapshot.withBlocks(
         blocks: snapshot.blocks,
         lastPrompt: snapshot.lastPrompt,
         pendingRange: null,
@@ -144,7 +147,7 @@ class ShellCommandBlockController {
             )
           : null,
     );
-    return ShellCommandBlockSnapshot(
+    return ShellCommandBlockSnapshot.withBlocks(
       blocks: [...snapshot.blocks, block],
       lastPrompt: snapshot.lastPrompt,
       pendingRange: null,

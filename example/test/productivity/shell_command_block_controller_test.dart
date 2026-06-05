@@ -110,7 +110,9 @@ void main() {
         status: ShellCommandBlockStatus.failed,
       );
 
-      final snapshot = ShellCommandBlockSnapshot(blocks: [previous, current]);
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(
+        blocks: [previous, current],
+      );
 
       expect(snapshot.previousRunFor(current)!.id, 'old');
     });
@@ -213,7 +215,7 @@ void main() {
         row: 4,
         kind: ShellHistoryMarkerKind.failure,
       );
-      const failureSnapshot = ShellFailureSnapshot(
+      final failureSnapshot = ShellFailureSnapshot.withKeyErrorLines(
         commandBlockId: 'cmd-1',
         command: 'flutter test',
         cwd: '/repo',
@@ -225,8 +227,8 @@ void main() {
         ),
         keyErrorLines: ['Expected:'],
       );
-      final snapshot = ShellCommandBlockSnapshot(blocks: [block]);
-      final markedBlock = ShellCommandBlock(
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(blocks: [block]);
+      final markedBlock = ShellCommandBlock.withMarkers(
         id: 'cmd-2',
         command: 'dart analyze',
         outputRange: const ShellCommandBlockRange(
@@ -243,6 +245,75 @@ void main() {
         () => failureSnapshot.keyErrorLines.add('Actual:'),
         throwsUnsupportedError,
       );
+    });
+
+    test('freezes mutable list inputs at construction time', () {
+      const firstBlock = ShellCommandBlock(
+        id: 'cmd-1',
+        command: 'flutter test',
+        outputRange: ShellCommandBlockRange(
+          commandRow: 1,
+          outputStartRow: 2,
+          outputEndRow: 8,
+        ),
+      );
+      const secondBlock = ShellCommandBlock(
+        id: 'cmd-2',
+        command: 'dart analyze',
+        outputRange: ShellCommandBlockRange(
+          commandRow: 10,
+          outputStartRow: 11,
+          outputEndRow: 14,
+        ),
+      );
+      const firstMarker = ShellHistoryMarker(
+        id: 'm1',
+        row: 3,
+        kind: ShellHistoryMarkerKind.manual,
+      );
+      const secondMarker = ShellHistoryMarker(
+        id: 'm2',
+        row: 4,
+        kind: ShellHistoryMarkerKind.failure,
+      );
+
+      final blocks = <ShellCommandBlock>[firstBlock];
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(blocks: blocks);
+      blocks.add(secondBlock);
+
+      final markers = <ShellHistoryMarker>[firstMarker];
+      final block = ShellCommandBlock.withMarkers(
+        id: 'cmd-3',
+        command: 'dart test',
+        outputRange: const ShellCommandBlockRange(
+          commandRow: 20,
+          outputStartRow: 21,
+          outputEndRow: 25,
+        ),
+        markers: markers,
+      );
+      markers.add(secondMarker);
+
+      final keyErrorLines = <String>['Expected:'];
+      final failureSnapshot = ShellFailureSnapshot.withKeyErrorLines(
+        commandBlockId: 'cmd-4',
+        command: 'flutter test',
+        cwd: '/repo',
+        exitCode: 1,
+        outputRange: const ShellCommandBlockRange(
+          commandRow: 30,
+          outputStartRow: 31,
+          outputEndRow: 40,
+        ),
+        keyErrorLines: keyErrorLines,
+      );
+      keyErrorLines.add('Actual:');
+
+      expect(snapshot.blocks, hasLength(1));
+      expect(snapshot.blocks.single.id, 'cmd-1');
+      expect(block.markers, hasLength(1));
+      expect(block.markers.single.id, 'm1');
+      expect(failureSnapshot.keyErrorLines, ['Expected:']);
     });
 
     test('copyWith can clear nullable fields', () {
