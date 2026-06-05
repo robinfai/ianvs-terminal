@@ -1,6 +1,12 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
+  List<ShellCommandBlock> _commandBlocksForSession(String sessionId) {
+    return const <ShellCommandBlock>[];
+  }
+
+  String? get _activeCommandBlockId => null;
+
   Widget _buildTerminalWorkspace({
     required BuildContext context,
     required SessionController sessionController,
@@ -190,6 +196,14 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           });
         }
         final viewportController = sessionController.viewportFor(sessionId);
+        final frame = viewportController.frame;
+        final commandBlocksViewModel = ShellCommandBlockViewModelBuilder.build(
+          blocks: _commandBlocksForSession(sessionId),
+          viewportStartRow: frame.viewportStartRow,
+          viewportEndRow: frame.viewportStartRow + frame.viewportRows - 1,
+          flags: _commandBlocksHistoryFeatureFlags,
+          activeBlockId: _activeCommandBlockId,
+        );
 
         return Listener(
           onPointerDown: (event) {
@@ -277,6 +291,14 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                     },
                     onOpenLink: (url) =>
                         unawaited(WindowBridge.openExternalUrl(url)),
+                  ),
+                ),
+                Positioned.fill(
+                  child: ShellCommandBlocksOverlay(
+                    viewModel: commandBlocksViewModel,
+                    rowHeight:
+                        _measuredTerminalCellSizes[sessionId]?.height ??
+                        terminal.terminalFallbackCellSize.height,
                   ),
                 ),
                 if (!isActive)

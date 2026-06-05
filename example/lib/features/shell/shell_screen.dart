@@ -22,6 +22,8 @@ import '../profiles/dynamic_profiles_sheet.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
+import '../productivity/command_blocks_history_feature_flags.dart';
+import '../productivity/shell_productivity_models.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../terminal/selection_controller.dart';
@@ -41,6 +43,7 @@ import 'local_terminal_shell_ui_wiring_exports.dart';
 import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
+import 'shell_command_block_view_models.dart';
 import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
@@ -66,6 +69,7 @@ part 'shell_screen_instant_replay.dart';
 part 'shell_screen_sheets.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_shared_buttons.dart';
+part 'shell_screen_command_blocks.dart';
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -138,6 +142,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();
   LocalTerminalPasteHistoryPolicy _pasteHistoryPolicy =
       const LocalTerminalPasteHistoryPolicy();
+  final CommandBlocksHistoryFeatureFlags _commandBlocksHistoryFeatureFlags =
+      CommandBlocksHistoryFeatureFlags.disabled;
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
