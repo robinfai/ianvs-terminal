@@ -28,6 +28,7 @@ Instant Replay 已经从底部文本回放升级为独立 Replay 工作区。接
 - 历史概览保持轻量，不把默认界面变成常驻侧边 dashboard。
 - 深度 replay、diff 和 snapshot 继续进入独立只读 Review Workspace，不污染 live terminal 输入。
 - 设计必须落在现有 Flutter / Material 3 / terminal runtime 架构上，不重写 renderer。
+- 整组功能必须受特性开关控制，支持关闭、灰度和分阶段启用。
 
 ## 非目标
 
@@ -57,6 +58,69 @@ Review Workspace
 ```
 
 默认用户停留在 live terminal。只有当用户明确打开 `History Peek` 或 `Open in Review` 时，才出现更重的历史界面。
+
+## 特性开关
+
+Command Blocks 历史工具必须由一个总开关控制：
+
+```text
+terminal.commandBlocksHistoryTools.enabled
+```
+
+总开关关闭时：
+
+- 不渲染 command block overlay、header、gutter 或 action row。
+- 不显示 History Peek 入口。
+- 不显示 failure snapshot bar。
+- 不启用 `Replay from here`、`Compare last run`、`Save snapshot` 这类命令块入口。
+- 不为命令块额外建立内存索引；现有 shell integration、search、selection、Instant Replay 行为保持不变。
+- command menu 中相关 action 不出现；如果调试模式需要显示，则必须带 disabled reason。
+
+总开关打开后，子能力仍可以独立放量：
+
+```text
+terminal.commandBlocksHistoryTools.commandBlocks
+terminal.commandBlocksHistoryTools.historyPeek
+terminal.commandBlocksHistoryTools.failureSnapshots
+terminal.commandBlocksHistoryTools.reviewWorkspaceEntrypoints
+terminal.commandBlocksHistoryTools.outputDiff
+```
+
+子能力规则：
+
+- `commandBlocks` 控制 overlay、header、gutter 和 action row。
+- `historyPeek` 控制 History Peek 入口和 sheet。
+- `failureSnapshots` 控制失败快照生成和底部提示。
+- `reviewWorkspaceEntrypoints` 控制从命令块进入 Replay / Review。
+- `outputDiff` 控制 `Compare last run`。
+
+配置来源优先级：
+
+1. 内建默认值。
+2. 本地配置文件。
+3. 开发调试覆盖。
+4. 测试注入。
+
+首版默认值应偏保守：
+
+```text
+enabled = false
+commandBlocks = false
+historyPeek = false
+failureSnapshots = false
+reviewWorkspaceEntrypoints = false
+outputDiff = false
+```
+
+进入试用阶段时，可以只打开：
+
+```text
+enabled = true
+commandBlocks = true
+failureSnapshots = true
+```
+
+这样先验证 live terminal 里的命令块和失败快照，不提前暴露 History Peek、diff 和深复盘入口。
 
 ## Command Blocks 交互
 
@@ -275,6 +339,13 @@ running | succeeded | failed | unknown
 - 保留搜索、复制选区、Instant Replay。
 - command block 相关 action 在 command menu 中显示 disabled reason。
 
+如果特性开关关闭：
+
+- 不创建 `ShellCommandBlockController` 的 session 索引。
+- 不从 shell integration event 派生 command block view model。
+- 不影响现有 recent commands、recent directories 或 prompt marks 的记录。
+- 测试和调试入口必须能明确断言功能处于关闭状态。
+
 ## 架构设计
 
 ### Controller 边界
@@ -286,18 +357,27 @@ running | succeeded | failed | unknown
 - 计算当前 viewport 内可见命令块。
 - 输出 annotation view model 给 terminal surface。
 - 提供 `copyOutput`、`saveSnapshot`、`mark`、`compareLastRun` 的输入数据。
+- 只在 `terminal.commandBlocksHistoryTools.enabled` 和对应子能力打开时创建或运行。
 
 新增 `ShellHistoryPeekController`：
 
 - 从 `ShellCommandBlockController` 读取当前 session 历史。
 - 处理搜索、过滤、选中、跳转。
 - 不持有 terminal viewport controller。
+- 只在 `historyPeek` 子开关打开时暴露入口。
 
 复用 / 扩展 `InstantReplayController`：
 
 - 支持从 command block id 或 row range 打开 review。
 - 支持根据 command block 定位 replay frame range。
 - 不和 live terminal 共享 input controller。
+- 只在 `reviewWorkspaceEntrypoints` 子开关打开时接受 command block 来源。
+
+新增 `CommandBlocksHistoryFeatureFlags`：
+
+- 从本地配置、开发覆盖和测试注入合成最终开关状态。
+- 为 UI、controller、action availability 提供同一份只读 flag snapshot。
+- 在日志或 diagnostics 中输出每个子能力是否启用，方便灰度排查。
 
 ### UI 组件
 
@@ -389,6 +469,7 @@ Failure snapshot could not be created.
 
 ### 阶段 1：命令块数据闭环
 
+- 新增 `CommandBlocksHistoryFeatureFlags`，默认关闭整组功能。
 - 新增 `ShellCommandBlock`、range、marker、snapshot 模型。
 - 从现有 shell integration / productivity state 推导命令块。
 - 为 `copyLastCommandOutput`、`jumpToCommandBlock`、`saveCommandOutput` 补 reducer 和 callback 输入。
@@ -399,6 +480,7 @@ Failure snapshot could not be created.
 - 成功 / 失败 / 运行中命令块能从事件序列稳定生成。
 - command output range 能映射到命令块。
 - shell integration 关闭时能给出 disabled reason。
+- 总开关关闭时不创建命令块索引、不暴露 action、不改变现有 terminal 行为。
 
 ### 阶段 2：Command Blocks UI
 
@@ -406,12 +488,14 @@ Failure snapshot could not be created.
 - 实现 `Copy output`、`Replay from here`、`Save snapshot`。
 - 实现 read-only review 状态栏和输入保护。
 - 保持 terminal 选择、搜索、滚动行为不回退。
+- UI 必须由 `commandBlocks` 和 `failureSnapshots` 子开关控制。
 
 完成条件：
 
 - 默认 live terminal 仍是主画面。
 - 命令块 overlay 不改变 terminal 文本复制结果。
 - 失败命令能展示快捷动作和失败快照。
+- 子开关关闭时对应 UI 完全不出现。
 
 ### 阶段 3：History Peek
 
@@ -419,11 +503,13 @@ Failure snapshot could not be created.
 - 支持过滤、搜索、跳转命令块。
 - 显示细时间标尺。
 - 接入 command menu 和 toolbar 入口。
+- 入口和 sheet 必须由 `historyPeek` 子开关控制。
 
 完成条件：
 
 - 用户能从 History Peek 跳到最近失败命令。
 - 关闭 History Peek 后 live terminal 状态不变。
+- `historyPeek` 关闭时 command menu、toolbar 和底部状态栏不显示入口。
 
 ### 阶段 4：Review Workspace 深复盘
 
@@ -431,11 +517,13 @@ Failure snapshot could not be created.
 - `Compare last run` 打开 diff review。
 - `View snapshot` 打开完整 failure snapshot。
 - 复用 Instant Replay 的只读 viewport、timeline、search 和 `Fit recorded size`。
+- Review 入口由 `reviewWorkspaceEntrypoints` 控制，diff 由 `outputDiff` 控制。
 
 完成条件：
 
 - 深复盘不会向 live PTY 写入输入。
 - replay、diff、snapshot 都能从同一 command block id 进入。
+- 对应子开关关闭时，动作不显示或显示明确 disabled reason。
 
 ## 测试策略
 
@@ -447,6 +535,8 @@ Failure snapshot could not be created.
 - failure snapshot 提取 command、cwd、exit code、duration、key error lines。
 - `compareLastRun` 找同 cwd 下上一条相同 command。
 - shell integration disabled 返回 disabled reason。
+- feature flag 默认关闭时不生成 command block view model。
+- 每个子开关关闭时，对应 controller、入口和 action availability 都保持关闭。
 
 ### Widget tests
 
@@ -457,6 +547,8 @@ Failure snapshot could not be created.
 - read-only review 阻止文本写入，但允许复制和搜索。
 - History Peek 能过滤 failed / marked。
 - `Open in Review` 创建独立只读工作区。
+- 总开关关闭时 `ShellScreen` 不渲染命令块 overlay、History Peek 或 failure snapshot。
+- 子开关关闭时，对应入口和 UI 不出现。
 
 ### Integration / manual checks
 
@@ -465,6 +557,7 @@ Failure snapshot could not be created.
 - 搜索浮层、command menu、autocomplete 和 action row 不互相抢焦点。
 - 清屏后仍能从 replay 或 command history 找到清屏前失败命令。
 - 关闭 shell integration 后界面降级明确，terminal 基础输入不受影响。
+- 关闭特性开关后，真实 app 回到普通 terminal 体验。
 
 ## 验收标准
 
@@ -472,6 +565,8 @@ Failure snapshot could not be created.
 - History Peek 是轻入口，不常驻挤压 terminal。
 - Review Workspace 只承接深复盘，不替代默认命令块体验。
 - 所有历史动作都通过 action id / production callback 接入，不绕过现有 action pipeline。
+- 整组功能受 `terminal.commandBlocksHistoryTools.enabled` 控制，默认可关闭。
+- 子能力支持独立灰度，关闭时不渲染、不注册入口、不执行对应 controller 工作。
 - 命令块 overlay 不写入 PTY、不改 scrollback 原文、不破坏选区复制。
 - read-only review 明确保护 live PTY 输入。
 - shell integration 关闭时功能清楚降级。
