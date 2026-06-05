@@ -438,6 +438,25 @@ class LocalTerminalCommandBlocksHistoryConfig {
   final bool reviewWorkspaceEntrypoints;
   final bool outputDiff;
 
+  LocalTerminalCommandBlocksHistoryConfig copyWith({
+    bool? enabled,
+    bool? commandBlocks,
+    bool? historyPeek,
+    bool? failureSnapshots,
+    bool? reviewWorkspaceEntrypoints,
+    bool? outputDiff,
+  }) {
+    return LocalTerminalCommandBlocksHistoryConfig(
+      enabled: enabled ?? this.enabled,
+      commandBlocks: commandBlocks ?? this.commandBlocks,
+      historyPeek: historyPeek ?? this.historyPeek,
+      failureSnapshots: failureSnapshots ?? this.failureSnapshots,
+      reviewWorkspaceEntrypoints:
+          reviewWorkspaceEntrypoints ?? this.reviewWorkspaceEntrypoints,
+      outputDiff: outputDiff ?? this.outputDiff,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return {
       'enabled': enabled,
