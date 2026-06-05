@@ -57,14 +57,92 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _sessionsSeenForNewOutputBadges.remove(event.sessionId);
         _sessionsWithNewOutput.remove(event.sessionId);
         _triggerMatchesBySession.remove(event.sessionId);
+        _commandBlockSnapshotsBySession.remove(event.sessionId);
         _stopCoprocess(event.sessionId);
         _clearCapturedOutput(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
       case terminal.TerminalSessionBellEvent():
         _notifyBell(event.sessionId);
       case terminal.TerminalSessionShellHookEvent():
+        _recordCommandBlockShellHook(event);
         _notifyShellHook(event);
     }
+  }
+
+  void _recordCommandBlockShellHook(
+    terminal.TerminalSessionShellHookEvent event,
+  ) {
+    if (event.hook != 'command_finished' ||
+        !_commandBlocksHistoryFeatureFlags.enabled ||
+        !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return;
+    }
+
+    final promptOffset = event.promptScrollbackOffset;
+    if (promptOffset == null || promptOffset < 0) {
+      return;
+    }
+
+    var snapshot =
+        _commandBlockSnapshotsBySession[event.sessionId] ??
+        const ShellCommandBlockSnapshot();
+    final previousPrompt = snapshot.lastPrompt;
+    final command = event.command?.trim() ?? '';
+    if (previousPrompt != null &&
+        command.isNotEmpty &&
+        promptOffset > previousPrompt.row) {
+      final outputStartRow = previousPrompt.row + 1;
+      final outputEndRow = promptOffset - 1;
+      if (outputEndRow >= outputStartRow) {
+        snapshot = ShellCommandBlockController.reduce(
+          snapshot,
+          ShellCommandOutputRangeEvent(
+            commandId: _commandBlockIdForShellHook(event),
+            startRow: outputStartRow,
+            endRow: outputEndRow,
+          ),
+          flags: _commandBlocksHistoryFeatureFlags,
+        );
+        snapshot = ShellCommandBlockController.reduce(
+          snapshot,
+          ShellCommandFinishedEvent(
+            command: command,
+            cwd: event.cwd,
+            exitCode: event.exitCode,
+          ),
+          flags: _commandBlocksHistoryFeatureFlags,
+        );
+      }
+    }
+
+    snapshot = ShellCommandBlockController.reduce(
+      snapshot,
+      ShellPromptMarkEvent(
+        id: _promptMarkIdForShellHook(event),
+        row: promptOffset,
+        cwd: event.cwd,
+      ),
+      flags: _commandBlocksHistoryFeatureFlags,
+    );
+
+    if (!mounted) {
+      return;
+    }
+    _mutateState(() {
+      _commandBlockSnapshotsBySession[event.sessionId] = snapshot;
+    });
+  }
+
+  String _commandBlockIdForShellHook(
+    terminal.TerminalSessionShellHookEvent event,
+  ) {
+    return '${event.sessionId}:command:${event.promptScrollbackOffset}';
+  }
+
+  String _promptMarkIdForShellHook(
+    terminal.TerminalSessionShellHookEvent event,
+  ) {
+    return '${event.sessionId}:prompt:${event.promptScrollbackOffset}';
   }
 
   void _notifyInactiveActivity(
@@ -177,10 +255,19 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       _pasteHistoryEntries = _pasteHistoryEntries
           .take(_effectivePasteHistoryLimit)
           .toList();
+      _commandBlocksHistoryFeatureFlags =
+          CommandBlocksHistoryFeatureFlags.fromConfig(
+            configBootstrap.config.commandBlocksHistory,
+          );
       _commandFinishedNotificationsEnabled =
           preferences.notifications.commandFinished;
       _bellNotificationsEnabled = preferences.notifications.bell;
       _activityNotificationsEnabled = preferences.notifications.activity;
+      if (!_commandBlocksHistoryFeatureFlags.enabled ||
+          !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+        _commandBlockSnapshotsBySession.clear();
+        _isHistoryPeekOpen = false;
+      }
     });
   }
 

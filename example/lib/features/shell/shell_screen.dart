@@ -23,7 +23,9 @@ import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
 import '../productivity/command_blocks_history_feature_flags.dart';
+import '../productivity/shell_command_block_controller.dart';
 import '../productivity/shell_productivity_models.dart';
+import '../productivity/shell_productivity_reducer.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../terminal/selection_controller.dart';
@@ -70,6 +72,7 @@ part 'shell_screen_sheets.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_command_blocks.dart';
+part 'shell_screen_history_peek.dart';
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -142,8 +145,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();
   LocalTerminalPasteHistoryPolicy _pasteHistoryPolicy =
       const LocalTerminalPasteHistoryPolicy();
-  final CommandBlocksHistoryFeatureFlags _commandBlocksHistoryFeatureFlags =
+  CommandBlocksHistoryFeatureFlags _commandBlocksHistoryFeatureFlags =
       CommandBlocksHistoryFeatureFlags.disabled;
+  final Map<String, ShellCommandBlockSnapshot> _commandBlockSnapshotsBySession =
+      {};
+  bool _isHistoryPeekOpen = false;
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
@@ -824,6 +830,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                   onHostKeyEvent: handleShellShortcut,
                                 ),
                               ),
+                              if (_historyPeekVisibleForSession(
+                                activeSessionId,
+                              ))
+                                ShellHistoryPeekSheet(
+                                  blocks: _commandBlocksForSession(
+                                    activeSessionId,
+                                  ),
+                                  onClose: _closeHistoryPeek,
+                                ),
                               if (_isToolbeltOpen)
                                 _ShellToolbelt(
                                   capturedOutputCount:

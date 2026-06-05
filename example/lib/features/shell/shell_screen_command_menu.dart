@@ -62,6 +62,8 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.bellNotificationsEnabled,
     required this.activityMonitorEnabled,
     required this.canSelectCommandOutput,
+    required this.commandBlocksHistoryFeatureFlags,
+    required this.hasCommandBlocks,
   });
 
   final String launcherShortcutLabel;
@@ -87,6 +89,8 @@ class _ShellCommandMenu extends StatefulWidget {
   final bool bellNotificationsEnabled;
   final bool activityMonitorEnabled;
   final bool canSelectCommandOutput;
+  final CommandBlocksHistoryFeatureFlags commandBlocksHistoryFeatureFlags;
+  final bool hasCommandBlocks;
 
   @override
   State<_ShellCommandMenu> createState() => _ShellCommandMenuState();
@@ -125,6 +129,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final bellNotificationsEnabled = widget.bellNotificationsEnabled;
     final activityMonitorEnabled = widget.activityMonitorEnabled;
     final canSelectCommandOutput = widget.canSelectCommandOutput;
+    final commandBlocksHistoryFeatureFlags =
+        widget.commandBlocksHistoryFeatureFlags;
+    final hasCommandBlocks = widget.hasCommandBlocks;
 
     Widget sectionLabel(String text) {
       return Padding(
@@ -166,6 +173,25 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         return activeSessionRequired;
       }
       return 'No prompt-marked command output is available yet.';
+    }
+
+    final historyPeekEnabled =
+        hasActiveSession &&
+        commandBlocksHistoryFeatureFlags.enabled &&
+        commandBlocksHistoryFeatureFlags.commandBlocks &&
+        commandBlocksHistoryFeatureFlags.historyPeek &&
+        hasCommandBlocks;
+
+    String historyPeekUnavailableReason() {
+      if (!hasActiveSession) {
+        return activeSessionRequired;
+      }
+      if (!commandBlocksHistoryFeatureFlags.enabled ||
+          !commandBlocksHistoryFeatureFlags.commandBlocks ||
+          !commandBlocksHistoryFeatureFlags.historyPeek) {
+        return 'Command Blocks history unavailable.';
+      }
+      return 'No command block available.';
     }
 
     Widget commandTile({
@@ -725,6 +751,19 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       ).pop(TerminalActionId.instantReplay),
                     ),
                     commandTile(
+                      key: const Key('shell-history-peek'),
+                      actionId: TerminalActionId.openHistoryPeek,
+                      icon: Icons.history_rounded,
+                      title: 'History Peek',
+                      subtitle:
+                          'Session action • Review failed and marked commands.',
+                      enabled: historyPeekEnabled,
+                      disabledReason: historyPeekUnavailableReason(),
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.openHistoryPeek),
+                    ),
+                    commandTile(
                       actionId: TerminalActionId.search,
                       icon: Icons.search_rounded,
                       title: 'Search terminal output',
@@ -893,6 +932,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry(
     'instant replay recent terminal frames',
     TerminalActionId.instantReplay,
+  ),
+  MapEntry(
+    'history peek failed marked command blocks review',
+    TerminalActionId.openHistoryPeek,
   ),
   MapEntry('search scrollback find local output', TerminalActionId.search),
   MapEntry('global search workspace all tabs', TerminalActionId.globalSearch),

@@ -2,10 +2,47 @@ part of 'shell_screen.dart';
 
 extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
   List<ShellCommandBlock> _commandBlocksForSession(String sessionId) {
-    return const <ShellCommandBlock>[];
+    if (!_commandBlocksHistoryFeatureFlags.enabled ||
+        !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return const <ShellCommandBlock>[];
+    }
+    return _commandBlockSnapshotsBySession[sessionId]?.blocks ??
+        const <ShellCommandBlock>[];
   }
 
   String? get _activeCommandBlockId => null;
+
+  void _openHistoryPeek() {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null ||
+        !_commandBlocksHistoryFeatureFlags.enabled ||
+        !_commandBlocksHistoryFeatureFlags.commandBlocks ||
+        !_commandBlocksHistoryFeatureFlags.historyPeek ||
+        _commandBlocksForSession(activeSessionId).isEmpty) {
+      return;
+    }
+    _mutateState(() {
+      _isToolbeltOpen = false;
+      _isHistoryPeekOpen = true;
+    });
+  }
+
+  void _closeHistoryPeek() {
+    if (!_isHistoryPeekOpen) {
+      return;
+    }
+    _mutateState(() {
+      _isHistoryPeekOpen = false;
+    });
+  }
+
+  bool _historyPeekVisibleForSession(String sessionId) {
+    return _isHistoryPeekOpen &&
+        _commandBlocksHistoryFeatureFlags.enabled &&
+        _commandBlocksHistoryFeatureFlags.commandBlocks &&
+        _commandBlocksHistoryFeatureFlags.historyPeek &&
+        _commandBlocksForSession(sessionId).isNotEmpty;
+  }
 
   Widget _buildTerminalWorkspace({
     required BuildContext context,

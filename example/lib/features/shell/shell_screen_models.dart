@@ -74,11 +74,13 @@ final class _InstantReplayWorkspaceSession {
     required this.sourceSessionId,
     required this.sourceLabel,
     required this.frames,
+    this.commandBlockSource,
   });
 
   final String sourceSessionId;
   final String sourceLabel;
   final List<InstantReplayFrame> frames;
+  final InstantReplayCommandBlockSource? commandBlockSource;
 }
 
 final class _InstantReplaySearchHit {

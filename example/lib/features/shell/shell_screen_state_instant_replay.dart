@@ -82,7 +82,10 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     );
   }
 
-  Future<void> _openInstantReplay(SessionState sessionState) async {
+  Future<void> _openInstantReplay(
+    SessionState sessionState, {
+    InstantReplayCommandBlockSource? commandBlockSource,
+  }) async {
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     if (activeSessionIdBeforeOpen == null) {
       return;
@@ -100,6 +103,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
           activeSessionIdBeforeOpen,
         ),
         frames: store.framesForReplay(activeSessionIdBeforeOpen),
+        commandBlockSource: commandBlockSource,
       );
     });
   }
@@ -157,6 +161,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
         sourceSessionId: current.sourceSessionId,
         sourceLabel: current.sourceLabel,
         frames: const <InstantReplayFrame>[],
+        commandBlockSource: current.commandBlockSource,
       );
     });
   }

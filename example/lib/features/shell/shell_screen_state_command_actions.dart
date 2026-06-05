@@ -59,6 +59,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               ).length >=
               2
         : false;
+    final hasCommandBlocks =
+        activeSessionIdBeforeOpen != null &&
+        _commandBlocksForSession(activeSessionIdBeforeOpen).isNotEmpty;
     final activePaneZoomed =
         activeSessionIdBeforeOpen != null &&
         _zoomedPaneSessionId == activeSessionIdBeforeOpen;
@@ -99,6 +102,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         bellNotificationsEnabled: _bellNotificationsEnabled,
         activityMonitorEnabled: _activityNotificationsEnabled,
         canSelectCommandOutput: canSelectCommandOutput,
+        commandBlocksHistoryFeatureFlags: _commandBlocksHistoryFeatureFlags,
+        hasCommandBlocks: hasCommandBlocks,
       );
     }
 
@@ -292,6 +297,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         toolbelt: (_) {
           _mutateState(() {
+            _isHistoryPeekOpen = false;
             _isToolbeltOpen = true;
           });
           return const ShellActionBindingResult.completed();
@@ -1021,6 +1027,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         return;
       case TerminalActionId.toolbelt:
         _mutateState(() {
+          _isHistoryPeekOpen = false;
           _isToolbeltOpen = true;
         });
         return;
@@ -1195,6 +1202,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           return;
         }
         await _openInstantReplay(sessionState);
+        return;
+      case TerminalActionId.openHistoryPeek:
+        _openHistoryPeek();
         return;
       case TerminalActionId.search:
         if (currentSessionId == null) {
