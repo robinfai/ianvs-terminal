@@ -1,8 +1,14 @@
+import 'dart:math';
+
 import '../productivity/command_blocks_history_feature_flags.dart';
 import '../productivity/shell_productivity_models.dart';
 
 class ShellCommandBlocksOverlayViewModel {
-  const ShellCommandBlocksOverlayViewModel({this.blocks = const []});
+  const ShellCommandBlocksOverlayViewModel() : blocks = const [];
+
+  ShellCommandBlocksOverlayViewModel.withBlocks(
+    List<ShellCommandBlockOverlayItem> blocks,
+  ) : blocks = List.unmodifiable(blocks);
 
   final List<ShellCommandBlockOverlayItem> blocks;
 
@@ -45,7 +51,10 @@ class ShellCommandBlockViewModelBuilder {
     required CommandBlocksHistoryFeatureFlags flags,
     String? activeBlockId,
   }) {
-    if (!flags.enabled || !flags.commandBlocks) {
+    // viewportEndRow is inclusive.
+    if (viewportEndRow < viewportStartRow ||
+        !flags.enabled ||
+        !flags.commandBlocks) {
       return const ShellCommandBlocksOverlayViewModel();
     }
     final visible = <ShellCommandBlockOverlayItem>[];
@@ -56,15 +65,14 @@ class ShellCommandBlockViewModelBuilder {
       if (block.endRow < viewportStartRow || block.startRow > viewportEndRow) {
         continue;
       }
+      final visibleStart = max(block.startRow, viewportStartRow);
+      final visibleEnd = min(block.endRow, viewportEndRow);
       visible.add(
         ShellCommandBlockOverlayItem(
           id: block.id,
           command: block.command,
-          rowOffset: (block.startRow - viewportStartRow).clamp(
-            0,
-            viewportEndRow - viewportStartRow,
-          ),
-          rowSpan: (block.endRow - block.startRow + 1).clamp(1, 100000),
+          rowOffset: visibleStart - viewportStartRow,
+          rowSpan: visibleEnd - visibleStart + 1,
           status: block.status,
           statusLabel: _statusLabel(block),
           active: block.id == activeBlockId,
@@ -76,14 +84,15 @@ class ShellCommandBlockViewModelBuilder {
         ),
       );
     }
-    return ShellCommandBlocksOverlayViewModel(blocks: visible);
+    return ShellCommandBlocksOverlayViewModel.withBlocks(visible);
   }
 }
 
 String _statusLabel(ShellCommandBlock block) {
   return switch (block.status) {
     ShellCommandBlockStatus.succeeded => 'exit 0',
-    ShellCommandBlockStatus.failed => 'exit ${block.exitCode ?? 1}',
+    ShellCommandBlockStatus.failed =>
+      block.exitCode == null ? 'failed' : 'exit ${block.exitCode}',
     ShellCommandBlockStatus.running => 'running',
     ShellCommandBlockStatus.unknown => 'unknown',
   };
