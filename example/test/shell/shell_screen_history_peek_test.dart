@@ -297,6 +297,61 @@ void main() {
       },
     );
 
+    test('does not use fallback prompt mark as explicit-end start', () {
+      final snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'flutter test',
+        exitCode: 1,
+        promptScrollbackOffset: 48,
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 1, cwd: '/old'),
+        ],
+        viewportEndRow: 55,
+      );
+
+      expect(snapshot.blocks, isEmpty);
+    });
+
+    test(
+      'does not append duplicate block when explicit end finish repeats',
+      () {
+        var snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: const ShellCommandBlockSnapshot(),
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'preexec',
+          command: 'flutter test',
+          commandStartRow: 40,
+          promptMarks: const [
+            TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+          ],
+        );
+
+        for (var i = 0; i < 2; i += 1) {
+          snapshot = ShellCommandBlockShellHookReducer.reduce(
+            snapshot: snapshot,
+            flags: _commandBlocksFlags,
+            sessionId: 'session-1',
+            hook: 'command_finished',
+            command: 'flutter test',
+            exitCode: 0,
+            promptScrollbackOffset: 48,
+            promptMarks: const [
+              TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+            ],
+            viewportEndRow: 55,
+          );
+        }
+
+        expect(snapshot.blocks, hasLength(1));
+        expect(snapshot.blocks.single.outputRange.commandRow, 40);
+        expect(snapshot.blocks.single.outputRange.outputEndRow, 47);
+      },
+    );
+
     test(
       'does not append duplicate block when repeated finish sees new viewport end',
       () {

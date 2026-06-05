@@ -206,6 +206,7 @@ class ShellCommandBlockShellHookReducer {
       promptMarks: promptMarks,
       promptScrollbackOffset: promptScrollbackOffset,
       viewportEndRow: viewportEndRow,
+      commandText: commandText,
     );
     if (plan == null) {
       return snapshot;
@@ -296,6 +297,7 @@ class ShellCommandBlockShellHookReducer {
     required List<TerminalShellPromptMark> promptMarks,
     required int? promptScrollbackOffset,
     required int? viewportEndRow,
+    required String commandText,
   }) {
     final marks = _validPromptMarks(promptMarks);
     final explicitEndRow = _validShellHookRow(promptScrollbackOffset);
@@ -303,6 +305,9 @@ class ShellCommandBlockShellHookReducer {
     final snapshotStart = snapshot.lastPrompt;
 
     if (snapshotStart != null && snapshotStart.row >= 0) {
+      if (explicitEndRow != null && explicitEndRow <= snapshotStart.row) {
+        return null;
+      }
       final matchingEndMark = _nextPromptMarkAfter(marks, snapshotStart.row);
       final endPromptRow =
           explicitEndRow != null && explicitEndRow > snapshotStart.row
@@ -318,7 +323,11 @@ class ShellCommandBlockShellHookReducer {
     }
 
     if (explicitEndRow != null) {
-      final startMark = _lastPromptMarkBefore(marks, explicitEndRow);
+      final startMark = _lastPromptMarkBefore(
+        marks,
+        explicitEndRow,
+        commandText: commandText,
+      );
       if (startMark != null) {
         return _finishPlanIfValid(
           startRow: startMark.scrollbackOffset,
@@ -370,10 +379,12 @@ class ShellCommandBlockShellHookReducer {
 
   static TerminalShellPromptMark? _lastPromptMarkBefore(
     List<TerminalShellPromptMark> marks,
-    int row,
-  ) {
+    int row, {
+    required String commandText,
+  }) {
     for (final mark in marks.reversed) {
-      if (mark.scrollbackOffset < row) {
+      if (mark.scrollbackOffset < row &&
+          _trimmedShellHookText(mark.command) == commandText) {
         return mark;
       }
     }
@@ -536,11 +547,14 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
 
     final sessionController = ref.read(sessionControllerProvider.notifier);
+    final sessionState = ref.read(sessionControllerProvider);
     final frame = sessionController.viewportFor(event.sessionId).frame;
-    final promptMarks = _effectivePromptMarksForSession(
-      event.sessionId,
-      sessionState: ref.read(sessionControllerProvider),
-    );
+    final promptMarks =
+        _paneForSession(
+          sessionState,
+          event.sessionId,
+        )?.shellIntegration.promptMarks ??
+        const <TerminalShellPromptMark>[];
     final previousSnapshot = _commandBlockSnapshotsBySession[event.sessionId];
     final snapshot = ShellCommandBlockShellHookReducer.reduce(
       snapshot: previousSnapshot ?? const ShellCommandBlockSnapshot(),
