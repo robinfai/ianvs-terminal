@@ -7,6 +7,7 @@ import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
   group('ShellHistoryPeekSheet', () {
@@ -182,6 +183,7 @@ void main() {
           sessionId: 'session-1',
           hook: 'preexec',
           command: 'flutter test',
+          commandStartRow: 40,
           promptMarks: const [
             TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
           ],
@@ -221,6 +223,60 @@ void main() {
     });
 
     test(
+      'preexec fallback uses absolute viewport row instead of prompt mark offset',
+      () {
+        const frame = terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(index: 0, text: ''),
+            terminal.TerminalRow(index: 1, text: 'old output'),
+            terminal.TerminalRow(index: 2, text: ''),
+            terminal.TerminalRow(index: 3, text: r'$ flutter test'),
+          ],
+          cursor: terminal.TerminalCursor(row: 3, col: 2, visible: true),
+          dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 4)],
+          viewportRows: 8,
+          viewportCols: 80,
+          viewportStartRow: 100,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 4,
+        );
+        final commandStartRow = shellCommandBlockCommandStartRowForFrame(frame);
+
+        expect(commandStartRow, 103);
+        expect(commandStartRow, isNot(1));
+
+        var snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: const ShellCommandBlockSnapshot(),
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'preexec',
+          command: 'flutter test',
+          commandStartRow: commandStartRow,
+          promptMarks: const [
+            TerminalShellPromptMark(scrollbackOffset: 1, cwd: '/repo'),
+          ],
+        );
+        snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: snapshot,
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'command_finished',
+          command: 'flutter test',
+          exitCode: 0,
+          promptMarks: const [
+            TerminalShellPromptMark(scrollbackOffset: 1, cwd: '/repo'),
+          ],
+          viewportEndRow: 107,
+        );
+
+        expect(snapshot.blocks, hasLength(1));
+        expect(snapshot.blocks.single.outputRange.commandRow, 103);
+        expect(snapshot.blocks.single.outputRange.outputStartRow, 104);
+        expect(snapshot.blocks.single.outputRange.outputEndRow, 107);
+      },
+    );
+
+    test(
       'does not create block from old prompt marks without a command start',
       () {
         final snapshot = ShellCommandBlockShellHookReducer.reduce(
@@ -250,6 +306,7 @@ void main() {
           sessionId: 'session-1',
           hook: 'preexec',
           command: 'flutter test',
+          commandStartRow: 40,
           promptMarks: const [
             TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
           ],
@@ -284,6 +341,7 @@ void main() {
         sessionId: 'session-1',
         hook: 'preexec',
         command: 'flutter test',
+        commandStartRow: 40,
         promptMarks: const [
           TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
         ],
@@ -316,6 +374,7 @@ void main() {
             sessionId: 'session-1',
             hook: 'preexec',
             command: 'flutter test',
+            commandStartRow: 40,
             promptMarks: const [
               TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
             ],

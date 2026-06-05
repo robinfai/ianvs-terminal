@@ -10,6 +10,73 @@ int? shellCommandBlockVisibleViewportEndRow({
   return viewportStartRow + viewportRows - 1;
 }
 
+int? shellCommandBlockCommandStartRowForFrame(
+  terminal.TerminalFrameDiff frame,
+) {
+  if (frame.viewportStartRow < 0 || frame.rows.isEmpty) {
+    return null;
+  }
+  final anchorRow = _shellCommandBlockAnchorRowForFrame(frame);
+  if (anchorRow == null) {
+    return null;
+  }
+  return frame.viewportStartRow + anchorRow.index;
+}
+
+terminal.TerminalRow? _shellCommandBlockAnchorRowForFrame(
+  terminal.TerminalFrameDiff frame,
+) {
+  final rowAtCursor = _shellCommandBlockRowAtCursor(frame);
+  if (rowAtCursor != null && rowAtCursor.text.trimRight().isNotEmpty) {
+    return rowAtCursor;
+  }
+  for (final logicalRow in _shellCommandBlockLogicalRows(frame.rows).reversed) {
+    if (logicalRow.text.trimRight().isEmpty) {
+      continue;
+    }
+    return logicalRow.endRow;
+  }
+  return null;
+}
+
+terminal.TerminalRow? _shellCommandBlockRowAtCursor(
+  terminal.TerminalFrameDiff frame,
+) {
+  for (final row in frame.rows) {
+    if (row.index == frame.cursor.row) {
+      return row;
+    }
+  }
+  if (frame.cursor.row >= 0 && frame.cursor.row < frame.rows.length) {
+    return frame.rows[frame.cursor.row];
+  }
+  return null;
+}
+
+List<_LogicalTerminalRow> _shellCommandBlockLogicalRows(
+  List<terminal.TerminalRow> rows,
+) {
+  final logicalRows = <_LogicalTerminalRow>[];
+  var start = 0;
+  while (start < rows.length) {
+    final buffer = StringBuffer(rows[start].text);
+    var end = start;
+    while (end < rows.length - 1 && rows[end].wrapped) {
+      end += 1;
+      buffer.write(rows[end].text);
+    }
+    logicalRows.add(
+      _LogicalTerminalRow(
+        startRow: rows[start],
+        endRow: rows[end],
+        text: buffer.toString(),
+      ),
+    );
+    start = end + 1;
+  }
+  return logicalRows;
+}
+
 class ShellCommandBlockShellHookReducer {
   const ShellCommandBlockShellHookReducer._();
 
@@ -29,6 +96,7 @@ class ShellCommandBlockShellHookReducer {
     String? cwd,
     int? exitCode,
     int? promptScrollbackOffset,
+    int? commandStartRow,
     List<TerminalShellPromptMark> promptMarks =
         const <TerminalShellPromptMark>[],
     int? viewportEndRow,
@@ -46,6 +114,7 @@ class ShellCommandBlockShellHookReducer {
         command: command,
         cwd: cwd,
         promptScrollbackOffset: promptScrollbackOffset,
+        commandStartRow: commandStartRow,
         promptMarks: promptMarks,
       ),
       'command_finished' => _commandFinished(
@@ -89,6 +158,7 @@ class ShellCommandBlockShellHookReducer {
     required String? command,
     required String? cwd,
     required int? promptScrollbackOffset,
+    required int? commandStartRow,
     required List<TerminalShellPromptMark> promptMarks,
   }) {
     if (_trimmedShellHookText(command) == null) {
@@ -98,7 +168,7 @@ class ShellCommandBlockShellHookReducer {
     final promptMark = _lastPromptMark(marks);
     final startRow =
         _validShellHookRow(promptScrollbackOffset) ??
-        promptMark?.scrollbackOffset;
+        _validShellHookRow(commandStartRow);
     if (startRow == null) {
       return snapshot;
     }
@@ -481,6 +551,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       cwd: event.cwd,
       exitCode: event.exitCode,
       promptScrollbackOffset: event.promptScrollbackOffset,
+      commandStartRow: shellCommandBlockCommandStartRowForFrame(frame),
       promptMarks: promptMarks,
       viewportEndRow: shellCommandBlockVisibleViewportEndRow(
         viewportStartRow: frame.viewportStartRow,
