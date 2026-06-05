@@ -6,15 +6,36 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ShellCommandBlockController', () {
-    test('does not build blocks when flags are disabled', () {
-      final snapshot = const ShellCommandBlockSnapshot();
-      final next = ShellCommandBlockController.reduce(
+    test('does not build blocks or state when flags are disabled', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
         snapshot,
         const ShellPromptMarkEvent(id: 'p1', row: 1, cwd: '/repo'),
         flags: CommandBlocksHistoryFeatureFlags.disabled,
       );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-1',
+          startRow: 2,
+          endRow: 8,
+        ),
+        flags: CommandBlocksHistoryFeatureFlags.disabled,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: '/repo',
+          exitCode: 1,
+        ),
+        flags: CommandBlocksHistoryFeatureFlags.disabled,
+      );
 
-      expect(next.blocks, isEmpty);
+      expect(snapshot.blocks, isEmpty);
+      expect(snapshot.lastPrompt, isNull);
+      expect(snapshot.pendingRange, isNull);
     });
 
     test('builds failed command block from prompt range and finish event', () {
