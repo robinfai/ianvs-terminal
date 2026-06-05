@@ -1218,6 +1218,18 @@ void main() {
             .message,
         startsWith('Idle gap: '),
       );
+      final idleMarkerHover = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      await idleMarkerHover.addPointer(
+        location: tester.getCenter(
+          find.byKey(const Key('instant-replay-idle-marker')),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(find.textContaining('Idle gap: '), findsOneWidget);
+      await idleMarkerHover.removePointer();
 
       await tester.tap(
         find.byKey(const Key('instant-replay-fit-recorded-size')),
