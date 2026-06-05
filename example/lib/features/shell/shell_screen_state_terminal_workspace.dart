@@ -299,6 +299,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                     rowHeight:
                         _measuredTerminalCellSizes[sessionId]?.height ??
                         terminal.terminalFallbackCellSize.height,
+                    contentPadding: terminalViewportPadding,
                   ),
                 ),
                 if (!isActive)

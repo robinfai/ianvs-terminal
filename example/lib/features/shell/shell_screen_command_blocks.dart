@@ -5,10 +5,12 @@ class ShellCommandBlocksOverlay extends StatelessWidget {
     super.key,
     required this.viewModel,
     required this.rowHeight,
+    this.contentPadding = EdgeInsets.zero,
   });
 
   final ShellCommandBlocksOverlayViewModel viewModel;
   final double rowHeight;
+  final EdgeInsetsGeometry contentPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -20,31 +22,41 @@ class ShellCommandBlocksOverlay extends StatelessWidget {
         ? rowHeight
         : 1.0;
 
-    return Stack(
-      clipBehavior: Clip.hardEdge,
-      children: [
-        for (final block in viewModel.blocks)
-          Positioned(
-            key: Key('shell-command-block-${block.id}'),
-            top: math.max(0, block.rowOffset) * effectiveRowHeight,
-            left: 8,
-            right: 8,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: math.max(1, block.rowSpan) * effectiveRowHeight,
+    return IgnorePointer(
+      child: Padding(
+        padding: contentPadding,
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            for (final block in viewModel.blocks)
+              Positioned(
+                key: Key('shell-command-block-${block.id}'),
+                top: math.max(0, block.rowOffset) * effectiveRowHeight,
+                left: 8,
+                right: 8,
+                child: SizedBox(
+                  height: math.max(1, block.rowSpan) * effectiveRowHeight,
+                  child: _ShellCommandBlockChrome(
+                    block: block,
+                    rowHeight: effectiveRowHeight,
+                  ),
+                ),
               ),
-              child: _ShellCommandBlockChrome(block: block),
-            ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 }
 
 class _ShellCommandBlockChrome extends StatelessWidget {
-  const _ShellCommandBlockChrome({required this.block});
+  const _ShellCommandBlockChrome({
+    required this.block,
+    required this.rowHeight,
+  });
 
   final ShellCommandBlockOverlayItem block;
+  final double rowHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +71,10 @@ class _ShellCommandBlockChrome extends StatelessWidget {
     final borderColor = block.active
         ? statusColor.withValues(alpha: 0.76)
         : palette.border.withValues(alpha: 0.58);
+    final blockHeight = math.max(1, block.rowSpan) * rowHeight;
+    final showActions = block.active && blockHeight >= 44;
+    final compact = blockHeight < 32;
+    final dense = blockHeight < 64;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -68,20 +84,37 @@ class _ShellCommandBlockChrome extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-          palette.spacing.md,
-          block.active ? palette.spacing.md : palette.spacing.sm,
-          palette.spacing.md,
-          block.active ? palette.spacing.md : palette.spacing.sm,
+          compact ? palette.spacing.sm : palette.spacing.md,
+          compact
+              ? 0
+              : dense
+              ? palette.spacing.xs
+              : block.active
+              ? palette.spacing.md
+              : palette.spacing.sm,
+          compact ? palette.spacing.sm : palette.spacing.md,
+          compact
+              ? 0
+              : dense
+              ? palette.spacing.xs
+              : block.active
+              ? palette.spacing.md
+              : palette.spacing.sm,
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: showActions
+              ? MainAxisAlignment.start
+              : MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisSize: MainAxisSize.max,
               children: [
                 _ShellCommandBlockStatusDot(color: statusColor),
                 SizedBox(width: palette.spacing.sm),
                 Expanded(
+                  flex: 3,
                   child: Text(
                     block.command,
                     maxLines: 1,
@@ -94,19 +127,24 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: palette.spacing.md),
-                Text(
-                  block.statusLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
+                Flexible(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      block.statusLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: statusColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            if (block.active) ...[
-              SizedBox(height: palette.spacing.sm),
+            if (showActions) ...[
+              SizedBox(height: dense ? palette.spacing.xs : palette.spacing.sm),
               _ShellCommandBlockActions(block: block, palette: palette),
             ],
           ],
@@ -140,13 +178,22 @@ class _ShellCommandBlockActions extends StatelessWidget {
       if (block.showDiffAction) 'Compare last run',
     ];
 
-    return Wrap(
-      spacing: palette.spacing.sm,
-      runSpacing: palette.spacing.xs,
-      children: [
-        for (final action in actions)
-          _ShellCommandBlockActionChip(label: action, palette: palette),
-      ],
+    return ClipRect(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        child: Row(
+          children: [
+            for (var index = 0; index < actions.length; index++) ...[
+              if (index > 0) SizedBox(width: palette.spacing.sm),
+              _ShellCommandBlockActionChip(
+                label: actions[index],
+                palette: palette,
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -162,30 +209,24 @@ class _ShellCommandBlockActionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: palette.selected.withValues(alpha: 0.64),
-            borderRadius: BorderRadius.circular(palette.radius.sm),
-            border: Border.all(color: palette.borderStrong),
-          ),
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: palette.spacing.md,
-              vertical: palette.spacing.xs,
-            ),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: palette.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.selected.withValues(alpha: 0.64),
+        borderRadius: BorderRadius.circular(palette.radius.sm),
+        border: Border.all(color: palette.borderStrong),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: palette.spacing.sm,
+          vertical: 2,
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: palette.textPrimary,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
