@@ -51,9 +51,21 @@ void main() {
 
       expect(viewModel.blocks, hasLength(1));
       expect(viewModel.blocks.single.id, 'cmd');
+      expect(viewModel.blocks.single.active, isTrue);
       expect(viewModel.blocks.single.statusLabel, 'exit 1');
       expect(viewModel.blocks.single.showFailureSnapshotAction, isTrue);
       expect(viewModel.blocks.single.showReplayAction, isTrue);
+    });
+
+    test('reviewWorkspaceEntrypoints flag drives replay action', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 1, endRow: 4)],
+        viewportStartRow: 0,
+        viewportEndRow: 10,
+        flags: _enabledFlags(reviewWorkspaceEntrypoints: false),
+      );
+
+      expect(viewModel.blocks.single.showReplayAction, isFalse);
     });
 
     test('invalid viewport returns empty and does not throw', () {
@@ -276,6 +288,7 @@ void main() {
 
 CommandBlocksHistoryFeatureFlags _enabledFlags({
   bool failureSnapshots = true,
+  bool reviewWorkspaceEntrypoints = true,
   bool outputDiff = false,
 }) {
   return CommandBlocksHistoryFeatureFlags(
@@ -283,7 +296,7 @@ CommandBlocksHistoryFeatureFlags _enabledFlags({
     commandBlocks: true,
     historyPeek: false,
     failureSnapshots: failureSnapshots,
-    reviewWorkspaceEntrypoints: true,
+    reviewWorkspaceEntrypoints: reviewWorkspaceEntrypoints,
     outputDiff: outputDiff,
   );
 }
