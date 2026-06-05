@@ -115,8 +115,17 @@ void main() {
 
   group('ShellCommandBlockShellHookReducer', () {
     test(
-      'creates block without prompt offset from prompt mark and viewport end',
+      'creates block without prompt offset from visible viewport end row',
       () {
+        const scrollbackMaxOffset = 4;
+        final viewportEndRow = shellCommandBlockVisibleViewportEndRow(
+          viewportStartRow: 40,
+          viewportRows: 8,
+        );
+
+        expect(viewportEndRow, 47);
+        expect(viewportEndRow, isNot(scrollbackMaxOffset));
+
         var snapshot = const ShellCommandBlockSnapshot();
 
         snapshot = ShellCommandBlockShellHookReducer.reduce(
@@ -146,7 +155,7 @@ void main() {
           promptMarks: const [
             TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
           ],
-          viewportEndRow: 47,
+          viewportEndRow: viewportEndRow,
         );
 
         expect(snapshot.blocks, hasLength(1));
@@ -159,6 +168,16 @@ void main() {
         expect(block.outputRange.outputEndRow, 47);
       },
     );
+
+    test('visible viewport end row is absent for an empty viewport', () {
+      expect(
+        shellCommandBlockVisibleViewportEndRow(
+          viewportStartRow: 40,
+          viewportRows: 0,
+        ),
+        isNull,
+      );
+    });
 
     test('returns empty snapshot when flags are off', () {
       final snapshot = ShellCommandBlockSnapshot.withBlocks(
@@ -185,6 +204,43 @@ void main() {
   });
 
   group('InstantReplayCommandBlockSource', () {
+    test('action resolver uses the latest current session command block', () {
+      final source = resolveInstantReplayCommandBlockSource(
+        flags: _commandBlocksFlags,
+        currentSessionId: 'session-1',
+        commandBlocks: [
+          _block(id: 'older', command: 'dart analyze'),
+          _block(
+            id: 'latest',
+            command: 'flutter test',
+            cwd: '/repo',
+            exitCode: 1,
+            status: ShellCommandBlockStatus.failed,
+          ),
+        ],
+      );
+
+      expect(source, isNotNull);
+      expect(source!.commandBlockId, 'latest');
+      expect(source.command, 'flutter test');
+      expect(source.cwd, '/repo');
+      expect(source.statusLabel, 'exit 1');
+      expect(source.replayHeaderLabel, 'Replay from: flutter test');
+    });
+
+    test(
+      'action resolver returns null when review entrypoints are disabled',
+      () {
+        final source = resolveInstantReplayCommandBlockSource(
+          flags: _commandBlocksWithoutReviewFlags,
+          currentSessionId: 'session-1',
+          commandBlocks: [_block(id: 'latest')],
+        );
+
+        expect(source, isNull);
+      },
+    );
+
     test('builds replay header label from command block', () {
       final source = InstantReplayCommandBlockSource.fromBlock(
         _block(
@@ -211,6 +267,15 @@ const _commandBlocksFlags = CommandBlocksHistoryFeatureFlags(
   historyPeek: true,
   failureSnapshots: true,
   reviewWorkspaceEntrypoints: true,
+  outputDiff: true,
+);
+
+const _commandBlocksWithoutReviewFlags = CommandBlocksHistoryFeatureFlags(
+  enabled: true,
+  commandBlocks: true,
+  historyPeek: true,
+  failureSnapshots: true,
+  reviewWorkspaceEntrypoints: false,
   outputDiff: true,
 );
 

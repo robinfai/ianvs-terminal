@@ -10,15 +10,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         const <ShellCommandBlock>[];
   }
 
-  ShellCommandBlock? _latestCommandBlockForSession(String sessionId) {
-    for (final block in _commandBlocksForSession(sessionId).reversed) {
-      if (block.isValid) {
-        return block;
-      }
-    }
-    return null;
-  }
-
   String? get _activeCommandBlockId => null;
 
   void _openHistoryPeek() {

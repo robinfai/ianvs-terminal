@@ -1,5 +1,15 @@
 part of 'shell_screen.dart';
 
+int? shellCommandBlockVisibleViewportEndRow({
+  required int viewportStartRow,
+  required int viewportRows,
+}) {
+  if (viewportStartRow < 0 || viewportRows <= 0) {
+    return null;
+  }
+  return viewportStartRow + viewportRows - 1;
+}
+
 class ShellCommandBlockShellHookReducer {
   const ShellCommandBlockShellHookReducer._();
 
@@ -439,7 +449,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       exitCode: event.exitCode,
       promptScrollbackOffset: event.promptScrollbackOffset,
       promptMarks: promptMarks,
-      viewportEndRow: frame.scrollbackMaxOffset,
+      viewportEndRow: shellCommandBlockVisibleViewportEndRow(
+        viewportStartRow: frame.viewportStartRow,
+        viewportRows: frame.viewportRows,
+      ),
     );
 
     if (!mounted) {

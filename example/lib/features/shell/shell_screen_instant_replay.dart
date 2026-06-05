@@ -27,6 +27,25 @@ final class InstantReplayCommandBlockSource {
   String get replayHeaderLabel => 'Replay from: $command';
 }
 
+InstantReplayCommandBlockSource? resolveInstantReplayCommandBlockSource({
+  required CommandBlocksHistoryFeatureFlags flags,
+  required String? currentSessionId,
+  required List<ShellCommandBlock> commandBlocks,
+}) {
+  if (currentSessionId == null ||
+      !flags.enabled ||
+      !flags.commandBlocks ||
+      !flags.reviewWorkspaceEntrypoints) {
+    return null;
+  }
+  for (final block in commandBlocks.reversed) {
+    if (block.isValid) {
+      return InstantReplayCommandBlockSource.fromBlock(block);
+    }
+  }
+  return null;
+}
+
 class _InstantReplayWorkspace extends StatefulWidget {
   const _InstantReplayWorkspace({
     super.key,
