@@ -9,6 +9,7 @@ class ShellActionSideEffectHandlers {
     this.scrollToPrompt,
     this.selectCommandOutput,
     this.openRecentDirectory,
+    this.commandBlockAction,
     this.sendPaste,
     this.confirmPaste,
     this.blockPaste,
@@ -24,6 +25,7 @@ class ShellActionSideEffectHandlers {
   final ShellActionSideEffectHandler? scrollToPrompt;
   final ShellActionSideEffectHandler? selectCommandOutput;
   final ShellActionSideEffectHandler? openRecentDirectory;
+  final ShellActionSideEffectHandler? commandBlockAction;
   final ShellActionSideEffectHandler? sendPaste;
   final ShellActionSideEffectHandler? confirmPaste;
   final ShellActionSideEffectHandler? blockPaste;
@@ -49,6 +51,8 @@ class ShellActionSideEffectExecutor {
         handlers.selectCommandOutput,
       ShellActionSideEffectKind.openRecentDirectory =>
         handlers.openRecentDirectory,
+      ShellActionSideEffectKind.commandBlockAction =>
+        handlers.commandBlockAction,
       ShellActionSideEffectKind.sendPaste => handlers.sendPaste,
       ShellActionSideEffectKind.confirmPaste => handlers.confirmPaste,
       ShellActionSideEffectKind.blockPaste => handlers.blockPaste,

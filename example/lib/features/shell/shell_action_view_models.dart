@@ -1,3 +1,4 @@
+import '../productivity/command_blocks_history_feature_flags.dart';
 import '../productivity/shell_productivity_models.dart';
 import 'shell_action_availability.dart';
 import 'shell_action_registry.dart';
@@ -26,6 +27,9 @@ class ShellActionViewModelBuilder {
   static List<ShellActionMenuItemViewModel> commandPaletteItems({
     required bool hasActiveSession,
     required ShellProductivityState productivity,
+    CommandBlocksHistoryFeatureFlags commandBlocksHistory =
+        CommandBlocksHistoryFeatureFlags.disabled,
+    bool hasCommandBlocks = false,
   }) {
     return ShellActionRegistry.actions.values
         .where((descriptor) => descriptor.commandPaletteVisible)
@@ -34,6 +38,8 @@ class ShellActionViewModelBuilder {
             descriptor: descriptor,
             hasActiveSession: hasActiveSession,
             productivity: productivity,
+            commandBlocksHistory: commandBlocksHistory,
+            hasCommandBlocks: hasCommandBlocks,
           ),
         )
         .toList(growable: false);
@@ -43,11 +49,16 @@ class ShellActionViewModelBuilder {
     required TerminalActionDescriptor descriptor,
     required bool hasActiveSession,
     required ShellProductivityState productivity,
+    CommandBlocksHistoryFeatureFlags commandBlocksHistory =
+        CommandBlocksHistoryFeatureFlags.disabled,
+    bool hasCommandBlocks = false,
   }) {
     final availability = ShellActionAvailabilityResolver.resolve(
       actionId: descriptor.id,
       hasActiveSession: hasActiveSession,
       productivity: productivity,
+      commandBlocksHistory: commandBlocksHistory,
+      hasCommandBlocks: hasCommandBlocks,
     );
     final reason = availability.reason;
 

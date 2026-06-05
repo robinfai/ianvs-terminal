@@ -1,3 +1,4 @@
+import 'package:app/features/productivity/command_blocks_history_feature_flags.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_command_menu_model.dart';
@@ -19,6 +20,7 @@ void main() {
         containsAll([
           TerminalActionId.profiles,
           TerminalActionId.dynamicProfiles,
+          TerminalActionId.openHistoryPeek,
           TerminalActionId.splitRight,
           TerminalActionId.splitDown,
         ]),
@@ -49,5 +51,29 @@ void main() {
       expect(splitRight.enabled, isFalse);
       expect(splitRight.disabledTitle, 'No active session');
     });
+
+    test('default menu passes command block gate inputs into items', () {
+      final items = ShellCommandMenuModel.defaultItems(
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: _commandBlocksHistoryFlags,
+        hasCommandBlocks: true,
+      );
+
+      final historyPeek = items.singleWhere(
+        (item) => item.actionId == TerminalActionId.openHistoryPeek,
+      );
+
+      expect(historyPeek.enabled, isTrue);
+    });
   });
 }
+
+const _commandBlocksHistoryFlags = CommandBlocksHistoryFeatureFlags(
+  enabled: true,
+  commandBlocks: true,
+  historyPeek: true,
+  failureSnapshots: true,
+  reviewWorkspaceEntrypoints: true,
+  outputDiff: true,
+);

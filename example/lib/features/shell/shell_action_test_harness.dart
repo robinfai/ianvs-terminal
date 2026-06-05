@@ -27,6 +27,9 @@ class ShellActionTestHarness {
         openRecentDirectory: _record(
           ShellActionSideEffectKind.openRecentDirectory,
         ),
+        commandBlockAction: _record(
+          ShellActionSideEffectKind.commandBlockAction,
+        ),
         sendPaste: _record(ShellActionSideEffectKind.sendPaste),
         confirmPaste: _record(ShellActionSideEffectKind.confirmPaste),
         blockPaste: _record(ShellActionSideEffectKind.blockPaste),

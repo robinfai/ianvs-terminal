@@ -62,6 +62,10 @@ void main() {
     test('disabled reasons expose stable user-visible diagnostics', () {
       expect(ShellActionDisabledReason.readOnly.title, 'Read-only mode');
       expect(
+        ShellActionDisabledReason.commandBlocksHistoryDisabled.title,
+        'Command Blocks history unavailable',
+      );
+      expect(
         ShellActionDisabledReason.missingRecentDirectory.description,
         contains('local directory'),
       );
@@ -102,6 +106,72 @@ void main() {
       );
 
       expect(availability.enabled, isTrue);
+    });
+
+    test('history peek requires the base command blocks flag', () {
+      const flags = CommandBlocksHistoryFeatureFlags(
+        enabled: true,
+        commandBlocks: false,
+        historyPeek: true,
+        failureSnapshots: false,
+        reviewWorkspaceEntrypoints: false,
+        outputDiff: false,
+      );
+
+      final availability = ShellActionAvailabilityResolver.resolve(
+        actionId: TerminalActionId.openHistoryPeek,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: flags,
+        hasCommandBlocks: true,
+      );
+
+      expect(availability.enabled, isFalse);
+      expect(
+        availability.reason,
+        ShellActionDisabledReason.commandBlocksHistoryDisabled,
+      );
+    });
+
+    test('history peek requires its sub-flag', () {
+      const flags = CommandBlocksHistoryFeatureFlags(
+        enabled: true,
+        commandBlocks: true,
+        historyPeek: false,
+        failureSnapshots: false,
+        reviewWorkspaceEntrypoints: false,
+        outputDiff: false,
+      );
+
+      final availability = ShellActionAvailabilityResolver.resolve(
+        actionId: TerminalActionId.openHistoryPeek,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: flags,
+        hasCommandBlocks: true,
+      );
+
+      expect(availability.enabled, isFalse);
+      expect(
+        availability.reason,
+        ShellActionDisabledReason.commandBlocksHistoryDisabled,
+      );
+    });
+
+    test('active session gate runs before command block gates', () {
+      final availability = ShellActionAvailabilityResolver.resolve(
+        actionId: TerminalActionId.openHistoryPeek,
+        hasActiveSession: false,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: CommandBlocksHistoryFeatureFlags.disabled,
+        hasCommandBlocks: true,
+      );
+
+      expect(availability.enabled, isFalse);
+      expect(
+        availability.reason,
+        ShellActionDisabledReason.missingActiveSession,
+      );
     });
 
     test('command block actions require captured command blocks', () {

@@ -10,6 +10,7 @@ enum ShellActionSideEffectKind {
   scrollToPrompt,
   selectCommandOutput,
   openRecentDirectory,
+  commandBlockAction,
   sendPaste,
   confirmPaste,
   blockPaste,
@@ -65,6 +66,10 @@ class ShellActionSideEffectPlanner {
       ShellProductivityRecentDirectoryResult() => ShellActionSideEffectPlan(
         kind: ShellActionSideEffectKind.openRecentDirectory,
         payload: result.directory,
+      ),
+      ShellProductivityCommandBlockActionResult() => ShellActionSideEffectPlan(
+        kind: ShellActionSideEffectKind.commandBlockAction,
+        payload: result.actionId,
       ),
       ShellProductivitySearchResult() => ShellActionSideEffectPlan(
         kind: ShellActionSideEffectKind.updateProductivityState,

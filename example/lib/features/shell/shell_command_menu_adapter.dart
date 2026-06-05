@@ -1,3 +1,4 @@
+import '../productivity/command_blocks_history_feature_flags.dart';
 import '../productivity/shell_productivity_models.dart';
 import 'shell_action_dispatcher.dart';
 import 'shell_action_registry.dart';
@@ -12,10 +13,15 @@ class ShellCommandMenuAdapter {
   List<ShellActionMenuItemViewModel> items({
     required bool hasActiveSession,
     ShellProductivityState? productivity,
+    CommandBlocksHistoryFeatureFlags commandBlocksHistory =
+        CommandBlocksHistoryFeatureFlags.disabled,
+    bool hasCommandBlocks = false,
   }) {
     return ShellActionViewModelBuilder.commandPaletteItems(
       hasActiveSession: hasActiveSession,
       productivity: productivity ?? runtimeController.state.productivity,
+      commandBlocksHistory: commandBlocksHistory,
+      hasCommandBlocks: hasCommandBlocks,
     );
   }
 

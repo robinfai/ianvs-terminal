@@ -24,7 +24,7 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
       ShellActionDisabledReason.missingRecentDirectory =>
         'No recent directory available',
       ShellActionDisabledReason.commandBlocksHistoryDisabled =>
-        'Command Blocks disabled',
+        'Command Blocks history unavailable',
       ShellActionDisabledReason.missingCommandBlock =>
         'No command block available',
     };
@@ -112,27 +112,31 @@ class ShellActionAvailabilityResolver {
               );
       case TerminalActionId.openHistoryPeek:
         return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
           featureEnabled: commandBlocksHistory.historyPeek,
           hasCommandBlocks: hasCommandBlocks,
         );
       case TerminalActionId.replayFromCommandBlock:
         return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
           featureEnabled: commandBlocksHistory.reviewWorkspaceEntrypoints,
           hasCommandBlocks: hasCommandBlocks,
         );
       case TerminalActionId.saveCommandSnapshot:
         return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
           featureEnabled: commandBlocksHistory.failureSnapshots,
           hasCommandBlocks: hasCommandBlocks,
         );
       case TerminalActionId.compareLastCommandRun:
         return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
           featureEnabled: commandBlocksHistory.outputDiff,
           hasCommandBlocks: hasCommandBlocks,
         );
       case TerminalActionId.markCommandBlock:
         return _resolveCommandBlockAction(
-          featureEnabled: commandBlocksHistory.commandBlocks,
+          commandBlocksHistory: commandBlocksHistory,
           hasCommandBlocks: hasCommandBlocks,
         );
       default:
@@ -141,10 +145,13 @@ class ShellActionAvailabilityResolver {
   }
 
   static ShellActionAvailability _resolveCommandBlockAction({
-    required bool featureEnabled,
+    required CommandBlocksHistoryFeatureFlags commandBlocksHistory,
+    bool featureEnabled = true,
     required bool hasCommandBlocks,
   }) {
-    if (!featureEnabled) {
+    if (!commandBlocksHistory.enabled ||
+        !commandBlocksHistory.commandBlocks ||
+        !featureEnabled) {
       return ShellActionAvailability.disabled(
         ShellActionDisabledReason.commandBlocksHistoryDisabled,
       );

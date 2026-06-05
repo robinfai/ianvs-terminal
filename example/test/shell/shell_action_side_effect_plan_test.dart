@@ -1,6 +1,8 @@
 import 'package:app/features/policies/local_terminal_paste_decision.dart';
 import 'package:app/features/policies/local_terminal_policy_action_reducer.dart';
+import 'package:app/features/productivity/shell_productivity_action_reducer.dart';
 import 'package:app/features/shell/shell_action_dispatcher.dart';
+import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_side_effect_plan.dart';
 import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
 import 'package:app/features/workspace/local_workspace_models.dart';
@@ -49,6 +51,22 @@ void main() {
 
       expect(plan.kind, ShellActionSideEffectKind.openThemePicker);
     });
+
+    test(
+      'maps command block productivity result to command block side effect',
+      () {
+        final plan = ShellActionSideEffectPlanner.plan(
+          const ShellProductivityDispatchResult(
+            ShellProductivityCommandBlockActionResult(
+              TerminalActionId.compareLastCommandRun,
+            ),
+          ),
+        );
+
+        expect(plan.kind, ShellActionSideEffectKind.commandBlockAction);
+        expect(plan.payload, TerminalActionId.compareLastCommandRun);
+      },
+    );
 
     test('maps unhandled dispatch to none', () {
       final plan = ShellActionSideEffectPlanner.plan(

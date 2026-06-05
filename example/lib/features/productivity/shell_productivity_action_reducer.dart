@@ -39,7 +39,9 @@ class ShellProductivitySearchResult extends ShellProductivityActionResult {
 
 class ShellProductivityCommandBlockActionResult
     extends ShellProductivityActionResult {
-  const ShellProductivityCommandBlockActionResult();
+  const ShellProductivityCommandBlockActionResult(this.actionId);
+
+  final TerminalActionId actionId;
 }
 
 class ShellProductivityNoopResult extends ShellProductivityActionResult {
@@ -89,7 +91,7 @@ class ShellProductivityActionReducer {
       TerminalActionId.saveCommandSnapshot ||
       TerminalActionId.compareLastCommandRun ||
       TerminalActionId.markCommandBlock =>
-        const ShellProductivityCommandBlockActionResult(),
+        ShellProductivityCommandBlockActionResult(actionId),
       _ => const ShellProductivityNoopResult(),
     };
   }
