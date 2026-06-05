@@ -64,6 +64,7 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.canSelectCommandOutput,
     required this.commandBlocksHistoryFeatureFlags,
     required this.hasCommandBlocks,
+    required this.hasHistoryPeekCommandBlocks,
   });
 
   final String launcherShortcutLabel;
@@ -91,6 +92,7 @@ class _ShellCommandMenu extends StatefulWidget {
   final bool canSelectCommandOutput;
   final CommandBlocksHistoryFeatureFlags commandBlocksHistoryFeatureFlags;
   final bool hasCommandBlocks;
+  final bool hasHistoryPeekCommandBlocks;
 
   @override
   State<_ShellCommandMenu> createState() => _ShellCommandMenuState();
@@ -132,6 +134,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final commandBlocksHistoryFeatureFlags =
         widget.commandBlocksHistoryFeatureFlags;
     final hasCommandBlocks = widget.hasCommandBlocks;
+    final hasHistoryPeekCommandBlocks = widget.hasHistoryPeekCommandBlocks;
 
     Widget sectionLabel(String text) {
       return Padding(
@@ -180,7 +183,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         commandBlocksHistoryFeatureFlags.enabled &&
         commandBlocksHistoryFeatureFlags.commandBlocks &&
         commandBlocksHistoryFeatureFlags.historyPeek &&
-        hasCommandBlocks;
+        hasHistoryPeekCommandBlocks;
     final replayFromCommandBlockEnabled =
         hasActiveSession &&
         commandBlocksHistoryFeatureFlags.enabled &&
@@ -197,7 +200,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
           !commandBlocksHistoryFeatureFlags.historyPeek) {
         return 'Command Blocks history unavailable.';
       }
-      return 'No command block available.';
+      return 'No failed or marked command block available.';
     }
 
     String replayFromCommandBlockUnavailableReason() {

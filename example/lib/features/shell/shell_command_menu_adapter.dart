@@ -16,12 +16,14 @@ class ShellCommandMenuAdapter {
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
     bool hasCommandBlocks = false,
+    bool? hasHistoryPeekCommandBlocks,
   }) {
     return ShellActionViewModelBuilder.commandPaletteItems(
       hasActiveSession: hasActiveSession,
       productivity: productivity ?? runtimeController.state.productivity,
       commandBlocksHistory: commandBlocksHistory,
       hasCommandBlocks: hasCommandBlocks,
+      hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
     );
   }
 

@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ShellCommandBlocksOverlay', () {
-    testWidgets('renders active failed block actions', (tester) async {
+    testWidgets('renders active failed block status hints', (tester) async {
       final item = ShellCommandBlockOverlayItem(
         id: 'cmd-1',
         command: 'flutter test',
@@ -40,10 +40,12 @@ void main() {
 
       expect(find.text('flutter test'), findsOneWidget);
       expect(find.text('exit 1'), findsOneWidget);
-      expect(find.text('Copy output'), findsOneWidget);
-      expect(find.text('Replay from here'), findsOneWidget);
-      expect(find.text('Save failure snapshot'), findsOneWidget);
-      expect(find.text('Compare last run'), findsNothing);
+      expect(find.text('Output captured'), findsOneWidget);
+      expect(find.text('Replay context'), findsOneWidget);
+      expect(find.text('Failure snapshot'), findsOneWidget);
+      expect(find.text('Previous run'), findsNothing);
+      expect(find.text('Copy output'), findsNothing);
+      expect(find.text('Replay from here'), findsNothing);
     });
 
     testWidgets('renders nothing for empty view model', (tester) async {
@@ -63,7 +65,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Copy output'), findsNothing);
+      expect(find.text('Output captured'), findsNothing);
     });
 
     testWidgets('does not consume pointer events', (tester) async {
@@ -111,7 +113,7 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('does not expose visual action chips as buttons', (
+    testWidgets('does not expose visual status chips as buttons', (
       tester,
     ) async {
       final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
@@ -137,7 +139,7 @@ void main() {
       expect(
         find.byWidgetPredicate((widget) {
           return widget is Semantics &&
-              widget.properties.label == 'Copy output' &&
+              widget.properties.label == 'Output captured' &&
               widget.properties.button == true;
         }),
         findsNothing,
@@ -175,10 +177,10 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text(item.command), findsOneWidget);
       expect(find.text('exit 1'), findsOneWidget);
-      expect(find.text('Copy output'), findsNothing);
-      expect(find.text('Replay from here'), findsNothing);
-      expect(find.text('Save failure snapshot'), findsNothing);
-      expect(find.text('Compare last run'), findsNothing);
+      expect(find.text('Output captured'), findsNothing);
+      expect(find.text('Replay context'), findsNothing);
+      expect(find.text('Failure snapshot'), findsNothing);
+      expect(find.text('Previous run'), findsNothing);
     });
 
     testWidgets('aligns command blocks to terminal content padding', (

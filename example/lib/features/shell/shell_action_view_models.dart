@@ -30,6 +30,7 @@ class ShellActionViewModelBuilder {
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
     bool hasCommandBlocks = false,
+    bool? hasHistoryPeekCommandBlocks,
   }) {
     return ShellActionRegistry.actions.values
         .where((descriptor) => descriptor.commandPaletteVisible)
@@ -40,6 +41,7 @@ class ShellActionViewModelBuilder {
             productivity: productivity,
             commandBlocksHistory: commandBlocksHistory,
             hasCommandBlocks: hasCommandBlocks,
+            hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
           ),
         )
         .toList(growable: false);
@@ -52,6 +54,7 @@ class ShellActionViewModelBuilder {
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
     bool hasCommandBlocks = false,
+    bool? hasHistoryPeekCommandBlocks,
   }) {
     final availability = ShellActionAvailabilityResolver.resolve(
       actionId: descriptor.id,
@@ -59,6 +62,7 @@ class ShellActionViewModelBuilder {
       productivity: productivity,
       commandBlocksHistory: commandBlocksHistory,
       hasCommandBlocks: hasCommandBlocks,
+      hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
     );
     final reason = availability.reason;
 

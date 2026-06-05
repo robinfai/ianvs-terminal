@@ -69,6 +69,37 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    test('visible block predicate only accepts failed or marked blocks', () {
+      expect(
+        shellHistoryPeekHasVisibleBlocks([
+          _block(id: 'plain', status: ShellCommandBlockStatus.succeeded),
+        ]),
+        isFalse,
+      );
+      expect(
+        shellHistoryPeekHasVisibleBlocks([
+          _block(id: 'failed', status: ShellCommandBlockStatus.failed),
+        ]),
+        isTrue,
+      );
+      expect(
+        shellHistoryPeekHasVisibleBlocks([
+          _block(
+            id: 'marked',
+            status: ShellCommandBlockStatus.succeeded,
+            markers: const [
+              ShellHistoryMarker(
+                id: 'manual-marker',
+                row: 12,
+                kind: ShellHistoryMarkerKind.manual,
+              ),
+            ],
+          ),
+        ]),
+        isTrue,
+      );
+    });
+
     testWidgets('close button calls onClose', (tester) async {
       var closeCount = 0;
 

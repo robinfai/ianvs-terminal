@@ -846,7 +846,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       width: width,
                                       child: ShellHistoryPeekSheet(
                                         maxWidth: width,
-                                        blocks: _commandBlocksForSession(
+                                        blocks: _historyPeekBlocksForSession(
                                           activeSessionId,
                                         ),
                                         onClose: _closeHistoryPeek,

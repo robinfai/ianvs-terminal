@@ -25,6 +25,20 @@ double shellHistoryPeekSidePaneWidthForAvailableWidth(double availableWidth) {
   return math.min(_shellHistoryPeekPreferredWidth, remainingWidth);
 }
 
+bool shellHistoryPeekShowsBlock(ShellCommandBlock block) {
+  return block.failed || block.markers.isNotEmpty;
+}
+
+bool shellHistoryPeekHasVisibleBlocks(Iterable<ShellCommandBlock> blocks) {
+  return blocks.any(shellHistoryPeekShowsBlock);
+}
+
+List<ShellCommandBlock> shellHistoryPeekVisibleBlocks(
+  Iterable<ShellCommandBlock> blocks,
+) {
+  return blocks.where(shellHistoryPeekShowsBlock).toList(growable: false);
+}
+
 class ShellHistoryPeekSheet extends StatelessWidget {
   const ShellHistoryPeekSheet({
     super.key,
@@ -43,9 +57,7 @@ class ShellHistoryPeekSheet extends StatelessWidget {
     final palette =
         theme.extension<AppThemeTokens>() ??
         AppThemeTokens.fallbackFor(theme.brightness);
-    final visibleBlocks = blocks
-        .where((block) => block.failed || block.markers.isNotEmpty)
-        .toList(growable: false);
+    final visibleBlocks = shellHistoryPeekVisibleBlocks(blocks);
 
     final preferredWidth = math.min(
       maxWidth ?? _shellHistoryPeekPreferredWidth,

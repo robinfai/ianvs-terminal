@@ -145,7 +145,7 @@ class _ShellCommandBlockChrome extends StatelessWidget {
             ),
             if (showActions) ...[
               SizedBox(height: dense ? palette.spacing.xs : palette.spacing.sm),
-              _ShellCommandBlockActions(block: block, palette: palette),
+              _ShellCommandBlockStatusHints(block: block, palette: palette),
             ],
           ],
         ),
@@ -163,19 +163,22 @@ class _ShellCommandBlockChrome extends StatelessWidget {
   }
 }
 
-class _ShellCommandBlockActions extends StatelessWidget {
-  const _ShellCommandBlockActions({required this.block, required this.palette});
+class _ShellCommandBlockStatusHints extends StatelessWidget {
+  const _ShellCommandBlockStatusHints({
+    required this.block,
+    required this.palette,
+  });
 
   final ShellCommandBlockOverlayItem block;
   final AppThemeTokens palette;
 
   @override
   Widget build(BuildContext context) {
-    final actions = <String>[
-      'Copy output',
-      if (block.showReplayAction) 'Replay from here',
-      if (block.showFailureSnapshotAction) 'Save failure snapshot',
-      if (block.showDiffAction) 'Compare last run',
+    final hints = <String>[
+      'Output captured',
+      if (block.showReplayAction) 'Replay context',
+      if (block.showFailureSnapshotAction) 'Failure snapshot',
+      if (block.showDiffAction) 'Previous run',
     ];
 
     return ClipRect(
@@ -184,10 +187,10 @@ class _ShellCommandBlockActions extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         child: Row(
           children: [
-            for (var index = 0; index < actions.length; index++) ...[
+            for (var index = 0; index < hints.length; index++) ...[
               if (index > 0) SizedBox(width: palette.spacing.sm),
-              _ShellCommandBlockActionChip(
-                label: actions[index],
+              _ShellCommandBlockStatusChip(
+                label: hints[index],
                 palette: palette,
               ),
             ],
@@ -198,8 +201,8 @@ class _ShellCommandBlockActions extends StatelessWidget {
   }
 }
 
-class _ShellCommandBlockActionChip extends StatelessWidget {
-  const _ShellCommandBlockActionChip({
+class _ShellCommandBlockStatusChip extends StatelessWidget {
+  const _ShellCommandBlockStatusChip({
     required this.label,
     required this.palette,
   });

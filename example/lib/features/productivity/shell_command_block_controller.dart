@@ -2,6 +2,8 @@ import 'command_blocks_history_feature_flags.dart';
 import 'shell_productivity_models.dart';
 import 'shell_productivity_reducer.dart';
 
+const int shellCommandBlockSnapshotBlockLimit = 200;
+
 class ShellCommandBlockSnapshot {
   const ShellCommandBlockSnapshot({
     this.lastPrompt,
@@ -14,7 +16,9 @@ class ShellCommandBlockSnapshot {
     this.lastPrompt,
     this.pendingRange,
     this.currentCwd,
-  }) : _blocks = List<ShellCommandBlock>.unmodifiable(blocks);
+  }) : _blocks = List<ShellCommandBlock>.unmodifiable(
+         _retainedCommandBlocks(blocks),
+       );
 
   final ShellPromptMark? lastPrompt;
   final ShellCommandOutputRange? pendingRange;
@@ -188,12 +192,24 @@ class ShellCommandBlockController {
           : null,
     );
     return ShellCommandBlockSnapshot.withBlocks(
-      blocks: [...snapshot.blocks, block],
+      blocks: _retainedCommandBlocks([...snapshot.blocks, block]),
       lastPrompt: snapshot.lastPrompt,
       pendingRange: null,
       currentCwd: currentCwd,
     );
   }
+}
+
+List<ShellCommandBlock> _retainedCommandBlocks(
+  Iterable<ShellCommandBlock> blocks,
+) {
+  final list = blocks is List<ShellCommandBlock>
+      ? blocks
+      : blocks.toList(growable: false);
+  if (list.length <= shellCommandBlockSnapshotBlockLimit) {
+    return list;
+  }
+  return list.sublist(list.length - shellCommandBlockSnapshotBlockLimit);
 }
 
 String? _trimmed(String? value) {

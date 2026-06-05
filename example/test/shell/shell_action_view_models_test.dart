@@ -20,6 +20,15 @@ void main() {
         items.any((item) => item.actionId == TerminalActionId.previousPrompt),
         isFalse,
       );
+      expect(
+        items.any(
+          (item) =>
+              item.actionId == TerminalActionId.saveCommandSnapshot ||
+              item.actionId == TerminalActionId.compareLastCommandRun ||
+              item.actionId == TerminalActionId.markCommandBlock,
+        ),
+        isFalse,
+      );
     });
 
     test('view model carries disabled copy', () {

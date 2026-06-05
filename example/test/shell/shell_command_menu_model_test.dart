@@ -25,6 +25,16 @@ void main() {
           TerminalActionId.splitDown,
         ]),
       );
+      expect(
+        ShellCommandMenuModel.defaultActionOrder,
+        isNot(
+          containsAll([
+            TerminalActionId.saveCommandSnapshot,
+            TerminalActionId.compareLastCommandRun,
+            TerminalActionId.markCommandBlock,
+          ]),
+        ),
+      );
     });
 
     test('builds default menu item view models in fixed order', () {

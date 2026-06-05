@@ -491,6 +491,19 @@ void main() {
       expect(snapshot.blocks, isEmpty);
       expect(snapshot.pendingRange, isNull);
     });
+
+    test('retains only the latest 200 command blocks', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      for (var index = 0; index < 205; index += 1) {
+        snapshot = _appendFinishedBlock(snapshot, index);
+      }
+
+      expect(snapshot.blocks, hasLength(200));
+      expect(snapshot.blocks.first.id, 'cmd-5');
+      expect(snapshot.blocks.last.id, 'cmd-204');
+      expect(snapshot.blocks.first.outputRange.commandRow, 50);
+    });
   });
 
   group('Shell command block models', () {
@@ -656,4 +669,34 @@ void main() {
       expect(cleared.failureSnapshot, isNull);
     });
   });
+}
+
+ShellCommandBlockSnapshot _appendFinishedBlock(
+  ShellCommandBlockSnapshot snapshot,
+  int index,
+) {
+  final commandRow = index * 10;
+  snapshot = ShellCommandBlockController.reduce(
+    snapshot,
+    ShellPromptMarkEvent(id: 'p-$index', row: commandRow, cwd: '/repo'),
+    flags: _enabledFlags,
+  );
+  snapshot = ShellCommandBlockController.reduce(
+    snapshot,
+    ShellCommandOutputRangeEvent(
+      commandId: 'cmd-$index',
+      startRow: commandRow + 1,
+      endRow: commandRow + 4,
+    ),
+    flags: _enabledFlags,
+  );
+  return ShellCommandBlockController.reduce(
+    snapshot,
+    ShellCommandFinishedEvent(
+      command: 'command $index',
+      cwd: '/repo',
+      exitCode: index.isEven ? 0 : 1,
+    ),
+    flags: _enabledFlags,
+  );
 }

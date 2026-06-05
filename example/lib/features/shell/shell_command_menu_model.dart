@@ -27,9 +27,6 @@ class ShellCommandMenuModel {
     TerminalActionId.instantReplay,
     TerminalActionId.openHistoryPeek,
     TerminalActionId.replayFromCommandBlock,
-    TerminalActionId.saveCommandSnapshot,
-    TerminalActionId.compareLastCommandRun,
-    TerminalActionId.markCommandBlock,
     TerminalActionId.search,
     TerminalActionId.globalSearch,
     TerminalActionId.autocomplete,
@@ -45,6 +42,7 @@ class ShellCommandMenuModel {
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
     bool hasCommandBlocks = false,
+    bool? hasHistoryPeekCommandBlocks,
   }) {
     return [
       for (final actionId in defaultActionOrder)
@@ -55,6 +53,7 @@ class ShellCommandMenuModel {
             productivity: productivity,
             commandBlocksHistory: commandBlocksHistory,
             hasCommandBlocks: hasCommandBlocks,
+            hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
           ),
     ];
   }

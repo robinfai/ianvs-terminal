@@ -73,6 +73,7 @@ class ShellActionAvailabilityResolver {
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
     bool hasCommandBlocks = false,
+    bool? hasHistoryPeekCommandBlocks,
   }) {
     final descriptor = ShellActionRegistry.actions[actionId];
     if (descriptor?.requiresActiveSession == true && !hasActiveSession) {
@@ -114,7 +115,7 @@ class ShellActionAvailabilityResolver {
         return _resolveCommandBlockAction(
           commandBlocksHistory: commandBlocksHistory,
           featureEnabled: commandBlocksHistory.historyPeek,
-          hasCommandBlocks: hasCommandBlocks,
+          hasCommandBlocks: hasHistoryPeekCommandBlocks ?? hasCommandBlocks,
         );
       case TerminalActionId.replayFromCommandBlock:
         return _resolveCommandBlockAction(

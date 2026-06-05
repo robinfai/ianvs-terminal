@@ -10,6 +10,16 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         const <ShellCommandBlock>[];
   }
 
+  List<ShellCommandBlock> _historyPeekBlocksForSession(String sessionId) {
+    return shellHistoryPeekVisibleBlocks(_commandBlocksForSession(sessionId));
+  }
+
+  bool _hasHistoryPeekBlocksForSession(String sessionId) {
+    return shellHistoryPeekHasVisibleBlocks(
+      _commandBlocksForSession(sessionId),
+    );
+  }
+
   String? get _activeCommandBlockId => null;
 
   void _openHistoryPeek() {
@@ -18,7 +28,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         !_commandBlocksHistoryFeatureFlags.enabled ||
         !_commandBlocksHistoryFeatureFlags.commandBlocks ||
         !_commandBlocksHistoryFeatureFlags.historyPeek ||
-        _commandBlocksForSession(activeSessionId).isEmpty) {
+        !_hasHistoryPeekBlocksForSession(activeSessionId)) {
       return;
     }
     _mutateState(() {
@@ -41,7 +51,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         _commandBlocksHistoryFeatureFlags.enabled &&
         _commandBlocksHistoryFeatureFlags.commandBlocks &&
         _commandBlocksHistoryFeatureFlags.historyPeek &&
-        _commandBlocksForSession(sessionId).isNotEmpty;
+        _hasHistoryPeekBlocksForSession(sessionId);
   }
 
   Widget _buildTerminalWorkspace({
