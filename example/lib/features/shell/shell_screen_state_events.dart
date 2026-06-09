@@ -10,6 +10,17 @@ int? shellCommandBlockVisibleViewportEndRow({
   return viewportStartRow + viewportRows - 1;
 }
 
+int? shellCommandBlockCommandEndRowForFrame(terminal.TerminalFrameDiff frame) {
+  if (frame.viewportStartRow < 0 || frame.cursor.row < 0) {
+    return null;
+  }
+  final cursorRow = frame.viewportStartRow + frame.cursor.row;
+  if (frame.cursor.col > 0) {
+    return cursorRow;
+  }
+  return cursorRow - 1;
+}
+
 int? shellCommandBlockCommandStartRowForFrame(
   terminal.TerminalFrameDiff frame,
 ) {
@@ -172,8 +183,13 @@ class ShellCommandBlockShellHookReducer {
     if (startRow == null) {
       return snapshot;
     }
+    final baseSnapshot = _resizeLastFinishedBlockBeforePrompt(
+      snapshot: snapshot,
+      sessionId: sessionId,
+      nextCommandStartRow: startRow,
+    );
     return ShellCommandBlockController.reduce(
-      snapshot,
+      baseSnapshot,
       ShellPromptMarkEvent(
         id: _promptMarkId(sessionId, startRow),
         row: startRow,
@@ -182,6 +198,62 @@ class ShellCommandBlockShellHookReducer {
             _trimmedShellHookText(promptMark?.cwd),
       ),
       flags: flags,
+    );
+  }
+
+  static ShellCommandBlockSnapshot _resizeLastFinishedBlockBeforePrompt({
+    required ShellCommandBlockSnapshot snapshot,
+    required String sessionId,
+    required int nextCommandStartRow,
+  }) {
+    if (snapshot.blocks.isEmpty) {
+      return snapshot;
+    }
+    final lastBlock = snapshot.blocks.last;
+    if (!lastBlock.isValid ||
+        nextCommandStartRow <= lastBlock.outputRange.commandRow) {
+      return snapshot;
+    }
+    final outputEndRow = math.max(
+      lastBlock.outputRange.outputStartRow,
+      nextCommandStartRow - 1,
+    );
+    if (outputEndRow == lastBlock.outputRange.outputEndRow) {
+      return snapshot;
+    }
+    final outputRange = ShellCommandBlockRange(
+      commandRow: lastBlock.outputRange.commandRow,
+      outputStartRow: lastBlock.outputRange.outputStartRow,
+      outputEndRow: outputEndRow,
+    );
+    final commandBlockId = _commandBlockId(
+      sessionId,
+      outputRange.commandRow,
+      outputRange.outputEndRow,
+    );
+    final failureSnapshot = lastBlock.failureSnapshot == null
+        ? null
+        : ShellFailureSnapshot.withKeyErrorLines(
+            commandBlockId: commandBlockId,
+            command: lastBlock.command,
+            cwd: lastBlock.cwd,
+            exitCode: lastBlock.exitCode,
+            outputRange: outputRange,
+            keyErrorLines: lastBlock.failureSnapshot!.keyErrorLines,
+          );
+    final resizedBlock = lastBlock.copyWith(
+      id: commandBlockId,
+      outputRange: outputRange,
+      failureSnapshot: failureSnapshot,
+    );
+    return ShellCommandBlockSnapshot.withBlocks(
+      blocks: [
+        ...snapshot.blocks.take(snapshot.blocks.length - 1),
+        resizedBlock,
+      ],
+      lastPrompt: snapshot.lastPrompt,
+      pendingRange: snapshot.pendingRange,
+      currentCwd: snapshot.currentCwd,
     );
   }
 
@@ -217,7 +289,11 @@ class ShellCommandBlockShellHookReducer {
       plan.startRow,
       plan.outputEndRow,
     );
-    var next = snapshot;
+    var next = _resizeLastFinishedBlockBeforePrompt(
+      snapshot: snapshot,
+      sessionId: sessionId,
+      nextCommandStartRow: plan.startRow,
+    );
     if (next.lastPrompt?.row != plan.startRow) {
       next = ShellCommandBlockController.reduce(
         next,
@@ -316,7 +392,9 @@ class ShellCommandBlockShellHookReducer {
       return _finishPlanIfValid(
         startRow: snapshotStart.row,
         startCwd: snapshotStart.cwd,
-        outputEndRow: endPromptRow == null ? viewportEnd : endPromptRow - 1,
+        outputEndRow: endPromptRow == null
+            ? _fallbackOutputEndRow(viewportEnd, snapshotStart.row)
+            : endPromptRow - 1,
         endPromptRow: endPromptRow,
         endCwd: matchingEndMark?.cwd,
       );
@@ -340,6 +418,13 @@ class ShellCommandBlockShellHookReducer {
     }
 
     return null;
+  }
+
+  static int? _fallbackOutputEndRow(int? viewportEndRow, int startRow) {
+    if (viewportEndRow == null) {
+      return null;
+    }
+    return math.max(viewportEndRow, startRow + 1);
   }
 
   static _ShellCommandBlockFinishPlan? _finishPlanIfValid({
@@ -443,6 +528,257 @@ bool _commandBlockSnapshotHasState(ShellCommandBlockSnapshot snapshot) {
       snapshot.currentCwd != null;
 }
 
+Map<String, List<terminal.TerminalRow>> _commandBlockPreviewRowsForFrame(
+  ShellCommandBlockSnapshot snapshot,
+  terminal.TerminalFrameDiff frame,
+) {
+  final rowsByIndex = _terminalRowsByScrollbackIndex(frame);
+  final capturedRows = <String, List<terminal.TerminalRow>>{};
+  final blocks = [...snapshot.blocks]
+    ..sort(
+      (a, b) => a.outputRange.commandRow.compareTo(b.outputRange.commandRow),
+    );
+  for (var index = 0; index < blocks.length; index += 1) {
+    final block = blocks[index];
+    final nextCommandStartRow = index < blocks.length - 1
+        ? blocks[index + 1].outputRange.commandRow
+        : null;
+    final rows = _terminalRowsForCommandBlockPreview(
+      block,
+      frame,
+      rowsByIndex,
+      nextCommandStartRow: nextCommandStartRow,
+    );
+    if (rows.isNotEmpty) {
+      capturedRows[block.id] = rows;
+    }
+  }
+  return capturedRows;
+}
+
+Map<int, terminal.TerminalRow> _terminalRowsByScrollbackIndex(
+  terminal.TerminalFrameDiff frame,
+) {
+  final byIndex = <int, terminal.TerminalRow>{};
+  for (final row in frame.rows) {
+    byIndex[row.index] = row;
+    if (frame.viewportStartRow >= 0) {
+      byIndex.putIfAbsent(frame.viewportStartRow + row.index, () => row);
+    }
+  }
+  return byIndex;
+}
+
+List<terminal.TerminalRow> _terminalRowsForCommandBlockPreview(
+  ShellCommandBlock block,
+  terminal.TerminalFrameDiff frame,
+  Map<int, terminal.TerminalRow> rowsByIndex, {
+  int? nextCommandStartRow,
+}) {
+  final scannedRows = _terminalRowsAfterCommandLineForCommandBlockPreview(
+    block,
+    frame,
+    nextCommandStartRow: nextCommandStartRow,
+  );
+  if (scannedRows.isNotEmpty) {
+    return scannedRows;
+  }
+  return _terminalRowsForCommandBlockRangePreview(block, rowsByIndex);
+}
+
+List<terminal.TerminalRow> _terminalRowsForCommandBlockRangePreview(
+  ShellCommandBlock block,
+  Map<int, terminal.TerminalRow> rowsByIndex,
+) {
+  final range = block.outputRange;
+  final rows = <terminal.TerminalRow>[];
+  for (var row = range.outputStartRow; row <= range.outputEndRow; row += 1) {
+    final source = rowsByIndex[row];
+    if (source == null) {
+      continue;
+    }
+    rows.add(
+      terminal.TerminalRow(
+        index: rows.length,
+        text: source.text,
+        wrapped: source.wrapped,
+        modifiedAt: source.modifiedAt,
+        styleRuns: source.styleRuns,
+      ),
+    );
+  }
+  return List<terminal.TerminalRow>.unmodifiable(rows);
+}
+
+List<terminal.TerminalRow> _terminalRowsAfterCommandLineForCommandBlockPreview(
+  ShellCommandBlock block,
+  terminal.TerminalFrameDiff frame, {
+  int? nextCommandStartRow,
+}) {
+  final command = block.command.trim();
+  if (command.isEmpty || frame.rows.isEmpty || frame.viewportStartRow < 0) {
+    return const <terminal.TerminalRow>[];
+  }
+  final frameRows = [
+    for (final row in frame.rows)
+      _FrameRow(absoluteRow: frame.viewportStartRow + row.index, row: row),
+  ]..sort((a, b) => a.absoluteRow.compareTo(b.absoluteRow));
+
+  final commandRowIndex = _commandLineFrameRowIndex(
+    block: block,
+    rows: frameRows,
+  );
+  if (commandRowIndex == null || commandRowIndex >= frameRows.length - 1) {
+    return const <terminal.TerminalRow>[];
+  }
+
+  final rows = <terminal.TerminalRow>[];
+  for (final frameRow in frameRows.skip(commandRowIndex + 1)) {
+    if (nextCommandStartRow != null &&
+        frameRow.absoluteRow >= nextCommandStartRow) {
+      break;
+    }
+    rows.add(
+      terminal.TerminalRow(
+        index: rows.length,
+        text: frameRow.row.text,
+        wrapped: frameRow.row.wrapped,
+        modifiedAt: frameRow.row.modifiedAt,
+        styleRuns: frameRow.row.styleRuns,
+      ),
+    );
+  }
+  return List<terminal.TerminalRow>.unmodifiable(rows);
+}
+
+List<terminal.TerminalRow> _terminalRowsForPendingCommandBlockPreview({
+  required int commandRow,
+  required terminal.TerminalFrameDiff frame,
+}) {
+  if (commandRow < 0 || frame.rows.isEmpty || frame.viewportStartRow < 0) {
+    return const <terminal.TerminalRow>[];
+  }
+  final frameRows = [
+    for (final row in frame.rows)
+      _FrameRow(absoluteRow: frame.viewportStartRow + row.index, row: row),
+  ]..sort((a, b) => a.absoluteRow.compareTo(b.absoluteRow));
+
+  final rows = <terminal.TerminalRow>[];
+  for (final frameRow in frameRows) {
+    if (frameRow.absoluteRow <= commandRow) {
+      continue;
+    }
+    rows.add(
+      terminal.TerminalRow(
+        index: rows.length,
+        text: frameRow.row.text,
+        wrapped: frameRow.row.wrapped,
+        modifiedAt: frameRow.row.modifiedAt,
+        styleRuns: frameRow.row.styleRuns,
+      ),
+    );
+  }
+  return List<terminal.TerminalRow>.unmodifiable(rows);
+}
+
+int? _submittedCommandBlockCommandRowForFrame(
+  terminal.TerminalFrameDiff frame,
+) {
+  if (frame.viewportStartRow < 0 || frame.cursor.row < 0) {
+    return null;
+  }
+  return frame.viewportStartRow + frame.cursor.row;
+}
+
+_SubmittedCommandBlockPreviewCapture? _firstSubmittedCommandCaptureFor(
+  List<_SubmittedCommandBlockPreviewCapture> captures,
+  String command,
+) {
+  for (final capture in captures) {
+    if (capture.command == command) {
+      return capture;
+    }
+  }
+  return null;
+}
+
+int? _commandLineFrameRowIndex({
+  required ShellCommandBlock block,
+  required List<_FrameRow> rows,
+}) {
+  for (var index = 0; index < rows.length; index += 1) {
+    final frameRow = rows[index];
+    if (frameRow.absoluteRow == block.outputRange.commandRow &&
+        _frameRowContainsCommand(frameRow.row, block.command)) {
+      return index;
+    }
+  }
+  for (var index = 0; index < rows.length; index += 1) {
+    if (_frameRowContainsCommand(rows[index].row, block.command)) {
+      return index;
+    }
+  }
+  return null;
+}
+
+bool _frameRowContainsCommand(terminal.TerminalRow row, String command) {
+  final normalizedCommand = command.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (normalizedCommand.isEmpty) {
+    return false;
+  }
+  final normalizedRow = row.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return normalizedRow.contains(normalizedCommand);
+}
+
+class _FrameRow {
+  const _FrameRow({required this.absoluteRow, required this.row});
+
+  final int absoluteRow;
+  final terminal.TerminalRow row;
+}
+
+class _PendingCommandBlockPreviewRows {
+  const _PendingCommandBlockPreviewRows({
+    required this.commandRow,
+    required this.rows,
+  });
+
+  final int commandRow;
+  final List<terminal.TerminalRow> rows;
+}
+
+class _SubmittedCommandBlockPreviewCapture {
+  const _SubmittedCommandBlockPreviewCapture({
+    required this.command,
+    required this.commandRow,
+    this.rows = const <terminal.TerminalRow>[],
+  });
+
+  final String command;
+  final int commandRow;
+  final List<terminal.TerminalRow> rows;
+
+  _SubmittedCommandBlockPreviewCapture copyWith({
+    List<terminal.TerminalRow>? rows,
+  }) {
+    return _SubmittedCommandBlockPreviewCapture(
+      command: command,
+      commandRow: commandRow,
+      rows: rows ?? this.rows,
+    );
+  }
+}
+
+class _FinishedCommandBlockPreviewCaptureTarget {
+  const _FinishedCommandBlockPreviewCaptureTarget({
+    required this.blockId,
+    required this.commandRow,
+  });
+
+  final String blockId;
+  final int commandRow;
+}
+
 class _ShellCommandBlockFinishPlan {
   const _ShellCommandBlockFinishPlan({
     required this.startRow,
@@ -503,6 +839,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
             (_terminalFrameSequenceBySession[sessionId] ?? 0) + 1;
         _terminalFrameSequenceBySession[sessionId] = frameSequence;
         _recordInstantReplayFrame(sessionId, frame);
+        _captureSubmittedCommandBlockPreviewRowsFromFrame(sessionId, frame);
+        _capturePendingCommandBlockPreviewRowsFromFrame(sessionId, frame);
+        _captureFinishedCommandBlockPreviewRowsFromFrame(sessionId, frame);
+        _captureCommandBlockPreviewRowsFromFrame(sessionId, frame);
         _markNewOutputBadge(sessionId, frame);
         _feedCoprocess(sessionId, frame, frameSequence: frameSequence);
         _runProfileTriggers(sessionId, frame, frameSequence: frameSequence);
@@ -517,6 +857,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _sessionsWithNewOutput.remove(event.sessionId);
         _triggerMatchesBySession.remove(event.sessionId);
         _commandBlockSnapshotsBySession.remove(event.sessionId);
+        _commandBlockPreviewRowsBySession.remove(event.sessionId);
+        _pendingCommandBlockPreviewRowsBySession.remove(event.sessionId);
+        _submittedCommandBlockPreviewCapturesBySession.remove(event.sessionId);
+        _submittedCommandBlockPreviewBlockIdsBySession.remove(event.sessionId);
+        _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
         _stopCoprocess(event.sessionId);
         _clearCapturedOutput(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
@@ -537,6 +882,15 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           mounted) {
         _mutateState(() {
           _commandBlockSnapshotsBySession.remove(event.sessionId);
+          _commandBlockPreviewRowsBySession.remove(event.sessionId);
+          _pendingCommandBlockPreviewRowsBySession.remove(event.sessionId);
+          _submittedCommandBlockPreviewCapturesBySession.remove(
+            event.sessionId,
+          );
+          _submittedCommandBlockPreviewBlockIdsBySession.remove(
+            event.sessionId,
+          );
+          _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
           _isHistoryPeekOpen = false;
         });
       }
@@ -556,6 +910,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         )?.shellIntegration.promptMarks ??
         const <TerminalShellPromptMark>[];
     final previousSnapshot = _commandBlockSnapshotsBySession[event.sessionId];
+    final hookPendingPreviewRows = _pendingCommandBlockPreviewRowsFromFrame(
+      previousSnapshot,
+      frame,
+    );
     final snapshot = ShellCommandBlockShellHookReducer.reduce(
       snapshot: previousSnapshot ?? const ShellCommandBlockSnapshot(),
       flags: _commandBlocksHistoryFeatureFlags,
@@ -576,6 +934,27 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!mounted) {
       return;
     }
+    final capturedPreviewRows = _commandBlockPreviewRowsForFrame(
+      snapshot,
+      frame,
+    );
+    capturedPreviewRows.addAll(
+      _pendingCommandBlockPreviewRowsForSnapshot(event.sessionId, snapshot),
+    );
+    capturedPreviewRows.addAll(
+      _pendingCommandBlockPreviewRowsForBlocks(
+        hookPendingPreviewRows,
+        snapshot,
+      ),
+    );
+    final submittedPreviewRows = event.hook == 'command_finished'
+        ? _submittedCommandBlockPreviewRowsForFinishedCommand(
+            sessionId: event.sessionId,
+            snapshot: snapshot,
+            command: event.command,
+          )
+        : const <String, List<terminal.TerminalRow>>{};
+    capturedPreviewRows.addAll(submittedPreviewRows);
     if (identical(snapshot, previousSnapshot) ||
         (previousSnapshot == null &&
             !_commandBlockSnapshotHasState(snapshot))) {
@@ -583,7 +962,476 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     _mutateState(() {
       _commandBlockSnapshotsBySession[event.sessionId] = snapshot;
+      _mergeCommandBlockPreviewRows(
+        sessionId: event.sessionId,
+        snapshot: snapshot,
+        capturedRows: capturedPreviewRows,
+        protectedUpdateBlockIds: submittedPreviewRows.keys.toSet(),
+      );
+      if (event.hook == 'command_finished') {
+        _recordFinishedCommandBlockPreviewTarget(event.sessionId, snapshot);
+        _removeSubmittedCommandBlockPreviewCapture(
+          event.sessionId,
+          event.command,
+        );
+      }
+      _removeMatchedPendingCommandBlockPreviewRows(event.sessionId, snapshot);
     });
+  }
+
+  void _recordSubmittedCommandBlockPreviewCapture(
+    String sessionId,
+    String command,
+  ) {
+    if (!_commandBlocksHistoryFeatureFlags.enabled ||
+        !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return;
+    }
+    final text = command.trim();
+    if (text.isEmpty) {
+      return;
+    }
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(sessionId)
+        .frame;
+    final commandRow = _submittedCommandBlockCommandRowForFrame(frame);
+    if (commandRow == null) {
+      return;
+    }
+    final captures = _submittedCommandBlockPreviewCapturesBySession.putIfAbsent(
+      sessionId,
+      () => <_SubmittedCommandBlockPreviewCapture>[],
+    );
+    captures.add(
+      _SubmittedCommandBlockPreviewCapture(
+        command: text,
+        commandRow: commandRow,
+      ),
+    );
+    if (captures.length > 12) {
+      captures.removeRange(0, captures.length - 12);
+    }
+  }
+
+  void _captureSubmittedCommandBlockPreviewRowsFromFrame(
+    String sessionId,
+    terminal.TerminalFrameDiff frame,
+  ) {
+    if (!_commandBlocksHistoryFeatureFlags.enabled ||
+        !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return;
+    }
+    final captures = _submittedCommandBlockPreviewCapturesBySession[sessionId];
+    if (captures == null || captures.isEmpty || !mounted) {
+      return;
+    }
+    var changed = false;
+    final nextCaptures = <_SubmittedCommandBlockPreviewCapture>[];
+    for (final capture in captures) {
+      final rows = _terminalRowsForPendingCommandBlockPreview(
+        commandRow: capture.commandRow,
+        frame: frame,
+      );
+      if (rows.isEmpty) {
+        nextCaptures.add(capture);
+        continue;
+      }
+      if (capture.rows.isEmpty ||
+          rows.length > capture.rows.length ||
+          (rows.length == capture.rows.length &&
+              !_terminalRowsHaveSamePreviewContent(capture.rows, rows))) {
+        nextCaptures.add(capture.copyWith(rows: rows));
+        changed = true;
+      } else {
+        nextCaptures.add(capture);
+      }
+    }
+    if (!changed) {
+      return;
+    }
+    _mutateState(() {
+      _submittedCommandBlockPreviewCapturesBySession[sessionId] = nextCaptures;
+    });
+  }
+
+  Map<String, List<terminal.TerminalRow>>
+  _submittedCommandBlockPreviewRowsForFinishedCommand({
+    required String sessionId,
+    required ShellCommandBlockSnapshot snapshot,
+    required String? command,
+  }) {
+    final commandText = command?.trim();
+    if (commandText == null || commandText.isEmpty) {
+      return const <String, List<terminal.TerminalRow>>{};
+    }
+    final captures = _submittedCommandBlockPreviewCapturesBySession[sessionId];
+    if (captures == null || captures.isEmpty) {
+      return const <String, List<terminal.TerminalRow>>{};
+    }
+    final capture = _firstSubmittedCommandCaptureFor(captures, commandText);
+    if (capture == null || capture.rows.isEmpty) {
+      return const <String, List<terminal.TerminalRow>>{};
+    }
+    for (final block in snapshot.blocks.reversed) {
+      if (block.command == commandText) {
+        return {block.id: capture.rows};
+      }
+    }
+    return const <String, List<terminal.TerminalRow>>{};
+  }
+
+  void _removeSubmittedCommandBlockPreviewCapture(
+    String sessionId,
+    String? command,
+  ) {
+    final commandText = command?.trim();
+    if (commandText == null || commandText.isEmpty) {
+      return;
+    }
+    final captures = _submittedCommandBlockPreviewCapturesBySession[sessionId];
+    if (captures == null || captures.isEmpty) {
+      return;
+    }
+    final index = captures.indexWhere(
+      (capture) => capture.command == commandText,
+    );
+    if (index == -1) {
+      return;
+    }
+    captures.removeAt(index);
+    if (captures.isEmpty) {
+      _submittedCommandBlockPreviewCapturesBySession.remove(sessionId);
+    }
+  }
+
+  void _recordFinishedCommandBlockPreviewTarget(
+    String sessionId,
+    ShellCommandBlockSnapshot snapshot,
+  ) {
+    if (snapshot.blocks.isEmpty) {
+      return;
+    }
+    final block = snapshot.blocks.last;
+    if (!block.isValid) {
+      return;
+    }
+    final targets = _finishedCommandBlockPreviewTargetsBySession.putIfAbsent(
+      sessionId,
+      () => <_FinishedCommandBlockPreviewCaptureTarget>[],
+    );
+    if (targets.any((target) => target.blockId == block.id)) {
+      return;
+    }
+    targets.add(
+      _FinishedCommandBlockPreviewCaptureTarget(
+        blockId: block.id,
+        commandRow: block.outputRange.commandRow,
+      ),
+    );
+  }
+
+  void _capturePendingCommandBlockPreviewRowsFromFrame(
+    String sessionId,
+    terminal.TerminalFrameDiff frame,
+  ) {
+    if (!_commandBlocksHistoryFeatureFlags.enabled ||
+        !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return;
+    }
+    final snapshot = _commandBlockSnapshotsBySession[sessionId];
+    final prompt = snapshot?.lastPrompt;
+    if (prompt == null || !mounted) {
+      return;
+    }
+    final rows = _terminalRowsForPendingCommandBlockPreview(
+      commandRow: prompt.row,
+      frame: frame,
+    );
+    if (rows.isEmpty) {
+      return;
+    }
+    final existing = _pendingCommandBlockPreviewRowsBySession[sessionId];
+    if (existing != null && existing.commandRow == prompt.row) {
+      if (rows.length < existing.rows.length) {
+        return;
+      }
+      if (rows.length == existing.rows.length &&
+          _terminalRowsHaveSamePreviewContent(existing.rows, rows)) {
+        return;
+      }
+    }
+    _mutateState(() {
+      _pendingCommandBlockPreviewRowsBySession[sessionId] =
+          _PendingCommandBlockPreviewRows(commandRow: prompt.row, rows: rows);
+    });
+  }
+
+  Map<String, List<terminal.TerminalRow>>
+  _pendingCommandBlockPreviewRowsForSnapshot(
+    String sessionId,
+    ShellCommandBlockSnapshot snapshot,
+  ) {
+    final pending = _pendingCommandBlockPreviewRowsBySession[sessionId];
+    if (pending == null || pending.rows.isEmpty) {
+      return const <String, List<terminal.TerminalRow>>{};
+    }
+    for (final block in snapshot.blocks.reversed) {
+      if (block.outputRange.commandRow == pending.commandRow) {
+        return {block.id: pending.rows};
+      }
+    }
+    return const <String, List<terminal.TerminalRow>>{};
+  }
+
+  void _removeMatchedPendingCommandBlockPreviewRows(
+    String sessionId,
+    ShellCommandBlockSnapshot snapshot,
+  ) {
+    final pending = _pendingCommandBlockPreviewRowsBySession[sessionId];
+    if (pending == null) {
+      return;
+    }
+    final matched = snapshot.blocks.any(
+      (block) => block.outputRange.commandRow == pending.commandRow,
+    );
+    if (matched) {
+      _pendingCommandBlockPreviewRowsBySession.remove(sessionId);
+    }
+  }
+
+  _PendingCommandBlockPreviewRows? _pendingCommandBlockPreviewRowsFromFrame(
+    ShellCommandBlockSnapshot? snapshot,
+    terminal.TerminalFrameDiff frame,
+  ) {
+    final prompt = snapshot?.lastPrompt;
+    if (prompt == null) {
+      return null;
+    }
+    final rows = _terminalRowsForPendingCommandBlockPreview(
+      commandRow: prompt.row,
+      frame: frame,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return _PendingCommandBlockPreviewRows(commandRow: prompt.row, rows: rows);
+  }
+
+  Map<String, List<terminal.TerminalRow>>
+  _pendingCommandBlockPreviewRowsForBlocks(
+    _PendingCommandBlockPreviewRows? pending,
+    ShellCommandBlockSnapshot snapshot,
+  ) {
+    if (pending == null || pending.rows.isEmpty) {
+      return const <String, List<terminal.TerminalRow>>{};
+    }
+    for (final block in snapshot.blocks.reversed) {
+      if (block.outputRange.commandRow == pending.commandRow) {
+        return {block.id: pending.rows};
+      }
+    }
+    return const <String, List<terminal.TerminalRow>>{};
+  }
+
+  void _captureCommandBlockPreviewRowsFromFrame(
+    String sessionId,
+    terminal.TerminalFrameDiff frame,
+  ) {
+    if (!_commandBlocksHistoryFeatureFlags.enabled ||
+        !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return;
+    }
+    final snapshot = _commandBlockSnapshotsBySession[sessionId];
+    if (snapshot == null || snapshot.blocks.isEmpty || !mounted) {
+      return;
+    }
+    final capturedRows = _commandBlockPreviewRowsForFrame(snapshot, frame);
+    if (!_hasCommandBlockPreviewRowUpdates(
+      sessionId: sessionId,
+      capturedRows: capturedRows,
+    )) {
+      return;
+    }
+    _mutateState(() {
+      _mergeCommandBlockPreviewRows(
+        sessionId: sessionId,
+        snapshot: snapshot,
+        capturedRows: capturedRows,
+      );
+    });
+  }
+
+  void _captureFinishedCommandBlockPreviewRowsFromFrame(
+    String sessionId,
+    terminal.TerminalFrameDiff frame,
+  ) {
+    if (!_commandBlocksHistoryFeatureFlags.enabled ||
+        !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return;
+    }
+    final snapshot = _commandBlockSnapshotsBySession[sessionId];
+    final targets = _finishedCommandBlockPreviewTargetsBySession[sessionId];
+    if (snapshot == null || targets == null || targets.isEmpty || !mounted) {
+      return;
+    }
+    final capturedRows = <String, List<terminal.TerminalRow>>{};
+    final capturedTargetIds = <String>{};
+    for (final target in targets) {
+      final rows = _terminalRowsForPendingCommandBlockPreview(
+        commandRow: target.commandRow,
+        frame: frame,
+      );
+      if (rows.isEmpty || !_terminalRowsHaveVisibleText(rows)) {
+        continue;
+      }
+      capturedRows[target.blockId] = rows;
+      capturedTargetIds.add(target.blockId);
+    }
+    if (capturedRows.isEmpty) {
+      return;
+    }
+    _mutateState(() {
+      _mergeCommandBlockPreviewRows(
+        sessionId: sessionId,
+        snapshot: snapshot,
+        capturedRows: capturedRows,
+      );
+      targets.removeWhere(
+        (target) => capturedTargetIds.contains(target.blockId),
+      );
+      if (targets.isEmpty) {
+        _finishedCommandBlockPreviewTargetsBySession.remove(sessionId);
+      }
+    });
+  }
+
+  bool _hasCommandBlockPreviewRowUpdates({
+    required String sessionId,
+    required Map<String, List<terminal.TerminalRow>> capturedRows,
+  }) {
+    if (capturedRows.isEmpty) {
+      return false;
+    }
+    final existingRows =
+        _commandBlockPreviewRowsBySession[sessionId] ??
+        const <String, List<terminal.TerminalRow>>{};
+    for (final entry in capturedRows.entries) {
+      if (entry.value.isEmpty) {
+        continue;
+      }
+      final existing = existingRows[entry.key];
+      if (existing == null ||
+          entry.value.length > existing.length ||
+          !_terminalRowsHaveSamePreviewContent(existing, entry.value)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _mergeCommandBlockPreviewRows({
+    required String sessionId,
+    required ShellCommandBlockSnapshot snapshot,
+    required Map<String, List<terminal.TerminalRow>> capturedRows,
+    Set<String> protectedUpdateBlockIds = const <String>{},
+  }) {
+    final retainedBlockIds = {for (final block in snapshot.blocks) block.id};
+    if (retainedBlockIds.isEmpty) {
+      _commandBlockPreviewRowsBySession.remove(sessionId);
+      _submittedCommandBlockPreviewBlockIdsBySession.remove(sessionId);
+      return;
+    }
+    final sessionRows = _commandBlockPreviewRowsBySession.putIfAbsent(
+      sessionId,
+      () => <String, List<terminal.TerminalRow>>{},
+    );
+    sessionRows.removeWhere(
+      (blockId, _) => !retainedBlockIds.contains(blockId),
+    );
+    final submittedBlockIds =
+        _submittedCommandBlockPreviewBlockIdsBySession[sessionId];
+    submittedBlockIds?.removeWhere(
+      (blockId) => !retainedBlockIds.contains(blockId),
+    );
+    for (final entry in capturedRows.entries) {
+      if (entry.value.isEmpty) {
+        continue;
+      }
+      final existing = sessionRows[entry.key];
+      final isSubmittedProtected =
+          submittedBlockIds?.contains(entry.key) ?? false;
+      if (existing != null &&
+          isSubmittedProtected &&
+          !protectedUpdateBlockIds.contains(entry.key)) {
+        continue;
+      }
+      if (existing == null || entry.value.length > existing.length) {
+        sessionRows[entry.key] = entry.value;
+      }
+    }
+    if (protectedUpdateBlockIds.isNotEmpty) {
+      final protectedIds = _submittedCommandBlockPreviewBlockIdsBySession
+          .putIfAbsent(sessionId, () => <String>{});
+      protectedIds.addAll(protectedUpdateBlockIds);
+    }
+    if (sessionRows.isEmpty) {
+      _commandBlockPreviewRowsBySession.remove(sessionId);
+    }
+  }
+
+  bool _terminalRowsHaveSamePreviewContent(
+    List<terminal.TerminalRow> left,
+    List<terminal.TerminalRow> right,
+  ) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      final leftRow = left[index];
+      final rightRow = right[index];
+      if (leftRow.text != rightRow.text ||
+          leftRow.wrapped != rightRow.wrapped) {
+        return false;
+      }
+      if (!_terminalStyleRunsHaveSamePreviewContent(
+        leftRow.styleRuns,
+        rightRow.styleRuns,
+      )) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _terminalRowsHaveVisibleText(List<terminal.TerminalRow> rows) {
+    return rows.any((row) => row.text.trim().isNotEmpty);
+  }
+
+  bool _terminalStyleRunsHaveSamePreviewContent(
+    List<terminal.TerminalStyleRun> left,
+    List<terminal.TerminalStyleRun> right,
+  ) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      final leftRun = left[index];
+      final rightRun = right[index];
+      if (leftRun.start != rightRun.start ||
+          leftRun.end != rightRun.end ||
+          leftRun.foreground != rightRun.foreground ||
+          leftRun.background != rightRun.background ||
+          leftRun.bold != rightRun.bold ||
+          leftRun.dim != rightRun.dim ||
+          leftRun.italic != rightRun.italic ||
+          leftRun.underline != rightRun.underline ||
+          leftRun.blink != rightRun.blink ||
+          leftRun.inverse != rightRun.inverse) {
+        return false;
+      }
+    }
+    return true;
   }
 
   void _notifyInactiveActivity(
@@ -707,6 +1555,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (!_commandBlocksHistoryFeatureFlags.enabled ||
           !_commandBlocksHistoryFeatureFlags.commandBlocks) {
         _commandBlockSnapshotsBySession.clear();
+        _commandBlockPreviewRowsBySession.clear();
+        _pendingCommandBlockPreviewRowsBySession.clear();
+        _submittedCommandBlockPreviewCapturesBySession.clear();
+        _submittedCommandBlockPreviewBlockIdsBySession.clear();
+        _finishedCommandBlockPreviewTargetsBySession.clear();
         _isHistoryPeekOpen = false;
       }
     });

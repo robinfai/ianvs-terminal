@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:integration_test/integration_test.dart';
 
 import 'package:app/app.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
@@ -16,14 +18,172 @@ import 'package:app/features/shell/password_manager_store.dart';
 import 'package:app/features/shell/shell_screen.dart';
 
 import '../test/support/memory_app_preferences_repository.dart';
+import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_profile_repository.dart';
 
 const _frameWait = Duration(seconds: 20);
 const _pollStep = Duration(milliseconds: 100);
+const _commandBlockVisibleLimit = 3;
+const _acceptanceScreenshotPath = String.fromEnvironment(
+  'IANVS_ACCEPTANCE_SCREENSHOT_PATH',
+);
+const _acceptanceScreenshotBoundaryKey = Key(
+  'real-pty-acceptance-screenshot-boundary',
+);
+const _commandBlocksHistoryConfig = LocalTerminalConfigDocument(
+  commandBlocksHistory: LocalTerminalCommandBlocksHistoryConfig(
+    enabled: true,
+    commandBlocks: true,
+    historyPeek: true,
+    failureSnapshots: true,
+    reviewWorkspaceEntrypoints: true,
+    outputDiff: true,
+  ),
+);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   _ignoreKnownDesktopKeyStateNoise();
+
+  testWidgets(
+    'real PTY command blocks render terminal previews for read-only commands',
+    (tester) async {
+      tester.view.physicalSize = const Size(1600, 1200);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final workspace = Directory.systemTemp.createTempSync(
+        'ianvs terminal-command-blocks-',
+      );
+      final home = Directory('${workspace.path}/home')..createSync();
+      File('${workspace.path}/alpha.txt').writeAsStringSync('alpha\n');
+      for (var index = 1; index <= 80; index += 1) {
+        File(
+          '${workspace.path}/fixture_${index.toString().padLeft(3, '0')}.txt',
+        ).writeAsStringSync('fixture $index\n');
+      }
+      Directory('${workspace.path}/nested').createSync();
+      addTearDown(() {
+        if (workspace.existsSync()) {
+          workspace.deleteSync(recursive: true);
+        }
+      });
+
+      final profile = TerminalProfile(
+        id: 'command-blocks',
+        name: 'Command Blocks',
+        shell: '/bin/zsh',
+        args: const ['-l'],
+        cwd: workspace.path,
+        env: {'HOME': home.path, 'LC_ALL': 'C', 'TERM': 'xterm-256color'},
+      );
+      final harness = await _pumpRealPtyApp(
+        tester,
+        profiles: [profile],
+        localConfig: _commandBlocksHistoryConfig,
+      );
+
+      await _waitForCommandInput(tester);
+      await _waitForPane(
+        tester,
+        harness.container,
+        description: 'real PTY shell integration prompt metadata',
+        matches: (pane) =>
+            pane.shellIntegration.currentDirectory?.isNotEmpty == true,
+      );
+
+      final commands = <({String command, bool Function(String text) output})>[
+        (command: 'ls -la', output: (text) => text.contains('fixture_080.txt')),
+        (command: 'pwd', output: (text) => text.contains(workspace.path)),
+        (
+          command: "printf 'IANVS_DONE\\n'",
+          output: (text) => text.contains('IANVS_DONE'),
+        ),
+      ];
+      for (var index = 0; index < commands.length; index += 1) {
+        final command = commands[index];
+        await _submitCommandInput(tester, command.command);
+        await _waitForTerminalText(
+          tester,
+          harness.container,
+          description: 'output for ${command.command}',
+          matches: command.output,
+        );
+        await _waitForCommandBlockCards(tester, expectedMinimum: index + 1);
+      }
+
+      await _waitForTerminalText(
+        tester,
+        harness.container,
+        description: 'read-only command output in real PTY',
+        matches: (text) =>
+            text.contains('IANVS_DONE') &&
+            text.contains("printf 'IANVS_DONE\\n'") &&
+            !text.contains('fixture_001.txt'),
+      );
+      await _waitForCommandBlockCards(
+        tester,
+        expectedMinimum: _commandBlockVisibleLimit,
+      );
+      await _waitForCommandBlockPreviews(
+        tester,
+        expectedMinimum: _commandBlockVisibleLimit,
+      );
+      _expectCommandBlockPreviewText(
+        tester,
+        command: 'ls -la',
+        matches: ['fixture_080.txt'],
+      );
+      _expectCommandBlockPreviewText(
+        tester,
+        command: 'pwd',
+        matches: [workspace.path],
+        rejects: ['IANVS_DONE'],
+      );
+      _expectCommandBlockPreviewText(
+        tester,
+        command: "printf 'IANVS_DONE\\n'",
+        matches: ['IANVS_DONE'],
+        rejects: [workspace.path],
+      );
+
+      for (final visibleCommand
+          in commands
+              .skip(commands.length - _commandBlockVisibleLimit)
+              .map((entry) => entry.command)) {
+        expect(find.textContaining(visibleCommand), findsWidgets);
+      }
+      expect(
+        find.text('exit 0'),
+        findsAtLeastNWidgets(_commandBlockVisibleLimit),
+      );
+      expect(
+        _verticalScrollableDescendants(
+          find.byKey(const Key('shell-command-blocks-scroll-view')),
+        ),
+        findsWidgets,
+      );
+      expect(
+        tester
+            .widget<SingleChildScrollView>(
+              find.byKey(const Key('shell-command-blocks-scroll-view')),
+            )
+            .reverse,
+        isTrue,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        ),
+        findsAtLeastNWidgets(_commandBlockVisibleLimit),
+      );
+      await _writeAcceptanceScreenshotIfRequested(tester);
+    },
+    skip: _skipRealPtyTests,
+  );
 
   testWidgets(
     'real PTY shell keeps line timestamp overlays hidden by default',
@@ -361,6 +521,52 @@ sleep 5
   );
 }
 
+void _expectCommandBlockPreviewText(
+  WidgetTester tester, {
+  required String command,
+  required List<String> matches,
+  List<String> rejects = const <String>[],
+}) {
+  final overlay = tester.widget<ShellCommandBlocksOverlay>(
+    find.byType(ShellCommandBlocksOverlay),
+  );
+  final block = overlay.viewModel.blocks.firstWhere(
+    (item) => item.command == command,
+    orElse: () => fail('Expected command block for "$command".'),
+  );
+  final text = block.terminalRows.map((row) => row.text).join('\n');
+  for (final expected in matches) {
+    expect(
+      text,
+      contains(expected),
+      reason:
+          'Expected "$command" block preview to contain "$expected".\n'
+          'Preview text:\n$text\n'
+          'All blocks:\n${_commandBlockPreviewDump(overlay)}',
+    );
+  }
+  for (final rejected in rejects) {
+    expect(
+      text,
+      isNot(contains(rejected)),
+      reason:
+          'Expected "$command" block preview not to contain "$rejected".\n'
+          'Preview text:\n$text\n'
+          'All blocks:\n${_commandBlockPreviewDump(overlay)}',
+    );
+  }
+}
+
+String _commandBlockPreviewDump(ShellCommandBlocksOverlay overlay) {
+  return overlay.viewModel.blocks
+      .map(
+        (block) =>
+            '${block.command} ${block.outputRangeLabel}\n'
+            '${block.terminalRows.map((row) => row.text).join('\n')}',
+      )
+      .join('\n---\n');
+}
+
 bool get _skipRealPtyTests => !Platform.isMacOS;
 
 void _ignoreKnownDesktopKeyStateNoise() {
@@ -384,6 +590,7 @@ void _ignoreKnownDesktopKeyStateNoise() {
 Future<_RealPtyHarness> _pumpRealPtyApp(
   WidgetTester tester, {
   required List<TerminalProfile> profiles,
+  LocalTerminalConfigDocument? localConfig,
   PasswordManagerStore? passwordStore,
   List<Map<String, String?>>? notifications,
 }) async {
@@ -394,6 +601,9 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
       ),
       appPreferencesRepositoryProvider.overrideWithValue(
         MemoryAppPreferencesRepository(null),
+      ),
+      localTerminalConfigRepositoryProvider.overrideWithValue(
+        MemoryLocalTerminalConfigRepository(localConfig),
       ),
       shellAnimationsEnabledProvider.overrideWithValue(false),
       shellNotificationSenderProvider.overrideWithValue(({
@@ -416,7 +626,10 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const IanvsTerminalApp(),
+      child: const RepaintBoundary(
+        key: _acceptanceScreenshotBoundaryKey,
+        child: IanvsTerminalApp(),
+      ),
     ),
   );
   await _waitForActiveSession(tester, container);
@@ -490,6 +703,94 @@ void _signal(File file) {
 Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.tap(find.byKey(const Key('shell-chrome-menu')));
   await tester.pump(_pollStep);
+}
+
+Future<void> _waitForCommandInput(WidgetTester tester) async {
+  await _waitFor(
+    tester,
+    description: 'command block input field',
+    condition: () => find
+        .byKey(const Key('shell-command-input-field'))
+        .evaluate()
+        .isNotEmpty,
+  );
+}
+
+Future<void> _submitCommandInput(WidgetTester tester, String command) async {
+  final input = find.byKey(const Key('shell-command-input-field'));
+  await _waitForCommandInput(tester);
+  await tester.tap(input);
+  await tester.enterText(input, command);
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tester.pump(_pollStep);
+}
+
+Future<void> _waitForCommandBlockCards(
+  WidgetTester tester, {
+  required int expectedMinimum,
+}) async {
+  var latest = 0;
+  await _waitFor(
+    tester,
+    description: '$expectedMinimum command block cards',
+    condition: () {
+      latest = _stringKeyPrefixFinder(
+        'shell-command-block-card-',
+      ).evaluate().length;
+      return latest >= expectedMinimum;
+    },
+    onTimeout: () =>
+        'Found $latest command block cards.\n${_commandBlockCardTextDump(tester)}',
+  );
+}
+
+Future<void> _waitForCommandBlockPreviews(
+  WidgetTester tester, {
+  required int expectedMinimum,
+}) async {
+  var latest = 0;
+  await _waitFor(
+    tester,
+    description: '$expectedMinimum command block terminal previews',
+    condition: () {
+      latest = find.byType(terminal.TerminalFramePreview).evaluate().length;
+      return latest >= expectedMinimum;
+    },
+    onTimeout: () =>
+        'Found $latest command block terminal previews.\n'
+        '${_commandBlockCardTextDump(tester)}',
+  );
+}
+
+String _commandBlockCardTextDump(WidgetTester tester) {
+  final cards = _stringKeyPrefixFinder('shell-command-block-card-');
+  final textWidgets = tester.widgetList<Text>(
+    find.descendant(of: cards, matching: find.byType(Text)),
+  );
+  final texts = textWidgets
+      .map((widget) => widget.data ?? widget.textSpan?.toPlainText() ?? '')
+      .where((text) => text.trim().isNotEmpty)
+      .toList(growable: false);
+  return texts.isEmpty ? 'Command block card texts: <none>' : texts.join('\n');
+}
+
+Future<void> _writeAcceptanceScreenshotIfRequested(WidgetTester tester) async {
+  if (_acceptanceScreenshotPath.trim().isEmpty) {
+    return;
+  }
+  await tester.pump(const Duration(milliseconds: 250));
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(_acceptanceScreenshotBoundaryKey),
+  );
+  final image = await boundary.toImage(pixelRatio: 1);
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  if (byteData == null) {
+    throw StateError('Failed to encode command block acceptance screenshot');
+  }
+  final file = File(_acceptanceScreenshotPath);
+  file.parent.createSync(recursive: true);
+  file.writeAsBytesSync(byteData.buffer.asUint8List());
 }
 
 Future<void> _waitForActiveSession(
@@ -628,6 +929,24 @@ String _terminalText(ProviderContainer container) {
     return '';
   }
   return frame.rows.map((row) => row.text.trimRight()).join('\n');
+}
+
+Finder _stringKeyPrefixFinder(String prefix) {
+  return find.byWidgetPredicate((widget) {
+    final key = widget.key;
+    return key is ValueKey<String> && key.value.startsWith(prefix);
+  });
+}
+
+Finder _verticalScrollableDescendants(Finder parent) {
+  return find.descendant(
+    of: parent,
+    matching: find.byWidgetPredicate((widget) {
+      return widget is Scrollable &&
+          (widget.axisDirection == AxisDirection.down ||
+              widget.axisDirection == AxisDirection.up);
+    }),
+  );
 }
 
 class _RealPtyHarness {

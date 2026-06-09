@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:app/features/productivity/command_blocks_history_feature_flags.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_command_block_view_models.dart';
@@ -80,6 +82,13 @@ void main() {
             terminal.TerminalRow(
               index: 21,
               text: 'Applications  Desktop',
+              styleRuns: [
+                terminal.TerminalStyleRun(
+                  start: 12,
+                  end: 14,
+                  background: Color(0xFF000000),
+                ),
+              ],
               modifiedAt: startedAt.add(const Duration(milliseconds: 180)),
             ),
             terminal.TerminalRow(
@@ -98,6 +107,18 @@ void main() {
         expect(
           viewModel.blocks.first.outputPreview,
           ['Applications  Desktop', 'Documents     Downloads'].join('\n'),
+        );
+        expect(viewModel.blocks.first.terminalRows.map((row) => row.text), [
+          'Applications  Desktop',
+          'Documents     Downloads',
+        ]);
+        expect(viewModel.blocks.first.terminalRows.map((row) => row.index), [
+          0,
+          1,
+        ]);
+        expect(
+          viewModel.blocks.first.terminalRows.first.styleRuns.single.background,
+          const Color(0xFF000000),
         );
         expect(viewModel.blocks.first.outputRangeLabel, 'rows 21-22');
         expect(viewModel.blocks.first.durationLabel, '1.2s');
@@ -138,6 +159,111 @@ void main() {
         viewModel.blocks.single.outputPreview,
         'zsh: command not found: ls-al',
       );
+      expect(viewModel.blocks.single.terminalRows.map((row) => row.text), [
+        'zsh: command not found: ls-al',
+      ]);
+    });
+
+    test('terminal preview stops at the next prompt for broad ranges', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 10,
+            endRow: 20,
+            command: 'pwd',
+            cwd: '/Users/dev',
+          ),
+        ],
+        viewportStartRow: 10,
+        viewportEndRow: 20,
+        visibleRows: const [
+          terminal.TerminalRow(index: 11, text: '/Users/dev'),
+          terminal.TerminalRow(index: 12, text: 'dev ~ 00:43 >'),
+          terminal.TerminalRow(index: 13, text: 'echo 123'),
+          terminal.TerminalRow(index: 14, text: '123'),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      final block = viewModel.blocks.single;
+      expect(block.outputPreview, '/Users/dev');
+      expect(block.terminalRows.map((row) => row.text), ['/Users/dev']);
+    });
+
+    test('terminal preview stops before arrow prompt command lines', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 10,
+            endRow: 20,
+            command: 'pwd',
+            cwd: '/Users/dev',
+          ),
+        ],
+        viewportStartRow: 10,
+        viewportEndRow: 20,
+        visibleRows: const [
+          terminal.TerminalRow(index: 11, text: '/Users/dev'),
+          terminal.TerminalRow(index: 12, text: 'dev ~ 00:43 \u279c'),
+          terminal.TerminalRow(index: 13, text: '\u2192 echo 123'),
+          terminal.TerminalRow(index: 14, text: '123'),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      final block = viewModel.blocks.single;
+      expect(block.outputPreview, '/Users/dev');
+      expect(block.terminalRows.map((row) => row.text), ['/Users/dev']);
+    });
+
+    test('maps viewport-relative terminal rows to command block output', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 20, endRow: 22, command: 'ls')],
+        viewportStartRow: 20,
+        viewportEndRow: 39,
+        visibleRows: const [
+          terminal.TerminalRow(index: 0, text: 'ls'),
+          terminal.TerminalRow(index: 1, text: 'Documents  Downloads'),
+          terminal.TerminalRow(index: 2, text: 'Pictures   Public'),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      final block = viewModel.blocks.single;
+      expect(block.inputLine, 'ls');
+      expect(block.outputPreview, 'Documents  Downloads\nPictures   Public');
+      expect(block.terminalRows.map((row) => row.text), [
+        'Documents  Downloads',
+        'Pictures   Public',
+      ]);
+      expect(block.terminalRows.map((row) => row.index), [0, 1]);
+    });
+
+    test('uses captured preview rows when output is outside current frame', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 20, endRow: 22, command: 'ls')],
+        viewportStartRow: 80,
+        viewportEndRow: 99,
+        visibleRows: const [
+          terminal.TerminalRow(index: 0, text: ''),
+          terminal.TerminalRow(index: 1, text: 'prompt'),
+        ],
+        capturedRowsByBlockId: const {
+          'cmd-20-22': [
+            terminal.TerminalRow(index: 0, text: 'Documents  Downloads'),
+            terminal.TerminalRow(index: 1, text: 'Pictures   Public'),
+          ],
+        },
+        flags: _enabledFlags(),
+      );
+
+      final block = viewModel.blocks.single;
+      expect(block.outputPreview, 'Documents  Downloads\nPictures   Public');
+      expect(block.terminalRows.map((row) => row.text), [
+        'Documents  Downloads',
+        'Pictures   Public',
+      ]);
+      expect(block.terminalRows.map((row) => row.index), [0, 1]);
     });
 
     test('reviewWorkspaceEntrypoints flag drives replay action', () {

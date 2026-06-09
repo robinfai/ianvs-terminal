@@ -1,5 +1,7 @@
 part of 'shell_screen.dart';
 
+const bool _hideDefaultTerminalWhenCommandBlocksVisible = true;
+
 extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
   List<ShellCommandBlock> _commandBlocksForSession(String sessionId) {
     if (!_commandBlocksHistoryFeatureFlags.enabled ||
@@ -44,6 +46,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     if (text.isEmpty || _isSessionReadOnly(sessionId)) {
       return;
     }
+    _recordSubmittedCommandBlockPreviewCapture(sessionId, text);
     ref
         .read(terminalRuntimeControllerProvider)
         .sendInput(sessionId, Uint8List.fromList(utf8.encode('$text\n')));
@@ -272,14 +275,26 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         }
         final viewportController = sessionController.viewportFor(sessionId);
         final frame = viewportController.frame;
+        final terminalFont =
+            terminalConfig?.display.font ?? const terminal.TerminalFontConfig();
+        final terminalCursor =
+            terminalConfig?.display.cursor ??
+            const terminal.TerminalCursorConfig();
         final commandBlocksViewModel = ShellCommandBlockViewModelBuilder.build(
           blocks: _commandBlocksForSession(sessionId),
           viewportStartRow: frame.viewportStartRow,
           viewportEndRow: frame.viewportStartRow + frame.viewportRows - 1,
           flags: _commandBlocksHistoryFeatureFlags,
           visibleRows: frame.rows,
+          capturedRowsByBlockId:
+              _commandBlockPreviewRowsBySession[sessionId] ??
+              const <String, List<terminal.TerminalRow>>{},
+          viewportCols: frame.viewportCols,
           activeBlockId: _activeCommandBlockId,
         );
+        final hideDefaultTerminal =
+            _hideDefaultTerminalWhenCommandBlocksVisible &&
+            !commandBlocksViewModel.isEmpty;
 
         return Listener(
           onPointerDown: (event) {
@@ -330,12 +345,8 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                       );
                     },
                     colors: terminalColors,
-                    font:
-                        terminalConfig?.display.font ??
-                        const terminal.TerminalFontConfig(),
-                    cursor:
-                        terminalConfig?.display.cursor ??
-                        const terminal.TerminalCursorConfig(),
+                    font: terminalFont,
+                    cursor: terminalCursor,
                     copyOnSelect:
                         _clipboardConfig.copyOnSelect ||
                         (terminalConfig?.interaction.copyOnSelect ?? false),
@@ -369,12 +380,21 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                         unawaited(WindowBridge.openExternalUrl(url)),
                   ),
                 ),
+                if (hideDefaultTerminal)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ColoredBox(color: terminalColors.canvasBackground),
+                    ),
+                  ),
                 Positioned.fill(
                   child: ShellCommandBlocksOverlay(
                     viewModel: commandBlocksViewModel,
                     rowHeight:
                         _measuredTerminalCellSizes[sessionId]?.height ??
                         terminal.terminalFallbackCellSize.height,
+                    colors: terminalColors,
+                    font: terminalFont,
+                    cursor: terminalCursor,
                     contentPadding: terminalViewportPadding,
                   ),
                 ),

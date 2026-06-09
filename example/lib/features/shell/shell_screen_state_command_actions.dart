@@ -626,6 +626,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           if (cleared && mounted) {
             _mutateState(() {
               _commandBlockSnapshotsBySession.remove(currentSessionId);
+              _commandBlockPreviewRowsBySession.remove(currentSessionId);
               _isHistoryPeekOpen = false;
             });
           }

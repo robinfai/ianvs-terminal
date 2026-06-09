@@ -3,6 +3,7 @@ export 'src/config/terminal_defaults.dart';
 export 'src/runtime/terminal_runtime_controller.dart';
 export 'src/terminal/selection_controller.dart';
 export 'src/terminal/terminal_input_controller.dart';
+export 'src/terminal/terminal_frame_preview.dart';
 export 'src/terminal/terminal_models.dart';
 export 'src/terminal/terminal_viewport.dart';
 export 'src/terminal/terminal_viewport_colors.dart';

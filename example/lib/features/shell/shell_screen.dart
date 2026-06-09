@@ -151,6 +151,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       CommandBlocksHistoryFeatureFlags.disabled;
   final Map<String, ShellCommandBlockSnapshot> _commandBlockSnapshotsBySession =
       {};
+  final Map<String, Map<String, List<terminal.TerminalRow>>>
+  _commandBlockPreviewRowsBySession = {};
+  final Map<String, _PendingCommandBlockPreviewRows>
+  _pendingCommandBlockPreviewRowsBySession = {};
+  final Map<String, List<_SubmittedCommandBlockPreviewCapture>>
+  _submittedCommandBlockPreviewCapturesBySession = {};
+  final Map<String, Set<String>>
+  _submittedCommandBlockPreviewBlockIdsBySession = {};
+  final Map<String, List<_FinishedCommandBlockPreviewCaptureTarget>>
+  _finishedCommandBlockPreviewTargetsBySession = {};
   bool _isHistoryPeekOpen = false;
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};

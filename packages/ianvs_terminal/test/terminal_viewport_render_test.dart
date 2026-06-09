@@ -50,6 +50,59 @@ void main() {
     expect(spans.single.background, const Color(0xFF00FF00));
   });
 
+  testWidgets(
+    'light terminal suppresses black background on ls padding spaces only',
+    (tester) async {
+      final renderObject = await _pumpRenderViewport(
+        tester,
+        row: const TerminalRow(
+          index: 0,
+          text: 'Documents    Downloads',
+          styleRuns: [
+            TerminalStyleRun(start: 0, end: 9),
+            TerminalStyleRun(
+              start: 9,
+              end: 13,
+              foreground: Color(0xFF111111),
+              background: Color(0xFF000000),
+            ),
+            TerminalStyleRun(start: 13, end: 22),
+          ],
+        ),
+        colors: TerminalViewportColors.light,
+      );
+
+      expect(renderObject.debugBackgroundSpansForRow(0), isEmpty);
+    },
+  );
+
+  testWidgets('light terminal preserves black background behind text', (
+    tester,
+  ) async {
+    final renderObject = await _pumpRenderViewport(
+      tester,
+      row: const TerminalRow(
+        index: 0,
+        text: 'ERR',
+        styleRuns: [
+          TerminalStyleRun(
+            start: 0,
+            end: 3,
+            foreground: Color(0xFFFFFFFF),
+            background: Color(0xFF000000),
+          ),
+        ],
+      ),
+      colors: TerminalViewportColors.light,
+    );
+
+    final spans = renderObject.debugBackgroundSpansForRow(0);
+    expect(spans, hasLength(1));
+    expect(spans.single.startColumn, 0);
+    expect(spans.single.endColumn, 3);
+    expect(spans.single.background, const Color(0xFF000000));
+  });
+
   testWidgets('autosuggestion foreground renders as a visible ghost run', (
     tester,
   ) async {

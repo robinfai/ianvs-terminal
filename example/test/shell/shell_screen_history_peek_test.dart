@@ -245,6 +245,39 @@ void main() {
   });
 
   group('ShellCommandBlockShellHookReducer', () {
+    test('command end row tracks cursor instead of viewport bottom', () {
+      const frame = terminal.TerminalFrameDiff(
+        rows: [
+          terminal.TerminalRow(index: 5, text: '/Users/dev'),
+          terminal.TerminalRow(index: 6, text: ''),
+        ],
+        cursor: terminal.TerminalCursor(row: 6, col: 0, visible: true),
+        dirtyRanges: [terminal.TerminalDirtyRange(start: 5, end: 7)],
+        viewportRows: 40,
+        viewportCols: 80,
+        viewportStartRow: 10,
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      );
+
+      expect(shellCommandBlockCommandEndRowForFrame(frame), 15);
+      expect(
+        shellCommandBlockCommandEndRowForFrame(
+          const terminal.TerminalFrameDiff(
+            rows: [terminal.TerminalRow(index: 6, text: 'partial')],
+            cursor: terminal.TerminalCursor(row: 6, col: 7, visible: true),
+            dirtyRanges: [terminal.TerminalDirtyRange(start: 6, end: 7)],
+            viewportRows: 40,
+            viewportCols: 80,
+            viewportStartRow: 10,
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        ),
+        16,
+      );
+    });
+
     test(
       'creates block without prompt offset from visible viewport end row',
       () {
@@ -300,6 +333,107 @@ void main() {
         expect(block.outputRange.outputEndRow, 47);
       },
     );
+
+    test('creates a minimal block when finish arrives before output frame', () {
+      var snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'echo done',
+        commandStartRow: 40,
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+        ],
+      );
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'echo done',
+        exitCode: 0,
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+        ],
+        viewportEndRow: 40,
+      );
+
+      expect(snapshot.blocks, hasLength(1));
+      final block = snapshot.blocks.single;
+      expect(block.outputRange.commandRow, 40);
+      expect(block.outputRange.outputStartRow, 41);
+      expect(block.outputRange.outputEndRow, 41);
+    });
+
+    test('next preexec expands previous minimal fallback block', () {
+      var snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'ls -la',
+        commandStartRow: 40,
+      );
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'ls -la',
+        exitCode: 0,
+        viewportEndRow: 40,
+      );
+
+      expect(snapshot.blocks.single.outputRange.outputEndRow, 41);
+
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'pwd',
+        commandStartRow: 50,
+      );
+
+      expect(snapshot.blocks, hasLength(1));
+      expect(snapshot.blocks.single.command, 'ls -la');
+      expect(snapshot.blocks.single.outputRange.commandRow, 40);
+      expect(snapshot.blocks.single.outputRange.outputStartRow, 41);
+      expect(snapshot.blocks.single.outputRange.outputEndRow, 49);
+      expect(snapshot.lastPrompt?.row, 50);
+    });
+
+    test('command finish expands previous minimal fallback block', () {
+      final snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: ShellCommandBlockSnapshot.withBlocks(
+          blocks: const [
+            ShellCommandBlock(
+              id: 'session-1:command:40:41',
+              command: 'ls -la',
+              outputRange: ShellCommandBlockRange(
+                commandRow: 40,
+                outputStartRow: 41,
+                outputEndRow: 41,
+              ),
+              status: ShellCommandBlockStatus.succeeded,
+            ),
+          ],
+          lastPrompt: ShellPromptMark(id: 'session-1:prompt:50', row: 50),
+        ),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'pwd',
+        exitCode: 0,
+        viewportEndRow: 51,
+      );
+
+      expect(snapshot.blocks, hasLength(2));
+      expect(snapshot.blocks.first.command, 'ls -la');
+      expect(snapshot.blocks.first.outputRange.outputEndRow, 49);
+      expect(snapshot.blocks.last.command, 'pwd');
+    });
 
     test('visible viewport end row is absent for an empty viewport', () {
       expect(

@@ -1,6 +1,7 @@
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_command_block_view_models.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,10 +69,14 @@ void main() {
       expect(find.text('Output captured'), findsNothing);
     });
 
-    testWidgets('does not consume pointer events', (tester) async {
-      var taps = 0;
+    testWidgets('vertical drag scrolls command block stack', (tester) async {
       final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
-        _overlayItem(id: 'cmd-pointer', active: true, rowSpan: 3),
+        for (var index = 0; index < 12; index += 1)
+          _overlayItem(
+            id: 'cmd-scroll-$index',
+            command: 'command $index',
+            active: index == 11,
+          ),
       ]);
 
       await tester.pumpWidget(
@@ -81,36 +86,28 @@ void main() {
             body: SizedBox(
               width: 360,
               height: 140,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => taps += 1,
-                      child: const SizedBox.expand(),
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: ShellCommandBlocksOverlay(
-                      viewModel: viewModel,
-                      rowHeight: 18,
-                    ),
-                  ),
-                ],
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
               ),
             ),
           ),
         ),
       );
 
-      await tester.tapAt(
-        tester.getCenter(
-          find.byKey(const Key('shell-command-block-cmd-pointer')),
-        ),
+      final scrollableFinder = find.byKey(
+        const Key('shell-command-blocks-scroll-view'),
       );
-      await tester.pump();
+      final scrollableState = tester.state<ScrollableState>(
+        _scrollableDescendant(scrollableFinder, AxisDirection.up),
+      );
 
-      expect(taps, 1);
+      expect(scrollableState.position.pixels, 0);
+
+      await tester.drag(scrollableFinder, const Offset(0, 90));
+      await tester.pumpAndSettle();
+
+      expect(scrollableState.position.pixels, greaterThan(0));
     });
 
     testWidgets('does not expose visual status chips as buttons', (
@@ -211,8 +208,8 @@ void main() {
         const Key('shell-command-block-cmd-padding'),
       );
 
-      expect(tester.getTopLeft(blockFinder).dx, 32);
-      expect(tester.getSize(blockFinder).width, 284);
+      expect(tester.getTopLeft(blockFinder).dx, 24);
+      expect(tester.getSize(blockFinder).width, 300);
     });
 
     testWidgets('lays command cards from bottom upward with opaque surfaces', (
@@ -268,7 +265,9 @@ void main() {
       expect((background!.toARGB32() >> 24) & 0xff, 0xff);
     });
 
-    testWidgets('renders command metadata and output preview', (tester) async {
+    testWidgets('renders command metadata and terminal output surface', (
+      tester,
+    ) async {
       final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
         _overlayItem(
           id: 'metadata',
@@ -277,7 +276,10 @@ void main() {
           cwd: '/repo',
           durationLabel: '842ms',
           outputRangeLabel: 'rows 12-18',
-          outputPreview: '00:01 +3: all tests passed',
+          terminalRows: const [
+            terminal.TerminalRow(index: 0, text: '00:01 +3: all tests passed'),
+          ],
+          terminalViewportCols: 80,
         ),
       ]);
 
@@ -300,7 +302,62 @@ void main() {
       expect(find.text('/repo'), findsOneWidget);
       expect(find.text('842ms'), findsOneWidget);
       expect(find.text('rows 12-18'), findsOneWidget);
-      expect(find.text('00:01 +3: all tests passed'), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-command-block-terminal-output-metadata')),
+        findsOneWidget,
+      );
+      expect(find.byType(terminal.TerminalFramePreview), findsOneWidget);
+    });
+
+    testWidgets('caps preview terminal height and scrolls its rows', (
+      tester,
+    ) async {
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'tall-output',
+          command: 'seq 20',
+          active: true,
+          terminalRows: [
+            for (var index = 0; index < 20; index += 1)
+              terminal.TerminalRow(index: index, text: 'line $index'),
+          ],
+          terminalViewportCols: 80,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 320,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final outputFinder = find.byKey(
+        const Key('shell-command-block-terminal-output-tall-output'),
+      );
+      expect(tester.getSize(outputFinder).height, 18 * 8);
+
+      final scrollableFinder = find.byKey(
+        const Key('shell-command-block-terminal-output-scroll-tall-output'),
+      );
+      final scrollableState = tester.state<ScrollableState>(
+        _scrollableDescendant(scrollableFinder, AxisDirection.down),
+      );
+      expect(scrollableState.position.pixels, 0);
+
+      await tester.drag(scrollableFinder, const Offset(0, -90));
+      await tester.pumpAndSettle();
+
+      expect(scrollableState.position.pixels, greaterThan(0));
     });
 
     testWidgets('keeps inactive tall block labels anchored near command row', (
@@ -381,6 +438,15 @@ void main() {
   });
 }
 
+Finder _scrollableDescendant(Finder parent, AxisDirection axisDirection) {
+  return find.descendant(
+    of: parent,
+    matching: find.byWidgetPredicate((widget) {
+      return widget is Scrollable && widget.axisDirection == axisDirection;
+    }),
+  );
+}
+
 ShellCommandBlockOverlayItem _overlayItem({
   required String id,
   String command = 'flutter test',
@@ -392,10 +458,14 @@ ShellCommandBlockOverlayItem _overlayItem({
   String durationLabel = '--',
   String outputPreview = '',
   String outputRangeLabel = '',
+  List<terminal.TerminalRow> terminalRows = const <terminal.TerminalRow>[],
+  int terminalViewportCols = 0,
 }) {
   return ShellCommandBlockOverlayItem(
     id: id,
     command: command,
+    terminalRows: terminalRows,
+    terminalViewportCols: terminalViewportCols,
     rowOffset: rowOffset,
     rowSpan: rowSpan,
     status: ShellCommandBlockStatus.failed,
