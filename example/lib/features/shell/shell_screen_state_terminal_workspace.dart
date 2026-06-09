@@ -20,6 +20,36 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
 
   String? get _activeCommandBlockId => null;
 
+  TextEditingController _commandInputControllerFor(String sessionId) {
+    return _commandInputControllers.putIfAbsent(
+      sessionId,
+      TextEditingController.new,
+    );
+  }
+
+  FocusNode _commandInputFocusNodeFor(String sessionId) {
+    return _commandInputFocusNodes.putIfAbsent(
+      sessionId,
+      () => FocusNode(debugLabel: 'shell-command-input-$sessionId'),
+    );
+  }
+
+  bool _commandInputVisibleForSession(String sessionId) {
+    return _commandBlocksHistoryFeatureFlags.enabled &&
+        _commandBlocksHistoryFeatureFlags.commandBlocks;
+  }
+
+  void _submitCommandInput(String sessionId, String command) {
+    final text = command.trim();
+    if (text.isEmpty || _isSessionReadOnly(sessionId)) {
+      return;
+    }
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .sendInput(sessionId, Uint8List.fromList(utf8.encode('$text\n')));
+    _commandInputFocusNodeFor(sessionId).requestFocus();
+  }
+
   void _openHistoryPeek() {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null ||
@@ -247,6 +277,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           viewportStartRow: frame.viewportStartRow,
           viewportEndRow: frame.viewportStartRow + frame.viewportRows - 1,
           flags: _commandBlocksHistoryFeatureFlags,
+          visibleRows: frame.rows,
           activeBlockId: _activeCommandBlockId,
         );
 

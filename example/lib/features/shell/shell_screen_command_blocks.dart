@@ -18,31 +18,46 @@ class ShellCommandBlocksOverlay extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final effectiveRowHeight = rowHeight.isFinite && rowHeight > 0
-        ? rowHeight
-        : 1.0;
+    final palette = AppThemeTokens.of(context);
 
     return IgnorePointer(
       child: Padding(
         padding: contentPadding,
-        child: Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            for (final block in viewModel.blocks)
-              Positioned(
-                key: Key('shell-command-block-${block.id}'),
-                top: math.max(0, block.rowOffset) * effectiveRowHeight,
-                left: 8,
-                right: 8,
-                child: SizedBox(
-                  height: math.max(1, block.rowSpan) * effectiveRowHeight,
-                  child: _ShellCommandBlockChrome(
-                    block: block,
-                    rowHeight: effectiveRowHeight,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = constraints.maxWidth.isFinite
+                ? math.min(860.0, constraints.maxWidth - 16)
+                : 860.0;
+            final maxHeight = constraints.maxHeight.isFinite
+                ? math.max(96.0, constraints.maxHeight * 0.48)
+                : 360.0;
+            return Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: maxWidth,
+                  maxHeight: maxHeight,
+                ),
+                child: ClipRect(
+                  child: SingleChildScrollView(
+                    reverse: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final block in viewModel.blocks.reversed)
+                          Padding(
+                            key: Key('shell-command-block-${block.id}'),
+                            padding: EdgeInsets.only(top: palette.spacing.sm),
+                            child: _ShellCommandBlockChrome(block: block),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -50,13 +65,9 @@ class ShellCommandBlocksOverlay extends StatelessWidget {
 }
 
 class _ShellCommandBlockChrome extends StatelessWidget {
-  const _ShellCommandBlockChrome({
-    required this.block,
-    required this.rowHeight,
-  });
+  const _ShellCommandBlockChrome({required this.block});
 
   final ShellCommandBlockOverlayItem block;
-  final double rowHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -65,110 +76,108 @@ class _ShellCommandBlockChrome extends StatelessWidget {
         theme.extension<AppThemeTokens>() ??
         AppThemeTokens.fallbackFor(theme.brightness);
     final statusColor = _statusColor(palette, block.status);
-    final background = statusColor.withValues(
-      alpha: block.active ? 0.032 : 0.012,
+    final background = Color.alphaBlend(
+      statusColor.withValues(alpha: block.active ? 0.14 : 0.08),
+      palette.panelElevated,
     );
-    final blockHeight = math.max(1, block.rowSpan) * rowHeight;
-    final showActions = block.active && blockHeight >= 44;
-    final compact = blockHeight < 32;
-    final dense = blockHeight < 64;
+    final borderColor = block.active
+        ? statusColor.withValues(alpha: 0.78)
+        : palette.border.withValues(alpha: 0.58);
+    final hasOutputPreview = block.outputPreview.trim().isNotEmpty;
+    final metadata = <String>[
+      if (block.cwd?.trim().isNotEmpty == true) block.cwd!.trim(),
+      block.durationLabel,
+      if (block.outputRangeLabel.trim().isNotEmpty) block.outputRangeLabel,
+    ];
 
     return DecoratedBox(
+      key: Key('shell-command-block-card-${block.id}'),
       decoration: BoxDecoration(
         color: background,
-        borderRadius: BorderRadius.circular(palette.radius.sm),
+        borderRadius: BorderRadius.circular(palette.radius.md),
+        border: Border.all(color: borderColor),
+        boxShadow: block.active ? palette.elevation.floating : const [],
       ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: SizedBox(
-              width: block.active ? 3 : 2,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: block.active ? 4 : 3,
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(
-                    alpha: block.active ? 0.86 : 0.62,
-                  ),
+                  color: statusColor,
                   borderRadius: BorderRadius.horizontal(
-                    left: Radius.circular(palette.radius.sm),
+                    left: Radius.circular(palette.radius.md),
                   ),
                 ),
               ),
             ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              compact ? palette.spacing.sm : palette.spacing.md,
-              compact
-                  ? 0
-                  : dense
-                  ? palette.spacing.xs
-                  : block.active
-                  ? palette.spacing.md
-                  : palette.spacing.sm,
-              compact ? palette.spacing.sm : palette.spacing.md,
-              compact
-                  ? 0
-                  : dense
-                  ? palette.spacing.xs
-                  : block.active
-                  ? palette.spacing.md
-                  : palette.spacing.sm,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.max,
-              mainAxisAlignment: showActions
-                  ? MainAxisAlignment.start
-                  : MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.max,
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.all(palette.spacing.lg),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _ShellCommandBlockStatusDot(color: statusColor),
-                    SizedBox(width: palette.spacing.sm),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        block.command,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: palette.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: palette.spacing.md),
-                    Flexible(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          block.statusLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: statusColor,
-                            fontWeight: FontWeight.w600,
+                    Row(
+                      children: [
+                        _ShellCommandBlockStatusDot(color: statusColor),
+                        SizedBox(width: palette.spacing.sm),
+                        Expanded(
+                          child: Text(
+                            block.command,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: palette.textPrimary,
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
+                        SizedBox(width: palette.spacing.md),
+                        _ShellCommandBlockMetaPill(
+                          label: block.statusLabel,
+                          foreground: statusColor,
+                          palette: palette,
+                        ),
+                      ],
+                    ),
+                    if (metadata.isNotEmpty) ...[
+                      SizedBox(height: palette.spacing.sm),
+                      Wrap(
+                        spacing: palette.spacing.sm,
+                        runSpacing: palette.spacing.xs,
+                        children: [
+                          for (final label in metadata)
+                            _ShellCommandBlockMetaPill(
+                              label: label,
+                              foreground: palette.textMuted,
+                              palette: palette,
+                            ),
+                        ],
                       ),
+                    ],
+                    if (hasOutputPreview) ...[
+                      SizedBox(height: palette.spacing.sm),
+                      _ShellCommandBlockOutputPreview(
+                        text: block.outputPreview,
+                        palette: palette,
+                      ),
+                    ],
+                    SizedBox(height: palette.spacing.sm),
+                    _ShellCommandBlockStatusHints(
+                      block: block,
+                      palette: palette,
                     ),
                   ],
                 ),
-                if (showActions) ...[
-                  SizedBox(
-                    height: dense ? palette.spacing.xs : palette.spacing.sm,
-                  ),
-                  _ShellCommandBlockStatusHints(block: block, palette: palette),
-                ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -180,6 +189,84 @@ class _ShellCommandBlockChrome extends StatelessWidget {
       ShellCommandBlockStatus.running => palette.warning,
       ShellCommandBlockStatus.unknown => palette.textSubtle,
     };
+  }
+}
+
+class _ShellCommandBlockMetaPill extends StatelessWidget {
+  const _ShellCommandBlockMetaPill({
+    required this.label,
+    required this.foreground,
+    required this.palette,
+  });
+
+  final String label;
+  final Color foreground;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.terminalSurface,
+        borderRadius: BorderRadius.circular(palette.radius.sm),
+        border: Border.all(color: palette.border.withValues(alpha: 0.62)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: palette.spacing.sm,
+          vertical: 3,
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: foreground,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellCommandBlockOutputPreview extends StatelessWidget {
+  const _ShellCommandBlockOutputPreview({
+    required this.text,
+    required this.palette,
+  });
+
+  final String text;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.terminalSurface,
+        borderRadius: BorderRadius.circular(palette.radius.sm),
+        border: Border.all(color: palette.border.withValues(alpha: 0.52)),
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: palette.spacing.md,
+            vertical: palette.spacing.sm,
+          ),
+          child: Text(
+            text,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: palette.textMuted,
+              fontFamily: 'monospace',
+              height: 1.22,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -254,6 +341,124 @@ class _ShellCommandBlockStatusChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class ShellCommandInputBar extends StatelessWidget {
+  const ShellCommandInputBar({
+    super.key,
+    required this.controller,
+    required this.focusNode,
+    required this.enabled,
+    required this.onSubmitted,
+    this.cwd,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool enabled;
+  final String? cwd;
+  final ValueChanged<String> onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppThemeTokens.of(context);
+    final theme = Theme.of(context);
+    final cwdLabel = cwd?.trim();
+
+    return DecoratedBox(
+      key: const Key('shell-command-input-bar'),
+      decoration: BoxDecoration(
+        color: palette.chrome,
+        border: Border(top: BorderSide(color: palette.border)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: palette.spacing.lg,
+          vertical: palette.spacing.sm,
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.terminal, size: 16, color: palette.textSubtle),
+            if (cwdLabel != null && cwdLabel.isNotEmpty) ...[
+              SizedBox(width: palette.spacing.md),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 220),
+                child: Text(
+                  cwdLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: palette.textSubtle,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ],
+            SizedBox(width: palette.spacing.md),
+            Expanded(
+              child: TextField(
+                key: const Key('shell-command-input-field'),
+                controller: controller,
+                focusNode: focusNode,
+                enabled: enabled,
+                autofocus: enabled,
+                textInputAction: TextInputAction.done,
+                onSubmitted: _submit,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: palette.textPrimary,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Command',
+                  isDense: true,
+                  filled: true,
+                  fillColor: palette.terminalSurface,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: palette.spacing.md,
+                    vertical: palette.spacing.sm,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(palette.radius.md),
+                    borderSide: BorderSide(color: palette.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(palette.radius.md),
+                    borderSide: BorderSide(color: palette.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(palette.radius.md),
+                    borderSide: BorderSide(
+                      color: palette.focusRing,
+                      width: 1.4,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: palette.spacing.sm),
+            Tooltip(
+              message: 'Run command',
+              child: IconButton(
+                onPressed: enabled ? () => _submit(controller.text) : null,
+                icon: const Icon(Icons.keyboard_return),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submit(String value) {
+    final command = value.trim();
+    if (command.isEmpty) {
+      return;
+    }
+    onSubmitted(command);
+    controller.clear();
+    focusNode.requestFocus();
   }
 }
 

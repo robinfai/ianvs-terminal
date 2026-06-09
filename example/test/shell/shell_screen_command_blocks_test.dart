@@ -177,10 +177,10 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text(item.command), findsOneWidget);
       expect(find.text('exit 1'), findsOneWidget);
-      expect(find.text('Output captured'), findsNothing);
-      expect(find.text('Replay context'), findsNothing);
-      expect(find.text('Failure snapshot'), findsNothing);
-      expect(find.text('Previous run'), findsNothing);
+      expect(find.text('Output captured'), findsOneWidget);
+      expect(find.text('Replay context'), findsOneWidget);
+      expect(find.text('Failure snapshot'), findsOneWidget);
+      expect(find.text('Previous run'), findsOneWidget);
     });
 
     testWidgets('aligns command blocks to terminal content padding', (
@@ -211,8 +211,172 @@ void main() {
         const Key('shell-command-block-cmd-padding'),
       );
 
-      expect(tester.getTopLeft(blockFinder), const Offset(32, 48));
+      expect(tester.getTopLeft(blockFinder).dx, 32);
       expect(tester.getSize(blockFinder).width, 284);
+    });
+
+    testWidgets('lays command cards from bottom upward with opaque surfaces', (
+      tester,
+    ) async {
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'latest',
+          command: 'ls -al',
+          rowOffset: 99,
+          rowSpan: 4,
+          active: true,
+        ),
+        _overlayItem(
+          id: 'older',
+          command: 'pwd',
+          rowOffset: 0,
+          rowSpan: 1,
+          active: false,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 280,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final latestTop = tester
+          .getTopLeft(find.byKey(const Key('shell-command-block-latest')))
+          .dy;
+      final olderTop = tester
+          .getTopLeft(find.byKey(const Key('shell-command-block-older')))
+          .dy;
+      final card = tester.widget<DecoratedBox>(
+        find.byKey(const Key('shell-command-block-card-latest')),
+      );
+      final decoration = card.decoration as BoxDecoration;
+      final background = decoration.color;
+
+      expect(latestTop, greaterThan(olderTop));
+      expect(background, isNotNull);
+      expect((background!.toARGB32() >> 24) & 0xff, 0xff);
+    });
+
+    testWidgets('renders command metadata and output preview', (tester) async {
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'metadata',
+          command: 'flutter test',
+          active: true,
+          cwd: '/repo',
+          durationLabel: '842ms',
+          outputRangeLabel: 'rows 12-18',
+          outputPreview: '00:01 +3: all tests passed',
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 220,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('/repo'), findsOneWidget);
+      expect(find.text('842ms'), findsOneWidget);
+      expect(find.text('rows 12-18'), findsOneWidget);
+      expect(find.text('00:01 +3: all tests passed'), findsOneWidget);
+    });
+
+    testWidgets('keeps inactive tall block labels anchored near command row', (
+      tester,
+    ) async {
+      const command = 'ls';
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'cmd-inactive-tall',
+          command: command,
+          active: false,
+          rowSpan: 8,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.light),
+          home: Scaffold(
+            body: SizedBox(
+              width: 360,
+              height: 220,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final blockTop = tester
+          .getTopLeft(
+            find.byKey(const Key('shell-command-block-cmd-inactive-tall')),
+          )
+          .dy;
+      final commandTop = tester.getTopLeft(find.text(command)).dy;
+
+      expect(commandTop - blockTop, lessThan(24));
+    });
+  });
+
+  group('ShellCommandInputBar', () {
+    testWidgets('submits standalone input and clears the field', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              cwd: '/repo',
+              onSubmitted: submitted.add,
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'ls -al',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+
+      expect(submitted, ['ls -al']);
+      expect(controller.text, isEmpty);
     });
   });
 }
@@ -224,6 +388,10 @@ ShellCommandBlockOverlayItem _overlayItem({
   int rowSpan = 1,
   bool active = false,
   bool showDiffAction = false,
+  String? cwd,
+  String durationLabel = '--',
+  String outputPreview = '',
+  String outputRangeLabel = '',
 }) {
   return ShellCommandBlockOverlayItem(
     id: id,
@@ -233,6 +401,10 @@ ShellCommandBlockOverlayItem _overlayItem({
     status: ShellCommandBlockStatus.failed,
     statusLabel: 'exit 1',
     active: active,
+    cwd: cwd,
+    durationLabel: durationLabel,
+    outputPreview: outputPreview,
+    outputRangeLabel: outputRangeLabel,
     showFailureSnapshotAction: true,
     showReplayAction: true,
     showDiffAction: showDiffAction,

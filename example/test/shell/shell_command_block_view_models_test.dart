@@ -1,6 +1,7 @@
 import 'package:app/features/productivity/command_blocks_history_feature_flags.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_command_block_view_models.dart';
+import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -57,6 +58,88 @@ void main() {
       expect(viewModel.blocks.single.showReplayAction, isTrue);
     });
 
+    test(
+      'builds bottom stack newest first with output and duration summary',
+      () {
+        final startedAt = DateTime(2026, 6, 9, 19, 31, 0);
+        final finishedAt = startedAt.add(const Duration(milliseconds: 1240));
+
+        final viewModel = ShellCommandBlockViewModelBuilder.build(
+          blocks: [
+            _commandBlock(startRow: 2, endRow: 4, command: 'pwd'),
+            _commandBlock(startRow: 20, endRow: 22, command: 'ls -al'),
+          ],
+          viewportStartRow: 100,
+          viewportEndRow: 120,
+          visibleRows: [
+            terminal.TerminalRow(
+              index: 20,
+              text: 'ls -al',
+              modifiedAt: startedAt,
+            ),
+            terminal.TerminalRow(
+              index: 21,
+              text: 'Applications  Desktop',
+              modifiedAt: startedAt.add(const Duration(milliseconds: 180)),
+            ),
+            terminal.TerminalRow(
+              index: 22,
+              text: 'Documents     Downloads',
+              modifiedAt: finishedAt,
+            ),
+          ],
+          flags: _enabledFlags(),
+        );
+
+        expect(viewModel.blocks.map((block) => block.command), [
+          'ls -al',
+          'pwd',
+        ]);
+        expect(
+          viewModel.blocks.first.outputPreview,
+          ['Applications  Desktop', 'Documents     Downloads'].join('\n'),
+        );
+        expect(viewModel.blocks.first.outputRangeLabel, 'rows 21-22');
+        expect(viewModel.blocks.first.durationLabel, '1.2s');
+      },
+    );
+
+    test('filters prompt and readline rows from output preview', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 10,
+            endRow: 13,
+            command: 'ls-al',
+            cwd: '/Users/robinfai',
+            status: ShellCommandBlockStatus.failed,
+          ),
+        ],
+        viewportStartRow: 10,
+        viewportEndRow: 13,
+        visibleRows: const [
+          terminal.TerminalRow(
+            index: 11,
+            text: '?? robinfai? ~ ???? ? 20:18 ?? ls-al',
+          ),
+          terminal.TerminalRow(
+            index: 12,
+            text: 'zsh: command not found: ls-al',
+          ),
+          terminal.TerminalRow(
+            index: 13,
+            text: '?? robinfai? ~ ???? ? 20:18 ??',
+          ),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      expect(
+        viewModel.blocks.single.outputPreview,
+        'zsh: command not found: ls-al',
+      );
+    });
+
     test('reviewWorkspaceEntrypoints flag drives replay action', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [_commandBlock(startRow: 1, endRow: 4)],
@@ -92,7 +175,7 @@ void main() {
       expect(viewModel.blocks.single.rowSpan, 3);
     });
 
-    test('block completely outside viewport is skipped', () {
+    test('block completely outside viewport stays in command stack', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [_commandBlock(startRow: 1, endRow: 4)],
         viewportStartRow: 10,
@@ -100,7 +183,7 @@ void main() {
         flags: _enabledFlags(),
       );
 
-      expect(viewModel.blocks, isEmpty);
+      expect(viewModel.blocks.single.command, 'flutter test');
     });
 
     test('invalid block is skipped', () {
@@ -177,7 +260,8 @@ void main() {
         flags: _enabledFlags(outputDiff: true),
       );
 
-      expect(viewModel.blocks.single.showDiffAction, isTrue);
+      expect(viewModel.blocks.first.id, 'cmd-10-12');
+      expect(viewModel.blocks.first.showDiffAction, isTrue);
     });
 
     test('future matching command and cwd does not enable diff action', () {
@@ -191,7 +275,11 @@ void main() {
         flags: _enabledFlags(outputDiff: true),
       );
 
-      expect(viewModel.blocks.single.showDiffAction, isFalse);
+      final current = viewModel.blocks.singleWhere(
+        (block) => block.id == 'cmd-10-12',
+      );
+
+      expect(current.showDiffAction, isFalse);
     });
 
     test('previous command mismatch does not enable diff action', () {
@@ -210,7 +298,8 @@ void main() {
         flags: _enabledFlags(outputDiff: true),
       );
 
-      expect(viewModel.blocks.single.showDiffAction, isFalse);
+      expect(viewModel.blocks.first.id, 'cmd-10-12');
+      expect(viewModel.blocks.first.showDiffAction, isFalse);
     });
 
     test('previous cwd mismatch does not enable diff action', () {
@@ -224,7 +313,8 @@ void main() {
         flags: _enabledFlags(outputDiff: true),
       );
 
-      expect(viewModel.blocks.single.showDiffAction, isFalse);
+      expect(viewModel.blocks.first.id, 'cmd-10-12');
+      expect(viewModel.blocks.first.showDiffAction, isFalse);
     });
 
     test('succeeded block does not show failure snapshot action', () {

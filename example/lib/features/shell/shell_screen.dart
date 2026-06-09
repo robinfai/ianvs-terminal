@@ -95,6 +95,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
+  final Map<String, TextEditingController> _commandInputControllers = {};
+  final Map<String, FocusNode> _commandInputFocusNodes = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
@@ -218,6 +220,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }
+    for (final controller in _commandInputControllers.values) {
+      controller.dispose();
+    }
+    for (final focusNode in _commandInputFocusNodes.values) {
+      focusNode.dispose();
+    }
     _searchFocusNode.dispose();
     _autoComposerController.dispose();
     _autoComposerFocusNode.dispose();
@@ -278,6 +286,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final statusViewportController = displayedSessionId == null
         ? null
         : sessionController.viewportFor(displayedSessionId);
+    final commandInputSessionId = displayedSessionId ?? activeSessionId;
     final shellChromeBackground = statusProfile == null
         ? activeTab == null
               ? _terminalColorsForProfile(
@@ -943,6 +952,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ),
                 ),
               ),
+              if (commandInputSessionId != null &&
+                  _commandInputVisibleForSession(commandInputSessionId))
+                ShellCommandInputBar(
+                  key: ValueKey('shell-command-input-$commandInputSessionId'),
+                  controller: _commandInputControllerFor(commandInputSessionId),
+                  focusNode: _commandInputFocusNodeFor(commandInputSessionId),
+                  enabled: !_isSessionReadOnly(commandInputSessionId),
+                  cwd: statusDirectory?.trim().isNotEmpty == true
+                      ? statusDirectory!.trim()
+                      : statusProfile?.cwd,
+                  onSubmitted: (command) =>
+                      _submitCommandInput(commandInputSessionId, command),
+                ),
               if (statusPane != null)
                 if (statusViewportController == null ||
                     displayedSessionId == null)
