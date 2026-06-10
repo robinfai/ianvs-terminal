@@ -1,5 +1,12 @@
 part of 'shell_screen.dart';
 
+final RegExp _shellHookPromptTimePattern = RegExp(r'\b\d{1,2}:\d{2}\b');
+final RegExp _shellHookPromptHomePattern = RegExp(r'(^|\s)~(\s|$)');
+final RegExp _shellHookPromptCuePattern = RegExp(
+  r'(^|\s)(?:[$#>%]|->|=>|\u2192|\u279c|\u276f)(\s|$)',
+);
+final RegExp _shellHookPromptNoisePattern = RegExp(r'(?:\?{2,}|\uFFFD)');
+
 int? shellCommandBlockVisibleViewportEndRow({
   required int viewportStartRow,
   required int viewportRows,
@@ -22,16 +29,57 @@ int? shellCommandBlockCommandEndRowForFrame(terminal.TerminalFrameDiff frame) {
 }
 
 int? shellCommandBlockCommandStartRowForFrame(
-  terminal.TerminalFrameDiff frame,
-) {
+  terminal.TerminalFrameDiff frame, {
+  String? command,
+}) {
   if (frame.viewportStartRow < 0 || frame.rows.isEmpty) {
     return null;
+  }
+  final commandRow = _shellCommandBlockCommandRowForFrame(frame, command);
+  if (commandRow != null) {
+    return frame.viewportStartRow + commandRow.index;
   }
   final anchorRow = _shellCommandBlockAnchorRowForFrame(frame);
   if (anchorRow == null) {
     return null;
   }
   return frame.viewportStartRow + anchorRow.index;
+}
+
+terminal.TerminalRow? _shellCommandBlockCommandRowForFrame(
+  terminal.TerminalFrameDiff frame,
+  String? command,
+) {
+  final normalizedCommand = _normalizedShellCommandText(command);
+  if (normalizedCommand == null) {
+    return null;
+  }
+  for (final logicalRow in _shellCommandBlockLogicalRows(frame.rows).reversed) {
+    if (_logicalRowLooksLikeShellCommandLine(logicalRow, normalizedCommand)) {
+      return logicalRow.endRow;
+    }
+  }
+  return null;
+}
+
+bool _logicalRowLooksLikeShellCommandLine(
+  _LogicalTerminalRow logicalRow,
+  String normalizedCommand,
+) {
+  final line = logicalRow.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  if (line.isEmpty || !line.contains(normalizedCommand)) {
+    return false;
+  }
+  if (line == normalizedCommand || line.endsWith(' $normalizedCommand')) {
+    return true;
+  }
+  return _shellHookPromptCuePattern.hasMatch(line) ||
+      _shellHookPromptNoisePattern.hasMatch(line);
+}
+
+String? _normalizedShellCommandText(String? command) {
+  final text = command?.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return text == null || text.isEmpty ? null : text;
 }
 
 terminal.TerminalRow? _shellCommandBlockAnchorRowForFrame(
@@ -92,9 +140,31 @@ class ShellCommandBlockShellHookReducer {
   const ShellCommandBlockShellHookReducer._();
 
   static bool supportsHook(String? hook) {
-    return switch (hook?.trim()) {
-      'precmd.pwd' || 'cwd' || 'preexec' || 'command_finished' => true,
+    return switch (normalizeHook(hook)) {
+      'bootstrapped' ||
+      'precmd' ||
+      'precmd.pwd' ||
+      'cwd' ||
+      'preexec' ||
+      'command_finished' => true,
       _ => false,
+    };
+  }
+
+  static String? normalizeHook(String? hook) {
+    final text = hook?.trim();
+    if (text == null || text.isEmpty) {
+      return null;
+    }
+    final normalized = text.replaceAll('-', '_').toLowerCase();
+    return switch (normalized) {
+      'bootstrapped' => 'bootstrapped',
+      'precmd' => 'precmd',
+      'precmd.pwd' || 'precmdpwd' => 'precmd.pwd',
+      'cwd' || 'pwd' => 'cwd',
+      'preexec' => 'preexec',
+      'commandfinished' || 'command_finished' => 'command_finished',
+      _ => text,
     };
   }
 
@@ -115,7 +185,9 @@ class ShellCommandBlockShellHookReducer {
     if (!flags.enabled || !flags.commandBlocks) {
       return const ShellCommandBlockSnapshot();
     }
-    return switch (hook?.trim()) {
+    return switch (normalizeHook(hook)) {
+      'bootstrapped' => _bootstrapped(snapshot),
+      'precmd' => snapshot,
       'precmd.pwd' ||
       'cwd' => _cwdChanged(snapshot: snapshot, flags: flags, cwd: cwd),
       'preexec' => _preexec(
@@ -141,6 +213,18 @@ class ShellCommandBlockShellHookReducer {
       ),
       _ => snapshot,
     };
+  }
+
+  static ShellCommandBlockSnapshot _bootstrapped(
+    ShellCommandBlockSnapshot snapshot,
+  ) {
+    if (snapshot.lastPrompt == null && snapshot.pendingRange == null) {
+      return snapshot;
+    }
+    return ShellCommandBlockSnapshot.withBlocks(
+      blocks: snapshot.blocks,
+      currentCwd: snapshot.currentCwd,
+    );
   }
 
   static ShellCommandBlockSnapshot _cwdChanged({
@@ -172,7 +256,7 @@ class ShellCommandBlockShellHookReducer {
     required int? commandStartRow,
     required List<TerminalShellPromptMark> promptMarks,
   }) {
-    if (_trimmedShellHookText(command) == null) {
+    if (_trimmedShellCommandText(command) == null) {
       return snapshot;
     }
     final marks = _validPromptMarks(promptMarks);
@@ -226,11 +310,7 @@ class ShellCommandBlockShellHookReducer {
       outputStartRow: lastBlock.outputRange.outputStartRow,
       outputEndRow: outputEndRow,
     );
-    final commandBlockId = _commandBlockId(
-      sessionId,
-      outputRange.commandRow,
-      outputRange.outputEndRow,
-    );
+    final commandBlockId = _commandBlockId(sessionId, outputRange.commandRow);
     final failureSnapshot = lastBlock.failureSnapshot == null
         ? null
         : ShellFailureSnapshot.withKeyErrorLines(
@@ -268,7 +348,7 @@ class ShellCommandBlockShellHookReducer {
     required List<TerminalShellPromptMark> promptMarks,
     required int? viewportEndRow,
   }) {
-    final commandText = _trimmedShellHookText(command);
+    final commandText = _trimmedShellCommandText(command);
     if (commandText == null) {
       return snapshot;
     }
@@ -284,11 +364,7 @@ class ShellCommandBlockShellHookReducer {
       return snapshot;
     }
 
-    final commandId = _commandBlockId(
-      sessionId,
-      plan.startRow,
-      plan.outputEndRow,
-    );
+    final commandId = _commandBlockId(sessionId, plan.startRow);
     var next = _resizeLastFinishedBlockBeforePrompt(
       snapshot: snapshot,
       sessionId: sessionId,
@@ -469,7 +545,7 @@ class ShellCommandBlockShellHookReducer {
   }) {
     for (final mark in marks.reversed) {
       if (mark.scrollbackOffset < row &&
-          _trimmedShellHookText(mark.command) == commandText) {
+          _trimmedShellCommandText(mark.command) == commandText) {
         return mark;
       }
     }
@@ -495,8 +571,8 @@ class ShellCommandBlockShellHookReducer {
     return value;
   }
 
-  static String _commandBlockId(String sessionId, int startRow, int endRow) {
-    return '$sessionId:command:$startRow:$endRow';
+  static String _commandBlockId(String sessionId, int commandRow) {
+    return '$sessionId:command:$commandRow';
   }
 
   static String _promptMarkId(String sessionId, int row) {
@@ -509,6 +585,24 @@ class ShellCommandBlockShellHookReducer {
       return null;
     }
     return text;
+  }
+
+  static String? _trimmedShellCommandText(String? value) {
+    final text = _trimmedShellHookText(value);
+    if (text == null || _shellHookCommandLooksLikePromptLine(text)) {
+      return null;
+    }
+    return text;
+  }
+
+  static bool _shellHookCommandLooksLikePromptLine(String text) {
+    final line = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (!_shellHookPromptTimePattern.hasMatch(line) ||
+        !_shellHookPromptHomePattern.hasMatch(line)) {
+      return false;
+    }
+    return _shellHookPromptCuePattern.hasMatch(line) ||
+        _shellHookPromptNoisePattern.hasMatch(line);
   }
 }
 
@@ -534,10 +628,11 @@ Map<String, List<terminal.TerminalRow>> _commandBlockPreviewRowsForFrame(
 ) {
   final rowsByIndex = _terminalRowsByScrollbackIndex(frame);
   final capturedRows = <String, List<terminal.TerminalRow>>{};
-  final blocks = [...snapshot.blocks]
-    ..sort(
-      (a, b) => a.outputRange.commandRow.compareTo(b.outputRange.commandRow),
-    );
+  final latestBlock = snapshot.blocks.isEmpty ? null : snapshot.blocks.last;
+  if (latestBlock == null) {
+    return capturedRows;
+  }
+  final blocks = [latestBlock];
   for (var index = 0; index < blocks.length; index += 1) {
     final block = blocks[index];
     final nextCommandStartRow = index < blocks.length - 1
@@ -556,14 +651,244 @@ Map<String, List<terminal.TerminalRow>> _commandBlockPreviewRowsForFrame(
   return capturedRows;
 }
 
+@visibleForTesting
+Map<String, List<terminal.TerminalRow>> shellCommandBlockPreviewRowsForFrame({
+  required ShellCommandBlockSnapshot snapshot,
+  required terminal.TerminalFrameDiff frame,
+}) {
+  return _commandBlockPreviewRowsForFrame(snapshot, frame);
+}
+
+@visibleForTesting
+bool shellCommandBlockShouldReplacePreviewRows({
+  required List<terminal.TerminalRow>? existingRows,
+  required List<terminal.TerminalRow> nextRows,
+}) {
+  if (nextRows.isEmpty) {
+    return false;
+  }
+  final existing = existingRows;
+  if (existing == null) {
+    return true;
+  }
+  if (nextRows.length > existing.length) {
+    return true;
+  }
+  return nextRows.length == existing.length &&
+      !shellCommandBlockPreviewRowsHaveSameContent(existing, nextRows);
+}
+
+@visibleForTesting
+bool shellCommandBlockPreviewRowsHaveSameContent(
+  List<terminal.TerminalRow> left,
+  List<terminal.TerminalRow> right,
+) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    final leftRow = left[index];
+    final rightRow = right[index];
+    if (leftRow.text != rightRow.text || leftRow.wrapped != rightRow.wrapped) {
+      return false;
+    }
+    if (!_terminalStyleRunsHaveSamePreviewContent(
+      leftRow.styleRuns,
+      rightRow.styleRuns,
+    )) {
+      return false;
+    }
+  }
+  return true;
+}
+
+class ShellCommandBlockFinishedPreviewCapture {
+  const ShellCommandBlockFinishedPreviewCapture({
+    required this.rows,
+    required this.removeTarget,
+  });
+
+  final List<terminal.TerminalRow> rows;
+  final bool removeTarget;
+}
+
+@visibleForTesting
+ShellCommandBlockFinishedPreviewCapture
+shellCommandBlockFinishedPreviewCaptureForRows({
+  required ShellCommandBlock block,
+  required List<terminal.TerminalRow> rows,
+  required bool isLatestBlock,
+}) {
+  if (!isLatestBlock) {
+    return const ShellCommandBlockFinishedPreviewCapture(
+      rows: <terminal.TerminalRow>[],
+      removeTarget: true,
+    );
+  }
+  final capture = shellCommandBlockOutputCaptureFrom(block, rows);
+  return ShellCommandBlockFinishedPreviewCapture(
+    rows: _shellCommandBlockRowsHaveVisibleText(capture.rows)
+        ? capture.rows
+        : const <terminal.TerminalRow>[],
+    removeTarget: capture.reachedPromptBoundary,
+  );
+}
+
+@visibleForTesting
+Map<String, List<terminal.TerminalRow>>
+shellCommandBlockFinishedPreviewRowsForCurrentFrame({
+  required ShellCommandBlockSnapshot snapshot,
+  required terminal.TerminalFrameDiff frame,
+  DateTime? submittedAt,
+}) {
+  if (snapshot.blocks.isEmpty) {
+    return const <String, List<terminal.TerminalRow>>{};
+  }
+  final block = snapshot.blocks.last;
+  if (!block.isValid) {
+    return const <String, List<terminal.TerminalRow>>{};
+  }
+  final rows = _terminalRowsForFinishedCommandBlockPreview(
+    block: block,
+    frame: frame,
+    submittedAt: submittedAt,
+  );
+  final capture = shellCommandBlockFinishedPreviewCaptureForRows(
+    block: block,
+    rows: rows,
+    isLatestBlock: true,
+  );
+  return capture.rows.isEmpty
+      ? const <String, List<terminal.TerminalRow>>{}
+      : <String, List<terminal.TerminalRow>>{block.id: capture.rows};
+}
+
+bool _shellCommandBlockRowsHaveVisibleText(List<terminal.TerminalRow> rows) {
+  return rows.any((row) => row.text.trim().isNotEmpty);
+}
+
+@visibleForTesting
+List<terminal.TerminalRow> shellCommandBlockSubmittedPreviewRowsForFrame({
+  required String command,
+  required int commandRow,
+  required DateTime submittedAt,
+  required terminal.TerminalFrameDiff frame,
+}) {
+  final rows = _dropLeadingSubmittedCommandRows(
+    command: command,
+    allowLeadingContinuation: true,
+    rows: _terminalRowsForPendingCommandBlockPreview(
+      commandRow: commandRow,
+      frame: frame,
+    ),
+  );
+  final probeBlock = ShellCommandBlock(
+    id: 'submitted-preview',
+    command: command,
+    outputRange: ShellCommandBlockRange(
+      commandRow: commandRow,
+      outputStartRow: commandRow + 1,
+      outputEndRow: commandRow + rows.length,
+    ),
+  );
+  if (_shellCommandBlockRowsHaveVisibleText(
+        shellCommandBlockOutputRowsFrom(probeBlock, rows),
+      ) &&
+      !_terminalRowsHaveStaleVisibleText(rows, submittedAt)) {
+    return rows;
+  }
+  final freshRows = _terminalRowsModifiedSinceSubmittedCommand(
+    command: command,
+    commandRow: commandRow,
+    submittedAt: submittedAt,
+    frame: frame,
+  );
+  return freshRows.isEmpty ? rows : freshRows;
+}
+
+bool _terminalRowsHaveStaleVisibleText(
+  List<terminal.TerminalRow> rows,
+  DateTime submittedAt,
+) {
+  for (final row in rows) {
+    if (row.text.trim().isEmpty) {
+      continue;
+    }
+    final modifiedAt = row.modifiedAt;
+    if (modifiedAt != null && modifiedAt.isBefore(submittedAt)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+List<terminal.TerminalRow> _freshOrPendingRowsForCommandBlock({
+  required String command,
+  required int commandRow,
+  required DateTime? submittedAt,
+  required terminal.TerminalFrameDiff frame,
+}) {
+  final rows = _dropLeadingSubmittedCommandRows(
+    command: command,
+    allowLeadingContinuation: true,
+    rows: _terminalRowsForPendingCommandBlockPreview(
+      commandRow: commandRow,
+      frame: frame,
+    ),
+  );
+  if (submittedAt == null ||
+      !_terminalRowsHaveStaleVisibleText(rows, submittedAt)) {
+    return rows;
+  }
+  final freshRows = _terminalRowsModifiedSinceSubmittedCommand(
+    command: command,
+    commandRow: commandRow,
+    submittedAt: submittedAt,
+    frame: frame,
+  );
+  return freshRows.isEmpty ? rows : freshRows;
+}
+
+bool _terminalStyleRunsHaveSamePreviewContent(
+  List<terminal.TerminalStyleRun> left,
+  List<terminal.TerminalStyleRun> right,
+) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    final leftRun = left[index];
+    final rightRun = right[index];
+    if (leftRun.start != rightRun.start ||
+        leftRun.end != rightRun.end ||
+        leftRun.foreground != rightRun.foreground ||
+        leftRun.background != rightRun.background ||
+        leftRun.bold != rightRun.bold ||
+        leftRun.dim != rightRun.dim ||
+        leftRun.italic != rightRun.italic ||
+        leftRun.underline != rightRun.underline ||
+        leftRun.blink != rightRun.blink ||
+        leftRun.inverse != rightRun.inverse) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Map<int, terminal.TerminalRow> _terminalRowsByScrollbackIndex(
   terminal.TerminalFrameDiff frame,
 ) {
   final byIndex = <int, terminal.TerminalRow>{};
   for (final row in frame.rows) {
-    byIndex[row.index] = row;
     if (frame.viewportStartRow >= 0) {
-      byIndex.putIfAbsent(frame.viewportStartRow + row.index, () => row);
+      if (row.index >= 0 && row.index < frame.viewportRows) {
+        byIndex[frame.viewportStartRow + row.index] = row;
+      }
+      if (row.index >= frame.viewportStartRow) {
+        byIndex.putIfAbsent(row.index, () => row);
+      }
+    } else {
+      byIndex[row.index] = row;
     }
   }
   return byIndex;
@@ -591,23 +916,22 @@ List<terminal.TerminalRow> _terminalRowsForCommandBlockRangePreview(
   Map<int, terminal.TerminalRow> rowsByIndex,
 ) {
   final range = block.outputRange;
-  final rows = <terminal.TerminalRow>[];
+  final sourceRows = <terminal.TerminalRow>[];
   for (var row = range.outputStartRow; row <= range.outputEndRow; row += 1) {
     final source = rowsByIndex[row];
     if (source == null) {
       continue;
     }
-    rows.add(
-      terminal.TerminalRow(
-        index: rows.length,
-        text: source.text,
-        wrapped: source.wrapped,
-        modifiedAt: source.modifiedAt,
-        styleRuns: source.styleRuns,
-      ),
-    );
+    sourceRows.add(source);
   }
-  return List<terminal.TerminalRow>.unmodifiable(rows);
+  return shellCommandBlockOutputRowsFrom(
+    block,
+    _dropLeadingSubmittedCommandRows(
+      command: block.command,
+      allowLeadingContinuation: true,
+      rows: sourceRows,
+    ),
+  );
 }
 
 List<terminal.TerminalRow> _terminalRowsAfterCommandLineForCommandBlockPreview(
@@ -632,23 +956,22 @@ List<terminal.TerminalRow> _terminalRowsAfterCommandLineForCommandBlockPreview(
     return const <terminal.TerminalRow>[];
   }
 
-  final rows = <terminal.TerminalRow>[];
+  final sourceRows = <terminal.TerminalRow>[];
   for (final frameRow in frameRows.skip(commandRowIndex + 1)) {
     if (nextCommandStartRow != null &&
         frameRow.absoluteRow >= nextCommandStartRow) {
       break;
     }
-    rows.add(
-      terminal.TerminalRow(
-        index: rows.length,
-        text: frameRow.row.text,
-        wrapped: frameRow.row.wrapped,
-        modifiedAt: frameRow.row.modifiedAt,
-        styleRuns: frameRow.row.styleRuns,
-      ),
-    );
+    sourceRows.add(frameRow.row);
   }
-  return List<terminal.TerminalRow>.unmodifiable(rows);
+  return shellCommandBlockOutputRowsFrom(
+    block,
+    _dropLeadingSubmittedCommandRows(
+      command: block.command,
+      allowLeadingContinuation: true,
+      rows: sourceRows,
+    ),
+  );
 }
 
 List<terminal.TerminalRow> _terminalRowsForPendingCommandBlockPreview({
@@ -681,6 +1004,160 @@ List<terminal.TerminalRow> _terminalRowsForPendingCommandBlockPreview({
   return List<terminal.TerminalRow>.unmodifiable(rows);
 }
 
+List<terminal.TerminalRow> _terminalRowsForFinishedCommandBlockPreview({
+  required ShellCommandBlock block,
+  required terminal.TerminalFrameDiff frame,
+  DateTime? submittedAt,
+}) {
+  final rows = _freshOrPendingRowsForCommandBlock(
+    command: block.command,
+    commandRow: block.outputRange.commandRow,
+    submittedAt: submittedAt,
+    frame: frame,
+  );
+  if (_shellCommandBlockRowsHaveVisibleText(
+    shellCommandBlockOutputRowsFrom(block, rows),
+  )) {
+    return rows;
+  }
+  return rows;
+}
+
+List<terminal.TerminalRow> _terminalRowsModifiedSinceSubmittedCommand({
+  required String command,
+  required int commandRow,
+  required DateTime submittedAt,
+  required terminal.TerminalFrameDiff frame,
+}) {
+  if (frame.rows.isEmpty) {
+    return const <terminal.TerminalRow>[];
+  }
+  final rows = <terminal.TerminalRow>[];
+  for (final row in frame.rows) {
+    if (frame.viewportStartRow >= 0 &&
+        frame.viewportStartRow + row.index <= commandRow) {
+      continue;
+    }
+    final modifiedAt = row.modifiedAt;
+    if (modifiedAt == null || modifiedAt.isBefore(submittedAt)) {
+      continue;
+    }
+    rows.add(
+      terminal.TerminalRow(
+        index: rows.length,
+        text: row.text,
+        wrapped: row.wrapped,
+        modifiedAt: modifiedAt,
+        styleRuns: row.styleRuns,
+      ),
+    );
+  }
+  return _dropLeadingSubmittedCommandRows(
+    command: command,
+    allowLeadingContinuation: true,
+    rows: rows,
+  );
+}
+
+List<terminal.TerminalRow> _dropLeadingSubmittedCommandRows({
+  required String command,
+  required List<terminal.TerminalRow> rows,
+  bool allowLeadingContinuation = false,
+}) {
+  if (rows.isEmpty) {
+    return const <terminal.TerminalRow>[];
+  }
+  final normalizedCommand = _normalizedCommandLineText(command);
+  if (normalizedCommand.isEmpty) {
+    return List<terminal.TerminalRow>.unmodifiable(rows);
+  }
+  final commandParts = normalizedCommand.split(' ');
+  var sawCommandStart = false;
+  var start = 0;
+  while (start < rows.length) {
+    final line = _normalizedCommandLineText(rows[start].text);
+    if (line.isEmpty) {
+      start += 1;
+      continue;
+    }
+    if (_looksLikeSubmittedCommandStart(
+      line: line,
+      command: normalizedCommand,
+      commandParts: commandParts,
+    )) {
+      sawCommandStart = true;
+      start += 1;
+      continue;
+    }
+    if ((sawCommandStart ||
+            (allowLeadingContinuation && start == 0 && rows.length > 1)) &&
+        _looksLikeSubmittedCommandContinuation(
+          line: line,
+          commandParts: commandParts,
+        )) {
+      start += 1;
+      continue;
+    }
+    break;
+  }
+  if (start == 0) {
+    return List<terminal.TerminalRow>.unmodifiable(rows);
+  }
+  return List<terminal.TerminalRow>.unmodifiable(
+    _renumberTerminalRows(rows.skip(start)),
+  );
+}
+
+bool _looksLikeSubmittedCommandStart({
+  required String line,
+  required String command,
+  required List<String> commandParts,
+}) {
+  if (line == command || line.contains(command)) {
+    return true;
+  }
+  if (commandParts.isEmpty) {
+    return false;
+  }
+  final firstPart = commandParts.first;
+  return line == firstPart || line.endsWith(' $firstPart');
+}
+
+bool _looksLikeSubmittedCommandContinuation({
+  required String line,
+  required List<String> commandParts,
+}) {
+  if (commandParts.length < 2) {
+    return false;
+  }
+  for (var index = 1; index < commandParts.length; index += 1) {
+    if (line == commandParts.sublist(index).join(' ')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+String _normalizedCommandLineText(String text) {
+  return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+List<terminal.TerminalRow> _renumberTerminalRows(
+  Iterable<terminal.TerminalRow> rows,
+) {
+  var index = 0;
+  return [
+    for (final row in rows)
+      terminal.TerminalRow(
+        index: index++,
+        text: row.text,
+        wrapped: row.wrapped,
+        modifiedAt: row.modifiedAt,
+        styleRuns: row.styleRuns,
+      ),
+  ];
+}
+
 int? _submittedCommandBlockCommandRowForFrame(
   terminal.TerminalFrameDiff frame,
 ) {
@@ -702,6 +1179,18 @@ _SubmittedCommandBlockPreviewCapture? _firstSubmittedCommandCaptureFor(
   return null;
 }
 
+ShellCommandBlock? _commandBlockById(
+  ShellCommandBlockSnapshot snapshot,
+  String id,
+) {
+  for (final block in snapshot.blocks) {
+    if (block.id == id) {
+      return block;
+    }
+  }
+  return null;
+}
+
 int? _commandLineFrameRowIndex({
   required ShellCommandBlock block,
   required List<_FrameRow> rows,
@@ -710,11 +1199,6 @@ int? _commandLineFrameRowIndex({
     final frameRow = rows[index];
     if (frameRow.absoluteRow == block.outputRange.commandRow &&
         _frameRowContainsCommand(frameRow.row, block.command)) {
-      return index;
-    }
-  }
-  for (var index = 0; index < rows.length; index += 1) {
-    if (_frameRowContainsCommand(rows[index].row, block.command)) {
       return index;
     }
   }
@@ -751,11 +1235,13 @@ class _SubmittedCommandBlockPreviewCapture {
   const _SubmittedCommandBlockPreviewCapture({
     required this.command,
     required this.commandRow,
+    required this.submittedAt,
     this.rows = const <terminal.TerminalRow>[],
   });
 
   final String command;
   final int commandRow;
+  final DateTime? submittedAt;
   final List<terminal.TerminalRow> rows;
 
   _SubmittedCommandBlockPreviewCapture copyWith({
@@ -764,6 +1250,7 @@ class _SubmittedCommandBlockPreviewCapture {
     return _SubmittedCommandBlockPreviewCapture(
       command: command,
       commandRow: commandRow,
+      submittedAt: submittedAt,
       rows: rows ?? this.rows,
     );
   }
@@ -773,10 +1260,12 @@ class _FinishedCommandBlockPreviewCaptureTarget {
   const _FinishedCommandBlockPreviewCaptureTarget({
     required this.blockId,
     required this.commandRow,
+    this.submittedAt,
   });
 
   final String blockId;
   final int commandRow;
+  final DateTime? submittedAt;
 }
 
 class _ShellCommandBlockFinishPlan {
@@ -838,11 +1327,24 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         final frameSequence =
             (_terminalFrameSequenceBySession[sessionId] ?? 0) + 1;
         _terminalFrameSequenceBySession[sessionId] = frameSequence;
+        final commandBlockFrame = ref
+            .read(sessionControllerProvider.notifier)
+            .viewportFor(sessionId)
+            .frame;
         _recordInstantReplayFrame(sessionId, frame);
-        _captureSubmittedCommandBlockPreviewRowsFromFrame(sessionId, frame);
-        _capturePendingCommandBlockPreviewRowsFromFrame(sessionId, frame);
-        _captureFinishedCommandBlockPreviewRowsFromFrame(sessionId, frame);
-        _captureCommandBlockPreviewRowsFromFrame(sessionId, frame);
+        _captureSubmittedCommandBlockPreviewRowsFromFrame(
+          sessionId,
+          commandBlockFrame,
+        );
+        _capturePendingCommandBlockPreviewRowsFromFrame(
+          sessionId,
+          commandBlockFrame,
+        );
+        _captureFinishedCommandBlockPreviewRowsFromFrame(
+          sessionId,
+          commandBlockFrame,
+        );
+        _captureCommandBlockPreviewRowsFromFrame(sessionId, commandBlockFrame);
         _markNewOutputBadge(sessionId, frame);
         _feedCoprocess(sessionId, frame, frameSequence: frameSequence);
         _runProfileTriggers(sessionId, frame, frameSequence: frameSequence);
@@ -899,6 +1401,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!ShellCommandBlockShellHookReducer.supportsHook(event.hook)) {
       return;
     }
+    final normalizedHook = ShellCommandBlockShellHookReducer.normalizeHook(
+      event.hook,
+    );
 
     final sessionController = ref.read(sessionControllerProvider.notifier);
     final sessionState = ref.read(sessionControllerProvider);
@@ -914,16 +1419,36 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       previousSnapshot,
       frame,
     );
+    final submittedCapture = _submittedCommandBlockPreviewCaptureFor(
+      event.sessionId,
+      event.command,
+    );
+    final submittedCaptureForMerge =
+        normalizedHook == 'command_finished' && submittedCapture != null
+        ? _submittedCommandBlockPreviewCaptureWithFrameRows(
+            submittedCapture,
+            frame,
+          )
+        : submittedCapture;
+    final preexecSubmittedCommandRow = normalizedHook == 'preexec'
+        ? submittedCapture?.commandRow
+        : null;
     final snapshot = ShellCommandBlockShellHookReducer.reduce(
       snapshot: previousSnapshot ?? const ShellCommandBlockSnapshot(),
       flags: _commandBlocksHistoryFeatureFlags,
       sessionId: event.sessionId,
-      hook: event.hook,
+      hook: normalizedHook,
       command: event.command,
       cwd: event.cwd,
       exitCode: event.exitCode,
-      promptScrollbackOffset: event.promptScrollbackOffset,
-      commandStartRow: shellCommandBlockCommandStartRowForFrame(frame),
+      promptScrollbackOffset:
+          preexecSubmittedCommandRow ?? event.promptScrollbackOffset,
+      commandStartRow:
+          submittedCaptureForMerge?.commandRow ??
+          shellCommandBlockCommandStartRowForFrame(
+            frame,
+            command: event.command,
+          ),
       promptMarks: promptMarks,
       viewportEndRow: shellCommandBlockVisibleViewportEndRow(
         viewportStartRow: frame.viewportStartRow,
@@ -947,14 +1472,31 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         snapshot,
       ),
     );
-    final submittedPreviewRows = event.hook == 'command_finished'
+    final submittedPreviewRows = normalizedHook == 'command_finished'
         ? _submittedCommandBlockPreviewRowsForFinishedCommand(
             sessionId: event.sessionId,
             snapshot: snapshot,
             command: event.command,
+            capture: submittedCaptureForMerge,
           )
         : const <String, List<terminal.TerminalRow>>{};
     capturedPreviewRows.addAll(submittedPreviewRows);
+    if (normalizedHook == 'command_finished') {
+      final currentFrameFinishedRows =
+          shellCommandBlockFinishedPreviewRowsForCurrentFrame(
+            snapshot: snapshot,
+            frame: frame,
+            submittedAt: submittedCaptureForMerge?.submittedAt,
+          );
+      for (final entry in currentFrameFinishedRows.entries) {
+        if (shellCommandBlockShouldReplacePreviewRows(
+          existingRows: capturedPreviewRows[entry.key],
+          nextRows: entry.value,
+        )) {
+          capturedPreviewRows[entry.key] = entry.value;
+        }
+      }
+    }
     if (identical(snapshot, previousSnapshot) ||
         (previousSnapshot == null &&
             !_commandBlockSnapshotHasState(snapshot))) {
@@ -968,8 +1510,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         capturedRows: capturedPreviewRows,
         protectedUpdateBlockIds: submittedPreviewRows.keys.toSet(),
       );
-      if (event.hook == 'command_finished') {
-        _recordFinishedCommandBlockPreviewTarget(event.sessionId, snapshot);
+      if (normalizedHook == 'command_finished') {
+        _recordFinishedCommandBlockPreviewTarget(
+          event.sessionId,
+          snapshot,
+          submittedAt: submittedCaptureForMerge?.submittedAt,
+        );
         _removeSubmittedCommandBlockPreviewCapture(
           event.sessionId,
           event.command,
@@ -977,6 +1523,30 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       }
       _removeMatchedPendingCommandBlockPreviewRows(event.sessionId, snapshot);
     });
+  }
+
+  _SubmittedCommandBlockPreviewCapture
+  _submittedCommandBlockPreviewCaptureWithFrameRows(
+    _SubmittedCommandBlockPreviewCapture capture,
+    terminal.TerminalFrameDiff frame,
+  ) {
+    final submittedAt = capture.submittedAt;
+    if (submittedAt == null) {
+      return capture;
+    }
+    final rows = shellCommandBlockSubmittedPreviewRowsForFrame(
+      command: capture.command,
+      commandRow: capture.commandRow,
+      submittedAt: submittedAt,
+      frame: frame,
+    );
+    if (!shellCommandBlockShouldReplacePreviewRows(
+      existingRows: capture.rows,
+      nextRows: rows,
+    )) {
+      return capture;
+    }
+    return capture.copyWith(rows: rows);
   }
 
   void _recordSubmittedCommandBlockPreviewCapture(
@@ -999,6 +1569,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (commandRow == null) {
       return;
     }
+    _finishedCommandBlockPreviewTargetsBySession.remove(sessionId);
     final captures = _submittedCommandBlockPreviewCapturesBySession.putIfAbsent(
       sessionId,
       () => <_SubmittedCommandBlockPreviewCapture>[],
@@ -1007,6 +1578,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       _SubmittedCommandBlockPreviewCapture(
         command: text,
         commandRow: commandRow,
+        submittedAt: DateTime.now(),
       ),
     );
     if (captures.length > 12) {
@@ -1029,10 +1601,17 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     var changed = false;
     final nextCaptures = <_SubmittedCommandBlockPreviewCapture>[];
     for (final capture in captures) {
-      final rows = _terminalRowsForPendingCommandBlockPreview(
-        commandRow: capture.commandRow,
-        frame: frame,
-      );
+      final rows = capture.submittedAt == null
+          ? _terminalRowsForPendingCommandBlockPreview(
+              commandRow: capture.commandRow,
+              frame: frame,
+            )
+          : shellCommandBlockSubmittedPreviewRowsForFrame(
+              command: capture.command,
+              commandRow: capture.commandRow,
+              submittedAt: capture.submittedAt!,
+              frame: frame,
+            );
       if (rows.isEmpty) {
         nextCaptures.add(capture);
         continue;
@@ -1040,7 +1619,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (capture.rows.isEmpty ||
           rows.length > capture.rows.length ||
           (rows.length == capture.rows.length &&
-              !_terminalRowsHaveSamePreviewContent(capture.rows, rows))) {
+              !shellCommandBlockPreviewRowsHaveSameContent(
+                capture.rows,
+                rows,
+              ))) {
         nextCaptures.add(capture.copyWith(rows: rows));
         changed = true;
       } else {
@@ -1055,27 +1637,47 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     });
   }
 
+  _SubmittedCommandBlockPreviewCapture? _submittedCommandBlockPreviewCaptureFor(
+    String sessionId,
+    String? command,
+  ) {
+    final commandText = command?.trim();
+    if (commandText == null || commandText.isEmpty) {
+      return null;
+    }
+    final captures = _submittedCommandBlockPreviewCapturesBySession[sessionId];
+    if (captures == null || captures.isEmpty) {
+      return null;
+    }
+    return _firstSubmittedCommandCaptureFor(captures, commandText);
+  }
+
   Map<String, List<terminal.TerminalRow>>
   _submittedCommandBlockPreviewRowsForFinishedCommand({
     required String sessionId,
     required ShellCommandBlockSnapshot snapshot,
     required String? command,
+    _SubmittedCommandBlockPreviewCapture? capture,
   }) {
     final commandText = command?.trim();
     if (commandText == null || commandText.isEmpty) {
       return const <String, List<terminal.TerminalRow>>{};
     }
-    final captures = _submittedCommandBlockPreviewCapturesBySession[sessionId];
-    if (captures == null || captures.isEmpty) {
-      return const <String, List<terminal.TerminalRow>>{};
-    }
-    final capture = _firstSubmittedCommandCaptureFor(captures, commandText);
-    if (capture == null || capture.rows.isEmpty) {
+    final submittedCapture =
+        capture ??
+        _submittedCommandBlockPreviewCaptureFor(sessionId, commandText);
+    if (submittedCapture == null || submittedCapture.rows.isEmpty) {
       return const <String, List<terminal.TerminalRow>>{};
     }
     for (final block in snapshot.blocks.reversed) {
       if (block.command == commandText) {
-        return {block.id: capture.rows};
+        final rows = shellCommandBlockOutputRowsFrom(
+          block,
+          submittedCapture.rows,
+        );
+        return rows.isEmpty
+            ? const <String, List<terminal.TerminalRow>>{}
+            : {block.id: rows};
       }
     }
     return const <String, List<terminal.TerminalRow>>{};
@@ -1107,8 +1709,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
 
   void _recordFinishedCommandBlockPreviewTarget(
     String sessionId,
-    ShellCommandBlockSnapshot snapshot,
-  ) {
+    ShellCommandBlockSnapshot snapshot, {
+    DateTime? submittedAt,
+  }) {
     if (snapshot.blocks.isEmpty) {
       return;
     }
@@ -1127,8 +1730,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       _FinishedCommandBlockPreviewCaptureTarget(
         blockId: block.id,
         commandRow: block.outputRange.commandRow,
+        submittedAt: submittedAt,
       ),
     );
+    if (targets.length > 8) {
+      targets.removeRange(0, targets.length - 8);
+    }
   }
 
   void _capturePendingCommandBlockPreviewRowsFromFrame(
@@ -1157,7 +1764,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         return;
       }
       if (rows.length == existing.rows.length &&
-          _terminalRowsHaveSamePreviewContent(existing.rows, rows)) {
+          shellCommandBlockPreviewRowsHaveSameContent(existing.rows, rows)) {
         return;
       }
     }
@@ -1178,7 +1785,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     for (final block in snapshot.blocks.reversed) {
       if (block.outputRange.commandRow == pending.commandRow) {
-        return {block.id: pending.rows};
+        final rows = shellCommandBlockOutputRowsFrom(block, pending.rows);
+        return rows.isEmpty
+            ? const <String, List<terminal.TerminalRow>>{}
+            : {block.id: rows};
       }
     }
     return const <String, List<terminal.TerminalRow>>{};
@@ -1228,7 +1838,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     for (final block in snapshot.blocks.reversed) {
       if (block.outputRange.commandRow == pending.commandRow) {
-        return {block.id: pending.rows};
+        final rows = shellCommandBlockOutputRowsFrom(block, pending.rows);
+        return rows.isEmpty
+            ? const <String, List<terminal.TerminalRow>>{}
+            : {block.id: rows};
       }
     }
     return const <String, List<terminal.TerminalRow>>{};
@@ -1244,6 +1857,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     final snapshot = _commandBlockSnapshotsBySession[sessionId];
     if (snapshot == null || snapshot.blocks.isEmpty || !mounted) {
+      return;
+    }
+    if (_hasSubmittedCommandBlockPreviewCapture(sessionId)) {
       return;
     }
     final capturedRows = _commandBlockPreviewRowsForFrame(snapshot, frame);
@@ -1262,6 +1878,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     });
   }
 
+  bool _hasSubmittedCommandBlockPreviewCapture(String sessionId) {
+    final captures = _submittedCommandBlockPreviewCapturesBySession[sessionId];
+    return captures != null && captures.isNotEmpty;
+  }
+
   void _captureFinishedCommandBlockPreviewRowsFromFrame(
     String sessionId,
     terminal.TerminalFrameDiff frame,
@@ -1275,28 +1896,48 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (snapshot == null || targets == null || targets.isEmpty || !mounted) {
       return;
     }
+    if (_hasSubmittedCommandBlockPreviewCapture(sessionId)) {
+      return;
+    }
     final capturedRows = <String, List<terminal.TerminalRow>>{};
     final capturedTargetIds = <String>{};
+    final latestBlockId = snapshot.blocks.isEmpty
+        ? null
+        : snapshot.blocks.last.id;
     for (final target in targets) {
-      final rows = _terminalRowsForPendingCommandBlockPreview(
-        commandRow: target.commandRow,
-        frame: frame,
-      );
-      if (rows.isEmpty || !_terminalRowsHaveVisibleText(rows)) {
+      final block = _commandBlockById(snapshot, target.blockId);
+      if (block == null) {
         continue;
       }
-      capturedRows[target.blockId] = rows;
-      capturedTargetIds.add(target.blockId);
+      final rows = _terminalRowsForFinishedCommandBlockPreview(
+        block: block,
+        frame: frame,
+        submittedAt: target.submittedAt,
+      );
+      final capture = shellCommandBlockFinishedPreviewCaptureForRows(
+        block: block,
+        rows: rows,
+        isLatestBlock: target.blockId == latestBlockId,
+      );
+      if (capture.removeTarget) {
+        capturedTargetIds.add(target.blockId);
+      }
+      if (capture.rows.isEmpty) {
+        continue;
+      }
+      capturedRows[target.blockId] = capture.rows;
     }
-    if (capturedRows.isEmpty) {
+    if (capturedRows.isEmpty && capturedTargetIds.isEmpty) {
       return;
     }
     _mutateState(() {
-      _mergeCommandBlockPreviewRows(
-        sessionId: sessionId,
-        snapshot: snapshot,
-        capturedRows: capturedRows,
-      );
+      if (capturedRows.isNotEmpty) {
+        _mergeCommandBlockPreviewRows(
+          sessionId: sessionId,
+          snapshot: snapshot,
+          capturedRows: capturedRows,
+        );
+      }
       targets.removeWhere(
         (target) => capturedTargetIds.contains(target.blockId),
       );
@@ -1321,9 +1962,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         continue;
       }
       final existing = existingRows[entry.key];
-      if (existing == null ||
-          entry.value.length > existing.length ||
-          !_terminalRowsHaveSamePreviewContent(existing, entry.value)) {
+      if (shellCommandBlockShouldReplacePreviewRows(
+        existingRows: existing,
+        nextRows: entry.value,
+      )) {
         return true;
       }
     }
@@ -1366,7 +2008,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           !protectedUpdateBlockIds.contains(entry.key)) {
         continue;
       }
-      if (existing == null || entry.value.length > existing.length) {
+      if (shellCommandBlockShouldReplacePreviewRows(
+        existingRows: existing,
+        nextRows: entry.value,
+      )) {
         sessionRows[entry.key] = entry.value;
       }
     }
@@ -1378,60 +2023,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (sessionRows.isEmpty) {
       _commandBlockPreviewRowsBySession.remove(sessionId);
     }
-  }
-
-  bool _terminalRowsHaveSamePreviewContent(
-    List<terminal.TerminalRow> left,
-    List<terminal.TerminalRow> right,
-  ) {
-    if (left.length != right.length) {
-      return false;
-    }
-    for (var index = 0; index < left.length; index += 1) {
-      final leftRow = left[index];
-      final rightRow = right[index];
-      if (leftRow.text != rightRow.text ||
-          leftRow.wrapped != rightRow.wrapped) {
-        return false;
-      }
-      if (!_terminalStyleRunsHaveSamePreviewContent(
-        leftRow.styleRuns,
-        rightRow.styleRuns,
-      )) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  bool _terminalRowsHaveVisibleText(List<terminal.TerminalRow> rows) {
-    return rows.any((row) => row.text.trim().isNotEmpty);
-  }
-
-  bool _terminalStyleRunsHaveSamePreviewContent(
-    List<terminal.TerminalStyleRun> left,
-    List<terminal.TerminalStyleRun> right,
-  ) {
-    if (left.length != right.length) {
-      return false;
-    }
-    for (var index = 0; index < left.length; index += 1) {
-      final leftRun = left[index];
-      final rightRun = right[index];
-      if (leftRun.start != rightRun.start ||
-          leftRun.end != rightRun.end ||
-          leftRun.foreground != rightRun.foreground ||
-          leftRun.background != rightRun.background ||
-          leftRun.bold != rightRun.bold ||
-          leftRun.dim != rightRun.dim ||
-          leftRun.italic != rightRun.italic ||
-          leftRun.underline != rightRun.underline ||
-          leftRun.blink != rightRun.blink ||
-          leftRun.inverse != rightRun.inverse) {
-        return false;
-      }
-    }
-    return true;
   }
 
   void _notifyInactiveActivity(

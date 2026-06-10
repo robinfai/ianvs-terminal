@@ -71,8 +71,8 @@ void main() {
             _commandBlock(startRow: 2, endRow: 4, command: 'pwd'),
             _commandBlock(startRow: 20, endRow: 22, command: 'ls -al'),
           ],
-          viewportStartRow: 100,
-          viewportEndRow: 120,
+          viewportStartRow: 20,
+          viewportEndRow: 40,
           visibleRows: [
             terminal.TerminalRow(
               index: 20,
@@ -120,7 +120,7 @@ void main() {
           viewModel.blocks.first.terminalRows.first.styleRuns.single.background,
           const Color(0xFF000000),
         );
-        expect(viewModel.blocks.first.outputRangeLabel, 'rows 21-22');
+        expect(viewModel.blocks.first.outputRangeLabel, '2 rows');
         expect(viewModel.blocks.first.durationLabel, '1.2s');
       },
     );
@@ -162,6 +162,31 @@ void main() {
       expect(viewModel.blocks.single.terminalRows.map((row) => row.text), [
         'zsh: command not found: ls-al',
       ]);
+    });
+
+    test('uses command text when input row includes prompt chrome', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 20,
+            endRow: 22,
+            command: 'ls',
+            cwd: '/Users/robinfai',
+          ),
+        ],
+        viewportStartRow: 20,
+        viewportEndRow: 39,
+        visibleRows: const [
+          terminal.TerminalRow(
+            index: 0,
+            text: '󰀵 robinfai ~   12:56  ❯ ls',
+          ),
+          terminal.TerminalRow(index: 1, text: 'Applications'),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      expect(viewModel.blocks.single.inputLine, 'ls');
     });
 
     test('terminal preview stops at the next prompt for broad ranges', () {
@@ -264,6 +289,239 @@ void main() {
         'Pictures   Public',
       ]);
       expect(block.terminalRows.map((row) => row.index), [0, 1]);
+    });
+
+    test(
+      'prefers captured rows when historical range overlaps current frame',
+      () {
+        final viewModel = ShellCommandBlockViewModelBuilder.build(
+          blocks: [
+            _commandBlock(startRow: 6, endRow: 14, command: 'ls MissingDir'),
+          ],
+          viewportStartRow: 12,
+          viewportEndRow: 23,
+          visibleRows: const [
+            terminal.TerminalRow(
+              index: 0,
+              text: 'download-04.txt download-11.txt',
+            ),
+            terminal.TerminalRow(
+              index: 1,
+              text: 'download-05.txt download-12.txt',
+            ),
+            terminal.TerminalRow(
+              index: 2,
+              text: 'download-06.txt download-13.txt',
+            ),
+          ],
+          capturedRowsByBlockId: const {
+            'cmd-6-14': [
+              terminal.TerminalRow(
+                index: 0,
+                text: 'ls: MissingDir: No such file or directory',
+              ),
+            ],
+          },
+          flags: _enabledFlags(),
+        );
+
+        final block = viewModel.blocks.single;
+        expect(
+          block.outputPreview,
+          'ls: MissingDir: No such file or directory',
+        );
+        expect(block.terminalRows.map((row) => row.text), [
+          'ls: MissingDir: No such file or directory',
+        ]);
+      },
+    );
+
+    test('prefers captured rows over live rows for completed blocks', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 15, endRow: 22, command: 'ls')],
+        viewportStartRow: 12,
+        viewportEndRow: 23,
+        visibleRows: const [
+          terminal.TerminalRow(index: 4, text: ' -la'),
+          terminal.TerminalRow(index: 5, text: 'total 16'),
+          terminal.TerminalRow(index: 6, text: '.hidden-file'),
+        ],
+        capturedRowsByBlockId: const {
+          'cmd-15-22': [
+            terminal.TerminalRow(
+              index: 0,
+              text: 'download-06.txt download-13.txt download-34.txt',
+            ),
+          ],
+        },
+        flags: _enabledFlags(),
+      );
+
+      final block = viewModel.blocks.single;
+      expect(
+        block.outputPreview,
+        'download-06.txt download-13.txt download-34.txt',
+      );
+      expect(block.terminalRows.map((row) => row.text), [
+        'download-06.txt download-13.txt download-34.txt',
+      ]);
+    });
+
+    test('does not map viewport-relative rows onto an offscreen block', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 20, endRow: 22, command: 'ls')],
+        viewportStartRow: 80,
+        viewportEndRow: 99,
+        visibleRows: const [
+          terminal.TerminalRow(index: 0, text: 'fresh command'),
+          terminal.TerminalRow(index: 1, text: 'fresh output'),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      final block = viewModel.blocks.single;
+      expect(block.outputPreview, isEmpty);
+      expect(block.terminalRows, isEmpty);
+    });
+
+    test('uses captured preview rows when current frame range is blank', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 20, endRow: 22, command: 'ls')],
+        viewportStartRow: 20,
+        viewportEndRow: 39,
+        visibleRows: const [
+          terminal.TerminalRow(index: 1, text: ''),
+          terminal.TerminalRow(index: 2, text: ''),
+        ],
+        capturedRowsByBlockId: const {
+          'cmd-20-22': [
+            terminal.TerminalRow(index: 0, text: 'Documents  Downloads'),
+            terminal.TerminalRow(index: 1, text: 'Pictures   Public'),
+          ],
+        },
+        flags: _enabledFlags(),
+      );
+
+      final block = viewModel.blocks.single;
+      expect(block.outputPreview, 'Documents  Downloads\nPictures   Public');
+      expect(block.terminalRows.map((row) => row.text), [
+        'Documents  Downloads',
+        'Pictures   Public',
+      ]);
+    });
+
+    test('trims trailing blank rows from terminal output', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [_commandBlock(startRow: 10, endRow: 40, command: 'pwd')],
+        viewportStartRow: 10,
+        viewportEndRow: 40,
+        visibleRows: const [
+          terminal.TerminalRow(index: 1, text: '/Users/robinfai'),
+          terminal.TerminalRow(index: 2, text: ''),
+          terminal.TerminalRow(index: 3, text: '   '),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      final block = viewModel.blocks.single;
+      expect(block.outputPreview, '/Users/robinfai');
+      expect(block.terminalRows.map((row) => row.text), ['/Users/robinfai']);
+      expect(block.terminalRows.map((row) => row.index), [0]);
+      expect(block.outputRangeLabel, '1 row');
+    });
+
+    test('output capture remains open until a prompt boundary is seen', () {
+      final block = _commandBlock(
+        startRow: 42,
+        endRow: 71,
+        command: 'll',
+        cwd: '/Users/robinfai',
+      );
+
+      final partialCapture = shellCommandBlockOutputCaptureFrom(block, const [
+        terminal.TerminalRow(index: 0, text: 'total 7600'),
+      ]);
+
+      expect(partialCapture.rows.map((row) => row.text), ['total 7600']);
+      expect(partialCapture.reachedPromptBoundary, isFalse);
+
+      final completeCapture = shellCommandBlockOutputCaptureFrom(block, const [
+        terminal.TerminalRow(index: 0, text: 'total 7600'),
+        terminal.TerminalRow(
+          index: 1,
+          text: 'drwxr-xr-x  10 robinfai staff 320 Applications',
+        ),
+        terminal.TerminalRow(index: 2, text: 'robinfai ~ 10:39 ❯ ll'),
+      ]);
+
+      expect(completeCapture.rows.map((row) => row.text), [
+        'total 7600',
+        'drwxr-xr-x  10 robinfai staff 320 Applications',
+      ]);
+      expect(completeCapture.reachedPromptBoundary, isTrue);
+    });
+
+    test('output capture keeps long listing rows with owner and time', () {
+      final block = _commandBlock(
+        startRow: 42,
+        endRow: 71,
+        command: 'll',
+        cwd: '/Users/robinfai',
+      );
+
+      final capture = shellCommandBlockOutputCaptureFrom(block, const [
+        terminal.TerminalRow(
+          index: 0,
+          text: 'drwx------+  4 robinfai  staff   128B Mar 16 15:42 Pictures/',
+        ),
+        terminal.TerminalRow(
+          index: 1,
+          text: 'drwxr-xr-x+  4 robinfai  staff   128B Mar 16 15:42 Public/',
+        ),
+        terminal.TerminalRow(index: 2, text: 'robinfai ~ 15:42 ❯'),
+      ]);
+
+      expect(capture.rows.map((row) => row.text), [
+        'drwx------+  4 robinfai  staff   128B Mar 16 15:42 Pictures/',
+        'drwxr-xr-x+  4 robinfai  staff   128B Mar 16 15:42 Public/',
+      ]);
+      expect(capture.reachedPromptBoundary, isTrue);
+    });
+
+    test('output capture drops leading wrapped command continuations', () {
+      final missingBlock = _commandBlock(
+        startRow: 3,
+        endRow: 5,
+        command: 'ls MissingDir',
+        cwd: '/tmp',
+        status: ShellCommandBlockStatus.failed,
+      );
+
+      final missingCapture =
+          shellCommandBlockOutputCaptureFrom(missingBlock, const [
+            terminal.TerminalRow(index: 0, text: ' MissingDir'),
+            terminal.TerminalRow(
+              index: 1,
+              text: 'ls: MissingDir: No such file or directory',
+            ),
+          ]);
+
+      expect(missingCapture.rows.map((row) => row.text), [
+        'ls: MissingDir: No such file or directory',
+      ]);
+
+      final echoBlock = _commandBlock(
+        startRow: 10,
+        endRow: 11,
+        command: 'echo hello',
+        cwd: '/tmp',
+      );
+
+      final echoCapture = shellCommandBlockOutputCaptureFrom(echoBlock, const [
+        terminal.TerminalRow(index: 0, text: 'hello'),
+      ]);
+
+      expect(echoCapture.rows.map((row) => row.text), ['hello']);
     });
 
     test('reviewWorkspaceEntrypoints flag drives replay action', () {

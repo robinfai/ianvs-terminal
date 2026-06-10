@@ -92,6 +92,7 @@ class ShellCommandBlockViewModelBuilder {
     final rowsByIndex = _rowsByCommandBlockIndex(
       visibleRows,
       viewportStartRow: viewportStartRow,
+      viewportEndRow: viewportEndRow,
     );
     final visible = <ShellCommandBlockOverlayItem>[];
     final previousValidBlocks = <ShellCommandBlock>[];
@@ -107,10 +108,12 @@ class ShellCommandBlockViewModelBuilder {
       final visibleEnd = min(block.endRow, viewportEndRow);
       final capturedRows =
           capturedRowsByBlockId[block.id] ?? const <terminal.TerminalRow>[];
+      final preferCapturedRows = capturedRows.isNotEmpty;
       final terminalRows = _terminalRows(
         block,
         rowsByIndex,
         fallbackRows: capturedRows,
+        preferFallbackRows: preferCapturedRows,
       );
       visible.add(
         ShellCommandBlockOverlayItem(
@@ -133,8 +136,9 @@ class ShellCommandBlockViewModelBuilder {
             block,
             rowsByIndex,
             fallbackRows: capturedRows,
+            preferFallbackRows: preferCapturedRows,
           ),
-          outputRangeLabel: _outputRangeLabel(block),
+          outputRangeLabel: _outputRangeLabel(block, terminalRows),
           showFailureSnapshotAction:
               flags.failureSnapshots &&
               block.status == ShellCommandBlockStatus.failed,
@@ -153,12 +157,20 @@ class ShellCommandBlockViewModelBuilder {
 Map<int, terminal.TerminalRow> _rowsByCommandBlockIndex(
   List<terminal.TerminalRow> rows, {
   required int viewportStartRow,
+  required int viewportEndRow,
 }) {
   final byIndex = <int, terminal.TerminalRow>{};
+  final viewportRows = viewportEndRow - viewportStartRow + 1;
   for (final row in rows) {
-    byIndex[row.index] = row;
     if (viewportStartRow >= 0) {
-      byIndex.putIfAbsent(viewportStartRow + row.index, () => row);
+      if (row.index >= 0 && row.index < viewportRows) {
+        byIndex[viewportStartRow + row.index] = row;
+      }
+      if (row.index >= viewportStartRow && row.index <= viewportEndRow) {
+        byIndex.putIfAbsent(row.index, () => row);
+      }
+    } else {
+      byIndex[row.index] = row;
     }
   }
   return byIndex;
@@ -168,21 +180,37 @@ List<terminal.TerminalRow> _terminalRows(
   ShellCommandBlock block,
   Map<int, terminal.TerminalRow> rowsByIndex, {
   List<terminal.TerminalRow> fallbackRows = const <terminal.TerminalRow>[],
+  bool preferFallbackRows = false,
 }) {
-  return _terminalRowsForRange(block, rowsByIndex, fallbackRows: fallbackRows);
+  return _terminalRowsForRange(
+    block,
+    rowsByIndex,
+    fallbackRows: fallbackRows,
+    preferFallbackRows: preferFallbackRows,
+  );
 }
 
 List<terminal.TerminalRow> _terminalRowsForRange(
   ShellCommandBlock block,
   Map<int, terminal.TerminalRow> rowsByIndex, {
   List<terminal.TerminalRow> fallbackRows = const <terminal.TerminalRow>[],
+  bool preferFallbackRows = false,
 }) {
-  final rows = _terminalOutputRowsFrom(
+  if (preferFallbackRows && fallbackRows.isNotEmpty) {
+    final fallback = shellCommandBlockOutputRowsFrom(block, fallbackRows);
+    if (_terminalRowsHaveVisibleText(fallback)) {
+      return fallback;
+    }
+  }
+  final rows = shellCommandBlockOutputRowsFrom(
     block,
     _sourceRowsForRange(block.outputRange, rowsByIndex),
   );
-  if (rows.isEmpty && fallbackRows.isNotEmpty) {
-    return _terminalOutputRowsFrom(block, fallbackRows);
+  if (!_terminalRowsHaveVisibleText(rows) && fallbackRows.isNotEmpty) {
+    final fallback = shellCommandBlockOutputRowsFrom(block, fallbackRows);
+    if (_terminalRowsHaveVisibleText(fallback) || rows.isEmpty) {
+      return fallback;
+    }
   }
   return rows;
 }
@@ -200,19 +228,46 @@ Iterable<terminal.TerminalRow> _sourceRowsForRange(
   }
 }
 
-List<terminal.TerminalRow> _terminalOutputRowsFrom(
+class ShellCommandBlockOutputCapture {
+  const ShellCommandBlockOutputCapture({
+    required this.rows,
+    required this.reachedPromptBoundary,
+  });
+
+  final List<terminal.TerminalRow> rows;
+  final bool reachedPromptBoundary;
+}
+
+List<terminal.TerminalRow> shellCommandBlockOutputRowsFrom(
   ShellCommandBlock block,
   Iterable<terminal.TerminalRow> sourceRows,
 ) {
+  return shellCommandBlockOutputCaptureFrom(block, sourceRows).rows;
+}
+
+ShellCommandBlockOutputCapture shellCommandBlockOutputCaptureFrom(
+  ShellCommandBlock block,
+  Iterable<terminal.TerminalRow> sourceRows,
+) {
+  final sourceList = sourceRows.toList(growable: false);
   final rows = <terminal.TerminalRow>[];
   var skippedLeadingPrompt = false;
-  for (final source in sourceRows) {
+  var reachedPromptBoundary = false;
+  for (var sourceIndex = 0; sourceIndex < sourceList.length; sourceIndex += 1) {
+    final source = sourceList[sourceIndex];
     final text = source.text.trimRight();
+    if (rows.isEmpty &&
+        sourceIndex < sourceList.length - 1 &&
+        _looksLikeWrappedCommandContinuation(text, block)) {
+      skippedLeadingPrompt = true;
+      continue;
+    }
     if (_looksLikePromptOrReadlineLine(text, block)) {
       if (rows.isEmpty && !skippedLeadingPrompt) {
         skippedLeadingPrompt = true;
         continue;
       }
+      reachedPromptBoundary = true;
       break;
     }
     rows.add(
@@ -225,7 +280,48 @@ List<terminal.TerminalRow> _terminalOutputRowsFrom(
       ),
     );
   }
-  return List<terminal.TerminalRow>.unmodifiable(rows);
+  return ShellCommandBlockOutputCapture(
+    rows: List<terminal.TerminalRow>.unmodifiable(_trimTrailingBlankRows(rows)),
+    reachedPromptBoundary: reachedPromptBoundary,
+  );
+}
+
+bool _looksLikeWrappedCommandContinuation(
+  String text,
+  ShellCommandBlock block,
+) {
+  if (text.isEmpty || text == text.trimLeft()) {
+    return false;
+  }
+  final command = _normalizePromptDetectionText(block.command);
+  final line = _normalizePromptDetectionText(text);
+  if (command.isEmpty || line.isEmpty) {
+    return false;
+  }
+  final commandParts = command.split(' ');
+  if (commandParts.length < 2) {
+    return false;
+  }
+  for (var index = 1; index < commandParts.length; index += 1) {
+    if (line == commandParts.sublist(index).join(' ')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+List<terminal.TerminalRow> _trimTrailingBlankRows(
+  List<terminal.TerminalRow> rows,
+) {
+  var end = rows.length;
+  while (end > 0 && rows[end - 1].text.trim().isEmpty) {
+    end -= 1;
+  }
+  return rows.sublist(0, end);
+}
+
+bool _terminalRowsHaveVisibleText(List<terminal.TerminalRow> rows) {
+  return rows.any((row) => row.text.trim().isNotEmpty);
 }
 
 int _terminalViewportCols(int viewportCols, List<terminal.TerminalRow> rows) {
@@ -252,7 +348,14 @@ String _statusLabel(ShellCommandBlock block) {
   };
 }
 
-String _outputRangeLabel(ShellCommandBlock block) {
+String _outputRangeLabel(
+  ShellCommandBlock block,
+  List<terminal.TerminalRow> terminalRows,
+) {
+  if (terminalRows.isNotEmpty) {
+    final count = terminalRows.length;
+    return count == 1 ? '1 row' : '$count rows';
+  }
   final range = block.outputRange;
   return range.outputStartRow == range.outputEndRow
       ? 'row ${range.outputStartRow}'
@@ -263,48 +366,61 @@ String _outputPreview(
   ShellCommandBlock block,
   Map<int, terminal.TerminalRow> rowsByIndex, {
   List<terminal.TerminalRow> fallbackRows = const <terminal.TerminalRow>[],
+  bool preferFallbackRows = false,
 }) {
   final lines = <String>[];
+  if (preferFallbackRows && fallbackRows.isNotEmpty) {
+    _addOutputPreviewLinesFromRows(block, fallbackRows, lines);
+    if (lines.isNotEmpty) {
+      return lines.join('\n');
+    }
+  }
   final range = block.outputRange;
-  var skippedLeadingPrompt = false;
   for (var row = range.outputStartRow; row <= range.outputEndRow; row += 1) {
     final text = rowsByIndex[row]?.text.trimRight();
     if (text == null || text.trim().isEmpty) {
       continue;
     }
-    if (_looksLikePromptOrReadlineLine(text, block)) {
-      if (lines.isEmpty && !skippedLeadingPrompt) {
-        skippedLeadingPrompt = true;
-        continue;
-      }
+    if (!_addOutputPreviewLine(block, text, lines)) {
       break;
     }
-    lines.add(text);
+    if (lines.length == shellCommandBlockOutputPreviewLineLimit) break;
+  }
+  if (lines.isEmpty && fallbackRows.isNotEmpty) {
+    _addOutputPreviewLinesFromRows(block, fallbackRows, lines);
+  }
+  return lines.join('\n');
+}
+
+void _addOutputPreviewLinesFromRows(
+  ShellCommandBlock block,
+  Iterable<terminal.TerminalRow> rows,
+  List<String> lines,
+) {
+  for (final row in rows) {
+    final text = row.text.trimRight();
+    if (text.trim().isEmpty) {
+      continue;
+    }
+    if (!_addOutputPreviewLine(block, text, lines)) {
+      break;
+    }
     if (lines.length == shellCommandBlockOutputPreviewLineLimit) {
       break;
     }
   }
-  if (lines.isEmpty && fallbackRows.isNotEmpty) {
-    var skippedFallbackLeadingPrompt = false;
-    for (final row in fallbackRows) {
-      final text = row.text.trimRight();
-      if (text.trim().isEmpty) {
-        continue;
-      }
-      if (_looksLikePromptOrReadlineLine(text, block)) {
-        if (lines.isEmpty && !skippedFallbackLeadingPrompt) {
-          skippedFallbackLeadingPrompt = true;
-          continue;
-        }
-        break;
-      }
-      lines.add(text);
-      if (lines.length == shellCommandBlockOutputPreviewLineLimit) {
-        break;
-      }
-    }
+}
+
+bool _addOutputPreviewLine(
+  ShellCommandBlock block,
+  String text,
+  List<String> lines,
+) {
+  if (_looksLikePromptOrReadlineLine(text, block)) {
+    return lines.isEmpty;
   }
-  return lines.join('\n');
+  lines.add(text);
+  return true;
 }
 
 String _inputLine(
@@ -315,6 +431,9 @@ String _inputLine(
   final rawInputLine = rowsByIndex[block.outputRange.commandRow]?.text
       .trimRight();
   if (rawInputLine != null && rawInputLine.trim().isNotEmpty) {
+    if (_looksLikePromptOrReadlineLine(rawInputLine, block)) {
+      return command;
+    }
     final normalizedInputLine = _normalizePromptDetectionText(rawInputLine);
     if (command.isEmpty || normalizedInputLine.contains(command)) {
       return rawInputLine;
@@ -338,15 +457,28 @@ bool _looksLikePromptOrReadlineLine(String text, ShellCommandBlock block) {
   final containsPromptTime = _promptTimePattern.hasMatch(line);
   final containsPromptCue = _promptCuePattern.hasMatch(line);
   final containsLocationCue = _containsPromptLocationCue(line, block.cwd);
+  final containsStrongLocationCue = _containsStrongPromptLocationCue(
+    line,
+    block.cwd,
+  );
 
-  if (containsCommand &&
-      (containsPromptTime || containsPromptCue || containsLocationCue)) {
+  if (containsCommand && (containsPromptCue || containsStrongLocationCue)) {
     return true;
   }
-  if (!containsCommand && containsPromptTime && containsLocationCue) {
+  if (!containsCommand && containsPromptTime && containsStrongLocationCue) {
     return true;
   }
   return !containsCommand && containsPromptCue && containsLocationCue;
+}
+
+bool _containsStrongPromptLocationCue(String line, String? cwd) {
+  if (_homeSegmentPattern.hasMatch(line)) {
+    return true;
+  }
+  final trimmedCwd = cwd?.trim();
+  return trimmedCwd != null &&
+      trimmedCwd.isNotEmpty &&
+      line.contains(trimmedCwd);
 }
 
 bool _containsPromptLocationCue(String line, String? cwd) {

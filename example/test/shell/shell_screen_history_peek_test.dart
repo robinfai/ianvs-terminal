@@ -3,6 +3,7 @@ import 'package:app/features/productivity/shell_command_block_controller.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
+import 'package:app/features/shell/shell_command_block_view_models.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
@@ -278,6 +279,32 @@ void main() {
       );
     });
 
+    test('command start row prefers the submitted command line', () {
+      const frame = terminal.TerminalFrameDiff(
+        rows: [
+          terminal.TerminalRow(index: 0, text: '~ > pwd'),
+          terminal.TerminalRow(index: 1, text: '/Users/robinfai'),
+          terminal.TerminalRow(index: 2, text: '~ > echo 123'),
+          terminal.TerminalRow(index: 3, text: '123'),
+          terminal.TerminalRow(index: 4, text: '~ >'),
+          terminal.TerminalRow(index: 5, text: ''),
+        ],
+        cursor: terminal.TerminalCursor(row: 5, col: 0, visible: true),
+        dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 6)],
+        viewportRows: 20,
+        viewportCols: 93,
+        viewportStartRow: 40,
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      );
+
+      expect(
+        shellCommandBlockCommandStartRowForFrame(frame, command: 'echo 123'),
+        42,
+      );
+      expect(shellCommandBlockCommandStartRowForFrame(frame), 44);
+    });
+
     test(
       'creates block without prompt offset from visible viewport end row',
       () {
@@ -361,6 +388,34 @@ void main() {
 
       expect(snapshot.blocks, hasLength(1));
       final block = snapshot.blocks.single;
+      expect(block.outputRange.commandRow, 40);
+      expect(block.outputRange.outputStartRow, 41);
+      expect(block.outputRange.outputEndRow, 41);
+    });
+
+    test('accepts Warp-style shell hook names', () {
+      var snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'Preexec',
+        command: 'ls-al',
+        commandStartRow: 40,
+      );
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'CommandFinished',
+        command: 'ls-al',
+        exitCode: 127,
+        viewportEndRow: 41,
+      );
+
+      expect(snapshot.blocks, hasLength(1));
+      final block = snapshot.blocks.single;
+      expect(block.command, 'ls-al');
+      expect(block.status, ShellCommandBlockStatus.failed);
       expect(block.outputRange.commandRow, 40);
       expect(block.outputRange.outputStartRow, 41);
       expect(block.outputRange.outputEndRow, 41);
@@ -608,9 +663,93 @@ void main() {
         }
 
         expect(snapshot.blocks, hasLength(1));
-        expect(snapshot.blocks.single.id, 'session-1:command:40:47');
+        expect(snapshot.blocks.single.id, 'session-1:command:40');
       },
     );
+
+    test('keeps block id stable when next command resizes previous output', () {
+      var snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'ls',
+        commandStartRow: 3,
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 3, cwd: '/repo'),
+        ],
+      );
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'ls',
+        exitCode: 0,
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 3, cwd: '/repo'),
+        ],
+        viewportEndRow: 9,
+      );
+
+      final firstId = snapshot.blocks.single.id;
+
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'll',
+        commandStartRow: 40,
+        promptMarks: const [
+          TerminalShellPromptMark(scrollbackOffset: 40, cwd: '/repo'),
+        ],
+      );
+
+      expect(snapshot.blocks.first.id, firstId);
+      expect(snapshot.blocks.first.outputRange.outputEndRow, 39);
+    });
+
+    test('ignores prompt-prefixed command hook duplicates', () {
+      var snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'll',
+        commandStartRow: 42,
+      );
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'll',
+        exitCode: 0,
+        viewportEndRow: 43,
+      );
+
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: '?? robinfai? ~ ???? ? 10:39 ?? ll',
+        commandStartRow: 44,
+      );
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: '?? robinfai? ~ ???? ? 10:39 ?? ll',
+        exitCode: 0,
+        viewportEndRow: 73,
+      );
+
+      expect(snapshot.blocks, hasLength(1));
+      expect(snapshot.blocks.single.command, 'll');
+    });
 
     test('clears pending prompt after finish without end prompt', () {
       var snapshot = ShellCommandBlockShellHookReducer.reduce(
@@ -719,6 +858,495 @@ void main() {
       );
 
       expect(next.blocks, isEmpty);
+    });
+  });
+
+  group('ShellCommandBlockViewModelBuilder', () {
+    test('finished preview capture remains open until prompt boundary', () {
+      final block = _block(id: 'll', command: 'll', cwd: '/Users/robinfai');
+
+      final partial = shellCommandBlockFinishedPreviewCaptureForRows(
+        block: block,
+        rows: const [terminal.TerminalRow(index: 0, text: 'total 7600')],
+        isLatestBlock: true,
+      );
+
+      expect(partial.rows.map((row) => row.text), ['total 7600']);
+      expect(partial.removeTarget, isFalse);
+
+      final complete = shellCommandBlockFinishedPreviewCaptureForRows(
+        block: block,
+        rows: const [
+          terminal.TerminalRow(index: 0, text: 'total 7600'),
+          terminal.TerminalRow(index: 1, text: 'drwxr-xr-x alpha.txt'),
+          terminal.TerminalRow(index: 2, text: 'robinfai ~ 10:39 ❯ ll'),
+        ],
+        isLatestBlock: true,
+      );
+
+      expect(complete.rows.map((row) => row.text), [
+        'total 7600',
+        'drwxr-xr-x alpha.txt',
+      ]);
+      expect(complete.removeTarget, isTrue);
+
+      final stale = shellCommandBlockFinishedPreviewCaptureForRows(
+        block: block,
+        rows: const [terminal.TerminalRow(index: 0, text: 'late output')],
+        isLatestBlock: false,
+      );
+
+      expect(stale.rows, isEmpty);
+      expect(stale.removeTarget, isTrue);
+    });
+
+    test(
+      'captures finished output from the current frame for long commands',
+      () {
+        const block = ShellCommandBlock(
+          id: 'session-1:command:40',
+          command: 'ls -lhF',
+          cwd: '/Users/robinfai',
+          status: ShellCommandBlockStatus.succeeded,
+          outputRange: ShellCommandBlockRange(
+            commandRow: 40,
+            outputStartRow: 41,
+            outputEndRow: 41,
+          ),
+        );
+        final snapshot = ShellCommandBlockSnapshot.withBlocks(blocks: [block]);
+
+        final captured = shellCommandBlockFinishedPreviewRowsForCurrentFrame(
+          snapshot: snapshot,
+          frame: const terminal.TerminalFrameDiff(
+            rows: [
+              terminal.TerminalRow(
+                index: 0,
+                text: 'drwx------@ 26 robinfai  staff   832B Documents/',
+              ),
+              terminal.TerminalRow(
+                index: 1,
+                text: '-rw-r--r--   1 robinfai  staff   2.4K logs.json',
+              ),
+              terminal.TerminalRow(
+                index: 2,
+                text: '?? robinfai? ~ ???? ? 12:46 ??',
+              ),
+            ],
+            cursor: terminal.TerminalCursor(row: 2, col: 0, visible: true),
+            dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 3)],
+            viewportRows: 20,
+            viewportCols: 93,
+            viewportStartRow: 70,
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+        expect(captured[block.id]?.map((row) => row.text), [
+          'drwx------@ 26 robinfai  staff   832B Documents/',
+          '-rw-r--r--   1 robinfai  staff   2.4K logs.json',
+        ]);
+      },
+    );
+
+    test('keeps long listing rows for ll output', () {
+      const block = ShellCommandBlock(
+        id: 'session-1:command:0',
+        command: 'll',
+        cwd: '/Users/robinfai',
+        status: ShellCommandBlockStatus.succeeded,
+        outputRange: ShellCommandBlockRange(
+          commandRow: 0,
+          outputStartRow: 1,
+          outputEndRow: 30,
+        ),
+      );
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(blocks: [block]);
+
+      final captured = shellCommandBlockFinishedPreviewRowsForCurrentFrame(
+        snapshot: snapshot,
+        frame: const terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(
+              index: 0,
+              text:
+                  'drwx------+  4 robinfai  staff   128B Mar 16 15:42 Pictures/',
+            ),
+            terminal.TerminalRow(
+              index: 1,
+              text:
+                  'drwxr-xr-x@  4 robinfai  staff   128B Apr  1 14:39 PyCharmMiscProject/',
+            ),
+            terminal.TerminalRow(
+              index: 2,
+              text: '󰀵 robinfai ~   13:01  ❯',
+            ),
+          ],
+          cursor: terminal.TerminalCursor(row: 2, col: 0, visible: true),
+          dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 3)],
+          viewportRows: 20,
+          viewportCols: 93,
+          viewportStartRow: 11,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(captured[block.id]?.map((row) => row.text), [
+        'drwx------+  4 robinfai  staff   128B Mar 16 15:42 Pictures/',
+        'drwxr-xr-x@  4 robinfai  staff   128B Apr  1 14:39 PyCharmMiscProject/',
+      ]);
+    });
+
+    test(
+      'falls back to recently modified rows when output scrolls above command row',
+      () {
+        final submittedAt = DateTime(2026, 6, 10, 13);
+        final oldOutputAt = submittedAt.subtract(const Duration(seconds: 1));
+        final commandOutputAt = submittedAt.add(
+          const Duration(milliseconds: 1),
+        );
+        const block = ShellCommandBlock(
+          id: 'session-1:command:10',
+          command: 'll',
+          cwd: '/Users/robinfai',
+          status: ShellCommandBlockStatus.succeeded,
+          outputRange: ShellCommandBlockRange(
+            commandRow: 10,
+            outputStartRow: 11,
+            outputEndRow: 12,
+          ),
+        );
+
+        final rows = shellCommandBlockSubmittedPreviewRowsForFrame(
+          command: 'll',
+          commandRow: 10,
+          submittedAt: submittedAt,
+          frame: terminal.TerminalFrameDiff(
+            rows: [
+              terminal.TerminalRow(
+                index: 0,
+                text: 'stale previous output',
+                modifiedAt: oldOutputAt,
+              ),
+              terminal.TerminalRow(
+                index: 1,
+                text: 'total 7600',
+                modifiedAt: commandOutputAt,
+              ),
+              terminal.TerminalRow(
+                index: 2,
+                text: 'drwxr-xr-x  10 robinfai  staff   320B work/',
+                modifiedAt: commandOutputAt,
+              ),
+              const terminal.TerminalRow(index: 18, text: ''),
+              terminal.TerminalRow(
+                index: 19,
+                text: '󰀵 robinfai ~   13:05  ❯',
+                modifiedAt: commandOutputAt,
+              ),
+            ],
+            cursor: const terminal.TerminalCursor(
+              row: 19,
+              col: 32,
+              visible: true,
+            ),
+            dirtyRanges: const [terminal.TerminalDirtyRange(start: 0, end: 20)],
+            viewportRows: 20,
+            viewportCols: 93,
+            viewportStartRow: 13,
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+        expect(
+          shellCommandBlockOutputRowsFrom(block, rows).map((row) => row.text),
+          ['total 7600', 'drwxr-xr-x  10 robinfai  staff   320B work/'],
+        );
+      },
+    );
+
+    test('ignores refreshed rows before the submitted command row', () {
+      final submittedAt = DateTime(2026, 6, 10, 13, 15);
+      final refreshedAt = submittedAt.add(const Duration(milliseconds: 1));
+
+      final rows = shellCommandBlockSubmittedPreviewRowsForFrame(
+        command: 'echo 123',
+        commandRow: 43,
+        submittedAt: submittedAt,
+        frame: terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(
+              index: 0,
+              text:
+                  'drwxr-xr-x@  5 robinfai  staff   160B Mar 30 22:38 background_agent_cli/',
+              modifiedAt: refreshedAt,
+            ),
+            terminal.TerminalRow(
+              index: 1,
+              text: 'drwxr-xr-x@  3 robinfai  staff    96B Mar 16 17:12 bin/',
+              modifiedAt: refreshedAt,
+            ),
+            terminal.TerminalRow(
+              index: 18,
+              text: '123',
+              modifiedAt: refreshedAt,
+            ),
+          ],
+          cursor: const terminal.TerminalCursor(row: 19, col: 0, visible: true),
+          dirtyRanges: const [terminal.TerminalDirtyRange(start: 0, end: 20)],
+          viewportRows: 20,
+          viewportCols: 93,
+          viewportStartRow: 26,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(rows.map((row) => row.text), ['123']);
+    });
+
+    test('keeps visible output when row timestamps lag submitted time', () {
+      final submittedAt = DateTime(2026, 6, 10, 13, 30);
+      final outputAt = submittedAt.subtract(const Duration(milliseconds: 1));
+      const block = ShellCommandBlock(
+        id: 'session-1:command:9',
+        command: 'll',
+        cwd: '/Users/robinfai',
+        status: ShellCommandBlockStatus.succeeded,
+        outputRange: ShellCommandBlockRange(
+          commandRow: 9,
+          outputStartRow: 10,
+          outputEndRow: 39,
+        ),
+      );
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(blocks: [block]);
+
+      final captured = shellCommandBlockFinishedPreviewRowsForCurrentFrame(
+        snapshot: snapshot,
+        submittedAt: submittedAt,
+        frame: terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(
+              index: 0,
+              text: 'drwx------+  4 robinfai  staff   128B Pictures/',
+              modifiedAt: outputAt,
+            ),
+            terminal.TerminalRow(
+              index: 1,
+              text: 'drwxr-xr-x+  4 robinfai  staff   128B Public/',
+              modifiedAt: outputAt,
+            ),
+          ],
+          cursor: const terminal.TerminalCursor(row: 1, col: 0, visible: true),
+          dirtyRanges: const [terminal.TerminalDirtyRange(start: 0, end: 2)],
+          viewportRows: 20,
+          viewportCols: 93,
+          viewportStartRow: 20,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(captured[block.id]?.map((row) => row.text), [
+        'drwx------+  4 robinfai  staff   128B Pictures/',
+        'drwxr-xr-x+  4 robinfai  staff   128B Public/',
+      ]);
+    });
+
+    test('ignores stale pending rows after an old command row', () {
+      final submittedAt = DateTime(2026, 6, 10, 13, 10);
+      final oldOutputAt = submittedAt.subtract(const Duration(seconds: 1));
+      final commandOutputAt = submittedAt.add(const Duration(milliseconds: 1));
+
+      final rows = shellCommandBlockSubmittedPreviewRowsForFrame(
+        command: 'pwd',
+        commandRow: 10,
+        submittedAt: submittedAt,
+        frame: terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(
+              index: 0,
+              text: 'Applications   Documents   Library',
+              modifiedAt: oldOutputAt,
+            ),
+            terminal.TerminalRow(
+              index: 1,
+              text: 'Downloads      Movies      Music',
+              modifiedAt: oldOutputAt,
+            ),
+            terminal.TerminalRow(
+              index: 2,
+              text: '/Users/robinfai',
+              modifiedAt: commandOutputAt,
+            ),
+          ],
+          cursor: const terminal.TerminalCursor(row: 2, col: 16, visible: true),
+          dirtyRanges: const [terminal.TerminalDirtyRange(start: 0, end: 3)],
+          viewportRows: 20,
+          viewportCols: 93,
+          viewportStartRow: 11,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(rows.map((row) => row.text), ['/Users/robinfai']);
+    });
+
+    test('drops wrapped submitted command fragments from fallback rows', () {
+      final submittedAt = DateTime(2026, 6, 10, 13, 20);
+      final commandOutputAt = submittedAt.add(const Duration(milliseconds: 1));
+
+      final rows = shellCommandBlockSubmittedPreviewRowsForFrame(
+        command: 'ls -la',
+        commandRow: 69,
+        submittedAt: submittedAt,
+        frame: terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(
+              index: 0,
+              text: '/tmp/ianvs-cwd ls',
+              modifiedAt: commandOutputAt,
+            ),
+            terminal.TerminalRow(
+              index: 1,
+              text: ' -la',
+              modifiedAt: commandOutputAt,
+            ),
+            terminal.TerminalRow(
+              index: 2,
+              text: 'total 16',
+              modifiedAt: commandOutputAt,
+            ),
+            terminal.TerminalRow(
+              index: 3,
+              text: 'alpha.txt',
+              modifiedAt: commandOutputAt,
+            ),
+          ],
+          cursor: const terminal.TerminalCursor(row: 3, col: 9, visible: true),
+          dirtyRanges: const [terminal.TerminalDirtyRange(start: 0, end: 4)],
+          viewportRows: 20,
+          viewportCols: 93,
+          viewportStartRow: 70,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(rows.map((row) => row.text), ['total 16', 'alpha.txt']);
+    });
+
+    test('keeps single-line output that matches a command argument', () {
+      final submittedAt = DateTime(2026, 6, 10, 13, 21);
+      final commandOutputAt = submittedAt.add(const Duration(milliseconds: 1));
+
+      final rows = shellCommandBlockSubmittedPreviewRowsForFrame(
+        command: 'echo hello',
+        commandRow: 69,
+        submittedAt: submittedAt,
+        frame: terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(
+              index: 0,
+              text: 'hello',
+              modifiedAt: commandOutputAt,
+            ),
+          ],
+          cursor: const terminal.TerminalCursor(row: 0, col: 5, visible: true),
+          dirtyRanges: const [terminal.TerminalDirtyRange(start: 0, end: 1)],
+          viewportRows: 20,
+          viewportCols: 93,
+          viewportStartRow: 70,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(rows.map((row) => row.text), ['hello']);
+    });
+
+    test(
+      'does not capture current viewport rows for an offscreen old block',
+      () {
+        const block = ShellCommandBlock(
+          id: 'session-1:command:20',
+          command: 'ls',
+          cwd: '/Users/robinfai',
+          status: ShellCommandBlockStatus.succeeded,
+          outputRange: ShellCommandBlockRange(
+            commandRow: 20,
+            outputStartRow: 21,
+            outputEndRow: 40,
+          ),
+        );
+        final snapshot = ShellCommandBlockSnapshot.withBlocks(blocks: [block]);
+
+        final captured = shellCommandBlockPreviewRowsForFrame(
+          snapshot: snapshot,
+          frame: const terminal.TerminalFrameDiff(
+            rows: [
+              terminal.TerminalRow(index: 0, text: 'new-command-output'),
+              terminal.TerminalRow(index: 1, text: 'logs.json'),
+            ],
+            cursor: terminal.TerminalCursor(row: 1, col: 9, visible: true),
+            dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 2)],
+            viewportRows: 20,
+            viewportCols: 93,
+            viewportStartRow: 100,
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+        expect(captured, isEmpty);
+      },
+    );
+
+    test('replaces captured output when same length rows change content', () {
+      expect(
+        shellCommandBlockShouldReplacePreviewRows(
+          existingRows: const [
+            terminal.TerminalRow(index: 0, text: 'capturing output...'),
+          ],
+          nextRows: const [
+            terminal.TerminalRow(
+              index: 0,
+              text: 'zsh: command not found: ls-al',
+            ),
+          ],
+        ),
+        isTrue,
+      );
+    });
+
+    test('filters prompt and readline rows from captured output', () {
+      const block = ShellCommandBlock(
+        id: 'session-1:command:40:41',
+        command: 'ls-al',
+        cwd: '/Users/robinfai',
+        exitCode: 127,
+        status: ShellCommandBlockStatus.failed,
+        outputRange: ShellCommandBlockRange(
+          commandRow: 40,
+          outputStartRow: 41,
+          outputEndRow: 43,
+        ),
+      );
+
+      final rows = shellCommandBlockOutputRowsFrom(block, const [
+        terminal.TerminalRow(
+          index: 0,
+          text: '?? robinfai? ~ ???? ? 20:18 ? ? ls-al',
+        ),
+        terminal.TerminalRow(index: 1, text: 'zsh: command not found: ls-al'),
+        terminal.TerminalRow(index: 2, text: '?? robinfai? ~ ???? ? 20:18 ? ?'),
+      ]);
+
+      expect(rows.map((row) => row.text), ['zsh: command not found: ls-al']);
     });
   });
 

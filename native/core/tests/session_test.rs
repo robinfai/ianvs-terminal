@@ -653,22 +653,6 @@ fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
     panic!("timed out waiting for event {kind:?}");
 }
 
-fn wait_for_shell_hook(session_id: u64, hook: &str) -> serde_json::Value {
-    for _ in 0..30 {
-        let events = session::poll_events(session_id).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
-        if let Some(event) = parsed.as_array().and_then(|entries| {
-            entries.iter().find(|entry| {
-                entry["kind"] == "shell_hook" && entry["payload"]["hook"].as_str() == Some(hook)
-            })
-        }) {
-            return event.clone();
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
-    panic!("timed out waiting for shell hook {hook:?}");
-}
-
 fn wait_for_shell_hook_sequence(session_id: u64, hooks: &[&str]) -> Vec<serde_json::Value> {
     let mut events = Vec::new();
     for _ in 0..30 {
@@ -693,6 +677,71 @@ fn wait_for_shell_hook_sequence(session_id: u64, hooks: &[&str]) -> Vec<serde_js
         thread::sleep(Duration::from_millis(100));
     }
     panic!("timed out waiting for shell hooks {hooks:?}");
+}
+
+fn wait_for_readonly_command_round(
+    session_id: u64,
+    command: &str,
+    begin_marker: &str,
+    end_marker: &str,
+) -> Vec<String> {
+    let mut saw_preexec = false;
+    let mut saw_finished = false;
+    let mut captured_lines = Vec::new();
+    let mut debug_events = Vec::new();
+    let mut debug_frames = Vec::new();
+
+    for _ in 0..80 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let frame_lines = logical_rows_from_frame(&frame);
+            captured_lines.extend(frame_lines);
+            debug_frames.push(frame);
+        }
+
+        let polled = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&polled).unwrap();
+        if let Some(entries) = parsed.as_array() {
+            for entry in entries {
+                debug_events.push(entry.clone());
+                if entry["kind"] != "shell_hook" {
+                    continue;
+                }
+                let payload = &entry["payload"];
+                if payload["command"].as_str() != Some(command) {
+                    continue;
+                }
+                match payload["hook"].as_str() {
+                    Some("preexec") => saw_preexec = true,
+                    Some("command_finished") => {
+                        saw_finished = true;
+                        assert_eq!(
+                            payload["exit_code"].as_i64(),
+                            Some(0),
+                            "readonly command failed: {command}"
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let joined_output = captured_lines.join("\n");
+        if saw_preexec
+            && saw_finished
+            && joined_output.contains(begin_marker)
+            && joined_output.contains(end_marker)
+        {
+            return captured_lines;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    panic!(
+        "timed out waiting for readonly command round\ncommand: {command}\nbegin: {begin_marker}\nend: {end_marker}\npreexec: {saw_preexec}\nfinished: {saw_finished}\nlines:\n{}\nevents:\n{}\nframes:\n{}",
+        captured_lines.join("\n"),
+        serde_json::to_string_pretty(&debug_events).unwrap(),
+        debug_frames.join("\n--- frame ---\n")
+    );
 }
 
 fn find_shell(name: &str) -> Option<String> {
@@ -1319,7 +1368,10 @@ fn zsh_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     )
     .unwrap();
 
-    let pwd_event = wait_for_shell_hook(session_id, "precmd.pwd");
+    let startup_hooks =
+        wait_for_shell_hook_sequence(session_id, &["bootstrapped", "precmd", "precmd.pwd"]);
+    assert_eq!(startup_hooks[0]["payload"]["shell"].as_str(), Some("zsh"));
+    let pwd_event = &startup_hooks[2];
     let expected_pwd = fs::canonicalize(original_zdotdir.path()).unwrap();
     assert_eq!(
         pwd_event["payload"]["pwd"].as_str(),
@@ -1345,6 +1397,100 @@ fn zsh_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     let failed_event = &hooks[1];
     assert_eq!(failed_event["payload"]["command"].as_str(), Some("false"));
     assert_eq!(failed_event["payload"]["exit_code"].as_i64(), Some(1));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn zsh_shell_hook_integration_stably_pairs_readonly_commands_with_real_pty_output() {
+    if !Path::new("/bin/zsh").exists() {
+        return;
+    }
+
+    let home = tempdir().unwrap();
+    let cwd = tempdir().unwrap();
+    fs::write(
+        home.path().join(".zshrc"),
+        "PROMPT='ianvs ro-test% '\nalias ll='ls -la'\n",
+    )
+    .unwrap();
+    fs::write(cwd.path().join("alpha.txt"), "alpha-one\nalpha-two\n").unwrap();
+    fs::write(cwd.path().join("beta.txt"), "beta-one\n").unwrap();
+    fs::write(cwd.path().join("data.txt"), "one\ntwo\nthree\n").unwrap();
+
+    let mut env = BTreeMap::new();
+    env.insert(
+        "HOME".to_string(),
+        home.path().to_string_lossy().into_owned(),
+    );
+    env.insert(
+        "ZDOTDIR".to_string(),
+        home.path().to_string_lossy().into_owned(),
+    );
+    let mut profile = local_profile(
+        "zsh-shell-integration-readonly-rounds",
+        "Zsh Shell Integration Readonly Rounds",
+        "/bin/zsh",
+        vec![],
+        env,
+        TerminalEmulation::Xterm256,
+    );
+    profile.launch.cwd = Some(cwd.path().to_string_lossy().into_owned());
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    session::resize_session(session_id, 120, 48, 0, 0).unwrap();
+
+    let startup_hooks =
+        wait_for_shell_hook_sequence(session_id, &["bootstrapped", "precmd", "precmd.pwd"]);
+    assert_eq!(startup_hooks[0]["payload"]["shell"].as_str(), Some("zsh"));
+
+    let rounds = [
+        (
+            "printf 'IANVS_RO_01_BEGIN\\n'; pwd; printf 'IANVS_RO_01_END\\n'",
+            "IANVS_RO_01_BEGIN",
+            "IANVS_RO_01_END",
+            cwd.path().to_string_lossy().into_owned(),
+        ),
+        (
+            "printf 'IANVS_RO_02_BEGIN\\n'; ls -1; printf 'IANVS_RO_02_END\\n'",
+            "IANVS_RO_02_BEGIN",
+            "IANVS_RO_02_END",
+            "alpha.txt".to_string(),
+        ),
+        (
+            "printf 'IANVS_RO_03_BEGIN\\n'; cat alpha.txt; printf 'IANVS_RO_03_END\\n'",
+            "IANVS_RO_03_BEGIN",
+            "IANVS_RO_03_END",
+            "alpha-two".to_string(),
+        ),
+        (
+            "printf 'IANVS_RO_04_BEGIN\\n'; wc -l data.txt; printf 'IANVS_RO_04_END\\n'",
+            "IANVS_RO_04_BEGIN",
+            "IANVS_RO_04_END",
+            "data.txt".to_string(),
+        ),
+        (
+            "printf 'IANVS_RO_05_BEGIN\\n'; uname -s >/dev/null; printf 'uname-ok\\n'; printf 'IANVS_RO_05_END\\n'",
+            "IANVS_RO_05_BEGIN",
+            "IANVS_RO_05_END",
+            "uname-ok".to_string(),
+        ),
+        (
+            "printf 'IANVS_RO_06_BEGIN\\n'; ll; printf 'IANVS_RO_06_END\\n'",
+            "IANVS_RO_06_BEGIN",
+            "IANVS_RO_06_END",
+            "alpha.txt".to_string(),
+        ),
+    ];
+
+    for (command, begin_marker, end_marker, expected_output) in rounds {
+        session::write_session(session_id, format!("{command}\n").as_bytes()).unwrap();
+        let lines = wait_for_readonly_command_round(session_id, command, begin_marker, end_marker);
+        let output = lines.join("\n");
+        assert!(
+            output.contains(&expected_output),
+            "readonly command output was not captured into frame rows\ncommand: {command}\nexpected: {expected_output}\noutput:\n{output}"
+        );
+    }
 
     session::close_session(session_id).unwrap();
 }
@@ -1632,7 +1778,10 @@ fn bash_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     profile.launch.cwd = Some(cwd.path().to_string_lossy().into_owned());
     let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
 
-    let pwd_event = wait_for_shell_hook(session_id, "precmd.pwd");
+    let startup_hooks =
+        wait_for_shell_hook_sequence(session_id, &["bootstrapped", "precmd", "precmd.pwd"]);
+    assert_eq!(startup_hooks[0]["payload"]["shell"].as_str(), Some("bash"));
+    let pwd_event = &startup_hooks[2];
     let expected_pwd = fs::canonicalize(cwd.path()).unwrap();
     assert_eq!(pwd_event["payload"]["shell"].as_str(), Some("bash"));
     assert_eq!(
@@ -1679,7 +1828,10 @@ fn fish_shell_hook_integration_emits_lifecycle_hooks_when_enabled() {
     profile.launch.cwd = Some(cwd.path().to_string_lossy().into_owned());
     let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
 
-    let pwd_event = wait_for_shell_hook(session_id, "precmd.pwd");
+    let startup_hooks =
+        wait_for_shell_hook_sequence(session_id, &["bootstrapped", "precmd", "precmd.pwd"]);
+    assert_eq!(startup_hooks[0]["payload"]["shell"].as_str(), Some("fish"));
+    let pwd_event = &startup_hooks[2];
     let expected_pwd = fs::canonicalize(cwd.path()).unwrap();
     assert_eq!(pwd_event["payload"]["shell"].as_str(), Some("fish"));
     assert_eq!(
