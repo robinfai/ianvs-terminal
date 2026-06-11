@@ -93,8 +93,10 @@ void main() {
             pane.shellIntegration.currentDirectory?.isNotEmpty == true,
       );
 
+      await _submitCommandInput(tester, "alias ll='ls -la'");
+      await _waitForCommandBlockCards(tester, expectedMinimum: 1);
       final commands = <({String command, bool Function(String text) output})>[
-        (command: 'ls -la', output: (text) => text.contains('fixture_080.txt')),
+        (command: 'll', output: (text) => text.contains('fixture_080.txt')),
         (command: 'pwd', output: (text) => text.contains(workspace.path)),
         (
           command: "printf 'IANVS_DONE\\n'",
@@ -110,7 +112,7 @@ void main() {
           description: 'output for ${command.command}',
           matches: command.output,
         );
-        await _waitForCommandBlockCards(tester, expectedMinimum: index + 1);
+        await _waitForCommandBlockCards(tester, expectedMinimum: index + 2);
       }
 
       await _waitForTerminalText(
@@ -132,7 +134,7 @@ void main() {
       );
       _expectCommandBlockPreviewText(
         tester,
-        command: 'ls -la',
+        command: 'll',
         matches: ['fixture_080.txt'],
       );
       _expectCommandBlockPreviewText(

@@ -459,6 +459,102 @@ void main() {
       expect(snapshot.lastPrompt?.row, 50);
     });
 
+    test(
+      'precmd prompt offset expands previous minimal fallback block and seeds prompt',
+      () {
+        var snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: const ShellCommandBlockSnapshot(),
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'preexec',
+          command: 'ls -la',
+          commandStartRow: 40,
+        );
+        snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: snapshot,
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'command_finished',
+          command: 'ls -la',
+          exitCode: 0,
+          viewportEndRow: 40,
+        );
+
+        expect(snapshot.blocks.single.outputRange.outputEndRow, 41);
+        expect(snapshot.lastPrompt, isNull);
+
+        snapshot = ShellCommandBlockShellHookReducer.reduce(
+          snapshot: snapshot,
+          flags: _commandBlocksFlags,
+          sessionId: 'session-1',
+          hook: 'precmd',
+          cwd: '/repo',
+          promptScrollbackOffset: 50,
+        );
+
+        expect(snapshot.blocks.single.outputRange.commandRow, 40);
+        expect(snapshot.blocks.single.outputRange.outputEndRow, 49);
+        expect(snapshot.lastPrompt?.row, 50);
+        expect(snapshot.lastPrompt?.cwd, '/repo');
+      },
+    );
+
+    test('precmd prompt row fallback uses the cursor row from the frame', () {
+      const frame = terminal.TerminalFrameDiff(
+        rows: [
+          terminal.TerminalRow(index: 0, text: 'total 7600'),
+          terminal.TerminalRow(index: 1, text: ''),
+        ],
+        cursor: terminal.TerminalCursor(row: 1, col: 0, visible: true),
+        dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 2)],
+        viewportRows: 20,
+        viewportCols: 93,
+        viewportStartRow: 49,
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      );
+      final promptRow = shellCommandBlockPromptRowForFrame(frame);
+
+      expect(promptRow, 50);
+      expect(
+        promptRow,
+        isNot(
+          shellCommandBlockVisibleViewportEndRow(
+            viewportStartRow: 49,
+            viewportRows: 20,
+          ),
+        ),
+      );
+
+      var snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: const ShellCommandBlockSnapshot(),
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'preexec',
+        command: 'll',
+        commandStartRow: 40,
+      );
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'command_finished',
+        command: 'll',
+        exitCode: 0,
+        viewportEndRow: 40,
+      );
+      snapshot = ShellCommandBlockShellHookReducer.reduce(
+        snapshot: snapshot,
+        flags: _commandBlocksFlags,
+        sessionId: 'session-1',
+        hook: 'precmd',
+        promptScrollbackOffset: promptRow,
+      );
+
+      expect(snapshot.blocks.single.outputRange.outputEndRow, 49);
+      expect(snapshot.lastPrompt?.row, 50);
+    });
+
     test('command finish expands previous minimal fallback block', () {
       final snapshot = ShellCommandBlockShellHookReducer.reduce(
         snapshot: ShellCommandBlockSnapshot.withBlocks(
@@ -950,6 +1046,95 @@ void main() {
       },
     );
 
+    test(
+      'finished preview stops at prompt row boundary without prompt text',
+      () {
+        const block = ShellCommandBlock(
+          id: 'session-1:command:40',
+          command: 'll',
+          cwd: '/Users/robinfai',
+          status: ShellCommandBlockStatus.succeeded,
+          outputRange: ShellCommandBlockRange(
+            commandRow: 40,
+            outputStartRow: 41,
+            outputEndRow: 49,
+          ),
+        );
+        final snapshot = ShellCommandBlockSnapshot.withBlocks(blocks: [block]);
+
+        final captured = shellCommandBlockFinishedPreviewRowsForCurrentFrame(
+          snapshot: snapshot,
+          endPromptRow: 50,
+          frame: const terminal.TerminalFrameDiff(
+            rows: [
+              terminal.TerminalRow(index: 0, text: 'total 7600'),
+              terminal.TerminalRow(
+                index: 8,
+                text: 'drwxr-xr-x  10 robinfai  staff   320B work/',
+              ),
+              terminal.TerminalRow(index: 9, text: 'not a recognizable prompt'),
+              terminal.TerminalRow(index: 10, text: 'next command output'),
+            ],
+            cursor: terminal.TerminalCursor(row: 9, col: 0, visible: true),
+            dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 11)],
+            viewportRows: 20,
+            viewportCols: 93,
+            viewportStartRow: 41,
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+
+        expect(captured[block.id]?.map((row) => row.text), [
+          'total 7600',
+          'drwxr-xr-x  10 robinfai  staff   320B work/',
+        ]);
+      },
+    );
+
+    test('finished preview target closes when frame reaches prompt row', () {
+      const beforePrompt = terminal.TerminalFrameDiff(
+        rows: [
+          terminal.TerminalRow(index: 0, text: 'total 7600'),
+          terminal.TerminalRow(index: 8, text: 'work'),
+        ],
+        cursor: terminal.TerminalCursor(row: 8, col: 4, visible: true),
+        dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 9)],
+        viewportRows: 20,
+        viewportCols: 93,
+        viewportStartRow: 41,
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      );
+      const atPrompt = terminal.TerminalFrameDiff(
+        rows: [
+          terminal.TerminalRow(index: 9, text: 'not a recognizable prompt'),
+        ],
+        cursor: terminal.TerminalCursor(row: 9, col: 0, visible: true),
+        dirtyRanges: [terminal.TerminalDirtyRange(start: 9, end: 10)],
+        viewportRows: 20,
+        viewportCols: 93,
+        viewportStartRow: 41,
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      );
+
+      expect(
+        shellCommandBlockFrameReachedPromptBoundary(
+          frame: beforePrompt,
+          endPromptRow: 50,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandBlockFrameReachedPromptBoundary(
+          frame: atPrompt,
+          endPromptRow: 50,
+        ),
+        isTrue,
+      );
+    });
+
     test('keeps long listing rows for ll output', () {
       const block = ShellCommandBlock(
         id: 'session-1:command:0',
@@ -1316,6 +1501,120 @@ void main() {
             terminal.TerminalRow(
               index: 0,
               text: 'zsh: command not found: ls-al',
+            ),
+          ],
+        ),
+        isTrue,
+      );
+    });
+
+    test('appends later finished output slices for the same command block', () {
+      final firstCapturedAt = DateTime(2026, 6, 10, 14);
+      final laterCapturedAt = firstCapturedAt.add(
+        const Duration(milliseconds: 50),
+      );
+
+      final rows = shellCommandBlockMergedPreviewRows(
+        existingRows: [
+          terminal.TerminalRow(
+            index: 0,
+            text: 'total 7600',
+            modifiedAt: firstCapturedAt,
+          ),
+        ],
+        nextRows: [
+          terminal.TerminalRow(
+            index: 0,
+            text: 'drwxr-xr-x  10 robinfai  staff   320B work/',
+            modifiedAt: laterCapturedAt,
+          ),
+          terminal.TerminalRow(
+            index: 1,
+            text: '-rw-r--r--   1 robinfai  staff   2.4K logs.json',
+            modifiedAt: laterCapturedAt,
+          ),
+        ],
+      );
+
+      expect(rows.map((row) => row.text), [
+        'total 7600',
+        'drwxr-xr-x  10 robinfai  staff   320B work/',
+        '-rw-r--r--   1 robinfai  staff   2.4K logs.json',
+      ]);
+      expect(rows.map((row) => row.index), [0, 1, 2]);
+    });
+
+    test('merges overlapping finished output slices without duplicates', () {
+      final firstCapturedAt = DateTime(2026, 6, 10, 14, 1);
+      final laterCapturedAt = firstCapturedAt.add(
+        const Duration(milliseconds: 50),
+      );
+
+      final rows = shellCommandBlockMergedPreviewRows(
+        existingRows: [
+          terminal.TerminalRow(
+            index: 0,
+            text: 'total 7600',
+            modifiedAt: firstCapturedAt,
+          ),
+          terminal.TerminalRow(
+            index: 1,
+            text: 'drwxr-xr-x  10 robinfai  staff   320B work/',
+            modifiedAt: firstCapturedAt,
+          ),
+        ],
+        nextRows: [
+          terminal.TerminalRow(
+            index: 0,
+            text: 'drwxr-xr-x  10 robinfai  staff   320B work/',
+            modifiedAt: firstCapturedAt,
+          ),
+          terminal.TerminalRow(
+            index: 1,
+            text: '-rw-r--r--   1 robinfai  staff   2.4K logs.json',
+            modifiedAt: laterCapturedAt,
+          ),
+        ],
+      );
+
+      expect(rows.map((row) => row.text), [
+        'total 7600',
+        'drwxr-xr-x  10 robinfai  staff   320B work/',
+        '-rw-r--r--   1 robinfai  staff   2.4K logs.json',
+      ]);
+      expect(rows.map((row) => row.index), [0, 1, 2]);
+    });
+
+    test('detects later shorter preview slices as output updates', () {
+      final firstCapturedAt = DateTime(2026, 6, 10, 14, 2);
+      final laterCapturedAt = firstCapturedAt.add(
+        const Duration(milliseconds: 50),
+      );
+
+      expect(
+        shellCommandBlockPreviewRowsWouldChange(
+          existingRows: [
+            terminal.TerminalRow(
+              index: 0,
+              text: 'total 7600',
+              modifiedAt: firstCapturedAt,
+            ),
+            terminal.TerminalRow(
+              index: 1,
+              text: 'drwxr-xr-x  10 robinfai  staff   320B work/',
+              modifiedAt: firstCapturedAt,
+            ),
+            terminal.TerminalRow(
+              index: 2,
+              text: '-rw-r--r--   1 robinfai  staff   2.4K logs.json',
+              modifiedAt: firstCapturedAt,
+            ),
+          ],
+          nextRows: [
+            terminal.TerminalRow(
+              index: 0,
+              text: 'drwx------@ 26 robinfai  staff   832B Documents/',
+              modifiedAt: laterCapturedAt,
             ),
           ],
         ),

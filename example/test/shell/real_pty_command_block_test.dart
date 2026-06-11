@@ -633,6 +633,10 @@ class _RealPtyCommandBlockHarness {
     final preexecSubmittedCommandRow = normalizedHook == 'preexec'
         ? submitted?.commandRow
         : null;
+    final shellHookPromptScrollbackOffset = normalizedHook == 'precmd'
+        ? event.promptScrollbackOffset ??
+              shellCommandBlockPromptRowForFrame(frame)
+        : event.promptScrollbackOffset;
     _snapshot = ShellCommandBlockShellHookReducer.reduce(
       snapshot: _snapshot,
       flags: _flags,
@@ -642,7 +646,7 @@ class _RealPtyCommandBlockHarness {
       cwd: event.cwd,
       exitCode: event.exitCode,
       promptScrollbackOffset:
-          preexecSubmittedCommandRow ?? event.promptScrollbackOffset,
+          preexecSubmittedCommandRow ?? shellHookPromptScrollbackOffset,
       commandStartRow:
           submitted?.commandRow ??
           shellCommandBlockCommandStartRowForFrame(
@@ -672,20 +676,25 @@ class _RealPtyCommandBlockHarness {
         removeTargetIds.add(entry.key);
         continue;
       }
-      final rows = _rowsAfterCommandRow(frame, entry.value);
+      final endPromptRow = _finishedTargetEndPromptRow(entry.value);
+      final rows = _rowsAfterCommandRow(
+        frame,
+        entry.value,
+        endPromptRow: endPromptRow,
+      );
       final capture = shellCommandBlockFinishedPreviewCaptureForRows(
         block: block,
         rows: rows,
         isLatestBlock: entry.key == latestBlockId,
       );
-      if (capture.rows.isNotEmpty &&
-          shellCommandBlockShouldReplacePreviewRows(
-            existingRows: _capturedRowsByBlockId[entry.key],
-            nextRows: capture.rows,
-          )) {
-        _capturedRowsByBlockId[entry.key] = capture.rows;
+      if (capture.rows.isNotEmpty) {
+        _mergeCapturedRows(entry.key, capture.rows);
       }
-      if (capture.removeTarget) {
+      if (capture.removeTarget ||
+          shellCommandBlockFrameReachedPromptBoundary(
+            frame: frame,
+            endPromptRow: endPromptRow,
+          )) {
         removeTargetIds.add(entry.key);
       }
     }
@@ -707,12 +716,19 @@ class _RealPtyCommandBlockHarness {
       frame: frame,
     );
     for (final entry in capturedRows.entries) {
-      if (shellCommandBlockShouldReplacePreviewRows(
-        existingRows: _capturedRowsByBlockId[entry.key],
-        nextRows: entry.value,
-      )) {
-        _capturedRowsByBlockId[entry.key] = entry.value;
-      }
+      _mergeCapturedRows(entry.key, entry.value);
+    }
+  }
+
+  void _mergeCapturedRows(String blockId, List<terminal.TerminalRow> rows) {
+    if (shellCommandBlockPreviewRowsWouldChange(
+      existingRows: _capturedRowsByBlockId[blockId],
+      nextRows: rows,
+    )) {
+      _capturedRowsByBlockId[blockId] = shellCommandBlockMergedPreviewRows(
+        existingRows: _capturedRowsByBlockId[blockId],
+        nextRows: rows,
+      );
     }
   }
 
@@ -747,13 +763,26 @@ class _RealPtyCommandBlockHarness {
     );
   }
 
+  int? _finishedTargetEndPromptRow(int commandRow) {
+    final promptRow = _snapshot.lastPrompt?.row;
+    if (promptRow == null || promptRow <= commandRow) {
+      return null;
+    }
+    return promptRow;
+  }
+
   List<terminal.TerminalRow> _rowsAfterCommandRow(
     terminal.TerminalFrameDiff frame,
-    int commandRow,
-  ) {
+    int commandRow, {
+    int? endPromptRow,
+  }) {
     final rows = <terminal.TerminalRow>[];
     for (final row in frame.rows) {
-      if (frame.viewportStartRow + row.index <= commandRow) {
+      final absoluteRow = frame.viewportStartRow + row.index;
+      if (absoluteRow <= commandRow) {
+        continue;
+      }
+      if (endPromptRow != null && absoluteRow >= endPromptRow) {
         continue;
       }
       rows.add(

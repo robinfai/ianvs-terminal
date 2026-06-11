@@ -28,6 +28,13 @@ int? shellCommandBlockCommandEndRowForFrame(terminal.TerminalFrameDiff frame) {
   return cursorRow - 1;
 }
 
+int? shellCommandBlockPromptRowForFrame(terminal.TerminalFrameDiff frame) {
+  if (frame.viewportStartRow < 0 || frame.cursor.row < 0) {
+    return null;
+  }
+  return frame.viewportStartRow + frame.cursor.row;
+}
+
 int? shellCommandBlockCommandStartRowForFrame(
   terminal.TerminalFrameDiff frame, {
   String? command,
@@ -187,7 +194,14 @@ class ShellCommandBlockShellHookReducer {
     }
     return switch (normalizeHook(hook)) {
       'bootstrapped' => _bootstrapped(snapshot),
-      'precmd' => snapshot,
+      'precmd' => _precmd(
+        snapshot: snapshot,
+        flags: flags,
+        sessionId: sessionId,
+        cwd: cwd,
+        promptScrollbackOffset: promptScrollbackOffset,
+        promptMarks: promptMarks,
+      ),
       'precmd.pwd' ||
       'cwd' => _cwdChanged(snapshot: snapshot, flags: flags, cwd: cwd),
       'preexec' => _preexec(
@@ -242,6 +256,41 @@ class ShellCommandBlockShellHookReducer {
     return ShellCommandBlockController.reduce(
       snapshot,
       ShellCwdChangedEvent(currentCwd),
+      flags: flags,
+    );
+  }
+
+  static ShellCommandBlockSnapshot _precmd({
+    required ShellCommandBlockSnapshot snapshot,
+    required CommandBlocksHistoryFeatureFlags flags,
+    required String sessionId,
+    required String? cwd,
+    required int? promptScrollbackOffset,
+    required List<TerminalShellPromptMark> promptMarks,
+  }) {
+    final promptRow = _validShellHookRow(promptScrollbackOffset);
+    if (promptRow == null) {
+      return snapshot;
+    }
+    final promptMark = _promptMarkAt(_validPromptMarks(promptMarks), promptRow);
+    final promptCwd =
+        _trimmedShellHookText(cwd) ?? _trimmedShellHookText(promptMark?.cwd);
+    final resized = _resizeLastFinishedBlockBeforePrompt(
+      snapshot: snapshot,
+      sessionId: sessionId,
+      nextCommandStartRow: promptRow,
+    );
+    if (resized.lastPrompt?.row == promptRow &&
+        (promptCwd == null || resized.lastPrompt?.cwd == promptCwd)) {
+      return resized;
+    }
+    return ShellCommandBlockController.reduce(
+      resized,
+      ShellPromptMarkEvent(
+        id: _promptMarkId(sessionId, promptRow),
+        row: promptRow,
+        cwd: promptCwd,
+      ),
       flags: flags,
     );
   }
@@ -538,6 +587,18 @@ class ShellCommandBlockShellHookReducer {
     return marks.isEmpty ? null : marks.last;
   }
 
+  static TerminalShellPromptMark? _promptMarkAt(
+    List<TerminalShellPromptMark> marks,
+    int row,
+  ) {
+    for (final mark in marks) {
+      if (mark.scrollbackOffset == row) {
+        return mark;
+      }
+    }
+    return null;
+  }
+
   static TerminalShellPromptMark? _lastPromptMarkBefore(
     List<TerminalShellPromptMark> marks,
     int row, {
@@ -679,6 +740,117 @@ bool shellCommandBlockShouldReplacePreviewRows({
 }
 
 @visibleForTesting
+List<terminal.TerminalRow> shellCommandBlockMergedPreviewRows({
+  required List<terminal.TerminalRow>? existingRows,
+  required List<terminal.TerminalRow> nextRows,
+}) {
+  if (nextRows.isEmpty) {
+    return existingRows == null
+        ? const <terminal.TerminalRow>[]
+        : List<terminal.TerminalRow>.unmodifiable(existingRows);
+  }
+  final existing = existingRows;
+  final normalizedNext = _renumberTerminalRows(nextRows);
+  if (existing == null || existing.isEmpty) {
+    return List<terminal.TerminalRow>.unmodifiable(normalizedNext);
+  }
+  if (shellCommandBlockPreviewRowsHaveSameContent(existing, normalizedNext)) {
+    return List<terminal.TerminalRow>.unmodifiable(existing);
+  }
+
+  final overlap = _shellCommandBlockPreviewRowOverlap(existing, normalizedNext);
+  if (overlap >= normalizedNext.length) {
+    return List<terminal.TerminalRow>.unmodifiable(existing);
+  }
+  if (overlap > 0 ||
+      _looksLikeLaterCommandBlockPreviewSlice(existing, normalizedNext)) {
+    return List<terminal.TerminalRow>.unmodifiable(
+      _renumberTerminalRows([...existing, ...normalizedNext.skip(overlap)]),
+    );
+  }
+
+  if (shellCommandBlockShouldReplacePreviewRows(
+    existingRows: existing,
+    nextRows: normalizedNext,
+  )) {
+    return List<terminal.TerminalRow>.unmodifiable(normalizedNext);
+  }
+  return List<terminal.TerminalRow>.unmodifiable(existing);
+}
+
+@visibleForTesting
+bool shellCommandBlockPreviewRowsWouldChange({
+  required List<terminal.TerminalRow>? existingRows,
+  required List<terminal.TerminalRow> nextRows,
+}) {
+  if (nextRows.isEmpty) {
+    return false;
+  }
+  final existing = existingRows;
+  final mergedRows = shellCommandBlockMergedPreviewRows(
+    existingRows: existing,
+    nextRows: nextRows,
+  );
+  return existing == null ||
+      !shellCommandBlockPreviewRowsHaveSameContent(existing, mergedRows);
+}
+
+int _shellCommandBlockPreviewRowOverlap(
+  List<terminal.TerminalRow> existingRows,
+  List<terminal.TerminalRow> nextRows,
+) {
+  final maxOverlap = math.min(existingRows.length, nextRows.length);
+  for (var count = maxOverlap; count > 0; count -= 1) {
+    if (shellCommandBlockPreviewRowsHaveSameContent(
+      existingRows.sublist(existingRows.length - count),
+      nextRows.sublist(0, count),
+    )) {
+      return count;
+    }
+  }
+  return 0;
+}
+
+bool _looksLikeLaterCommandBlockPreviewSlice(
+  List<terminal.TerminalRow> existingRows,
+  List<terminal.TerminalRow> nextRows,
+) {
+  final existingFinishedAt = _latestTerminalRowModifiedAt(existingRows);
+  final nextStartedAt = _earliestTerminalRowModifiedAt(nextRows);
+  return existingFinishedAt != null &&
+      nextStartedAt != null &&
+      nextStartedAt.isAfter(existingFinishedAt);
+}
+
+DateTime? _earliestTerminalRowModifiedAt(List<terminal.TerminalRow> rows) {
+  DateTime? earliest;
+  for (final row in rows) {
+    final modifiedAt = row.modifiedAt;
+    if (modifiedAt == null) {
+      continue;
+    }
+    if (earliest == null || modifiedAt.isBefore(earliest)) {
+      earliest = modifiedAt;
+    }
+  }
+  return earliest;
+}
+
+DateTime? _latestTerminalRowModifiedAt(List<terminal.TerminalRow> rows) {
+  DateTime? latest;
+  for (final row in rows) {
+    final modifiedAt = row.modifiedAt;
+    if (modifiedAt == null) {
+      continue;
+    }
+    if (latest == null || modifiedAt.isAfter(latest)) {
+      latest = modifiedAt;
+    }
+  }
+  return latest;
+}
+
+@visibleForTesting
 bool shellCommandBlockPreviewRowsHaveSameContent(
   List<terminal.TerminalRow> left,
   List<terminal.TerminalRow> right,
@@ -740,6 +912,7 @@ shellCommandBlockFinishedPreviewRowsForCurrentFrame({
   required ShellCommandBlockSnapshot snapshot,
   required terminal.TerminalFrameDiff frame,
   DateTime? submittedAt,
+  int? endPromptRow,
 }) {
   if (snapshot.blocks.isEmpty) {
     return const <String, List<terminal.TerminalRow>>{};
@@ -752,6 +925,7 @@ shellCommandBlockFinishedPreviewRowsForCurrentFrame({
     block: block,
     frame: frame,
     submittedAt: submittedAt,
+    endPromptRow: endPromptRow,
   );
   final capture = shellCommandBlockFinishedPreviewCaptureForRows(
     block: block,
@@ -827,6 +1001,7 @@ List<terminal.TerminalRow> _freshOrPendingRowsForCommandBlock({
   required int commandRow,
   required DateTime? submittedAt,
   required terminal.TerminalFrameDiff frame,
+  int? endPromptRow,
 }) {
   final rows = _dropLeadingSubmittedCommandRows(
     command: command,
@@ -834,6 +1009,7 @@ List<terminal.TerminalRow> _freshOrPendingRowsForCommandBlock({
     rows: _terminalRowsForPendingCommandBlockPreview(
       commandRow: commandRow,
       frame: frame,
+      endPromptRow: endPromptRow,
     ),
   );
   if (submittedAt == null ||
@@ -845,6 +1021,7 @@ List<terminal.TerminalRow> _freshOrPendingRowsForCommandBlock({
     commandRow: commandRow,
     submittedAt: submittedAt,
     frame: frame,
+    endPromptRow: endPromptRow,
   );
   return freshRows.isEmpty ? rows : freshRows;
 }
@@ -977,6 +1154,7 @@ List<terminal.TerminalRow> _terminalRowsAfterCommandLineForCommandBlockPreview(
 List<terminal.TerminalRow> _terminalRowsForPendingCommandBlockPreview({
   required int commandRow,
   required terminal.TerminalFrameDiff frame,
+  int? endPromptRow,
 }) {
   if (commandRow < 0 || frame.rows.isEmpty || frame.viewportStartRow < 0) {
     return const <terminal.TerminalRow>[];
@@ -990,6 +1168,9 @@ List<terminal.TerminalRow> _terminalRowsForPendingCommandBlockPreview({
   for (final frameRow in frameRows) {
     if (frameRow.absoluteRow <= commandRow) {
       continue;
+    }
+    if (endPromptRow != null && frameRow.absoluteRow >= endPromptRow) {
+      break;
     }
     rows.add(
       terminal.TerminalRow(
@@ -1008,12 +1189,17 @@ List<terminal.TerminalRow> _terminalRowsForFinishedCommandBlockPreview({
   required ShellCommandBlock block,
   required terminal.TerminalFrameDiff frame,
   DateTime? submittedAt,
+  int? endPromptRow,
 }) {
   final rows = _freshOrPendingRowsForCommandBlock(
     command: block.command,
     commandRow: block.outputRange.commandRow,
     submittedAt: submittedAt,
     frame: frame,
+    endPromptRow: _finishedPreviewEndPromptRow(
+      commandRow: block.outputRange.commandRow,
+      endPromptRow: endPromptRow,
+    ),
   );
   if (_shellCommandBlockRowsHaveVisibleText(
     shellCommandBlockOutputRowsFrom(block, rows),
@@ -1028,14 +1214,20 @@ List<terminal.TerminalRow> _terminalRowsModifiedSinceSubmittedCommand({
   required int commandRow,
   required DateTime submittedAt,
   required terminal.TerminalFrameDiff frame,
+  int? endPromptRow,
 }) {
   if (frame.rows.isEmpty) {
     return const <terminal.TerminalRow>[];
   }
   final rows = <terminal.TerminalRow>[];
   for (final row in frame.rows) {
-    if (frame.viewportStartRow >= 0 &&
-        frame.viewportStartRow + row.index <= commandRow) {
+    final absoluteRow = frame.viewportStartRow >= 0
+        ? frame.viewportStartRow + row.index
+        : row.index;
+    if (frame.viewportStartRow >= 0 && absoluteRow <= commandRow) {
+      continue;
+    }
+    if (endPromptRow != null && absoluteRow >= endPromptRow) {
       continue;
     }
     final modifiedAt = row.modifiedAt;
@@ -1057,6 +1249,39 @@ List<terminal.TerminalRow> _terminalRowsModifiedSinceSubmittedCommand({
     allowLeadingContinuation: true,
     rows: rows,
   );
+}
+
+int? _finishedPreviewEndPromptRow({
+  required int commandRow,
+  required int? endPromptRow,
+}) {
+  if (endPromptRow == null || endPromptRow <= commandRow) {
+    return null;
+  }
+  return endPromptRow;
+}
+
+@visibleForTesting
+bool shellCommandBlockFrameReachedPromptBoundary({
+  required terminal.TerminalFrameDiff frame,
+  required int? endPromptRow,
+}) {
+  if (endPromptRow == null || endPromptRow < 0) {
+    return false;
+  }
+  final cursorRow = shellCommandBlockPromptRowForFrame(frame);
+  if (cursorRow != null && cursorRow >= endPromptRow) {
+    return true;
+  }
+  for (final row in frame.rows) {
+    final absoluteRow = frame.viewportStartRow >= 0
+        ? frame.viewportStartRow + row.index
+        : row.index;
+    if (absoluteRow >= endPromptRow) {
+      return true;
+    }
+  }
+  return false;
 }
 
 List<terminal.TerminalRow> _dropLeadingSubmittedCommandRows({
@@ -1433,6 +1658,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final preexecSubmittedCommandRow = normalizedHook == 'preexec'
         ? submittedCapture?.commandRow
         : null;
+    final shellHookPromptScrollbackOffset = normalizedHook == 'precmd'
+        ? event.promptScrollbackOffset ??
+              shellCommandBlockPromptRowForFrame(frame)
+        : event.promptScrollbackOffset;
     final snapshot = ShellCommandBlockShellHookReducer.reduce(
       snapshot: previousSnapshot ?? const ShellCommandBlockSnapshot(),
       flags: _commandBlocksHistoryFeatureFlags,
@@ -1442,7 +1671,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       cwd: event.cwd,
       exitCode: event.exitCode,
       promptScrollbackOffset:
-          preexecSubmittedCommandRow ?? event.promptScrollbackOffset,
+          preexecSubmittedCommandRow ?? shellHookPromptScrollbackOffset,
       commandStartRow:
           submittedCaptureForMerge?.commandRow ??
           shellCommandBlockCommandStartRowForFrame(
@@ -1487,13 +1716,18 @@ extension _ShellScreenStateEvents on _ShellScreenState {
             snapshot: snapshot,
             frame: frame,
             submittedAt: submittedCaptureForMerge?.submittedAt,
+            endPromptRow: snapshot.lastPrompt?.row,
           );
       for (final entry in currentFrameFinishedRows.entries) {
-        if (shellCommandBlockShouldReplacePreviewRows(
-          existingRows: capturedPreviewRows[entry.key],
+        final existing = capturedPreviewRows[entry.key];
+        if (shellCommandBlockPreviewRowsWouldChange(
+          existingRows: existing,
           nextRows: entry.value,
         )) {
-          capturedPreviewRows[entry.key] = entry.value;
+          capturedPreviewRows[entry.key] = shellCommandBlockMergedPreviewRows(
+            existingRows: existing,
+            nextRows: entry.value,
+          );
         }
       }
     }
@@ -1909,17 +2143,26 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (block == null) {
         continue;
       }
+      final endPromptRow = _finishedPreviewEndPromptRow(
+        commandRow: target.commandRow,
+        endPromptRow: snapshot.lastPrompt?.row,
+      );
       final rows = _terminalRowsForFinishedCommandBlockPreview(
         block: block,
         frame: frame,
         submittedAt: target.submittedAt,
+        endPromptRow: endPromptRow,
       );
       final capture = shellCommandBlockFinishedPreviewCaptureForRows(
         block: block,
         rows: rows,
         isLatestBlock: target.blockId == latestBlockId,
       );
-      if (capture.removeTarget) {
+      if (capture.removeTarget ||
+          shellCommandBlockFrameReachedPromptBoundary(
+            frame: frame,
+            endPromptRow: endPromptRow,
+          )) {
         capturedTargetIds.add(target.blockId);
       }
       if (capture.rows.isEmpty) {
@@ -1962,7 +2205,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         continue;
       }
       final existing = existingRows[entry.key];
-      if (shellCommandBlockShouldReplacePreviewRows(
+      if (shellCommandBlockPreviewRowsWouldChange(
         existingRows: existing,
         nextRows: entry.value,
       )) {
@@ -2008,11 +2251,14 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           !protectedUpdateBlockIds.contains(entry.key)) {
         continue;
       }
-      if (shellCommandBlockShouldReplacePreviewRows(
+      if (shellCommandBlockPreviewRowsWouldChange(
         existingRows: existing,
         nextRows: entry.value,
       )) {
-        sessionRows[entry.key] = entry.value;
+        sessionRows[entry.key] = shellCommandBlockMergedPreviewRows(
+          existingRows: existing,
+          nextRows: entry.value,
+        );
       }
     }
     if (protectedUpdateBlockIds.isNotEmpty) {
