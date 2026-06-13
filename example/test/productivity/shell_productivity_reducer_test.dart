@@ -51,6 +51,22 @@ void main() {
       expect(snapshot.recentItems.commands.single.succeeded, isTrue);
     });
 
+    test('records command started cwd without adding a recent command', () {
+      final snapshot = ShellProductivityReducer.reduce(
+        const ShellProductivitySnapshot(),
+        const ShellCommandStartedEvent(
+          commandId: 'cmd-1',
+          command: 'python manage.py shell',
+          commandRow: 12,
+          cwd: '/repo',
+        ),
+      );
+
+      expect(snapshot.currentCwd, '/repo');
+      expect(snapshot.recentItems.directories.single.path, '/repo');
+      expect(snapshot.recentItems.commands, isEmpty);
+    });
+
     test('normalizes blank command and cwd values', () {
       final withoutBlankCwd = ShellProductivityReducer.reduce(
         const ShellProductivitySnapshot(),

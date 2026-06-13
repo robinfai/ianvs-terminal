@@ -1,6 +1,23 @@
 part of 'shell_screen.dart';
 
 const int shellCommandBlockPreviewMaxRows = 8;
+const int shellCommandBlockLiveTerminalMaxRows = 60;
+const int shellCommandBlockLiveTerminalPaddingRows = 3;
+
+typedef ShellCommandBlockLiveTerminalBuilder =
+    Widget Function(BuildContext context, ShellCommandBlockOverlayItem block);
+
+@visibleForTesting
+int shellCommandBlockLiveTerminalDisplayRows(int actualRows) {
+  final normalizedRows = math.max(1, actualRows);
+  if (normalizedRows >= shellCommandBlockLiveTerminalMaxRows) {
+    return shellCommandBlockLiveTerminalMaxRows;
+  }
+  return math.min(
+    shellCommandBlockLiveTerminalMaxRows,
+    normalizedRows + shellCommandBlockLiveTerminalPaddingRows,
+  );
+}
 
 class ShellCommandBlocksOverlay extends StatefulWidget {
   const ShellCommandBlocksOverlay({
@@ -11,6 +28,8 @@ class ShellCommandBlocksOverlay extends StatefulWidget {
     this.font = const terminal.TerminalFontConfig(),
     this.cursor = const terminal.TerminalCursorConfig(),
     this.contentPadding = EdgeInsets.zero,
+    this.liveTerminalRows = 0,
+    this.liveTerminalBuilder,
   });
 
   final ShellCommandBlocksOverlayViewModel viewModel;
@@ -19,6 +38,8 @@ class ShellCommandBlocksOverlay extends StatefulWidget {
   final terminal.TerminalFontConfig font;
   final terminal.TerminalCursorConfig cursor;
   final EdgeInsetsGeometry contentPadding;
+  final int liveTerminalRows;
+  final ShellCommandBlockLiveTerminalBuilder? liveTerminalBuilder;
 
   @override
   State<ShellCommandBlocksOverlay> createState() =>
@@ -90,6 +111,8 @@ class _ShellCommandBlocksOverlayState extends State<ShellCommandBlocksOverlay> {
                             colors: widget.colors,
                             font: widget.font,
                             cursor: widget.cursor,
+                            liveTerminalRows: widget.liveTerminalRows,
+                            liveTerminalBuilder: widget.liveTerminalBuilder,
                           ),
                         ],
                       ],
@@ -113,6 +136,8 @@ class _ShellCommandBlockChrome extends StatelessWidget {
     required this.colors,
     required this.font,
     required this.cursor,
+    required this.liveTerminalRows,
+    required this.liveTerminalBuilder,
   });
 
   final ShellCommandBlockOverlayItem block;
@@ -120,6 +145,8 @@ class _ShellCommandBlockChrome extends StatelessWidget {
   final terminal.TerminalViewportColors colors;
   final terminal.TerminalFontConfig font;
   final terminal.TerminalCursorConfig cursor;
+  final int liveTerminalRows;
+  final ShellCommandBlockLiveTerminalBuilder? liveTerminalBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +171,11 @@ class _ShellCommandBlockChrome extends StatelessWidget {
       block.durationLabel,
       if (block.outputRangeLabel.trim().isNotEmpty) block.outputRangeLabel,
     ];
+    final outputUsesLiveTerminal = block.outputUsesLiveTerminal;
+    final showLiveTerminal =
+        outputUsesLiveTerminal && liveTerminalBuilder != null;
+    final hasTerminalSurface =
+        showLiveTerminal || (hasTerminalOutput && !outputUsesLiveTerminal);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(palette.radius.md),
@@ -221,7 +253,7 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (hasTerminalOutput)
+                    if (hasTerminalOutput && !outputUsesLiveTerminal)
                       _ShellCommandBlockTerminalOutput(
                         key: Key(
                           'shell-command-block-terminal-output-${block.id}',
@@ -232,10 +264,20 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                         font: font,
                         cursor: cursor,
                       ),
+                    if (showLiveTerminal)
+                      _ShellCommandBlockLiveTerminalOutput(
+                        key: Key(
+                          'shell-command-block-live-terminal-output-${block.id}',
+                        ),
+                        block: block,
+                        rowHeight: rowHeight,
+                        liveTerminalRows: liveTerminalRows,
+                        builder: liveTerminalBuilder!,
+                      ),
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         palette.spacing.lg,
-                        hasTerminalOutput ? palette.spacing.sm : 0,
+                        hasTerminalSurface ? palette.spacing.sm : 0,
                         palette.spacing.lg,
                         palette.spacing.lg,
                       ),
@@ -261,6 +303,35 @@ class _ShellCommandBlockChrome extends StatelessWidget {
       ShellCommandBlockStatus.running => palette.warning,
       ShellCommandBlockStatus.unknown => palette.textSubtle,
     };
+  }
+}
+
+class _ShellCommandBlockLiveTerminalOutput extends StatelessWidget {
+  const _ShellCommandBlockLiveTerminalOutput({
+    super.key,
+    required this.block,
+    required this.rowHeight,
+    required this.liveTerminalRows,
+    required this.builder,
+  });
+
+  final ShellCommandBlockOverlayItem block;
+  final double rowHeight;
+  final int liveTerminalRows;
+  final ShellCommandBlockLiveTerminalBuilder builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final viewportHeight =
+        rowHeight * shellCommandBlockLiveTerminalDisplayRows(liveTerminalRows);
+
+    return ClipRect(
+      child: SizedBox(
+        width: double.infinity,
+        height: viewportHeight,
+        child: builder(context, block),
+      ),
+    );
   }
 }
 
@@ -402,7 +473,7 @@ class _ShellCommandBlockStatusHints extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hints = <String>[
-      'Output captured',
+      if (block.outputUsesLiveTerminal) 'Live terminal' else 'Output captured',
       if (block.showReplayAction) 'Replay context',
       if (block.showFailureSnapshotAction) 'Failure snapshot',
       if (block.showDiffAction) 'Previous run',

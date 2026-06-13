@@ -451,11 +451,16 @@ void main() {
         commandStartRow: 50,
       );
 
-      expect(snapshot.blocks, hasLength(1));
-      expect(snapshot.blocks.single.command, 'ls -la');
-      expect(snapshot.blocks.single.outputRange.commandRow, 40);
-      expect(snapshot.blocks.single.outputRange.outputStartRow, 41);
-      expect(snapshot.blocks.single.outputRange.outputEndRow, 49);
+      expect(snapshot.blocks, hasLength(2));
+      final previous = snapshot.blocks.first;
+      final running = snapshot.blocks.last;
+      expect(previous.command, 'ls -la');
+      expect(previous.outputRange.commandRow, 40);
+      expect(previous.outputRange.outputStartRow, 41);
+      expect(previous.outputRange.outputEndRow, 49);
+      expect(running.command, 'pwd');
+      expect(running.status, ShellCommandBlockStatus.running);
+      expect(running.outputRange.commandRow, 50);
       expect(snapshot.lastPrompt?.row, 50);
     });
 

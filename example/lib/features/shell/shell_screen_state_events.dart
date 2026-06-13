@@ -305,7 +305,8 @@ class ShellCommandBlockShellHookReducer {
     required int? commandStartRow,
     required List<TerminalShellPromptMark> promptMarks,
   }) {
-    if (_trimmedShellCommandText(command) == null) {
+    final commandText = _trimmedShellCommandText(command);
+    if (commandText == null) {
       return snapshot;
     }
     final marks = _validPromptMarks(promptMarks);
@@ -321,14 +322,24 @@ class ShellCommandBlockShellHookReducer {
       sessionId: sessionId,
       nextCommandStartRow: startRow,
     );
-    return ShellCommandBlockController.reduce(
+    final commandCwd =
+        _trimmedShellHookText(cwd) ?? _trimmedShellHookText(promptMark?.cwd);
+    final promptSnapshot = ShellCommandBlockController.reduce(
       baseSnapshot,
       ShellPromptMarkEvent(
         id: _promptMarkId(sessionId, startRow),
         row: startRow,
-        cwd:
-            _trimmedShellHookText(cwd) ??
-            _trimmedShellHookText(promptMark?.cwd),
+        cwd: commandCwd,
+      ),
+      flags: flags,
+    );
+    return ShellCommandBlockController.reduce(
+      promptSnapshot,
+      ShellCommandStartedEvent(
+        commandId: _commandBlockId(sessionId, startRow),
+        command: commandText,
+        commandRow: startRow,
+        cwd: commandCwd,
       ),
       flags: flags,
     );
@@ -344,6 +355,7 @@ class ShellCommandBlockShellHookReducer {
     }
     final lastBlock = snapshot.blocks.last;
     if (!lastBlock.isValid ||
+        lastBlock.status == ShellCommandBlockStatus.running ||
         nextCommandStartRow <= lastBlock.outputRange.commandRow) {
       return snapshot;
     }

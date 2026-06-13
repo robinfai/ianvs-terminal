@@ -309,6 +309,135 @@ void main() {
       expect(find.byType(terminal.TerminalFramePreview), findsOneWidget);
     });
 
+    testWidgets('running command block keeps output in live terminal mode', (
+      tester,
+    ) async {
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'running-output',
+          command: 'python manage.py shell',
+          active: true,
+          status: ShellCommandBlockStatus.running,
+          statusLabel: 'running',
+          terminalRows: const [terminal.TerminalRow(index: 0, text: '>>> ')],
+          terminalViewportCols: 80,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 220,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+                liveTerminalRows: 12,
+                liveTerminalBuilder: _fakeLiveTerminalBuilder,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('python manage.py shell'), findsOneWidget);
+      expect(find.text('running'), findsOneWidget);
+      expect(find.text('Live terminal'), findsOneWidget);
+      expect(
+        find.byKey(
+          const Key('shell-command-block-terminal-output-running-output'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byKey(
+          const Key('shell-command-block-live-terminal-output-running-output'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('fake-live-terminal-running-output')),
+        findsOneWidget,
+      );
+      expect(find.byType(terminal.TerminalFramePreview), findsNothing);
+    });
+
+    testWidgets('sizes running live terminal rows with padding', (
+      tester,
+    ) async {
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'short-live',
+          command: 'python',
+          active: true,
+          status: ShellCommandBlockStatus.running,
+          statusLabel: 'running',
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 280,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+                liveTerminalRows: 4,
+                liveTerminalBuilder: _fakeLiveTerminalBuilder,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final liveOutputFinder = find.byKey(
+        const Key('shell-command-block-live-terminal-output-short-live'),
+      );
+      expect(tester.getSize(liveOutputFinder).height, 18 * 7);
+    });
+
+    testWidgets('caps running live terminal height at sixty rows', (
+      tester,
+    ) async {
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'tall-live',
+          command: 'top',
+          active: true,
+          status: ShellCommandBlockStatus.running,
+          statusLabel: 'running',
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 360,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 4,
+                liveTerminalRows: 80,
+                liveTerminalBuilder: _fakeLiveTerminalBuilder,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final liveOutputFinder = find.byKey(
+        const Key('shell-command-block-live-terminal-output-tall-live'),
+      );
+      expect(tester.getSize(liveOutputFinder).height, 4 * 60);
+    });
+
     testWidgets('caps preview terminal height and scrolls its rows', (
       tester,
     ) async {
@@ -447,6 +576,16 @@ Finder _scrollableDescendant(Finder parent, AxisDirection axisDirection) {
   );
 }
 
+Widget _fakeLiveTerminalBuilder(
+  BuildContext context,
+  ShellCommandBlockOverlayItem block,
+) {
+  return ColoredBox(
+    key: Key('fake-live-terminal-${block.id}'),
+    color: Colors.black,
+  );
+}
+
 ShellCommandBlockOverlayItem _overlayItem({
   required String id,
   String command = 'flutter test',
@@ -454,6 +593,8 @@ ShellCommandBlockOverlayItem _overlayItem({
   int rowSpan = 1,
   bool active = false,
   bool showDiffAction = false,
+  ShellCommandBlockStatus status = ShellCommandBlockStatus.failed,
+  String statusLabel = 'exit 1',
   String? cwd,
   String durationLabel = '--',
   String outputPreview = '',
@@ -468,8 +609,8 @@ ShellCommandBlockOverlayItem _overlayItem({
     terminalViewportCols: terminalViewportCols,
     rowOffset: rowOffset,
     rowSpan: rowSpan,
-    status: ShellCommandBlockStatus.failed,
-    statusLabel: 'exit 1',
+    status: status,
+    statusLabel: statusLabel,
     active: active,
     cwd: cwd,
     durationLabel: durationLabel,

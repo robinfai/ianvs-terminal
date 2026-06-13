@@ -2,6 +2,21 @@ part of 'shell_screen.dart';
 
 const bool _hideDefaultTerminalWhenCommandBlocksVisible = true;
 
+@visibleForTesting
+bool shellCommandBlocksShouldEmbedLiveTerminal(
+  ShellCommandBlocksOverlayViewModel viewModel,
+) {
+  return viewModel.blocks.any((block) => block.outputUsesLiveTerminal);
+}
+
+@visibleForTesting
+bool shellCommandBlocksShouldHideDefaultTerminal({
+  required bool hideWhenVisible,
+  required ShellCommandBlocksOverlayViewModel viewModel,
+}) {
+  return hideWhenVisible && !viewModel.isEmpty;
+}
+
 extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
   List<ShellCommandBlock> _commandBlocksForSession(String sessionId) {
     if (!_commandBlocksHistoryFeatureFlags.enabled ||
@@ -292,9 +307,80 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           viewportCols: frame.viewportCols,
           activeBlockId: _activeCommandBlockId,
         );
-        final hideDefaultTerminal =
-            _hideDefaultTerminalWhenCommandBlocksVisible &&
-            !commandBlocksViewModel.isEmpty;
+        final embedLiveTerminal = shellCommandBlocksShouldEmbedLiveTerminal(
+          commandBlocksViewModel,
+        );
+        final hideDefaultTerminal = shellCommandBlocksShouldHideDefaultTerminal(
+          hideWhenVisible: _hideDefaultTerminalWhenCommandBlocksVisible,
+          viewModel: commandBlocksViewModel,
+        );
+        void handleMeasuredCellSizeChanged(Size cellSize) {
+          if (!mounted) {
+            return;
+          }
+          if (_measuredTerminalCellSizes[sessionId] != cellSize) {
+            _mutateState(() {
+              _measuredTerminalCellSizes[sessionId] = cellSize;
+            });
+          }
+          _scheduleViewportResize(
+            sessionController,
+            sessionId,
+            viewportSize,
+            MediaQuery.devicePixelRatioOf(context),
+            immediate: true,
+          );
+        }
+
+        Widget buildSessionTerminalViewport({
+          Key? key,
+          required EdgeInsets contentPadding,
+          FocusNode? terminalFocusNode,
+          ValueChanged<Size>? onMeasuredCellSizeChanged,
+        }) {
+          return TerminalViewport(
+            key: key,
+            focusNode: terminalFocusNode,
+            controller: viewportController,
+            selectionController: selectionController,
+            inputController: inputController,
+            contentPadding: contentPadding,
+            onMeasuredCellSizeChanged: onMeasuredCellSizeChanged,
+            colors: terminalColors,
+            font: terminalFont,
+            cursor: terminalCursor,
+            copyOnSelect:
+                _clipboardConfig.copyOnSelect ||
+                (terminalConfig?.interaction.copyOnSelect ?? false),
+            optionDragMode:
+                terminalConfig?.interaction.optionDragMode ??
+                terminal.TerminalOptionDragMode.blockSelection,
+            searchMatches: isActive && _isSearchOpen
+                ? _searchMatches
+                : const <terminal.TerminalSearchMatch>[],
+            activeSearchMatchIndex: isActive && _isSearchOpen
+                ? _activeSearchIndex
+                : -1,
+            searchHighlightStyle: terminal.TerminalSearchHighlightStyle(
+              activeFill: palette.accent.withValues(alpha: 0.34),
+              inactiveFill: palette.warning.withValues(alpha: 0.22),
+              activeBorder: palette.accent.withValues(alpha: 0.82),
+              radius: 3,
+            ),
+            onHostKeyEvent: onHostKeyEvent,
+            onScrollLines: (delta) {
+              ref
+                  .read(terminalRuntimeControllerProvider)
+                  .scrollViewport(sessionId, delta);
+            },
+            onScrollToOffset: (offset) {
+              ref
+                  .read(terminalRuntimeControllerProvider)
+                  .scrollViewportTo(sessionId, offset);
+            },
+            onOpenLink: (url) => unawaited(WindowBridge.openExternalUrl(url)),
+          );
+        }
 
         return Listener(
           onPointerDown: (event) {
@@ -320,70 +406,16 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
             ),
             child: Stack(
               children: [
-                Positioned.fill(
-                  child: TerminalViewport(
-                    focusNode: focusNode,
-                    controller: viewportController,
-                    selectionController: selectionController,
-                    inputController: inputController,
-                    contentPadding: terminalViewportPadding,
-                    onMeasuredCellSizeChanged: (cellSize) {
-                      if (!mounted) {
-                        return;
-                      }
-                      if (_measuredTerminalCellSizes[sessionId] != cellSize) {
-                        _mutateState(() {
-                          _measuredTerminalCellSizes[sessionId] = cellSize;
-                        });
-                      }
-                      _scheduleViewportResize(
-                        sessionController,
-                        sessionId,
-                        viewportSize,
-                        MediaQuery.devicePixelRatioOf(context),
-                        immediate: true,
-                      );
-                    },
-                    colors: terminalColors,
-                    font: terminalFont,
-                    cursor: terminalCursor,
-                    copyOnSelect:
-                        _clipboardConfig.copyOnSelect ||
-                        (terminalConfig?.interaction.copyOnSelect ?? false),
-                    optionDragMode:
-                        terminalConfig?.interaction.optionDragMode ??
-                        terminal.TerminalOptionDragMode.blockSelection,
-                    searchMatches: isActive && _isSearchOpen
-                        ? _searchMatches
-                        : const <terminal.TerminalSearchMatch>[],
-                    activeSearchMatchIndex: isActive && _isSearchOpen
-                        ? _activeSearchIndex
-                        : -1,
-                    searchHighlightStyle: terminal.TerminalSearchHighlightStyle(
-                      activeFill: palette.accent.withValues(alpha: 0.34),
-                      inactiveFill: palette.warning.withValues(alpha: 0.22),
-                      activeBorder: palette.accent.withValues(alpha: 0.82),
-                      radius: 3,
-                    ),
-                    onHostKeyEvent: onHostKeyEvent,
-                    onScrollLines: (delta) {
-                      ref
-                          .read(terminalRuntimeControllerProvider)
-                          .scrollViewport(sessionId, delta);
-                    },
-                    onScrollToOffset: (offset) {
-                      ref
-                          .read(terminalRuntimeControllerProvider)
-                          .scrollViewportTo(sessionId, offset);
-                    },
-                    onOpenLink: (url) =>
-                        unawaited(WindowBridge.openExternalUrl(url)),
-                  ),
-                ),
                 if (hideDefaultTerminal)
                   Positioned.fill(
-                    child: IgnorePointer(
-                      child: ColoredBox(color: terminalColors.canvasBackground),
+                    child: ColoredBox(color: terminalColors.canvasBackground),
+                  )
+                else
+                  Positioned.fill(
+                    child: buildSessionTerminalViewport(
+                      terminalFocusNode: focusNode,
+                      contentPadding: terminalViewportPadding,
+                      onMeasuredCellSizeChanged: handleMeasuredCellSizeChanged,
                     ),
                   ),
                 Positioned.fill(
@@ -396,6 +428,19 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                     font: terminalFont,
                     cursor: terminalCursor,
                     contentPadding: terminalViewportPadding,
+                    liveTerminalRows: frame.viewportRows,
+                    liveTerminalBuilder: embedLiveTerminal
+                        ? (context, block) => buildSessionTerminalViewport(
+                            key: Key(
+                              'shell-command-block-live-terminal-viewport-'
+                              '${block.id}',
+                            ),
+                            contentPadding: EdgeInsets.zero,
+                            onMeasuredCellSizeChanged: hideDefaultTerminal
+                                ? handleMeasuredCellSizeChanged
+                                : null,
+                          )
+                        : null,
                   ),
                 ),
                 if (!isActive)

@@ -66,6 +66,8 @@ class ShellCommandBlockOverlayItem {
   final bool showFailureSnapshotAction;
   final bool showReplayAction;
   final bool showDiffAction;
+
+  bool get outputUsesLiveTerminal => status == ShellCommandBlockStatus.running;
 }
 
 class ShellCommandBlockViewModelBuilder {

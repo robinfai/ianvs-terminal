@@ -55,6 +55,7 @@ class ShellCommandBlockController {
     }
     return switch (event) {
       ShellPromptMarkEvent() => _promptMark(snapshot, event),
+      ShellCommandStartedEvent() => _commandStarted(snapshot, event),
       ShellCommandOutputRangeEvent() => _outputRange(snapshot, event),
       ShellCommandFinishedEvent() => _commandFinished(
         snapshot,
@@ -99,6 +100,37 @@ class ShellCommandBlockController {
     );
   }
 
+  static ShellCommandBlockSnapshot _commandStarted(
+    ShellCommandBlockSnapshot snapshot,
+    ShellCommandStartedEvent event,
+  ) {
+    final commandId = event.commandId.trim();
+    final command = event.command.trim();
+    if (commandId.isEmpty || command.isEmpty || event.commandRow < 0) {
+      return snapshot;
+    }
+    final eventCwd = _trimmed(event.cwd);
+    final cwd = eventCwd ?? snapshot.lastPrompt?.cwd ?? snapshot.currentCwd;
+    final outputRange = ShellCommandBlockRange(
+      commandRow: event.commandRow,
+      outputStartRow: event.commandRow + 1,
+      outputEndRow: event.commandRow + 1,
+    );
+    final block = ShellCommandBlock(
+      id: commandId,
+      command: command,
+      cwd: cwd,
+      status: ShellCommandBlockStatus.running,
+      outputRange: outputRange,
+    );
+    return ShellCommandBlockSnapshot.withBlocks(
+      blocks: _upsertCommandBlock(snapshot.blocks, block),
+      lastPrompt: snapshot.lastPrompt,
+      pendingRange: null,
+      currentCwd: cwd ?? snapshot.currentCwd,
+    );
+  }
+
   static ShellCommandBlockSnapshot _outputRange(
     ShellCommandBlockSnapshot snapshot,
     ShellCommandOutputRangeEvent event,
@@ -114,14 +146,15 @@ class ShellCommandBlockController {
         currentCwd: snapshot.currentCwd,
       );
     }
+    final pendingRange = ShellCommandOutputRange(
+      commandId: commandId,
+      startRow: event.startRow,
+      endRow: event.endRow,
+    );
     return ShellCommandBlockSnapshot.withBlocks(
-      blocks: snapshot.blocks,
+      blocks: _blocksWithUpdatedRunningRange(snapshot.blocks, pendingRange),
       lastPrompt: snapshot.lastPrompt,
-      pendingRange: ShellCommandOutputRange(
-        commandId: commandId,
-        startRow: event.startRow,
-        endRow: event.endRow,
-      ),
+      pendingRange: pendingRange,
       currentCwd: snapshot.currentCwd,
     );
   }
@@ -134,7 +167,9 @@ class ShellCommandBlockController {
     final command = event.command.trim();
     final eventCwd = _trimmed(event.cwd);
     final currentCwd = eventCwd ?? snapshot.currentCwd;
-    final range = snapshot.pendingRange;
+    final runningBlock = _latestRunningBlockForCommand(snapshot, command);
+    final range =
+        snapshot.pendingRange ?? _outputRangeFromRunningBlock(runningBlock);
     if (range == null) {
       if (eventCwd == null) {
         return snapshot;
@@ -192,12 +227,82 @@ class ShellCommandBlockController {
           : null,
     );
     return ShellCommandBlockSnapshot.withBlocks(
-      blocks: _retainedCommandBlocks([...snapshot.blocks, block]),
+      blocks: _upsertCommandBlock(snapshot.blocks, block),
       lastPrompt: snapshot.lastPrompt,
       pendingRange: null,
       currentCwd: currentCwd,
     );
   }
+}
+
+ShellCommandBlock? _latestRunningBlockForCommand(
+  ShellCommandBlockSnapshot snapshot,
+  String command,
+) {
+  final trimmedCommand = command.trim();
+  if (trimmedCommand.isEmpty) {
+    return null;
+  }
+  for (final block in snapshot.blocks.reversed) {
+    if (block.status == ShellCommandBlockStatus.running &&
+        block.command == trimmedCommand &&
+        block.isValid) {
+      return block;
+    }
+  }
+  return null;
+}
+
+ShellCommandOutputRange? _outputRangeFromRunningBlock(
+  ShellCommandBlock? block,
+) {
+  if (block == null || !block.isValid) {
+    return null;
+  }
+  return ShellCommandOutputRange(
+    commandId: block.id,
+    startRow: block.outputRange.outputStartRow,
+    endRow: block.outputRange.outputEndRow,
+  );
+}
+
+List<ShellCommandBlock> _blocksWithUpdatedRunningRange(
+  List<ShellCommandBlock> blocks,
+  ShellCommandOutputRange range,
+) {
+  final index = blocks.lastIndexWhere(
+    (block) =>
+        block.id == range.commandId &&
+        block.status == ShellCommandBlockStatus.running &&
+        block.outputRange.commandRow < range.startRow,
+  );
+  if (index < 0) {
+    return blocks;
+  }
+  final existing = blocks[index];
+  final updated = existing.copyWith(
+    outputRange: ShellCommandBlockRange(
+      commandRow: existing.outputRange.commandRow,
+      outputStartRow: range.startRow,
+      outputEndRow: range.endRow,
+    ),
+  );
+  return [...blocks.take(index), updated, ...blocks.skip(index + 1)];
+}
+
+List<ShellCommandBlock> _upsertCommandBlock(
+  List<ShellCommandBlock> blocks,
+  ShellCommandBlock block,
+) {
+  final index = blocks.lastIndexWhere((candidate) => candidate.id == block.id);
+  if (index < 0) {
+    return _retainedCommandBlocks([...blocks, block]);
+  }
+  return _retainedCommandBlocks([
+    ...blocks.take(index),
+    block,
+    ...blocks.skip(index + 1),
+  ]);
 }
 
 List<ShellCommandBlock> _retainedCommandBlocks(

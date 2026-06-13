@@ -95,6 +95,112 @@ void main() {
       expect(block.failureSnapshot!.exitCode, 1);
     });
 
+    test('builds running command block from start event', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellPromptMarkEvent(id: 'p1', row: 10, cwd: '/repo'),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandStartedEvent(
+          commandId: 'cmd-1',
+          command: 'dart run tool.dart',
+          commandRow: 10,
+        ),
+        flags: _enabledFlags,
+      );
+
+      expect(snapshot.blocks, hasLength(1));
+      final block = snapshot.blocks.single;
+      expect(block.id, 'cmd-1');
+      expect(block.command, 'dart run tool.dart');
+      expect(block.cwd, '/repo');
+      expect(block.status, ShellCommandBlockStatus.running);
+      expect(block.exitCode, isNull);
+      expect(block.outputRange.commandRow, 10);
+      expect(block.outputRange.outputStartRow, 11);
+      expect(block.outputRange.outputEndRow, 11);
+      expect(snapshot.pendingRange, isNull);
+    });
+
+    test('updates running command block range from output range event', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandStartedEvent(
+          commandId: 'cmd-1',
+          command: 'flutter test',
+          commandRow: 10,
+          cwd: '/repo',
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-1',
+          startRow: 11,
+          endRow: 18,
+        ),
+        flags: _enabledFlags,
+      );
+
+      final block = snapshot.blocks.single;
+      expect(block.status, ShellCommandBlockStatus.running);
+      expect(block.outputRange.outputStartRow, 11);
+      expect(block.outputRange.outputEndRow, 18);
+      expect(snapshot.pendingRange!.commandId, 'cmd-1');
+    });
+
+    test('finishes running command block in place', () {
+      var snapshot = const ShellCommandBlockSnapshot();
+
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellPromptMarkEvent(id: 'p1', row: 10, cwd: '/repo'),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandStartedEvent(
+          commandId: 'cmd-1',
+          command: 'flutter test',
+          commandRow: 10,
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandOutputRangeEvent(
+          commandId: 'cmd-1',
+          startRow: 11,
+          endRow: 18,
+        ),
+        flags: _enabledFlags,
+      );
+      snapshot = ShellCommandBlockController.reduce(
+        snapshot,
+        const ShellCommandFinishedEvent(
+          command: 'flutter test',
+          cwd: null,
+          exitCode: 0,
+        ),
+        flags: _enabledFlags,
+      );
+
+      expect(snapshot.blocks, hasLength(1));
+      final block = snapshot.blocks.single;
+      expect(block.id, 'cmd-1');
+      expect(block.status, ShellCommandBlockStatus.succeeded);
+      expect(block.exitCode, 0);
+      expect(block.outputRange.outputEndRow, 18);
+      expect(snapshot.pendingRange, isNull);
+    });
+
     test('uses current cwd when prompt and finish do not provide cwd', () {
       var snapshot = const ShellCommandBlockSnapshot();
 

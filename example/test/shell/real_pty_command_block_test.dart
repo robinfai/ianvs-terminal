@@ -464,6 +464,97 @@ void main() {
         : false,
     timeout: const Timeout(Duration(seconds: 20)),
   );
+
+  test(
+    'real PTY bash readline interaction exposes a running command block',
+    () async {
+      final libraryPath = _workspaceCoreLibraryPath!;
+      final bashPath = _bashPath!;
+      final backend = NativePtyBackend.fromBindings(
+        NativePtyBindings(ffi.DynamicLibrary.open(libraryPath)),
+      );
+      final home = Directory.systemTemp.createTempSync('ianvs-pty-bash-home-');
+      final cwd = Directory.systemTemp.createTempSync('ianvs-pty-bash-cwd-');
+      addTearDown(() {
+        if (home.existsSync()) {
+          home.deleteSync(recursive: true);
+        }
+        if (cwd.existsSync()) {
+          cwd.deleteSync(recursive: true);
+        }
+      });
+      File('${home.path}/.bashrc').writeAsStringSync('''
+PS1='PROMPT-XYZ> '
+ianvs_readline_probe() {
+  local answer
+  read -e -p 'Name: ' answer
+  printf 'ANSWER=%s\\n' "\$answer"
+}
+''');
+
+      final sessionId = backend.createSession(
+        jsonEncode(<String, Object?>{
+          'id': 'real-pty-command-block-bash-readline',
+          'name': 'Real PTY Bash Readline Command Block',
+          ...terminal.TerminalSessionConfig(
+            launch: terminal.TerminalLaunchConfig(
+              program: bashPath,
+              env: <String, String>{
+                'HOME': home.path,
+                'INPUTRC': '/dev/null',
+                'BASH_SILENCE_DEPRECATION_WARNING': '1',
+              },
+              cwd: cwd.path,
+            ),
+            scrollbackLines: 1000,
+          ).toJson(),
+        }),
+      );
+      addTearDown(() => backend.closeSession(sessionId));
+      backend.resizeSession(
+        sessionId,
+        cols: 120,
+        rows: 24,
+        pixelWidth: 1200,
+        pixelHeight: 480,
+      );
+
+      final harness = _RealPtyCommandBlockHarness(
+        backend: backend,
+        sessionId: sessionId,
+      );
+      await harness.waitForStartup();
+
+      const command = 'ianvs_readline_probe';
+      await harness.startAndExpectRunning(
+        command: command,
+        expectedFrameText: 'Name:',
+      );
+
+      final running = harness.latestBlockForCommand(command);
+      expect(running, isNotNull);
+      expect(running!.status, ShellCommandBlockStatus.running);
+      expect(running.command, command);
+
+      harness.writeInput('codex\n');
+      await harness.waitForFinishedOutput(
+        command: command,
+        expectedOutput: 'ANSWER=codex',
+      );
+
+      final finished = harness.latestBlockForCommand(command);
+      expect(finished, isNotNull);
+      expect(finished!.id, running.id);
+      expect(finished.status, ShellCommandBlockStatus.succeeded);
+      expect(harness.latestOutputFor(command), contains('ANSWER=codex'));
+    },
+    skip: _workspaceCoreLibraryPath == null
+        ? 'libianvs_core.dylib is unavailable for this test run.'
+        : _bashPath == null
+        ? '/bin/bash is unavailable for this test run.'
+        : false,
+    timeout: const Timeout(Duration(seconds: 20)),
+  );
 }
 
 class _RealPtyCommandBlockHarness {
@@ -502,20 +593,68 @@ class _RealPtyCommandBlockHarness {
     required String command,
     required String expectedOutput,
   }) async {
-    pump();
-    final commandRow = _submittedCommandRowForFrame(_frame);
-    if (commandRow != null) {
-      _finishedTargets.clear();
-      _submittedCaptures[command] = _SubmittedCapture(
-        commandRow: commandRow,
-        submittedAt: DateTime.now(),
-      );
-    }
+    _recordSubmittedCapture(command);
     backend.writeInput(sessionId, utf8.encode('$command\n'));
     await _waitUntil(() {
       pump();
       return latestOutputFor(command).contains(expectedOutput);
     }, failureMessage: 'command "$command" did not capture "$expectedOutput"');
+  }
+
+  Future<void> startAndExpectRunning({
+    required String command,
+    required String expectedFrameText,
+  }) async {
+    _recordSubmittedCapture(command);
+    backend.writeInput(sessionId, utf8.encode('$command\n'));
+    await _waitUntil(() {
+      pump();
+      final block = _latestBlockFor(command);
+      if (block == null || block.status != ShellCommandBlockStatus.running) {
+        return false;
+      }
+      final frameText = _frame?.rows.map((row) => row.text).join('\n') ?? '';
+      return frameText.contains(expectedFrameText) ||
+          latestOutputFor(command).contains(expectedFrameText);
+    }, failureMessage: 'command "$command" did not reach running state');
+  }
+
+  void writeInput(String text) {
+    backend.writeInput(sessionId, utf8.encode(text));
+  }
+
+  Future<void> waitForFinishedOutput({
+    required String command,
+    required String expectedOutput,
+  }) async {
+    await _waitUntil(
+      () {
+        pump();
+        final block = _latestBlockFor(command);
+        return block != null &&
+            block.status != ShellCommandBlockStatus.running &&
+            latestOutputFor(command).contains(expectedOutput);
+      },
+      failureMessage:
+          'command "$command" did not finish with "$expectedOutput"',
+    );
+  }
+
+  ShellCommandBlock? latestBlockForCommand(String command) {
+    return _latestBlockFor(command);
+  }
+
+  void _recordSubmittedCapture(String command) {
+    pump();
+    final commandRow = _submittedCommandRowForFrame(_frame);
+    if (commandRow == null) {
+      return;
+    }
+    _finishedTargets.clear();
+    _submittedCaptures[command] = _SubmittedCapture(
+      commandRow: commandRow,
+      submittedAt: DateTime.now(),
+    );
   }
 
   void pump() {
@@ -576,6 +715,7 @@ class _RealPtyCommandBlockHarness {
           _capturedRowsByBlockId[block.id] ?? const <terminal.TerminalRow>[];
       buffer.writeln(
         '${block.id} command=${block.command} '
+        'status=${block.status.name} '
         'range=${block.outputRange.commandRow}:'
         '${block.outputRange.outputStartRow}-${block.outputRange.outputEndRow} '
         'rows=${rows.map((row) => row.text).join(' / ')}',
@@ -874,3 +1014,34 @@ String? _resolveWorkspaceCoreLibraryPath() {
 }
 
 final String? _workspaceCoreLibraryPath = _resolveWorkspaceCoreLibraryPath();
+
+String? _resolveShellPath(String shellName) {
+  final directCandidates = <String>[
+    '/bin/$shellName',
+    '/usr/bin/$shellName',
+    '/opt/homebrew/bin/$shellName',
+    '/usr/local/bin/$shellName',
+  ];
+  for (final candidate in directCandidates) {
+    final file = File(candidate);
+    if (file.existsSync()) {
+      return file.absolute.path;
+    }
+  }
+  final path = Platform.environment['PATH'];
+  if (path == null || path.trim().isEmpty) {
+    return null;
+  }
+  for (final directory in path.split(':')) {
+    if (directory.trim().isEmpty) {
+      continue;
+    }
+    final file = File('$directory/$shellName');
+    if (file.existsSync()) {
+      return file.absolute.path;
+    }
+  }
+  return null;
+}
+
+final String? _bashPath = _resolveShellPath('bash');

@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:app/features/productivity/command_blocks_history_feature_flags.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_command_block_view_models.dart';
+import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -59,6 +60,55 @@ void main() {
       expect(viewModel.blocks.single.showFailureSnapshotAction, isTrue);
       expect(viewModel.blocks.single.showReplayAction, isTrue);
     });
+
+    test('marks running blocks as live terminal output', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 10,
+            endRow: 12,
+            command: 'python manage.py shell',
+            status: ShellCommandBlockStatus.running,
+          ),
+        ],
+        viewportStartRow: 8,
+        viewportEndRow: 24,
+        visibleRows: const [terminal.TerminalRow(index: 3, text: '>>> ')],
+        flags: _enabledFlags(),
+      );
+
+      expect(viewModel.blocks.single.statusLabel, 'running');
+      expect(viewModel.blocks.single.outputUsesLiveTerminal, isTrue);
+      expect(shellCommandBlocksShouldEmbedLiveTerminal(viewModel), isTrue);
+      expect(
+        shellCommandBlocksShouldHideDefaultTerminal(
+          hideWhenVisible: true,
+          viewModel: viewModel,
+        ),
+        isTrue,
+      );
+    });
+
+    test(
+      'completed blocks keep the default terminal hidden behind overlay',
+      () {
+        final viewModel = ShellCommandBlockViewModelBuilder.build(
+          blocks: [_commandBlock(startRow: 10, endRow: 12)],
+          viewportStartRow: 8,
+          viewportEndRow: 24,
+          flags: _enabledFlags(),
+        );
+
+        expect(shellCommandBlocksShouldEmbedLiveTerminal(viewModel), isFalse);
+        expect(
+          shellCommandBlocksShouldHideDefaultTerminal(
+            hideWhenVisible: true,
+            viewModel: viewModel,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test(
       'builds bottom stack newest first with output and duration summary',
