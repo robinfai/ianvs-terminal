@@ -702,13 +702,13 @@ impl TerminalSession {
                     Ok(read) => {
                         let (
                             callback_events,
-                            responses,
                             damage,
                             cursor_before,
                             cursor_after,
                             host_protocol_micros,
                             terminal_process_micros,
                             terminal_process_breakdown,
+                            response_write_micros,
                         ) = {
                             let mut state = reader_session.state.lock();
                             let cursor_before = terminal_cursor_snapshot(state.terminal.cursor());
@@ -718,7 +718,18 @@ impl TerminalSession {
                                 .observe(&buf[..read], reader_session.emulation);
                             let host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
                             let process_started_at = Instant::now();
-                            state.terminal.process(&buf[..read]);
+                            let mut response_write_micros = 0_u64;
+                            process_terminal_output_with_immediate_responses(
+                                &mut state.terminal,
+                                reader_session.emulation,
+                                &buf[..read],
+                                &mut |_, responses| {
+                                    let response_write_started_at = Instant::now();
+                                    let _ = reader_session.writer.lock().write_all(&responses);
+                                    response_write_micros +=
+                                        response_write_started_at.elapsed().as_micros() as u64;
+                                },
+                            );
                             let terminal_process_micros =
                                 process_started_at.elapsed().as_micros() as u64;
                             let terminal_process_breakdown =
@@ -726,19 +737,15 @@ impl TerminalSession {
                             append_transcript(&mut state, &buf[..read]);
                             let damage = state.terminal.drain_active_screen_damage();
                             let cursor_after = terminal_cursor_snapshot(state.terminal.cursor());
-                            let responses = normalize_responses(
-                                reader_session.emulation,
-                                state.terminal.drain_responses(),
-                            );
                             (
                                 callback_events,
-                                responses,
                                 damage,
                                 cursor_before,
                                 cursor_after,
                                 host_protocol_micros,
                                 terminal_process_micros,
                                 terminal_process_breakdown,
+                                response_write_micros,
                             )
                         };
 
@@ -753,12 +760,6 @@ impl TerminalSession {
                         for event in callback_events {
                             reader_session.push_callback_event(event);
                         }
-                        let response_write_started_at = Instant::now();
-                        if !responses.is_empty() {
-                            let _ = reader_session.writer.lock().write_all(&responses);
-                        }
-                        let response_write_micros =
-                            response_write_started_at.elapsed().as_micros() as u64;
                         reader_session.record_input_debug_stats(
                             read,
                             host_protocol_micros,
@@ -2657,6 +2658,37 @@ fn display_width_for_char(value: char) -> usize {
     }
 }
 
+fn process_terminal_output_with_immediate_responses<F>(
+    terminal: &mut Terminal,
+    emulation: TerminalEmulation,
+    bytes: &[u8],
+    response_sink: &mut F,
+) where
+    F: FnMut(usize, Vec<u8>),
+{
+    for (index, byte) in bytes.iter().enumerate() {
+        terminal.process(std::slice::from_ref(byte));
+        drain_terminal_responses_at(terminal, emulation, index + 1, response_sink);
+    }
+}
+
+fn drain_terminal_responses_at<F>(
+    terminal: &mut Terminal,
+    emulation: TerminalEmulation,
+    processed_bytes: usize,
+    response_sink: &mut F,
+) where
+    F: FnMut(usize, Vec<u8>),
+{
+    if !terminal.has_pending_responses() {
+        return;
+    }
+    let responses = normalize_responses(emulation, terminal.drain_responses());
+    if !responses.is_empty() {
+        response_sink(processed_bytes, responses);
+    }
+}
+
 fn normalize_responses(emulation: TerminalEmulation, responses: Vec<u8>) -> Vec<u8> {
     if emulation != TerminalEmulation::Vt220 || responses.is_empty() {
         return responses;
@@ -3282,6 +3314,25 @@ mod tests {
             String::from_utf8(output).unwrap(),
             format!("{VT220_PRIMARY_DA_RESPONSE}{VT220_SECONDARY_DA_RESPONSE}")
         );
+    }
+
+    #[test]
+    fn terminal_responses_are_drained_when_query_sequence_completes() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+        let mut drains = Vec::new();
+
+        process_terminal_output_with_immediate_responses(
+            &mut terminal,
+            TerminalEmulation::Xterm256,
+            b"\x1b[6nabc",
+            &mut |processed_bytes, responses| {
+                drains.push((processed_bytes, String::from_utf8(responses).unwrap()));
+            },
+        );
+
+        assert_eq!(drains.len(), 1);
+        assert_eq!(drains[0].0, b"\x1b[6n".len());
+        assert!(drains[0].1.ends_with('R'));
     }
 
     #[test]

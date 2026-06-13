@@ -699,6 +699,9 @@ Map<String, List<terminal.TerminalRow>> _commandBlockPreviewRowsForFrame(
   ShellCommandBlockSnapshot snapshot,
   terminal.TerminalFrameDiff frame,
 ) {
+  if (frame.modes.alternateScreen) {
+    return const <String, List<terminal.TerminalRow>>{};
+  }
   final rowsByIndex = _terminalRowsByScrollbackIndex(frame);
   final capturedRows = <String, List<terminal.TerminalRow>>{};
   final latestBlock = snapshot.blocks.isEmpty ? null : snapshot.blocks.last;
@@ -926,6 +929,9 @@ shellCommandBlockFinishedPreviewRowsForCurrentFrame({
   DateTime? submittedAt,
   int? endPromptRow,
 }) {
+  if (frame.modes.alternateScreen) {
+    return const <String, List<terminal.TerminalRow>>{};
+  }
   if (snapshot.blocks.isEmpty) {
     return const <String, List<terminal.TerminalRow>>{};
   }
@@ -960,6 +966,9 @@ List<terminal.TerminalRow> shellCommandBlockSubmittedPreviewRowsForFrame({
   required DateTime submittedAt,
   required terminal.TerminalFrameDiff frame,
 }) {
+  if (frame.modes.alternateScreen) {
+    return const <terminal.TerminalRow>[];
+  }
   final rows = _dropLeadingSubmittedCommandRows(
     command: command,
     allowLeadingContinuation: true,
@@ -1601,6 +1610,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _submittedCommandBlockPreviewCapturesBySession.remove(event.sessionId);
         _submittedCommandBlockPreviewBlockIdsBySession.remove(event.sessionId);
         _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
+        _nativeTerminalCommandBlockIdsBySession.remove(event.sessionId);
         _stopCoprocess(event.sessionId);
         _clearCapturedOutput(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
@@ -1630,6 +1640,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
             event.sessionId,
           );
           _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
+          _nativeTerminalCommandBlockIdsBySession.remove(event.sessionId);
           _isHistoryPeekOpen = false;
         });
       }
@@ -1641,6 +1652,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final normalizedHook = ShellCommandBlockShellHookReducer.normalizeHook(
       event.hook,
     );
+    final commandText = event.command?.trim();
 
     final sessionController = ref.read(sessionControllerProvider.notifier);
     final sessionState = ref.read(sessionControllerProvider);
@@ -1652,16 +1664,25 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         )?.shellIntegration.promptMarks ??
         const <TerminalShellPromptMark>[];
     final previousSnapshot = _commandBlockSnapshotsBySession[event.sessionId];
-    final hookPendingPreviewRows = _pendingCommandBlockPreviewRowsFromFrame(
-      previousSnapshot,
+    final previewCapturePaused = _commandBlockPreviewCapturePausedForFrame(
+      event.sessionId,
       frame,
     );
+    final hookPendingPreviewRows = previewCapturePaused
+        ? null
+        : _pendingCommandBlockPreviewRowsFromFrame(
+            event.sessionId,
+            previousSnapshot,
+            frame,
+          );
     final submittedCapture = _submittedCommandBlockPreviewCaptureFor(
       event.sessionId,
-      event.command,
+      commandText,
     );
     final submittedCaptureForMerge =
-        normalizedHook == 'command_finished' && submittedCapture != null
+        normalizedHook == 'command_finished' &&
+            submittedCapture != null &&
+            !previewCapturePaused
         ? _submittedCommandBlockPreviewCaptureWithFrameRows(
             submittedCapture,
             frame,
@@ -1679,17 +1700,14 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       flags: _commandBlocksHistoryFeatureFlags,
       sessionId: event.sessionId,
       hook: normalizedHook,
-      command: event.command,
+      command: commandText,
       cwd: event.cwd,
       exitCode: event.exitCode,
       promptScrollbackOffset:
           preexecSubmittedCommandRow ?? shellHookPromptScrollbackOffset,
       commandStartRow:
           submittedCaptureForMerge?.commandRow ??
-          shellCommandBlockCommandStartRowForFrame(
-            frame,
-            command: event.command,
-          ),
+          shellCommandBlockCommandStartRowForFrame(frame, command: commandText),
       promptMarks: promptMarks,
       viewportEndRow: shellCommandBlockVisibleViewportEndRow(
         viewportStartRow: frame.viewportStartRow,
@@ -1700,29 +1718,31 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!mounted) {
       return;
     }
-    final capturedPreviewRows = _commandBlockPreviewRowsForFrame(
-      snapshot,
-      frame,
-    );
-    capturedPreviewRows.addAll(
-      _pendingCommandBlockPreviewRowsForSnapshot(event.sessionId, snapshot),
-    );
-    capturedPreviewRows.addAll(
-      _pendingCommandBlockPreviewRowsForBlocks(
-        hookPendingPreviewRows,
-        snapshot,
-      ),
-    );
-    final submittedPreviewRows = normalizedHook == 'command_finished'
+    final capturedPreviewRows = previewCapturePaused
+        ? <String, List<terminal.TerminalRow>>{}
+        : _commandBlockPreviewRowsForFrame(snapshot, frame);
+    if (!previewCapturePaused) {
+      capturedPreviewRows.addAll(
+        _pendingCommandBlockPreviewRowsForSnapshot(event.sessionId, snapshot),
+      );
+      capturedPreviewRows.addAll(
+        _pendingCommandBlockPreviewRowsForBlocks(
+          hookPendingPreviewRows,
+          snapshot,
+        ),
+      );
+    }
+    final submittedPreviewRows =
+        normalizedHook == 'command_finished' && !previewCapturePaused
         ? _submittedCommandBlockPreviewRowsForFinishedCommand(
             sessionId: event.sessionId,
             snapshot: snapshot,
-            command: event.command,
+            command: commandText,
             capture: submittedCaptureForMerge,
           )
         : const <String, List<terminal.TerminalRow>>{};
     capturedPreviewRows.addAll(submittedPreviewRows);
-    if (normalizedHook == 'command_finished') {
+    if (normalizedHook == 'command_finished' && !previewCapturePaused) {
       final currentFrameFinishedRows =
           shellCommandBlockFinishedPreviewRowsForCurrentFrame(
             snapshot: snapshot,
@@ -1764,7 +1784,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         );
         _removeSubmittedCommandBlockPreviewCapture(
           event.sessionId,
-          event.command,
+          commandText,
         );
       }
       _removeMatchedPendingCommandBlockPreviewRows(event.sessionId, snapshot);
@@ -1838,6 +1858,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   ) {
     if (!_commandBlocksHistoryFeatureFlags.enabled ||
         !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return;
+    }
+    if (_commandBlockPreviewCapturePausedForFrame(sessionId, frame)) {
       return;
     }
     final captures = _submittedCommandBlockPreviewCapturesBySession[sessionId];
@@ -1992,6 +2015,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         !_commandBlocksHistoryFeatureFlags.commandBlocks) {
       return;
     }
+    if (_commandBlockPreviewCapturePausedForFrame(sessionId, frame)) {
+      return;
+    }
     final snapshot = _commandBlockSnapshotsBySession[sessionId];
     final prompt = snapshot?.lastPrompt;
     if (prompt == null || !mounted) {
@@ -2057,9 +2083,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   _PendingCommandBlockPreviewRows? _pendingCommandBlockPreviewRowsFromFrame(
+    String sessionId,
     ShellCommandBlockSnapshot? snapshot,
     terminal.TerminalFrameDiff frame,
   ) {
+    if (_commandBlockPreviewCapturePausedForFrame(sessionId, frame)) {
+      return null;
+    }
     final prompt = snapshot?.lastPrompt;
     if (prompt == null) {
       return null;
@@ -2101,6 +2131,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         !_commandBlocksHistoryFeatureFlags.commandBlocks) {
       return;
     }
+    if (_commandBlockPreviewCapturePausedForFrame(sessionId, frame)) {
+      return;
+    }
     final snapshot = _commandBlockSnapshotsBySession[sessionId];
     if (snapshot == null || snapshot.blocks.isEmpty || !mounted) {
       return;
@@ -2129,12 +2162,61 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     return captures != null && captures.isNotEmpty;
   }
 
+  bool _commandBlockPreviewCapturePausedForFrame(
+    String sessionId,
+    terminal.TerminalFrameDiff frame,
+  ) {
+    if (frame.modes.alternateScreen) {
+      final snapshot = _commandBlockSnapshotsBySession[sessionId];
+      final blockId = _runningCommandBlockIdForSnapshot(snapshot);
+      if (blockId != null) {
+        _removeCommandBlockPreviewRows(sessionId, blockId);
+      }
+      return true;
+    }
+    final nativeBlockId = _nativeTerminalCommandBlockIdsBySession[sessionId];
+    if (nativeBlockId == null) {
+      return false;
+    }
+    _removeCommandBlockPreviewRows(sessionId, nativeBlockId);
+    return true;
+  }
+
+  String? _runningCommandBlockIdForSnapshot(
+    ShellCommandBlockSnapshot? snapshot,
+  ) {
+    final blocks = snapshot?.blocks;
+    if (blocks == null) {
+      return null;
+    }
+    for (final block in blocks.reversed) {
+      if (block.status == ShellCommandBlockStatus.running) {
+        return block.id;
+      }
+    }
+    return null;
+  }
+
+  void _removeCommandBlockPreviewRows(String sessionId, String blockId) {
+    final rows = _commandBlockPreviewRowsBySession[sessionId];
+    if (rows == null || !rows.containsKey(blockId)) {
+      return;
+    }
+    rows.remove(blockId);
+    if (rows.isEmpty) {
+      _commandBlockPreviewRowsBySession.remove(sessionId);
+    }
+  }
+
   void _captureFinishedCommandBlockPreviewRowsFromFrame(
     String sessionId,
     terminal.TerminalFrameDiff frame,
   ) {
     if (!_commandBlocksHistoryFeatureFlags.enabled ||
         !_commandBlocksHistoryFeatureFlags.commandBlocks) {
+      return;
+    }
+    if (_commandBlockPreviewCapturePausedForFrame(sessionId, frame)) {
       return;
     }
     final snapshot = _commandBlockSnapshotsBySession[sessionId];
@@ -2359,14 +2441,14 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!_commandFinishedNotificationsEnabled) {
       return;
     }
-    final command = event.command;
+    final command = switch (event.command?.trim()) {
+      final text? when text.isNotEmpty => text,
+      _ => null,
+    };
     final exitCode = event.exitCode;
     _sendShellNotification(
       title: 'Command finished',
-      body: [
-        if (command != null && command.trim().isNotEmpty) command.trim(),
-        if (exitCode != null) 'Exit code $exitCode',
-      ].join('\n'),
+      body: [?command, if (exitCode != null) 'Exit code $exitCode'].join('\n'),
       identifier:
           'ianvs-terminal.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );
@@ -2409,6 +2491,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _submittedCommandBlockPreviewCapturesBySession.clear();
         _submittedCommandBlockPreviewBlockIdsBySession.clear();
         _finishedCommandBlockPreviewTargetsBySession.clear();
+        _nativeTerminalCommandBlockIdsBySession.clear();
         _isHistoryPeekOpen = false;
       }
     });

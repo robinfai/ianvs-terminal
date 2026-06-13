@@ -1496,6 +1496,102 @@ void main() {
       },
     );
 
+    test(
+      'does not capture command block preview rows from alternate screen',
+      () {
+        const block = ShellCommandBlock(
+          id: 'session-1:command:20',
+          command: 'vi public.key',
+          cwd: '/Users/dev',
+          status: ShellCommandBlockStatus.running,
+          outputRange: ShellCommandBlockRange(
+            commandRow: 20,
+            outputStartRow: 21,
+            outputEndRow: 40,
+          ),
+        );
+        final snapshot = ShellCommandBlockSnapshot.withBlocks(blocks: [block]);
+
+        final captured = shellCommandBlockPreviewRowsForFrame(
+          snapshot: snapshot,
+          frame: const terminal.TerminalFrameDiff(
+            rows: [
+              terminal.TerminalRow(index: 0, text: '~'),
+              terminal.TerminalRow(index: 1, text: ':q!'),
+            ],
+            cursor: terminal.TerminalCursor(row: 1, col: 3, visible: true),
+            dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 2)],
+            viewportRows: 20,
+            viewportCols: 93,
+            viewportStartRow: 21,
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            modes: terminal.TerminalFrameModes(alternateScreen: true),
+          ),
+        );
+
+        expect(captured, isEmpty);
+      },
+    );
+
+    test('does not capture submitted preview rows from alternate screen', () {
+      final rows = shellCommandBlockSubmittedPreviewRowsForFrame(
+        command: 'vi public.key',
+        commandRow: 20,
+        submittedAt: DateTime(2026, 6, 13),
+        frame: const terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(index: 0, text: '~'),
+            terminal.TerminalRow(index: 1, text: ':q!'),
+          ],
+          cursor: terminal.TerminalCursor(row: 1, col: 3, visible: true),
+          dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 2)],
+          viewportRows: 20,
+          viewportCols: 93,
+          viewportStartRow: 21,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: terminal.TerminalFrameModes(alternateScreen: true),
+        ),
+      );
+
+      expect(rows, isEmpty);
+    });
+
+    test('does not capture finished preview rows from alternate screen', () {
+      const block = ShellCommandBlock(
+        id: 'session-1:command:20',
+        command: 'vi public.key',
+        cwd: '/Users/dev',
+        status: ShellCommandBlockStatus.succeeded,
+        outputRange: ShellCommandBlockRange(
+          commandRow: 20,
+          outputStartRow: 21,
+          outputEndRow: 40,
+        ),
+      );
+
+      final captured = shellCommandBlockFinishedPreviewRowsForCurrentFrame(
+        snapshot: ShellCommandBlockSnapshot.withBlocks(blocks: [block]),
+        frame: const terminal.TerminalFrameDiff(
+          rows: [
+            terminal.TerminalRow(index: 0, text: '~'),
+            terminal.TerminalRow(index: 1, text: ':q!'),
+          ],
+          cursor: terminal.TerminalCursor(row: 1, col: 3, visible: true),
+          dirtyRanges: [terminal.TerminalDirtyRange(start: 0, end: 2)],
+          viewportRows: 20,
+          viewportCols: 93,
+          viewportStartRow: 21,
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          modes: terminal.TerminalFrameModes(alternateScreen: true),
+        ),
+      );
+
+      expect(captured, isEmpty);
+    });
+
     test('replaces captured output when same length rows change content', () {
       expect(
         shellCommandBlockShouldReplacePreviewRows(

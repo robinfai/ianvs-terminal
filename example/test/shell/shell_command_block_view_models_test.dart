@@ -79,11 +79,28 @@ void main() {
 
       expect(viewModel.blocks.single.statusLabel, 'running');
       expect(viewModel.blocks.single.outputUsesLiveTerminal, isTrue);
-      expect(shellCommandBlocksShouldEmbedLiveTerminal(viewModel), isTrue);
+      expect(
+        shellCommandBlocksShouldRenderOverlay(
+          viewModel: viewModel,
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: null,
+        ),
+        isTrue,
+      );
+      expect(
+        shellCommandBlocksShouldEmbedLiveTerminal(
+          viewModel: viewModel,
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: null,
+        ),
+        isTrue,
+      );
       expect(
         shellCommandBlocksShouldHideDefaultTerminal(
           hideWhenVisible: true,
           viewModel: viewModel,
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: null,
         ),
         isTrue,
       );
@@ -99,16 +116,196 @@ void main() {
           flags: _enabledFlags(),
         );
 
-        expect(shellCommandBlocksShouldEmbedLiveTerminal(viewModel), isFalse);
+        expect(
+          shellCommandBlocksShouldRenderOverlay(
+            viewModel: viewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: null,
+          ),
+          isTrue,
+        );
+        expect(
+          shellCommandBlocksShouldEmbedLiveTerminal(
+            viewModel: viewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: null,
+          ),
+          isFalse,
+        );
         expect(
           shellCommandBlocksShouldHideDefaultTerminal(
             hideWhenVisible: true,
             viewModel: viewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: null,
           ),
           isTrue,
         );
       },
     );
+
+    test('alternate screen switches back to native terminal chrome', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 10,
+            endRow: 12,
+            command: 'vi README.md',
+            status: ShellCommandBlockStatus.running,
+          ),
+        ],
+        viewportStartRow: 8,
+        viewportEndRow: 24,
+        visibleRows: const [terminal.TerminalRow(index: 3, text: '~')],
+        flags: _enabledFlags(),
+      );
+      const alternateModes = terminal.TerminalFrameModes(alternateScreen: true);
+      final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
+        viewModel: viewModel,
+        modes: alternateModes,
+        previousBlockId: null,
+      );
+
+      expect(nativeTerminalBlockId, viewModel.blocks.single.id);
+      expect(
+        shellCommandBlocksShouldUseNativeTerminal(
+          modes: alternateModes,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isTrue,
+      );
+      expect(
+        shellCommandBlocksShouldRenderOverlay(
+          viewModel: viewModel,
+          modes: alternateModes,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandBlocksShouldEmbedLiveTerminal(
+          viewModel: viewModel,
+          modes: alternateModes,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandBlocksShouldHideDefaultTerminal(
+          hideWhenVisible: true,
+          viewModel: viewModel,
+          modes: alternateModes,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandInputVisibleForCommandBlocks(
+          flags: _enabledFlags(),
+          modes: alternateModes,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+    });
+
+    test('leaving alternate screen keeps native terminal until finish', () {
+      final runningViewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 10,
+            endRow: 12,
+            command: 'vi README.md',
+            status: ShellCommandBlockStatus.running,
+          ),
+        ],
+        viewportStartRow: 8,
+        viewportEndRow: 24,
+        visibleRows: const [terminal.TerminalRow(index: 3, text: ':q')],
+        flags: _enabledFlags(),
+      );
+      final latchedBlockId = runningViewModel.blocks.single.id;
+      final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
+        viewModel: runningViewModel,
+        modes: terminal.TerminalFrameModes.empty,
+        previousBlockId: latchedBlockId,
+      );
+
+      expect(
+        shellCommandBlocksShouldUseNativeTerminal(
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isTrue,
+      );
+      expect(
+        shellCommandBlocksShouldRenderOverlay(
+          viewModel: runningViewModel,
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandBlocksShouldHideDefaultTerminal(
+          hideWhenVisible: true,
+          viewModel: runningViewModel,
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandInputVisibleForCommandBlocks(
+          flags: _enabledFlags(),
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+    });
+
+    test('finished alternate screen command restores command block chrome', () {
+      final finishedViewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(startRow: 10, endRow: 12, command: 'vi README.md'),
+        ],
+        viewportStartRow: 8,
+        viewportEndRow: 24,
+        visibleRows: const [terminal.TerminalRow(index: 3, text: 'prompt')],
+        flags: _enabledFlags(),
+      );
+      final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
+        viewModel: finishedViewModel,
+        modes: terminal.TerminalFrameModes.empty,
+        previousBlockId: 'cmd-10-12',
+      );
+
+      expect(nativeTerminalBlockId, isNull);
+      expect(
+        shellCommandBlocksShouldUseNativeTerminal(
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandBlocksShouldRenderOverlay(
+          viewModel: finishedViewModel,
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isTrue,
+      );
+      expect(
+        shellCommandInputVisibleForCommandBlocks(
+          flags: _enabledFlags(),
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isTrue,
+      );
+    });
 
     test(
       'builds bottom stack newest first with output and duration summary',

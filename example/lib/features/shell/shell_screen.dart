@@ -161,6 +161,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   _submittedCommandBlockPreviewBlockIdsBySession = {};
   final Map<String, List<_FinishedCommandBlockPreviewCaptureTarget>>
   _finishedCommandBlockPreviewTargetsBySession = {};
+  final Map<String, String> _nativeTerminalCommandBlockIdsBySession = {};
   bool _isHistoryPeekOpen = false;
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
