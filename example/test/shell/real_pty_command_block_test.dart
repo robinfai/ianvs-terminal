@@ -555,6 +555,120 @@ ianvs_readline_probe() {
         : false,
     timeout: const Timeout(Duration(seconds: 20)),
   );
+
+  test(
+    'real PTY vi after ls enters alternate screen instead of command block live output',
+    () async {
+      final libraryPath = _workspaceCoreLibraryPath!;
+      final backend = NativePtyBackend.fromBindings(
+        NativePtyBindings(ffi.DynamicLibrary.open(libraryPath)),
+      );
+      final home = Directory.systemTemp.createTempSync('ianvs-pty-vi-home-');
+      final cwd = Directory.systemTemp.createTempSync('ianvs-pty-vi-cwd-');
+      addTearDown(() {
+        if (home.existsSync()) {
+          home.deleteSync(recursive: true);
+        }
+        if (cwd.existsSync()) {
+          cwd.deleteSync(recursive: true);
+        }
+      });
+      File('${home.path}/.zshrc').writeAsStringSync("PROMPT='%~ % '\n");
+      File('${cwd.path}/public.key').writeAsStringSync('ssh-rsa test-key\n');
+
+      final sessionId = backend.createSession(
+        jsonEncode(<String, Object?>{
+          'id': 'real-pty-command-block-vi-after-ls',
+          'name': 'Real PTY Command Block Vi After Ls',
+          ...terminal.TerminalSessionConfig(
+            launch: terminal.TerminalLaunchConfig(
+              program: '/bin/zsh',
+              env: <String, String>{
+                'HOME': home.path,
+                'ZDOTDIR': home.path,
+                'VIMINIT': '',
+                'EXINIT': '',
+              },
+              cwd: cwd.path,
+            ),
+            scrollbackLines: 1000,
+          ).toJson(),
+        }),
+      );
+      addTearDown(() => backend.closeSession(sessionId));
+      backend.resizeSession(
+        sessionId,
+        cols: 120,
+        rows: 24,
+        pixelWidth: 1200,
+        pixelHeight: 480,
+      );
+
+      final harness = _RealPtyCommandBlockHarness(
+        backend: backend,
+        sessionId: sessionId,
+      );
+      await harness.waitForStartup();
+
+      await harness.runAndExpectOutput(
+        command: 'ls -1',
+        expectedOutput: 'public.key',
+      );
+
+      const command = 'vi public.key';
+      await harness.startAndExpectRunning(
+        command: command,
+        expectedFrameText: 'test-key',
+      );
+      await harness.waitForAlternateScreen(
+        failureMessage: 'vi after ls did not enter alternate screen',
+      );
+
+      final running = harness.latestBlockForCommand(command);
+      expect(running, isNotNull);
+      expect(running!.status, ShellCommandBlockStatus.running);
+      expect(harness.frameModes.alternateScreen, isTrue);
+      expect(
+        shellCommandBlocksShouldUseNativeTerminal(
+          modes: harness.frameModes,
+          nativeTerminalBlockId: running.id,
+        ),
+        isTrue,
+      );
+
+      harness.writeInput(':q!\n');
+      await harness.waitForFinishedCommand(command: command);
+      await harness.waitForPrimaryScreen(
+        failureMessage: 'vi after ls did not return to primary screen',
+      );
+      expect(harness.frameModes.alternateScreen, isFalse);
+
+      await harness.runAndExpectOutput(
+        command: 'ls -1',
+        expectedOutput: 'public.key',
+      );
+      final commandsAfterVi = harness.commandsAfter(command);
+      expect(
+        commandsAfterVi,
+        isNot(
+          contains(
+            predicate<String>(
+              (command) =>
+                  command.contains('rgb:') ||
+                  command.contains(r'$y') ||
+                  command.contains('2R1R82') ||
+                  command.contains('10000'),
+            ),
+          ),
+        ),
+      );
+      expect(harness.describeBlocks(), isNot(contains('command not found')));
+    },
+    skip: _workspaceCoreLibraryPath == null
+        ? 'libianvs_core.dylib is unavailable for this test run.'
+        : false,
+    timeout: const Timeout(Duration(seconds: 30)),
+  );
 }
 
 class _RealPtyCommandBlockHarness {
@@ -640,8 +754,51 @@ class _RealPtyCommandBlockHarness {
     );
   }
 
+  Future<void> waitForFinishedCommand({required String command}) async {
+    await _waitUntil(() {
+      pump();
+      final block = _latestBlockFor(command);
+      return block != null && block.status != ShellCommandBlockStatus.running;
+    }, failureMessage: 'command "$command" did not finish');
+  }
+
   ShellCommandBlock? latestBlockForCommand(String command) {
     return _latestBlockFor(command);
+  }
+
+  List<String> commandsAfter(String command) {
+    var seen = false;
+    final commands = <String>[];
+    for (final block in _snapshot.blocks) {
+      if (seen) {
+        commands.add(block.command);
+      }
+      if (block.command == command) {
+        seen = true;
+      }
+    }
+    return commands;
+  }
+
+  terminal.TerminalFrameModes get frameModes =>
+      _frame?.modes ?? terminal.TerminalFrameModes.empty;
+
+  Future<void> waitForAlternateScreen({
+    String failureMessage = 'alternate screen was not entered',
+  }) async {
+    await _waitUntil(() {
+      pump();
+      return frameModes.alternateScreen;
+    }, failureMessage: failureMessage);
+  }
+
+  Future<void> waitForPrimaryScreen({
+    String failureMessage = 'primary screen was not restored',
+  }) async {
+    await _waitUntil(() {
+      pump();
+      return !frameModes.alternateScreen;
+    }, failureMessage: failureMessage);
   }
 
   void _recordSubmittedCapture(String command) {

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/instant_replay_store.dart';
@@ -98,6 +99,7 @@ Future<void> _pumpShellScreen(
   PasteHistoryRepository? pasteHistoryRepository,
   InstantReplayStore? instantReplayStore,
   ShellNotificationSender? notificationSender,
+  LocalTerminalConfigDocument? localTerminalConfigDocument,
   bool settle = true,
 }) async {
   await tester.pumpWidget(
@@ -114,7 +116,7 @@ Future<void> _pumpShellScreen(
           MemoryAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          MemoryLocalTerminalConfigRepository(null),
+          MemoryLocalTerminalConfigRepository(localTerminalConfigDocument),
         ),
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
@@ -2896,6 +2898,61 @@ void main() {
   });
 
   testWidgets(
+    'alternate screen viewport update hides a running command block overlay',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      fakeBindings.setFrame(1, _terminalFrameJson(rows: const []));
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'vi public.key',
+            'prompt_scrollback_offset': 5,
+            'pwd': '/Users/dev',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('vi public.key'), findsOneWidget);
+      expect(find.text('running'), findsOneWidget);
+      expect(find.text('Live terminal'), findsOneWidget);
+
+      fakeBindings.setFrame(
+        1,
+        _terminalFrameJson(
+          rows: const [
+            {'index': 0, 'text': 'ssh-rsa test-key', 'style_runs': []},
+            {'index': 1, 'text': '~', 'style_runs': []},
+          ],
+          modes: const <String, Object?>{
+            'alternate_screen': true,
+            'bracketed_paste': true,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('vi public.key'), findsNothing);
+      expect(find.text('running'), findsNothing);
+      expect(find.text('Live terminal'), findsNothing);
+    },
+  );
+
+  testWidgets(
     'profile triggers match wrapped logical rows for notifications and send-text actions',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5321,4 +5378,37 @@ void main() {
     _expectSelectedTab(tester, '2');
     expect(fakeBindings.scrollToCalls.last, [2, 13]);
   });
+}
+
+LocalTerminalConfigDocument _commandBlocksHistoryConfig() {
+  return const LocalTerminalConfigDocument(
+    commandBlocksHistory: LocalTerminalCommandBlocksHistoryConfig(
+      enabled: true,
+      commandBlocks: true,
+      historyPeek: true,
+      failureSnapshots: true,
+      reviewWorkspaceEntrypoints: true,
+      outputDiff: true,
+    ),
+  );
+}
+
+Map<String, Object?> _terminalFrameJson({
+  required List<Map<String, Object?>> rows,
+  Map<String, Object?> modes = const <String, Object?>{},
+}) {
+  return <String, Object?>{
+    'rows': rows,
+    'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+    'selection': null,
+    'viewport_rows': 24,
+    'viewport_cols': 80,
+    'dirty_ranges': <Object?>[
+      <String, Object?>{'start': 0, 'end': rows.length},
+    ],
+    'viewport_start_row': 0,
+    'scrollback_offset': 0,
+    'scrollback_max_offset': 0,
+    'modes': modes,
+  };
 }

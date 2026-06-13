@@ -421,49 +421,11 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           });
         }
         final viewportController = sessionController.viewportFor(sessionId);
-        final frame = viewportController.frame;
         final terminalFont =
             terminalConfig?.display.font ?? const terminal.TerminalFontConfig();
         final terminalCursor =
             terminalConfig?.display.cursor ??
             const terminal.TerminalCursorConfig();
-        final commandBlocksViewModel = ShellCommandBlockViewModelBuilder.build(
-          blocks: _commandBlocksForSession(sessionId),
-          viewportStartRow: frame.viewportStartRow,
-          viewportEndRow: frame.viewportStartRow + frame.viewportRows - 1,
-          flags: _commandBlocksHistoryFeatureFlags,
-          visibleRows: frame.rows,
-          capturedRowsByBlockId:
-              _commandBlockPreviewRowsBySession[sessionId] ??
-              const <String, List<terminal.TerminalRow>>{},
-          viewportCols: frame.viewportCols,
-          activeBlockId: _activeCommandBlockId,
-        );
-        final nativeTerminalBlockId =
-            _syncNativeTerminalCommandBlockIdForSession(
-              sessionId,
-              frame.modes,
-              runningBlockId: shellCommandBlocksRunningBlockId(
-                commandBlocksViewModel,
-              ),
-            );
-        final renderCommandBlocksOverlay =
-            shellCommandBlocksShouldRenderOverlay(
-              viewModel: commandBlocksViewModel,
-              modes: frame.modes,
-              nativeTerminalBlockId: nativeTerminalBlockId,
-            );
-        final embedLiveTerminal = shellCommandBlocksShouldEmbedLiveTerminal(
-          viewModel: commandBlocksViewModel,
-          modes: frame.modes,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        );
-        final hideDefaultTerminal = shellCommandBlocksShouldHideDefaultTerminal(
-          hideWhenVisible: _hideDefaultTerminalWhenCommandBlocksVisible,
-          viewModel: commandBlocksViewModel,
-          modes: frame.modes,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        );
         void handleMeasuredCellSizeChanged(Size cellSize) {
           if (!mounted) {
             return;
@@ -532,192 +494,247 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           );
         }
 
-        return Listener(
-          onPointerDown: (event) {
-            if (!isActive && (event.buttons & kPrimaryMouseButton) != 0) {
-              _activateSession(sessionController, sessionId);
-            }
-            final frame = sessionController.viewportFor(sessionId).frame;
-            final shouldMiddlePaste =
-                frame.modes.mouseMode == 'off' &&
-                (event.buttons & kMiddleMouseButton) != 0;
-            if (shouldMiddlePaste) {
-              unawaited(_pasteToSession(sessionId));
-            }
-          },
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isActive
-                    ? palette.focusRing.withValues(alpha: 0.78)
-                    : Colors.transparent,
-                width: isActive ? 1.5 : 1,
-              ),
-            ),
-            child: Stack(
-              children: [
-                if (hideDefaultTerminal)
-                  Positioned.fill(
-                    child: ColoredBox(color: terminalColors.canvasBackground),
-                  )
-                else
-                  Positioned.fill(
-                    child: buildSessionTerminalViewport(
-                      terminalFocusNode: focusNode,
-                      contentPadding: terminalViewportPadding,
-                      onMeasuredCellSizeChanged: handleMeasuredCellSizeChanged,
-                    ),
+        return ListenableBuilder(
+          listenable: viewportController,
+          builder: (context, _) {
+            final frame = viewportController.frame;
+            final commandBlocksViewModel =
+                ShellCommandBlockViewModelBuilder.build(
+                  blocks: _commandBlocksForSession(sessionId),
+                  viewportStartRow: frame.viewportStartRow,
+                  viewportEndRow:
+                      frame.viewportStartRow + frame.viewportRows - 1,
+                  flags: _commandBlocksHistoryFeatureFlags,
+                  visibleRows: frame.rows,
+                  capturedRowsByBlockId:
+                      _commandBlockPreviewRowsBySession[sessionId] ??
+                      const <String, List<terminal.TerminalRow>>{},
+                  viewportCols: frame.viewportCols,
+                  activeBlockId: _activeCommandBlockId,
+                );
+            final nativeTerminalBlockId =
+                _syncNativeTerminalCommandBlockIdForSession(
+                  sessionId,
+                  frame.modes,
+                  runningBlockId: shellCommandBlocksRunningBlockId(
+                    commandBlocksViewModel,
                   ),
-                if (renderCommandBlocksOverlay)
-                  Positioned.fill(
-                    child: ShellCommandBlocksOverlay(
-                      viewModel: commandBlocksViewModel,
-                      rowHeight:
-                          _measuredTerminalCellSizes[sessionId]?.height ??
-                          terminal.terminalFallbackCellSize.height,
-                      colors: terminalColors,
-                      font: terminalFont,
-                      cursor: terminalCursor,
-                      contentPadding: terminalViewportPadding,
-                      liveTerminalRows: frame.viewportRows,
-                      liveTerminalBuilder: embedLiveTerminal
-                          ? (context, block) => buildSessionTerminalViewport(
-                              key: Key(
-                                'shell-command-block-live-terminal-viewport-'
-                                '${block.id}',
-                              ),
-                              contentPadding: EdgeInsets.zero,
-                              onMeasuredCellSizeChanged: hideDefaultTerminal
-                                  ? handleMeasuredCellSizeChanged
-                                  : null,
-                            )
-                          : null,
-                    ),
+                );
+            final renderCommandBlocksOverlay =
+                shellCommandBlocksShouldRenderOverlay(
+                  viewModel: commandBlocksViewModel,
+                  modes: frame.modes,
+                  nativeTerminalBlockId: nativeTerminalBlockId,
+                );
+            final embedLiveTerminal = shellCommandBlocksShouldEmbedLiveTerminal(
+              viewModel: commandBlocksViewModel,
+              modes: frame.modes,
+              nativeTerminalBlockId: nativeTerminalBlockId,
+            );
+            final hideDefaultTerminal =
+                shellCommandBlocksShouldHideDefaultTerminal(
+                  hideWhenVisible: _hideDefaultTerminalWhenCommandBlocksVisible,
+                  viewModel: commandBlocksViewModel,
+                  modes: frame.modes,
+                  nativeTerminalBlockId: nativeTerminalBlockId,
+                );
+
+            return Listener(
+              onPointerDown: (event) {
+                if (!isActive && (event.buttons & kPrimaryMouseButton) != 0) {
+                  _activateSession(sessionController, sessionId);
+                }
+                final shouldMiddlePaste =
+                    frame.modes.mouseMode == 'off' &&
+                    (event.buttons & kMiddleMouseButton) != 0;
+                if (shouldMiddlePaste) {
+                  unawaited(_pasteToSession(sessionId));
+                }
+              },
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: isActive
+                        ? palette.focusRing.withValues(alpha: 0.78)
+                        : Colors.transparent,
+                    width: isActive ? 1.5 : 1,
                   ),
-                if (!isActive)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: ColoredBox(
-                        key: Key('shell-pane-dim-$sessionId'),
-                        color: palette.inactiveScrim,
-                      ),
-                    ),
-                  ),
-                if (isActive && _isSearchOpen)
-                  Positioned(
-                    top: _ShellScreenState._terminalOverlayPadding.top,
-                    left: _ShellScreenState._terminalOverlayPadding.left,
-                    right: _ShellScreenState._terminalOverlayPadding.right,
-                    child: Align(
-                      alignment: Alignment.topRight,
-                      child: _TerminalSearchBar(
-                        query: _searchQuery,
-                        matches: _searchMatches.length,
-                        activeIndex: _activeSearchIndex,
-                        searchMode: _searchMode,
-                        errorText: _searchErrorText,
-                        palette: palette,
-                        focusNode: _searchFocusNode,
-                        focusRequestSerial: _searchFocusRequestSerial,
-                        onChanged: _searchScrollback,
-                        onClear: _clearSearch,
-                        onModeChanged: _setSearchMode,
-                        onPrevious: () => _moveSearchMatch(1),
-                        onNext: () => _moveSearchMatch(-1),
-                        onClose: _closeSearch,
-                      ),
-                    ),
-                  ),
-                if (isActive && _isAutocompleteOpen)
-                  Positioned(
-                    top: _ShellScreenState._terminalOverlayPadding.top,
-                    right: _ShellScreenState._terminalOverlayPadding.right,
-                    child: _TerminalAutocompleteMenu(
-                      prefix: _autocompletePrefix,
-                      suggestions: _autocompleteSuggestions,
-                      activeIndex: _activeAutocompleteIndex,
-                      palette: palette,
-                      onPrevious: () => _moveAutocompleteSelection(-1),
-                      onNext: () => _moveAutocompleteSelection(1),
-                      onAccept: _acceptAutocomplete,
-                      onClose: _closeAutocomplete,
-                    ),
-                  ),
-                if (isActive && _isAutoComposerOpen)
-                  Positioned(
-                    left: _ShellScreenState._terminalOverlayPadding.left,
-                    right: _ShellScreenState._terminalOverlayPadding.right,
-                    bottom: _ShellScreenState._terminalOverlayPadding.bottom,
-                    child: _TerminalAutoComposer(
-                      controller: _autoComposerController,
-                      focusNode: _autoComposerFocusNode,
-                      suggestions: _autoComposerSuggestions,
-                      activeIndex: _activeAutoComposerIndex,
-                      palette: palette,
-                      onChanged: _updateAutoComposerSuggestions,
-                      onPrevious: () => _moveAutoComposerSuggestion(-1),
-                      onNext: () => _moveAutoComposerSuggestion(1),
-                      onAcceptSuggestion: _acceptAutoComposerSuggestion,
-                      onSend: _sendAutoComposerCommand,
-                      onClose: _closeAutoComposer,
-                    ),
-                  ),
-                if (isActive &&
-                    activeCoprocess != null &&
-                    !_isSearchOpen &&
-                    !_isAutocompleteOpen &&
-                    !_isAutoComposerOpen)
-                  Positioned(
-                    top: _ShellScreenState._terminalOverlayPadding.top,
-                    right: _ShellScreenState._terminalOverlayPadding.right,
-                    child: _CoprocessIndicator(
-                      key: Key('terminal-coprocess-indicator-$sessionId'),
-                      command: activeCoprocess.command,
-                      palette: palette,
-                    ),
-                  ),
-                if (isActive && _isCopyModeOpen)
-                  Positioned(
-                    top: _ShellScreenState._terminalOverlayPadding.top,
-                    left: _ShellScreenState._terminalOverlayPadding.left,
-                    child: IgnorePointer(
-                      child: _ShellWorkspaceCue(
-                        title: 'Copy mode',
-                        palette: palette,
-                      ),
-                    ),
-                  ),
-                if (isActive && annotations.isNotEmpty && !_isAutoComposerOpen)
-                  Positioned(
-                    left: _ShellScreenState._terminalOverlayPadding.left,
-                    bottom: _ShellScreenState._terminalOverlayPadding.bottom,
-                    child: _TerminalAnnotationBadge(
-                      key: Key('terminal-annotation-badge-$sessionId'),
-                      count: annotations.length,
-                      palette: palette,
-                      onTap: () => unawaited(
-                        _openAnnotations(
-                          sessionController,
-                          sessionId,
-                          selectionController,
+                ),
+                child: Stack(
+                  children: [
+                    if (hideDefaultTerminal)
+                      Positioned.fill(
+                        child: ColoredBox(
+                          color: terminalColors.canvasBackground,
+                        ),
+                      )
+                    else
+                      Positioned.fill(
+                        child: buildSessionTerminalViewport(
+                          terminalFocusNode: focusNode,
+                          contentPadding: terminalViewportPadding,
+                          onMeasuredCellSizeChanged:
+                              handleMeasuredCellSizeChanged,
                         ),
                       ),
-                    ),
-                  ),
-                if (isActive && _showWorkspaceCue)
-                  Positioned(
-                    top: _ShellScreenState._terminalOverlayPadding.top,
-                    right: _ShellScreenState._terminalOverlayPadding.right,
-                    child: IgnorePointer(
-                      child: _ShellWorkspaceCue(
-                        title: _workspaceCueTitle,
-                        palette: palette,
+                    if (renderCommandBlocksOverlay)
+                      Positioned.fill(
+                        child: ShellCommandBlocksOverlay(
+                          viewModel: commandBlocksViewModel,
+                          rowHeight:
+                              _measuredTerminalCellSizes[sessionId]?.height ??
+                              terminal.terminalFallbackCellSize.height,
+                          colors: terminalColors,
+                          font: terminalFont,
+                          cursor: terminalCursor,
+                          contentPadding: terminalViewportPadding,
+                          liveTerminalRows: frame.viewportRows,
+                          liveTerminalBuilder: embedLiveTerminal
+                              ? (context, block) =>
+                                    buildSessionTerminalViewport(
+                                      key: Key(
+                                        'shell-command-block-live-terminal-'
+                                        'viewport-${block.id}',
+                                      ),
+                                      contentPadding: EdgeInsets.zero,
+                                      onMeasuredCellSizeChanged:
+                                          hideDefaultTerminal
+                                          ? handleMeasuredCellSizeChanged
+                                          : null,
+                                    )
+                              : null,
+                        ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+                    if (!isActive)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: ColoredBox(
+                            key: Key('shell-pane-dim-$sessionId'),
+                            color: palette.inactiveScrim,
+                          ),
+                        ),
+                      ),
+                    if (isActive && _isSearchOpen)
+                      Positioned(
+                        top: _ShellScreenState._terminalOverlayPadding.top,
+                        left: _ShellScreenState._terminalOverlayPadding.left,
+                        right: _ShellScreenState._terminalOverlayPadding.right,
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: _TerminalSearchBar(
+                            query: _searchQuery,
+                            matches: _searchMatches.length,
+                            activeIndex: _activeSearchIndex,
+                            searchMode: _searchMode,
+                            errorText: _searchErrorText,
+                            palette: palette,
+                            focusNode: _searchFocusNode,
+                            focusRequestSerial: _searchFocusRequestSerial,
+                            onChanged: _searchScrollback,
+                            onClear: _clearSearch,
+                            onModeChanged: _setSearchMode,
+                            onPrevious: () => _moveSearchMatch(1),
+                            onNext: () => _moveSearchMatch(-1),
+                            onClose: _closeSearch,
+                          ),
+                        ),
+                      ),
+                    if (isActive && _isAutocompleteOpen)
+                      Positioned(
+                        top: _ShellScreenState._terminalOverlayPadding.top,
+                        right: _ShellScreenState._terminalOverlayPadding.right,
+                        child: _TerminalAutocompleteMenu(
+                          prefix: _autocompletePrefix,
+                          suggestions: _autocompleteSuggestions,
+                          activeIndex: _activeAutocompleteIndex,
+                          palette: palette,
+                          onPrevious: () => _moveAutocompleteSelection(-1),
+                          onNext: () => _moveAutocompleteSelection(1),
+                          onAccept: _acceptAutocomplete,
+                          onClose: _closeAutocomplete,
+                        ),
+                      ),
+                    if (isActive && _isAutoComposerOpen)
+                      Positioned(
+                        left: _ShellScreenState._terminalOverlayPadding.left,
+                        right: _ShellScreenState._terminalOverlayPadding.right,
+                        bottom:
+                            _ShellScreenState._terminalOverlayPadding.bottom,
+                        child: _TerminalAutoComposer(
+                          controller: _autoComposerController,
+                          focusNode: _autoComposerFocusNode,
+                          suggestions: _autoComposerSuggestions,
+                          activeIndex: _activeAutoComposerIndex,
+                          palette: palette,
+                          onChanged: _updateAutoComposerSuggestions,
+                          onPrevious: () => _moveAutoComposerSuggestion(-1),
+                          onNext: () => _moveAutoComposerSuggestion(1),
+                          onAcceptSuggestion: _acceptAutoComposerSuggestion,
+                          onSend: _sendAutoComposerCommand,
+                          onClose: _closeAutoComposer,
+                        ),
+                      ),
+                    if (isActive &&
+                        activeCoprocess != null &&
+                        !_isSearchOpen &&
+                        !_isAutocompleteOpen &&
+                        !_isAutoComposerOpen)
+                      Positioned(
+                        top: _ShellScreenState._terminalOverlayPadding.top,
+                        right: _ShellScreenState._terminalOverlayPadding.right,
+                        child: _CoprocessIndicator(
+                          key: Key('terminal-coprocess-indicator-$sessionId'),
+                          command: activeCoprocess.command,
+                          palette: palette,
+                        ),
+                      ),
+                    if (isActive && _isCopyModeOpen)
+                      Positioned(
+                        top: _ShellScreenState._terminalOverlayPadding.top,
+                        left: _ShellScreenState._terminalOverlayPadding.left,
+                        child: IgnorePointer(
+                          child: _ShellWorkspaceCue(
+                            title: 'Copy mode',
+                            palette: palette,
+                          ),
+                        ),
+                      ),
+                    if (isActive &&
+                        annotations.isNotEmpty &&
+                        !_isAutoComposerOpen)
+                      Positioned(
+                        left: _ShellScreenState._terminalOverlayPadding.left,
+                        bottom:
+                            _ShellScreenState._terminalOverlayPadding.bottom,
+                        child: _TerminalAnnotationBadge(
+                          key: Key('terminal-annotation-badge-$sessionId'),
+                          count: annotations.length,
+                          palette: palette,
+                          onTap: () => unawaited(
+                            _openAnnotations(
+                              sessionController,
+                              sessionId,
+                              selectionController,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (isActive && _showWorkspaceCue)
+                      Positioned(
+                        top: _ShellScreenState._terminalOverlayPadding.top,
+                        right: _ShellScreenState._terminalOverlayPadding.right,
+                        child: IgnorePointer(
+                          child: _ShellWorkspaceCue(
+                            title: _workspaceCueTitle,
+                            palette: palette,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );

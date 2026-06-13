@@ -2680,7 +2680,7 @@ fn drain_terminal_responses_at<F>(
 ) where
     F: FnMut(usize, Vec<u8>),
 {
-    if !terminal.has_pending_responses() {
+    if !terminal.can_drain_responses() {
         return;
     }
     let responses = normalize_responses(emulation, terminal.drain_responses());
@@ -3333,6 +3333,49 @@ mod tests {
         assert_eq!(drains.len(), 1);
         assert_eq!(drains[0].0, b"\x1b[6n".len());
         assert!(drains[0].1.ends_with('R'));
+    }
+
+    #[test]
+    fn terminal_responses_are_drained_before_following_plain_bytes() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+        let segments: &[(&[u8], bool)] = &[
+            (b"\x1b[>c", true),
+            (b"plain-a", false),
+            (b"\x1b]10;?\x07", true),
+            (b"plain-b", false),
+            (b"\x1b]11;?\x1b\\", true),
+            (b"plain-c", false),
+            (b"\x1b[?12$p", true),
+            (b"plain-d", false),
+        ];
+        let mut input = Vec::new();
+        let mut expected_offsets = Vec::new();
+        for (bytes, expects_response) in segments {
+            input.extend_from_slice(bytes);
+            if *expects_response {
+                expected_offsets.push(input.len());
+            }
+        }
+        let mut drains = Vec::new();
+
+        process_terminal_output_with_immediate_responses(
+            &mut terminal,
+            TerminalEmulation::Xterm256,
+            &input,
+            &mut |processed_bytes, responses| {
+                drains.push((processed_bytes, String::from_utf8(responses).unwrap()));
+            },
+        );
+
+        let actual_offsets = drains
+            .iter()
+            .map(|(processed_bytes, _)| *processed_bytes)
+            .collect::<Vec<_>>();
+        assert_eq!(actual_offsets, expected_offsets);
+        assert!(drains[0].1.contains("\x1b[>82;10000;0c"));
+        assert!(drains[1].1.starts_with("\x1b]10;rgb:"));
+        assert!(drains[2].1.starts_with("\x1b]11;rgb:"));
+        assert!(drains[3].1.contains("$y"));
     }
 
     #[test]
