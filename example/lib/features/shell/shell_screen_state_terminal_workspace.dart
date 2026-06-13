@@ -154,8 +154,29 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     } else {
       _nativeTerminalCommandBlockIdsBySession[sessionId] =
           nativeTerminalBlockId;
+      _nativeTerminalCommandBlockIdsSeenBySession
+          .putIfAbsent(sessionId, () => <String>{})
+          .add(nativeTerminalBlockId);
     }
     return nativeTerminalBlockId;
+  }
+
+  Map<String, List<terminal.TerminalRow>> _capturedCommandBlockRowsForSession(
+    String sessionId,
+  ) {
+    final capturedRows =
+        _commandBlockPreviewRowsBySession[sessionId] ??
+        const <String, List<terminal.TerminalRow>>{};
+    final nativeBlockIds =
+        _nativeTerminalCommandBlockIdsSeenBySession[sessionId];
+    if (nativeBlockIds == null || nativeBlockIds.isEmpty) {
+      return capturedRows;
+    }
+    return <String, List<terminal.TerminalRow>>{
+      ...capturedRows,
+      for (final blockId in nativeBlockIds)
+        blockId: const <terminal.TerminalRow>[],
+    };
   }
 
   TextEditingController _commandInputControllerFor(String sessionId) {
@@ -506,9 +527,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                       frame.viewportStartRow + frame.viewportRows - 1,
                   flags: _commandBlocksHistoryFeatureFlags,
                   visibleRows: frame.rows,
-                  capturedRowsByBlockId:
-                      _commandBlockPreviewRowsBySession[sessionId] ??
-                      const <String, List<terminal.TerminalRow>>{},
+                  capturedRowsByBlockId: _capturedCommandBlockRowsForSession(
+                    sessionId,
+                  ),
                   viewportCols: frame.viewportCols,
                   activeBlockId: _activeCommandBlockId,
                 );

@@ -307,6 +307,28 @@ void main() {
       );
     });
 
+    test('empty captured rows suppress visible fallback output', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(startRow: 10, endRow: 12, command: 'vi public.key'),
+        ],
+        viewportStartRow: 8,
+        viewportEndRow: 24,
+        visibleRows: const [
+          terminal.TerminalRow(
+            index: 3,
+            text: '2R1R82;10000;0c11;rgb:0000/0000/000010;2m12;0\$y',
+          ),
+        ],
+        capturedRowsByBlockId: const {'cmd-10-12': <terminal.TerminalRow>[]},
+        flags: _enabledFlags(),
+      );
+
+      expect(viewModel.blocks.single.terminalRows, isEmpty);
+      expect(viewModel.blocks.single.outputPreview, isEmpty);
+      expect(viewModel.blocks.single.outputRangeLabel, 'rows 11-12');
+    });
+
     test(
       'builds bottom stack newest first with output and duration summary',
       () {

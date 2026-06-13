@@ -628,6 +628,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               _commandBlockSnapshotsBySession.remove(currentSessionId);
               _commandBlockPreviewRowsBySession.remove(currentSessionId);
               _nativeTerminalCommandBlockIdsBySession.remove(currentSessionId);
+              _nativeTerminalCommandBlockIdsSeenBySession.remove(
+                currentSessionId,
+              );
               _isHistoryPeekOpen = false;
             });
           }

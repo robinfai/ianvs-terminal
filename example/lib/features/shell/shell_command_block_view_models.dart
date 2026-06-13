@@ -110,7 +110,7 @@ class ShellCommandBlockViewModelBuilder {
       final visibleEnd = min(block.endRow, viewportEndRow);
       final capturedRows =
           capturedRowsByBlockId[block.id] ?? const <terminal.TerminalRow>[];
-      final preferCapturedRows = capturedRows.isNotEmpty;
+      final preferCapturedRows = capturedRowsByBlockId.containsKey(block.id);
       final terminalRows = _terminalRows(
         block,
         rowsByIndex,
@@ -198,11 +198,15 @@ List<terminal.TerminalRow> _terminalRowsForRange(
   List<terminal.TerminalRow> fallbackRows = const <terminal.TerminalRow>[],
   bool preferFallbackRows = false,
 }) {
-  if (preferFallbackRows && fallbackRows.isNotEmpty) {
+  if (preferFallbackRows) {
+    if (fallbackRows.isEmpty) {
+      return const <terminal.TerminalRow>[];
+    }
     final fallback = shellCommandBlockOutputRowsFrom(block, fallbackRows);
     if (_terminalRowsHaveVisibleText(fallback)) {
       return fallback;
     }
+    return const <terminal.TerminalRow>[];
   }
   final rows = shellCommandBlockOutputRowsFrom(
     block,
@@ -371,11 +375,15 @@ String _outputPreview(
   bool preferFallbackRows = false,
 }) {
   final lines = <String>[];
-  if (preferFallbackRows && fallbackRows.isNotEmpty) {
+  if (preferFallbackRows) {
+    if (fallbackRows.isEmpty) {
+      return '';
+    }
     _addOutputPreviewLinesFromRows(block, fallbackRows, lines);
     if (lines.isNotEmpty) {
       return lines.join('\n');
     }
+    return '';
   }
   final range = block.outputRange;
   for (var row = range.outputStartRow; row <= range.outputEndRow; row += 1) {

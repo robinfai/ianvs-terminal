@@ -1611,6 +1611,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _submittedCommandBlockPreviewBlockIdsBySession.remove(event.sessionId);
         _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
         _nativeTerminalCommandBlockIdsBySession.remove(event.sessionId);
+        _nativeTerminalCommandBlockIdsSeenBySession.remove(event.sessionId);
         _stopCoprocess(event.sessionId);
         _clearCapturedOutput(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
@@ -1641,6 +1642,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           );
           _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
           _nativeTerminalCommandBlockIdsBySession.remove(event.sessionId);
+          _nativeTerminalCommandBlockIdsSeenBySession.remove(event.sessionId);
           _isHistoryPeekOpen = false;
         });
       }
@@ -2298,6 +2300,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (entry.value.isEmpty) {
         continue;
       }
+      if (_commandBlockPreviewSuppressed(sessionId, entry.key)) {
+        continue;
+      }
       final existing = existingRows[entry.key];
       if (shellCommandBlockPreviewRowsWouldChange(
         existingRows: existing,
@@ -2319,7 +2324,16 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (retainedBlockIds.isEmpty) {
       _commandBlockPreviewRowsBySession.remove(sessionId);
       _submittedCommandBlockPreviewBlockIdsBySession.remove(sessionId);
+      _nativeTerminalCommandBlockIdsSeenBySession.remove(sessionId);
       return;
+    }
+    final nativeBlockIds =
+        _nativeTerminalCommandBlockIdsSeenBySession[sessionId];
+    nativeBlockIds?.removeWhere(
+      (blockId) => !retainedBlockIds.contains(blockId),
+    );
+    if (nativeBlockIds != null && nativeBlockIds.isEmpty) {
+      _nativeTerminalCommandBlockIdsSeenBySession.remove(sessionId);
     }
     final sessionRows = _commandBlockPreviewRowsBySession.putIfAbsent(
       sessionId,
@@ -2335,6 +2349,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     );
     for (final entry in capturedRows.entries) {
       if (entry.value.isEmpty) {
+        continue;
+      }
+      if (_commandBlockPreviewSuppressed(sessionId, entry.key)) {
         continue;
       }
       final existing = sessionRows[entry.key];
@@ -2363,6 +2380,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (sessionRows.isEmpty) {
       _commandBlockPreviewRowsBySession.remove(sessionId);
     }
+  }
+
+  bool _commandBlockPreviewSuppressed(String sessionId, String blockId) {
+    return _nativeTerminalCommandBlockIdsSeenBySession[sessionId]?.contains(
+          blockId,
+        ) ??
+        false;
   }
 
   void _notifyInactiveActivity(
@@ -2492,6 +2516,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _submittedCommandBlockPreviewBlockIdsBySession.clear();
         _finishedCommandBlockPreviewTargetsBySession.clear();
         _nativeTerminalCommandBlockIdsBySession.clear();
+        _nativeTerminalCommandBlockIdsSeenBySession.clear();
         _isHistoryPeekOpen = false;
       }
     });

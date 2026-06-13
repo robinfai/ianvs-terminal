@@ -162,6 +162,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, List<_FinishedCommandBlockPreviewCaptureTarget>>
   _finishedCommandBlockPreviewTargetsBySession = {};
   final Map<String, String> _nativeTerminalCommandBlockIdsBySession = {};
+  final Map<String, Set<String>> _nativeTerminalCommandBlockIdsSeenBySession =
+      {};
   bool _isHistoryPeekOpen = false;
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
@@ -963,18 +965,35 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ),
                 ),
               ),
-              if (commandInputSessionId != null &&
-                  _commandInputVisibleForSession(commandInputSessionId))
-                ShellCommandInputBar(
-                  key: ValueKey('shell-command-input-$commandInputSessionId'),
-                  controller: _commandInputControllerFor(commandInputSessionId),
-                  focusNode: _commandInputFocusNodeFor(commandInputSessionId),
-                  enabled: !_isSessionReadOnly(commandInputSessionId),
-                  cwd: statusDirectory?.trim().isNotEmpty == true
-                      ? statusDirectory!.trim()
-                      : statusProfile?.cwd,
-                  onSubmitted: (command) =>
-                      _submitCommandInput(commandInputSessionId, command),
+              if (commandInputSessionId != null)
+                ListenableBuilder(
+                  listenable: sessionController.viewportFor(
+                    commandInputSessionId,
+                  ),
+                  builder: (context, _) {
+                    if (!_commandInputVisibleForSession(
+                      commandInputSessionId,
+                    )) {
+                      return const SizedBox.shrink();
+                    }
+                    return ShellCommandInputBar(
+                      key: ValueKey(
+                        'shell-command-input-$commandInputSessionId',
+                      ),
+                      controller: _commandInputControllerFor(
+                        commandInputSessionId,
+                      ),
+                      focusNode: _commandInputFocusNodeFor(
+                        commandInputSessionId,
+                      ),
+                      enabled: !_isSessionReadOnly(commandInputSessionId),
+                      cwd: statusDirectory?.trim().isNotEmpty == true
+                          ? statusDirectory!.trim()
+                          : statusProfile?.cwd,
+                      onSubmitted: (command) =>
+                          _submitCommandInput(commandInputSessionId, command),
+                    );
+                  },
                 ),
               if (statusPane != null)
                 if (statusViewportController == null ||

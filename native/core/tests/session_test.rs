@@ -2978,6 +2978,45 @@ fn session_debug_stats_accumulate_input_processing_costs() {
 }
 
 #[test]
+fn asciinema_export_records_output_and_validates_replay_rendering() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_containing(session_id, "hello");
+
+    let request = serde_json::json!({"kind": "terminal.export_asciinema"});
+    let response = session::request_session_json(session_id, &request.to_string())
+        .unwrap()
+        .expect("expected asciinema export response");
+    let parsed: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let content = parsed["content"]
+        .as_str()
+        .expect("asciinema export should include content");
+    let mut lines = content.lines();
+    let header: serde_json::Value =
+        serde_json::from_str(lines.next().expect("missing asciinema header")).unwrap();
+    let first_event: serde_json::Value =
+        serde_json::from_str(lines.next().expect("missing asciinema output event")).unwrap();
+
+    assert_eq!(parsed["format"].as_str(), Some("asciinema-v2"));
+    assert_eq!(parsed["scope"].as_str(), Some("terminal-output-asciinema"));
+    assert_eq!(parsed["event_count"].as_u64(), Some(1));
+    assert_eq!(parsed["truncated"].as_bool(), Some(false));
+    assert_eq!(parsed["validation"]["matched"].as_bool(), Some(true));
+    assert_eq!(parsed["validation"]["mismatch_count"].as_u64(), Some(0));
+    assert_eq!(header["version"].as_u64(), Some(2));
+    assert_eq!(header["env"]["TERM"].as_str(), Some("xterm-256color"));
+    assert_eq!(first_event[1].as_str(), Some("o"));
+    assert!(
+        first_event[2]
+            .as_str()
+            .unwrap_or_default()
+            .contains("hello")
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn diagnostics_export_returns_privacy_preserving_evidence_package() {
     let session_id =
         session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();

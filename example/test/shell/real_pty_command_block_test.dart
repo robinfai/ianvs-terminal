@@ -513,10 +513,10 @@ ianvs_readline_probe() {
       addTearDown(() => backend.closeSession(sessionId));
       backend.resizeSession(
         sessionId,
-        cols: 120,
-        rows: 24,
-        pixelWidth: 1200,
-        pixelHeight: 480,
+        cols: 93,
+        rows: 20,
+        pixelWidth: 930,
+        pixelHeight: 400,
       );
 
       final harness = _RealPtyCommandBlockHarness(
@@ -583,12 +583,7 @@ ianvs_readline_probe() {
           ...terminal.TerminalSessionConfig(
             launch: terminal.TerminalLaunchConfig(
               program: '/bin/zsh',
-              env: <String, String>{
-                'HOME': home.path,
-                'ZDOTDIR': home.path,
-                'VIMINIT': '',
-                'EXINIT': '',
-              },
+              env: <String, String>{'HOME': home.path, 'ZDOTDIR': home.path},
               cwd: cwd.path,
             ),
             scrollbackLines: 1000,
@@ -623,6 +618,15 @@ ianvs_readline_probe() {
       await harness.waitForAlternateScreen(
         failureMessage: 'vi after ls did not enter alternate screen',
       );
+      backend.resizeSession(
+        sessionId,
+        cols: 93,
+        rows: 22,
+        pixelWidth: 930,
+        pixelHeight: 440,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      harness.pump();
 
       final running = harness.latestBlockForCommand(command);
       expect(running, isNotNull);
@@ -636,8 +640,17 @@ ianvs_readline_probe() {
         isTrue,
       );
 
-      harness.writeInput(':q!\n');
+      harness.writeInput('ZQ');
       await harness.waitForFinishedCommand(command: command);
+      backend.resizeSession(
+        sessionId,
+        cols: 93,
+        rows: 20,
+        pixelWidth: 930,
+        pixelHeight: 400,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      harness.pump();
       await harness.waitForPrimaryScreen(
         failureMessage: 'vi after ls did not return to primary screen',
       );

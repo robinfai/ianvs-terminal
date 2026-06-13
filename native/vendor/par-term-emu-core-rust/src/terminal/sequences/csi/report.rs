@@ -50,10 +50,15 @@ impl Terminal {
             'c' => {
                 // Device Attributes (DA)
                 if intermediates.contains(&b'>') {
-                    // Secondary DA - response: CSI > 82 ; 10000 ; 0 c
-                    // (par-term version 82, 10000 = scrollback, 0 = ROM)
-                    self.push_response(b"\x1b[>82;10000;0c");
-                } else {
+                    // Secondary DA query: CSI > c or CSI > 0 c.
+                    // Secondary DA responses such as CSI > 82 ; 10000 ; 0 c
+                    // are terminal-to-application replies and must not trigger
+                    // another reply if they appear in output.
+                    if is_default_csi_query(params) {
+                        // (par-term version 82, 10000 = scrollback, 0 = ROM)
+                        self.push_response(b"\x1b[>82;10000;0c");
+                    }
+                } else if !private && is_default_csi_query(params) {
                     // Primary DA - response: CSI ? <id> ; 1 ; 4 ; 6 ; 9 ; 15 ; 22 ; 52 c
                     // <id> based on conformance level
                     let id = self.conformance_level.da_identifier();
@@ -279,5 +284,14 @@ impl Terminal {
         // Response: DCS Pi ! ~ XXXX ST
         let response = format!("\x1bP{}!~{:04X}\x1b\\", pi, checksum);
         self.push_response(response.as_bytes());
+    }
+}
+
+fn is_default_csi_query(params: &Params) -> bool {
+    let mut values = params.iter().flat_map(|subparams| subparams.iter().copied());
+    match values.next() {
+        None => true,
+        Some(0) => values.next().is_none(),
+        Some(_) => false,
     }
 }
