@@ -438,6 +438,10 @@ String _inputLine(
   Map<int, terminal.TerminalRow> rowsByIndex,
 ) {
   final command = block.command.trim();
+  if (command.isNotEmpty) {
+    return command;
+  }
+
   final rawInputLine = rowsByIndex[block.outputRange.commandRow]?.text
       .trimRight();
   if (rawInputLine != null && rawInputLine.trim().isNotEmpty) {

@@ -458,6 +458,28 @@ void main() {
       expect(viewModel.blocks.single.inputLine, 'ls');
     });
 
+    test('uses structured command text instead of raw prompt row', () {
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 20,
+            endRow: 22,
+            command: 'ls',
+            cwd: '/Users/luobinghui',
+          ),
+        ],
+        viewportStartRow: 20,
+        viewportEndRow: 39,
+        visibleRows: const [
+          terminal.TerminalRow(index: 0, text: '\uF432 arbitrary PS1 ls'),
+          terminal.TerminalRow(index: 1, text: 'Applications'),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      expect(viewModel.blocks.single.inputLine, 'ls');
+    });
+
     test('terminal preview stops at the next prompt for broad ranges', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [
