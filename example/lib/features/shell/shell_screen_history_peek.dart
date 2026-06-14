@@ -711,7 +711,7 @@ Color _statusColor(ShellCommandBlock block, AppThemeTokens palette) {
   return switch (block.status) {
     ShellCommandBlockStatus.failed => palette.danger,
     ShellCommandBlockStatus.succeeded => palette.success,
-    ShellCommandBlockStatus.running => palette.warning,
+    ShellCommandBlockStatus.running => palette.accent,
     ShellCommandBlockStatus.unknown => palette.textSubtle,
   };
 }

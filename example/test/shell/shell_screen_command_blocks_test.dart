@@ -362,6 +362,21 @@ void main() {
         findsOneWidget,
       );
       expect(find.byType(terminal.TerminalFramePreview), findsNothing);
+
+      final accent = buildIanvsTerminalTheme(
+        Brightness.dark,
+      ).extension<AppThemeTokens>()!.accent;
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-command-block-card-running-output')),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is ColoredBox &&
+                widget.color.toARGB32() == accent.toARGB32(),
+          ),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('sizes running live terminal rows with padding', (
@@ -374,6 +389,7 @@ void main() {
           active: true,
           status: ShellCommandBlockStatus.running,
           statusLabel: 'running',
+          liveTerminalRows: 4,
         ),
       ]);
 
@@ -411,6 +427,7 @@ void main() {
           active: true,
           status: ShellCommandBlockStatus.running,
           statusLabel: 'running',
+          liveTerminalRows: 80,
         ),
       ]);
 
@@ -436,6 +453,63 @@ void main() {
         const Key('shell-command-block-live-terminal-output-tall-live'),
       );
       expect(tester.getSize(liveOutputFinder).height, 4 * 60);
+    });
+
+    testWidgets('clips running live terminal to the block output rows', (
+      tester,
+    ) async {
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'offset-live',
+          command: 'python',
+          active: true,
+          status: ShellCommandBlockStatus.running,
+          statusLabel: 'running',
+          liveTerminalViewportRowOffset: 4,
+          liveTerminalRows: 2,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 320,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 10,
+                liveTerminalRows: 12,
+                liveTerminalBuilder: _fakeRowedLiveTerminalBuilder,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final liveOutputFinder = find.byKey(
+        const Key('shell-command-block-live-terminal-output-offset-live'),
+      );
+      final liveTop = tester.getTopLeft(liveOutputFinder).dy;
+
+      expect(tester.getSize(liveOutputFinder).height, 10 * 5);
+      expect(
+        tester
+            .getTopLeft(
+              find.byKey(const Key('fake-live-terminal-row-offset-live-4')),
+            )
+            .dy,
+        liveTop,
+      );
+      expect(
+        tester
+            .getTopLeft(
+              find.byKey(const Key('fake-live-terminal-row-offset-live-3')),
+            )
+            .dy,
+        liveTop - 10,
+      );
     });
 
     testWidgets('caps preview terminal height and scrolls its rows', (
@@ -586,6 +660,22 @@ Widget _fakeLiveTerminalBuilder(
   );
 }
 
+Widget _fakeRowedLiveTerminalBuilder(
+  BuildContext context,
+  ShellCommandBlockOverlayItem block,
+) {
+  return Column(
+    children: [
+      for (var index = 0; index < 12; index += 1)
+        SizedBox(
+          key: Key('fake-live-terminal-row-${block.id}-$index'),
+          height: 10,
+          child: Text('row $index'),
+        ),
+    ],
+  );
+}
+
 ShellCommandBlockOverlayItem _overlayItem({
   required String id,
   String command = 'flutter test',
@@ -601,12 +691,16 @@ ShellCommandBlockOverlayItem _overlayItem({
   String outputRangeLabel = '',
   List<terminal.TerminalRow> terminalRows = const <terminal.TerminalRow>[],
   int terminalViewportCols = 0,
+  int liveTerminalViewportRowOffset = 0,
+  int liveTerminalRows = 1,
 }) {
   return ShellCommandBlockOverlayItem(
     id: id,
     command: command,
     terminalRows: terminalRows,
     terminalViewportCols: terminalViewportCols,
+    liveTerminalViewportRowOffset: liveTerminalViewportRowOffset,
+    liveTerminalRows: liveTerminalRows,
     rowOffset: rowOffset,
     rowSpan: rowSpan,
     status: status,

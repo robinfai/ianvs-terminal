@@ -79,6 +79,8 @@ void main() {
 
       expect(viewModel.blocks.single.statusLabel, 'running');
       expect(viewModel.blocks.single.outputUsesLiveTerminal, isTrue);
+      expect(viewModel.blocks.single.liveTerminalViewportRowOffset, 3);
+      expect(viewModel.blocks.single.liveTerminalRows, 2);
       expect(
         shellCommandBlocksShouldRenderOverlay(
           viewModel: viewModel,
@@ -163,7 +165,6 @@ void main() {
       final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
         viewModel: viewModel,
         modes: alternateModes,
-        previousBlockId: null,
       );
 
       expect(nativeTerminalBlockId, viewModel.blocks.single.id);
@@ -209,7 +210,7 @@ void main() {
       );
     });
 
-    test('leaving alternate screen keeps native terminal until finish', () {
+    test('leaving alternate screen restores running command block chrome', () {
       final runningViewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [
           _commandBlock(
@@ -224,19 +225,18 @@ void main() {
         visibleRows: const [terminal.TerminalRow(index: 3, text: ':q')],
         flags: _enabledFlags(),
       );
-      final latchedBlockId = runningViewModel.blocks.single.id;
       final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
         viewModel: runningViewModel,
         modes: terminal.TerminalFrameModes.empty,
-        previousBlockId: latchedBlockId,
       );
 
+      expect(nativeTerminalBlockId, isNull);
       expect(
         shellCommandBlocksShouldUseNativeTerminal(
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isTrue,
+        isFalse,
       );
       expect(
         shellCommandBlocksShouldRenderOverlay(
@@ -244,7 +244,15 @@ void main() {
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
+      );
+      expect(
+        shellCommandBlocksShouldEmbedLiveTerminal(
+          viewModel: runningViewModel,
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isTrue,
       );
       expect(
         shellCommandBlocksShouldHideDefaultTerminal(
@@ -253,7 +261,7 @@ void main() {
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         shellCommandInputVisibleForCommandBlocks(
@@ -261,7 +269,7 @@ void main() {
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
       );
     });
 
@@ -278,7 +286,6 @@ void main() {
       final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
         viewModel: finishedViewModel,
         modes: terminal.TerminalFrameModes.empty,
-        previousBlockId: 'cmd-10-12',
       );
 
       expect(nativeTerminalBlockId, isNull);

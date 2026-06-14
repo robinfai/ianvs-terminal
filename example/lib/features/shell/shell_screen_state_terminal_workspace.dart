@@ -18,12 +18,10 @@ String? shellCommandBlocksRunningBlockId(
 String? shellCommandBlocksNativeTerminalBlockId({
   required ShellCommandBlocksOverlayViewModel viewModel,
   required terminal.TerminalFrameModes modes,
-  required String? previousBlockId,
 }) {
   return shellCommandBlocksNativeTerminalBlockIdForRunningBlock(
     runningBlockId: shellCommandBlocksRunningBlockId(viewModel),
     modes: modes,
-    previousBlockId: previousBlockId,
   );
 }
 
@@ -31,7 +29,6 @@ String? shellCommandBlocksNativeTerminalBlockId({
 String? shellCommandBlocksNativeTerminalBlockIdForRunningBlock({
   required String? runningBlockId,
   required terminal.TerminalFrameModes modes,
-  required String? previousBlockId,
 }) {
   if (runningBlockId == null) {
     return null;
@@ -39,7 +36,7 @@ String? shellCommandBlocksNativeTerminalBlockIdForRunningBlock({
   if (modes.alternateScreen) {
     return runningBlockId;
   }
-  return previousBlockId == runningBlockId ? runningBlockId : null;
+  return null;
 }
 
 @visibleForTesting
@@ -147,7 +144,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           runningBlockId:
               runningBlockId ?? _runningCommandBlockIdForSession(sessionId),
           modes: modes,
-          previousBlockId: _nativeTerminalCommandBlockIdsBySession[sessionId],
         );
     if (nativeTerminalBlockId == null) {
       _nativeTerminalCommandBlockIdsBySession.remove(sessionId);

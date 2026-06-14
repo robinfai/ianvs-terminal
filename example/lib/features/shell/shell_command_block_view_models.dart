@@ -33,6 +33,8 @@ class ShellCommandBlockOverlayItem {
     this.inputLine = '',
     this.terminalRows = const <terminal.TerminalRow>[],
     this.terminalViewportCols = 0,
+    this.liveTerminalViewportRowOffset = 0,
+    this.liveTerminalRows = 1,
     required this.rowOffset,
     required this.rowSpan,
     required this.status,
@@ -52,6 +54,8 @@ class ShellCommandBlockOverlayItem {
   final String inputLine;
   final List<terminal.TerminalRow> terminalRows;
   final int terminalViewportCols;
+  final int liveTerminalViewportRowOffset;
+  final int liveTerminalRows;
   final int rowOffset;
   final int rowSpan;
   final ShellCommandBlockStatus status;
@@ -117,6 +121,11 @@ class ShellCommandBlockViewModelBuilder {
         fallbackRows: capturedRows,
         preferFallbackRows: preferCapturedRows,
       );
+      final liveTerminalWindow = _liveTerminalWindowForBlock(
+        block,
+        viewportStartRow,
+        viewportEndRow,
+      );
       visible.add(
         ShellCommandBlockOverlayItem(
           id: block.id,
@@ -127,6 +136,8 @@ class ShellCommandBlockViewModelBuilder {
             viewportCols,
             terminalRows.isNotEmpty ? terminalRows : visibleRows,
           ),
+          liveTerminalViewportRowOffset: liveTerminalWindow.viewportRowOffset,
+          liveTerminalRows: liveTerminalWindow.rows,
           rowOffset: max(0, visibleStart - viewportStartRow),
           rowSpan: max(1, visibleEnd - visibleStart + 1),
           status: block.status,
@@ -154,6 +165,38 @@ class ShellCommandBlockViewModelBuilder {
       visible.reversed.take(max(0, visibleLimit)).toList(growable: false),
     );
   }
+}
+
+class _LiveTerminalWindow {
+  const _LiveTerminalWindow({
+    required this.viewportRowOffset,
+    required this.rows,
+  });
+
+  final int viewportRowOffset;
+  final int rows;
+}
+
+_LiveTerminalWindow _liveTerminalWindowForBlock(
+  ShellCommandBlock block,
+  int viewportStartRow,
+  int viewportEndRow,
+) {
+  if (viewportEndRow < viewportStartRow) {
+    return const _LiveTerminalWindow(viewportRowOffset: 0, rows: 1);
+  }
+
+  final viewportRows = viewportEndRow - viewportStartRow + 1;
+  final outputStart = max(block.outputRange.outputStartRow, viewportStartRow);
+  final outputEnd = min(block.outputRange.outputEndRow, viewportEndRow);
+  final viewportRowOffset = (outputStart - viewportStartRow)
+      .clamp(0, max(0, viewportRows - 1))
+      .toInt();
+  final rows = outputEnd >= outputStart ? outputEnd - outputStart + 1 : 1;
+  return _LiveTerminalWindow(
+    viewportRowOffset: viewportRowOffset,
+    rows: max(1, rows),
+  );
 }
 
 Map<int, terminal.TerminalRow> _rowsByCommandBlockIndex(

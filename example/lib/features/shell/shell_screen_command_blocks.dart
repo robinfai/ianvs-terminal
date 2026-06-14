@@ -300,7 +300,7 @@ class _ShellCommandBlockChrome extends StatelessWidget {
     return switch (status) {
       ShellCommandBlockStatus.failed => palette.danger,
       ShellCommandBlockStatus.succeeded => palette.success,
-      ShellCommandBlockStatus.running => palette.warning,
+      ShellCommandBlockStatus.running => palette.accent,
       ShellCommandBlockStatus.unknown => palette.textSubtle,
     };
   }
@@ -323,13 +323,28 @@ class _ShellCommandBlockLiveTerminalOutput extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final viewportHeight =
-        rowHeight * shellCommandBlockLiveTerminalDisplayRows(liveTerminalRows);
+        rowHeight *
+        shellCommandBlockLiveTerminalDisplayRows(block.liveTerminalRows);
+    final fullViewportHeight = rowHeight * math.max(1, liveTerminalRows);
+    final verticalOffset = rowHeight * block.liveTerminalViewportRowOffset;
 
     return ClipRect(
       child: SizedBox(
         width: double.infinity,
         height: viewportHeight,
-        child: builder(context, block),
+        child: OverflowBox(
+          alignment: Alignment.topCenter,
+          minHeight: fullViewportHeight,
+          maxHeight: fullViewportHeight,
+          child: Transform.translate(
+            offset: Offset(0, -verticalOffset),
+            child: SizedBox(
+              width: double.infinity,
+              height: fullViewportHeight,
+              child: builder(context, block),
+            ),
+          ),
+        ),
       ),
     );
   }
