@@ -338,6 +338,46 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         await _openDynamicProfiles(sessionController);
       case TerminalActionId.openThemePicker:
         await _openDefaultsAndAppearance(sessionController, sessionState);
+      case TerminalActionId.exportDiagnostics:
+        if (currentSessionId == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Export diagnostics requires an active session.'),
+              ),
+            );
+          }
+          return;
+        }
+        final directory = await _exportDiagnosticsBundle(sessionState);
+        if (directory == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Diagnostics export is unavailable for the active sessions.',
+                ),
+              ),
+            );
+          }
+          return;
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Diagnostics exported to ${directory.path}'),
+              duration: const Duration(seconds: 8),
+              action: SnackBarAction(
+                label: 'Copy path',
+                onPressed: () {
+                  unawaited(
+                    Clipboard.setData(ClipboardData(text: directory.path)),
+                  );
+                },
+              ),
+            ),
+          );
+        }
       case TerminalActionId.toggleCommandFinishedNotify:
         _mutateState(() {
           _commandFinishedNotificationsEnabled =
