@@ -142,6 +142,7 @@ flutter test test/widget_test.dart --plain-name "action search can focus next pa
 flutter test test/widget_test.dart --plain-name "action search can focus previous pane without shell write"
 flutter test test/widget_test.dart --plain-name "action search can swap pane without shell write"
 flutter test test/widget_test.dart --plain-name "action search can resize pane without shell write"
+flutter test test/widget_test.dart --plain-name "action search can close pane without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:

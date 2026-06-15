@@ -329,6 +329,15 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           return;
         }
         _focusSession(currentSessionId);
+      case TerminalActionId.closePane:
+        if (currentSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Close pane requires an active session.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        _closeSession(sessionController, sessionState, currentSessionId);
       case TerminalActionId.search:
         _openSearch();
       case TerminalActionId.globalSearch:

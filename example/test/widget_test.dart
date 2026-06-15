@@ -3543,6 +3543,49 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('action search can close pane without shell write', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TerminalViewport), findsNWidgets(2));
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'close pane',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TerminalViewport), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('action search can zoom pane without shell write', (
     tester,
   ) async {
