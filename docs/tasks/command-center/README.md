@@ -51,7 +51,7 @@ T-313 -> T-314 -> T-315 -> T-316 -> T-320 -> T-321
 Command Bar lane:
 
 ```text
-T-317 -> T-318 -> T-326 -> T-319
+T-317 -> T-318 -> T-326 -> T-319 -> T-328
 ```
 
 Verification lane:
@@ -92,3 +92,4 @@ T-322
 - [Command Search Shell Wiring](T-325-command-search-shell-wiring.md)
 - [Command Center Context Chip Wiring](T-326-command-center-context-chip-wiring.md)
 - [Command History Persistence Wiring](T-327-command-history-persistence-wiring.md)
+- [Saved Command Repository](T-328-saved-command-repository.md)
