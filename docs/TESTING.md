@@ -43,6 +43,12 @@ flutter run -d macos
 当前 local-only 的 terminal 人工矩阵结果入口固定是
 [tasks/verification-gates/T-059-local-terminal-manual-matrix.md](tasks/verification-gates/T-059-local-terminal-manual-matrix.md)。
 
+## Command Center verification gates
+
+Command Center 的 focused 自动化、人工 QA、性能门和 stop condition 入口固定是
+[tasks/command-center/T-322-command-center-verification-gates.md](tasks/command-center/T-322-command-center-verification-gates.md)。这份 gate 不替代默认
+`example` 验证顺序；它用于 Command Center 相关任务的补充验收和手工检查。
+
 ## Local Terminal P0-P5 final verification
 
 当前 local-terminal P0-P5 收尾验证入口固定为：
