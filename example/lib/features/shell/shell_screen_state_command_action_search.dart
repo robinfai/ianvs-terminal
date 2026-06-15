@@ -505,8 +505,12 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
       case TerminalActionId.copyBlockOutput:
       case TerminalActionId.reInputBlockCommand:
       case TerminalActionId.rerunBlockCommand:
-        _showCommandActionSearchBlockedIntent('No command block is selected.');
-        _focusSession(sessionId);
+        await _dispatchCommandActionSearchBlockAction(
+          action,
+          sessionId: sessionId,
+          sessionState: sessionState,
+          sessionController: sessionController,
+        );
       case TerminalActionId.copyMode:
         if (currentSessionId != null) {
           final selectionController = _selectionControllers.putIfAbsent(
@@ -768,6 +772,257 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           _closeCommandActionSearch();
         }
     }
+  }
+
+  Future<void> _dispatchCommandActionSearchBlockAction(
+    TerminalActionId actionId, {
+    required String sessionId,
+    required SessionState sessionState,
+    required SessionController sessionController,
+  }) async {
+    final currentSessionId = sessionState.activeSessionId;
+    if (currentSessionId == null) {
+      _showCommandActionSearchBlockedIntent(
+        'Command block actions require an active session.',
+      );
+      _focusSession(sessionId);
+      return;
+    }
+    final action = _commandBlockActionForActionSearch(actionId);
+    final block = _activeCommandActionSearchBlock(
+      sessionState,
+      currentSessionId,
+    );
+    if (action == null || block == null) {
+      _showCommandActionSearchBlockedIntent('No command block is selected.');
+      _focusSession(sessionId);
+      return;
+    }
+
+    final result = const CommandBlockActionReducer().reduce(
+      action,
+      block,
+      readOnly: _isSessionReadOnly(currentSessionId),
+    );
+    if (!result.enabled) {
+      _showCommandActionSearchBlockedIntent(
+        _commandActionSearchBlockDisabledMessage(result.disabledReason),
+      );
+      _focusSession(sessionId);
+      return;
+    }
+    await _dispatchCommandActionSearchBlockIntent(
+      currentSessionId,
+      sessionController,
+      result.intent,
+    );
+  }
+
+  Future<void> _dispatchCommandActionSearchBlockIntent(
+    String sessionId,
+    SessionController sessionController,
+    CommandBlockActionIntent intent,
+  ) async {
+    switch (intent.kind) {
+      case CommandBlockActionIntentKind.none:
+        _focusSession(sessionId);
+      case CommandBlockActionIntentKind.clipboardText:
+        final text = intent.text;
+        if (text != null) {
+          await Clipboard.setData(ClipboardData(text: text));
+        }
+        _focusSession(sessionId);
+      case CommandBlockActionIntentKind.copyOutputRange:
+        final outputRange = intent.outputRange;
+        if (outputRange == null) {
+          _showCommandActionSearchBlockedIntent(
+            'No command block output is available.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final selectionController = _selectionControllers.putIfAbsent(
+          sessionId,
+          SelectionController.new,
+        );
+        _selectCommandBlockOutputRange(
+          sessionController,
+          sessionId,
+          selectionController,
+          outputRange,
+        );
+        await _copySelection(sessionController, sessionId, selectionController);
+      case CommandBlockActionIntentKind.clipboardCommandAndOutput:
+        final outputRange = intent.outputRange;
+        final command = intent.text;
+        if (outputRange == null || command == null) {
+          _showCommandActionSearchBlockedIntent(
+            'No command block output is available.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final selectionController = _selectionControllers.putIfAbsent(
+          sessionId,
+          SelectionController.new,
+        );
+        _selectCommandBlockOutputRange(
+          sessionController,
+          sessionId,
+          selectionController,
+          outputRange,
+        );
+        final output = _selectionTextForSession(
+          sessionController,
+          sessionId,
+          selectionController,
+        );
+        await Clipboard.setData(
+          ClipboardData(
+            text: [command, if (output.isNotEmpty) output].join('\n'),
+          ),
+        );
+        _focusSession(sessionId);
+      case CommandBlockActionIntentKind.terminalWrite:
+        final terminalIntent = intent.terminalIntent;
+        if (terminalIntent == null) {
+          _focusSession(sessionId);
+          return;
+        }
+        await _dispatchCommandActionSearchTerminalIntent(
+          sessionId,
+          terminalIntent,
+        );
+      case CommandBlockActionIntentKind.scopedSearch:
+      case CommandBlockActionIntentKind.saveOutput:
+      case CommandBlockActionIntentKind.reviewEntrypoint:
+        _showCommandActionSearchBlockedIntent(
+          'This command block action still opens from the command menu.',
+        );
+        _focusSession(sessionId);
+    }
+  }
+
+  CommandBlock? _activeCommandActionSearchBlock(
+    SessionState sessionState,
+    String sessionId,
+  ) {
+    final rangeState = _commandCenterRuntime.blockRangeState(
+      rangesByInvocationId: _commandBlockRangesForSession(
+        sessionState,
+        sessionId,
+      ),
+    );
+    final blocks = rangeState.blocksForScope(CommandBlockScope(sessionId));
+    if (blocks.isEmpty) {
+      return null;
+    }
+    return blocks.last;
+  }
+
+  Map<String, CommandBlockTerminalRanges> _commandBlockRangesForSession(
+    SessionState sessionState,
+    String sessionId,
+  ) {
+    final pane = _paneForSession(sessionState, sessionId);
+    final promptMarks = pane?.shellIntegration.promptMarks ?? const [];
+    if (promptMarks.length < 2) {
+      return const <String, CommandBlockTerminalRanges>{};
+    }
+
+    final ranges = <String, CommandBlockTerminalRanges>{};
+    final sortedMarks = [...promptMarks]
+      ..sort((a, b) => a.scrollbackOffset.compareTo(b.scrollbackOffset));
+    var nextPromptSearchIndex = 0;
+    for (final invocation
+        in _commandCenterRuntime.lifecycle.invocationsForSession(sessionId)) {
+      final startIndex = _promptMarkIndexForCommand(
+        sortedMarks,
+        invocation.command,
+        startAt: nextPromptSearchIndex,
+      );
+      if (startIndex == -1 || startIndex + 1 >= sortedMarks.length) {
+        continue;
+      }
+      final inputRow = sortedMarks[startIndex].scrollbackOffset;
+      final outputEndRow = sortedMarks[startIndex + 1].scrollbackOffset;
+      ranges[invocation.id] = CommandBlockTerminalRanges(
+        inputRange: CommandBlockRowRange(
+          startRow: inputRow,
+          endRowExclusive: inputRow + 1,
+        ),
+        outputRange: CommandBlockRowRange(
+          startRow: inputRow + 1,
+          endRowExclusive: outputEndRow,
+        ),
+      );
+      nextPromptSearchIndex = startIndex + 1;
+    }
+    return ranges;
+  }
+
+  int _promptMarkIndexForCommand(
+    List<TerminalShellPromptMark> promptMarks,
+    String command, {
+    required int startAt,
+  }) {
+    final trimmedCommand = command.trim();
+    for (var index = startAt; index < promptMarks.length; index += 1) {
+      if (promptMarks[index].command?.trim() == trimmedCommand) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  void _selectCommandBlockOutputRange(
+    SessionController sessionController,
+    String sessionId,
+    SelectionController selectionController,
+    CommandBlockRowRange outputRange,
+  ) {
+    final endRow = math.max(
+      outputRange.startRow,
+      outputRange.endRowExclusive - 1,
+    );
+    final frame = sessionController.viewportFor(sessionId).frame;
+    selectionController.setSelection(
+      terminal.TerminalSelection(
+        startRow: outputRange.startRow,
+        startCol: 0,
+        endRow: endRow,
+        endCol: _rowEndColumn(frame, endRow),
+      ),
+    );
+    _focusSession(sessionId);
+  }
+
+  CommandBlockAction? _commandBlockActionForActionSearch(
+    TerminalActionId actionId,
+  ) {
+    return switch (actionId) {
+      TerminalActionId.copyBlockOutput => CommandBlockAction.copyOutput,
+      TerminalActionId.reInputBlockCommand => CommandBlockAction.reInput,
+      TerminalActionId.rerunBlockCommand => CommandBlockAction.rerun,
+      _ => null,
+    };
+  }
+
+  String _commandActionSearchBlockDisabledMessage(
+    CommandBlockActionDisabledReason? reason,
+  ) {
+    return switch (reason) {
+      CommandBlockActionDisabledReason.emptyCommand =>
+        'No command block command is available.',
+      CommandBlockActionDisabledReason.missingOutputRange =>
+        'No command block output is available.',
+      CommandBlockActionDisabledReason.missingTerminalFrame =>
+        'No terminal frame is available.',
+      CommandBlockActionDisabledReason.readOnly => 'Read-only mode is enabled.',
+      CommandBlockActionDisabledReason.requiresPastePolicy =>
+        'Command block paste requires confirmation.',
+      null => 'Command block action is unavailable.',
+    };
   }
 
   TerminalActionId? _terminalActionIdForName(String name) {

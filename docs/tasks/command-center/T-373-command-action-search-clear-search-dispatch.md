@@ -58,4 +58,4 @@ flutter test test/widget_test.dart --plain-name "command menu opens action searc
 
 ## Risks / Follow-ups
 
-- block action 的真实执行仍需要 active command block selection 状态；apply theme preset 由 T-377 覆盖，reopen closed pane 的真实恢复由 T-376 覆盖。
+- block action 的最近 block 执行由 T-378 覆盖；显式 selected block UI 仍是后续工作。

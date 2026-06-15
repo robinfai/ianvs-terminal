@@ -68,4 +68,4 @@ flutter test test/widget_test.dart --plain-name "action search explains unavaila
 
 - 当前应用目标是有效默认 profile；后续如需作用于 active profile，需要明确产品规则。
 - 当前不实时重绘已启动 pty 的颜色；需要时应走 terminal display config 更新路径。
-- block action 的真实执行仍需要 active command block selection 状态。
+- block action 的最近 block 执行由 T-378 覆盖；显式 selected block UI 仍是后续工作。

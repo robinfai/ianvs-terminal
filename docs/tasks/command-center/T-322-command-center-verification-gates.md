@@ -151,6 +151,8 @@ flutter test test/widget_test.dart --plain-name "action search can move to next 
 flutter test test/widget_test.dart --plain-name "action search can move to previous search match without shell write"
 flutter test test/widget_test.dart --plain-name "action search can clear shell search without shell write"
 flutter test test/widget_test.dart --plain-name "action search explains unavailable command block actions without shell write"
+flutter test test/widget_test.dart --plain-name "action search can copy block output without shell write"
+flutter test test/widget_test.dart --plain-name "action search can reinput and rerun an active command block"
 flutter test test/widget_test.dart --plain-name "action search explains unavailable remaining visual workspace actions without shell write"
 flutter test test/shell/shell_command_action_search_adapter_test.dart --plain-name "adds terminal theme preset actions with encoded theme ids"
 flutter test test/widget_test.dart --plain-name "action search can apply terminal theme preset without shell write"
