@@ -5647,6 +5647,86 @@ void main() {
     expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
   });
 
+  testWidgets('context chip navigates to the last failed command block', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 10, 'text': r'$ false', 'style_runs': const []},
+        {'index': 11, 'text': 'failed output', 'style_runs': const []},
+        {'index': 12, 'text': r'$ ', 'style_runs': const []},
+      ],
+      'cursor': {'row': 12, 'col': 2, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 10, 'end': 13},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'preexec',
+          'command': 'false',
+          'prompt_scrollback_offset': 10,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'false',
+          'pwd': '/tmp/project',
+          'exit_code': 2,
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'prompt_started',
+          'prompt_scrollback_offset': 12,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('context-chip-lastExit')), findsOneWidget);
+    expect(find.text('Last exit Exit 2'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.scrollToCalls.last, [1, 10]);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('shell status bar shows current session context', (tester) async {
     final fakeBindings = FakePtyBackend();
 

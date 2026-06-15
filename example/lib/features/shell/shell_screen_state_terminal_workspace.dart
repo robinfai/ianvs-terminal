@@ -165,7 +165,11 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     final annotations = _annotationsForSession(sessionId);
     final activeCoprocess = _coprocesses[sessionId];
     final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
-    final contextChips = _contextChipsForPane(pane: pane, profile: profile);
+    final contextChips = _contextChipsForPane(
+      sessionState: sessionState,
+      pane: pane,
+      profile: profile,
+    );
 
     return LayoutBuilder(
       key: Key('shell-pane-$sessionId'),

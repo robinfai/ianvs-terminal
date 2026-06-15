@@ -63,10 +63,10 @@ flutter test \
 
 - Context Chips 有真实 ShellScreen 入口。
 - 可见 chip state 来自 runtime/session state，而不是测试 fixture。
-- 后续 block range 接线可追加 last exit / selected block chips。
+- 后续 selected block state 接线可追加 selected block chip。
 
 ## Risks / Follow-ups
 
-- last exit 和 selected block 仍依赖真实 command block range。
+- last exit block navigation 由 T-379 覆盖；selected block 仍依赖显式 selection state。
 - git branch chip 需要单独定义 debounce、错误处理和性能门。
 - chip 视觉密度可能需要后续跟 Command Bar 一起收口。

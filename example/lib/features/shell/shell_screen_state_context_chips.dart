@@ -2,6 +2,7 @@ part of 'shell_screen.dart';
 
 extension _ShellScreenStateContextChips on _ShellScreenState {
   ContextChipState _contextChipsForPane({
+    required SessionState sessionState,
     required TerminalPane pane,
     required TerminalProfile? profile,
   }) {
@@ -12,6 +13,12 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       profileId: profile?.id ?? pane.profileId,
       profileName: profile?.name,
       readOnly: _isSessionReadOnly(pane.sessionId),
+      blockRangeState: _commandCenterRuntime.blockRangeState(
+        rangesByInvocationId: _commandBlockRangesForSession(
+          sessionState,
+          pane.sessionId,
+        ),
+      ),
     );
   }
 
@@ -31,11 +38,43 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       case ContextChipIntentKind.showShellHookDiagnostics:
         _showContextChipMessage(_shellHookDiagnosticsMessage(intent));
       case ContextChipIntentKind.navigateToBlock:
+        _navigateToContextChipBlock(
+          sessionState: sessionState,
+          sessionId: sessionId,
+          blockId: intent.blockId,
+        );
       case ContextChipIntentKind.openBlockActions:
         _showContextChipMessage('Command block actions are not ready yet.');
       case ContextChipIntentKind.toggleReadOnly:
         _toggleReadOnlySession(sessionId);
     }
+  }
+
+  void _navigateToContextChipBlock({
+    required SessionState sessionState,
+    required String sessionId,
+    required String? blockId,
+  }) {
+    if (blockId == null) {
+      _showContextChipMessage('Command block is unavailable.');
+      return;
+    }
+    final rangeState = _commandCenterRuntime.blockRangeState(
+      rangesByInvocationId: _commandBlockRangesForSession(
+        sessionState,
+        sessionId,
+      ),
+    );
+    final block = rangeState.blockByInvocationId(blockId);
+    final targetRow = block?.inputRange?.startRow;
+    if (targetRow == null) {
+      _showContextChipMessage('Command block range is unavailable.');
+      return;
+    }
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .scrollViewportTo(sessionId, targetRow);
+    _focusSession(sessionId);
   }
 
   String _shellHookDiagnosticsMessage(ContextChipClickIntent intent) {
