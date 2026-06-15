@@ -63,8 +63,22 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       case terminal.TerminalSessionBellEvent():
         _notifyBell(event.sessionId);
       case terminal.TerminalSessionShellHookEvent():
+        _applyCommandCenterShellHook(event);
         _notifyShellHook(event);
     }
+  }
+
+  void _applyCommandCenterShellHook(
+    terminal.TerminalSessionShellHookEvent event,
+  ) {
+    final result = _commandCenterShellEventWiring.applyShellHook(
+      _commandCenterRuntime,
+      event,
+    );
+    if (!result.applied) {
+      return;
+    }
+    _commandCenterRuntime = result.state;
   }
 
   void _notifyInactiveActivity(

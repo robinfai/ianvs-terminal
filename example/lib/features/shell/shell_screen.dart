@@ -12,6 +12,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
+import '../command_center/command_center_runtime.dart';
+import '../command_center/command_center_shell_event_wiring.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
@@ -105,6 +107,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsSeenForActivityNotifications = {};
   final Set<String> _sessionsSeenForNewOutputBadges = {};
   final Set<String> _sessionsWithNewOutput = {};
+  final CommandCenterShellEventWiring _commandCenterShellEventWiring =
+      const CommandCenterShellEventWiring();
+  CommandCenterRuntimeState _commandCenterRuntime =
+      const CommandCenterRuntimeState();
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   Timer? _workspaceCueTimer;

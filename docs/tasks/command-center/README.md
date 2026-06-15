@@ -33,7 +33,7 @@ T-300 -> T-301 -> T-302 -> T-303 -> T-304
 Runtime wiring lane:
 
 ```text
-T-303 -> T-323
+T-303 -> T-323 -> T-324
 ```
 
 History/Search lane:
@@ -88,3 +88,4 @@ T-322
 - [Command Review Entrypoints](T-321-command-review-entrypoints.md)
 - [Command Center Verification Gates](T-322-command-center-verification-gates.md)
 - [Command Center Runtime State](T-323-command-center-runtime-state.md)
+- [Command Center Shell Event Wiring](T-324-command-center-shell-event-wiring.md)
