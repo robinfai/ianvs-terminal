@@ -143,6 +143,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
             selectionController,
           );
         }
+      case TerminalActionId.capturedOutput:
+        if (currentSessionId != null) {
+          await _openCapturedOutput(currentSessionId);
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
