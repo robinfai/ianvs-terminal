@@ -20,7 +20,7 @@
 - 不把普通 `/` 文本解释成 action search。
 - 不执行 saved command。
 - 不定义真实 app action registry。
-- 不更新 saved command useCount 或 lastUsedAt。
+- 本任务不更新 saved command useCount 或 lastUsedAt；实际使用更新由 T-389 覆盖。
 
 ## Files In Scope
 
@@ -69,6 +69,6 @@ flutter test \
 
 ## Risks / Follow-ups
 
-- 尚未接入 ShellScreen 或 mode router。
-- 真实 action registry 和 action dispatch 仍需后续任务。
-- saved command 使用统计仍未更新。
+- ShellScreen / mode router 接入已由 T-334 覆盖。
+- 真实 action registry 和 action dispatch 已由 T-333 至 T-388 覆盖。
+- saved command 使用统计已由 T-389 覆盖。

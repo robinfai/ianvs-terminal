@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
 import '../command_center/command_action_search_controller.dart';
+import '../command_center/command_action_search_index.dart';
 import '../command_center/command_action_search_overlay.dart';
 import '../command_center/command_action_search_shell_wiring.dart';
 import '../command_center/command_block_action_reducer.dart';
@@ -146,8 +147,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const CommandActionSearchShellWiring();
   final ShellCommandActionSearchAdapter _commandActionSearchAdapter =
       const ShellCommandActionSearchAdapter();
-  final SavedCommandRepository _savedCommandRepository =
-      SavedCommandRepository();
+  late final SavedCommandRepository _savedCommandRepository;
   CommandCenterRuntimeState _commandCenterRuntime =
       const CommandCenterRuntimeState();
   GlobalCommandHistoryDocument _globalCommandHistory =
@@ -250,6 +250,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         .read(terminalRuntimeControllerProvider)
         .events
         .listen(_handleTerminalSessionEvent);
+    _savedCommandRepository = ref.read(savedCommandRepositoryProvider);
     _globalCommandHistoryLoad = _loadGlobalCommandHistory();
     Future.microtask(_loadSavedCommands);
     Future.microtask(_loadPasteHistory);

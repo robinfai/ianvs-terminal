@@ -65,4 +65,4 @@ flutter test test/command_center/saved_command_repository_test.dart
 
 - 尚未有 clear/disable UI。
 - 尚未和 command search/action search 合并展示。
-- useCount / lastUsedAt 后续需要在实际使用 saved command 时更新。
+- useCount / lastUsedAt 的实际使用更新由 T-389 覆盖。

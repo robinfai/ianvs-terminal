@@ -96,6 +96,59 @@ void main() {
       expect(document.entries.any((entry) => entry.id == 'secret'), isFalse);
     });
 
+    test('marks saved command usage metadata by id', () {
+      final usedAt = updatedAt.add(const Duration(minutes: 5));
+      final document = SavedCommandDocument(
+        entries: [
+          SavedCommandEntry(
+            id: 'build',
+            title: 'Build app',
+            command: 'flutter build macos',
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            useCount: 3,
+          ),
+          SavedCommandEntry(
+            id: 'status',
+            title: 'Git status',
+            command: 'git status --short',
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+          ),
+        ],
+      );
+
+      final marked = document.markUsed('build', usedAt);
+
+      expect(marked.entries.first.id, 'build');
+      expect(marked.entries.first.useCount, 4);
+      expect(marked.entries.first.lastUsedAt, usedAt);
+      expect(marked.entries.first.updatedAt, updatedAt);
+      expect(marked.entries.last.id, 'status');
+      expect(marked.entries.last.useCount, 0);
+    });
+
+    test('leaves saved command usage unchanged for an unknown id', () {
+      final document = SavedCommandDocument(
+        entries: [
+          SavedCommandEntry(
+            id: 'status',
+            title: 'Git status',
+            command: 'git status --short',
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+          ),
+        ],
+      );
+
+      final marked = document.markUsed(
+        'missing',
+        updatedAt.add(const Duration(minutes: 5)),
+      );
+
+      expect(identical(marked, document), isTrue);
+    });
+
     test(
       'quarantines corrupt saved command file and returns empty document',
       () async {

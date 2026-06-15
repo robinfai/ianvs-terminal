@@ -119,6 +119,26 @@ class SavedCommandDocument {
     return SavedCommandDocument(limit: limit, entries: nextEntries);
   }
 
+  SavedCommandDocument markUsed(String id, DateTime usedAt) {
+    final normalizedId = _trimmedStringOrNull(id);
+    if (normalizedId == null) {
+      return this;
+    }
+    var changed = false;
+    final nextEntries = <SavedCommandEntry>[];
+    for (final entry in entries) {
+      if (entry.id == normalizedId) {
+        changed = true;
+        nextEntries.add(_entryMarkedUsed(entry, usedAt));
+      } else {
+        nextEntries.add(entry);
+      }
+    }
+    return changed
+        ? SavedCommandDocument(limit: limit, entries: nextEntries)
+        : this;
+  }
+
   Map<String, Object?> toJson() {
     final document = trimmed();
     return {
@@ -189,6 +209,20 @@ class SavedCommandEntry {
       lastUsedAt: _dateTimeOrNull(json['lastUsedAt']),
     );
   }
+}
+
+SavedCommandEntry _entryMarkedUsed(SavedCommandEntry entry, DateTime usedAt) {
+  return SavedCommandEntry(
+    id: entry.id,
+    title: entry.title,
+    command: entry.command,
+    cwd: entry.cwd,
+    tags: entry.tags,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    useCount: entry.useCount < 0 ? 1 : entry.useCount + 1,
+    lastUsedAt: usedAt,
+  );
 }
 
 const _defaultSavedCommandLimit = 200;

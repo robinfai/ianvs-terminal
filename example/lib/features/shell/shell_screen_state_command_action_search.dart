@@ -743,17 +743,43 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
 
   Future<void> _insertCommandActionSearchSavedCommand(
     String sessionId,
-    String command,
+    CommandActionSearchItem item,
   ) async {
+    final command = item.command;
+    if (command == null) {
+      _focusSession(sessionId);
+      return;
+    }
     final intent = _commandActionSearchShellWiring
         .terminalIntentForSavedCommand(
           command,
           readOnly: _isSessionReadOnly(sessionId),
         );
-    await _dispatchCommandActionSearchTerminalIntent(sessionId, intent);
+    final didInsert = await _dispatchCommandActionSearchTerminalIntent(
+      sessionId,
+      intent,
+    );
+    if (didInsert) {
+      await _markCommandActionSearchSavedCommandUsed(item.id);
+    }
   }
 
-  Future<void> _dispatchCommandActionSearchTerminalIntent(
+  Future<void> _markCommandActionSearchSavedCommandUsed(String id) async {
+    final nextSavedCommands = _savedCommands.markUsed(id, DateTime.now());
+    if (identical(nextSavedCommands, _savedCommands)) {
+      return;
+    }
+    _savedCommands = nextSavedCommands;
+    await _savedCommandRepository.save(nextSavedCommands);
+    if (!mounted) {
+      return;
+    }
+    _mutateState(() {
+      _commandActionSearchController = null;
+    });
+  }
+
+  Future<bool> _dispatchCommandActionSearchTerminalIntent(
     String sessionId,
     CommandSearchTerminalIntent intent,
   ) async {
@@ -761,19 +787,25 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
     switch (intent.kind) {
       case CommandSearchTerminalIntentKind.none:
         _focusSession(sessionId);
+        return false;
       case CommandSearchTerminalIntentKind.disabled:
         _showCommandSearchBlockedIntent(intent.reason);
         _focusSession(sessionId);
+        return false;
       case CommandSearchTerminalIntentKind.insertText:
       case CommandSearchTerminalIntentKind.executeText:
         if (text != null && _sendPlainTextToSession(sessionId, text)) {
           _closeCommandActionSearch();
+          return true;
         }
+        return false;
       case CommandSearchTerminalIntentKind.requiresPastePolicy:
         if (text != null) {
-          await _pasteTextToSessionWithPolicy(sessionId, text);
+          final didPaste = await _pasteTextToSessionWithPolicy(sessionId, text);
           _closeCommandActionSearch();
+          return didPaste;
         }
+        return false;
     }
   }
 

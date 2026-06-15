@@ -9,6 +9,7 @@ class CommandActionSearchOverlay extends StatefulWidget {
     required this.controller,
     this.onOpenAction,
     this.onInsertSavedCommand,
+    this.onInsertSavedCommandItem,
     this.onClose,
     this.loading = false,
     this.unavailableReason,
@@ -18,6 +19,7 @@ class CommandActionSearchOverlay extends StatefulWidget {
   final CommandActionSearchController controller;
   final ValueChanged<String>? onOpenAction;
   final ValueChanged<String>? onInsertSavedCommand;
+  final ValueChanged<CommandActionSearchItem>? onInsertSavedCommandItem;
   final VoidCallback? onClose;
   final bool loading;
   final String? unavailableReason;
@@ -185,6 +187,10 @@ class _CommandActionSearchOverlayState
           widget.onOpenAction?.call(actionId);
         }
       case CommandActionSearchOutputKind.insertSavedCommand:
+        final item = output.item;
+        if (item != null) {
+          widget.onInsertSavedCommandItem?.call(item);
+        }
         final command = output.command;
         if (command != null) {
           widget.onInsertSavedCommand?.call(command);

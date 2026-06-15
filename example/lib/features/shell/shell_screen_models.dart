@@ -13,6 +13,10 @@ final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepository>((ref) {
   return PasteHistoryRepository();
 });
 
+final savedCommandRepositoryProvider = Provider<SavedCommandRepository>((ref) {
+  return SavedCommandRepository();
+});
+
 final instantReplayStoreProvider = Provider<InstantReplayStore>((ref) {
   return InstantReplayStore();
 });

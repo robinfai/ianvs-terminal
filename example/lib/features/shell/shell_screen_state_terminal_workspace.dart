@@ -376,10 +376,10 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                         onOpenAction: (actionId) => unawaited(
                           _openCommandActionSearchAction(sessionId, actionId),
                         ),
-                        onInsertSavedCommand: (command) => unawaited(
+                        onInsertSavedCommandItem: (item) => unawaited(
                           _insertCommandActionSearchSavedCommand(
                             sessionId,
-                            command,
+                            item,
                           ),
                         ),
                         onClose: _closeCommandActionSearch,

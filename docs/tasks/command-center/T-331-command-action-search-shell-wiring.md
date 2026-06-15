@@ -17,7 +17,7 @@
 - 不把 `/` 快捷键接进 ShellScreen。
 - 不执行 saved command。
 - 不定义真实 app action registry。
-- 不更新 saved command useCount 或 lastUsedAt。
+- 本任务不更新 saved command useCount 或 lastUsedAt；实际使用更新由 T-389 覆盖。
 
 ## Files In Scope
 

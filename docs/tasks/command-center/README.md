@@ -51,7 +51,7 @@ T-313 -> T-314 -> T-315 -> T-316 -> T-320 -> T-321
 Command Bar lane:
 
 ```text
-T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331 -> T-332 -> T-333 -> T-334 -> T-335 -> T-336 -> T-337 -> T-338 -> T-339 -> T-340 -> T-341 -> T-342 -> T-343 -> T-344 -> T-345 -> T-346 -> T-347 -> T-348 -> T-349 -> T-350 -> T-351 -> T-352 -> T-353 -> T-354 -> T-355 -> T-356 -> T-357 -> T-358 -> T-359 -> T-360 -> T-361 -> T-362 -> T-363 -> T-364 -> T-365 -> T-366 -> T-367 -> T-368 -> T-369 -> T-370 -> T-371 -> T-372 -> T-373 -> T-374 -> T-375 -> T-376 -> T-377 -> T-378 -> T-379 -> T-380 -> T-381 -> T-382 -> T-383 -> T-384 -> T-385 -> T-386 -> T-387 -> T-388
+T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331 -> T-332 -> T-333 -> T-334 -> T-335 -> T-336 -> T-337 -> T-338 -> T-339 -> T-340 -> T-341 -> T-342 -> T-343 -> T-344 -> T-345 -> T-346 -> T-347 -> T-348 -> T-349 -> T-350 -> T-351 -> T-352 -> T-353 -> T-354 -> T-355 -> T-356 -> T-357 -> T-358 -> T-359 -> T-360 -> T-361 -> T-362 -> T-363 -> T-364 -> T-365 -> T-366 -> T-367 -> T-368 -> T-369 -> T-370 -> T-371 -> T-372 -> T-373 -> T-374 -> T-375 -> T-376 -> T-377 -> T-378 -> T-379 -> T-380 -> T-381 -> T-382 -> T-383 -> T-384 -> T-385 -> T-386 -> T-387 -> T-388 -> T-389
 ```
 
 Verification lane:
@@ -153,3 +153,4 @@ T-322
 - [Selected Block Save Output](T-386-selected-block-save-output.md)
 - [Selected Block Review Entrypoint](T-387-selected-block-review-entrypoint.md)
 - [Action Search Selected Block Priority](T-388-action-search-selected-block-priority.md)
+- [Saved Command Usage Metadata](T-389-saved-command-usage-metadata.md)

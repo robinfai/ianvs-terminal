@@ -419,12 +419,12 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     await _pasteTextToSessionWithPolicy(sessionId, text);
   }
 
-  Future<void> _pasteTextToSessionWithPolicy(
+  Future<bool> _pasteTextToSessionWithPolicy(
     String sessionId,
     String text,
   ) async {
     if (text.isEmpty) {
-      return;
+      return false;
     }
     final decision = LocalTerminalPasteDecisionResolver.resolve(
       text: text,
@@ -435,20 +435,24 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     switch (decision.kind) {
       case LocalTerminalPasteDecisionKind.blockedReadOnly:
         _focusSession(sessionId);
-        return;
+        return false;
       case LocalTerminalPasteDecisionKind.requireConfirmation:
         final confirmed = await _confirmPaste(decision);
         if (!confirmed) {
           _focusSession(sessionId);
-          return;
+          return false;
         }
       case LocalTerminalPasteDecisionKind.sendImmediately:
         break;
     }
-    await _pasteTextToSession(sessionId, decision.text);
+    final didPaste = await _pasteTextToSession(sessionId, decision.text);
+    if (!didPaste) {
+      return false;
+    }
     if (decision.captureHistory) {
       await _recordPasteHistory(decision.text, PasteHistoryKind.paste);
     }
+    return true;
   }
 
   Future<bool> _confirmPaste(LocalTerminalPasteDecision decision) async {
@@ -540,7 +544,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     return RegExp(r'\r\n|\r|\n').allMatches(text).length + 1;
   }
 
-  Future<void> _pasteTextToSession(String sessionId, String text) async {
+  Future<bool> _pasteTextToSession(String sessionId, String text) async {
     final sessionState = ref.read(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
     TerminalPane? activePane;
@@ -557,7 +561,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     final terminalConfig = profile?.toSessionConfig();
     final frame = sessionController.viewportFor(sessionId).frame;
     if (_isSessionReadOnly(sessionId)) {
-      return;
+      return false;
     }
     ref
         .read(terminalRuntimeControllerProvider)
@@ -571,6 +575,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
             text: text,
           ),
         );
+    return true;
   }
 
   bool _sendPlainTextToSession(String sessionId, String text) {

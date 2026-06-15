@@ -64,4 +64,4 @@ flutter test test/command_center/command_action_search_index_test.dart
 
 - 尚未有 `/` overlay UI。
 - 尚未接入 real ShellScreen 的 action registry。
-- saved command useCount / lastUsedAt 仍需要在实际使用时更新。
+- saved command useCount / lastUsedAt 的实际使用更新由 T-389 覆盖。

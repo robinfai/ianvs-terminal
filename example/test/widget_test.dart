@@ -11,6 +11,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
+import 'package:app/features/command_center/saved_command_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/instant_replay_store.dart';
@@ -103,10 +104,30 @@ class _FakePathProviderPlatform extends PathProviderPlatform {
   Future<String?> getApplicationSupportPath() async => applicationSupportPath;
 }
 
+class _MemorySavedCommandRepository extends SavedCommandRepository {
+  _MemorySavedCommandRepository(this.document);
+
+  SavedCommandDocument document;
+
+  @override
+  Future<SavedCommandDocument> load() async => document;
+
+  @override
+  Future<void> save(SavedCommandDocument document) async {
+    this.document = document.trimmed();
+  }
+
+  @override
+  Future<void> clear() async {
+    document = const SavedCommandDocument();
+  }
+}
+
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
   required PtySessionBackend bindings,
   required MemoryProfileRepository repository,
+  SavedCommandRepository? savedCommandRepository,
   PasteHistoryRepository? pasteHistoryRepository,
   InstantReplayStore? instantReplayStore,
   ShellNotificationSender? notificationSender,
@@ -120,6 +141,10 @@ Future<void> _pumpShellScreen(
         pasteHistoryRepositoryProvider.overrideWithValue(
           pasteHistoryRepository ?? MemoryPasteHistoryRepository(),
         ),
+        if (savedCommandRepository != null)
+          savedCommandRepositoryProvider.overrideWithValue(
+            savedCommandRepository,
+          ),
         if (instantReplayStore != null)
           instantReplayStoreProvider.overrideWithValue(instantReplayStore),
         appPreferencesRepositoryProvider.overrideWithValue(
@@ -2403,6 +2428,57 @@ void main() {
       findsOneWidget,
     );
     expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('action search updates saved command usage after insert', (
+    tester,
+  ) async {
+    final createdAt = DateTime.utc(2026, 6, 15, 10);
+    final repository = _MemorySavedCommandRepository(
+      SavedCommandDocument(
+        entries: [
+          SavedCommandEntry(
+            id: 'repo-status',
+            title: 'Repo status check',
+            command: 'git status --short',
+            createdAt: createdAt,
+            updatedAt: createdAt,
+          ),
+        ],
+      ),
+    );
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      savedCommandRepository: repository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'repo status',
+    );
+    await tester.pump();
+    expect(find.text('Repo status check'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final loadedDocument = await repository.load();
+    expect(fakeBindings.writes, [utf8.encode('git status --short')]);
+    expect(loadedDocument.entries.single.useCount, 1);
+    expect(loadedDocument.entries.single.lastUsedAt, isNotNull);
   });
 
   testWidgets('action search can run toggle read only without shell write', (

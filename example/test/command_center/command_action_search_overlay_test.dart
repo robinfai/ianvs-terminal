@@ -74,6 +74,7 @@ void main() {
     testWidgets('enter emits action and saved command outputs', (tester) async {
       final openedActions = <String>[];
       final insertedCommands = <String>[];
+      final insertedItems = <CommandActionSearchItem>[];
       final controller = _controller(baseTime);
       await tester.pumpWidget(
         _app(
@@ -82,6 +83,7 @@ void main() {
             controller: controller,
             onOpenAction: openedActions.add,
             onInsertSavedCommand: insertedCommands.add,
+            onInsertSavedCommandItem: insertedItems.add,
           ),
         ),
       );
@@ -98,6 +100,7 @@ void main() {
 
       expect(openedActions, ['open-history']);
       expect(insertedCommands, ['flutter build macos --release']);
+      expect(insertedItems.single.id, 'release-build');
     });
 
     testWidgets('escape closes overlay and consumes the key', (tester) async {
@@ -165,6 +168,7 @@ CommandActionSearchOverlay _overlay(
   CommandActionSearchController? controller,
   ValueChanged<String>? onOpenAction,
   ValueChanged<String>? onInsertSavedCommand,
+  ValueChanged<CommandActionSearchItem>? onInsertSavedCommandItem,
   VoidCallback? onClose,
   bool loading = false,
   String? unavailableReason,
@@ -173,6 +177,7 @@ CommandActionSearchOverlay _overlay(
     controller: controller ?? _controller(baseTime),
     onOpenAction: onOpenAction,
     onInsertSavedCommand: onInsertSavedCommand,
+    onInsertSavedCommandItem: onInsertSavedCommandItem,
     onClose: onClose,
     loading: loading,
     unavailableReason: unavailableReason,
