@@ -164,6 +164,24 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
                   },
                 ),
                 ListTile(
+                  key: const Key('context-block-action-save-output'),
+                  leading: const Icon(Icons.save_alt),
+                  title: const Text('Save block output'),
+                  onTap: () {
+                    unawaited(() async {
+                      await _runContextChipBlockAction(
+                        sessionController: sessionController,
+                        sessionId: sessionId,
+                        block: block,
+                        action: CommandBlockAction.saveOutput,
+                      );
+                      if (sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop();
+                      }
+                    }());
+                  },
+                ),
+                ListTile(
                   key: const Key('context-block-action-search-within'),
                   leading: const Icon(Icons.manage_search),
                   title: const Text('Search within block'),

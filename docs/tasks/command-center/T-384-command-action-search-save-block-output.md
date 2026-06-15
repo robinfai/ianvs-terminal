@@ -16,7 +16,7 @@
 
 ## Non-goals
 
-- 不改变 selected block sheet 行为。
+- 不改变 selected block sheet 行为；selected block save output 由 T-386 覆盖。
 - 不实现 review entrypoint。
 - 不新增文件选择器或自定义保存路径。
 - 不改变 scrollback exporter 的格式和 policy。

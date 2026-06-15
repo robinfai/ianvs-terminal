@@ -6171,6 +6171,123 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('selected block chip can save block output without shell write', (
+    tester,
+  ) async {
+    final previousPathProvider = PathProviderPlatform.instance;
+    final supportDirectory = Directory.systemTemp.createTempSync(
+      'ianvs-selected-block-output-widget-test-',
+    );
+    PathProviderPlatform.instance = _FakePathProviderPlatform(
+      supportDirectory.path,
+    );
+    addTearDown(() {
+      PathProviderPlatform.instance = previousPathProvider;
+      if (supportDirectory.existsSync()) {
+        supportDirectory.deleteSync(recursive: true);
+      }
+    });
+
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 10, 'text': r'$ false', 'style_runs': const []},
+        {'index': 11, 'text': 'failed output', 'style_runs': const []},
+        {'index': 12, 'text': r'$ ', 'style_runs': const []},
+      ],
+      'cursor': {'row': 12, 'col': 2, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 10, 'end': 13},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'preexec',
+          'command': 'false',
+          'prompt_scrollback_offset': 10,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'false',
+          'pwd': '/tmp/project',
+          'exit_code': 2,
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'prompt_started',
+          'prompt_scrollback_offset': 12,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
+    await tester.pumpAndSettle();
+    final saveAction = find.byKey(
+      const Key('context-block-action-save-output'),
+    );
+    await tester.ensureVisible(saveAction);
+    await tester.pump();
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Save block output'));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    });
+    await tester.pump();
+
+    final exportDirectory = Directory(
+      '${supportDirectory.path}/scrollback_exports',
+    );
+    final exportFiles = exportDirectory
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.txt'))
+        .toList();
+    expect(exportFiles, hasLength(1));
+    expect(exportFiles.single.readAsStringSync(), 'failed output');
+    expect(
+      find.textContaining('Command block output saved to '),
+      findsOneWidget,
+    );
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('selected block chip can copy command and output together', (
     tester,
   ) async {

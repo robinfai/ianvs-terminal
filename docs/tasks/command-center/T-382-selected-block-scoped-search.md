@@ -69,4 +69,4 @@ flutter test test/widget_test.dart --plain-name "shell search opens and scrolls 
 ## Risks / Follow-ups
 
 - action search 里的 search-within-block 已由 T-383 覆盖。
-- save output 和 review entrypoint 仍需要独立 action dispatch。
+- save output 已由 T-386 覆盖；review entrypoint 仍需要独立 action dispatch。
