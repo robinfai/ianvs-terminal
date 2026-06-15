@@ -590,19 +590,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               'Read-only mode requires an active session.',
             );
           }
-          final willEnableReadOnly = !_isSessionReadOnly(currentSessionId);
-          _toggleReadOnlySession(currentSessionId);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  willEnableReadOnly
-                      ? 'Read-only mode enabled. Input is blocked for this pane.'
-                      : 'Read-only mode disabled. Input is active for this pane.',
-                ),
-              ),
-            );
-          }
+          _toggleReadOnlySessionWithFeedback(currentSessionId);
           return const ShellActionBindingResult.completed();
         },
         clearScrollback: (_) {
@@ -1256,6 +1244,23 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       default:
         return;
     }
+  }
+
+  void _toggleReadOnlySessionWithFeedback(String sessionId) {
+    final willEnableReadOnly = !_isSessionReadOnly(sessionId);
+    _toggleReadOnlySession(sessionId);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          willEnableReadOnly
+              ? 'Read-only mode enabled. Input is blocked for this pane.'
+              : 'Read-only mode disabled. Input is active for this pane.',
+        ),
+      ),
+    );
   }
 
   Future<void> _openTabContextMenu(

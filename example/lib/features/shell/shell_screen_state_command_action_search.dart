@@ -115,6 +115,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           _openAutoComposer();
         }
+      case TerminalActionId.toggleReadOnly:
+        if (currentSessionId != null) {
+          _toggleReadOnlySessionWithFeedback(currentSessionId);
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
