@@ -15,8 +15,8 @@
 ## Non-goals
 
 - 不实现 closed pane 的真实恢复；该路径由 T-376 覆盖。
-- 不实现携带 `themeId` 的 action search 输出。
-- 不直接应用某个 terminal theme preset。
+- 不实现携带独立 payload 字段的 action search 输出；theme preset dispatch 由 T-377 使用编码 action id 覆盖。
+- 不直接应用某个 terminal theme preset；该路径由 T-377 覆盖。
 - 不实现 mode router。
 
 ## Files In Scope
@@ -34,7 +34,7 @@
 - action search 搜索 `apply theme` 后按 `Enter` 显示 `Apply theme requires choosing a theme preset.`。
 - 执行动作不向当前 shell 写文本。
 - 这两个 action 不再显示泛化的 `This action still opens from the command menu.`。
-- 后续接入真实状态或参数化输出时，可替换为真实执行路径。
+- 后续如 action search 支持独立 payload 字段，可替换 T-377 的编码 action id。
 
 ## Verification Commands
 
@@ -63,5 +63,4 @@ flutter test test/widget_test.dart --plain-name "command menu opens action searc
 ## Risks / Follow-ups
 
 - `reopen closed pane` 的真实恢复由 T-376 覆盖。
-- `apply theme` 的真实执行仍需要 action search 支持选择具体 theme preset 或传递 `themeId`。
-- `apply theme` 当前反馈是诚实阻塞，不代表真实产品能力已经完成。
+- 主题预设的真实执行由 T-377 覆盖；无参数 `apply theme` 仍保留明确反馈。

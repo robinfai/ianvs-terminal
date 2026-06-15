@@ -67,4 +67,4 @@ flutter test test/widget_test.dart --plain-name "action search explains unavaila
 
 - 当前恢复的是新的 shell session，不是旧进程恢复。
 - 如果后续要恢复更完整的 pane 布局位置，需要在 closed pane stack 中记录原始 split 位置。
-- `apply theme` 仍需要 action search 支持选择具体 theme preset 或传递 `themeId`。
+- `apply theme` preset dispatch 由 T-377 覆盖；无参数 action 仍保留明确反馈。

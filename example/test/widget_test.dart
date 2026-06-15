@@ -3474,6 +3474,51 @@ void main() {
   });
 
   testWidgets(
+    'action search can apply terminal theme preset without shell write',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final profileRepository = MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      );
+      final preset = terminalThemePresets.first;
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: profileRepository,
+      );
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('command-action-search-overlay-field')),
+        preset.name,
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      final savedProfiles = await profileRepository.load();
+      final savedColors = savedProfiles.profiles.single.appearance.colors;
+      expect(savedColors.special.foreground, preset.palette.special.foreground);
+      expect(savedColors.special.background, preset.palette.special.background);
+      expect(savedColors.special.cursor, preset.palette.special.cursor);
+      expect(savedColors.normal.blue, preset.palette.normal.blue);
+      expect(
+        find.text('Apply theme requires choosing a theme preset.'),
+        findsNothing,
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
     'action search can toggle command-finished notifications without shell write',
     (tester) async {
       final fakeBindings = FakePtyBackend();

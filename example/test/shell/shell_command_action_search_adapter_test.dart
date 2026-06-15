@@ -4,6 +4,7 @@ import 'package:app/features/command_center/saved_command_repository.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_command_action_search_adapter.dart';
+import 'package:app/ui/foundation/terminal_theme_presets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -46,6 +47,24 @@ void main() {
       expect(paste.subtitle, contains('Session action'));
       expect(paste.subtitle, contains('Read-only mode'));
       expect(paste.keywords, anyElement(contains('Disable read-only')));
+    });
+
+    test('adds terminal theme preset actions with encoded theme ids', () {
+      final items = adapter.itemsFor(
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+      );
+      final preset = terminalThemePresets.first;
+
+      final theme = items.singleWhere(
+        (item) => item.id == 'applyTheme:${preset.id}',
+      );
+
+      expect(theme.title, 'Apply ${preset.name} theme');
+      expect(theme.subtitle, contains('Theme preset'));
+      expect(theme.keywords, contains('theme preset'));
+      expect(theme.keywords, contains(preset.id));
+      expect(theme.keywords, contains(preset.tone.label));
     });
 
     test('resolves app action outputs back to terminal action ids', () {

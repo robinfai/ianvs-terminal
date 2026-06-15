@@ -152,6 +152,8 @@ flutter test test/widget_test.dart --plain-name "action search can move to previ
 flutter test test/widget_test.dart --plain-name "action search can clear shell search without shell write"
 flutter test test/widget_test.dart --plain-name "action search explains unavailable command block actions without shell write"
 flutter test test/widget_test.dart --plain-name "action search explains unavailable remaining visual workspace actions without shell write"
+flutter test test/shell/shell_command_action_search_adapter_test.dart --plain-name "adds terminal theme preset actions with encoded theme ids"
+flutter test test/widget_test.dart --plain-name "action search can apply terminal theme preset without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:

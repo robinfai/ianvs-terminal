@@ -69,6 +69,13 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
     String sessionId,
     String actionId,
   ) async {
+    final themePresetId = _commandActionSearchThemePresetIdFor(actionId);
+    if (themePresetId != null) {
+      _closeCommandActionSearch();
+      await _applyCommandActionSearchThemePreset(sessionId, themePresetId);
+      return;
+    }
+
     final action = _terminalActionIdForName(actionId);
     if (action == null) {
       _showCommandActionSearchBlockedIntent('Action is unavailable.');
@@ -767,6 +774,63 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
     for (final actionId in TerminalActionId.values) {
       if (actionId.name == name) {
         return actionId;
+      }
+    }
+    return null;
+  }
+
+  String? _commandActionSearchThemePresetIdFor(String actionId) {
+    const prefix = ShellCommandActionSearchAdapter.applyThemeActionIdPrefix;
+    if (!actionId.startsWith(prefix)) {
+      return null;
+    }
+    final themePresetId = actionId.substring(prefix.length).trim();
+    return themePresetId.isEmpty ? null : themePresetId;
+  }
+
+  Future<void> _applyCommandActionSearchThemePreset(
+    String sessionId,
+    String themePresetId,
+  ) async {
+    final sessionState = ref.read(sessionControllerProvider);
+    final sessionController = ref.read(sessionControllerProvider.notifier);
+    final preset = _terminalThemePresetForId(themePresetId);
+    if (preset == null) {
+      _showCommandActionSearchBlockedIntent('Theme preset is unavailable.');
+      _focusSession(sessionId);
+      return;
+    }
+    final profile = _effectiveDefaultProfileFor(
+      sessionState.profiles,
+      sessionState.defaultProfileId,
+    );
+    if (profile == null) {
+      _showCommandActionSearchBlockedIntent(
+        'Apply theme requires a default profile.',
+      );
+      _focusSession(sessionId);
+      return;
+    }
+
+    await sessionController.saveProfile(
+      profile.copyWith(
+        appearance: profile.appearance.copyWith(colors: preset.palette),
+      ),
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Applied ${preset.name} theme to ${profile.name}.'),
+        ),
+      );
+    }
+    _focusSession(sessionId);
+  }
+
+  TerminalThemePreset? _terminalThemePresetForId(String presetId) {
+    for (final preset in terminalThemePresets) {
+      if (preset.id == presetId) {
+        return preset;
       }
     }
     return null;

@@ -1,11 +1,18 @@
 import '../command_center/command_action_search_controller.dart';
 import '../command_center/command_action_search_index.dart';
 import '../productivity/shell_productivity_models.dart';
+import '../../ui/foundation/terminal_theme_presets.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_view_models.dart';
 
 class ShellCommandActionSearchAdapter {
   const ShellCommandActionSearchAdapter();
+
+  static const applyThemeActionIdPrefix = 'applyTheme:';
+
+  static String applyThemePresetActionId(String presetId) {
+    return '$applyThemeActionIdPrefix$presetId';
+  }
 
   List<CommandActionSearchItem> itemsFor({
     required bool hasActiveSession,
@@ -23,6 +30,9 @@ class ShellCommandActionSearchAdapter {
         productivity: productivity,
       );
       items.add(_itemFor(descriptor: descriptor, viewModel: viewModel));
+    }
+    for (final preset in terminalThemePresets) {
+      items.add(_themePresetItemFor(preset));
     }
     return List<CommandActionSearchItem>.unmodifiable(items);
   }
@@ -61,6 +71,15 @@ class ShellCommandActionSearchAdapter {
         viewModel: viewModel,
         categoryLabel: categoryLabel,
       ),
+    );
+  }
+
+  CommandActionSearchItem _themePresetItemFor(TerminalThemePreset preset) {
+    return CommandActionSearchItem.appAction(
+      id: applyThemePresetActionId(preset.id),
+      title: 'Apply ${preset.name} theme',
+      subtitle: 'Theme preset • ${preset.tone.label}',
+      keywords: ['theme preset', preset.id, preset.name, preset.tone.label],
     );
   }
 }
