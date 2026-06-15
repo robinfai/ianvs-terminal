@@ -130,6 +130,7 @@ flutter test test/widget_test.dart --plain-name "action search can toggle comman
 flutter test test/widget_test.dart --plain-name "action search can toggle bell notifications without shell write"
 flutter test test/widget_test.dart --plain-name "action search can toggle activity monitor without shell write"
 flutter test test/widget_test.dart --plain-name "action search can split right without shell write"
+flutter test test/widget_test.dart --plain-name "action search can split down without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:
