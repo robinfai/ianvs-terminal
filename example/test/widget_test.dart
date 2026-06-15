@@ -2974,6 +2974,68 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('action search can copy selection without shell write', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    String? copiedText;
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': copiedText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          copiedText = (methodCall.arguments as Map)['text'] as String?;
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final renderViewport = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final selectionStart = renderViewport.localToGlobal(const Offset(1, 9));
+    await tester.dragFrom(selectionStart, const Offset(300, 0));
+    await tester.pump();
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'copy selection',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(copiedText, 'ianvs terminal ready');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {

@@ -87,6 +87,7 @@ List<String> _keywordsFor({
     descriptor.id.name,
     descriptor.category.name,
     categoryLabel,
+    ..._actionSearchAliasesFor(descriptor.id),
     if (viewModel.shortcutHint case final shortcut? when shortcut.isNotEmpty)
       shortcut,
     if (viewModel.disabledTitle case final title? when title.isNotEmpty) title,
@@ -99,6 +100,13 @@ List<String> _keywordsFor({
     for (final value in values)
       if (seen.add(value)) value,
   ];
+}
+
+List<String> _actionSearchAliasesFor(TerminalActionId actionId) {
+  return switch (actionId) {
+    TerminalActionId.copy => const ['copy selection'],
+    _ => const <String>[],
+  };
 }
 
 String _categoryLabel(TerminalActionCategory category) {
