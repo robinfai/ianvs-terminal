@@ -62,4 +62,5 @@ flutter test test/widget_test.dart --plain-name "selected block chip can reinput
 
 ## Risks / Follow-ups
 
-- scoped search、save output 和 review entrypoint 仍需要独立 action dispatch。
+- scoped search 已由 T-382 覆盖。
+- save output 和 review entrypoint 仍需要独立 action dispatch。

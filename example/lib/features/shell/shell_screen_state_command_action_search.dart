@@ -894,6 +894,15 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           terminalIntent,
         );
       case CommandBlockActionIntentKind.scopedSearch:
+        final outputRange = intent.outputRange;
+        if (outputRange == null) {
+          _showCommandActionSearchBlockedIntent(
+            'No command block output is available.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        _openSearch(scopedOutputRange: outputRange);
       case CommandBlockActionIntentKind.saveOutput:
       case CommandBlockActionIntentKind.reviewEntrypoint:
         _showCommandActionSearchBlockedIntent(

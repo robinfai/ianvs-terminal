@@ -201,6 +201,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   int _searchFocusRequestSerial = 0;
   terminal.TerminalSearchMode _searchMode =
       terminal.TerminalSearchMode.smartCaseSubstring;
+  CommandBlockRowRange? _searchScopedOutputRange;
   CommandSearchOverlayController? _commandSearchOverlayController;
   String? _commandSearchSessionId;
   CommandActionSearchController? _commandActionSearchController;

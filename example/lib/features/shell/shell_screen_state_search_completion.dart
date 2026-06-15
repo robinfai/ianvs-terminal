@@ -1,13 +1,14 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateSearchCompletion on _ShellScreenState {
-  void _openSearch() {
+  void _openSearch({CommandBlockRowRange? scopedOutputRange}) {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {
       return;
     }
     _mutateState(() {
       _isSearchOpen = true;
+      _searchScopedOutputRange = scopedOutputRange;
       _searchFocusRequestSerial += 1;
     });
     if (_searchQuery.isNotEmpty) {
@@ -52,22 +53,38 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final result = ref
         .read(terminalRuntimeControllerProvider)
         .searchTextResult(activeSessionId, query, mode: _searchMode);
-    final activeIndex = _defaultSearchActiveIndex(result.matches);
+    final matches = _matchesInSearchScope(result.matches);
+    final activeIndex = _defaultSearchActiveIndex(matches);
     _mutateState(() {
       _searchQuery = query;
       _searchErrorText = result.errorText;
-      _searchMatches = result.matches;
+      _searchMatches = matches;
       _activeSearchIndex = activeIndex;
     });
-    if (result.matches.isNotEmpty) {
+    if (matches.isNotEmpty) {
       ref
           .read(terminalRuntimeControllerProvider)
           .scrollViewportTo(
             activeSessionId,
-            result.matches[activeIndex].scrollbackOffset,
+            matches[activeIndex].scrollbackOffset,
           );
     }
     _rememberSearchRefreshFrameSignature(activeSessionId);
+  }
+
+  List<terminal.TerminalSearchMatch> _matchesInSearchScope(
+    List<terminal.TerminalSearchMatch> matches,
+  ) {
+    final scopedOutputRange = _searchScopedOutputRange;
+    if (scopedOutputRange == null) {
+      return matches;
+    }
+    return [
+      for (final match in matches)
+        if (match.scrollbackOffset >= scopedOutputRange.startRow &&
+            match.scrollbackOffset < scopedOutputRange.endRowExclusive)
+          match,
+    ];
   }
 
   int _defaultSearchActiveIndex(List<terminal.TerminalSearchMatch> matches) {
@@ -118,14 +135,15 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final result = ref
         .read(terminalRuntimeControllerProvider)
         .searchTextResult(sessionId, _searchQuery, mode: _searchMode);
+    final matches = _matchesInSearchScope(result.matches);
     if (!mounted) {
       return;
     }
     _mutateState(() {
       _searchErrorText = result.errorText;
-      _searchMatches = result.matches;
+      _searchMatches = matches;
       _activeSearchIndex = _refreshedSearchActiveIndex(
-        result.matches,
+        matches,
         previousActiveMatch: previousActiveMatch,
         previousActiveIndex: previousActiveIndex,
       );
@@ -266,6 +284,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     _mutateState(() {
       _isSearchOpen = false;
+      _searchScopedOutputRange = null;
     });
     if (activeSessionId != null) {
       _focusSession(activeSessionId);

@@ -108,6 +108,7 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (sheetContext) {
         return SafeArea(
           child: SingleChildScrollView(
@@ -158,6 +159,22 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
                         sessionId: sessionId,
                         block: block,
                         action: CommandBlockAction.copyBoth,
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  key: const Key('context-block-action-search-within'),
+                  leading: const Icon(Icons.manage_search),
+                  title: const Text('Search within block'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      _runContextChipBlockAction(
+                        sessionController: sessionController,
+                        sessionId: sessionId,
+                        block: block,
+                        action: CommandBlockAction.searchWithinBlock,
                       ),
                     );
                   },
