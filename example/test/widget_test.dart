@@ -3397,6 +3397,49 @@ void main() {
     },
   );
 
+  testWidgets(
+    'action search explains unavailable remaining visual workspace actions without shell write',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      for (final action in {
+        'reopen closed pane': 'Reopen closed pane is not available yet.',
+        'apply theme': 'Apply theme requires choosing a theme preset.',
+      }.entries) {
+        await _openCommandMenu(tester);
+        await tester.enterText(
+          find.byKey(const Key('shell-command-search-field')),
+          'action search',
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const Key('command-action-search-overlay-field')),
+          action.key,
+        );
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(find.text(action.value), findsOneWidget);
+        ScaffoldMessenger.of(
+          tester.element(find.byType(Scaffold)),
+        ).hideCurrentSnackBar();
+        await tester.pumpAndSettle();
+      }
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
   testWidgets('action search can open theme picker without shell write', (
     tester,
   ) async {

@@ -58,4 +58,4 @@ flutter test test/widget_test.dart --plain-name "command menu opens action searc
 
 ## Risks / Follow-ups
 
-- block action 真实执行、apply theme 和 reopen closed pane 仍需要独立 action search dispatch 覆盖。
+- block action、apply theme 和 reopen closed pane 的真实执行仍需要后续状态或参数化流程；当前已有独立 action search unavailable feedback 覆盖。

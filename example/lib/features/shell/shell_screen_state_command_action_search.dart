@@ -164,6 +164,11 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         }
         sessionController.reopenClosedTab();
         _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+      case TerminalActionId.reopenClosedPane:
+        _showCommandActionSearchBlockedIntent(
+          'Reopen closed pane is not available yet.',
+        );
+        _focusSession(sessionId);
       case TerminalActionId.splitRight:
         if (currentSessionId != null) {
           final defaultProfile = _effectiveDefaultProfileFor(
@@ -586,6 +591,11 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         await _openDynamicProfiles(sessionController);
       case TerminalActionId.openThemePicker:
         await _openDefaultsAndAppearance(sessionController, sessionState);
+      case TerminalActionId.applyTheme:
+        _showCommandActionSearchBlockedIntent(
+          'Apply theme requires choosing a theme preset.',
+        );
+        _focusSession(sessionId);
       case TerminalActionId.exportScrollback:
         if (currentSessionId == null) {
           if (mounted) {

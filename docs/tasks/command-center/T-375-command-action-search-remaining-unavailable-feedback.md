@@ -1,0 +1,67 @@
+# T-375 Command Action Search Remaining Unavailable Feedback
+
+## Goal
+
+让 action search 对剩余两个当前不能真实执行的可见动作给出明确不可用反馈，并保持不向 shell 写入。
+
+## Scope
+
+- 从 action search 搜索并选择 `reopen closed pane` 时展示该能力尚不可用的反馈。
+- 从 action search 搜索并选择 `apply theme` 时展示需要先选择主题预设的反馈。
+- 增加 widget regression，确认这两个动作不再落入默认兜底文案。
+- 确认执行这些不可用动作不写当前 pty。
+- 将该 regression 纳入 Command Bar lane 最小验证命令。
+
+## Non-goals
+
+- 不实现 closed pane stack 或 pane reopen API。
+- 不实现携带 `themeId` 的 action search 输出。
+- 不直接应用某个 terminal theme preset。
+- 不实现 mode router。
+
+## Files In Scope
+
+- `example/lib/features/shell/shell_screen_state_command_action_search.dart`
+- `example/test/widget_test.dart`
+- `docs/tasks/command-center/README.md`
+- `docs/tasks/command-center/T-322-command-center-verification-gates.md`
+- `docs/tasks/command-center/T-373-command-action-search-clear-search-dispatch.md`
+- `docs/tasks/command-center/T-374-command-action-search-block-actions-unavailable-feedback.md`
+
+## Functional Acceptance
+
+- action search 搜索 `reopen closed pane` 后按 `Enter` 显示 `Reopen closed pane is not available yet.`。
+- action search 搜索 `apply theme` 后按 `Enter` 显示 `Apply theme requires choosing a theme preset.`。
+- 执行动作不向当前 shell 写文本。
+- 这两个 action 不再显示泛化的 `This action still opens from the command menu.`。
+- 后续接入真实状态或参数化输出时，可替换为真实执行路径。
+
+## Verification Commands
+
+参考 [../../TESTING.md](../../TESTING.md)。建议最小验证：
+
+```bash
+cd example
+flutter analyze
+flutter test test/widget_test.dart --plain-name "action search explains unavailable remaining visual workspace actions without shell write"
+flutter test test/widget_test.dart --plain-name "command menu opens action search overlay without shell write"
+```
+
+## Manual QA
+
+- 在 action search 中搜索 `reopen closed pane`，按 `Enter`。
+- 在 action search 中搜索 `apply theme`，按 `Enter`。
+- 确认出现明确的不可用反馈，terminal 没收到 action search 文案。
+
+## Done When
+
+- `reopen closed pane` 和 `apply theme` 都有明确 unavailable feedback。
+- action search 对这两个动作有 widget regression。
+- Command Bar lane 验证门包含该 regression。
+- 可见 registry action 不再缺少 action search switch 分支，`openActionSearch` 除外。
+
+## Risks / Follow-ups
+
+- `reopen closed pane` 的真实执行仍需要在 session/workspace 层记录 closed pane stack。
+- `apply theme` 的真实执行仍需要 action search 支持选择具体 theme preset 或传递 `themeId`。
+- 当前反馈是诚实阻塞，不代表这两个动作的真实产品能力已经完成。
