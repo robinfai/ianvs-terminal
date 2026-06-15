@@ -233,6 +233,8 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         await _openProfilesSheet(sessionController, sessionState);
       case TerminalActionId.dynamicProfiles:
         await _openDynamicProfiles(sessionController);
+      case TerminalActionId.openThemePicker:
+        await _openDefaultsAndAppearance(sessionController, sessionState);
       default:
         _showCommandActionSearchBlockedIntent(
           'This action still opens from the command menu.',
