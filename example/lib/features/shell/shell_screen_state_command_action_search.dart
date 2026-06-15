@@ -338,6 +338,44 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         await _openDynamicProfiles(sessionController);
       case TerminalActionId.openThemePicker:
         await _openDefaultsAndAppearance(sessionController, sessionState);
+      case TerminalActionId.exportScrollback:
+        if (currentSessionId == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Export scrollback requires an active session.'),
+              ),
+            );
+          }
+          return;
+        }
+        final file = await _exportVisibleFrame(currentSessionId);
+        if (file == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'No visible terminal content is available to export.',
+                ),
+              ),
+            );
+          }
+          return;
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Scrollback exported to ${file.path}'),
+              duration: const Duration(seconds: 8),
+              action: SnackBarAction(
+                label: 'Copy path',
+                onPressed: () {
+                  unawaited(Clipboard.setData(ClipboardData(text: file.path)));
+                },
+              ),
+            ),
+          );
+        }
       case TerminalActionId.exportDiagnostics:
         if (currentSessionId == null) {
           if (mounted) {

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -89,6 +91,15 @@ class _DelayedProfileRepository extends MemoryProfileRepository {
     await ready;
     return super.load();
   }
+}
+
+class _FakePathProviderPlatform extends PathProviderPlatform {
+  _FakePathProviderPlatform(this.applicationSupportPath);
+
+  final String applicationSupportPath;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => applicationSupportPath;
 }
 
 Future<void> _pumpShellScreen(
@@ -3480,6 +3491,69 @@ void main() {
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
     expect(find.bySemanticsIdentifier('shell-tab-3'), findsOneWidget);
     _expectSelectedTab(tester, '3');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('action search can export scrollback without shell write', (
+    tester,
+  ) async {
+    final previousPathProvider = PathProviderPlatform.instance;
+    final supportDirectory = Directory.systemTemp.createTempSync(
+      'ianvs-scrollback-widget-test-',
+    );
+    PathProviderPlatform.instance = _FakePathProviderPlatform(
+      supportDirectory.path,
+    );
+    addTearDown(() {
+      PathProviderPlatform.instance = previousPathProvider;
+      if (supportDirectory.existsSync()) {
+        supportDirectory.deleteSync(recursive: true);
+      }
+    });
+
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'export scrollback',
+    );
+    await tester.pump();
+    await tester.runAsync(() async {
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Scrollback exported to '), findsOneWidget);
+    final exportDirectory = Directory(
+      '${supportDirectory.path}/scrollback_exports',
+    );
+    final exportFiles = exportDirectory
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.txt'))
+        .toList();
+    expect(exportFiles, hasLength(1));
+    expect(
+      exportFiles.single.readAsStringSync(),
+      contains('ianvs terminal ready'),
+    );
     expect(fakeBindings.writes, isEmpty);
   });
 

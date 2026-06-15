@@ -135,6 +135,7 @@ flutter test test/widget_test.dart --plain-name "action search can zoom pane wit
 flutter test test/widget_test.dart --plain-name "action search can apply two-pane layout without shell write"
 flutter test test/widget_test.dart --plain-name "action search can reopen closed tab without shell write"
 flutter test test/widget_test.dart --plain-name "action search can explain unavailable diagnostics export"
+flutter test test/widget_test.dart --plain-name "action search can export scrollback without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:
