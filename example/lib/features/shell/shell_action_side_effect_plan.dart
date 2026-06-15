@@ -18,6 +18,7 @@ enum ShellActionSideEffectKind {
   openThemePicker,
   exportScrollback,
   applyLayoutTemplate,
+  commandBlockAction,
   none,
 }
 
@@ -40,6 +41,10 @@ class ShellActionSideEffectPlanner {
       ShellProductivityDispatchResult() => _productivity(result.result),
       ShellPolicyDispatchResult() => _policy(result.result),
       ShellVisualDispatchResult() => _visual(result.result),
+      ShellCommandBlockDispatchResult() => ShellActionSideEffectPlan(
+        kind: ShellActionSideEffectKind.commandBlockAction,
+        payload: result.result,
+      ),
       ShellUnhandledDispatchResult() => const ShellActionSideEffectPlan(
         kind: ShellActionSideEffectKind.none,
       ),

@@ -1,3 +1,6 @@
+import '../command_center/command_block_action_reducer.dart';
+import '../command_center/command_block_actions.dart';
+import '../command_center/command_block_models.dart';
 import '../policies/local_terminal_policy_action_reducer.dart';
 import '../productivity/shell_productivity_action_reducer.dart';
 import '../productivity/shell_productivity_models.dart';
@@ -34,6 +37,12 @@ class ShellVisualDispatchResult extends ShellActionDispatchResult {
   final LocalTerminalVisualActionResult result;
 }
 
+class ShellCommandBlockDispatchResult extends ShellActionDispatchResult {
+  const ShellCommandBlockDispatchResult(this.result);
+
+  final CommandBlockActionResult result;
+}
+
 class ShellUnhandledDispatchResult extends ShellActionDispatchResult {
   const ShellUnhandledDispatchResult();
 }
@@ -58,12 +67,26 @@ class ShellActionDispatchContext {
     required this.productivity,
     required this.policy,
     required this.visual,
+    this.commandBlock = const ShellCommandBlockActionContext(),
   });
 
   final LocalWorkspaceActionContext workspace;
   final ShellProductivityActionContext productivity;
   final LocalTerminalPolicyActionContext policy;
   final LocalTerminalVisualActionContext visual;
+  final ShellCommandBlockActionContext commandBlock;
+}
+
+class ShellCommandBlockActionContext {
+  const ShellCommandBlockActionContext({
+    this.activeBlock,
+    this.hasTerminalFrame = true,
+    this.reducer = const CommandBlockActionReducer(),
+  });
+
+  final CommandBlock? activeBlock;
+  final bool hasTerminalFrame;
+  final CommandBlockActionReducer reducer;
 }
 
 class ShellActionDispatcher {
@@ -101,6 +124,15 @@ class ShellActionDispatcher {
       return ShellPolicyDispatchResult(policy);
     }
 
+    final commandBlock = _dispatchCommandBlockAction(
+      actionId: actionId,
+      state: state,
+      context: context.commandBlock,
+    );
+    if (commandBlock != null) {
+      return ShellCommandBlockDispatchResult(commandBlock);
+    }
+
     final visual = LocalTerminalVisualActionReducer.reduce(
       actionId: actionId,
       context: context.visual,
@@ -111,4 +143,31 @@ class ShellActionDispatcher {
 
     return const ShellUnhandledDispatchResult();
   }
+}
+
+CommandBlockActionResult? _dispatchCommandBlockAction({
+  required TerminalActionId actionId,
+  required ShellActionDispatchState state,
+  required ShellCommandBlockActionContext context,
+}) {
+  final action = _commandBlockActionFor(actionId);
+  final block = context.activeBlock;
+  if (action == null || block == null) {
+    return null;
+  }
+  return context.reducer.reduce(
+    action,
+    block,
+    readOnly: state.productivity.readOnly,
+    hasTerminalFrame: context.hasTerminalFrame,
+  );
+}
+
+CommandBlockAction? _commandBlockActionFor(TerminalActionId actionId) {
+  return switch (actionId) {
+    TerminalActionId.copyBlockOutput => CommandBlockAction.copyOutput,
+    TerminalActionId.reInputBlockCommand => CommandBlockAction.reInput,
+    TerminalActionId.rerunBlockCommand => CommandBlockAction.rerun,
+    _ => null,
+  };
 }

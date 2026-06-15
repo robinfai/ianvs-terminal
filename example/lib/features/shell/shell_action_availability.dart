@@ -1,3 +1,6 @@
+import '../command_center/command_block_action_reducer.dart';
+import '../command_center/command_block_actions.dart';
+import '../command_center/command_block_models.dart';
 import '../productivity/shell_productivity_models.dart';
 import 'shell_action_registry.dart';
 
@@ -6,6 +9,9 @@ enum ShellActionDisabledReason {
   shellIntegrationUnavailable,
   readOnly,
   missingCommandOutput,
+  missingCommandBlock,
+  missingTerminalFrame,
+  pasteRequiresConfirmation,
   missingRecentDirectory,
 }
 
@@ -18,6 +24,10 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
       ShellActionDisabledReason.readOnly => 'Read-only mode',
       ShellActionDisabledReason.missingCommandOutput =>
         'No command output available',
+      ShellActionDisabledReason.missingCommandBlock => 'No command block',
+      ShellActionDisabledReason.missingTerminalFrame => 'No terminal frame',
+      ShellActionDisabledReason.pasteRequiresConfirmation =>
+        'Paste confirmation required',
       ShellActionDisabledReason.missingRecentDirectory =>
         'No recent directory available',
     };
@@ -33,6 +43,12 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
         'Disable read-only mode before sending text or paste content.',
       ShellActionDisabledReason.missingCommandOutput =>
         'Run a command with captured output before using this action.',
+      ShellActionDisabledReason.missingCommandBlock =>
+        'Select a command block before using this action.',
+      ShellActionDisabledReason.missingTerminalFrame =>
+        'Wait for the terminal frame before using this action.',
+      ShellActionDisabledReason.pasteRequiresConfirmation =>
+        'Confirm the multiline paste before sending command text.',
       ShellActionDisabledReason.missingRecentDirectory =>
         'Visit a local directory before opening the recent directory list.',
     };
@@ -59,12 +75,36 @@ class ShellActionAvailabilityResolver {
     required TerminalActionId actionId,
     required bool hasActiveSession,
     required ShellProductivityState productivity,
+    CommandBlock? commandBlock,
+    bool hasTerminalFrame = true,
+    CommandBlockActionReducer commandBlockReducer =
+        const CommandBlockActionReducer(),
   }) {
     final descriptor = ShellActionRegistry.actions[actionId];
     if (descriptor?.requiresActiveSession == true && !hasActiveSession) {
       return ShellActionAvailability.disabled(
         ShellActionDisabledReason.missingActiveSession,
       );
+    }
+
+    final blockAction = _commandBlockActionFor(actionId);
+    if (blockAction != null) {
+      if (commandBlock == null) {
+        return ShellActionAvailability.disabled(
+          ShellActionDisabledReason.missingCommandBlock,
+        );
+      }
+      final result = commandBlockReducer.reduce(
+        blockAction,
+        commandBlock,
+        readOnly: productivity.readOnly,
+        hasTerminalFrame: hasTerminalFrame,
+      );
+      return result.enabled
+          ? ShellActionAvailability.enabledAction
+          : ShellActionAvailability.disabled(
+              _shellDisabledReasonForBlockAction(result.disabledReason!),
+            );
     }
 
     switch (actionId) {
@@ -100,4 +140,30 @@ class ShellActionAvailabilityResolver {
         return ShellActionAvailability.enabledAction;
     }
   }
+}
+
+CommandBlockAction? _commandBlockActionFor(TerminalActionId actionId) {
+  return switch (actionId) {
+    TerminalActionId.copyBlockOutput => CommandBlockAction.copyOutput,
+    TerminalActionId.reInputBlockCommand => CommandBlockAction.reInput,
+    TerminalActionId.rerunBlockCommand => CommandBlockAction.rerun,
+    _ => null,
+  };
+}
+
+ShellActionDisabledReason _shellDisabledReasonForBlockAction(
+  CommandBlockActionDisabledReason reason,
+) {
+  return switch (reason) {
+    CommandBlockActionDisabledReason.emptyCommand =>
+      ShellActionDisabledReason.missingCommandOutput,
+    CommandBlockActionDisabledReason.missingOutputRange =>
+      ShellActionDisabledReason.missingCommandOutput,
+    CommandBlockActionDisabledReason.missingTerminalFrame =>
+      ShellActionDisabledReason.missingTerminalFrame,
+    CommandBlockActionDisabledReason.readOnly =>
+      ShellActionDisabledReason.readOnly,
+    CommandBlockActionDisabledReason.requiresPastePolicy =>
+      ShellActionDisabledReason.pasteRequiresConfirmation,
+  };
 }

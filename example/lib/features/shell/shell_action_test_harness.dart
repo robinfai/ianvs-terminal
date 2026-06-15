@@ -39,6 +39,9 @@ class ShellActionTestHarness {
         applyLayoutTemplate: _record(
           ShellActionSideEffectKind.applyLayoutTemplate,
         ),
+        commandBlockAction: _record(
+          ShellActionSideEffectKind.commandBlockAction,
+        ),
       ),
     );
   }

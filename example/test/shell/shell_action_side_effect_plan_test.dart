@@ -1,3 +1,4 @@
+import 'package:app/features/command_center/command_block_actions.dart';
 import 'package:app/features/policies/local_terminal_paste_decision.dart';
 import 'package:app/features/policies/local_terminal_policy_action_reducer.dart';
 import 'package:app/features/shell/shell_action_dispatcher.dart';
@@ -48,6 +49,18 @@ void main() {
       );
 
       expect(plan.kind, ShellActionSideEffectKind.openThemePicker);
+    });
+
+    test('maps command block dispatch to command block side effect', () {
+      const result = CommandBlockActionResult.enabled(
+        CommandBlockActionIntent.none(),
+      );
+      final plan = ShellActionSideEffectPlanner.plan(
+        const ShellCommandBlockDispatchResult(result),
+      );
+
+      expect(plan.kind, ShellActionSideEffectKind.commandBlockAction);
+      expect(plan.payload, result);
     });
 
     test('maps unhandled dispatch to none', () {

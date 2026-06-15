@@ -17,6 +17,7 @@ class ShellActionSideEffectHandlers {
     this.openThemePicker,
     this.exportScrollback,
     this.applyLayoutTemplate,
+    this.commandBlockAction,
   });
 
   final ShellActionSideEffectHandler? updateWorkspace;
@@ -32,6 +33,7 @@ class ShellActionSideEffectHandlers {
   final ShellActionSideEffectHandler? openThemePicker;
   final ShellActionSideEffectHandler? exportScrollback;
   final ShellActionSideEffectHandler? applyLayoutTemplate;
+  final ShellActionSideEffectHandler? commandBlockAction;
 }
 
 class ShellActionSideEffectExecutor {
@@ -59,6 +61,8 @@ class ShellActionSideEffectExecutor {
       ShellActionSideEffectKind.exportScrollback => handlers.exportScrollback,
       ShellActionSideEffectKind.applyLayoutTemplate =>
         handlers.applyLayoutTemplate,
+      ShellActionSideEffectKind.commandBlockAction =>
+        handlers.commandBlockAction,
       ShellActionSideEffectKind.none => null,
     };
 
