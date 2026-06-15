@@ -235,6 +235,20 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         await _openDynamicProfiles(sessionController);
       case TerminalActionId.openThemePicker:
         await _openDefaultsAndAppearance(sessionController, sessionState);
+      case TerminalActionId.toggleCommandFinishedNotify:
+        _mutateState(() {
+          _commandFinishedNotificationsEnabled =
+              !_commandFinishedNotificationsEnabled;
+        });
+        unawaited(_saveNotificationPreferences());
+        final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Command-finished notifications ${_commandFinishedNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+            ),
+          ),
+        );
       default:
         _showCommandActionSearchBlockedIntent(
           'This action still opens from the command menu.',

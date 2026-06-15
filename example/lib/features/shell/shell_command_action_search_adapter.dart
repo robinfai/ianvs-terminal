@@ -105,6 +105,11 @@ List<String> _keywordsFor({
 List<String> _actionSearchAliasesFor(TerminalActionId actionId) {
   return switch (actionId) {
     TerminalActionId.copy => const ['copy selection'],
+    TerminalActionId.toggleCommandFinishedNotify => const [
+      'command finished notifications',
+      'command-finished notifications',
+      'shell hook completion alerts',
+    ],
     _ => const <String>[],
   };
 }
