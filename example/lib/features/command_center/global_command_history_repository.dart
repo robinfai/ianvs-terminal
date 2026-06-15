@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import 'command_history_privacy_filter.dart';
 import 'session_command_history_buffer.dart';
 
 typedef GlobalCommandHistoryDirectoryResolver = Future<Directory> Function();
@@ -10,9 +11,13 @@ typedef GlobalCommandHistoryDirectoryResolver = Future<Directory> Function();
 class GlobalCommandHistoryRepository {
   GlobalCommandHistoryRepository({
     GlobalCommandHistoryDirectoryResolver? directoryResolver,
-  }) : _directoryResolver = directoryResolver ?? getApplicationSupportDirectory;
+    CommandHistoryPrivacyFilter privacyFilter =
+        const CommandHistoryPrivacyFilter(),
+  }) : _directoryResolver = directoryResolver ?? getApplicationSupportDirectory,
+       _privacyFilter = privacyFilter;
 
   final GlobalCommandHistoryDirectoryResolver _directoryResolver;
+  final CommandHistoryPrivacyFilter _privacyFilter;
 
   Future<GlobalCommandHistoryDocument> load() async {
     final file = await _historyFile();
@@ -36,10 +41,35 @@ class GlobalCommandHistoryRepository {
     }
   }
 
-  Future<void> save(GlobalCommandHistoryDocument document) async {
+  Future<void> save(
+    GlobalCommandHistoryDocument document, {
+    CommandHistoryWriteIntent intent = CommandHistoryWriteIntent.save,
+  }) async {
+    final decision = _privacyFilter.persistenceDecision(intent: intent);
+    if (decision.shouldClear) {
+      await clear();
+      return;
+    }
+    if (!decision.shouldWrite) {
+      return;
+    }
+
     final file = await _historyFile();
     await file.parent.create(recursive: true);
-    await file.writeAsString(jsonEncode(document.trimmed().toJson()));
+    final filteredDocument = GlobalCommandHistoryDocument(
+      limit: document.limit,
+      entries: _privacyFilter
+          .allowedEntries(document.entries, (entry) => entry.command)
+          .toList(growable: false),
+    );
+    await file.writeAsString(jsonEncode(filteredDocument.trimmed().toJson()));
+  }
+
+  Future<void> clear() async {
+    final file = await _historyFile();
+    if (await file.exists()) {
+      await file.delete();
+    }
   }
 
   Future<File> _historyFile() async {
