@@ -51,7 +51,7 @@ T-313 -> T-314 -> T-315 -> T-316 -> T-320 -> T-321
 Command Bar lane:
 
 ```text
-T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331 -> T-332 -> T-333 -> T-334 -> T-335 -> T-336
+T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331 -> T-332 -> T-333 -> T-334 -> T-335 -> T-336 -> T-337
 ```
 
 Verification lane:
@@ -101,3 +101,4 @@ T-322
 - [ShellScreen Command Action Search Wiring](T-334-shellscreen-command-action-search-wiring.md)
 - [Command Action Search Read-only Dispatch](T-335-command-action-search-read-only-dispatch.md)
 - [Command Action Search Toolbelt Dispatch](T-336-command-action-search-toolbelt-dispatch.md)
+- [Command Action Search Paste History Dispatch](T-337-command-action-search-paste-history-dispatch.md)
