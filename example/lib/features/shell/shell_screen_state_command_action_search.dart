@@ -171,6 +171,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           await _openCoprocess(currentSessionId);
         }
+      case TerminalActionId.passwordManager:
+        if (currentSessionId != null) {
+          await _openPasswordManager(sessionController, currentSessionId);
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
