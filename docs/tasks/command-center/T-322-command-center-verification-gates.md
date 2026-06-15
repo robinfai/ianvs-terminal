@@ -152,6 +152,7 @@ flutter test test/widget_test.dart --plain-name "action search can move to previ
 flutter test test/widget_test.dart --plain-name "action search can clear shell search without shell write"
 flutter test test/widget_test.dart --plain-name "action search explains unavailable command block actions without shell write"
 flutter test test/widget_test.dart --plain-name "action search can copy block output without shell write"
+flutter test test/widget_test.dart --plain-name "action search can save block output without shell write"
 flutter test test/widget_test.dart --plain-name "action search can open scoped search for an active command block"
 flutter test test/widget_test.dart --plain-name "action search can reinput and rerun an active command block"
 flutter test test/widget_test.dart --plain-name "action search explains unavailable remaining visual workspace actions without shell write"

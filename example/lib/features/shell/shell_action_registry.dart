@@ -25,6 +25,7 @@ enum TerminalActionId {
   copyMode,
   copyCommandOutput,
   copyBlockOutput,
+  saveBlockOutput,
   searchWithinBlock,
   reInputBlockCommand,
   rerunBlockCommand,
@@ -389,6 +390,13 @@ class ShellActionRegistry {
       label: 'copy_block_output',
       category: TerminalActionCategory.integration,
       icon: Icons.copy_all,
+      requiresActiveSession: true,
+    ),
+    TerminalActionId.saveBlockOutput: TerminalActionDescriptor(
+      id: TerminalActionId.saveBlockOutput,
+      label: 'save_block_output',
+      category: TerminalActionCategory.integration,
+      icon: Icons.save_alt,
       requiresActiveSession: true,
     ),
     TerminalActionId.searchWithinBlock: TerminalActionDescriptor(

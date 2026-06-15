@@ -55,5 +55,5 @@ flutter test test/command_center/command_block_action_reducer_test.dart
 
 ## Risks / Follow-ups
 
-- save output 的目标路径选择留给 wiring 任务定义。
+- save output 的 action-search 路径由 T-384 定义为 Application Support 下的 `scrollback_exports`。
 - copy output 与用户选区冲突时，后续 wiring 应让用户选区优先。

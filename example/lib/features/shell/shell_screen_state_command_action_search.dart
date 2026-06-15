@@ -503,6 +503,7 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           }
         }
       case TerminalActionId.copyBlockOutput:
+      case TerminalActionId.saveBlockOutput:
       case TerminalActionId.searchWithinBlock:
       case TerminalActionId.reInputBlockCommand:
       case TerminalActionId.rerunBlockCommand:
@@ -905,6 +906,42 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         }
         _openSearch(scopedOutputRange: outputRange);
       case CommandBlockActionIntentKind.saveOutput:
+        final outputRange = intent.outputRange;
+        if (outputRange == null) {
+          _showCommandActionSearchBlockedIntent(
+            'No command block output is available.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final file = await _saveCommandBlockOutput(
+          sessionController: sessionController,
+          sessionId: sessionId,
+          blockId: intent.blockId,
+          outputRange: outputRange,
+        );
+        if (file == null) {
+          _showCommandActionSearchBlockedIntent(
+            'No command block output is available.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Command block output saved to ${file.path}'),
+              duration: const Duration(seconds: 8),
+              action: SnackBarAction(
+                label: 'Copy path',
+                onPressed: () {
+                  unawaited(Clipboard.setData(ClipboardData(text: file.path)));
+                },
+              ),
+            ),
+          );
+        }
+        _focusSession(sessionId);
       case CommandBlockActionIntentKind.reviewEntrypoint:
         _showCommandActionSearchBlockedIntent(
           'This command block action still opens from the command menu.',
@@ -1007,11 +1044,70 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
     _focusSession(sessionId);
   }
 
+  Future<File?> _saveCommandBlockOutput({
+    required SessionController sessionController,
+    required String sessionId,
+    required String? blockId,
+    required CommandBlockRowRange outputRange,
+  }) async {
+    final selectionController = _selectionControllers.putIfAbsent(
+      sessionId,
+      SelectionController.new,
+    );
+    _selectCommandBlockOutputRange(
+      sessionController,
+      sessionId,
+      selectionController,
+      outputRange,
+    );
+    final output = _selectionTextForSession(
+      sessionController,
+      sessionId,
+      selectionController,
+    ).trimRight();
+    if (output.trim().isEmpty) {
+      return null;
+    }
+
+    final capturedAt = DateTime.now();
+    final supportDirectory = await getApplicationSupportDirectory();
+    final exportDirectory = Directory(
+      '${supportDirectory.path}/scrollback_exports',
+    );
+    final safeBlockId = blockId?.trim();
+    final blockSegment = safeBlockId != null && safeBlockId.isNotEmpty
+        ? safeBlockId
+        : sessionId;
+    final basename = [
+      'command-block',
+      blockSegment,
+      capturedAt.millisecondsSinceEpoch.toString(),
+    ].join('-');
+
+    return LocalTerminalScrollbackExporter.write(
+      directory: exportDirectory,
+      basename: basename,
+      export: LocalTerminalScrollbackExport(
+        format: LocalTerminalExportFormat.plainText,
+        content: output,
+        metadata: <String, Object?>{
+          'sessionId': sessionId,
+          if (safeBlockId != null && safeBlockId.isNotEmpty)
+            'blockId': safeBlockId,
+          'scope': 'command-block-output',
+          'capturedAt': capturedAt.toIso8601String(),
+        },
+      ),
+      policy: const LocalTerminalScrollbackExportPolicy(),
+    );
+  }
+
   CommandBlockAction? _commandBlockActionForActionSearch(
     TerminalActionId actionId,
   ) {
     return switch (actionId) {
       TerminalActionId.copyBlockOutput => CommandBlockAction.copyOutput,
+      TerminalActionId.saveBlockOutput => CommandBlockAction.saveOutput,
       TerminalActionId.searchWithinBlock =>
         CommandBlockAction.searchWithinBlock,
       TerminalActionId.reInputBlockCommand => CommandBlockAction.reInput,
