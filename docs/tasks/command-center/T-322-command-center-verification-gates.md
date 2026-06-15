@@ -101,7 +101,8 @@ flutter test \
   test/command_center/command_center_context_wiring_test.dart \
   test/command_center/context_chips_test.dart \
   test/command_center/command_center_mode_router_test.dart \
-  test/command_center/saved_command_repository_test.dart
+  test/command_center/saved_command_repository_test.dart \
+  test/command_center/command_action_search_index_test.dart
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:
