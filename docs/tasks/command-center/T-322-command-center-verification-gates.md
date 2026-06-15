@@ -104,7 +104,8 @@ flutter test \
   test/command_center/saved_command_repository_test.dart \
   test/command_center/command_action_search_index_test.dart \
   test/command_center/command_action_search_controller_test.dart \
-  test/command_center/command_action_search_shell_wiring_test.dart
+  test/command_center/command_action_search_shell_wiring_test.dart \
+  test/command_center/command_action_search_overlay_test.dart
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:
