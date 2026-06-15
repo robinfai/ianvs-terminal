@@ -155,6 +155,32 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
             TerminalSplitAxis.vertical,
           );
         }
+      case TerminalActionId.applyLayoutTemplate:
+        if (currentSessionId != null) {
+          final defaultProfile = _effectiveDefaultProfileFor(
+            sessionState.profiles,
+            sessionState.defaultProfileId,
+          );
+          if (defaultProfile == null) {
+            return;
+          }
+          final currentTab = _tabForSession(sessionState, currentSessionId);
+          if (currentTab == null) {
+            return;
+          }
+          if (currentTab.effectivePanes.length > 1) {
+            _showCommandActionSearchBlockedIntent(
+              'Two-pane layout template is already satisfied.',
+            );
+            _focusSession(sessionId);
+            return;
+          }
+          _splitActiveSession(
+            sessionController,
+            defaultProfile,
+            TerminalSplitAxis.horizontal,
+          );
+        }
       case TerminalActionId.zoomPane:
         if (currentSessionId != null) {
           final currentTab = _tabForSession(sessionState, currentSessionId);

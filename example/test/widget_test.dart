@@ -3394,6 +3394,47 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('action search can apply two-pane layout without shell write', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
+    expect(find.byType(TerminalViewport), findsOneWidget);
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'apply two-pane layout',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
+    expect(find.byType(TerminalViewport), findsNWidgets(2));
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {

@@ -118,6 +118,10 @@ List<String> _actionSearchAliasesFor(TerminalActionId actionId) {
       'activity monitor',
       'inactive activity alerts',
     ],
+    TerminalActionId.applyLayoutTemplate => const [
+      'apply two-pane layout',
+      'two-pane layout',
+    ],
     _ => const <String>[],
   };
 }
