@@ -97,6 +97,7 @@ Command Bar lane 最小命令：
 cd example
 flutter test \
   test/command_center/command_bar_editor_test.dart \
+  test/command_center/command_center_context_wiring_test.dart \
   test/command_center/context_chips_test.dart \
   test/command_center/command_center_mode_router_test.dart
 ```

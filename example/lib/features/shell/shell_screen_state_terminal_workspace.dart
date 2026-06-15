@@ -165,6 +165,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     final annotations = _annotationsForSession(sessionId);
     final activeCoprocess = _coprocesses[sessionId];
     final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
+    final contextChips = _contextChipsForPane(pane: pane, profile: profile);
 
     return LayoutBuilder(
       key: Key('shell-pane-$sessionId'),
@@ -310,6 +311,30 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                         onPrevious: () => _moveSearchMatch(1),
                         onNext: () => _moveSearchMatch(-1),
                         onClose: _closeSearch,
+                      ),
+                    ),
+                  ),
+                if (isActive &&
+                    !_isSearchOpen &&
+                    !_isCommandSearchOpen &&
+                    !_isAutocompleteOpen &&
+                    !_isAutoComposerOpen &&
+                    !_isCopyModeOpen &&
+                    contextChips.chips.isNotEmpty)
+                  Positioned(
+                    top: _ShellScreenState._terminalOverlayPadding.top,
+                    left: _ShellScreenState._terminalOverlayPadding.left,
+                    right: _ShellScreenState._terminalOverlayPadding.right,
+                    child: Align(
+                      alignment: Alignment.topLeft,
+                      child: ContextChips(
+                        chips: contextChips.chips,
+                        onIntent: (intent) => _handleContextChipIntent(
+                          sessionController: sessionController,
+                          sessionState: sessionState,
+                          sessionId: sessionId,
+                          intent: intent,
+                        ),
                       ),
                     ),
                   ),

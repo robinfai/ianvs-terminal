@@ -51,7 +51,7 @@ T-313 -> T-314 -> T-315 -> T-316 -> T-320 -> T-321
 Command Bar lane:
 
 ```text
-T-317 -> T-318 -> T-319
+T-317 -> T-318 -> T-326 -> T-319
 ```
 
 Verification lane:
@@ -90,3 +90,4 @@ T-322
 - [Command Center Runtime State](T-323-command-center-runtime-state.md)
 - [Command Center Shell Event Wiring](T-324-command-center-shell-event-wiring.md)
 - [Command Search Shell Wiring](T-325-command-search-shell-wiring.md)
+- [Command Center Context Chip Wiring](T-326-command-center-context-chip-wiring.md)

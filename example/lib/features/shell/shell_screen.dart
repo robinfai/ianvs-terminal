@@ -12,12 +12,16 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
+import '../command_center/command_center_context_wiring.dart';
 import '../command_center/command_center_runtime.dart';
 import '../command_center/command_center_shell_event_wiring.dart';
+import '../command_center/command_lifecycle_degraded_state.dart';
 import '../command_center/command_search_intents.dart';
 import '../command_center/command_search_overlay.dart';
 import '../command_center/command_search_overlay_controller.dart';
 import '../command_center/command_search_shell_wiring.dart';
+import '../command_center/context_chip_models.dart';
+import '../command_center/context_chips.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
@@ -59,6 +63,7 @@ part 'shell_screen_state_integrations.dart';
 part 'shell_screen_state_instant_replay.dart';
 part 'shell_screen_state_search_completion.dart';
 part 'shell_screen_state_command_search.dart';
+part 'shell_screen_state_context_chips.dart';
 part 'shell_screen_state_profile_actions.dart';
 part 'shell_screen_state_command_actions.dart';
 part 'shell_screen_state_terminal_workspace.dart';
@@ -114,6 +119,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsWithNewOutput = {};
   final CommandCenterShellEventWiring _commandCenterShellEventWiring =
       const CommandCenterShellEventWiring();
+  final CommandCenterContextWiring _commandCenterContextWiring =
+      const CommandCenterContextWiring();
   final CommandSearchShellWiring _commandSearchShellWiring =
       const CommandSearchShellWiring();
   CommandCenterRuntimeState _commandCenterRuntime =
