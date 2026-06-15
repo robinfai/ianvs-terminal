@@ -430,6 +430,16 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
             ),
           );
         }
+      case TerminalActionId.paste:
+        if (currentSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Paste requires an active session.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        await _pasteToSession(currentSessionId);
+        _focusSession(currentSessionId);
       case TerminalActionId.pasteHistory:
         if (currentSessionId != null) {
           await _openPasteHistory(sessionState);
