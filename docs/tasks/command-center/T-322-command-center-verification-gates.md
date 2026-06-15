@@ -143,6 +143,7 @@ flutter test test/widget_test.dart --plain-name "action search can focus previou
 flutter test test/widget_test.dart --plain-name "action search can swap pane without shell write"
 flutter test test/widget_test.dart --plain-name "action search can resize pane without shell write"
 flutter test test/widget_test.dart --plain-name "action search can close pane without shell write"
+flutter test test/widget_test.dart --plain-name "action search can reopen closed pane without shell write"
 flutter test test/widget_test.dart --plain-name "action search can close active tab without shell write"
 flutter test test/widget_test.dart --plain-name "action search can duplicate current cwd into new tab"
 flutter test test/widget_test.dart --plain-name "action search can paste clipboard text into shell"

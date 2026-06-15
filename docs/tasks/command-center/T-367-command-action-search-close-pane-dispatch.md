@@ -57,4 +57,4 @@ flutter test test/widget_test.dart --plain-name "command menu opens action searc
 
 ## Risks / Follow-ups
 
-- close active tab 和 reopen closed pane 仍需要独立 action search dispatch 覆盖。
+- close active tab 已有独立 action search dispatch；reopen closed pane 的真实恢复由 T-376 覆盖。

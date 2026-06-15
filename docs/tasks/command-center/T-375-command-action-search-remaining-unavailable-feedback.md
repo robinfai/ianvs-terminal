@@ -2,11 +2,11 @@
 
 ## Goal
 
-让 action search 对剩余两个当前不能真实执行的可见动作给出明确不可用反馈，并保持不向 shell 写入。
+让 action search 对剩余不能直接执行的状态给出明确反馈，并保持不向 shell 写入。
 
 ## Scope
 
-- 从 action search 搜索并选择 `reopen closed pane` 时展示该能力尚不可用的反馈。
+- 从 action search 搜索并选择 `reopen closed pane` 但没有最近关闭 pane 时展示明确反馈。
 - 从 action search 搜索并选择 `apply theme` 时展示需要先选择主题预设的反馈。
 - 增加 widget regression，确认这两个动作不再落入默认兜底文案。
 - 确认执行这些不可用动作不写当前 pty。
@@ -14,7 +14,7 @@
 
 ## Non-goals
 
-- 不实现 closed pane stack 或 pane reopen API。
+- 不实现 closed pane 的真实恢复；该路径由 T-376 覆盖。
 - 不实现携带 `themeId` 的 action search 输出。
 - 不直接应用某个 terminal theme preset。
 - 不实现 mode router。
@@ -30,7 +30,7 @@
 
 ## Functional Acceptance
 
-- action search 搜索 `reopen closed pane` 后按 `Enter` 显示 `Reopen closed pane is not available yet.`。
+- action search 搜索 `reopen closed pane` 且没有最近关闭 pane 时显示 `No recently closed pane is available.`。
 - action search 搜索 `apply theme` 后按 `Enter` 显示 `Apply theme requires choosing a theme preset.`。
 - 执行动作不向当前 shell 写文本。
 - 这两个 action 不再显示泛化的 `This action still opens from the command menu.`。
@@ -55,13 +55,13 @@ flutter test test/widget_test.dart --plain-name "command menu opens action searc
 
 ## Done When
 
-- `reopen closed pane` 和 `apply theme` 都有明确 unavailable feedback。
+- `reopen closed pane` 的空状态和 `apply theme` 都有明确 unavailable feedback。
 - action search 对这两个动作有 widget regression。
 - Command Bar lane 验证门包含该 regression。
 - 可见 registry action 不再缺少 action search switch 分支，`openActionSearch` 除外。
 
 ## Risks / Follow-ups
 
-- `reopen closed pane` 的真实执行仍需要在 session/workspace 层记录 closed pane stack。
+- `reopen closed pane` 的真实恢复由 T-376 覆盖。
 - `apply theme` 的真实执行仍需要 action search 支持选择具体 theme preset 或传递 `themeId`。
-- 当前反馈是诚实阻塞，不代表这两个动作的真实产品能力已经完成。
+- `apply theme` 当前反馈是诚实阻塞，不代表真实产品能力已经完成。

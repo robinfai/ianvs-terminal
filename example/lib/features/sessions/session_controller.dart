@@ -107,6 +107,8 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, _AutomaticProfileBaseline> _automaticProfileBaselines =
       <String, _AutomaticProfileBaseline>{};
   final List<TerminalTab> _recentlyClosedTabs = <TerminalTab>[];
+  final Map<String, List<TerminalPane>> _recentlyClosedPanesByTabSessionId =
+      <String, List<TerminalPane>>{};
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
   LocalTerminalConfigDocument _localConfigDocument =
@@ -123,6 +125,20 @@ class SessionController extends Notifier<SessionState> {
       ref.read(terminalRuntimeControllerProvider);
 
   bool get canReopenClosedTab => _recentlyClosedTabs.isNotEmpty;
+
+  bool get canReopenClosedPane {
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      return false;
+    }
+    final tabIndex = _tabIndexContainingSession(activeSessionId);
+    if (tabIndex == -1) {
+      return false;
+    }
+    final tabSessionId = state.tabs[tabIndex].sessionId;
+    return _recentlyClosedPanesByTabSessionId[tabSessionId]?.isNotEmpty ??
+        false;
+  }
 
   void _setWindowTitle(String title) {
     unawaited(ref.read(sessionWindowTitleWriterProvider)(title));
@@ -652,6 +668,64 @@ class SessionController extends Notifier<SessionState> {
     _setWindowTitle(activePane?.title ?? reopenedTab.title);
   }
 
+  void reopenClosedPane({
+    TerminalSplitAxis axis = TerminalSplitAxis.horizontal,
+  }) {
+    if (ref.read(sessionDemoFixtureProvider) != null) {
+      return;
+    }
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    final activeTabIndex = _tabIndexContainingSession(activeSessionId);
+    if (activeTabIndex == -1) {
+      return;
+    }
+    final activeTab = state.tabs[activeTabIndex];
+    final closedPanes = _recentlyClosedPanesByTabSessionId[activeTab.sessionId];
+    if (closedPanes == null || closedPanes.isEmpty) {
+      return;
+    }
+
+    final sourcePane = closedPanes.removeAt(0);
+    if (closedPanes.isEmpty) {
+      _recentlyClosedPanesByTabSessionId.remove(activeTab.sessionId);
+    }
+    final profile = _profileForClosedPane(sourcePane);
+    if (profile == null) {
+      return;
+    }
+
+    _ensureRuntimeSubscription();
+    final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
+    final launchProfile = _profileWithSessionEnvironment(
+      profile,
+      environmentOverrides,
+    );
+    final sessionId = _runtime.createSession(launchProfile.toSessionConfig());
+    final reopenedPane = TerminalPane(
+      sessionId: sessionId,
+      title: sourcePane.title,
+      profileId: profile.id,
+      profileSnapshot: launchProfile,
+    );
+    final nextPaneLayout = activeTab.effectivePaneLayout.splitPane(
+      sessionId: activeSessionId,
+      newPane: reopenedPane,
+      axis: axis,
+    );
+    final nextTabs = <TerminalTab>[...state.tabs];
+    nextTabs[activeTabIndex] = activeTab.copyWith(
+      panes: nextPaneLayout.panes,
+      paneLayout: nextPaneLayout,
+      activePaneSessionId: sessionId,
+      splitAxis: axis,
+    );
+    state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
+    _setWindowTitle(sourcePane.title);
+  }
+
   TerminalPaneLayoutNode? _reopenedPaneLayout(
     TerminalPaneLayoutNode source,
     Map<String, TerminalPane> replacementsBySourceSessionId,
@@ -1162,6 +1236,10 @@ class SessionController extends Notifier<SessionState> {
     if (!tabHasMultiplePanes) {
       _removeTabState(tabIndex, recordClosedTab: !runtimeAlreadyClosed);
     } else {
+      final closingPane = tab.paneFor(sessionId);
+      if (!runtimeAlreadyClosed && closingPane != null) {
+        _recordRecentlyClosedPane(tab.sessionId, closingPane);
+      }
       final nextPaneLayout = tab.effectivePaneLayout.removePane(sessionId);
       if (nextPaneLayout == null) {
         _removeTabState(tabIndex, recordClosedTab: !runtimeAlreadyClosed);
@@ -1221,6 +1299,7 @@ class SessionController extends Notifier<SessionState> {
 
   void _removeTabState(int tabIndex, {bool recordClosedTab = false}) {
     final closingTab = state.tabs[tabIndex];
+    _recentlyClosedPanesByTabSessionId.remove(closingTab.sessionId);
     if (recordClosedTab) {
       _recentlyClosedTabs
         ..removeWhere((tab) => tab.sessionId == closingTab.sessionId)
@@ -1247,6 +1326,19 @@ class SessionController extends Notifier<SessionState> {
       tabs: nextTabs,
       activeSessionId: nextActiveSessionId,
     );
+  }
+
+  void _recordRecentlyClosedPane(String tabSessionId, TerminalPane pane) {
+    final closedPanes = _recentlyClosedPanesByTabSessionId.putIfAbsent(
+      tabSessionId,
+      () => <TerminalPane>[],
+    );
+    closedPanes
+      ..removeWhere((closedPane) => closedPane.sessionId == pane.sessionId)
+      ..insert(0, pane);
+    if (closedPanes.length > 10) {
+      closedPanes.removeRange(10, closedPanes.length);
+    }
   }
 
   int _tabIndexContainingSession(String sessionId) {

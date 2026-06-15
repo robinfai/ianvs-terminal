@@ -165,10 +165,15 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         sessionController.reopenClosedTab();
         _focusSession(ref.read(sessionControllerProvider).activeSessionId);
       case TerminalActionId.reopenClosedPane:
-        _showCommandActionSearchBlockedIntent(
-          'Reopen closed pane is not available yet.',
-        );
-        _focusSession(sessionId);
+        if (!sessionController.canReopenClosedPane) {
+          _showCommandActionSearchBlockedIntent(
+            'No recently closed pane is available.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        sessionController.reopenClosedPane();
+        _focusSession(ref.read(sessionControllerProvider).activeSessionId);
       case TerminalActionId.splitRight:
         if (currentSessionId != null) {
           final defaultProfile = _effectiveDefaultProfileFor(
