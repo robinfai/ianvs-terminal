@@ -105,6 +105,31 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           defaultProfile,
           returningToWorkspace: false,
         );
+      case TerminalActionId.splitRight:
+        if (currentSessionId != null) {
+          final defaultProfile = _effectiveDefaultProfileFor(
+            sessionState.profiles,
+            sessionState.defaultProfileId,
+          );
+          if (defaultProfile == null) {
+            return;
+          }
+          final conflictReason = _splitAxisConflictReason(
+            sessionState,
+            currentSessionId,
+            TerminalSplitAxis.horizontal,
+          );
+          if (conflictReason != null) {
+            _showCommandActionSearchBlockedIntent(conflictReason);
+            _focusSession(sessionId);
+            return;
+          }
+          _splitActiveSession(
+            sessionController,
+            defaultProfile,
+            TerminalSplitAxis.horizontal,
+          );
+        }
       case TerminalActionId.search:
         _openSearch();
       case TerminalActionId.globalSearch:
