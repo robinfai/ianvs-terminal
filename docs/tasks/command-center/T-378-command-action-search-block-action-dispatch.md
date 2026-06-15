@@ -66,7 +66,7 @@ flutter test test/widget_test.dart --plain-name "action search explains unavaila
 
 ## Risks / Follow-ups
 
-- 当前 active block 取最近 block；显式 selected block UI 接入后应优先使用用户选择。
+- selected block 优先级已由 T-388 覆盖；没有 selected block 时仍回退最近 block。
 - prompt mark 与 lifecycle 缺失或顺序异常时仍会降级为 unavailable feedback。
 - scoped search 已由 T-383 覆盖。
 - save output 已由 T-384 覆盖；review entrypoint 已由 T-385 覆盖。

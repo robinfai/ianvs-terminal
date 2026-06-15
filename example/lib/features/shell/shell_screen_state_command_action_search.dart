@@ -979,6 +979,13 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
     if (blocks.isEmpty) {
       return null;
     }
+    final selectedBlockId = _selectedCommandBlockIdsBySession[sessionId];
+    if (selectedBlockId != null) {
+      final selectedBlock = rangeState.blockByInvocationId(selectedBlockId);
+      if (selectedBlock?.scope == CommandBlockScope(sessionId)) {
+        return selectedBlock;
+      }
+    }
     return blocks.last;
   }
 
