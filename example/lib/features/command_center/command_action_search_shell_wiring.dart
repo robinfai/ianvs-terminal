@@ -30,10 +30,7 @@ class CommandActionSearchShellWiring {
     switch (output.kind) {
       case CommandActionSearchOutputKind.insertSavedCommand:
         final command = output.command;
-        return policy.resolve(
-          CommandSearchOverlayOutput.insert(command ?? ''),
-          readOnly: readOnly,
-        );
+        return terminalIntentForSavedCommand(command ?? '', readOnly: readOnly);
       case CommandActionSearchOutputKind.openAction:
         return const CommandSearchTerminalIntent.none();
       case CommandActionSearchOutputKind.none:
@@ -41,5 +38,15 @@ class CommandActionSearchShellWiring {
           CommandSearchTerminalIntentReason.emptySelection,
         );
     }
+  }
+
+  CommandSearchTerminalIntent terminalIntentForSavedCommand(
+    String command, {
+    required bool readOnly,
+  }) {
+    return policy.resolve(
+      CommandSearchOverlayOutput.insert(command),
+      readOnly: readOnly,
+    );
   }
 }

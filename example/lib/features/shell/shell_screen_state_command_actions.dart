@@ -1202,6 +1202,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         }
         _openSearch();
         return;
+      case TerminalActionId.openActionSearch:
+        if (currentSessionId == null) {
+          return;
+        }
+        _openCommandActionSearch(currentSessionId);
+        return;
       case TerminalActionId.globalSearch:
         if (sessionState.tabs.isEmpty) {
           return;

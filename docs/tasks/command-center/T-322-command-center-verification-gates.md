@@ -106,7 +106,10 @@ flutter test \
   test/command_center/command_action_search_controller_test.dart \
   test/command_center/command_action_search_shell_wiring_test.dart \
   test/command_center/command_action_search_overlay_test.dart \
-  test/shell/shell_command_action_search_adapter_test.dart
+  test/shell/shell_command_action_search_adapter_test.dart \
+  test/shell/terminal_action_registry_test.dart
+flutter test test/widget_test.dart --plain-name "ordinary slash key does not open action search overlay"
+flutter test test/widget_test.dart --plain-name "command menu opens action search overlay without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:

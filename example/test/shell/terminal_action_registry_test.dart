@@ -24,6 +24,7 @@ void main() {
         TerminalActionId.passwordManager,
         TerminalActionId.instantReplay,
         TerminalActionId.search,
+        TerminalActionId.openActionSearch,
         TerminalActionId.globalSearch,
         TerminalActionId.autocomplete,
         TerminalActionId.autoComposer,

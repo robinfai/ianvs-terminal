@@ -12,6 +12,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
+import '../command_center/command_action_search_controller.dart';
+import '../command_center/command_action_search_overlay.dart';
+import '../command_center/command_action_search_shell_wiring.dart';
 import '../command_center/command_center_context_wiring.dart';
 import '../command_center/command_center_runtime.dart';
 import '../command_center/command_center_shell_event_wiring.dart';
@@ -24,12 +27,14 @@ import '../command_center/command_search_shell_wiring.dart';
 import '../command_center/context_chip_models.dart';
 import '../command_center/context_chips.dart';
 import '../command_center/global_command_history_repository.dart';
+import '../command_center/saved_command_repository.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
 import '../preferences/app_preferences_models.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
+import '../productivity/shell_productivity_models.dart';
 import '../profiles/dynamic_profiles_sheet.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
@@ -53,6 +58,7 @@ import 'local_terminal_shell_ui_wiring_exports.dart';
 import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
+import 'shell_command_action_search_adapter.dart';
 import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
@@ -66,6 +72,7 @@ part 'shell_screen_state_instant_replay.dart';
 part 'shell_screen_state_search_completion.dart';
 part 'shell_screen_state_command_history.dart';
 part 'shell_screen_state_command_search.dart';
+part 'shell_screen_state_command_action_search.dart';
 part 'shell_screen_state_context_chips.dart';
 part 'shell_screen_state_profile_actions.dart';
 part 'shell_screen_state_command_actions.dart';
@@ -130,10 +137,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       GlobalCommandHistoryRepository();
   final CommandSearchShellWiring _commandSearchShellWiring =
       const CommandSearchShellWiring();
+  final CommandActionSearchShellWiring _commandActionSearchShellWiring =
+      const CommandActionSearchShellWiring();
+  final ShellCommandActionSearchAdapter _commandActionSearchAdapter =
+      const ShellCommandActionSearchAdapter();
+  final SavedCommandRepository _savedCommandRepository =
+      SavedCommandRepository();
   CommandCenterRuntimeState _commandCenterRuntime =
       const CommandCenterRuntimeState();
   GlobalCommandHistoryDocument _globalCommandHistory =
       const GlobalCommandHistoryDocument();
+  SavedCommandDocument _savedCommands = const SavedCommandDocument();
   Future<void> _globalCommandHistoryLoad = Future<void>.value();
   Future<void> _globalCommandHistorySaveChain = Future<void>.value();
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
@@ -145,6 +159,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isProfilesOpen = false;
   bool _isSearchOpen = false;
   bool _isCommandSearchOpen = false;
+  bool _isCommandActionSearchOpen = false;
   bool _isAutocompleteOpen = false;
   bool _isAutoComposerOpen = false;
   bool _isCopyModeOpen = false;
@@ -184,6 +199,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       terminal.TerminalSearchMode.smartCaseSubstring;
   CommandSearchOverlayController? _commandSearchOverlayController;
   String? _commandSearchSessionId;
+  CommandActionSearchController? _commandActionSearchController;
+  String? _commandActionSearchSessionId;
   String _autocompletePrefix = '';
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
@@ -228,6 +245,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         .events
         .listen(_handleTerminalSessionEvent);
     _globalCommandHistoryLoad = _loadGlobalCommandHistory();
+    Future.microtask(_loadSavedCommands);
     Future.microtask(_loadPasteHistory);
     Future.microtask(_loadNotificationPreferences);
   }
@@ -623,6 +641,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return KeyEventResult.handled;
         case TerminalActionId.openCommandMenu:
           unawaited(_openCommandMenu(sessionController, sessionState));
+          return KeyEventResult.handled;
+        case TerminalActionId.openActionSearch:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _openCommandActionSearch(activeSessionId);
           return KeyEventResult.handled;
         case TerminalActionId.toolbelt:
           return KeyEventResult.handled;

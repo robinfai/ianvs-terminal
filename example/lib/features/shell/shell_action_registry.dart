@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 enum TerminalActionId {
   openLauncher,
   openCommandMenu,
+  openActionSearch,
   newTab,
   duplicateCurrentCwd,
   reopenClosedTab,
@@ -212,6 +213,14 @@ class ShellActionRegistry {
       terminalInputPolicy: TerminalInputPolicy.appFirst,
       icon: Icons.menu,
       requiresActiveSession: false,
+    ),
+    TerminalActionId.openActionSearch: TerminalActionDescriptor(
+      id: TerminalActionId.openActionSearch,
+      label: 'open_action_search',
+      category: TerminalActionCategory.workspace,
+      terminalInputPolicy: TerminalInputPolicy.appFirst,
+      icon: Icons.manage_search,
+      requiresActiveSession: true,
     ),
     TerminalActionId.toolbelt: TerminalActionDescriptor(
       id: TerminalActionId.toolbelt,

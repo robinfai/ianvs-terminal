@@ -304,6 +304,19 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       onTap: () =>
                           Navigator.of(context).pop(TerminalActionId.search),
                     ),
+                    commandTile(
+                      key: const Key('shell-open-action-search'),
+                      actionId: TerminalActionId.openActionSearch,
+                      icon: Icons.manage_search_rounded,
+                      title: 'Action search',
+                      subtitle:
+                          'Top action • Search actions and saved commands.',
+                      enabled: hasActiveSession,
+                      disabledReason: activeSessionRequired,
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(TerminalActionId.openActionSearch),
+                    ),
                     sectionLabel('App actions'),
                     commandTile(
                       key: const Key('shell-new-tab'),
@@ -895,6 +908,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.instantReplay,
   ),
   MapEntry('search scrollback find local output', TerminalActionId.search),
+  MapEntry(
+    'action search command actions saved commands command center',
+    TerminalActionId.openActionSearch,
+  ),
   MapEntry('global search workspace all tabs', TerminalActionId.globalSearch),
   MapEntry(
     'autocomplete complete word visible output',

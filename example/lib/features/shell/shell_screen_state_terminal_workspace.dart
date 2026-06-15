@@ -317,6 +317,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                 if (isActive &&
                     !_isSearchOpen &&
                     !_isCommandSearchOpen &&
+                    !_isCommandActionSearchOpen &&
                     !_isAutocompleteOpen &&
                     !_isAutoComposerOpen &&
                     !_isCopyModeOpen &&
@@ -354,6 +355,30 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                           _executeCommandSearchSelection(sessionId, command),
                         ),
                         onClose: _closeCommandSearch,
+                      ),
+                    ),
+                  ),
+                if (isActive && _isCommandActionSearchOpen)
+                  Positioned(
+                    top: _ShellScreenState._terminalOverlayPadding.top,
+                    left: _ShellScreenState._terminalOverlayPadding.left,
+                    right: _ShellScreenState._terminalOverlayPadding.right,
+                    child: Align(
+                      alignment: Alignment.topRight,
+                      child: CommandActionSearchOverlay(
+                        controller: _commandActionSearchControllerFor(
+                          sessionId,
+                        ),
+                        onOpenAction: (actionId) => unawaited(
+                          _openCommandActionSearchAction(sessionId, actionId),
+                        ),
+                        onInsertSavedCommand: (command) => unawaited(
+                          _insertCommandActionSearchSavedCommand(
+                            sessionId,
+                            command,
+                          ),
+                        ),
+                        onClose: _closeCommandActionSearch,
                       ),
                     ),
                   ),
