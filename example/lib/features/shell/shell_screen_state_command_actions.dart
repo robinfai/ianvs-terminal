@@ -1008,9 +1008,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         );
         return;
       case TerminalActionId.toolbelt:
-        _mutateState(() {
-          _isToolbeltOpen = true;
-        });
+        _openToolbelt();
         return;
       case TerminalActionId.splitRight:
         if (defaultProfile == null || currentSessionId == null) {

@@ -88,6 +88,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
       case TerminalActionId.openLauncher:
       case TerminalActionId.openCommandMenu:
         await _openCommandMenu(sessionController, sessionState);
+      case TerminalActionId.toolbelt:
+        if (currentSessionId != null) {
+          _openToolbelt();
+        }
       case TerminalActionId.newTab:
         final defaultProfile = _effectiveDefaultProfileFor(
           sessionState.profiles,

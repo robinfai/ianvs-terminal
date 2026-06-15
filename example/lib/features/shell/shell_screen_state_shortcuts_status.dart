@@ -1,6 +1,15 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
+  void _openToolbelt() {
+    if (_isToolbeltOpen) {
+      return;
+    }
+    _mutateState(() {
+      _isToolbeltOpen = true;
+    });
+  }
+
   void _closeToolbelt() {
     if (!_isToolbeltOpen) {
       return;
