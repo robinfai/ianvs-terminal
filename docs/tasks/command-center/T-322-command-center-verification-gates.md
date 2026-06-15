@@ -118,6 +118,7 @@ flutter test test/widget_test.dart --plain-name "action search can open copy mod
 flutter test test/widget_test.dart --plain-name "action search can open captured output without shell write"
 flutter test test/widget_test.dart --plain-name "action search can open annotations without shell write"
 flutter test test/widget_test.dart --plain-name "action search can open shell integration without shell write"
+flutter test test/widget_test.dart --plain-name "action search can open tmux integration without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:

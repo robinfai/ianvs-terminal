@@ -163,6 +163,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           await _openShellIntegrationUtilities(sessionState, currentSessionId);
         }
+      case TerminalActionId.tmuxIntegration:
+        if (currentSessionId != null) {
+          await _openTmuxIntegration(currentSessionId);
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
