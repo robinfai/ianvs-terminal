@@ -3205,6 +3205,43 @@ void main() {
   );
 
   testWidgets(
+    'action search can toggle bell notifications without shell write',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('command-action-search-overlay-field')),
+        'bell notifications',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Bell notifications disabled and saved.'),
+        findsOneWidget,
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();

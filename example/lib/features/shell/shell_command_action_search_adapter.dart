@@ -110,6 +110,10 @@ List<String> _actionSearchAliasesFor(TerminalActionId actionId) {
       'command-finished notifications',
       'shell hook completion alerts',
     ],
+    TerminalActionId.toggleBellNotify => const [
+      'bell notifications',
+      'terminal bell alerts',
+    ],
     _ => const <String>[],
   };
 }

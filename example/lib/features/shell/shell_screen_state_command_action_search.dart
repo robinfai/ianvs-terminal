@@ -249,6 +249,19 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
             ),
           ),
         );
+      case TerminalActionId.toggleBellNotify:
+        _mutateState(() {
+          _bellNotificationsEnabled = !_bellNotificationsEnabled;
+        });
+        unawaited(_saveNotificationPreferences());
+        final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Bell notifications ${_bellNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+            ),
+          ),
+        );
       default:
         _showCommandActionSearchBlockedIntent(
           'This action still opens from the command menu.',
