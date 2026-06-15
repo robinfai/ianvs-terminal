@@ -105,6 +105,15 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           defaultProfile,
           returningToWorkspace: false,
         );
+      case TerminalActionId.closeActiveTab:
+        if (currentSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Close tab requires an active session.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        _closeSession(sessionController, sessionState, currentSessionId);
       case TerminalActionId.reopenClosedTab:
         if (!sessionController.canReopenClosedTab) {
           _showCommandActionSearchBlockedIntent(

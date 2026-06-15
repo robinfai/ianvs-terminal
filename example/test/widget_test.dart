@@ -3586,6 +3586,49 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('action search can close active tab without shell write', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+    _expectSelectedTab(tester, '2');
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'close active tab',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
+    _expectSelectedTab(tester, '1');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('action search can zoom pane without shell write', (
     tester,
   ) async {
