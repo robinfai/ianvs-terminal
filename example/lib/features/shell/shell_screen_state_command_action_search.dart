@@ -322,6 +322,29 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           await _openShellIntegrationUtilities(sessionState, currentSessionId);
         }
+      case TerminalActionId.openRecentDirectory:
+        if (currentSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Open recent directory requires an active session.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final currentPane = _paneForSession(sessionState, currentSessionId);
+        final recentDirectories =
+            currentPane?.shellIntegration.recentDirectories ?? const [];
+        if (recentDirectories.isEmpty) {
+          _showCommandActionSearchBlockedIntent(
+            'No recent directory is available.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        _sendPlainTextToSession(
+          currentSessionId,
+          'cd ${_shellQuotedPath(recentDirectories.first)}',
+        );
+        _focusSession(currentSessionId);
       case TerminalActionId.selectCommandOutput:
         if (currentSessionId != null) {
           final selectionController = _selectionControllers.putIfAbsent(
