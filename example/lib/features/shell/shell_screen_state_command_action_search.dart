@@ -292,6 +292,43 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         }
         sessionController.swapActivePaneWithSibling();
         _focusSession(currentSessionId);
+      case TerminalActionId.resizePane:
+        if (currentSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Resize pane requires an active session.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final resizeTab = _tabForSession(sessionState, currentSessionId);
+        final resizeBlockedReason = resizeTab == null
+            ? null
+            : _zoomedPaneManagementUnavailableReason(resizeTab);
+        if (resizeBlockedReason != null) {
+          _showCommandActionSearchBlockedIntent(resizeBlockedReason);
+          _focusSession(sessionId);
+          return;
+        }
+        if (resizeTab == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Resize pane requires at least two panes.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final growthBlockedReason = _growActivePaneUnavailableReason(
+          resizeTab,
+          currentSessionId,
+        );
+        if (growthBlockedReason != null ||
+            !_growActivePane(resizeTab, currentSessionId)) {
+          _showCommandActionSearchBlockedIntent(
+            growthBlockedReason ?? 'Resize pane requires at least two panes.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        _focusSession(currentSessionId);
       case TerminalActionId.search:
         _openSearch();
       case TerminalActionId.globalSearch:

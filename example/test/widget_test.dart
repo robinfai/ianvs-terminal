@@ -3493,6 +3493,56 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('action search can resize pane without shell write', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('shell-pane-2')));
+    await tester.pumpAndSettle();
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Focus previous pane'));
+    await tester.pumpAndSettle();
+
+    final pane1 = find.byKey(const Key('shell-pane-1'));
+    final pane2 = find.byKey(const Key('shell-pane-2'));
+    final pane1WidthBefore = tester.getSize(pane1).width;
+    final pane2WidthBefore = tester.getSize(pane2).width;
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'resize pane',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(pane1).width, greaterThan(pane1WidthBefore));
+    expect(tester.getSize(pane2).width, lessThan(pane2WidthBefore));
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('action search can zoom pane without shell write', (
     tester,
   ) async {
