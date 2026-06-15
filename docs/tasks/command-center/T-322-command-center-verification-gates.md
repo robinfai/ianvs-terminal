@@ -163,6 +163,7 @@ flutter test test/widget_test.dart --plain-name "context chip navigates to the l
 flutter test test/widget_test.dart --plain-name "selected block chip opens block actions without shell write"
 flutter test test/widget_test.dart --plain-name "selected block chip can copy command and output together"
 flutter test test/widget_test.dart --plain-name "selected block chip can save block output without shell write"
+flutter test test/widget_test.dart --plain-name "selected block chip can open block output in review without shell write"
 flutter test test/widget_test.dart --plain-name "selected block chip opens scoped search within block output"
 flutter test test/widget_test.dart --plain-name "selected block chip can reinput and rerun block command"
 ```

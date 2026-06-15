@@ -72,4 +72,4 @@ flutter test test/widget_test.dart --plain-name "context chip navigates to the l
 - 鼠标点击 scrollback 行选择任意 block 仍待实现。
 - `Copy block command` 和 `Copy command and output` 已由 T-381 覆盖。
 - scoped search 已由 T-382 覆盖。
-- save output 已由 T-386 覆盖；review entrypoint 仍需要独立 action dispatch。
+- save output 已由 T-386 覆盖；review entrypoint 已由 T-387 覆盖。

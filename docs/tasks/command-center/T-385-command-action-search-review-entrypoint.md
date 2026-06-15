@@ -74,5 +74,5 @@ flutter test test/widget_test.dart --plain-name "action search"
 
 ## Risks / Follow-ups
 
-- selected block sheet 的 review entrypoint 仍需要独立接入。
+- selected block sheet 的 review entrypoint 已由 T-387 覆盖。
 - diff review 仍保持 disabled / future extension。

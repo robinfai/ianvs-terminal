@@ -182,6 +182,25 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
                   },
                 ),
                 ListTile(
+                  key: const Key('context-block-action-open-review'),
+                  leading: const Icon(Icons.rate_review),
+                  title: const Text('Open in review'),
+                  onTap: () {
+                    unawaited(() async {
+                      await _runContextChipBlockAction(
+                        sessionController: sessionController,
+                        sessionId: sessionId,
+                        sessionState: sessionState,
+                        block: block,
+                        action: CommandBlockAction.openReviewEntrypoint,
+                      );
+                      if (sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop();
+                      }
+                    }());
+                  },
+                ),
+                ListTile(
                   key: const Key('context-block-action-search-within'),
                   leading: const Icon(Icons.manage_search),
                   title: const Text('Search within block'),
@@ -258,6 +277,7 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
   Future<void> _runContextChipBlockAction({
     required SessionController sessionController,
     required String sessionId,
+    SessionState? sessionState,
     required CommandBlock block,
     required CommandBlockAction action,
   }) async {
@@ -277,6 +297,8 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       sessionId,
       sessionController,
       result.intent,
+      sessionState: sessionState,
+      block: block,
     );
   }
 

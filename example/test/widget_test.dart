@@ -6288,6 +6288,111 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets(
+    'selected block chip can open block output in review without shell write',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      var replayNow = DateTime(2026, 1, 1, 12);
+      final instantReplayStore = InstantReplayStore(now: () => replayNow);
+      instantReplayStore.record(
+        '1',
+        _replayFrameWithRows({0: 'older replay frame'}),
+      );
+      replayNow = replayNow.add(const Duration(seconds: 1));
+      instantReplayStore.record(
+        '1',
+        _replayFrameWithRows({11: 'selected review line'}),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        instantReplayStore: instantReplayStore,
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ false', 'style_runs': const []},
+          {'index': 11, 'text': 'selected review line', 'style_runs': const []},
+          {'index': 12, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 12, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 13},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'false',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'false',
+            'pwd': '/tmp/project',
+            'exit_code': 2,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 12,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await tester.tap(find.byKey(const Key('context-chip-lastExit')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
+      await tester.pumpAndSettle();
+      final reviewAction = find.byKey(
+        const Key('context-block-action-open-review'),
+      );
+      await tester.ensureVisible(reviewAction);
+      await tester.pump();
+      await tester.tap(find.text('Open in review'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+      expect(find.textContaining('Review: false'), findsOneWidget);
+      final timeline = tester.widget<Slider>(
+        find.byKey(const Key('instant-replay-timeline')),
+      );
+      expect(timeline.value, timeline.max);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
   testWidgets('selected block chip can copy command and output together', (
     tester,
   ) async {

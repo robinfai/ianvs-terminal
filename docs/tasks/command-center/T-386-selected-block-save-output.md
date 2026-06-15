@@ -65,5 +65,5 @@ flutter test test/widget_test.dart --plain-name "selected block chip"
 
 ## Risks / Follow-ups
 
-- selected block review entrypoint 仍需要独立接入。
+- selected block review entrypoint 已由 T-387 覆盖。
 - 保存路径当前沿用 T-384；后续如加文件选择器，需要同时覆盖 action search 和 selected block。
