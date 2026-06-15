@@ -155,6 +155,23 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
             TerminalSplitAxis.vertical,
           );
         }
+      case TerminalActionId.zoomPane:
+        if (currentSessionId != null) {
+          final currentTab = _tabForSession(sessionState, currentSessionId);
+          if ((currentTab?.effectivePanes.length ?? 0) < 2) {
+            _showCommandActionSearchBlockedIntent(
+              'Zoom pane requires at least two panes.',
+            );
+            _focusSession(sessionId);
+            return;
+          }
+          _mutateState(() {
+            _zoomedPaneSessionId = _zoomedPaneSessionId == currentSessionId
+                ? null
+                : currentSessionId;
+          });
+          _focusSession(currentSessionId);
+        }
       case TerminalActionId.search:
         _openSearch();
       case TerminalActionId.globalSearch:
