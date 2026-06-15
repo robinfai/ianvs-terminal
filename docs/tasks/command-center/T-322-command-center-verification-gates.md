@@ -158,6 +158,7 @@ flutter test test/shell/shell_command_action_search_adapter_test.dart --plain-na
 flutter test test/widget_test.dart --plain-name "action search can apply terminal theme preset without shell write"
 flutter test test/widget_test.dart --plain-name "context chip navigates to the last failed command block"
 flutter test test/widget_test.dart --plain-name "selected block chip opens block actions without shell write"
+flutter test test/widget_test.dart --plain-name "selected block chip can copy command and output together"
 flutter test test/widget_test.dart --plain-name "selected block chip can reinput and rerun block command"
 ```
 

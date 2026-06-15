@@ -110,58 +110,92 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       showDragHandle: true,
       builder: (sheetContext) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                key: const Key('context-block-action-copy-output'),
-                leading: const Icon(Icons.copy_all),
-                title: const Text('Copy block output'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(
-                    _runContextChipBlockAction(
-                      sessionController: sessionController,
-                      sessionId: sessionId,
-                      block: block,
-                      action: CommandBlockAction.copyOutput,
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                key: const Key('context-block-action-reinput'),
-                leading: const Icon(Icons.keyboard_return),
-                title: const Text('Reinput block command'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(
-                    _runContextChipBlockAction(
-                      sessionController: sessionController,
-                      sessionId: sessionId,
-                      block: block,
-                      action: CommandBlockAction.reInput,
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                key: const Key('context-block-action-rerun'),
-                leading: const Icon(Icons.replay),
-                title: const Text('Rerun block command'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  unawaited(
-                    _runContextChipBlockAction(
-                      sessionController: sessionController,
-                      sessionId: sessionId,
-                      block: block,
-                      action: CommandBlockAction.rerun,
-                    ),
-                  );
-                },
-              ),
-            ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  key: const Key('context-block-action-copy-command'),
+                  leading: const Icon(Icons.content_copy),
+                  title: const Text('Copy block command'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      _runContextChipBlockAction(
+                        sessionController: sessionController,
+                        sessionId: sessionId,
+                        block: block,
+                        action: CommandBlockAction.copyCommand,
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  key: const Key('context-block-action-copy-output'),
+                  leading: const Icon(Icons.copy_all),
+                  title: const Text('Copy block output'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      _runContextChipBlockAction(
+                        sessionController: sessionController,
+                        sessionId: sessionId,
+                        block: block,
+                        action: CommandBlockAction.copyOutput,
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  key: const Key('context-block-action-copy-both'),
+                  leading: const Icon(Icons.library_books),
+                  title: const Text('Copy command and output'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      _runContextChipBlockAction(
+                        sessionController: sessionController,
+                        sessionId: sessionId,
+                        block: block,
+                        action: CommandBlockAction.copyBoth,
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  key: const Key('context-block-action-reinput'),
+                  leading: const Icon(Icons.keyboard_return),
+                  title: const Text('Reinput block command'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      _runContextChipBlockAction(
+                        sessionController: sessionController,
+                        sessionId: sessionId,
+                        block: block,
+                        action: CommandBlockAction.reInput,
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  key: const Key('context-block-action-rerun'),
+                  leading: const Icon(Icons.replay),
+                  title: const Text('Rerun block command'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    unawaited(
+                      _runContextChipBlockAction(
+                        sessionController: sessionController,
+                        sessionId: sessionId,
+                        block: block,
+                        action: CommandBlockAction.rerun,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         );
       },

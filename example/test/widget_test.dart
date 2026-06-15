@@ -5832,6 +5832,118 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('selected block chip can copy command and output together', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    String? copiedText;
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': copiedText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          copiedText = (methodCall.arguments as Map)['text'] as String?;
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 10, 'text': r'$ false', 'style_runs': const []},
+        {'index': 11, 'text': 'failed output', 'style_runs': const []},
+        {'index': 12, 'text': r'$ ', 'style_runs': const []},
+      ],
+      'cursor': {'row': 12, 'col': 2, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 10, 'end': 13},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'preexec',
+          'command': 'false',
+          'prompt_scrollback_offset': 10,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'false',
+          'pwd': '/tmp/project',
+          'exit_code': 2,
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'prompt_started',
+          'prompt_scrollback_offset': 12,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('context-block-action-copy-command')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(copiedText, 'false');
+
+    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('context-block-action-copy-both')));
+    await tester.pumpAndSettle();
+
+    expect(copiedText, 'false\nfailed output');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('selected block chip can reinput and rerun block command', (
     tester,
   ) async {

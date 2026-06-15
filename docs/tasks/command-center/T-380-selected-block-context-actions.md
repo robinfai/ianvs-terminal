@@ -11,6 +11,7 @@
 - Context chip wiring 使用 selected block id 显示 `Block <command>` chip。
 - 点击 `Block` chip 打开 block action sheet。
 - Sheet 支持 `Copy block output`、`Reinput block command` 和 `Rerun block command`。
+- `Copy block command` 和 `Copy command and output` 由 T-381 继续扩展。
 - action 执行复用 `CommandBlockActionReducer` 和现有 terminal/clipboard 路径。
 - 增加 widget regressions 覆盖 copy output、re-input 和 rerun。
 
@@ -68,4 +69,5 @@ flutter test test/widget_test.dart --plain-name "context chip navigates to the l
 ## Risks / Follow-ups
 
 - 鼠标点击 scrollback 行选择任意 block 仍待实现。
+- `Copy block command` 和 `Copy command and output` 已由 T-381 覆盖。
 - scoped search、save output 和 review entrypoint 仍需要独立 action dispatch。
