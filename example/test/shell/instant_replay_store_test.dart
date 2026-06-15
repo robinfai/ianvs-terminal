@@ -55,6 +55,39 @@ void main() {
     ]);
   });
 
+  test('finds the newest frame that intersects a row range', () {
+    final store = InstantReplayStore();
+
+    store.record(
+      '1',
+      frameWithRows(['old prompt', 'old output'], viewportRows: 80),
+    );
+    store.record(
+      '1',
+      TerminalFrameDiff(
+        frameKind: TerminalFrameKind.snapshot,
+        rows: const [
+          TerminalRow(index: 40, text: 'target command output'),
+          TerminalRow(index: 41, text: 'stack trace'),
+        ],
+        cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 80,
+        viewportCols: 80,
+        dirtyRanges: const [TerminalDirtyRange(start: 40, end: 42)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    final frame = store.frameForRows('1', startRow: 40, endRowExclusive: 48);
+
+    expect(frame?.text, 'target command output\nstack trace');
+    expect(
+      store.frameForRows('1', startRow: 100, endRowExclusive: 110),
+      isNull,
+    );
+  });
+
   test(
     'stores restored snapshots for delta frames without losing diff data',
     () {

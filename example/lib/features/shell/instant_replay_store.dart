@@ -26,6 +26,21 @@ class InstantReplayFrame {
   final Size? windowFrameSize;
 
   String get text => _textForFrame(snapshot);
+
+  bool snapshotIntersectsRows({
+    required int startRow,
+    required int endRowExclusive,
+  }) {
+    if (endRowExclusive <= startRow) {
+      return false;
+    }
+    for (final row in snapshot.rows) {
+      if (row.index >= startRow && row.index < endRowExclusive) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 class InstantReplayStore {
@@ -47,6 +62,25 @@ class InstantReplayStore {
 
   List<InstantReplayFrame> framesForReplay(String sessionId) {
     return List<InstantReplayFrame>.unmodifiable(framesFor(sessionId).reversed);
+  }
+
+  InstantReplayFrame? frameForRows(
+    String sessionId, {
+    required int startRow,
+    required int endRowExclusive,
+  }) {
+    if (endRowExclusive <= startRow) {
+      return null;
+    }
+    for (final frame in framesFor(sessionId)) {
+      if (frame.snapshotIntersectsRows(
+        startRow: startRow,
+        endRowExclusive: endRowExclusive,
+      )) {
+        return frame;
+      }
+    }
+    return null;
   }
 
   void record(
