@@ -127,6 +127,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           await _openPasteHistory(sessionState);
         }
+      case TerminalActionId.advancedPaste:
+        if (currentSessionId != null) {
+          await _openAdvancedPaste(currentSessionId);
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
