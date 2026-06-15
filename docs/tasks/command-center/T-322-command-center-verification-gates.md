@@ -45,7 +45,7 @@ Command Center 的默认原则是 terminal-first：普通输入先归 shell，�
 ```bash
 cd example
 flutter analyze
-flutter test test/config/local_terminal_config_models_test.dart test/command_center test/shell/instant_replay_store_test.dart
+flutter test test/config/local_terminal_config_models_test.dart test/command_center test/shell/instant_replay_store_test.dart test/shell/shell_command_action_search_adapter_test.dart
 ```
 
 Foundation lane 最小命令：
@@ -105,7 +105,8 @@ flutter test \
   test/command_center/command_action_search_index_test.dart \
   test/command_center/command_action_search_controller_test.dart \
   test/command_center/command_action_search_shell_wiring_test.dart \
-  test/command_center/command_action_search_overlay_test.dart
+  test/command_center/command_action_search_overlay_test.dart \
+  test/shell/shell_command_action_search_adapter_test.dart
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:
