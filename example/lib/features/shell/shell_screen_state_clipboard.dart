@@ -416,6 +416,16 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     if (text.isEmpty) {
       return;
     }
+    await _pasteTextToSessionWithPolicy(sessionId, text);
+  }
+
+  Future<void> _pasteTextToSessionWithPolicy(
+    String sessionId,
+    String text,
+  ) async {
+    if (text.isEmpty) {
+      return;
+    }
     final decision = LocalTerminalPasteDecisionResolver.resolve(
       text: text,
       readOnly: _isSessionReadOnly(sessionId),

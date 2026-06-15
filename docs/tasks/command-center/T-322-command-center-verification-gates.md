@@ -74,7 +74,8 @@ flutter test \
   test/command_center/command_search_index_test.dart \
   test/command_center/command_search_overlay_controller_test.dart \
   test/command_center/command_search_overlay_test.dart \
-  test/command_center/command_search_insert_execute_safety_test.dart
+  test/command_center/command_search_insert_execute_safety_test.dart \
+  test/command_center/command_search_shell_wiring_test.dart
 ```
 
 Blocks lane 最小命令：

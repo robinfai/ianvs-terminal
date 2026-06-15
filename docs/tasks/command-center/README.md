@@ -39,7 +39,7 @@ T-303 -> T-323 -> T-324
 History/Search lane:
 
 ```text
-T-305 -> T-306 -> T-307 -> T-308 -> T-309 -> T-310 -> T-311 -> T-312
+T-305 -> T-306 -> T-307 -> T-308 -> T-309 -> T-310 -> T-311 -> T-312 -> T-325
 ```
 
 Blocks lane:
@@ -89,3 +89,4 @@ T-322
 - [Command Center Verification Gates](T-322-command-center-verification-gates.md)
 - [Command Center Runtime State](T-323-command-center-runtime-state.md)
 - [Command Center Shell Event Wiring](T-324-command-center-shell-event-wiring.md)
+- [Command Search Shell Wiring](T-325-command-search-shell-wiring.md)
