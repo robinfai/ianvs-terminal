@@ -105,6 +105,16 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           defaultProfile,
           returningToWorkspace: false,
         );
+      case TerminalActionId.reopenClosedTab:
+        if (!sessionController.canReopenClosedTab) {
+          _showCommandActionSearchBlockedIntent(
+            'No recently closed tab is available.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        sessionController.reopenClosedTab();
+        _focusSession(ref.read(sessionControllerProvider).activeSessionId);
       case TerminalActionId.splitRight:
         if (currentSessionId != null) {
           final defaultProfile = _effectiveDefaultProfileFor(

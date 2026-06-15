@@ -3435,6 +3435,54 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('action search can reopen closed tab without shell write', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Close Local Shell').last);
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'reopen closed tab',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
+    expect(find.bySemanticsIdentifier('shell-tab-3'), findsOneWidget);
+    _expectSelectedTab(tester, '3');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {
