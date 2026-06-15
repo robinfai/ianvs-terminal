@@ -262,6 +262,19 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
             ),
           ),
         );
+      case TerminalActionId.toggleActivityMonitor:
+        _mutateState(() {
+          _activityNotificationsEnabled = !_activityNotificationsEnabled;
+        });
+        unawaited(_saveNotificationPreferences());
+        final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Activity monitor ${_activityNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+            ),
+          ),
+        );
       default:
         _showCommandActionSearchBlockedIntent(
           'This action still opens from the command menu.',

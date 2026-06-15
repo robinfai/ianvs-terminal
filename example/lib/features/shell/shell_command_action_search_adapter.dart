@@ -114,6 +114,10 @@ List<String> _actionSearchAliasesFor(TerminalActionId actionId) {
       'bell notifications',
       'terminal bell alerts',
     ],
+    TerminalActionId.toggleActivityMonitor => const [
+      'activity monitor',
+      'inactive activity alerts',
+    ],
     _ => const <String>[],
   };
 }

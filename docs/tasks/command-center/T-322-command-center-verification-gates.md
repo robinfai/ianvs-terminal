@@ -128,6 +128,7 @@ flutter test test/widget_test.dart --plain-name "action search can copy command 
 flutter test test/widget_test.dart --plain-name "action search can open theme picker without shell write"
 flutter test test/widget_test.dart --plain-name "action search can toggle command-finished notifications without shell write"
 flutter test test/widget_test.dart --plain-name "action search can toggle bell notifications without shell write"
+flutter test test/widget_test.dart --plain-name "action search can toggle activity monitor without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:
