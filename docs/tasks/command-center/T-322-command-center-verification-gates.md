@@ -114,6 +114,7 @@ flutter test test/widget_test.dart --plain-name "action search can run toggle re
 flutter test test/widget_test.dart --plain-name "action search can open toolbelt without shell write"
 flutter test test/widget_test.dart --plain-name "action search can open paste history without shell write"
 flutter test test/widget_test.dart --plain-name "action search can open advanced paste without shell write"
+flutter test test/widget_test.dart --plain-name "action search can open copy mode without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:

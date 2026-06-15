@@ -131,6 +131,18 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           await _openAdvancedPaste(currentSessionId);
         }
+      case TerminalActionId.copyMode:
+        if (currentSessionId != null) {
+          final selectionController = _selectionControllers.putIfAbsent(
+            currentSessionId,
+            SelectionController.new,
+          );
+          _enterCopyMode(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          );
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
