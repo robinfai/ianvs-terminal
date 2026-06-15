@@ -144,6 +144,7 @@ flutter test test/widget_test.dart --plain-name "action search can swap pane wit
 flutter test test/widget_test.dart --plain-name "action search can resize pane without shell write"
 flutter test test/widget_test.dart --plain-name "action search can close pane without shell write"
 flutter test test/widget_test.dart --plain-name "action search can close active tab without shell write"
+flutter test test/widget_test.dart --plain-name "action search can duplicate current cwd into new tab"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:

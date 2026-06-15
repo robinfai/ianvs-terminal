@@ -3629,6 +3629,54 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('action search can duplicate current cwd into new tab', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'duplicate current cwd',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+    _expectSelectedTab(tester, '2');
+    expect(fakeBindings.writes.map(utf8.decode).toList(), ['cd /tmp/project']);
+  });
+
   testWidgets('action search can zoom pane without shell write', (
     tester,
   ) async {

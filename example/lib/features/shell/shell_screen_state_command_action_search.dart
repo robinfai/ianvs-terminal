@@ -105,6 +105,46 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           defaultProfile,
           returningToWorkspace: false,
         );
+      case TerminalActionId.duplicateCurrentCwd:
+        final defaultProfile = _effectiveDefaultProfileFor(
+          sessionState.profiles,
+          sessionState.defaultProfileId,
+        );
+        if (defaultProfile == null || currentSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Duplicate current directory requires a default profile and active session.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final currentPane = _paneForSession(sessionState, currentSessionId);
+        final currentDirectory = currentPane?.shellIntegration.currentDirectory;
+        if (currentDirectory == null || currentDirectory.isEmpty) {
+          _showCommandActionSearchBlockedIntent(
+            'No current directory is available to duplicate.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        _createSession(
+          sessionController,
+          defaultProfile,
+          returningToWorkspace: false,
+        );
+        final duplicateSessionId = ref
+            .read(sessionControllerProvider)
+            .activeSessionId;
+        if (duplicateSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'No duplicated session was created.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        _sendPlainTextToSession(
+          duplicateSessionId,
+          'cd ${_shellQuotedPath(currentDirectory)}',
+        );
       case TerminalActionId.closeActiveTab:
         if (currentSessionId == null) {
           _showCommandActionSearchBlockedIntent(
