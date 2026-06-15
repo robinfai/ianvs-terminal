@@ -16,12 +16,14 @@ import '../command_center/command_center_context_wiring.dart';
 import '../command_center/command_center_runtime.dart';
 import '../command_center/command_center_shell_event_wiring.dart';
 import '../command_center/command_lifecycle_degraded_state.dart';
+import '../command_center/command_history_persistence_wiring.dart';
 import '../command_center/command_search_intents.dart';
 import '../command_center/command_search_overlay.dart';
 import '../command_center/command_search_overlay_controller.dart';
 import '../command_center/command_search_shell_wiring.dart';
 import '../command_center/context_chip_models.dart';
 import '../command_center/context_chips.dart';
+import '../command_center/global_command_history_repository.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
@@ -62,6 +64,7 @@ part 'shell_screen_state_clipboard.dart';
 part 'shell_screen_state_integrations.dart';
 part 'shell_screen_state_instant_replay.dart';
 part 'shell_screen_state_search_completion.dart';
+part 'shell_screen_state_command_history.dart';
 part 'shell_screen_state_command_search.dart';
 part 'shell_screen_state_context_chips.dart';
 part 'shell_screen_state_profile_actions.dart';
@@ -121,10 +124,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const CommandCenterShellEventWiring();
   final CommandCenterContextWiring _commandCenterContextWiring =
       const CommandCenterContextWiring();
+  final CommandHistoryPersistenceWiring _commandHistoryPersistenceWiring =
+      const CommandHistoryPersistenceWiring();
+  final GlobalCommandHistoryRepository _globalCommandHistoryRepository =
+      GlobalCommandHistoryRepository();
   final CommandSearchShellWiring _commandSearchShellWiring =
       const CommandSearchShellWiring();
   CommandCenterRuntimeState _commandCenterRuntime =
       const CommandCenterRuntimeState();
+  GlobalCommandHistoryDocument _globalCommandHistory =
+      const GlobalCommandHistoryDocument();
+  Future<void> _globalCommandHistoryLoad = Future<void>.value();
+  Future<void> _globalCommandHistorySaveChain = Future<void>.value();
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   Timer? _workspaceCueTimer;
@@ -216,6 +227,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         .read(terminalRuntimeControllerProvider)
         .events
         .listen(_handleTerminalSessionEvent);
+    _globalCommandHistoryLoad = _loadGlobalCommandHistory();
     Future.microtask(_loadPasteHistory);
     Future.microtask(_loadNotificationPreferences);
   }

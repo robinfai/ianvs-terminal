@@ -39,7 +39,7 @@ T-303 -> T-323 -> T-324
 History/Search lane:
 
 ```text
-T-305 -> T-306 -> T-307 -> T-308 -> T-309 -> T-310 -> T-311 -> T-312 -> T-325
+T-305 -> T-306 -> T-307 -> T-308 -> T-309 -> T-310 -> T-311 -> T-312 -> T-325 -> T-327
 ```
 
 Blocks lane:
@@ -91,3 +91,4 @@ T-322
 - [Command Center Shell Event Wiring](T-324-command-center-shell-event-wiring.md)
 - [Command Search Shell Wiring](T-325-command-search-shell-wiring.md)
 - [Command Center Context Chip Wiring](T-326-command-center-context-chip-wiring.md)
+- [Command History Persistence Wiring](T-327-command-history-persistence-wiring.md)

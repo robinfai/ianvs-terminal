@@ -34,6 +34,7 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
       _commandSearchOverlayController = _commandSearchShellWiring.controllerFor(
         _commandCenterRuntime,
         sessionId: sessionId,
+        globalHistory: _globalCommandHistory,
       );
     });
   }
@@ -56,6 +57,7 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
     final nextController = _commandSearchShellWiring.controllerFor(
       _commandCenterRuntime,
       sessionId: sessionId,
+      globalHistory: _globalCommandHistory,
     );
     _commandSearchOverlayController = nextController;
     _commandSearchSessionId = sessionId;

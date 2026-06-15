@@ -79,6 +79,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       return;
     }
     _commandCenterRuntime = result.state;
+    if (event.hook == 'command_finished') {
+      _scheduleGlobalCommandHistorySave(event.sessionId);
+    }
   }
 
   void _notifyInactiveActivity(

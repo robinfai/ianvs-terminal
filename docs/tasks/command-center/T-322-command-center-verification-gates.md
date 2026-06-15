@@ -69,6 +69,7 @@ cd example
 flutter test \
   test/command_center/session_command_history_buffer_test.dart \
   test/command_center/global_command_history_repository_test.dart \
+  test/command_center/command_history_persistence_wiring_test.dart \
   test/command_center/command_history_privacy_filter_test.dart \
   test/command_center/command_search_query_parser_test.dart \
   test/command_center/command_search_index_test.dart \
