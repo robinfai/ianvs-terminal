@@ -485,6 +485,11 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
             _focusSession(sessionId);
           }
         }
+      case TerminalActionId.copyBlockOutput:
+      case TerminalActionId.reInputBlockCommand:
+      case TerminalActionId.rerunBlockCommand:
+        _showCommandActionSearchBlockedIntent('No command block is selected.');
+        _focusSession(sessionId);
       case TerminalActionId.copyMode:
         if (currentSessionId != null) {
           final selectionController = _selectionControllers.putIfAbsent(

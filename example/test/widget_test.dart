@@ -3357,6 +3357,46 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets(
+    'action search explains unavailable command block actions without shell write',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      for (final query in [
+        'copy block output',
+        'reinput block command',
+        'rerun block command',
+      ]) {
+        await _openCommandMenu(tester);
+        await tester.enterText(
+          find.byKey(const Key('shell-command-search-field')),
+          'action search',
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const Key('command-action-search-overlay-field')),
+          query,
+        );
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(find.text('No command block is selected.'), findsOneWidget);
+      }
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
   testWidgets('action search can open theme picker without shell write', (
     tester,
   ) async {
