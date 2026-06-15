@@ -226,6 +226,31 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           _toggleReadOnlySessionWithFeedback(currentSessionId);
         }
+      case TerminalActionId.clearScrollback:
+        if (currentSessionId == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Clear scrollback requires an active session.'),
+              ),
+            );
+          }
+          return;
+        }
+        final cleared = ref
+            .read(terminalRuntimeControllerProvider)
+            .clearScrollback(currentSessionId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                cleared
+                    ? 'Cleared scrollback.'
+                    : 'Clear scrollback requires native runtime support.',
+              ),
+            ),
+          );
+        }
       case TerminalActionId.pasteHistory:
         if (currentSessionId != null) {
           await _openPasteHistory(sessionState);

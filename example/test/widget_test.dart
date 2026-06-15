@@ -3494,6 +3494,43 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets(
+    'action search can explain unavailable clear scrollback without shell write',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('command-action-search-overlay-field')),
+        'clear scrollback',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Clear scrollback requires native runtime support.'),
+        findsOneWidget,
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
   testWidgets('action search can export scrollback without shell write', (
     tester,
   ) async {
