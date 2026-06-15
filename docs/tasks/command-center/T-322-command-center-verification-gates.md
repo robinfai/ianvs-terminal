@@ -148,6 +148,7 @@ flutter test test/widget_test.dart --plain-name "action search can duplicate cur
 flutter test test/widget_test.dart --plain-name "action search can paste clipboard text into shell"
 flutter test test/widget_test.dart --plain-name "action search can move to next search match without shell write"
 flutter test test/widget_test.dart --plain-name "action search can move to previous search match without shell write"
+flutter test test/widget_test.dart --plain-name "action search can clear shell search without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:

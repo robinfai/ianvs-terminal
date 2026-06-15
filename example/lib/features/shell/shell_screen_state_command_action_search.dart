@@ -393,6 +393,8 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         _moveSearchMatch(-1);
       case TerminalActionId.previousSearchMatch:
         _moveSearchMatch(1);
+      case TerminalActionId.clearSearch:
+        _clearSearch();
       case TerminalActionId.globalSearch:
         if (sessionState.tabs.isNotEmpty) {
           await _openGlobalSearch(sessionState);

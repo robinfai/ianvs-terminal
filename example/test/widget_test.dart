@@ -2662,6 +2662,62 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  testWidgets(
+    'action search can clear shell search without shell write',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {'row': 10, 'start_col': 0, 'end_col': 6, 'text': 'needle'},
+      ]);
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      var field = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(field.controller?.text, 'needle');
+      expect(find.text('1/1'), findsOneWidget);
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('command-action-search-overlay-field')),
+        'clear search',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      field = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(field.controller?.text, isEmpty);
+      expect(find.text('1/1'), findsNothing);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('action search can open advanced paste without shell write', (
     tester,
   ) async {
