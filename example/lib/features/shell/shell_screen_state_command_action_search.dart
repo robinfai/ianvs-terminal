@@ -503,6 +503,7 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           }
         }
       case TerminalActionId.copyBlockOutput:
+      case TerminalActionId.searchWithinBlock:
       case TerminalActionId.reInputBlockCommand:
       case TerminalActionId.rerunBlockCommand:
         await _dispatchCommandActionSearchBlockAction(
@@ -1011,6 +1012,8 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
   ) {
     return switch (actionId) {
       TerminalActionId.copyBlockOutput => CommandBlockAction.copyOutput,
+      TerminalActionId.searchWithinBlock =>
+        CommandBlockAction.searchWithinBlock,
       TerminalActionId.reInputBlockCommand => CommandBlockAction.reInput,
       TerminalActionId.rerunBlockCommand => CommandBlockAction.rerun,
       _ => null,

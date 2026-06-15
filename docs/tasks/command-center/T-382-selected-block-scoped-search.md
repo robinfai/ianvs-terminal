@@ -16,8 +16,8 @@
 ## Non-goals
 
 - 不改变 native terminal search API。
-- 不实现 action search 里的 search-within-block 新条目。
 - 不实现 save output 或 review entrypoint。
+- action search 里的 search-within-block 由 T-383 继续扩展。
 
 ## Files In Scope
 
@@ -68,5 +68,5 @@ flutter test test/widget_test.dart --plain-name "shell search opens and scrolls 
 
 ## Risks / Follow-ups
 
-- action search 里的 search-within-block 条目仍待建模和接入。
+- action search 里的 search-within-block 已由 T-383 覆盖。
 - save output 和 review entrypoint 仍需要独立 action dispatch。

@@ -3469,6 +3469,111 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets(
+    'action search can open scoped search for an active command block',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ make', 'style_runs': const []},
+          {'index': 11, 'text': 'needle in block', 'style_runs': const []},
+          {'index': 12, 'text': 'error: two', 'style_runs': const []},
+          {'index': 13, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 13, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 14},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {'row': 5, 'start_col': 0, 'end_col': 6, 'text': 'older needle'},
+        {'row': 11, 'start_col': 0, 'end_col': 6, 'text': 'needle in block'},
+        {'row': 20, 'start_col': 0, 'end_col': 6, 'text': 'newer needle'},
+      ]);
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'make',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'make',
+            'pwd': '/tmp/project',
+            'exit_code': 0,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 13,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('command-action-search-overlay-field')),
+        'search within block',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('1/1'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [1, 11]);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
   testWidgets('action search can reinput and rerun an active command block', (
     tester,
   ) async {
@@ -3588,6 +3693,7 @@ void main() {
 
       for (final query in [
         'copy block output',
+        'search within block',
         'reinput block command',
         'rerun block command',
       ]) {

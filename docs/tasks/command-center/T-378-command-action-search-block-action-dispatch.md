@@ -18,7 +18,8 @@
 
 - 不新增显式 selected block UI。
 - 不改变 CommandBlockActionReducer 的 domain 行为。
-- 不实现 scoped search、save output 或 review entrypoint 的 action search 执行路径。
+- 不实现 save output 或 review entrypoint 的 action search 执行路径。
+- scoped search 由 T-383 继续扩展。
 - 不实现 mode router。
 
 ## Files In Scope
@@ -67,4 +68,5 @@ flutter test test/widget_test.dart --plain-name "action search explains unavaila
 
 - 当前 active block 取最近 block；显式 selected block UI 接入后应优先使用用户选择。
 - prompt mark 与 lifecycle 缺失或顺序异常时仍会降级为 unavailable feedback。
-- scoped search、save output 和 review entrypoint 仍需要独立 action search dispatch。
+- scoped search 已由 T-383 覆盖。
+- save output 和 review entrypoint 仍需要独立 action search dispatch。
