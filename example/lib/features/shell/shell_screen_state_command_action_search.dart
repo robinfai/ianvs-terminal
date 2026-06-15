@@ -266,6 +266,32 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           _focusSession(sessionId);
           return;
         }
+      case TerminalActionId.swapPane:
+        if (currentSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Swap pane requires an active session.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final swapTab = _tabForSession(sessionState, currentSessionId);
+        final swapBlockedReason = swapTab == null
+            ? null
+            : _zoomedPaneManagementUnavailableReason(swapTab);
+        if (swapBlockedReason != null) {
+          _showCommandActionSearchBlockedIntent(swapBlockedReason);
+          _focusSession(sessionId);
+          return;
+        }
+        if ((swapTab?.effectivePanes.length ?? 0) < 2) {
+          _showCommandActionSearchBlockedIntent(
+            'Swap pane requires at least two panes.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        sessionController.swapActivePaneWithSibling();
+        _focusSession(currentSessionId);
       case TerminalActionId.search:
         _openSearch();
       case TerminalActionId.globalSearch:
