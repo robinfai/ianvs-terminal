@@ -30,6 +30,12 @@ Foundation lane:
 T-300 -> T-301 -> T-302 -> T-303 -> T-304
 ```
 
+Runtime wiring lane:
+
+```text
+T-303 -> T-323
+```
+
 History/Search lane:
 
 ```text
@@ -81,3 +87,4 @@ T-322
 - [Sticky Command Header](T-320-sticky-command-header.md)
 - [Command Review Entrypoints](T-321-command-review-entrypoints.md)
 - [Command Center Verification Gates](T-322-command-center-verification-gates.md)
+- [Command Center Runtime State](T-323-command-center-runtime-state.md)

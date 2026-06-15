@@ -57,6 +57,7 @@ flutter test \
   test/command_center/command_center_feature_flags_test.dart \
   test/command_center/command_invocation_models_test.dart \
   test/command_center/shell_hook_lifecycle_adapter_test.dart \
+  test/command_center/command_center_runtime_test.dart \
   test/command_center/command_lifecycle_degraded_state_test.dart
 ```
 
