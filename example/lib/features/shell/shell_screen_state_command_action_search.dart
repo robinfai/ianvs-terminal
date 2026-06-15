@@ -167,6 +167,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           await _openTmuxIntegration(currentSessionId);
         }
+      case TerminalActionId.coprocess:
+        if (currentSessionId != null) {
+          await _openCoprocess(currentSessionId);
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
