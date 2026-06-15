@@ -16,7 +16,7 @@
 ## Non-goals
 
 - 不实现显式 selected block UI。
-- 不打开 block action menu。
+- 不打开 block action menu；后续由 T-380 覆盖。
 - 不实现 last successful block chip。
 - 不改变 terminal renderer 或 scrollback model。
 
@@ -63,5 +63,5 @@ flutter test test/widget_test.dart --plain-name "action search"
 
 ## Risks / Follow-ups
 
-- selected block chip 仍需要显式 selection state。
+- selected block chip 和 block action menu 由 T-380 覆盖。
 - 如果 shell integration 缺少 prompt marks，last-exit chip 会降级为不可见。

@@ -125,6 +125,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, Set<String>> _triggerMatchesBySession = {};
   final Map<String, int> _terminalFrameSequenceBySession = {};
   final Map<String, String> _searchRefreshFrameSignatures = {};
+  final Map<String, String> _selectedCommandBlockIdsBySession = {};
   final TextEditingController _autoComposerController = TextEditingController();
   final FocusNode _autoComposerFocusNode = FocusNode();
   final Set<String> _sessionsSeenForActivityNotifications = {};

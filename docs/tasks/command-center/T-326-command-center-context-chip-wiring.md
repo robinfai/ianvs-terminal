@@ -15,7 +15,7 @@
 ## Non-goals
 
 - 不接 selected block 或 last failed block chip。
-- 不实现 block action menu。
+- 不实现 block action menu；后续由 T-380 覆盖。
 - 不探测 git branch。
 - 不写 shell。
 - 不改变 terminal renderer 或 scrollback。
@@ -63,10 +63,10 @@ flutter test \
 
 - Context Chips 有真实 ShellScreen 入口。
 - 可见 chip state 来自 runtime/session state，而不是测试 fixture。
-- 后续 selected block state 接线可追加 selected block chip。
+- selected block chip 和 block action menu 由 T-380 覆盖。
 
 ## Risks / Follow-ups
 
-- last exit block navigation 由 T-379 覆盖；selected block 仍依赖显式 selection state。
+- last exit block navigation 由 T-379 覆盖；selected block action menu 由 T-380 覆盖。
 - git branch chip 需要单独定义 debounce、错误处理和性能门。
 - chip 视觉密度可能需要后续跟 Command Bar 一起收口。
