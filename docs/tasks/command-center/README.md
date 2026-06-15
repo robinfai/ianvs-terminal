@@ -51,7 +51,7 @@ T-313 -> T-314 -> T-315 -> T-316 -> T-320 -> T-321
 Command Bar lane:
 
 ```text
-T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331 -> T-332 -> T-333 -> T-334 -> T-335 -> T-336 -> T-337 -> T-338 -> T-339 -> T-340
+T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331 -> T-332 -> T-333 -> T-334 -> T-335 -> T-336 -> T-337 -> T-338 -> T-339 -> T-340 -> T-341
 ```
 
 Verification lane:
@@ -105,3 +105,4 @@ T-322
 - [Command Action Search Advanced Paste Dispatch](T-338-command-action-search-advanced-paste-dispatch.md)
 - [Command Action Search Copy Mode Dispatch](T-339-command-action-search-copy-mode-dispatch.md)
 - [Command Action Search Captured Output Dispatch](T-340-command-action-search-captured-output-dispatch.md)
+- [Command Action Search Annotations Dispatch](T-341-command-action-search-annotations-dispatch.md)

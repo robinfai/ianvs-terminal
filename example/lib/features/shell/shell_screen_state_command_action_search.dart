@@ -147,6 +147,18 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           await _openCapturedOutput(currentSessionId);
         }
+      case TerminalActionId.annotations:
+        if (currentSessionId != null) {
+          final selectionController = _selectionControllers.putIfAbsent(
+            currentSessionId,
+            SelectionController.new,
+          );
+          await _openAnnotations(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          );
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
