@@ -208,6 +208,34 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
           });
           _focusSession(currentSessionId);
         }
+      case TerminalActionId.focusNextPane:
+        if (currentSessionId == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Focus next pane requires an active session.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final currentTab = _tabForSession(sessionState, currentSessionId);
+        final blockedReason = currentTab == null
+            ? null
+            : _zoomedPaneManagementUnavailableReason(currentTab);
+        if (blockedReason != null) {
+          _showCommandActionSearchBlockedIntent(blockedReason);
+          _focusSession(sessionId);
+          return;
+        }
+        if (currentTab == null ||
+            !_focusRelativePane(
+              sessionController,
+              currentTab,
+              currentSessionId,
+              delta: 1,
+            )) {
+          _showCommandActionSearchBlockedIntent('No next pane is available.');
+          _focusSession(sessionId);
+          return;
+        }
       case TerminalActionId.search:
         _openSearch();
       case TerminalActionId.globalSearch:

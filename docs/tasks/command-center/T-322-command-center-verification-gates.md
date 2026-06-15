@@ -138,6 +138,7 @@ flutter test test/widget_test.dart --plain-name "action search can explain unava
 flutter test test/widget_test.dart --plain-name "action search can export scrollback without shell write"
 flutter test test/widget_test.dart --plain-name "action search can explain unavailable clear scrollback without shell write"
 flutter test test/widget_test.dart --plain-name "action search can explain unavailable recent directory without shell write"
+flutter test test/widget_test.dart --plain-name "action search can focus next pane without shell write"
 ```
 
 Full example regression gate remains the default from `docs/TESTING.md`:
