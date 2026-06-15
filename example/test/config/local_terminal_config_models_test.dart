@@ -29,6 +29,44 @@ void main() {
       expect(config.notifications.bell, isTrue);
       expect(config.notifications.activity, isTrue);
       expect(config.hotkeyWindow.enabled, isFalse);
+      expect(config.commandCenter.enabled, isFalse);
+      expect(config.commandCenter.historySearch, isFalse);
+      expect(config.commandCenter.commandBlocks, isFalse);
+      expect(config.commandCenter.commandBar, isFalse);
+      expect(config.commandCenter.contextChips, isFalse);
+      expect(config.commandCenter.reviewEntrypoints, isFalse);
+      expect(config.commandCenter.verificationDiagnostics, isFalse);
+    });
+
+    test('command center config decodes explicit flags', () {
+      final config = LocalTerminalConfigDocument.fromJson(const {
+        'commandCenter': {
+          'enabled': true,
+          'historySearch': true,
+          'commandBlocks': false,
+          'commandBar': true,
+          'contextChips': true,
+          'reviewEntrypoints': false,
+          'verificationDiagnostics': true,
+        },
+      });
+
+      expect(config.commandCenter.enabled, isTrue);
+      expect(config.commandCenter.historySearch, isTrue);
+      expect(config.commandCenter.commandBlocks, isFalse);
+      expect(config.commandCenter.commandBar, isTrue);
+      expect(config.commandCenter.contextChips, isTrue);
+      expect(config.commandCenter.reviewEntrypoints, isFalse);
+      expect(config.commandCenter.verificationDiagnostics, isTrue);
+      expect(config.commandCenter.toJson(), {
+        'enabled': true,
+        'historySearch': true,
+        'commandBlocks': false,
+        'commandBar': true,
+        'contextChips': true,
+        'reviewEntrypoints': false,
+        'verificationDiagnostics': true,
+      });
     });
 
     test('decode rejects remote-only top-level fields', () {

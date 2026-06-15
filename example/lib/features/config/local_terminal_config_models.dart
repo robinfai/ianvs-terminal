@@ -15,6 +15,7 @@ class LocalTerminalConfigDocument {
     this.shellIntegration = const LocalTerminalShellIntegrationConfig(),
     this.notifications = const LocalTerminalNotificationsConfig(),
     this.hotkeyWindow = const LocalTerminalHotkeyWindowConfig(),
+    this.commandCenter = const LocalTerminalCommandCenterConfig(),
   });
 
   static const int currentSchemaVersion = 1;
@@ -41,6 +42,7 @@ class LocalTerminalConfigDocument {
   final LocalTerminalShellIntegrationConfig shellIntegration;
   final LocalTerminalNotificationsConfig notifications;
   final LocalTerminalHotkeyWindowConfig hotkeyWindow;
+  final LocalTerminalCommandCenterConfig commandCenter;
 
   LocalTerminalConfigDocument copyWith({
     int? schemaVersion,
@@ -53,6 +55,7 @@ class LocalTerminalConfigDocument {
     LocalTerminalShellIntegrationConfig? shellIntegration,
     LocalTerminalNotificationsConfig? notifications,
     LocalTerminalHotkeyWindowConfig? hotkeyWindow,
+    LocalTerminalCommandCenterConfig? commandCenter,
   }) {
     return LocalTerminalConfigDocument(
       schemaVersion: schemaVersion ?? this.schemaVersion,
@@ -68,6 +71,7 @@ class LocalTerminalConfigDocument {
       shellIntegration: shellIntegration ?? this.shellIntegration,
       notifications: notifications ?? this.notifications,
       hotkeyWindow: hotkeyWindow ?? this.hotkeyWindow,
+      commandCenter: commandCenter ?? this.commandCenter,
     );
   }
 
@@ -83,6 +87,7 @@ class LocalTerminalConfigDocument {
       'shellIntegration': shellIntegration.toJson(),
       'notifications': notifications.toJson(),
       'hotkeyWindow': hotkeyWindow.toJson(),
+      'commandCenter': commandCenter.toJson(),
     };
   }
 
@@ -127,6 +132,9 @@ class LocalTerminalConfigDocument {
       ),
       hotkeyWindow: LocalTerminalHotkeyWindowConfig.fromJson(
         _objectMap(json['hotkeyWindow']),
+      ),
+      commandCenter: LocalTerminalCommandCenterConfig.fromJson(
+        _objectMap(json['commandCenter']),
       ),
     );
   }
@@ -409,6 +417,55 @@ class LocalTerminalHotkeyWindowConfig {
   static LocalTerminalHotkeyWindowConfig fromJson(Map<Object?, Object?>? json) {
     return LocalTerminalHotkeyWindowConfig(
       enabled: _boolFromJson(json?['enabled'], false),
+    );
+  }
+}
+
+class LocalTerminalCommandCenterConfig {
+  const LocalTerminalCommandCenterConfig({
+    this.enabled = false,
+    this.historySearch = false,
+    this.commandBlocks = false,
+    this.commandBar = false,
+    this.contextChips = false,
+    this.reviewEntrypoints = false,
+    this.verificationDiagnostics = false,
+  });
+
+  final bool enabled;
+  final bool historySearch;
+  final bool commandBlocks;
+  final bool commandBar;
+  final bool contextChips;
+  final bool reviewEntrypoints;
+  final bool verificationDiagnostics;
+
+  Map<String, Object?> toJson() {
+    return {
+      'enabled': enabled,
+      'historySearch': historySearch,
+      'commandBlocks': commandBlocks,
+      'commandBar': commandBar,
+      'contextChips': contextChips,
+      'reviewEntrypoints': reviewEntrypoints,
+      'verificationDiagnostics': verificationDiagnostics,
+    };
+  }
+
+  static LocalTerminalCommandCenterConfig fromJson(
+    Map<Object?, Object?>? json,
+  ) {
+    return LocalTerminalCommandCenterConfig(
+      enabled: _boolFromJson(json?['enabled'], false),
+      historySearch: _boolFromJson(json?['historySearch'], false),
+      commandBlocks: _boolFromJson(json?['commandBlocks'], false),
+      commandBar: _boolFromJson(json?['commandBar'], false),
+      contextChips: _boolFromJson(json?['contextChips'], false),
+      reviewEntrypoints: _boolFromJson(json?['reviewEntrypoints'], false),
+      verificationDiagnostics: _boolFromJson(
+        json?['verificationDiagnostics'],
+        false,
+      ),
     );
   }
 }
