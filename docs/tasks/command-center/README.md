@@ -51,7 +51,7 @@ T-313 -> T-314 -> T-315 -> T-316 -> T-320 -> T-321
 Command Bar lane:
 
 ```text
-T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330
+T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331
 ```
 
 Verification lane:
@@ -95,3 +95,4 @@ T-322
 - [Saved Command Repository](T-328-saved-command-repository.md)
 - [Command Action Search Index](T-329-command-action-search-index.md)
 - [Command Action Search Controller](T-330-command-action-search-controller.md)
+- [Command Action Search Shell Wiring](T-331-command-action-search-shell-wiring.md)
