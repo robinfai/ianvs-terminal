@@ -84,7 +84,9 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
     super.didUpdateWidget(oldWidget);
     if (widget.workspace.frames.length != oldWidget.workspace.frames.length ||
         widget.workspace.sourceSessionId !=
-            oldWidget.workspace.sourceSessionId) {
+            oldWidget.workspace.sourceSessionId ||
+        widget.workspace.targetFrame != oldWidget.workspace.targetFrame ||
+        widget.workspace.targetRow != oldWidget.workspace.targetRow) {
       _activeIndex = _initialActiveIndex(widget.workspace.frames);
       _playheadElapsed = _elapsedForFrameIndex(_activeIndex);
       if (widget.workspace.frames.isEmpty) {
@@ -121,6 +123,29 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
   }
 
   int _initialActiveIndex(List<InstantReplayFrame> frames) {
+    final targetFrame = widget.workspace.targetFrame;
+    if (targetFrame != null) {
+      final targetIndex = frames.indexWhere(
+        (frame) => identical(frame, targetFrame),
+      );
+      if (targetIndex != -1) {
+        return targetIndex;
+      }
+    }
+
+    final targetRow = widget.workspace.targetRow;
+    if (targetRow != null) {
+      final targetIndex = frames.indexWhere(
+        (frame) => frame.snapshotIntersectsRows(
+          startRow: targetRow,
+          endRowExclusive: targetRow + 1,
+        ),
+      );
+      if (targetIndex != -1) {
+        return targetIndex;
+      }
+    }
+
     final firstVisible = frames.indexWhere((frame) => frame.text.isNotEmpty);
     if (firstVisible != -1) {
       return firstVisible;

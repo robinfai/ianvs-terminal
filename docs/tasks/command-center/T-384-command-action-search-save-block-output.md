@@ -70,4 +70,4 @@ flutter test test/widget_test.dart --plain-name "action search"
 ## Risks / Follow-ups
 
 - 保存路径当前固定为 Application Support / `scrollback_exports`；后续可以增加显式保存位置选择。
-- review entrypoint 仍需要独立 action search dispatch。
+- review entrypoint 已由 T-385 覆盖。

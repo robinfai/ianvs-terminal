@@ -141,6 +141,12 @@ List<String> _actionSearchAliasesFor(TerminalActionId actionId) {
       'apply two-pane layout',
       'two-pane layout',
     ],
+    TerminalActionId.openInReview => const [
+      'review entrypoint',
+      'open block review',
+      'block review',
+      'command block review',
+    ],
     _ => const <String>[],
   };
 }

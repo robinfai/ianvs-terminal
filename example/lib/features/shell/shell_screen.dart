@@ -27,6 +27,7 @@ import '../command_center/command_search_intents.dart';
 import '../command_center/command_search_overlay.dart';
 import '../command_center/command_search_overlay_controller.dart';
 import '../command_center/command_search_shell_wiring.dart';
+import '../command_center/command_review_entrypoints.dart';
 import '../command_center/context_chip_models.dart';
 import '../command_center/context_chips.dart';
 import '../command_center/global_command_history_repository.dart';

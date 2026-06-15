@@ -65,4 +65,4 @@ flutter test test/widget_test.dart --plain-name "selected block chip opens scope
 
 ## Risks / Follow-ups
 
-- save output 已由 T-384 覆盖；review entrypoint 仍需要独立 action search dispatch。
+- save output 已由 T-384 覆盖；review entrypoint 已由 T-385 覆盖。

@@ -504,6 +504,7 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         }
       case TerminalActionId.copyBlockOutput:
       case TerminalActionId.saveBlockOutput:
+      case TerminalActionId.openInReview:
       case TerminalActionId.searchWithinBlock:
       case TerminalActionId.reInputBlockCommand:
       case TerminalActionId.rerunBlockCommand:
@@ -817,14 +818,18 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
       currentSessionId,
       sessionController,
       result.intent,
+      sessionState: sessionState,
+      block: block,
     );
   }
 
   Future<void> _dispatchCommandActionSearchBlockIntent(
     String sessionId,
     SessionController sessionController,
-    CommandBlockActionIntent intent,
-  ) async {
+    CommandBlockActionIntent intent, {
+    SessionState? sessionState,
+    CommandBlock? block,
+  }) async {
     switch (intent.kind) {
       case CommandBlockActionIntentKind.none:
         _focusSession(sessionId);
@@ -943,10 +948,20 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         }
         _focusSession(sessionId);
       case CommandBlockActionIntentKind.reviewEntrypoint:
-        _showCommandActionSearchBlockedIntent(
-          'This command block action still opens from the command menu.',
+        if (sessionState == null || block == null) {
+          _showCommandActionSearchBlockedIntent(
+            'Open in review is not available for this command block.',
+          );
+          _focusSession(sessionId);
+          return;
+        }
+        final opened = _openCommandBlockReviewFromActionSearch(
+          sessionState: sessionState,
+          block: block,
         );
-        _focusSession(sessionId);
+        if (!opened) {
+          _focusSession(sessionId);
+        }
     }
   }
 
@@ -1102,17 +1117,63 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
     );
   }
 
+  bool _openCommandBlockReviewFromActionSearch({
+    required SessionState sessionState,
+    required CommandBlock block,
+  }) {
+    final result = CommandReviewEntrypointResolver(
+      store: ref.read(instantReplayStoreProvider),
+    ).resolve(CommandReviewEntrypointAction.openInReview, block);
+    if (!result.enabled) {
+      _showCommandActionSearchBlockedIntent(
+        _commandActionSearchReviewDisabledMessage(result.disabledReason),
+      );
+      return false;
+    }
+
+    final intent = result.intent;
+    final commandLabel = block.command.trim();
+    final reviewLabel = commandLabel.isEmpty ? 'command block' : commandLabel;
+    _closeCommandActionSearch();
+    _mutateState(() {
+      _instantReplayWorkspaceSession = _InstantReplayWorkspaceSession(
+        sourceSessionId: block.sessionId,
+        sourceLabel:
+            'Review: $reviewLabel • ${_instantReplaySourceLabelFor(sessionState, block.sessionId)}',
+        frames: intent.replayFrames,
+        targetFrame: intent.targetFrame,
+        targetRow: intent.targetRow,
+      );
+    });
+    return true;
+  }
+
   CommandBlockAction? _commandBlockActionForActionSearch(
     TerminalActionId actionId,
   ) {
     return switch (actionId) {
       TerminalActionId.copyBlockOutput => CommandBlockAction.copyOutput,
       TerminalActionId.saveBlockOutput => CommandBlockAction.saveOutput,
+      TerminalActionId.openInReview => CommandBlockAction.openReviewEntrypoint,
       TerminalActionId.searchWithinBlock =>
         CommandBlockAction.searchWithinBlock,
       TerminalActionId.reInputBlockCommand => CommandBlockAction.reInput,
       TerminalActionId.rerunBlockCommand => CommandBlockAction.rerun,
       _ => null,
+    };
+  }
+
+  String _commandActionSearchReviewDisabledMessage(
+    CommandReviewEntrypointDisabledReason? reason,
+  ) {
+    return switch (reason) {
+      CommandReviewEntrypointDisabledReason.missingOutputRange =>
+        'No command block output is available.',
+      CommandReviewEntrypointDisabledReason.missingReplayFrame =>
+        'No replay frame is available for this command block.',
+      CommandReviewEntrypointDisabledReason.diffUnavailable =>
+        'Diff review is not available for this command block.',
+      null => 'Open in review is not available for this command block.',
     };
   }
 

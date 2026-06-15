@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
@@ -3591,6 +3592,115 @@ void main() {
   });
 
   testWidgets(
+    'action search can open block output in review without shell write',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      var replayNow = DateTime(2026, 1, 1, 12);
+      final instantReplayStore = InstantReplayStore(now: () => replayNow);
+      instantReplayStore.record(
+        '1',
+        _replayFrameWithRows({0: 'older replay frame'}),
+      );
+      replayNow = replayNow.add(const Duration(seconds: 1));
+      instantReplayStore.record(
+        '1',
+        _replayFrameWithRows({11: 'target review line', 12: 'stack detail'}),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        instantReplayStore: instantReplayStore,
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ make', 'style_runs': const []},
+          {'index': 11, 'text': 'target review line', 'style_runs': const []},
+          {'index': 12, 'text': 'stack detail', 'style_runs': const []},
+          {'index': 13, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 13, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 14},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'make',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'make',
+            'pwd': '/tmp/project',
+            'exit_code': 1,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 13,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('command-action-search-overlay-field')),
+        'open in review',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+      expect(find.textContaining('Review: make'), findsOneWidget);
+      final timeline = tester.widget<Slider>(
+        find.byKey(const Key('instant-replay-timeline')),
+      );
+      expect(timeline.value, timeline.max);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
     'action search can open scoped search for an active command block',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3815,6 +3925,7 @@ void main() {
       for (final query in [
         'copy block output',
         'save block output',
+        'open in review',
         'search within block',
         'reinput block command',
         'rerun block command',
@@ -8293,4 +8404,27 @@ void main() {
     _expectSelectedTab(tester, '2');
     expect(fakeBindings.scrollToCalls.last, [2, 13]);
   });
+}
+
+terminal.TerminalFrameDiff _replayFrameWithRows(Map<int, String> rows) {
+  final rowIndexes = rows.keys.toList()..sort();
+  final dirtyRange = rowIndexes.isEmpty
+      ? const terminal.TerminalDirtyRange(start: 0, end: 1)
+      : terminal.TerminalDirtyRange(
+          start: rowIndexes.first,
+          end: rowIndexes.last + 1,
+        );
+  return terminal.TerminalFrameDiff(
+    frameKind: terminal.TerminalFrameKind.snapshot,
+    rows: [
+      for (final entry in rows.entries)
+        terminal.TerminalRow(index: entry.key, text: entry.value),
+    ],
+    cursor: const terminal.TerminalCursor(row: 0, col: 0, visible: true),
+    viewportRows: 24,
+    viewportCols: 80,
+    dirtyRanges: [dirtyRange],
+    scrollbackOffset: 0,
+    scrollbackMaxOffset: 0,
+  );
 }
