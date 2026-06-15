@@ -51,7 +51,7 @@ T-313 -> T-314 -> T-315 -> T-316 -> T-320 -> T-321
 Command Bar lane:
 
 ```text
-T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331 -> T-332 -> T-333 -> T-334 -> T-335 -> T-336 -> T-337 -> T-338 -> T-339 -> T-340 -> T-341 -> T-342 -> T-343 -> T-344 -> T-345 -> T-346 -> T-347 -> T-348
+T-317 -> T-318 -> T-326 -> T-319 -> T-328 -> T-329 -> T-330 -> T-331 -> T-332 -> T-333 -> T-334 -> T-335 -> T-336 -> T-337 -> T-338 -> T-339 -> T-340 -> T-341 -> T-342 -> T-343 -> T-344 -> T-345 -> T-346 -> T-347 -> T-348 -> T-349
 ```
 
 Verification lane:
@@ -113,3 +113,4 @@ T-322
 - [Command Action Search Instant Replay Dispatch](T-346-command-action-search-instant-replay-dispatch.md)
 - [Command Action Search Select Command Output Dispatch](T-347-command-action-search-select-command-output-dispatch.md)
 - [Command Action Search Copy Selection Dispatch](T-348-command-action-search-copy-selection-dispatch.md)
+- [Command Action Search Copy Command Output Dispatch](T-349-command-action-search-copy-command-output-dispatch.md)

@@ -142,6 +142,26 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
             );
           }
         }
+      case TerminalActionId.copyCommandOutput:
+        if (currentSessionId != null) {
+          final selectionController = _selectionControllers.putIfAbsent(
+            currentSessionId,
+            SelectionController.new,
+          );
+          if (_selectLastCommandOutput(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          )) {
+            await _copySelection(
+              sessionController,
+              currentSessionId,
+              selectionController,
+            );
+          } else {
+            _focusSession(sessionId);
+          }
+        }
       case TerminalActionId.copyMode:
         if (currentSessionId != null) {
           final selectionController = _selectionControllers.putIfAbsent(

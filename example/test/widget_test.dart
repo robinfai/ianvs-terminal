@@ -3036,6 +3036,104 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('action search can copy command output without shell write', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    String? copiedText;
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': copiedText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          copiedText = (methodCall.arguments as Map)['text'] as String?;
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 10, 'text': r'$ make', 'style_runs': const []},
+        {'index': 11, 'text': 'warning: one', 'style_runs': const []},
+        {'index': 12, 'text': 'error: two', 'style_runs': const []},
+        {'index': 13, 'text': r'$ ', 'style_runs': const []},
+      ],
+      'cursor': {'row': 13, 'col': 2, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 10, 'end': 14},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'prompt_started',
+          'prompt_scrollback_offset': 10,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'prompt_started',
+          'prompt_scrollback_offset': 13,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'copy command output',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(copiedText, 'warning: one\nerror: two');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {
