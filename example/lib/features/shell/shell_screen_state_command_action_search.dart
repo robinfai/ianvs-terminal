@@ -163,6 +163,20 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         if (currentSessionId != null) {
           await _openShellIntegrationUtilities(sessionState, currentSessionId);
         }
+      case TerminalActionId.selectCommandOutput:
+        if (currentSessionId != null) {
+          final selectionController = _selectionControllers.putIfAbsent(
+            currentSessionId,
+            SelectionController.new,
+          );
+          if (!_selectLastCommandOutput(
+            sessionController,
+            currentSessionId,
+            selectionController,
+          )) {
+            _focusSession(sessionId);
+          }
+        }
       case TerminalActionId.tmuxIntegration:
         if (currentSessionId != null) {
           await _openTmuxIntegration(currentSessionId);
