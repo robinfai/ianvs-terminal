@@ -6,19 +6,18 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
     required TerminalPane pane,
     required TerminalProfile? profile,
   }) {
-    return _commandCenterContextWiring.chipsForSession(
-      _commandCenterRuntime,
+    final cwd =
+        _commandCenterRuntime.cwdForSession(pane.sessionId) ??
+        pane.shellIntegration.currentDirectory;
+    return _commandBlockCommandCenterAdapter.contextChipsForSession(
+      snapshot:
+          _commandBlockSnapshotsBySession[pane.sessionId] ??
+          const ShellCommandBlockSnapshot(),
       sessionId: pane.sessionId,
-      shellIntegrationCwd: pane.shellIntegration.currentDirectory,
+      cwd: cwd,
       profileId: profile?.id ?? pane.profileId,
       profileName: profile?.name,
       readOnly: _isSessionReadOnly(pane.sessionId),
-      blockRangeState: _commandCenterRuntime.blockRangeState(
-        rangesByInvocationId: _commandBlockRangesForSession(
-          sessionState,
-          pane.sessionId,
-        ),
-      ),
       selectedBlockId: _selectedCommandBlockIdsBySession[pane.sessionId],
     );
   }
@@ -69,13 +68,13 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       _showContextChipMessage('Command block is unavailable.');
       return;
     }
-    final rangeState = _commandCenterRuntime.blockRangeState(
-      rangesByInvocationId: _commandBlockRangesForSession(
-        sessionState,
-        sessionId,
-      ),
+    final block = _commandBlockCommandCenterAdapter.compatibleBlockById(
+      snapshot:
+          _commandBlockSnapshotsBySession[sessionId] ??
+          const ShellCommandBlockSnapshot(),
+      sessionId: sessionId,
+      blockId: blockId,
     );
-    final block = rangeState.blockByInvocationId(blockId);
     final inputRange = block?.inputRange;
     if (block == null || inputRange == null) {
       _showContextChipMessage('Command block range is unavailable.');
@@ -261,17 +260,13 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
     required String sessionId,
     required String? blockId,
   }) {
-    if (blockId == null) {
-      return null;
-    }
-    final rangeState = _commandCenterRuntime.blockRangeState(
-      rangesByInvocationId: _commandBlockRangesForSession(
-        sessionState,
-        sessionId,
-      ),
+    return _commandBlockCommandCenterAdapter.compatibleBlockById(
+      snapshot:
+          _commandBlockSnapshotsBySession[sessionId] ??
+          const ShellCommandBlockSnapshot(),
+      sessionId: sessionId,
+      blockId: blockId,
     );
-    final block = rangeState.blockByInvocationId(blockId);
-    return block?.scope == CommandBlockScope(sessionId) ? block : null;
   }
 
   Future<void> _runContextChipBlockAction({

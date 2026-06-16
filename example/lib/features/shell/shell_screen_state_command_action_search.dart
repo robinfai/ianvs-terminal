@@ -1001,79 +1001,13 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
     SessionState sessionState,
     String sessionId,
   ) {
-    final rangeState = _commandCenterRuntime.blockRangeState(
-      rangesByInvocationId: _commandBlockRangesForSession(
-        sessionState,
-        sessionId,
-      ),
+    return _commandBlockCommandCenterAdapter.activeCompatibleBlockFor(
+      snapshot:
+          _commandBlockSnapshotsBySession[sessionId] ??
+          const ShellCommandBlockSnapshot(),
+      sessionId: sessionId,
+      selectedBlockId: _selectedCommandBlockIdsBySession[sessionId],
     );
-    final blocks = rangeState.blocksForScope(CommandBlockScope(sessionId));
-    if (blocks.isEmpty) {
-      return null;
-    }
-    final selectedBlockId = _selectedCommandBlockIdsBySession[sessionId];
-    if (selectedBlockId != null) {
-      final selectedBlock = rangeState.blockByInvocationId(selectedBlockId);
-      if (selectedBlock?.scope == CommandBlockScope(sessionId)) {
-        return selectedBlock;
-      }
-    }
-    return blocks.last;
-  }
-
-  Map<String, CommandBlockTerminalRanges> _commandBlockRangesForSession(
-    SessionState sessionState,
-    String sessionId,
-  ) {
-    final pane = _paneForSession(sessionState, sessionId);
-    final promptMarks = pane?.shellIntegration.promptMarks ?? const [];
-    if (promptMarks.length < 2) {
-      return const <String, CommandBlockTerminalRanges>{};
-    }
-
-    final ranges = <String, CommandBlockTerminalRanges>{};
-    final sortedMarks = [...promptMarks]
-      ..sort((a, b) => a.scrollbackOffset.compareTo(b.scrollbackOffset));
-    var nextPromptSearchIndex = 0;
-    for (final invocation
-        in _commandCenterRuntime.lifecycle.invocationsForSession(sessionId)) {
-      final startIndex = _promptMarkIndexForCommand(
-        sortedMarks,
-        invocation.command,
-        startAt: nextPromptSearchIndex,
-      );
-      if (startIndex == -1 || startIndex + 1 >= sortedMarks.length) {
-        continue;
-      }
-      final inputRow = sortedMarks[startIndex].scrollbackOffset;
-      final outputEndRow = sortedMarks[startIndex + 1].scrollbackOffset;
-      ranges[invocation.id] = CommandBlockTerminalRanges(
-        inputRange: CommandBlockRowRange(
-          startRow: inputRow,
-          endRowExclusive: inputRow + 1,
-        ),
-        outputRange: CommandBlockRowRange(
-          startRow: inputRow + 1,
-          endRowExclusive: outputEndRow,
-        ),
-      );
-      nextPromptSearchIndex = startIndex + 1;
-    }
-    return ranges;
-  }
-
-  int _promptMarkIndexForCommand(
-    List<TerminalShellPromptMark> promptMarks,
-    String command, {
-    required int startAt,
-  }) {
-    final trimmedCommand = command.trim();
-    for (var index = startAt; index < promptMarks.length; index += 1) {
-      if (promptMarks[index].command?.trim() == trimmedCommand) {
-        return index;
-      }
-    }
-    return -1;
   }
 
   void _selectCommandBlockOutputRange(

@@ -19,7 +19,6 @@ import '../command_center/command_action_search_shell_wiring.dart';
 import '../command_center/command_block_action_reducer.dart';
 import '../command_center/command_block_actions.dart';
 import '../command_center/command_block_models.dart';
-import '../command_center/command_center_context_wiring.dart';
 import '../command_center/command_center_runtime.dart';
 import '../command_center/command_center_shell_event_wiring.dart';
 import '../command_center/command_lifecycle_degraded_state.dart';
@@ -33,6 +32,7 @@ import '../command_center/context_chip_models.dart';
 import '../command_center/context_chips.dart';
 import '../command_center/global_command_history_repository.dart';
 import '../command_center/saved_command_repository.dart';
+import '../command_center/shell_command_block_command_center_adapter.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
@@ -143,8 +143,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsWithNewOutput = {};
   final CommandCenterShellEventWiring _commandCenterShellEventWiring =
       const CommandCenterShellEventWiring();
-  final CommandCenterContextWiring _commandCenterContextWiring =
-      const CommandCenterContextWiring();
+  final ShellCommandBlockCommandCenterAdapter
+  _commandBlockCommandCenterAdapter =
+      const ShellCommandBlockCommandCenterAdapter();
   final CommandHistoryPersistenceWiring _commandHistoryPersistenceWiring =
       const CommandHistoryPersistenceWiring();
   final GlobalCommandHistoryRepository _globalCommandHistoryRepository =

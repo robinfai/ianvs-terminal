@@ -3468,6 +3468,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {
@@ -3549,6 +3550,120 @@ void main() {
   });
 
   testWidgets(
+    'action search copies block output from command block snapshot without prompt range rebuild',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      String? copiedText;
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': copiedText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            copiedText = (methodCall.arguments as Map)['text'] as String?;
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ false', 'style_runs': const []},
+          {'index': 11, 'text': 'failed output', 'style_runs': const []},
+          {'index': 12, 'text': 'still failed', 'style_runs': const []},
+          {'index': 13, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 13, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 14},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'false',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'false',
+            'pwd': '/tmp/project',
+            'exit_code': 1,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 13,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('command-action-search-overlay-field')),
+        'copy block output',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(copiedText, 'failed output\nstill failed');
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
     'action search prefers selected block over newest block without shell write',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3580,6 +3695,7 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
       );
 
       fakeBindings.setFrame(1, {
@@ -3732,6 +3848,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {
@@ -3851,6 +3968,7 @@ void main() {
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
         instantReplayStore: instantReplayStore,
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
       );
 
       fakeBindings.setFrame(1, {
@@ -3948,6 +4066,7 @@ void main() {
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
       );
 
       fakeBindings.setFrame(1, {
@@ -4053,6 +4172,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {
@@ -6289,6 +6409,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {
@@ -6390,6 +6511,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {
@@ -6488,6 +6610,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {
@@ -6603,6 +6726,7 @@ void main() {
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
         instantReplayStore: instantReplayStore,
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
       );
 
       fakeBindings.setFrame(1, {
@@ -6717,6 +6841,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {
@@ -6808,6 +6933,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {
@@ -6915,6 +7041,7 @@ void main() {
       repository: MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
     );
 
     fakeBindings.setFrame(1, {

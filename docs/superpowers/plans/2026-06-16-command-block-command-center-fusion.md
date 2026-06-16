@@ -38,7 +38,7 @@
 - Read: `example/lib/features/productivity/shell_productivity_models.dart`
 - Read: `example/lib/features/command_center/command_block_models.dart`
 
-- [ ] **Step 1: Write failing adapter tests**
+- [x] **Step 1: Write failing adapter tests**
 
 Create `example/test/command_center/shell_command_block_command_center_adapter_test.dart`:
 
@@ -182,7 +182,7 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run:
 
@@ -193,9 +193,11 @@ flutter test test/command_center/shell_command_block_command_center_adapter_test
 
 Expected: FAIL because `shell_command_block_command_center_adapter.dart` does not exist.
 
-- [ ] **Step 3: Commit only if this is being executed as an isolated TDD checkpoint**
+- [x] **Step 3: Commit only if this is being executed as an isolated TDD checkpoint**
 
 Do not commit the failing test on shared branches. Continue directly to Task 2 when executing inline.
+
+Status: skipped as intended for inline TDD execution; the red test was not committed separately.
 
 ---
 
@@ -205,7 +207,7 @@ Do not commit the failing test on shared branches. Continue directly to Task 2 w
 - Create: `example/lib/features/command_center/shell_command_block_command_center_adapter.dart`
 - Test: `example/test/command_center/shell_command_block_command_center_adapter_test.dart`
 
-- [ ] **Step 1: Implement the adapter**
+- [x] **Step 1: Implement the adapter**
 
 Create `example/lib/features/command_center/shell_command_block_command_center_adapter.dart`:
 
@@ -386,7 +388,7 @@ String? _trimmedOrNull(String? value) {
 }
 ```
 
-- [ ] **Step 2: Run adapter test**
+- [x] **Step 2: Run adapter test**
 
 Run:
 
@@ -397,7 +399,7 @@ flutter test test/command_center/shell_command_block_command_center_adapter_test
 
 Expected: PASS.
 
-- [ ] **Step 3: Run analyzer for import/type issues**
+- [x] **Step 3: Run analyzer for import/type issues**
 
 Run:
 
@@ -417,7 +419,7 @@ Expected: no errors.
 - Modify: `example/lib/features/shell/shell_screen_state_context_chips.dart`
 - Test: `example/test/widget_test.dart`
 
-- [ ] **Step 1: Import and instantiate the adapter**
+- [x] **Step 1: Import and instantiate the adapter**
 
 In `example/lib/features/shell/shell_screen.dart`, add the import near the other command center imports:
 
@@ -433,7 +435,7 @@ Add a field near `_commandCenterContextWiring`:
       const ShellCommandBlockCommandCenterAdapter();
 ```
 
-- [ ] **Step 2: Replace `_contextChipsForPane`**
+- [x] **Step 2: Replace `_contextChipsForPane`**
 
 In `example/lib/features/shell/shell_screen_state_context_chips.dart`, replace `_contextChipsForPane(...)` with:
 
@@ -461,7 +463,7 @@ In `example/lib/features/shell/shell_screen_state_context_chips.dart`, replace `
   }
 ```
 
-- [ ] **Step 3: Replace context chip block lookup**
+- [x] **Step 3: Replace context chip block lookup**
 
 In `example/lib/features/shell/shell_screen_state_context_chips.dart`, replace `_navigateToContextChipBlock(...)` block lookup with adapter lookup:
 
@@ -494,7 +496,7 @@ Replace `_contextChipBlockFor(...)` with:
   }
 ```
 
-- [ ] **Step 4: Run context chip regression tests**
+- [x] **Step 4: Run context chip regression tests**
 
 Run:
 
@@ -514,7 +516,7 @@ Expected: both PASS.
 - Modify: `example/lib/features/shell/shell_screen_state_command_action_search.dart`
 - Test: `example/test/widget_test.dart`
 
-- [ ] **Step 1: Replace active block lookup**
+- [x] **Step 1: Replace active block lookup**
 
 In `example/lib/features/shell/shell_screen_state_command_action_search.dart`, replace `_activeCommandActionSearchBlock(...)` with:
 
@@ -535,7 +537,7 @@ In `example/lib/features/shell/shell_screen_state_command_action_search.dart`, r
 
 Leave `_commandBlockRangesForSession(...)` in place for now if analyzer still sees references from legacy code. The completion criterion for this task is that Action Search no longer calls it when selecting the current command block.
 
-- [ ] **Step 2: Add a widget regression that would fail with the old range rebuild**
+- [x] **Step 2: Add a widget regression that would fail with the old range rebuild**
 
 Add this test near the existing Action Search command block tests in `example/test/widget_test.dart`:
 
@@ -641,7 +643,7 @@ Add this test near the existing Action Search command block tests in `example/te
   );
 ```
 
-- [ ] **Step 3: Run the new widget test**
+- [x] **Step 3: Run the new widget test**
 
 Run:
 
@@ -652,7 +654,7 @@ flutter test test/widget_test.dart --plain-name "action search copies block outp
 
 Expected: PASS after Step 1; FAIL before Step 1 with "No command block is selected" or empty copied text.
 
-- [ ] **Step 4: Run existing selected-block Action Search test**
+- [x] **Step 4: Run existing selected-block Action Search test**
 
 Run:
 
@@ -672,7 +674,7 @@ Expected: PASS.
 - Modify only if needed: `example/lib/features/shell/shell_screen_state_context_chips.dart`
 - Modify only if needed: `docs/superpowers/specs/2026-06-16-command-block-command-center-fusion-design.md`
 
-- [ ] **Step 1: Check for remaining active block lookup through `blockRangeState`**
+- [x] **Step 1: Check for remaining active block lookup through `blockRangeState`**
 
 Run:
 
@@ -686,7 +688,7 @@ Expected:
 - Tests for legacy Command Center block models may still exist.
 - `_activeCommandActionSearchBlock(...)`, `_contextChipBlockFor(...)`, and `_contextChipsForPane(...)` must not call `blockRangeState(...)`.
 
-- [ ] **Step 2: Remove unused imports or fields**
+- [x] **Step 2: Remove unused imports or fields**
 
 If `_commandCenterContextWiring` becomes unused in `ShellScreen`, remove:
 
@@ -703,7 +705,7 @@ and remove the field:
 
 Only remove them after `flutter analyze` proves they are unused.
 
-- [ ] **Step 3: Run focused tests**
+- [x] **Step 3: Run focused tests**
 
 Run:
 
@@ -718,7 +720,7 @@ flutter test test/widget_test.dart --plain-name "selected block chip opens block
 
 Expected: all PASS.
 
-- [ ] **Step 4: Run example analyzer**
+- [x] **Step 4: Run example analyzer**
 
 Run:
 
@@ -729,7 +731,7 @@ flutter analyze
 
 Expected: no issues.
 
-- [ ] **Step 5: Commit implementation**
+- [x] **Step 5: Commit implementation**
 
 Run:
 

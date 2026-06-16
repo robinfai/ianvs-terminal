@@ -150,6 +150,7 @@ class ShellCommandBlockShellHookReducer {
     return switch (normalizeHook(hook)) {
       'bootstrapped' ||
       'precmd' ||
+      'prompt_started' ||
       'precmd.pwd' ||
       'cwd' ||
       'preexec' ||
@@ -166,7 +167,7 @@ class ShellCommandBlockShellHookReducer {
     final normalized = text.replaceAll('-', '_').toLowerCase();
     return switch (normalized) {
       'bootstrapped' => 'bootstrapped',
-      'precmd' => 'precmd',
+      'precmd' || 'prompt_started' || 'promptstarted' => 'precmd',
       'precmd.pwd' || 'precmdpwd' => 'precmd.pwd',
       'cwd' || 'pwd' => 'cwd',
       'preexec' => 'preexec',
