@@ -286,25 +286,171 @@ class ShellRecentItemsState {
 
 const _defaultRecentItemsLimit = 50;
 
+enum ShellCommandBlockStatus { running, succeeded, failed, unknown }
+
+class ShellCommandBlockRange {
+  const ShellCommandBlockRange({
+    required this.commandRow,
+    required this.outputStartRow,
+    required this.outputEndRow,
+  });
+
+  final int commandRow;
+  final int outputStartRow;
+  final int outputEndRow;
+
+  int get startRow => outputStartRow;
+  int get endRow => outputEndRow;
+
+  bool get isValid {
+    return commandRow >= 0 &&
+        outputStartRow >= commandRow &&
+        outputEndRow >= outputStartRow;
+  }
+
+  bool containsRow(int row) {
+    return isValid && row >= commandRow && row <= outputEndRow;
+  }
+}
+
+class ShellFailureSnapshot {
+  const ShellFailureSnapshot({
+    required this.commandBlockId,
+    required this.command,
+    required this.cwd,
+    required this.exitCode,
+    required this.outputRange,
+  }) : _keyErrorLines = const <String>[];
+
+  ShellFailureSnapshot.withKeyErrorLines({
+    required this.commandBlockId,
+    required this.command,
+    required this.cwd,
+    required this.exitCode,
+    required this.outputRange,
+    List<String> keyErrorLines = const <String>[],
+  }) : _keyErrorLines = List<String>.unmodifiable(keyErrorLines);
+
+  final String commandBlockId;
+  final String command;
+  final String? cwd;
+  final int? exitCode;
+  final ShellCommandBlockRange outputRange;
+  final List<String> _keyErrorLines;
+
+  List<String> get keyErrorLines => _keyErrorLines;
+}
+
+class ShellHistoryMarker {
+  const ShellHistoryMarker({
+    required this.id,
+    required this.row,
+    required this.kind,
+    this.commandBlockId,
+    this.label,
+  });
+
+  final String id;
+  final int row;
+  final ShellHistoryMarkerKind kind;
+  final String? commandBlockId;
+  final String? label;
+}
+
+enum ShellHistoryMarkerKind { manual, failure, idleGap, replayFrame }
+
 class ShellCommandBlock {
   const ShellCommandBlock({
     required this.id,
     required this.command,
-    required this.startRow,
-    required this.endRow,
-  });
+    ShellCommandBlockRange? outputRange,
+    int startRow = -1,
+    int endRow = -1,
+    this.cwd,
+    this.exitCode,
+    this.status = ShellCommandBlockStatus.unknown,
+    this.failureSnapshot,
+  }) : _outputRange = outputRange,
+       _legacyStartRow = startRow,
+       _legacyEndRow = endRow,
+       _markers = const <ShellHistoryMarker>[];
+
+  ShellCommandBlock.withMarkers({
+    required this.id,
+    required this.command,
+    ShellCommandBlockRange? outputRange,
+    int startRow = -1,
+    int endRow = -1,
+    this.cwd,
+    this.exitCode,
+    this.status = ShellCommandBlockStatus.unknown,
+    List<ShellHistoryMarker> markers = const <ShellHistoryMarker>[],
+    this.failureSnapshot,
+  }) : _outputRange = outputRange,
+       _legacyStartRow = startRow,
+       _legacyEndRow = endRow,
+       _markers = List<ShellHistoryMarker>.unmodifiable(markers);
 
   final String id;
   final String command;
-  final int startRow;
-  final int endRow;
+  final String? cwd;
+  final int? exitCode;
+  final ShellCommandBlockStatus status;
+  final ShellFailureSnapshot? failureSnapshot;
+  final ShellCommandBlockRange? _outputRange;
+  final int _legacyStartRow;
+  final int _legacyEndRow;
+  final List<ShellHistoryMarker> _markers;
 
-  bool get isValid => startRow >= 0 && endRow >= startRow;
+  ShellCommandBlockRange get outputRange {
+    return _outputRange ??
+        ShellCommandBlockRange(
+          commandRow: _legacyStartRow,
+          outputStartRow: _legacyStartRow,
+          outputEndRow: _legacyEndRow,
+        );
+  }
+
+  int get startRow => outputRange.commandRow;
+  int get endRow => outputRange.outputEndRow;
+  bool get isValid => id.trim().isNotEmpty && outputRange.isValid;
+  bool get failed => status == ShellCommandBlockStatus.failed;
+  List<ShellHistoryMarker> get markers => _markers;
 
   bool containsRow(int row) {
-    return isValid && row >= startRow && row <= endRow;
+    return isValid && outputRange.containsRow(row);
+  }
+
+  ShellCommandBlock copyWith({
+    String? id,
+    String? command,
+    Object? cwd = _shellCommandBlockNoChange,
+    Object? exitCode = _shellCommandBlockNoChange,
+    ShellCommandBlockStatus? status,
+    ShellCommandBlockRange? outputRange,
+    List<ShellHistoryMarker>? markers,
+    Object? failureSnapshot = _shellCommandBlockNoChange,
+  }) {
+    return ShellCommandBlock.withMarkers(
+      id: id ?? this.id,
+      command: command ?? this.command,
+      cwd: identical(cwd, _shellCommandBlockNoChange)
+          ? this.cwd
+          : cwd as String?,
+      exitCode: identical(exitCode, _shellCommandBlockNoChange)
+          ? this.exitCode
+          : exitCode as int?,
+      status: status ?? this.status,
+      outputRange: outputRange ?? this.outputRange,
+      markers: markers ?? this.markers,
+      failureSnapshot: identical(failureSnapshot, _shellCommandBlockNoChange)
+          ? this.failureSnapshot
+          : failureSnapshot as ShellFailureSnapshot?,
+    );
   }
 }
+
+const Object _shellCommandBlockNoChange = Object();
 
 class ShellSearchMatch {
   const ShellSearchMatch({

@@ -24,6 +24,20 @@ class ShellCommandFinishedEvent extends ShellProductivityEvent {
   final int? exitCode;
 }
 
+class ShellCommandStartedEvent extends ShellProductivityEvent {
+  const ShellCommandStartedEvent({
+    required this.commandId,
+    required this.command,
+    required this.commandRow,
+    this.cwd,
+  });
+
+  final String commandId;
+  final String command;
+  final int commandRow;
+  final String? cwd;
+}
+
 class ShellCommandOutputRangeEvent extends ShellProductivityEvent {
   const ShellCommandOutputRangeEvent({
     required this.commandId,
@@ -63,6 +77,7 @@ class ShellProductivityReducer {
   ) {
     return switch (event) {
       ShellPromptMarkEvent() => _promptMark(snapshot, event),
+      ShellCommandStartedEvent() => _commandStarted(snapshot, event),
       ShellCommandFinishedEvent() => _commandFinished(snapshot, event),
       ShellCommandOutputRangeEvent() => _commandOutputRange(snapshot, event),
       ShellCwdChangedEvent() => _cwdChanged(snapshot, event),
@@ -114,6 +129,23 @@ class ShellProductivityReducer {
               ShellRecentDirectoryEntry(path: cwd),
             ),
       currentCwd: cwd ?? snapshot.currentCwd,
+    );
+  }
+
+  static ShellProductivitySnapshot _commandStarted(
+    ShellProductivitySnapshot snapshot,
+    ShellCommandStartedEvent event,
+  ) {
+    final cwd = _trimmedOrNull(event.cwd);
+    if (cwd == null) {
+      return snapshot;
+    }
+    return ShellProductivitySnapshot(
+      state: snapshot.state,
+      recentItems: snapshot.recentItems.addDirectory(
+        ShellRecentDirectoryEntry(path: cwd),
+      ),
+      currentCwd: cwd,
     );
   }
 

@@ -2331,6 +2331,16 @@ impl Terminal {
         !self.response_buffer.is_empty()
     }
 
+    /// Check whether pending terminal responses can be safely drained.
+    ///
+    /// Some parser callbacks enqueue responses just before the lightweight
+    /// parser-state observer has seen the final bytes of a sequence, for
+    /// example the `\` byte in an OSC ST terminator (`ESC \`). Draining only at
+    /// ground keeps replies aligned with complete incoming query sequences.
+    pub fn can_drain_responses(&self) -> bool {
+        self.has_pending_responses() && self.plain_text_parser_state == PlainTextParserState::Ground
+    }
+
     /// Get the URL for a hyperlink ID
     pub fn get_hyperlink_url(&self, id: u32) -> Option<String> {
         self.hyperlinks.get(&id).cloned()

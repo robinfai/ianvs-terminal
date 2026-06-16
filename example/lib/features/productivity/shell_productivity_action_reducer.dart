@@ -37,6 +37,13 @@ class ShellProductivitySearchResult extends ShellProductivityActionResult {
   final ShellSearchState search;
 }
 
+class ShellProductivityCommandBlockActionResult
+    extends ShellProductivityActionResult {
+  const ShellProductivityCommandBlockActionResult(this.actionId);
+
+  final TerminalActionId actionId;
+}
+
 class ShellProductivityNoopResult extends ShellProductivityActionResult {
   const ShellProductivityNoopResult();
 }
@@ -79,6 +86,12 @@ class ShellProductivityActionReducer {
       TerminalActionId.globalSearch => ShellProductivitySearchResult(
         context.search.clear(),
       ),
+      TerminalActionId.openHistoryPeek ||
+      TerminalActionId.replayFromCommandBlock ||
+      TerminalActionId.saveCommandSnapshot ||
+      TerminalActionId.compareLastCommandRun ||
+      TerminalActionId.markCommandBlock =>
+        ShellProductivityCommandBlockActionResult(actionId),
       _ => const ShellProductivityNoopResult(),
     };
   }

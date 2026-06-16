@@ -1537,6 +1537,72 @@ void main() {
   });
 
   test(
+    'terminal runtime exports asciinema recording with replay validation',
+    () {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.jsonRequests.clear();
+
+      final export = runtime.exportAsciinemaRecording(sessionId);
+
+      expect(export, isNotNull);
+      expect(export!.format, 'asciinema-v2');
+      expect(export.scope, 'terminal-output-asciinema');
+      expect(export.content, contains('"version":2'));
+      expect(export.eventCount, 1);
+      expect(export.byteCount, 4);
+      expect(export.truncated, isFalse);
+      expect(export.replayMatched, isTrue);
+      expect(export.mismatchCount, 0);
+      expect(runtimeBackend.jsonRequests.single, <String, Object?>{
+        'kind': 'terminal.export_asciinema',
+      });
+    },
+  );
+
+  test(
+    'terminal runtime degrades asciinema export to null on bad backend data',
+    () {
+      final runtimeBackend = _FakePtyBackend()..asciinemaRawResponse = '{';
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      expect(runtime.exportAsciinemaRecording(sessionId), isNull);
+
+      runtimeBackend
+        ..asciinemaRawResponse = ''
+        ..jsonRequests.clear();
+      expect(runtime.exportAsciinemaRecording(sessionId), isNull);
+
+      runtimeBackend.returnNullJsonRequests = true;
+      expect(runtime.exportAsciinemaRecording(sessionId), isNull);
+    },
+  );
+
+  test(
     'terminal runtime degrades diagnostics export to null on bad backend data',
     () {
       final runtimeBackend = _FakePtyBackend()..diagnosticsRawResponse = '{';
@@ -2734,6 +2800,7 @@ class _FakePtyBackend
   String? selectionRawResponse;
   String? clearScrollbackRawResponse;
   String? scrollbackRawResponse;
+  String? asciinemaRawResponse;
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
   bool returnNullJsonRequests = false;
@@ -2861,6 +2928,22 @@ class _FakePtyBackend
       'terminal.export_scrollback' =>
         scrollbackRawResponse ??
             jsonEncode(<String, Object?>{'content': 'scrollback text'}),
+      'terminal.export_asciinema' =>
+        asciinemaRawResponse ??
+            jsonEncode(<String, Object?>{
+              'content': '{"version":2}\n[0,"o","demo"]\n',
+              'scope': 'terminal-output-asciinema',
+              'format': 'asciinema-v2',
+              'width': 80,
+              'height': 24,
+              'event_count': 1,
+              'byte_count': 4,
+              'truncated': false,
+              'validation': <String, Object?>{
+                'matched': true,
+                'mismatch_count': 0,
+              },
+            }),
       'terminal.export_diagnostics' =>
         diagnosticsRawResponse ?? jsonEncode(diagnosticsResponse),
       _ => null,

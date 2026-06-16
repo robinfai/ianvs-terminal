@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -31,6 +32,15 @@ const String _configuredReference = String.fromEnvironment(
   'PS1_DIAG_REFERENCE',
   defaultValue: '',
 );
+
+class _FakePathProviderPlatform extends PathProviderPlatform {
+  _FakePathProviderPlatform(this.applicationSupportPath);
+
+  final String applicationSupportPath;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => applicationSupportPath;
+}
 
 void main() {
   testWidgets('ps1 diag export writes configured artifacts', (tester) async {
@@ -404,6 +414,7 @@ Future<_ShellExport> _captureShellExport(
   required FakePtyBackend backend,
   ThemeMode themeMode = ThemeMode.dark,
 }) async {
+  _installFakeApplicationSupportPath();
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
   await tester.pumpWidget(
@@ -522,6 +533,20 @@ Future<_ShellExport> _captureShellExport(
       notifier.closeSession(tab.sessionId);
     }
   }
+}
+
+void _installFakeApplicationSupportPath() {
+  final previousPathProvider = PathProviderPlatform.instance;
+  final directory = Directory.systemTemp.createTempSync(
+    'ps1_diag_app_support_',
+  );
+  PathProviderPlatform.instance = _FakePathProviderPlatform(directory.path);
+  addTearDown(() {
+    PathProviderPlatform.instance = previousPathProvider;
+    if (directory.existsSync()) {
+      directory.deleteSync(recursive: true);
+    }
+  });
 }
 
 Future<void> _waitForPromptReady(WidgetTester tester) async {

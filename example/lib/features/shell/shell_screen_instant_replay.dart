@@ -1,5 +1,84 @@
 part of 'shell_screen.dart';
 
+final class InstantReplayCommandBlockSource {
+  const InstantReplayCommandBlockSource({
+    required this.commandBlockId,
+    required this.command,
+    this.cwd,
+    this.statusLabel,
+  });
+
+  factory InstantReplayCommandBlockSource.fromBlock(ShellCommandBlock block) {
+    return InstantReplayCommandBlockSource(
+      commandBlockId: block.id,
+      command: block.command.trim().isEmpty
+          ? 'Unknown command'
+          : block.command.trim(),
+      cwd: block.cwd?.trim(),
+      statusLabel: _instantReplayCommandBlockStatusLabel(block),
+    );
+  }
+
+  final String commandBlockId;
+  final String command;
+  final String? cwd;
+  final String? statusLabel;
+
+  String get replayHeaderLabel => 'Replay from: $command';
+}
+
+InstantReplayCommandBlockSource? resolveInstantReplayCommandBlockActionSource({
+  required TerminalActionId? actionId,
+  required CommandBlocksHistoryFeatureFlags flags,
+  required String? currentSessionId,
+  required List<ShellCommandBlock> commandBlocks,
+}) {
+  if (actionId != TerminalActionId.replayFromCommandBlock ||
+      currentSessionId == null ||
+      !flags.enabled ||
+      !flags.commandBlocks ||
+      !flags.reviewWorkspaceEntrypoints) {
+    return null;
+  }
+  for (final block in commandBlocks.reversed) {
+    if (block.isValid) {
+      return InstantReplayCommandBlockSource.fromBlock(block);
+    }
+  }
+  return null;
+}
+
+Future<bool> executeInstantReplayCommandBlockAction({
+  required TerminalActionId? actionId,
+  required CommandBlocksHistoryFeatureFlags flags,
+  required String? currentSessionId,
+  required List<ShellCommandBlock> commandBlocks,
+  required Future<void> Function(InstantReplayCommandBlockSource source)
+  openReplay,
+}) async {
+  final source = resolveInstantReplayCommandBlockActionSource(
+    actionId: actionId,
+    flags: flags,
+    currentSessionId: currentSessionId,
+    commandBlocks: commandBlocks,
+  );
+  if (source == null) {
+    return false;
+  }
+  await openReplay(source);
+  return true;
+}
+
+String _instantReplayCommandBlockStatusLabel(ShellCommandBlock block) {
+  return switch (block.status) {
+    ShellCommandBlockStatus.succeeded => 'exit 0',
+    ShellCommandBlockStatus.failed =>
+      block.exitCode == null ? 'failed' : 'exit ${block.exitCode}',
+    ShellCommandBlockStatus.running => 'running',
+    ShellCommandBlockStatus.unknown => 'unknown',
+  };
+}
+
 class _InstantReplayWorkspace extends StatefulWidget {
   const _InstantReplayWorkspace({
     super.key,
@@ -527,6 +606,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
     final controls = _InstantReplayWorkspaceControls(
       key: const Key('instant-replay-controls'),
       sourceLabel: widget.workspace.sourceLabel,
+      commandBlockSource: widget.workspace.commandBlockSource,
       frameLabel: frameLabel,
       frameCount: widget.workspace.frames.length,
       activeIndex: _activeIndex,
@@ -691,6 +771,7 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
   const _InstantReplayWorkspaceControls({
     super.key,
     required this.sourceLabel,
+    required this.commandBlockSource,
     required this.frameLabel,
     required this.frameCount,
     required this.activeIndex,
@@ -717,6 +798,7 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
   });
 
   final String sourceLabel;
+  final InstantReplayCommandBlockSource? commandBlockSource;
   final String frameLabel;
   final int frameCount;
   final int activeIndex;
@@ -789,6 +871,7 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
             );
             final header = _InstantReplayControlHeader(
               sourceLabel: sourceLabel,
+              commandBlockSource: commandBlockSource,
               frameDetail: frameDetail,
               palette: palette,
             );
@@ -864,16 +947,22 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
 class _InstantReplayControlHeader extends StatelessWidget {
   const _InstantReplayControlHeader({
     required this.sourceLabel,
+    required this.commandBlockSource,
     required this.frameDetail,
     required this.palette,
   });
 
   final String sourceLabel;
+  final InstantReplayCommandBlockSource? commandBlockSource;
   final String frameDetail;
   final AppThemeTokens palette;
 
   @override
   Widget build(BuildContext context) {
+    final source = commandBlockSource;
+    final detail = source == null
+        ? '$sourceLabel • $frameDetail'
+        : '${source.replayHeaderLabel} • $sourceLabel • $frameDetail';
     return Row(
       children: [
         DecoratedBox(
@@ -898,7 +987,7 @@ class _InstantReplayControlHeader extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            '$sourceLabel • $frameDetail',
+            detail,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: palette.textSubtle,

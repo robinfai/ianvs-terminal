@@ -428,6 +428,7 @@ __ianvs_install_shell_hooks() {
   typeset -g __IANVS_SHELL_INTEGRATION_LOADED=1
   typeset -g __ianvs_command_active=0
   typeset -g __ianvs_last_command=""
+  typeset -g __ianvs_bootstrapped_sent=0
   typeset -g __ianvs_prompt_sp_suppressed=0
   typeset -g __ianvs_prompt_sp_was_set=0
   typeset -g __ianvs_startup_prompt_sp_checked=0
@@ -452,6 +453,13 @@ __ianvs_install_shell_hooks() {
     __ianvs_hex=$(builtin printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
     [[ -n "$__ianvs_hex" ]] || return 0
     builtin printf '\ePhook;%s\e\\' "$__ianvs_hex" 2>/dev/null || true
+  }
+
+  __ianvs_emit_bootstrapped() {
+    emulate -L zsh
+    [[ "${__ianvs_bootstrapped_sent:-0}" == "0" ]] || return 0
+    typeset -g __ianvs_bootstrapped_sent=1
+    __ianvs_emit_shell_hook '{"hook":"bootstrapped","shell":"zsh"}'
   }
 
   __ianvs_suspend_startup_prompt_sp() {
@@ -507,6 +515,7 @@ __ianvs_install_shell_hooks() {
     local __ianvs_status=$?
     __ianvs_trim_startup_prompt_newline
     emulate -L zsh
+    __ianvs_emit_bootstrapped
     if [[ "${__ianvs_command_active:-0}" == "1" ]]; then
       local __ianvs_command="$(__ianvs_json_escape "${__ianvs_last_command:-}")"
       __ianvs_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__ianvs_command\",\"exit_code\":$__ianvs_status,\"shell\":\"zsh\"}"
@@ -562,6 +571,7 @@ __ianvs_install_shell_hooks() {
   __IANVS_SHELL_INTEGRATION_LOADED=1
   __ianvs_command_active=0
   __ianvs_last_command=""
+  __ianvs_bootstrapped_sent=0
   __ianvs_inside_prompt=0
 
   if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == declare\ -a* ]]; then
@@ -583,6 +593,12 @@ __ianvs_install_shell_hooks() {
       eval "$__ianvs_original_prompt_command_string" || true
     fi
     return "$__ianvs_status"
+  }
+
+  __ianvs_emit_bootstrapped() {
+    [[ "${__ianvs_bootstrapped_sent:-0}" == "0" ]] || return 0
+    __ianvs_bootstrapped_sent=1
+    __ianvs_emit_shell_hook '{"hook":"bootstrapped","shell":"bash"}'
   }
 
   __ianvs_preexec() {
@@ -608,6 +624,7 @@ __ianvs_install_shell_hooks() {
     local __ianvs_status=$?
     __ianvs_inside_prompt=1
     __ianvs_run_original_prompt_command "$__ianvs_status" || true
+    __ianvs_emit_bootstrapped
     if [[ "${__ianvs_command_active:-0}" == "1" ]]; then
       local __ianvs_escaped_command="$(__ianvs_json_escape "${__ianvs_last_command:-}")"
       __ianvs_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__ianvs_escaped_command\",\"exit_code\":$__ianvs_status,\"shell\":\"bash\"}"
@@ -641,6 +658,7 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
   set -g __IANVS_SHELL_INTEGRATION_LOADED 1
   set -g __ianvs_command_active 0
   set -g __ianvs_last_command ''
+  set -g __ianvs_bootstrapped_sent 0
 
   function __ianvs_json_escape
     set -l __ianvs_value ''
@@ -665,6 +683,12 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
     printf '\ePhook;%s\e\\' "$__ianvs_hex" 2>/dev/null; or true
   end
 
+  function __ianvs_emit_bootstrapped
+    test "$__ianvs_bootstrapped_sent" = 0; or return 0
+    set -g __ianvs_bootstrapped_sent 1
+    __ianvs_emit_shell_hook '{"hook":"bootstrapped","shell":"fish"}'
+  end
+
   function __ianvs_preexec --on-event fish_preexec
     set -g __ianvs_command_active 1
     set -g __ianvs_last_command "$argv[1]"
@@ -683,6 +707,7 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
   end
 
   function __ianvs_prompt --on-event fish_prompt
+    __ianvs_emit_bootstrapped
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"fish"}'
     set -l __ianvs_pwd (__ianvs_json_escape "$PWD")
     __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"fish\"}"
@@ -793,6 +818,7 @@ mod tests {
         assert!(zshrc.contains("__IANVS_SHELL_INTEGRATION_LOADED"));
         assert!(zshrc.contains("add-zsh-hook preexec __ianvs_preexec"));
         assert!(zshrc.contains("add-zsh-hook precmd __ianvs_precmd"));
+        assert!(zshrc.contains(r#""hook":"bootstrapped""#));
         assert!(zshrc.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
         assert!(zshrc.contains("__ianvs_suspend_startup_prompt_sp"));
         assert!(zshrc.contains("unsetopt prompt_sp"));
@@ -867,6 +893,7 @@ mod tests {
         assert!(bashrc.contains("__ianvs_source_original_bashrc"));
         assert!(bashrc.contains("trap -p DEBUG"));
         assert!(bashrc.contains("PROMPT_COMMAND"));
+        assert!(bashrc.contains(r#""hook":"bootstrapped""#));
         assert!(bashrc.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
         assert!(bashrc.contains("\\\"shell\\\":\\\"bash\\\""));
     }
@@ -913,6 +940,7 @@ mod tests {
         assert!(init.contains("--on-event fish_preexec"));
         assert!(init.contains("--on-event fish_postexec"));
         assert!(init.contains("--on-event fish_prompt"));
+        assert!(init.contains(r#""hook":"bootstrapped""#));
         assert!(init.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
         assert!(init.contains("\\\"shell\\\":\\\"fish\\\""));
     }

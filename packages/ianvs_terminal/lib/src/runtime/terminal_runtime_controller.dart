@@ -187,6 +187,52 @@ final class TerminalDiagnosticsExport {
   }
 }
 
+final class TerminalAsciinemaExport {
+  const TerminalAsciinemaExport({
+    required this.content,
+    required this.scope,
+    required this.format,
+    required this.width,
+    required this.height,
+    required this.eventCount,
+    required this.byteCount,
+    required this.truncated,
+    required this.validation,
+  });
+
+  factory TerminalAsciinemaExport.fromJson(Map<String, Object?> json) {
+    return TerminalAsciinemaExport(
+      content: _stringFromJsonValue(json['content']) ?? '',
+      scope: _stringFromJsonValue(json['scope']) ?? '',
+      format: _stringFromJsonValue(json['format']) ?? '',
+      width: _wholeIntValue(json['width']) ?? 0,
+      height: _wholeIntValue(json['height']) ?? 0,
+      eventCount:
+          _wholeIntValue(json['event_count'] ?? json['eventCount']) ?? 0,
+      byteCount: _wholeIntValue(json['byte_count'] ?? json['byteCount']) ?? 0,
+      truncated: json['truncated'] == true,
+      validation: _mapValue(json['validation']),
+    );
+  }
+
+  final String content;
+  final String scope;
+  final String format;
+  final int width;
+  final int height;
+  final int eventCount;
+  final int byteCount;
+  final bool truncated;
+  final Map<String, Object?> validation;
+
+  bool get replayMatched => validation['matched'] == true;
+  int get mismatchCount =>
+      _wholeIntValue(
+        validation['mismatch_count'] ?? validation['mismatchCount'],
+      ) ??
+      0;
+}
+
 Map<String, Object?> _mapValue(Object? value) {
   if (value is Map) {
     return Map<String, Object?>.unmodifiable(_stringKeyedJsonMap(value));
@@ -494,6 +540,35 @@ class TerminalRuntimeController {
       return null;
     }
     return _stringFromJsonValue(decoded['content']);
+  }
+
+  TerminalAsciinemaExport? exportAsciinemaRecording(String sessionId) {
+    if (!hasSession(sessionId)) {
+      return null;
+    }
+    final backend = _backend;
+    final requestBackend = backend is PtySessionJsonRequestBackend
+        ? backend as PtySessionJsonRequestBackend
+        : null;
+    if (requestBackend == null) {
+      return null;
+    }
+    try {
+      final raw = requestBackend.requestSessionJson(
+        sessionId,
+        jsonEncode(<String, Object?>{'kind': 'terminal.export_asciinema'}),
+      );
+      if (raw == null || raw.isEmpty) {
+        return null;
+      }
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) {
+        return null;
+      }
+      return TerminalAsciinemaExport.fromJson(decoded.cast<String, Object?>());
+    } on Object {
+      return null;
+    }
   }
 
   TerminalDiagnosticsExport? exportSessionDiagnostics(

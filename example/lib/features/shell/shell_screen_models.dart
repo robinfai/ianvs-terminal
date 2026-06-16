@@ -80,6 +80,7 @@ final class _InstantReplayWorkspaceSession {
     required this.frames,
     this.targetFrame,
     this.targetRow,
+    this.commandBlockSource,
   });
 
   final String sourceSessionId;
@@ -87,6 +88,7 @@ final class _InstantReplayWorkspaceSession {
   final List<InstantReplayFrame> frames;
   final InstantReplayFrame? targetFrame;
   final int? targetRow;
+  final InstantReplayCommandBlockSource? commandBlockSource;
 }
 
 final class _InstantReplaySearchHit {

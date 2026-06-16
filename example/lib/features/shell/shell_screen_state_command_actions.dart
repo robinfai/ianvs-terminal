@@ -59,6 +59,11 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               ).length >=
               2
         : false;
+    final commandBlocks = activeSessionIdBeforeOpen == null
+        ? const <ShellCommandBlock>[]
+        : _commandBlocksForSession(activeSessionIdBeforeOpen);
+    final hasCommandBlocks = commandBlocks.isNotEmpty;
+    final hasHistoryPeekCommandBlocks = hasCommandBlocks;
     final activePaneZoomed =
         activeSessionIdBeforeOpen != null &&
         _zoomedPaneSessionId == activeSessionIdBeforeOpen;
@@ -99,6 +104,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         bellNotificationsEnabled: _bellNotificationsEnabled,
         activityMonitorEnabled: _activityNotificationsEnabled,
         canSelectCommandOutput: canSelectCommandOutput,
+        commandBlocksHistoryFeatureFlags: _commandBlocksHistoryFeatureFlags,
+        hasCommandBlocks: hasCommandBlocks,
+        hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
       );
     }
 
@@ -292,6 +300,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         toolbelt: (_) {
           _mutateState(() {
+            _isHistoryPeekOpen = false;
             _isToolbeltOpen = true;
           });
           return const ShellActionBindingResult.completed();
@@ -602,6 +611,17 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           final cleared = ref
               .read(terminalRuntimeControllerProvider)
               .clearScrollback(currentSessionId);
+          if (cleared && mounted) {
+            _mutateState(() {
+              _commandBlockSnapshotsBySession.remove(currentSessionId);
+              _commandBlockPreviewRowsBySession.remove(currentSessionId);
+              _nativeTerminalCommandBlockIdsBySession.remove(currentSessionId);
+              _nativeTerminalCommandBlockIdsSeenBySession.remove(
+                currentSessionId,
+              );
+              _isHistoryPeekOpen = false;
+            });
+          }
           if (!cleared && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -1181,6 +1201,23 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           return;
         }
         await _openInstantReplay(sessionState);
+        return;
+      case TerminalActionId.openHistoryPeek:
+        _openHistoryPeek();
+        return;
+      case TerminalActionId.replayFromCommandBlock:
+        await executeInstantReplayCommandBlockAction(
+          actionId: action,
+          flags: _commandBlocksHistoryFeatureFlags,
+          currentSessionId: currentSessionId,
+          commandBlocks: currentSessionId == null
+              ? const <ShellCommandBlock>[]
+              : _commandBlocksForSession(currentSessionId),
+          openReplay: (commandBlockSource) => _openInstantReplay(
+            currentState,
+            commandBlockSource: commandBlockSource,
+          ),
+        );
         return;
       case TerminalActionId.search:
         if (currentSessionId == null) {

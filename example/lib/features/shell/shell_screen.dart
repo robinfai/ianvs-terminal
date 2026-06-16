@@ -44,6 +44,9 @@ import '../profiles/dynamic_profiles_sheet.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
+import '../productivity/command_blocks_history_feature_flags.dart';
+import '../productivity/shell_command_block_controller.dart';
+import '../productivity/shell_productivity_reducer.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../terminal/selection_controller.dart';
@@ -64,6 +67,7 @@ import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
 import 'shell_command_action_search_adapter.dart';
+import 'shell_command_block_view_models.dart';
 import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
@@ -93,6 +97,8 @@ part 'shell_screen_instant_replay.dart';
 part 'shell_screen_sheets.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_shared_buttons.dart';
+part 'shell_screen_command_blocks.dart';
+part 'shell_screen_history_peek.dart';
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -115,6 +121,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
+  final Map<String, TextEditingController> _commandInputControllers = {};
+  final Map<String, FocusNode> _commandInputFocusNodes = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
@@ -190,6 +198,24 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();
   LocalTerminalPasteHistoryPolicy _pasteHistoryPolicy =
       const LocalTerminalPasteHistoryPolicy();
+  CommandBlocksHistoryFeatureFlags _commandBlocksHistoryFeatureFlags =
+      CommandBlocksHistoryFeatureFlags.disabled;
+  final Map<String, ShellCommandBlockSnapshot> _commandBlockSnapshotsBySession =
+      {};
+  final Map<String, Map<String, List<terminal.TerminalRow>>>
+  _commandBlockPreviewRowsBySession = {};
+  final Map<String, _PendingCommandBlockPreviewRows>
+  _pendingCommandBlockPreviewRowsBySession = {};
+  final Map<String, List<_SubmittedCommandBlockPreviewCapture>>
+  _submittedCommandBlockPreviewCapturesBySession = {};
+  final Map<String, Set<String>>
+  _submittedCommandBlockPreviewBlockIdsBySession = {};
+  final Map<String, List<_FinishedCommandBlockPreviewCaptureTarget>>
+  _finishedCommandBlockPreviewTargetsBySession = {};
+  final Map<String, String> _nativeTerminalCommandBlockIdsBySession = {};
+  final Map<String, Set<String>> _nativeTerminalCommandBlockIdsSeenBySession =
+      {};
+  bool _isHistoryPeekOpen = false;
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
@@ -266,6 +292,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }
+    for (final controller in _commandInputControllers.values) {
+      controller.dispose();
+    }
+    for (final focusNode in _commandInputFocusNodes.values) {
+      focusNode.dispose();
+    }
     _searchFocusNode.dispose();
     _autoComposerController.dispose();
     _autoComposerFocusNode.dispose();
@@ -326,6 +358,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final statusViewportController = displayedSessionId == null
         ? null
         : sessionController.viewportFor(displayedSessionId);
+    final commandInputSessionId = displayedSessionId ?? activeSessionId;
     final shellChromeBackground = statusProfile == null
         ? activeTab == null
               ? _terminalColorsForProfile(
@@ -891,6 +924,30 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                   onHostKeyEvent: handleShellShortcut,
                                 ),
                               ),
+                              if (_historyPeekVisibleForSession(
+                                activeSessionId,
+                              ))
+                                Builder(
+                                  builder: (context) {
+                                    final width =
+                                        shellHistoryPeekSidePaneWidthForAvailableWidth(
+                                          MediaQuery.sizeOf(context).width,
+                                        );
+                                    if (width <= 0) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return SizedBox(
+                                      width: width,
+                                      child: ShellHistoryPeekSheet(
+                                        maxWidth: width,
+                                        blocks: _historyPeekBlocksForSession(
+                                          activeSessionId,
+                                        ),
+                                        onClose: _closeHistoryPeek,
+                                      ),
+                                    );
+                                  },
+                                ),
                               if (_isToolbeltOpen)
                                 _ShellToolbelt(
                                   capturedOutputCount:
@@ -980,6 +1037,36 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ),
                 ),
               ),
+              if (commandInputSessionId != null)
+                ListenableBuilder(
+                  listenable: sessionController.viewportFor(
+                    commandInputSessionId,
+                  ),
+                  builder: (context, _) {
+                    if (!_commandInputVisibleForSession(
+                      commandInputSessionId,
+                    )) {
+                      return const SizedBox.shrink();
+                    }
+                    return ShellCommandInputBar(
+                      key: ValueKey(
+                        'shell-command-input-$commandInputSessionId',
+                      ),
+                      controller: _commandInputControllerFor(
+                        commandInputSessionId,
+                      ),
+                      focusNode: _commandInputFocusNodeFor(
+                        commandInputSessionId,
+                      ),
+                      enabled: !_isSessionReadOnly(commandInputSessionId),
+                      cwd: statusDirectory?.trim().isNotEmpty == true
+                          ? statusDirectory!.trim()
+                          : statusProfile?.cwd,
+                      onSubmitted: (command) =>
+                          _submitCommandInput(commandInputSessionId, command),
+                    );
+                  },
+                ),
               if (statusPane != null)
                 if (statusViewportController == null ||
                     displayedSessionId == null)

@@ -1,6 +1,7 @@
 import '../command_center/command_block_action_reducer.dart';
 import '../command_center/command_block_actions.dart';
 import '../command_center/command_block_models.dart';
+import '../productivity/command_blocks_history_feature_flags.dart';
 import '../productivity/shell_productivity_models.dart';
 import 'shell_action_registry.dart';
 
@@ -13,6 +14,7 @@ enum ShellActionDisabledReason {
   missingTerminalFrame,
   pasteRequiresConfirmation,
   missingRecentDirectory,
+  commandBlocksHistoryDisabled,
 }
 
 extension ShellActionDisabledReasonText on ShellActionDisabledReason {
@@ -24,12 +26,15 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
       ShellActionDisabledReason.readOnly => 'Read-only mode',
       ShellActionDisabledReason.missingCommandOutput =>
         'No command output available',
-      ShellActionDisabledReason.missingCommandBlock => 'No command block',
+      ShellActionDisabledReason.missingCommandBlock =>
+        'No command block available',
       ShellActionDisabledReason.missingTerminalFrame => 'No terminal frame',
       ShellActionDisabledReason.pasteRequiresConfirmation =>
         'Paste confirmation required',
       ShellActionDisabledReason.missingRecentDirectory =>
         'No recent directory available',
+      ShellActionDisabledReason.commandBlocksHistoryDisabled =>
+        'Command Blocks history unavailable',
     };
   }
 
@@ -44,13 +49,15 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
       ShellActionDisabledReason.missingCommandOutput =>
         'Run a command with captured output before using this action.',
       ShellActionDisabledReason.missingCommandBlock =>
-        'Select a command block before using this action.',
+        'Run a command with captured output before using this action.',
       ShellActionDisabledReason.missingTerminalFrame =>
         'Wait for the terminal frame before using this action.',
       ShellActionDisabledReason.pasteRequiresConfirmation =>
         'Confirm the multiline paste before sending command text.',
       ShellActionDisabledReason.missingRecentDirectory =>
         'Visit a local directory before opening the recent directory list.',
+      ShellActionDisabledReason.commandBlocksHistoryDisabled =>
+        'Enable Command Blocks history tools before using this action.',
     };
   }
 }
@@ -79,6 +86,10 @@ class ShellActionAvailabilityResolver {
     bool hasTerminalFrame = true,
     CommandBlockActionReducer commandBlockReducer =
         const CommandBlockActionReducer(),
+    CommandBlocksHistoryFeatureFlags commandBlocksHistory =
+        CommandBlocksHistoryFeatureFlags.disabled,
+    bool hasCommandBlocks = false,
+    bool? hasHistoryPeekCommandBlocks,
   }) {
     final descriptor = ShellActionRegistry.actions[actionId];
     if (descriptor?.requiresActiveSession == true && !hasActiveSession) {
@@ -136,9 +147,57 @@ class ShellActionAvailabilityResolver {
             : ShellActionAvailability.disabled(
                 ShellActionDisabledReason.readOnly,
               );
+      case TerminalActionId.openHistoryPeek:
+        return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
+          featureEnabled: commandBlocksHistory.historyPeek,
+          hasCommandBlocks: hasHistoryPeekCommandBlocks ?? hasCommandBlocks,
+        );
+      case TerminalActionId.replayFromCommandBlock:
+        return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
+          featureEnabled: commandBlocksHistory.reviewWorkspaceEntrypoints,
+          hasCommandBlocks: hasCommandBlocks,
+        );
+      case TerminalActionId.saveCommandSnapshot:
+        return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
+          featureEnabled: commandBlocksHistory.failureSnapshots,
+          hasCommandBlocks: hasCommandBlocks,
+        );
+      case TerminalActionId.compareLastCommandRun:
+        return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
+          featureEnabled: commandBlocksHistory.outputDiff,
+          hasCommandBlocks: hasCommandBlocks,
+        );
+      case TerminalActionId.markCommandBlock:
+        return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
+          hasCommandBlocks: hasCommandBlocks,
+        );
       default:
         return ShellActionAvailability.enabledAction;
     }
+  }
+
+  static ShellActionAvailability _resolveCommandBlockAction({
+    required CommandBlocksHistoryFeatureFlags commandBlocksHistory,
+    bool featureEnabled = true,
+    required bool hasCommandBlocks,
+  }) {
+    if (!commandBlocksHistory.enabled ||
+        !commandBlocksHistory.commandBlocks ||
+        !featureEnabled) {
+      return ShellActionAvailability.disabled(
+        ShellActionDisabledReason.commandBlocksHistoryDisabled,
+      );
+    }
+    return hasCommandBlocks
+        ? ShellActionAvailability.enabledAction
+        : ShellActionAvailability.disabled(
+            ShellActionDisabledReason.missingCommandBlock,
+          );
   }
 }
 

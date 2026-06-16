@@ -9,6 +9,7 @@ class ShellActionSideEffectHandlers {
     this.scrollToPrompt,
     this.selectCommandOutput,
     this.openRecentDirectory,
+    this.commandBlockAction,
     this.sendPaste,
     this.confirmPaste,
     this.blockPaste,
@@ -17,7 +18,6 @@ class ShellActionSideEffectHandlers {
     this.openThemePicker,
     this.exportScrollback,
     this.applyLayoutTemplate,
-    this.commandBlockAction,
   });
 
   final ShellActionSideEffectHandler? updateWorkspace;
@@ -25,6 +25,7 @@ class ShellActionSideEffectHandlers {
   final ShellActionSideEffectHandler? scrollToPrompt;
   final ShellActionSideEffectHandler? selectCommandOutput;
   final ShellActionSideEffectHandler? openRecentDirectory;
+  final ShellActionSideEffectHandler? commandBlockAction;
   final ShellActionSideEffectHandler? sendPaste;
   final ShellActionSideEffectHandler? confirmPaste;
   final ShellActionSideEffectHandler? blockPaste;
@@ -33,7 +34,6 @@ class ShellActionSideEffectHandlers {
   final ShellActionSideEffectHandler? openThemePicker;
   final ShellActionSideEffectHandler? exportScrollback;
   final ShellActionSideEffectHandler? applyLayoutTemplate;
-  final ShellActionSideEffectHandler? commandBlockAction;
 }
 
 class ShellActionSideEffectExecutor {
@@ -51,6 +51,8 @@ class ShellActionSideEffectExecutor {
         handlers.selectCommandOutput,
       ShellActionSideEffectKind.openRecentDirectory =>
         handlers.openRecentDirectory,
+      ShellActionSideEffectKind.commandBlockAction =>
+        handlers.commandBlockAction,
       ShellActionSideEffectKind.sendPaste => handlers.sendPaste,
       ShellActionSideEffectKind.confirmPaste => handlers.confirmPaste,
       ShellActionSideEffectKind.blockPaste => handlers.blockPaste,
@@ -61,8 +63,6 @@ class ShellActionSideEffectExecutor {
       ShellActionSideEffectKind.exportScrollback => handlers.exportScrollback,
       ShellActionSideEffectKind.applyLayoutTemplate =>
         handlers.applyLayoutTemplate,
-      ShellActionSideEffectKind.commandBlockAction =>
-        handlers.commandBlockAction,
       ShellActionSideEffectKind.none => null,
     };
 

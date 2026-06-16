@@ -27,6 +27,9 @@ class ShellActionTestHarness {
         openRecentDirectory: _record(
           ShellActionSideEffectKind.openRecentDirectory,
         ),
+        commandBlockAction: _record(
+          ShellActionSideEffectKind.commandBlockAction,
+        ),
         sendPaste: _record(ShellActionSideEffectKind.sendPaste),
         confirmPaste: _record(ShellActionSideEffectKind.confirmPaste),
         blockPaste: _record(ShellActionSideEffectKind.blockPaste),
@@ -38,9 +41,6 @@ class ShellActionTestHarness {
         exportScrollback: _record(ShellActionSideEffectKind.exportScrollback),
         applyLayoutTemplate: _record(
           ShellActionSideEffectKind.applyLayoutTemplate,
-        ),
-        commandBlockAction: _record(
-          ShellActionSideEffectKind.commandBlockAction,
         ),
       ),
     );

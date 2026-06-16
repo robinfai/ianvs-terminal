@@ -271,5 +271,112 @@ void main() {
       expect(negative.paste.historySize, 50);
       expect(fractional.paste.historySize, 50);
     });
+
+    test('command blocks history config defaults every flag to false', () {
+      final config = LocalTerminalConfigDocument.fromJson(const {});
+
+      expect(config.commandBlocksHistory.enabled, isFalse);
+      expect(config.commandBlocksHistory.commandBlocks, isFalse);
+      expect(config.commandBlocksHistory.historyPeek, isFalse);
+      expect(config.commandBlocksHistory.failureSnapshots, isFalse);
+      expect(config.commandBlocksHistory.reviewWorkspaceEntrypoints, isFalse);
+      expect(config.commandBlocksHistory.outputDiff, isFalse);
+    });
+
+    test('command blocks history config decodes explicit flags', () {
+      final config = LocalTerminalConfigDocument.fromJson({
+        'commandBlocksHistory': {
+          'enabled': true,
+          'commandBlocks': true,
+          'historyPeek': false,
+          'failureSnapshots': true,
+          'reviewWorkspaceEntrypoints': false,
+          'outputDiff': true,
+        },
+      });
+
+      expect(config.commandBlocksHistory.enabled, isTrue);
+      expect(config.commandBlocksHistory.commandBlocks, isTrue);
+      expect(config.commandBlocksHistory.historyPeek, isFalse);
+      expect(config.commandBlocksHistory.failureSnapshots, isTrue);
+      expect(config.commandBlocksHistory.reviewWorkspaceEntrypoints, isFalse);
+      expect(config.commandBlocksHistory.outputDiff, isTrue);
+      expect(config.commandBlocksHistory.toJson(), {
+        'enabled': true,
+        'commandBlocks': true,
+        'historyPeek': false,
+        'failureSnapshots': true,
+        'reviewWorkspaceEntrypoints': false,
+        'outputDiff': true,
+      });
+    });
+
+    test('command blocks history config copyWith changes selected flags', () {
+      const config = LocalTerminalCommandBlocksHistoryConfig(
+        enabled: true,
+        commandBlocks: true,
+        historyPeek: false,
+        failureSnapshots: true,
+        reviewWorkspaceEntrypoints: false,
+        outputDiff: true,
+      );
+
+      final updated = config.copyWith(historyPeek: true, outputDiff: false);
+
+      expect(updated.enabled, isTrue);
+      expect(updated.commandBlocks, isTrue);
+      expect(updated.historyPeek, isTrue);
+      expect(updated.failureSnapshots, isTrue);
+      expect(updated.reviewWorkspaceEntrypoints, isFalse);
+      expect(updated.outputDiff, isFalse);
+    });
+
+    test('document copyWith replaces command blocks history config', () {
+      final updated = const LocalTerminalConfigDocument().copyWith(
+        commandBlocksHistory: const LocalTerminalCommandBlocksHistoryConfig(
+          enabled: true,
+          commandBlocks: true,
+          historyPeek: true,
+        ),
+      );
+
+      expect(updated.commandBlocksHistory.enabled, isTrue);
+      expect(updated.commandBlocksHistory.commandBlocks, isTrue);
+      expect(updated.commandBlocksHistory.historyPeek, isTrue);
+      expect(updated.commandBlocksHistory.failureSnapshots, isFalse);
+      expect(updated.commandBlocksHistory.reviewWorkspaceEntrypoints, isFalse);
+      expect(updated.commandBlocksHistory.outputDiff, isFalse);
+    });
+
+    test('document json roundtrips command blocks history config', () {
+      const config = LocalTerminalConfigDocument(
+        commandBlocksHistory: LocalTerminalCommandBlocksHistoryConfig(
+          enabled: true,
+          commandBlocks: false,
+          historyPeek: true,
+          failureSnapshots: false,
+          reviewWorkspaceEntrypoints: true,
+          outputDiff: false,
+        ),
+      );
+
+      final json = config.toJson();
+      final decoded = LocalTerminalConfigDocument.fromJson(json);
+
+      expect(json['commandBlocksHistory'], {
+        'enabled': true,
+        'commandBlocks': false,
+        'historyPeek': true,
+        'failureSnapshots': false,
+        'reviewWorkspaceEntrypoints': true,
+        'outputDiff': false,
+      });
+      expect(decoded.commandBlocksHistory.enabled, isTrue);
+      expect(decoded.commandBlocksHistory.commandBlocks, isFalse);
+      expect(decoded.commandBlocksHistory.historyPeek, isTrue);
+      expect(decoded.commandBlocksHistory.failureSnapshots, isFalse);
+      expect(decoded.commandBlocksHistory.reviewWorkspaceEntrypoints, isTrue);
+      expect(decoded.commandBlocksHistory.outputDiff, isFalse);
+    });
   });
 }

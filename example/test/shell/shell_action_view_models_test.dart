@@ -1,3 +1,4 @@
+import 'package:app/features/productivity/command_blocks_history_feature_flags.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_action_view_models.dart';
@@ -17,6 +18,15 @@ void main() {
       );
       expect(
         items.any((item) => item.actionId == TerminalActionId.previousPrompt),
+        isFalse,
+      );
+      expect(
+        items.any(
+          (item) =>
+              item.actionId == TerminalActionId.saveCommandSnapshot ||
+              item.actionId == TerminalActionId.compareLastCommandRun ||
+              item.actionId == TerminalActionId.markCommandBlock,
+        ),
         isFalse,
       );
     });
@@ -42,5 +52,45 @@ void main() {
 
       expect(item.shortcutHint, 'cmd+T');
     });
+
+    test(
+      'command block action is enabled when flags and blocks are present',
+      () {
+        final item = ShellActionViewModelBuilder.forDescriptor(
+          descriptor:
+              ShellActionRegistry.actions[TerminalActionId.openHistoryPeek]!,
+          hasActiveSession: true,
+          productivity: const ShellProductivityState(),
+          commandBlocksHistory: _commandBlocksHistoryFlags,
+          hasCommandBlocks: true,
+        );
+
+        expect(item.enabled, isTrue);
+        expect(item.disabledTitle, isNull);
+      },
+    );
+
+    test('command block action surfaces missing block disabled copy', () {
+      final item = ShellActionViewModelBuilder.forDescriptor(
+        descriptor:
+            ShellActionRegistry.actions[TerminalActionId.openHistoryPeek]!,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: _commandBlocksHistoryFlags,
+        hasCommandBlocks: false,
+      );
+
+      expect(item.enabled, isFalse);
+      expect(item.disabledTitle, 'No command block available');
+    });
   });
 }
+
+const _commandBlocksHistoryFlags = CommandBlocksHistoryFeatureFlags(
+  enabled: true,
+  commandBlocks: true,
+  historyPeek: true,
+  failureSnapshots: true,
+  reviewWorkspaceEntrypoints: true,
+  outputDiff: true,
+);

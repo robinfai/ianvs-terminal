@@ -83,6 +83,24 @@ void main() {
       }
     });
 
+    test('command block history actions expose descriptors', () {
+      const commandBlockActionIds = <TerminalActionId>{
+        TerminalActionId.openHistoryPeek,
+        TerminalActionId.replayFromCommandBlock,
+        TerminalActionId.saveCommandSnapshot,
+        TerminalActionId.compareLastCommandRun,
+        TerminalActionId.markCommandBlock,
+      };
+
+      for (final actionId in commandBlockActionIds) {
+        final descriptor = ShellActionRegistry.actions[actionId];
+
+        expect(descriptor, isNotNull, reason: '$actionId should be registered');
+        expect(descriptor!.terminalInputPolicy, TerminalInputPolicy.appFirst);
+        expect(descriptor.requiresActiveSession, isTrue);
+      }
+    });
+
     test('default keybindings do not contain hidden conflicts', () {
       expect(ShellActionRegistry.defaultKeyBindingConflicts(), isEmpty);
     });

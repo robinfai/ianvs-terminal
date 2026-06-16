@@ -79,5 +79,29 @@ void main() {
         '/repo',
       );
     });
+
+    test('command block actions return command block action result', () {
+      const actionIds = <TerminalActionId>[
+        TerminalActionId.openHistoryPeek,
+        TerminalActionId.replayFromCommandBlock,
+        TerminalActionId.saveCommandSnapshot,
+        TerminalActionId.compareLastCommandRun,
+        TerminalActionId.markCommandBlock,
+      ];
+
+      for (final actionId in actionIds) {
+        final result = ShellProductivityActionReducer.reduce(
+          state: const ShellProductivityState(),
+          actionId: actionId,
+          context: const ShellProductivityActionContext(),
+        );
+
+        expect(result, isA<ShellProductivityCommandBlockActionResult>());
+        expect(
+          (result as ShellProductivityCommandBlockActionResult).actionId,
+          actionId,
+        );
+      }
+    });
   });
 }

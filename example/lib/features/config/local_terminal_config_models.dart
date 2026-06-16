@@ -16,6 +16,7 @@ class LocalTerminalConfigDocument {
     this.notifications = const LocalTerminalNotificationsConfig(),
     this.hotkeyWindow = const LocalTerminalHotkeyWindowConfig(),
     this.commandCenter = const LocalTerminalCommandCenterConfig(),
+    this.commandBlocksHistory = const LocalTerminalCommandBlocksHistoryConfig(),
   });
 
   static const int currentSchemaVersion = 1;
@@ -43,6 +44,7 @@ class LocalTerminalConfigDocument {
   final LocalTerminalNotificationsConfig notifications;
   final LocalTerminalHotkeyWindowConfig hotkeyWindow;
   final LocalTerminalCommandCenterConfig commandCenter;
+  final LocalTerminalCommandBlocksHistoryConfig commandBlocksHistory;
 
   LocalTerminalConfigDocument copyWith({
     int? schemaVersion,
@@ -56,6 +58,7 @@ class LocalTerminalConfigDocument {
     LocalTerminalNotificationsConfig? notifications,
     LocalTerminalHotkeyWindowConfig? hotkeyWindow,
     LocalTerminalCommandCenterConfig? commandCenter,
+    LocalTerminalCommandBlocksHistoryConfig? commandBlocksHistory,
   }) {
     return LocalTerminalConfigDocument(
       schemaVersion: schemaVersion ?? this.schemaVersion,
@@ -72,6 +75,7 @@ class LocalTerminalConfigDocument {
       notifications: notifications ?? this.notifications,
       hotkeyWindow: hotkeyWindow ?? this.hotkeyWindow,
       commandCenter: commandCenter ?? this.commandCenter,
+      commandBlocksHistory: commandBlocksHistory ?? this.commandBlocksHistory,
     );
   }
 
@@ -88,6 +92,7 @@ class LocalTerminalConfigDocument {
       'notifications': notifications.toJson(),
       'hotkeyWindow': hotkeyWindow.toJson(),
       'commandCenter': commandCenter.toJson(),
+      'commandBlocksHistory': commandBlocksHistory.toJson(),
     };
   }
 
@@ -135,6 +140,9 @@ class LocalTerminalConfigDocument {
       ),
       commandCenter: LocalTerminalCommandCenterConfig.fromJson(
         _objectMap(json['commandCenter']),
+      ),
+      commandBlocksHistory: LocalTerminalCommandBlocksHistoryConfig.fromJson(
+        _objectMap(json['commandBlocksHistory']),
       ),
     );
   }
@@ -466,6 +474,73 @@ class LocalTerminalCommandCenterConfig {
         json?['verificationDiagnostics'],
         false,
       ),
+    );
+  }
+}
+
+class LocalTerminalCommandBlocksHistoryConfig {
+  const LocalTerminalCommandBlocksHistoryConfig({
+    this.enabled = false,
+    this.commandBlocks = false,
+    this.historyPeek = false,
+    this.failureSnapshots = false,
+    this.reviewWorkspaceEntrypoints = false,
+    this.outputDiff = false,
+  });
+
+  final bool enabled;
+  final bool commandBlocks;
+  final bool historyPeek;
+  final bool failureSnapshots;
+  final bool reviewWorkspaceEntrypoints;
+  final bool outputDiff;
+
+  LocalTerminalCommandBlocksHistoryConfig copyWith({
+    bool? enabled,
+    bool? commandBlocks,
+    bool? historyPeek,
+    bool? failureSnapshots,
+    bool? reviewWorkspaceEntrypoints,
+    bool? outputDiff,
+  }) {
+    return LocalTerminalCommandBlocksHistoryConfig(
+      enabled: enabled ?? this.enabled,
+      commandBlocks: commandBlocks ?? this.commandBlocks,
+      historyPeek: historyPeek ?? this.historyPeek,
+      failureSnapshots: failureSnapshots ?? this.failureSnapshots,
+      reviewWorkspaceEntrypoints:
+          reviewWorkspaceEntrypoints ?? this.reviewWorkspaceEntrypoints,
+      outputDiff: outputDiff ?? this.outputDiff,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'enabled': enabled,
+      'commandBlocks': commandBlocks,
+      'historyPeek': historyPeek,
+      'failureSnapshots': failureSnapshots,
+      'reviewWorkspaceEntrypoints': reviewWorkspaceEntrypoints,
+      'outputDiff': outputDiff,
+    };
+  }
+
+  static LocalTerminalCommandBlocksHistoryConfig fromJson(
+    Map<Object?, Object?>? json,
+  ) {
+    if (json == null) {
+      return const LocalTerminalCommandBlocksHistoryConfig();
+    }
+    return LocalTerminalCommandBlocksHistoryConfig(
+      enabled: _boolFromJson(json['enabled'], false),
+      commandBlocks: _boolFromJson(json['commandBlocks'], false),
+      historyPeek: _boolFromJson(json['historyPeek'], false),
+      failureSnapshots: _boolFromJson(json['failureSnapshots'], false),
+      reviewWorkspaceEntrypoints: _boolFromJson(
+        json['reviewWorkspaceEntrypoints'],
+        false,
+      ),
+      outputDiff: _boolFromJson(json['outputDiff'], false),
     );
   }
 }

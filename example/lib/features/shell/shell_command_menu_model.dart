@@ -1,3 +1,4 @@
+import '../productivity/command_blocks_history_feature_flags.dart';
 import '../productivity/shell_productivity_models.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_view_models.dart';
@@ -24,6 +25,8 @@ class ShellCommandMenuModel {
     TerminalActionId.coprocess,
     TerminalActionId.passwordManager,
     TerminalActionId.instantReplay,
+    TerminalActionId.openHistoryPeek,
+    TerminalActionId.replayFromCommandBlock,
     TerminalActionId.search,
     TerminalActionId.openActionSearch,
     TerminalActionId.globalSearch,
@@ -37,6 +40,10 @@ class ShellCommandMenuModel {
   static List<ShellActionMenuItemViewModel> defaultItems({
     required bool hasActiveSession,
     required ShellProductivityState productivity,
+    CommandBlocksHistoryFeatureFlags commandBlocksHistory =
+        CommandBlocksHistoryFeatureFlags.disabled,
+    bool hasCommandBlocks = false,
+    bool? hasHistoryPeekCommandBlocks,
   }) {
     return [
       for (final actionId in defaultActionOrder)
@@ -45,6 +52,9 @@ class ShellCommandMenuModel {
             descriptor: descriptor,
             hasActiveSession: hasActiveSession,
             productivity: productivity,
+            commandBlocksHistory: commandBlocksHistory,
+            hasCommandBlocks: hasCommandBlocks,
+            hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
           ),
     ];
   }

@@ -1282,7 +1282,8 @@ class RenderTerminalViewport extends RenderBox {
     }
 
     for (final cell in cells) {
-      if (cell.background == null) {
+      final background = _backgroundForSpanCell(cell);
+      if (background == null) {
         flush(cell.column);
         startColumn = -1;
         currentBackground = null;
@@ -1290,13 +1291,13 @@ class RenderTerminalViewport extends RenderBox {
       }
       if (currentBackground == null) {
         startColumn = cell.column;
-        currentBackground = cell.background;
+        currentBackground = background;
         continue;
       }
-      if (currentBackground.toARGB32() != cell.background!.toARGB32()) {
+      if (currentBackground.toARGB32() != background.toARGB32()) {
         flush(cell.column);
         startColumn = cell.column;
-        currentBackground = cell.background;
+        currentBackground = background;
       }
     }
 
@@ -1305,6 +1306,30 @@ class RenderTerminalViewport extends RenderBox {
     }
 
     return spans;
+  }
+
+  Color? _backgroundForSpanCell(_PaintCell cell) {
+    final background = cell.background;
+    if (background == null) {
+      return null;
+    }
+    if (_shouldSuppressLightThemeBlackPadding(cell, background)) {
+      return null;
+    }
+    return background;
+  }
+
+  bool _shouldSuppressLightThemeBlackPadding(
+    _PaintCell cell,
+    Color background,
+  ) {
+    if (cell.text.trim().isNotEmpty) {
+      return false;
+    }
+    final canvasIsLight = _colors.canvasBackground.computeLuminance() > 0.5;
+    final backgroundIsBlack =
+        background.a >= 0.99 && background.computeLuminance() < 0.02;
+    return canvasIsLight && backgroundIsBlack;
   }
 
   Rect _cursorRect(TerminalCursor cursor) {

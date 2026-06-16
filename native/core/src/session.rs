@@ -30,8 +30,14 @@ const MAX_TRANSCRIPT_BYTES: usize = 256 * 1024;
 const RESOURCE_SAMPLE_CAPACITY: usize = 60;
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
+const ASCIINEMA_VERSION: u8 = 2;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
+static TRACE_TERMINAL_IO: LazyLock<bool> = LazyLock::new(|| {
+    std::env::var("IANVS_TRACE_TERMINAL_IO")
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+});
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TerminalSearchMode {
@@ -365,6 +371,32 @@ struct TerminalState {
     transcript_truncated: bool,
     scrollback_offset: usize,
     host_protocol: HostProtocolState,
+    output_recording_started_at: Instant,
+    output_recording_events: VecDeque<AsciinemaOutputEvent>,
+    output_recording_bytes: usize,
+    output_recording_truncated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct AsciinemaOutputEvent {
+    elapsed_micros: u64,
+    bytes: Vec<u8>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct AsciinemaReplayValidation {
+    matched: bool,
+    viewport_rows: usize,
+    compared_rows: usize,
+    mismatch_count: usize,
+    mismatches: Vec<AsciinemaReplayMismatch>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct AsciinemaReplayMismatch {
+    row: usize,
+    recorded: String,
+    rendered: String,
 }
 
 #[derive(Clone, Default)]
@@ -663,6 +695,10 @@ impl TerminalSession {
                 transcript_truncated: false,
                 scrollback_offset: 0,
                 host_protocol: HostProtocolState::default(),
+                output_recording_started_at: Instant::now(),
+                output_recording_events: VecDeque::new(),
+                output_recording_bytes: 0,
+                output_recording_truncated: false,
             }),
             writer: Mutex::new(runtime.writer),
             master: Mutex::new(runtime.master),
@@ -702,43 +738,52 @@ impl TerminalSession {
                     Ok(read) => {
                         let (
                             callback_events,
-                            responses,
                             damage,
                             cursor_before,
                             cursor_after,
                             host_protocol_micros,
                             terminal_process_micros,
                             terminal_process_breakdown,
+                            response_write_micros,
                         ) = {
                             let mut state = reader_session.state.lock();
                             let cursor_before = terminal_cursor_snapshot(state.terminal.cursor());
-                            let host_started_at = Instant::now();
-                            let callback_events = state
-                                .host_protocol
-                                .observe(&buf[..read], reader_session.emulation);
-                            let host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
-                            let process_started_at = Instant::now();
-                            state.terminal.process(&buf[..read]);
-                            let terminal_process_micros =
-                                process_started_at.elapsed().as_micros() as u64;
+                            let mut response_write_micros = 0_u64;
+                            let mut callback_events = Vec::new();
+                            let TerminalState {
+                                terminal,
+                                host_protocol,
+                                ..
+                            } = &mut *state;
+                            let process_stats =
+                                process_terminal_output_with_immediate_responses_and_host_events(
+                                    terminal,
+                                    host_protocol,
+                                    reader_session.emulation,
+                                    &buf[..read],
+                                    &mut |_, _, responses| {
+                                        response_write_micros = response_write_micros
+                                            .saturating_add(
+                                                reader_session
+                                                    .write_terminal_response_bytes(&responses),
+                                            );
+                                    },
+                                    &mut |_, event| callback_events.push(event),
+                                );
                             let terminal_process_breakdown =
                                 state.terminal.take_process_debug_stats();
-                            append_transcript(&mut state, &buf[..read]);
+                            append_terminal_output_recording(&mut state, &buf[..read]);
                             let damage = state.terminal.drain_active_screen_damage();
                             let cursor_after = terminal_cursor_snapshot(state.terminal.cursor());
-                            let responses = normalize_responses(
-                                reader_session.emulation,
-                                state.terminal.drain_responses(),
-                            );
                             (
                                 callback_events,
-                                responses,
                                 damage,
                                 cursor_before,
                                 cursor_after,
-                                host_protocol_micros,
-                                terminal_process_micros,
+                                process_stats.host_protocol_micros,
+                                process_stats.terminal_process_micros,
                                 terminal_process_breakdown,
+                                response_write_micros,
                             )
                         };
 
@@ -753,12 +798,6 @@ impl TerminalSession {
                         for event in callback_events {
                             reader_session.push_callback_event(event);
                         }
-                        let response_write_started_at = Instant::now();
-                        if !responses.is_empty() {
-                            let _ = reader_session.writer.lock().write_all(&responses);
-                        }
-                        let response_write_micros =
-                            response_write_started_at.elapsed().as_micros() as u64;
                         reader_session.record_input_debug_stats(
                             read,
                             host_protocol_micros,
@@ -923,6 +962,10 @@ impl TerminalSession {
         }
 
         let previous_max = current_scrollback_max(&state);
+        trace_terminal_io_event(&format!(
+            "resize cols={cols} rows={rows} alt={}",
+            state.terminal.is_alt_screen_active()
+        ));
 
         // Keep SIGWINCH-triggered redraw output from being processed between
         // the PTY resize and the internal reflow/replay. Otherwise readline can
@@ -950,7 +993,7 @@ impl TerminalSession {
             if pixel_width > 0 && pixel_height > 0 {
                 terminal.set_pixel_size(pixel_width as usize, pixel_height as usize);
             }
-            terminal.process(&transcript);
+            replay_transcript_without_terminal_responses(&mut terminal, &transcript);
             state.terminal = terminal;
         } else {
             state.terminal.resize(cols as usize, rows as usize);
@@ -976,10 +1019,24 @@ impl TerminalSession {
     }
 
     pub fn write(&self, bytes: &[u8]) -> Result<(), SessionError> {
-        self.writer
-            .lock()
+        trace_terminal_io_bytes("write", bytes);
+        let mut writer = self.writer.lock();
+        writer
             .write_all(bytes)
+            .and_then(|_| writer.flush())
             .map_err(|error| SessionError::Io(error.to_string()))
+    }
+
+    fn write_terminal_response_bytes(&self, bytes: &[u8]) -> u64 {
+        if bytes.is_empty() {
+            return 0;
+        }
+        let started_at = Instant::now();
+        trace_terminal_io_bytes("response-write", bytes);
+        let mut writer = self.writer.lock();
+        let _ = writer.write_all(bytes);
+        let _ = writer.flush();
+        started_at.elapsed().as_micros() as u64
     }
 
     pub fn scroll(&self, delta_lines: i32) {
@@ -1016,6 +1073,10 @@ impl TerminalSession {
         state.scrollback_offset = 0;
         state.transcript.clear();
         state.transcript_truncated = true;
+        state.output_recording_events.clear();
+        state.output_recording_bytes = 0;
+        state.output_recording_truncated = true;
+        state.output_recording_started_at = Instant::now();
         drop(state);
 
         self.last_rows.lock().clear();
@@ -1032,6 +1093,31 @@ impl TerminalSession {
         state
             .terminal
             .export_scrollback(ExportFormat::Plain, max_lines)
+    }
+
+    pub fn export_asciinema_recording_json(&self) -> Result<String, SessionError> {
+        let state = self.state.lock();
+        let (cols, rows) = state.terminal.size();
+        let cast = asciinema_cast_for_state(&state, self.emulation, self.scrollback_lines);
+        let validation = asciinema_replay_validation_for_state(
+            &state,
+            self.emulation,
+            self.scrollback_lines,
+            &self.profile_colors,
+        );
+        serde_json::to_string(&serde_json::json!({
+            "content": cast,
+            "scope": "terminal-output-asciinema",
+            "format": "asciinema-v2",
+            "version": ASCIINEMA_VERSION,
+            "width": cols,
+            "height": rows,
+            "event_count": state.output_recording_events.len(),
+            "byte_count": state.output_recording_bytes,
+            "truncated": state.output_recording_truncated,
+            "validation": validation,
+        }))
+        .map_err(|error| SessionError::Serialize(error.to_string()))
     }
 
     pub fn take_frame_diff(&self) -> Result<Option<TerminalFrameDiff>, SessionError> {
@@ -1480,15 +1566,151 @@ fn hex_nibble(byte: u8) -> Option<u8> {
     }
 }
 
-fn append_transcript(state: &mut TerminalState, bytes: &[u8]) {
-    state.transcript.extend_from_slice(bytes);
-    if state.transcript.len() <= MAX_TRANSCRIPT_BYTES {
-        return;
+fn append_terminal_output_recording(state: &mut TerminalState, bytes: &[u8]) {
+    let elapsed_micros = state
+        .output_recording_started_at
+        .elapsed()
+        .as_micros()
+        .min(u128::from(u64::MAX)) as u64;
+    if !bytes.is_empty() {
+        state
+            .output_recording_events
+            .push_back(AsciinemaOutputEvent {
+                elapsed_micros,
+                bytes: bytes.to_vec(),
+            });
+        state.output_recording_bytes = state.output_recording_bytes.saturating_add(bytes.len());
     }
 
-    let overflow = state.transcript.len() - MAX_TRANSCRIPT_BYTES;
-    state.transcript.drain(..overflow);
-    state.transcript_truncated = true;
+    state.transcript.extend_from_slice(bytes);
+    while state.output_recording_bytes > MAX_TRANSCRIPT_BYTES {
+        let Some(event) = state.output_recording_events.pop_front() else {
+            break;
+        };
+        state.output_recording_bytes = state
+            .output_recording_bytes
+            .saturating_sub(event.bytes.len());
+        state.output_recording_truncated = true;
+    }
+
+    if state.transcript.len() > MAX_TRANSCRIPT_BYTES {
+        let overflow = state.transcript.len() - MAX_TRANSCRIPT_BYTES;
+        state.transcript.drain(..overflow);
+        state.transcript_truncated = true;
+    }
+}
+
+fn replay_transcript_without_terminal_responses(terminal: &mut Terminal, transcript: &[u8]) {
+    terminal.process(transcript);
+    terminal.drain_responses();
+}
+
+fn asciinema_cast_for_state(
+    state: &TerminalState,
+    emulation: TerminalEmulation,
+    scrollback_lines: usize,
+) -> String {
+    let (cols, rows) = state.terminal.size();
+    let header = serde_json::json!({
+        "version": ASCIINEMA_VERSION,
+        "width": cols,
+        "height": rows,
+        "timestamp": unix_timestamp_micros() / 1_000_000,
+        "env": {
+            "TERM": match emulation {
+                TerminalEmulation::Xterm256 => "xterm-256color",
+                TerminalEmulation::Vt220 => "vt220",
+            },
+            "IANVS_SCROLLBACK_LINES": scrollback_lines,
+        },
+    });
+    let mut cast = serde_json::to_string(&header).unwrap_or_else(|_| "{}".to_string());
+    cast.push('\n');
+    for event in &state.output_recording_events {
+        let timestamp = (event.elapsed_micros as f64) / 1_000_000.0;
+        let output = String::from_utf8_lossy(&event.bytes);
+        let line = serde_json::json!([timestamp, "o", output.as_ref()]);
+        cast.push_str(&serde_json::to_string(&line).unwrap_or_else(|_| "[]".to_string()));
+        cast.push('\n');
+    }
+    cast
+}
+
+fn asciinema_replay_validation_for_state(
+    state: &TerminalState,
+    emulation: TerminalEmulation,
+    scrollback_lines: usize,
+    profile_colors: &TerminalProfileColors,
+) -> AsciinemaReplayValidation {
+    let (cols, rows) = state.terminal.size();
+    let mut replay = Terminal::with_scrollback(cols, rows, scrollback_lines);
+    apply_profile_colors(&mut replay, profile_colors);
+    if emulation == TerminalEmulation::Vt220 {
+        replay.process(b"\x1b[62;1\"p");
+    }
+    for event in &state.output_recording_events {
+        replay.process(&event.bytes);
+    }
+
+    let expected = viewport_text_lines(&replay, emulation, state.scrollback_offset);
+    let rendered = viewport_text_lines(&state.terminal, emulation, state.scrollback_offset);
+    let compared_rows = expected.len().max(rendered.len());
+    let mut mismatches = Vec::new();
+    for row in 0..compared_rows {
+        let recorded = expected.get(row).cloned().unwrap_or_default();
+        let rendered_row = rendered.get(row).cloned().unwrap_or_default();
+        if recorded != rendered_row {
+            mismatches.push(AsciinemaReplayMismatch {
+                row,
+                recorded,
+                rendered: rendered_row,
+            });
+            if mismatches.len() >= 20 {
+                break;
+            }
+        }
+    }
+
+    AsciinemaReplayValidation {
+        matched: expected == rendered,
+        viewport_rows: rows,
+        compared_rows,
+        mismatch_count: count_line_mismatches(&expected, &rendered),
+        mismatches,
+    }
+}
+
+fn viewport_text_lines(
+    terminal: &Terminal,
+    emulation: TerminalEmulation,
+    scrollback_offset: usize,
+) -> Vec<String> {
+    let (_, viewport_rows) = terminal.size();
+    let scrollback_max_offset = if terminal.is_alt_screen_active() {
+        0
+    } else {
+        terminal.grid().scrollback_len()
+    };
+    let viewport_start_row = if terminal.is_alt_screen_active() {
+        0
+    } else {
+        scrollback_max_offset.saturating_sub(scrollback_offset.min(scrollback_max_offset))
+    };
+
+    (0..viewport_rows)
+        .map(|row| {
+            extract_viewport_row(terminal, emulation, viewport_start_row, row)
+                .row
+                .text
+        })
+        .collect()
+}
+
+fn count_line_mismatches(left: &[String], right: &[String]) -> usize {
+    let compared_rows = left.len().max(right.len());
+    (0..compared_rows)
+        .filter(|row| left.get(*row) != right.get(*row))
+        .count()
 }
 
 fn unix_timestamp_micros() -> u64 {
@@ -2657,6 +2879,85 @@ fn display_width_for_char(value: char) -> usize {
     }
 }
 
+#[cfg(test)]
+fn process_terminal_output_with_immediate_responses<F>(
+    terminal: &mut Terminal,
+    emulation: TerminalEmulation,
+    bytes: &[u8],
+    response_sink: &mut F,
+) where
+    F: FnMut(usize, bool, Vec<u8>),
+{
+    for (index, byte) in bytes.iter().enumerate() {
+        terminal.process(std::slice::from_ref(byte));
+        drain_terminal_responses_at(terminal, emulation, index + 1, response_sink);
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct TerminalOutputProcessStats {
+    host_protocol_micros: u64,
+    terminal_process_micros: u64,
+}
+
+fn process_terminal_output_with_immediate_responses_and_host_events<F, G>(
+    terminal: &mut Terminal,
+    host_protocol: &mut HostProtocolState,
+    emulation: TerminalEmulation,
+    bytes: &[u8],
+    response_sink: &mut F,
+    event_sink: &mut G,
+) -> TerminalOutputProcessStats
+where
+    F: FnMut(usize, bool, Vec<u8>),
+    G: FnMut(usize, CallbackEvent),
+{
+    let mut stats = TerminalOutputProcessStats::default();
+    for (index, byte) in bytes.iter().enumerate() {
+        let byte_slice = std::slice::from_ref(byte);
+        let processed_bytes = index + 1;
+
+        let terminal_started_at = Instant::now();
+        terminal.process(byte_slice);
+        drain_terminal_responses_at(terminal, emulation, processed_bytes, response_sink);
+        stats.terminal_process_micros = stats
+            .terminal_process_micros
+            .saturating_add(terminal_started_at.elapsed().as_micros() as u64);
+
+        let host_started_at = Instant::now();
+        for event in host_protocol.observe(byte_slice, emulation) {
+            event_sink(processed_bytes, event);
+        }
+        stats.host_protocol_micros = stats
+            .host_protocol_micros
+            .saturating_add(host_started_at.elapsed().as_micros() as u64);
+    }
+    stats
+}
+
+fn drain_terminal_responses_at<F>(
+    terminal: &mut Terminal,
+    emulation: TerminalEmulation,
+    processed_bytes: usize,
+    response_sink: &mut F,
+) where
+    F: FnMut(usize, bool, Vec<u8>),
+{
+    if !terminal.can_drain_responses() {
+        return;
+    }
+    let responses = normalize_responses(emulation, terminal.drain_responses());
+    if !responses.is_empty() {
+        let alt_screen_active = terminal.is_alt_screen_active();
+        trace_terminal_io_event(&format!(
+            "response processed_bytes={processed_bytes} alt={} bytes={}",
+            alt_screen_active,
+            escaped_trace_bytes(&responses)
+        ));
+        response_sink(processed_bytes, alt_screen_active, responses);
+    }
+}
+
 fn normalize_responses(emulation: TerminalEmulation, responses: Vec<u8>) -> Vec<u8> {
     if emulation != TerminalEmulation::Vt220 || responses.is_empty() {
         return responses;
@@ -2666,6 +2967,36 @@ fn normalize_responses(emulation: TerminalEmulation, responses: Vec<u8>) -> Vec<
         .replace("\x1b[?62;1;4;6;9;15;22;52c", VT220_PRIMARY_DA_RESPONSE)
         .replace("\x1b[>82;10000;0c", VT220_SECONDARY_DA_RESPONSE)
         .into_bytes()
+}
+
+fn trace_terminal_io_event(message: &str) {
+    if !*TRACE_TERMINAL_IO {
+        return;
+    }
+    eprintln!("[ianvs-terminal-io] {message}");
+}
+
+fn trace_terminal_io_bytes(label: &str, bytes: &[u8]) {
+    if !*TRACE_TERMINAL_IO {
+        return;
+    }
+    eprintln!("[ianvs-terminal-io] {label} {}", escaped_trace_bytes(bytes));
+}
+
+fn escaped_trace_bytes(bytes: &[u8]) -> String {
+    let mut escaped = String::new();
+    for byte in bytes {
+        match *byte {
+            b'\n' => escaped.push_str("\\n"),
+            b'\r' => escaped.push_str("\\r"),
+            b'\t' => escaped.push_str("\\t"),
+            0x1b => escaped.push_str("\\x1b"),
+            0x07 => escaped.push_str("\\x07"),
+            0x20..=0x7e => escaped.push(*byte as char),
+            other => escaped.push_str(&format!("\\x{other:02x}")),
+        }
+    }
+    escaped
 }
 
 fn current_scrollback_max(state: &TerminalState) -> usize {
@@ -3054,6 +3385,10 @@ fn export_diagnostics_session(
     STORE.get(session_id)?.export_diagnostics_json(request)
 }
 
+fn export_asciinema_session(session_id: u64) -> Result<String, SessionError> {
+    STORE.get(session_id)?.export_asciinema_recording_json()
+}
+
 pub fn request_session_json(
     session_id: u64,
     request_json: &str,
@@ -3135,6 +3470,7 @@ pub fn request_session_json(
             )
             .map(Some)
         }
+        "terminal.export_asciinema" => export_asciinema_session(session_id).map(Some),
         _ => Ok(None),
     }
 }
@@ -3282,6 +3618,183 @@ mod tests {
             String::from_utf8(output).unwrap(),
             format!("{VT220_PRIMARY_DA_RESPONSE}{VT220_SECONDARY_DA_RESPONSE}")
         );
+    }
+
+    #[test]
+    fn terminal_responses_are_drained_when_query_sequence_completes() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+        let mut drains = Vec::new();
+
+        process_terminal_output_with_immediate_responses(
+            &mut terminal,
+            TerminalEmulation::Xterm256,
+            b"\x1b[6nabc",
+            &mut |processed_bytes, _, responses| {
+                drains.push((processed_bytes, String::from_utf8(responses).unwrap()));
+            },
+        );
+
+        assert_eq!(drains.len(), 1);
+        assert_eq!(drains[0].0, b"\x1b[6n".len());
+        assert!(drains[0].1.ends_with('R'));
+    }
+
+    #[test]
+    fn terminal_responses_are_drained_before_following_plain_bytes() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+        let segments: &[(&[u8], bool)] = &[
+            (b"\x1b[>c", true),
+            (b"plain-a", false),
+            (b"\x1b]10;?\x07", true),
+            (b"plain-b", false),
+            (b"\x1b]11;?\x1b\\", true),
+            (b"plain-c", false),
+            (b"\x1b[?12$p", true),
+            (b"plain-d", false),
+        ];
+        let mut input = Vec::new();
+        let mut expected_offsets = Vec::new();
+        for (bytes, expects_response) in segments {
+            input.extend_from_slice(bytes);
+            if *expects_response {
+                expected_offsets.push(input.len());
+            }
+        }
+        let mut drains = Vec::new();
+
+        process_terminal_output_with_immediate_responses(
+            &mut terminal,
+            TerminalEmulation::Xterm256,
+            &input,
+            &mut |processed_bytes, _, responses| {
+                drains.push((processed_bytes, String::from_utf8(responses).unwrap()));
+            },
+        );
+
+        let actual_offsets = drains
+            .iter()
+            .map(|(processed_bytes, _)| *processed_bytes)
+            .collect::<Vec<_>>();
+        assert_eq!(actual_offsets, expected_offsets);
+        assert!(drains[0].1.contains("\x1b[>82;10000;0c"));
+        assert!(drains[1].1.starts_with("\x1b]10;rgb:"));
+        assert!(drains[2].1.starts_with("\x1b]11;rgb:"));
+        assert!(drains[3].1.contains("$y"));
+    }
+
+    #[test]
+    fn terminal_responses_and_host_events_follow_split_byte_order() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+        let mut host_protocol = HostProtocolState::default();
+        let osc10 = b"\x1b]10;?\x1b\\";
+        let plain = b"plain";
+        let hook = b"\x1bPhook;7b22686f6f6b223a22707265636d64222c22707764223a222f746d702f69616e7673207465726d696e616c227d\x1b\\";
+        let decrqm = b"\x1b[?12$p";
+        let osc11 = b"\x1b]11;?\x1b\\";
+        let tail = b"tail";
+        let mut input = Vec::new();
+        input.extend_from_slice(osc10);
+        input.extend_from_slice(plain);
+        input.extend_from_slice(hook);
+        input.extend_from_slice(decrqm);
+        input.extend_from_slice(osc11);
+        input.extend_from_slice(tail);
+        let expected = vec![
+            (osc10.len(), "response:osc10".to_string()),
+            (
+                osc10.len() + plain.len() + hook.len(),
+                "event:precmd".to_string(),
+            ),
+            (
+                osc10.len() + plain.len() + hook.len() + decrqm.len(),
+                "response:decrqm".to_string(),
+            ),
+            (
+                osc10.len() + plain.len() + hook.len() + decrqm.len() + osc11.len(),
+                "response:osc11".to_string(),
+            ),
+        ];
+        let split_points = [
+            osc10.len() - 1,
+            osc10.len() + plain.len() + 20,
+            osc10.len() + plain.len() + hook.len() - 1,
+            input.len() - 1,
+            input.len(),
+        ];
+        let timeline = std::cell::RefCell::new(Vec::new());
+        let mut chunk_start = 0usize;
+
+        for chunk_end in split_points {
+            let chunk = &input[chunk_start..chunk_end];
+            process_terminal_output_with_immediate_responses_and_host_events(
+                &mut terminal,
+                &mut host_protocol,
+                TerminalEmulation::Xterm256,
+                chunk,
+                &mut |processed_bytes, _, responses| {
+                    let response = String::from_utf8_lossy(&responses);
+                    let label = if response.starts_with("\x1b]10;rgb:") {
+                        "response:osc10"
+                    } else if response.starts_with("\x1b]11;rgb:") {
+                        "response:osc11"
+                    } else if response.contains("$y") {
+                        "response:decrqm"
+                    } else {
+                        "response:other"
+                    };
+                    timeline
+                        .borrow_mut()
+                        .push((chunk_start + processed_bytes, label.to_string()));
+                },
+                &mut |processed_bytes, event| match event {
+                    CallbackEvent::ShellHook { payload } => {
+                        let hook = payload["hook"].as_str().unwrap_or("unknown");
+                        timeline
+                            .borrow_mut()
+                            .push((chunk_start + processed_bytes, format!("event:{hook}")));
+                    }
+                    other => timeline
+                        .borrow_mut()
+                        .push((chunk_start + processed_bytes, format!("event:{other:?}"))),
+                },
+            );
+            chunk_start = chunk_end;
+        }
+
+        assert_eq!(timeline.into_inner(), expected);
+        assert!(host_protocol.buffer.is_empty());
+    }
+
+    #[test]
+    fn terminal_response_sequences_do_not_generate_follow_up_responses() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+        let response_bytes = b"\x1b[2;2R\x1b[3;1R\x1b[>82;10000;0c\x1b]11;rgb:0000/0000/0000\x1b\\\x1b]10;rgb:c0c0/c0c0/c0c0\x1b\\\x1b[>4;2m\x1b[?12;0$y";
+        let mut drains = Vec::new();
+
+        process_terminal_output_with_immediate_responses(
+            &mut terminal,
+            TerminalEmulation::Xterm256,
+            response_bytes,
+            &mut |processed_bytes, _, responses| {
+                drains.push((
+                    processed_bytes,
+                    String::from_utf8_lossy(&responses).to_string(),
+                ));
+            },
+        );
+
+        assert_eq!(drains, Vec::<(usize, String)>::new());
+    }
+
+    #[test]
+    fn transcript_replay_discards_generated_terminal_responses() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+        terminal.process(b"\x1b[>c");
+        assert!(terminal.has_pending_responses());
+
+        replay_transcript_without_terminal_responses(&mut terminal, b"\x1b[>c");
+
+        assert!(!terminal.has_pending_responses());
     }
 
     #[test]
