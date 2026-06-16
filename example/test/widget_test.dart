@@ -3542,6 +3542,10 @@ void main() {
       'copy block output',
     );
     await tester.pump();
+
+    expect(find.textContaining('Command block: make'), findsOneWidget);
+    expect(find.textContaining('No command block available'), findsNothing);
+
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 

@@ -1,5 +1,7 @@
 import '../command_center/command_action_search_controller.dart';
 import '../command_center/command_action_search_index.dart';
+import '../command_center/command_block_models.dart';
+import '../productivity/command_blocks_history_feature_flags.dart';
 import '../productivity/shell_productivity_models.dart';
 import '../../ui/foundation/terminal_theme_presets.dart';
 import 'shell_action_registry.dart';
@@ -17,6 +19,10 @@ class ShellCommandActionSearchAdapter {
   List<CommandActionSearchItem> itemsFor({
     required bool hasActiveSession,
     required ShellProductivityState productivity,
+    CommandBlocksHistoryFeatureFlags commandBlocksHistory =
+        CommandBlocksHistoryFeatureFlags.disabled,
+    CommandBlock? activeCommandBlock,
+    bool hasCommandBlocks = false,
   }) {
     final items = <CommandActionSearchItem>[];
     for (final entry in ShellActionRegistry.actions.entries) {
@@ -28,8 +34,17 @@ class ShellCommandActionSearchAdapter {
         descriptor: descriptor,
         hasActiveSession: hasActiveSession,
         productivity: productivity,
+        commandBlocksHistory: commandBlocksHistory,
+        commandBlock: activeCommandBlock,
+        hasCommandBlocks: activeCommandBlock != null || hasCommandBlocks,
       );
-      items.add(_itemFor(descriptor: descriptor, viewModel: viewModel));
+      items.add(
+        _itemFor(
+          descriptor: descriptor,
+          viewModel: viewModel,
+          activeCommandBlock: activeCommandBlock,
+        ),
+      );
     }
     for (final preset in terminalThemePresets) {
       items.add(_themePresetItemFor(preset));
@@ -56,6 +71,7 @@ class ShellCommandActionSearchAdapter {
   CommandActionSearchItem _itemFor({
     required TerminalActionDescriptor descriptor,
     required ShellActionMenuItemViewModel viewModel,
+    CommandBlock? activeCommandBlock,
   }) {
     final categoryLabel = _categoryLabel(descriptor.category);
     return CommandActionSearchItem.appAction(
@@ -63,6 +79,10 @@ class ShellCommandActionSearchAdapter {
       title: _humanizeLabel(descriptor.label),
       subtitle: _subtitleFor(
         categoryLabel: categoryLabel,
+        activeCommandBlock: _activeBlockSubtitleFor(
+          descriptor.id,
+          activeCommandBlock,
+        ),
         shortcutHint: viewModel.shortcutHint,
         disabledTitle: viewModel.enabled ? null : viewModel.disabledTitle,
       ),
@@ -70,6 +90,7 @@ class ShellCommandActionSearchAdapter {
         descriptor: descriptor,
         viewModel: viewModel,
         categoryLabel: categoryLabel,
+        activeCommandBlock: activeCommandBlock,
       ),
     );
   }
@@ -86,11 +107,14 @@ class ShellCommandActionSearchAdapter {
 
 String _subtitleFor({
   required String categoryLabel,
+  required String? activeCommandBlock,
   required String? shortcutHint,
   required String? disabledTitle,
 }) {
   return [
     categoryLabel,
+    if (activeCommandBlock != null && activeCommandBlock.isNotEmpty)
+      activeCommandBlock,
     if (shortcutHint != null && shortcutHint.isNotEmpty) shortcutHint,
     if (disabledTitle != null && disabledTitle.isNotEmpty) disabledTitle,
   ].join(' • ');
@@ -100,6 +124,7 @@ List<String> _keywordsFor({
   required TerminalActionDescriptor descriptor,
   required ShellActionMenuItemViewModel viewModel,
   required String categoryLabel,
+  CommandBlock? activeCommandBlock,
 }) {
   final values = <String>[
     descriptor.label,
@@ -107,6 +132,7 @@ List<String> _keywordsFor({
     descriptor.category.name,
     categoryLabel,
     ..._actionSearchAliasesFor(descriptor.id),
+    ?_activeBlockCommandKeyword(descriptor.id, activeCommandBlock),
     if (viewModel.shortcutHint case final shortcut? when shortcut.isNotEmpty)
       shortcut,
     if (viewModel.disabledTitle case final title? when title.isNotEmpty) title,
@@ -119,6 +145,46 @@ List<String> _keywordsFor({
     for (final value in values)
       if (seen.add(value)) value,
   ];
+}
+
+String? _activeBlockCommandKeyword(
+  TerminalActionId actionId,
+  CommandBlock? activeCommandBlock,
+) {
+  if (!_isCommandBlockAction(actionId)) {
+    return null;
+  }
+  final command = activeCommandBlock?.command.trim();
+  if (command == null || command.isEmpty) {
+    return null;
+  }
+  return command;
+}
+
+String? _activeBlockSubtitleFor(
+  TerminalActionId actionId,
+  CommandBlock? activeCommandBlock,
+) {
+  if (!_isCommandBlockAction(actionId)) {
+    return null;
+  }
+  final command = activeCommandBlock?.command.trim();
+  if (command == null || command.isEmpty) {
+    return null;
+  }
+  return 'Command block: $command';
+}
+
+bool _isCommandBlockAction(TerminalActionId actionId) {
+  return switch (actionId) {
+    TerminalActionId.copyBlockOutput ||
+    TerminalActionId.saveBlockOutput ||
+    TerminalActionId.openInReview ||
+    TerminalActionId.searchWithinBlock ||
+    TerminalActionId.reInputBlockCommand ||
+    TerminalActionId.rerunBlockCommand => true,
+    _ => false,
+  };
 }
 
 List<String> _actionSearchAliasesFor(TerminalActionId actionId) {

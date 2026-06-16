@@ -1,5 +1,6 @@
 import '../productivity/command_blocks_history_feature_flags.dart';
 import '../productivity/shell_productivity_models.dart';
+import '../command_center/command_block_models.dart';
 import 'shell_action_availability.dart';
 import 'shell_action_registry.dart';
 
@@ -29,6 +30,7 @@ class ShellActionViewModelBuilder {
     required ShellProductivityState productivity,
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
+    CommandBlock? commandBlock,
     bool hasCommandBlocks = false,
     bool? hasHistoryPeekCommandBlocks,
   }) {
@@ -40,6 +42,7 @@ class ShellActionViewModelBuilder {
             hasActiveSession: hasActiveSession,
             productivity: productivity,
             commandBlocksHistory: commandBlocksHistory,
+            commandBlock: commandBlock,
             hasCommandBlocks: hasCommandBlocks,
             hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
           ),
@@ -53,6 +56,7 @@ class ShellActionViewModelBuilder {
     required ShellProductivityState productivity,
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
+    CommandBlock? commandBlock,
     bool hasCommandBlocks = false,
     bool? hasHistoryPeekCommandBlocks,
   }) {
@@ -61,6 +65,7 @@ class ShellActionViewModelBuilder {
       hasActiveSession: hasActiveSession,
       productivity: productivity,
       commandBlocksHistory: commandBlocksHistory,
+      commandBlock: commandBlock,
       hasCommandBlocks: hasCommandBlocks,
       hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
     );

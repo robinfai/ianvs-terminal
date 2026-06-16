@@ -53,13 +53,21 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
   CommandActionSearchController _buildCommandActionSearchController(
     String sessionId,
   ) {
-    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    final sessionState = ref.read(sessionControllerProvider);
+    final activeSessionId = sessionState.activeSessionId;
+    final activeCommandBlock = _activeCommandActionSearchBlock(
+      sessionState,
+      sessionId,
+    );
     return _commandActionSearchShellWiring.controllerFor(
       actions: _commandActionSearchAdapter.itemsFor(
         hasActiveSession: activeSessionId != null,
         productivity: ShellProductivityState(
           readOnly: _isSessionReadOnly(sessionId),
         ),
+        commandBlocksHistory: _commandBlocksHistoryFeatureFlags,
+        activeCommandBlock: activeCommandBlock,
+        hasCommandBlocks: _commandBlocksForSession(sessionId).isNotEmpty,
       ),
       savedCommands: _savedCommands,
     );

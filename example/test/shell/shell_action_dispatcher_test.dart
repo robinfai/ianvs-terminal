@@ -90,6 +90,44 @@ void main() {
       expect(blockResult.intent.outputRange, _outputRange);
     });
 
+    test(
+      'dispatches all action search block actions through the shell pipeline',
+      () {
+        final cases = <TerminalActionId, CommandBlockActionIntentKind>{
+          TerminalActionId.copyBlockOutput:
+              CommandBlockActionIntentKind.copyOutputRange,
+          TerminalActionId.saveBlockOutput:
+              CommandBlockActionIntentKind.saveOutput,
+          TerminalActionId.openInReview:
+              CommandBlockActionIntentKind.reviewEntrypoint,
+          TerminalActionId.searchWithinBlock:
+              CommandBlockActionIntentKind.scopedSearch,
+          TerminalActionId.reInputBlockCommand:
+              CommandBlockActionIntentKind.terminalWrite,
+          TerminalActionId.rerunBlockCommand:
+              CommandBlockActionIntentKind.terminalWrite,
+        };
+
+        for (final entry in cases.entries) {
+          final result = ShellActionDispatcher.dispatch(
+            actionId: entry.key,
+            state: const ShellActionDispatchState(),
+            context: _context(commandBlock: _block(command: 'dart test')),
+          );
+
+          expect(
+            result,
+            isA<ShellCommandBlockDispatchResult>(),
+            reason: '${entry.key} should be routed to command block actions',
+          );
+          final blockResult =
+              (result as ShellCommandBlockDispatchResult).result;
+          expect(blockResult.enabled, isTrue);
+          expect(blockResult.intent.kind, entry.value);
+        }
+      },
+    );
+
     test('dispatches block re-input and rerun terminal intents safely', () {
       final reinput = ShellActionDispatcher.dispatch(
         actionId: TerminalActionId.reInputBlockCommand,

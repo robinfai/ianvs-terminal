@@ -1,5 +1,7 @@
 import 'package:app/features/command_center/command_action_search_controller.dart';
 import 'package:app/features/command_center/command_action_search_index.dart';
+import 'package:app/features/command_center/command_block_models.dart';
+import 'package:app/features/command_center/command_invocation_models.dart';
 import 'package:app/features/command_center/saved_command_repository.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
@@ -47,6 +49,35 @@ void main() {
       expect(paste.subtitle, contains('Session action'));
       expect(paste.subtitle, contains('Read-only mode'));
       expect(paste.keywords, anyElement(contains('Disable read-only')));
+    });
+
+    test('uses active command block context for block action metadata', () {
+      final items = adapter.itemsFor(
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        activeCommandBlock: CommandBlock(
+          id: 'failed',
+          sessionId: 'session-a',
+          command: 'false',
+          startedAt: DateTime.utc(2026, 6, 16),
+          finishedAt: DateTime.utc(2026, 6, 16),
+          status: CommandInvocationStatus.failed,
+          exitCode: 1,
+          outputRange: const CommandBlockRowRange(
+            startRow: 10,
+            endRowExclusive: 11,
+          ),
+        ),
+      );
+
+      final copyBlockOutput = items.singleWhere(
+        (item) => item.id == TerminalActionId.copyBlockOutput.name,
+      );
+
+      expect(copyBlockOutput.subtitle, contains('Integration action'));
+      expect(copyBlockOutput.subtitle, contains('false'));
+      expect(copyBlockOutput.subtitle, isNot(contains('No command block')));
+      expect(copyBlockOutput.keywords, contains('false'));
     });
 
     test('adds terminal theme preset actions with encoded theme ids', () {

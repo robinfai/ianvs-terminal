@@ -166,6 +166,9 @@ CommandBlockActionResult? _dispatchCommandBlockAction({
 CommandBlockAction? _commandBlockActionFor(TerminalActionId actionId) {
   return switch (actionId) {
     TerminalActionId.copyBlockOutput => CommandBlockAction.copyOutput,
+    TerminalActionId.saveBlockOutput => CommandBlockAction.saveOutput,
+    TerminalActionId.openInReview => CommandBlockAction.openReviewEntrypoint,
+    TerminalActionId.searchWithinBlock => CommandBlockAction.searchWithinBlock,
     TerminalActionId.reInputBlockCommand => CommandBlockAction.reInput,
     TerminalActionId.rerunBlockCommand => CommandBlockAction.rerun,
     _ => null,

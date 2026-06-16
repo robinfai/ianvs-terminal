@@ -102,6 +102,32 @@ void main() {
       );
     });
 
+    test('block action availability covers action search block actions', () {
+      final availableActions = <TerminalActionId>[
+        TerminalActionId.copyBlockOutput,
+        TerminalActionId.saveBlockOutput,
+        TerminalActionId.openInReview,
+        TerminalActionId.searchWithinBlock,
+        TerminalActionId.reInputBlockCommand,
+        TerminalActionId.rerunBlockCommand,
+      ];
+
+      for (final actionId in availableActions) {
+        final availability = ShellActionAvailabilityResolver.resolve(
+          actionId: actionId,
+          hasActiveSession: true,
+          productivity: const ShellProductivityState(),
+          commandBlock: _block(),
+        );
+
+        expect(
+          availability.enabled,
+          isTrue,
+          reason: '$actionId should accept the active command block',
+        );
+      }
+    });
+
     test('block writing actions honor read-only and paste safety', () {
       final readOnly = ShellActionAvailabilityResolver.resolve(
         actionId: TerminalActionId.rerunBlockCommand,
