@@ -384,7 +384,7 @@ Use these payloads when creating task documents. Keep each task focused on its n
 **Files:**
 - Modify: `docs/ROADMAP.md`
 
-- [ ] **Step 1: Insert the Command Center section**
+- [x] **Step 1: Insert the Command Center section**
 
 Add this section after the current execution stance and before the long-term directions:
 
@@ -517,7 +517,7 @@ Command Center 的执行入口是 `docs/tasks/command-center/`。任务从 `T-30
 - 自动化、手工、性能和 stop condition 验证门写入任务文档。
 ```
 
-- [ ] **Step 2: Verify roadmap section exists**
+- [x] **Step 2: Verify roadmap section exists**
 
 Run:
 
@@ -527,7 +527,7 @@ rg -n "Command Center 并行产品线|CC0: 规划和任务包入库|CC6: Sticky 
 
 Expected: all three strings are found.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -543,7 +543,7 @@ Expected: commit succeeds with only `docs/ROADMAP.md`.
 **Files:**
 - Create: `docs/tasks/command-center/README.md`
 
-- [ ] **Step 1: Create README**
+- [x] **Step 1: Create README**
 
 Create `docs/tasks/command-center/README.md` with this content:
 
@@ -633,7 +633,7 @@ T-322
 - [T-322 Command Center Verification Gates](T-322-command-center-verification-gates.md)
 ```
 
-- [ ] **Step 2: Verify README links**
+- [x] **Step 2: Verify README links**
 
 Run:
 
@@ -643,7 +643,7 @@ rg -n "T-300|T-322|全局护栏|任务依赖" docs/tasks/command-center/README.m
 
 Expected: all searched terms are present.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -663,11 +663,11 @@ Expected: commit succeeds with only the README.
 - Create: `docs/tasks/command-center/T-303-shell-hook-lifecycle-adapter.md`
 - Create: `docs/tasks/command-center/T-304-command-lifecycle-degraded-state.md`
 
-- [ ] **Step 1: Write the five task documents**
+- [x] **Step 1: Write the five task documents**
 
 Use the global task sections and the payloads for `T-300` through `T-304`. Each file must include all required sections and must link verification references to `../../TESTING.md`.
 
-- [ ] **Step 2: Verify required sections**
+- [x] **Step 2: Verify required sections**
 
 Run:
 
@@ -687,7 +687,7 @@ done
 
 Expected: exit code 0.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -710,11 +710,11 @@ Expected: commit succeeds with five task files.
 - Create: `docs/tasks/command-center/T-311-command-search-overlay-widget.md`
 - Create: `docs/tasks/command-center/T-312-command-search-insert-execute-safety.md`
 
-- [ ] **Step 1: Write the eight task documents**
+- [x] **Step 1: Write the eight task documents**
 
 Use the global task sections and the payloads for `T-305` through `T-312`. Ensure `T-311` and `T-312` contain Manual QA because they touch UI, shortcuts, IME, and command execution safety.
 
-- [ ] **Step 2: Verify search lane coverage**
+- [x] **Step 2: Verify search lane coverage**
 
 Run:
 
@@ -724,7 +724,7 @@ rg -n "Ctrl-R|Enter|read-only|IME|privacy|ranking|session-local|global history" 
 
 Expected: search terms appear across the history/search task files.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -745,11 +745,11 @@ Expected: commit succeeds with eight task files.
 - Create: `docs/tasks/command-center/T-320-sticky-command-header.md`
 - Create: `docs/tasks/command-center/T-321-command-review-entrypoints.md`
 
-- [ ] **Step 1: Write the six task documents**
+- [x] **Step 1: Write the six task documents**
 
 Use the global task sections and the payloads for `T-313`, `T-314`, `T-315`, `T-316`, `T-320`, and `T-321`. Ensure UI or runtime-adjacent tasks include Manual QA.
 
-- [ ] **Step 2: Verify block lane coverage**
+- [x] **Step 2: Verify block lane coverage**
 
 Run:
 
@@ -759,7 +759,7 @@ rg -n "output range|copy output|re-input|rerun|sticky header|Instant Replay|read
 
 Expected: searched concepts appear across block task files.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -778,11 +778,11 @@ Expected: commit succeeds with six task files.
 - Create: `docs/tasks/command-center/T-319-command-center-mode-router.md`
 - Create: `docs/tasks/command-center/T-322-command-center-verification-gates.md`
 
-- [ ] **Step 1: Write the four task documents**
+- [x] **Step 1: Write the four task documents**
 
 Use the global task sections and the payloads for `T-317`, `T-318`, `T-319`, and `T-322`. Ensure `T-317`, `T-318`, and `T-322` contain Manual QA.
 
-- [ ] **Step 2: Verify command bar and gates coverage**
+- [x] **Step 2: Verify command bar and gates coverage**
 
 Run:
 
@@ -792,7 +792,7 @@ rg -n "terminal-first|Shift\\+Enter|context chips|mode router|IME|paste|shortcut
 
 Expected: searched concepts appear across the command bar and verification files.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 Run:
 
@@ -810,7 +810,7 @@ Expected: commit succeeds with four task files.
 - Inspect: `docs/tasks/command-center/README.md`
 - Inspect: `docs/tasks/command-center/T-300-command-center-track-intake.md` through `docs/tasks/command-center/T-322-command-center-verification-gates.md`
 
-- [ ] **Step 1: Count task files**
+- [x] **Step 1: Count task files**
 
 Run:
 
@@ -820,7 +820,7 @@ find docs/tasks/command-center -maxdepth 1 -type f -name 'T-3*.md' | sort | wc -
 
 Expected: `23`.
 
-- [ ] **Step 2: Verify there are no placeholder markers**
+- [x] **Step 2: Verify there are no placeholder markers**
 
 Run:
 
@@ -830,7 +830,7 @@ rg -n "TB[D]|T[O]DO|FIXM[E]|待[定]|占[位]|implement[ ]later|fill[ ]in[ ]deta
 
 Expected: no matches and exit code 1.
 
-- [ ] **Step 3: Verify required sections on all task files**
+- [x] **Step 3: Verify required sections on all task files**
 
 Run:
 
@@ -853,7 +853,7 @@ done
 
 Expected: exit code 0.
 
-- [ ] **Step 4: Verify all README links target existing files**
+- [x] **Step 4: Verify all README links target existing files**
 
 Run:
 
@@ -868,7 +868,7 @@ done
 
 Expected: exit code 0.
 
-- [ ] **Step 5: Commit any review fixes**
+- [x] **Step 5: Commit any review fixes**
 
 If files changed during review, run:
 
