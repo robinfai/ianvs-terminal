@@ -9,6 +9,8 @@
 - 支持 prefix 和 fuzzy matching。
 - Ranking 考虑 recency、cwd proximity、status 和 frequency。
 - 支持 `CommandSearchQuery` 的 filters。
+- 进入 index 的记录如果带有 command invocation / block locator metadata，索引和结果
+  视图都不能把这些关联字段丢掉。
 - 提供 10k 条 history fixture 的性能基线。
 
 ## Non-goals
@@ -30,6 +32,8 @@
 - 当前 cwd 结果提权。
 - status filter 能区分成功、失败和未知。
 - 高频命令可参与排序，但不能盖过明显更近的精确命中。
+- 带 block locator metadata 的记录在进入 index 和返回结果时仍可供后续 `查看命令块`
+  routing 使用。
 - 10k 条 fixture 的查询保持可交互。
 
 ## Verification Commands
@@ -49,6 +53,8 @@ flutter test test/command_center/command_search_index_test.dart
 ## Done When
 
 - Overlay 可直接消费 ranked results。
+- ranked results 保留 command invocation / block locator metadata，不要求 controller
+  二次猜测 block 关联。
 - ranking、filter 和性能基线有测试。
 - search index 不拥有 history persistence。
 

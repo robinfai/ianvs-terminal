@@ -30,10 +30,11 @@
 ## Functional Acceptance
 
 - block actions 出现在统一 action registry。
+- availability 使用 reducer reason。
+- copy output 使用正确 output range。
 - `Ctrl-R -> 查看命令块` 能打开同一条 block 的动作面。
 - re-input 插入到 command input 但不执行。
 - rerun 走 read-only 和 paste safety。
-- review/replay 仍以具体 block 为来源锚点。
 
 ## Verification Commands
 
@@ -57,7 +58,7 @@ flutter test test/shell/shell_action_availability_test.dart test/shell/shell_act
 - MVP block actions 能通过统一 action pipeline 触发。
 - `Ctrl-R` 搜索结果能够回到同一条 block 的动作面。
 - 写入型动作全部经过 safety policy。
-- review/replay 锚点、复制范围和 disabled reason 有测试。
+- 复制范围和 disabled reason 有测试。
 
 ## Risks / Follow-ups
 

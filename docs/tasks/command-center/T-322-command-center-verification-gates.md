@@ -8,7 +8,8 @@
 
 - 汇总 Command Center 各 lane 的最小自动化命令。
 - 定义输入、IME、paste、read-only、shortcut、scroll、renderer 和 review 隔离的人工 QA。
-- 定义 `Ctrl-R` 与 command input 的 focus handoff，以及 command block 模式下文本插入权的验证门。
+- 定义 `Ctrl-R` 与 command input 的 focus handoff，以及 command-center modes 下的
+  文本插入权验证门。
 - 定义 search index 和 sticky header 的性能门。
 - 记录 stop conditions，出现时必须停止并修复。
 
@@ -29,7 +30,7 @@
 ## Functional Acceptance
 
 - Foundation lane 有模型和 adapter 的最小测试命令。
-- History/Search lane 有 parser、index、overlay 和 insert/execute safety 的最小测试命令。
+- History/Search lane 有 parser、index、overlay 和 insert safety 的最小测试命令。
 - Blocks lane 有 range、navigation、actions、sticky header 和 review entrypoints 的最小测试命令。
 - Command Bar lane 有 editor、context chips 和 mode router 的最小测试命令。
 - Manual QA 覆盖 `Ctrl-R`、read-only、IME、paste、shortcut、scrollback、copy output、sticky header、Instant Replay review 和 alt-buffer / pager。
@@ -243,7 +244,7 @@ rg -n "Ctrl-R|focus|command input|read-only|IME|paste|shortcut|stop condition|pe
 - `Ctrl-R` 打开后搜索框自动 focus。
 - `Enter` 回填后 focus 回到 command input。
 - `Esc` 关闭后 focus 回到 command input。
-- command block 模式下多行粘贴只能经过 command input。
+- command-center modes 下多行粘贴只能经过 command input。
 - UI 中不再出现旧版历史浮层文案或重复的 `cwd/history` 入口。
 - Search、Blocks、Command Bar、Review、输入安全和性能门没有遗漏。
 
