@@ -8,7 +8,8 @@
 
 - 在统一 action registry 中加入 block actions。
 - 接入 action availability、clipboard bridge 和 terminal input intent。
-- 将 block action reducer 的 intents 映射到现有 shell action pipeline。
+- 将 block action reducer 的 intents 映射到现有 shell action pipeline，并承接
+  `Ctrl-R -> 查看命令块` 的 block action 打开路径。
 
 ## Non-goals
 
@@ -29,11 +30,10 @@
 ## Functional Acceptance
 
 - block actions 出现在统一 action registry。
-- availability 使用 reducer reason。
-- copy output 使用正确 output range。
-- re-input 插入命令但不执行。
+- `Ctrl-R -> 查看命令块` 能打开同一条 block 的动作面。
+- re-input 插入到 command input 但不执行。
 - rerun 走 read-only 和 paste safety。
-- 用户手动选区复制仍优先按真实 terminal selection 处理。
+- review/replay 仍以具体 block 为来源锚点。
 
 ## Verification Commands
 
@@ -48,15 +48,16 @@ flutter test test/shell/shell_action_availability_test.dart test/shell/shell_act
 ## Manual QA
 
 - 手动运行成功命令、失败命令和长输出命令。
-- 测试 copy output、re-input、rerun。
+- 从 `Ctrl-R` 搜索结果进入“查看命令块”，再测试 copy output、re-input、rerun。
 - 启用 read-only 后确认 rerun 不可用。
 - 建立 terminal selection 后确认普通复制不被 block action 覆盖。
 
 ## Done When
 
 - MVP block actions 能通过统一 action pipeline 触发。
+- `Ctrl-R` 搜索结果能够回到同一条 block 的动作面。
 - 写入型动作全部经过 safety policy。
-- 复制范围和 disabled reason 有测试。
+- review/replay 锚点、复制范围和 disabled reason 有测试。
 
 ## Risks / Follow-ups
 

@@ -7,9 +7,10 @@
 ## Scope
 
 - 构建 command search overlay widget。
-- 显示 command、cwd、exit status、last run 等结果信息。
+- 只展示有 command block 上下文的 fuzzy results，并显示 command、cwd、exit
+  status、last run、duration 等结果信息。
 - 支持 focus、keyboard navigation、loading、empty 和 unavailable states。
-- 接入 shell/action wiring 的打开关闭入口。
+- 接入 shell/action wiring 的打开关闭入口和“查看命令块”动作。
 
 ## Non-goals
 
@@ -27,12 +28,14 @@
 
 ## Functional Acceptance
 
-- `Ctrl-R` 打开 overlay，`Esc` 关闭 overlay。
-- fuzzy results 正确显示 command、cwd、exit status 和 last run 信息。
+- `Ctrl-R` 打开/关闭 overlay。
+- fuzzy results 只显示有 command block 上下文的记录。
+- 结果项显示 command、cwd、exit status、last run、duration，并在必要时显示
+  session 标识。
 - 键盘上下移动选中项。
+- 结果项提供“查看命令块”入口。
 - IME 搜索词输入不被中断。
 - `Esc`、方向键和 search shortcut 不泄漏控制字符到 PTY。
-- shell integration unavailable 时仍可显示已有 local history 或明确 unavailable state。
 
 ## Verification Commands
 
@@ -50,14 +53,15 @@ flutter test test/command_center/command_search_overlay_test.dart
 - 按 `Ctrl-R` 打开 overlay。
 - 输入英文和中文搜索词。
 - 使用上下键移动结果。
+- 触发“查看命令块”，确认进入对应 block 上下文。
 - 按 `Esc` 关闭 overlay。
 - 确认 shell 未收到控制字符，且终端普通输入恢复。
 
 ## Done When
 
-- 用户能看到并导航 command search overlay。
+- 用户能看到并导航仅含 command block 上下文的 command search overlay。
 - overlay 与 terminal input focus 不互相污染。
-- UI 测试覆盖打开、关闭、结果显示和空态。
+- UI 测试覆盖打开、关闭、结果显示、“查看命令块”和空态。
 
 ## Risks / Follow-ups
 

@@ -7,7 +7,7 @@
 ## Scope
 
 - 定义 insert command、explicit execute、read-only guard、paste/multiline safety。
-- 将 overlay selection intent 接入 terminal input path。
+- 将 overlay selection intent 接入 command input path，而不是 hidden terminal focus。
 - 确保写入 shell 的路径仍经过既有 safety policy。
 
 ## Non-goals
@@ -26,11 +26,11 @@
 
 ## Functional Acceptance
 
-- `Enter` 插入命令且不发送回车。
+- `Enter` 插入到 command input 且不发送回车。
 - `Cmd/Ctrl+Enter` 才产生显式执行。
+- hidden terminal focus 不能成为搜索结果插入目标。
 - read-only 下 explicit execute disabled，并给出 reason。
-- 多行结果进入既有 paste/multiline policy。
-- app shortcut 消费不会泄漏 control bytes 到 PTY。
+- 多行结果进入既有 paste/multiline policy，但最终落点仍是 command input。
 
 ## Verification Commands
 
@@ -46,13 +46,15 @@ flutter test test/command_center/command_search_insert_execute_safety_test.dart
 
 - 在真实 app 中运行几条命令。
 - 打开 `Ctrl-R`，选择历史命令。
-- 按 `Enter`，确认命令只插入、不执行。
+- 按 `Enter`，确认命令只回填到 command input、不执行。
+- 确认隐藏 terminal focus 不会收到插入文本。
 - 启用 read-only 后尝试显式执行，确认不可用。
 - 对多行结果确认仍出现或遵守 paste/multiline safety。
 
 ## Done When
 
 - Search overlay 不会意外执行命令。
+- 插入目标固定为 command input，且不会落到 hidden terminal focus。
 - 插入和显式执行路径都有测试覆盖。
 - 所有发送到 shell 的路径经过安全策略。
 

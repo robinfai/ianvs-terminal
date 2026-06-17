@@ -7,8 +7,10 @@
 ## Scope
 
 - 管理 open/close、query update、selection movement。
-- 根据键盘意图产生 insert 或 explicit execute intent。
-- 将 search index results 转成 overlay state。
+- 支持 current/global scope，并将当前 session 搜索作为默认入口。
+- 过滤只保留有 command block 上下文的搜索记录。
+- 根据键盘和结果动作产生 insert 或 view-block intent。
+- 将 search index results 转成 overlay state，但不直接写入 PTY。
 
 ## Non-goals
 
@@ -25,12 +27,12 @@
 
 ## Functional Acceptance
 
-- `Ctrl-R` intent 打开搜索。
-- `Esc` 关闭搜索并清理临时 query state。
-- 上下键更新选中项。
+- `Ctrl-R` 打开当前 session 搜索。
+- controller 支持 current/global scope。
+- 结果只保留有 command block 上下文的记录。
 - `Enter` 产生 insert intent。
-- `Cmd/Ctrl+Enter` 产生 explicit execute intent。
-- 空结果有稳定 empty state。
+- `查看命令块` 产生 view-block intent。
+- controller 不直接写入 PTY。
 
 ## Verification Commands
 
@@ -49,7 +51,7 @@ flutter test test/command_center/command_search_overlay_controller_test.dart
 ## Done When
 
 - Widget 任务不需要自行管理搜索状态。
-- open/close、query、selection、insert 和 explicit execute intent 有测试。
+- current/global scope、结果过滤、selection、insert 和 view-block intent 有测试。
 - controller 不直接写入 PTY。
 
 ## Risks / Follow-ups

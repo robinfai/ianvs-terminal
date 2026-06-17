@@ -16,8 +16,8 @@ Command Center 的任务执行入口。
 
 - `CC0`：规划和任务包入库。
 - `CC1`：command lifecycle 数据基座。
-- `CC2`：history repository 和 search index。
-- `CC3`：`Ctrl-R` command search overlay。
+- `CC2`：block-backed command history、query parser 和 search index。
+- `CC3`：`Ctrl-R` command search 入口和 overlay。
 - `CC4`：command blocks range 和 actions MVP。
 - `CC5`：command bar、context chips、mode router。
 - `CC6`：sticky header、review 接入、验证收口。
@@ -41,6 +41,10 @@ History/Search lane:
 ```text
 T-305 -> T-306 -> T-307 -> T-308 -> T-309 -> T-310 -> T-311 -> T-312 -> T-325 -> T-327
 ```
+
+该 lane 以 block-backed command history 为基础，串起 query parser、search index 和
+`Ctrl-R` 搜索入口。`Ctrl-R` 结果只暴露能定位回 command block 的记录；默认动作是把
+命令回填到 command input，而不是直接执行。
 
 Blocks lane:
 

@@ -9,7 +9,8 @@
 - 定义 Command Center mode state。
 - 管理 keyboard routing、escape/cancel 和 mode transitions。
 - 将 future agent mode 保留为 disabled extension point。
-- 统一 Command Bar、Search 和 Action Search 的 input ownership。
+- 统一 Command Bar、Search 和 Action Search 的 input ownership，并明确 hidden
+  terminal focus 在 command-center modes 下没有文本插入权。
 
 ## Non-goals
 
@@ -30,6 +31,7 @@
 - 只有显式快捷键或显式入口进入增强 mode。
 - `Esc` 返回 terminal mode。
 - futureAgent 只作为 disabled extension point。
+- hidden terminal focus 不能在 command-center modes 下拥有文本插入权。
 - route decision 不会把普通文本误判成 Agent prompt。
 - mode router 给出清楚的 action consumption / pass-through 结果。
 
@@ -50,6 +52,8 @@ flutter test test/command_center/command_center_mode_router_test.dart
 ## Done When
 
 - Command Bar、Search 和 Action Search 不再各自决定 terminal input ownership。
+- command-center modes 下的文本插入权只归显式 command input，不归 hidden terminal
+  focus。
 - terminal-first 默认行为有测试。
 - futureAgent 明确 disabled，不可被普通文本触发。
 
