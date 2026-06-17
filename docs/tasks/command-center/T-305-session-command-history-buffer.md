@@ -8,6 +8,8 @@
 
 - 记录当前 session 内完成的命令。
 - 支持 newest-first、去重、limit trimming、cwd/status metadata。
+- 保留 command invocation / block locator metadata，供后续 block-backed filtering 和
+  `Ctrl-R -> 查看命令块` routing 使用。
 - 为 `Ctrl-R` overlay 提供不依赖落盘的即时历史来源。
 
 ## Non-goals
@@ -29,6 +31,7 @@
 - 同 session 内结果按 newest-first 返回。
 - 空命令或只有空白的命令不入库。
 - 同 command/cwd 的重复记录按最新一次合并。
+- 已有关联的 command invocation / block locator metadata 不会在入 buffer 或去重时丢失。
 - 不同 session 的 history 相互隔离。
 
 ## Verification Commands
@@ -48,6 +51,7 @@ flutter test test/command_center/session_command_history_buffer_test.dart
 ## Done When
 
 - `Ctrl-R` overlay 可以先消费 session-local history。
+- session-local history 记录仍保留可回到 command block 的 locator metadata。
 - buffer 的去重、排序和 session 隔离有单元测试覆盖。
 - buffer 不依赖文件系统。
 

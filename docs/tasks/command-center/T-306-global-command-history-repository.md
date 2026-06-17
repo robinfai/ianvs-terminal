@@ -8,6 +8,8 @@
 
 - 设计 command history repository。
 - 支持 JSON roundtrip、limit trimming、session-local 与 global merge。
+- 保留 command invocation / block locator metadata，不能在持久化、读取或 merge 时丢掉
+  block 关联键。
 - 对损坏文件提供安全 fallback，不阻塞 app 启动。
 - 为 search index 提供全局历史来源。
 
@@ -30,6 +32,7 @@
 - 损坏文件不会导致启动失败，并返回空历史或修复后的安全 fallback。
 - 超过 limit 时保留最新可用记录。
 - session-local 与 global history 的 merge 规则明确且有测试。
+- 可回到 command block 的记录在 JSON roundtrip 和 merge 后仍保留 locator metadata。
 - repository 不保存与 v1 无关的 remote/cloud 字段。
 
 ## Verification Commands
@@ -49,6 +52,7 @@ flutter test test/command_center/global_command_history_repository_test.dart
 ## Done When
 
 - Search index 可读取 global history。
+- repository 输出给 search index 的记录仍带 command invocation / block locator metadata。
 - JSON roundtrip、corrupt fallback 和 limit trimming 有测试。
 - repository 保持 local-first。
 

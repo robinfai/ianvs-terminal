@@ -37,8 +37,10 @@ T-305 -> T-306 -> T-307 -> T-308 -> T-309 -> T-310 -> T-311 -> T-312
 ```
 
 该 lane 以 block-backed command history 为基础，串起 query parser、search index 和
-`Ctrl-R` 搜索入口。`Ctrl-R` 结果只暴露能定位回 command block 的记录；默认动作是把
-命令回填到 command input，而不是直接执行。
+`Ctrl-R` 搜索入口。`T-305`、`T-306` 和 `T-309` 必须持续保留 command invocation /
+block locator metadata，供后续 block-backed filtering 和 `查看命令块` routing 使用。
+`Ctrl-R` 结果只暴露能定位回 command block 的记录；默认动作是把命令回填到 command
+input，而不是直接执行。
 
 Blocks lane:
 
