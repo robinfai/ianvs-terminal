@@ -7,6 +7,7 @@
 ## Scope
 
 - 支持 `Replay from here`、`Open in Review`、failure snapshot source metadata 和 diff extension point。
+- review entrypoints 只通过 selected/active command blocks 路由。
 - 复用现有 Instant Replay store / workspace 路径。
 - 保持 live terminal 继续运行，review 不共享可写 input controller。
 
@@ -27,6 +28,7 @@
 
 ## Functional Acceptance
 
+- review entrypoints 只通过 selected/active command blocks 路由。
 - `Replay from here` 定位到相关 frame 或 row range。
 - `Open in Review` 创建只读 review 来源。
 - live terminal 继续运行，不接收 review workspace 的写入型输入。
@@ -53,6 +55,7 @@ flutter test test/command_center/command_review_entrypoints_test.dart test/shell
 ## Done When
 
 - Command Blocks 能复用现有 Instant Replay 路径进入深复盘。
+- review/replay 来源锚定在 selected/active command blocks 上。
 - Review source metadata 有测试。
 - live terminal 与 review input 隔离有验证。
 

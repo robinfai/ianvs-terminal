@@ -2,11 +2,13 @@
 
 ## Goal
 
-将 block actions 归约为 clipboard、input、search、save 和 review intents。
+将 block actions 归约为 clipboard、input、search、save 和 review intents，并作为
+post-search 唯一的 action surface。
 
 ## Scope
 
-- 定义 copy command、copy output、copy both、re-input、rerun、search within block、save output 和 review intent。
+- 定义 copy command、copy output、copy both、re-input、rerun、search within
+  block、save output 和 review intent，作为 post-search 唯一的 action surface。
 - 统一 action availability 和 disabled reason。
 - 确保写入型 action 受 read-only 与 safety policy 限制。
 
@@ -26,6 +28,7 @@
 
 ## Functional Acceptance
 
+- block actions 是 post-search 的唯一 action surface。
 - copy output 需要有效 output range。
 - re-input 只插入命令，不执行。
 - rerun 需要显式触发。
@@ -50,6 +53,7 @@ flutter test test/command_center/command_block_action_reducer_test.dart
 ## Done When
 
 - Wiring 任务可以把 reducer intent 接到真实 clipboard/input/review。
+- search、sticky header 或 review 之后的后续动作只通过 block actions 暴露。
 - 每个 MVP action 都有 enabled 和 disabled 测试。
 - Reducer 不拥有 platform bridge 或 terminal runtime controller。
 

@@ -2,12 +2,12 @@
 
 ## Goal
 
-建立 terminal-first command bar editor。
+建立 terminal-first command input/editor，作为 command-center 流程中的统一可写输入面。
 
 ## Scope
 
 - 支持 multiline editing、soft wrap、insert command、read-only 和 paste integration。
-- 作为显式增强输入层接入，而不是替换普通 terminal input。
+- 作为显式增强输入层接入，并承接 command-center 流程中的所有可写文本输入。
 - 保持 IME composition 和现有 shortcut routing 稳定。
 
 ## Non-goals
@@ -26,12 +26,13 @@
 
 ## Functional Acceptance
 
-- 普通文本默认进 shell。
-- `Shift+Enter` 可插入换行。
+- command input 是 command-center 流程中的唯一可写输入面。
+- `Shift+Enter` 换行。
 - 长命令 soft wrap，不改变实际发送文本。
+- 从 command search、block re-input 或 multiline paste 进入的文本都先进入 command
+  input。
 - read-only 阻止发送。
 - IME composition 不被抢。
-- 从 command search 或 saved command 插入文本时不自动执行。
 
 ## Verification Commands
 
@@ -49,11 +50,12 @@ flutter test test/command_center/command_bar_editor_test.dart
 - 输入多行命令，确认 `Shift+Enter` 行为。
 - 输入中文 IME，确认 composition 不被中断。
 - 启用 read-only 后尝试发送命令，确认不会写入 shell。
-- 插入历史命令，确认不会自动执行。
+- 从 command search、block re-input 和 multiline paste 插入文本，确认都先进入
+  command input，且不会自动执行。
 
 ## Done When
 
-- Command Bar 可作为显式增强输入层接入。
+- Command Bar 可作为 command-center 流程中的统一可写输入面接入。
 - 默认 terminal 行为不回退。
 - 多行、soft wrap、read-only 和 IME 行为有测试或人工验证。
 
