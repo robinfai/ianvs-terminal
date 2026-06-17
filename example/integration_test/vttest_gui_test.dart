@@ -11,6 +11,7 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 
 import '../test/support/memory_app_preferences_repository.dart';
+import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_profile_repository.dart';
 
 const _frameWait = Duration(seconds: 20);
@@ -40,6 +41,9 @@ void main() {
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          MemoryLocalTerminalConfigRepository(null),
         ),
       ],
     );
@@ -137,8 +141,14 @@ Future<void> _waitForActiveSession(
 }
 
 Future<void> _focusTerminal(WidgetTester tester) async {
-  await tester.tap(find.byType(TerminalViewport));
-  await tester.pump();
+  final viewport = find.byType(TerminalViewport);
+  await _waitFor(
+    tester,
+    description: 'terminal viewport widget',
+    condition: () => viewport.evaluate().isNotEmpty,
+  );
+  await tester.tap(viewport.first);
+  await tester.pump(_pollStep);
 }
 
 Future<void> _assertControlKeyDoesNotTriggerAppShortcut(
