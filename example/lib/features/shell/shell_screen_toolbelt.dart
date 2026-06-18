@@ -15,6 +15,7 @@ class _ShellToolbelt extends StatelessWidget {
     required this.onClose,
     required this.onOpenCapturedOutput,
     required this.onOpenPasteHistory,
+    required this.onOpenCommandSearch,
     required this.onOpenShellIntegrationUtilities,
     required this.onOpenTmuxIntegration,
     required this.onOpenCoprocess,
@@ -36,6 +37,7 @@ class _ShellToolbelt extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onOpenCapturedOutput;
   final VoidCallback onOpenPasteHistory;
+  final VoidCallback onOpenCommandSearch;
   final VoidCallback onOpenShellIntegrationUtilities;
   final VoidCallback onOpenTmuxIntegration;
   final VoidCallback onOpenCoprocess;
@@ -113,11 +115,11 @@ class _ShellToolbelt extends StatelessWidget {
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-command-history'),
                             icon: Icons.list_alt_rounded,
-                            title: 'Command history',
+                            title: 'Command search',
                             countLabel:
                                 '$commandHistoryCount command${commandHistoryCount == 1 ? '' : 's'}',
                             palette: palette,
-                            onTap: onOpenShellIntegrationUtilities,
+                            onTap: onOpenCommandSearch,
                           ),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-recent-directories'),

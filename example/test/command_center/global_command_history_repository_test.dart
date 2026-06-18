@@ -39,6 +39,7 @@ void main() {
             cwd: '/repo',
             exitCode: 0,
             finishedAt: firstFinishedAt,
+            invocationId: 'invocation-1',
           ),
         ],
       );
@@ -51,6 +52,7 @@ void main() {
       expect(loaded.entries.single.cwd, '/repo');
       expect(loaded.entries.single.exitCode, 0);
       expect(loaded.entries.single.finishedAt, firstFinishedAt);
+      expect(loaded.entries.single.invocationId, 'invocation-1');
       expect(raw['schemaVersion'], GlobalCommandHistoryDocument.schemaVersion);
       expect(raw['limit'], 20);
       expect(raw.containsKey('remote'), isFalse);
@@ -121,6 +123,7 @@ void main() {
             cwd: '/repo',
             exitCode: 1,
             finishedAt: firstFinishedAt,
+            invocationId: 'global-old',
           ),
           GlobalCommandHistoryEntry(
             command: 'git status',
@@ -138,6 +141,7 @@ void main() {
               exitCode: 0,
               finishedAt: thirdFinishedAt,
             ),
+            invocationId: 'session-new',
           )
           .recordFinished(
             _finished(
@@ -158,6 +162,7 @@ void main() {
         'git status',
       ]);
       expect(merged.entries[1].exitCode, 0);
+      expect(merged.entries[1].invocationId, 'session-new');
     });
 
     test('drops v1-unrelated remote and cloud fields on save', () async {

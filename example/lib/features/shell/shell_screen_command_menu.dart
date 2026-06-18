@@ -134,7 +134,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final commandBlocksHistoryFeatureFlags =
         widget.commandBlocksHistoryFeatureFlags;
     final hasCommandBlocks = widget.hasCommandBlocks;
-    final hasHistoryPeekCommandBlocks = widget.hasHistoryPeekCommandBlocks;
 
     Widget sectionLabel(String text) {
       return Padding(
@@ -158,6 +157,13 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     const closedTabRequired = 'No recently closed tab is available.';
     const readOnlySendRequired = 'Disable read-only mode to send text.';
 
+    void closeMenu([TerminalActionId? action]) {
+      final navigator = Navigator.of(context, rootNavigator: true);
+      if (navigator.canPop()) {
+        navigator.pop(action);
+      }
+    }
+
     String? hotkeyWindowUnavailableReason() {
       final status = hotkeyWindowStatus;
       if (status == null || status.registered) {
@@ -178,12 +184,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       return 'No prompt-marked command output is available yet.';
     }
 
-    final historyPeekEnabled =
-        hasActiveSession &&
-        commandBlocksHistoryFeatureFlags.enabled &&
-        commandBlocksHistoryFeatureFlags.commandBlocks &&
-        commandBlocksHistoryFeatureFlags.historyPeek &&
-        hasHistoryPeekCommandBlocks;
+    final historyPeekEnabled = hasActiveSession;
     final replayFromCommandBlockEnabled =
         hasActiveSession &&
         commandBlocksHistoryFeatureFlags.enabled &&
@@ -195,12 +196,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       if (!hasActiveSession) {
         return activeSessionRequired;
       }
-      if (!commandBlocksHistoryFeatureFlags.enabled ||
-          !commandBlocksHistoryFeatureFlags.commandBlocks ||
-          !commandBlocksHistoryFeatureFlags.historyPeek) {
-        return 'Command Blocks history unavailable.';
-      }
-      return 'No failed or marked command block available.';
+      return activeSessionRequired;
     }
 
     String replayFromCommandBlockUnavailableReason() {
@@ -285,7 +281,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           ),
                           _buildSheetCloseButton(
                             tooltip: 'Close actions',
-                            onPressed: () => Navigator.of(context).pop(),
+                            onPressed: () => closeMenu(),
                           ),
                         ],
                       ),
@@ -332,7 +328,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                                 );
                                 return;
                               }
-                              Navigator.of(context).pop(action);
+                              closeMenu(action);
                             },
                           ),
                         ),
@@ -348,8 +344,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       shortcutLabel: searchShortcutLabel,
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.search),
+                      onTap: () => closeMenu(TerminalActionId.search),
                     ),
                     commandTile(
                       key: const Key('shell-open-action-search'),
@@ -360,9 +355,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Top action • Search actions and saved commands.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.openActionSearch),
+                      onTap: () => closeMenu(TerminalActionId.openActionSearch),
                     ),
                     sectionLabel('App actions'),
                     commandTile(
@@ -374,8 +367,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       shortcutLabel: newTabShortcutLabel,
                       enabled: hasDefaultProfile,
                       disabledReason: defaultProfileRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.newTab),
+                      onTap: () => closeMenu(TerminalActionId.newTab),
                     ),
                     commandTile(
                       key: const Key('shell-command-defaults'),
@@ -385,8 +377,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       subtitle:
                           'App action • Pick the default profile and theme.',
                       enabled: true,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.defaults),
+                      onTap: () => closeMenu(TerminalActionId.defaults),
                     ),
                     commandTile(
                       key: const Key('shell-reopen-closed-tab'),
@@ -397,9 +388,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'App action • Recreate the most recently closed tab.',
                       enabled: canReopenClosedTab,
                       disabledReason: closedTabRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.reopenClosedTab),
+                      onTap: () => closeMenu(TerminalActionId.reopenClosedTab),
                     ),
                     commandTile(
                       key: const Key('shell-toolbelt'),
@@ -410,8 +399,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'App action • Keep terminal tools in a sidebar.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.toolbelt),
+                      onTap: () => closeMenu(TerminalActionId.toolbelt),
                     ),
                     commandTile(
                       key: const Key('shell-split-right'),
@@ -428,9 +416,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           : !hasActiveSession
                           ? activeSessionRequired
                           : splitRightUnavailableReason,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.splitRight),
+                      onTap: () => closeMenu(TerminalActionId.splitRight),
                     ),
                     commandTile(
                       key: const Key('shell-split-down'),
@@ -447,8 +433,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           : !hasActiveSession
                           ? activeSessionRequired
                           : splitDownUnavailableReason,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.splitDown),
+                      onTap: () => closeMenu(TerminalActionId.splitDown),
                     ),
                     commandTile(
                       key: const Key('shell-zoom-pane'),
@@ -460,8 +445,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       subtitle: 'Session action • Focus one pane temporarily.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.zoomPane),
+                      onTap: () => closeMenu(TerminalActionId.zoomPane),
                     ),
                     commandTile(
                       key: const Key('shell-theme-picker'),
@@ -471,9 +455,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       subtitle:
                           'App action • Open Defaults & appearance to choose terminal colors.',
                       enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.openThemePicker),
+                      onTap: () => closeMenu(TerminalActionId.openThemePicker),
                     ),
                     commandTile(
                       key: const Key('shell-toggle-command-finished-notify'),
@@ -486,9 +468,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           : 'App action • Toggle shell hook completion alerts.',
                       subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
                       enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.toggleCommandFinishedNotify),
+                      onTap: () => closeMenu(
+                        TerminalActionId.toggleCommandFinishedNotify,
+                      ),
                     ),
                     commandTile(
                       key: const Key('shell-toggle-bell-notify'),
@@ -501,9 +483,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           : 'App action • Toggle terminal bell alerts.',
                       subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
                       enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.toggleBellNotify),
+                      onTap: () => closeMenu(TerminalActionId.toggleBellNotify),
                     ),
                     commandTile(
                       key: const Key('shell-toggle-activity-monitor'),
@@ -516,9 +496,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           : 'App action • Toggle inactive-session activity alerts.',
                       subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
                       enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.toggleActivityMonitor),
+                      onTap: () =>
+                          closeMenu(TerminalActionId.toggleActivityMonitor),
                     ),
                     commandTile(
                       key: const Key('shell-command-profiles'),
@@ -527,8 +506,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       title: 'Profiles…',
                       subtitle: 'App action • Open or edit shell profiles.',
                       enabled: true,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.profiles),
+                      onTap: () => closeMenu(TerminalActionId.profiles),
                     ),
                     commandTile(
                       key: const Key('shell-dynamic-profiles'),
@@ -538,9 +516,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       subtitle:
                           'App action • Import iTerm-style JSON profiles.',
                       enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.dynamicProfiles),
+                      onTap: () => closeMenu(TerminalActionId.dynamicProfiles),
                     ),
                     sectionLabel('Session actions'),
                     if (!hasActiveSession)
@@ -563,8 +539,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       shortcutLabel: sessionCopyShortcutLabel,
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.copy),
+                      onTap: () => closeMenu(TerminalActionId.copy),
                     ),
                     commandTile(
                       key: const Key('shell-copy-mode'),
@@ -576,8 +551,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       shortcutLabel: copyModeShortcutLabel,
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.copyMode),
+                      onTap: () => closeMenu(TerminalActionId.copyMode),
                     ),
                     commandTile(
                       key: const Key('shell-toggle-read-only'),
@@ -589,9 +563,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Block terminal input for this pane.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.toggleReadOnly),
+                      onTap: () => closeMenu(TerminalActionId.toggleReadOnly),
                     ),
                     commandTile(
                       key: const Key('shell-clear-scrollback'),
@@ -602,9 +574,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Clear local scrollback when supported.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.clearScrollback),
+                      onTap: () => closeMenu(TerminalActionId.clearScrollback),
                     ),
                     commandTile(
                       key: const Key('shell-export-scrollback'),
@@ -615,9 +585,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Save a terminal text snapshot to Application Support.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.exportScrollback),
+                      onTap: () => closeMenu(TerminalActionId.exportScrollback),
                     ),
                     commandTile(
                       key: const Key('shell-export-diagnostics'),
@@ -628,9 +596,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Save a local resource evidence bundle.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.exportDiagnostics),
+                      onTap: () =>
+                          closeMenu(TerminalActionId.exportDiagnostics),
                     ),
                     commandTile(
                       key: const Key('shell-annotations'),
@@ -641,9 +608,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Attach notes to selected output.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.annotations),
+                      onTap: () => closeMenu(TerminalActionId.annotations),
                     ),
                     commandTile(
                       key: const Key('shell-captured-output'),
@@ -654,9 +619,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Review lines matched by triggers.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.capturedOutput),
+                      onTap: () => closeMenu(TerminalActionId.capturedOutput),
                     ),
                     commandTile(
                       key: const Key('shell-paste-clipboard'),
@@ -670,8 +633,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       disabledReason: hasActiveSession
                           ? readOnlySendRequired
                           : activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.paste),
+                      onTap: () => closeMenu(TerminalActionId.paste),
                     ),
                     commandTile(
                       key: const Key('shell-advanced-paste'),
@@ -684,9 +646,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       disabledReason: hasActiveSession
                           ? readOnlySendRequired
                           : activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.advancedPaste),
+                      onTap: () => closeMenu(TerminalActionId.advancedPaste),
                     ),
                     commandTile(
                       key: const Key('shell-paste-history'),
@@ -700,9 +660,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       disabledReason: hasActiveSession
                           ? readOnlySendRequired
                           : activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.pasteHistory),
+                      onTap: () => closeMenu(TerminalActionId.pasteHistory),
                     ),
                     commandTile(
                       key: const Key('shell-integration-utilities'),
@@ -713,9 +671,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Command history, directories, and marks.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.shellIntegrationUtilities),
+                      onTap: () =>
+                          closeMenu(TerminalActionId.shellIntegrationUtilities),
                     ),
                     commandTile(
                       key: const Key('shell-select-command-output'),
@@ -726,9 +683,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Select output between prompt marks.',
                       enabled: hasActiveSession && canSelectCommandOutput,
                       disabledReason: selectCommandOutputUnavailableReason(),
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.selectCommandOutput),
+                      onTap: () =>
+                          closeMenu(TerminalActionId.selectCommandOutput),
                     ),
                     commandTile(
                       key: const Key('shell-tmux-integration'),
@@ -739,9 +695,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Start or drive tmux control mode.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.tmuxIntegration),
+                      onTap: () => closeMenu(TerminalActionId.tmuxIntegration),
                     ),
                     commandTile(
                       key: const Key('shell-coprocess'),
@@ -752,8 +706,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Automate replies from terminal output.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.coprocess),
+                      onTap: () => closeMenu(TerminalActionId.coprocess),
                     ),
                     commandTile(
                       key: const Key('shell-password-manager'),
@@ -766,9 +719,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       disabledReason: hasActiveSession
                           ? readOnlySendRequired
                           : activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.passwordManager),
+                      onTap: () => closeMenu(TerminalActionId.passwordManager),
                     ),
                     commandTile(
                       key: const Key('shell-instant-replay'),
@@ -780,22 +731,18 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       shortcutLabel: instantReplayShortcutLabel,
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.instantReplay),
+                      onTap: () => closeMenu(TerminalActionId.instantReplay),
                     ),
                     commandTile(
                       key: const Key('shell-history-peek'),
                       actionId: TerminalActionId.openHistoryPeek,
-                      icon: Icons.history_rounded,
-                      title: 'History Peek',
+                      icon: Icons.search_rounded,
+                      title: 'Command search',
                       subtitle:
-                          'Session action • Filter and search command history.',
+                          'Session action • Search and reuse command history.',
                       enabled: historyPeekEnabled,
                       disabledReason: historyPeekUnavailableReason(),
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.openHistoryPeek),
+                      onTap: () => closeMenu(TerminalActionId.openHistoryPeek),
                     ),
                     commandTile(
                       key: const Key('shell-replay-from-command-block'),
@@ -806,9 +753,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           'Session action • Open replay with command context.',
                       enabled: replayFromCommandBlockEnabled,
                       disabledReason: replayFromCommandBlockUnavailableReason(),
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.replayFromCommandBlock),
+                      onTap: () =>
+                          closeMenu(TerminalActionId.replayFromCommandBlock),
                     ),
                     commandTile(
                       actionId: TerminalActionId.search,
@@ -818,8 +764,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       shortcutLabel: searchShortcutLabel,
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.search),
+                      onTap: () => closeMenu(TerminalActionId.search),
                     ),
                     commandTile(
                       key: const Key('shell-global-search'),
@@ -829,9 +774,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       subtitle: 'Workspace action • Search all tabs at once.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.globalSearch),
+                      onTap: () => closeMenu(TerminalActionId.globalSearch),
                     ),
                     commandTile(
                       key: const Key('shell-autocomplete'),
@@ -843,9 +786,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       shortcutLabel: autocompleteShortcutLabel,
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.autocomplete),
+                      onTap: () => closeMenu(TerminalActionId.autocomplete),
                     ),
                     commandTile(
                       key: const Key('shell-auto-composer'),
@@ -858,9 +799,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       disabledReason: hasActiveSession
                           ? readOnlySendRequired
                           : activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.autoComposer),
+                      onTap: () => closeMenu(TerminalActionId.autoComposer),
                     ),
                     commandTile(
                       key: const Key('shell-hotkey-window'),
@@ -872,9 +811,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       shortcutLabel: hotkeyWindowShortcutLabel,
                       enabled: hotkeyWindowUnavailableReason() == null,
                       disabledReason: hotkeyWindowUnavailableReason(),
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.hotkeyWindow),
+                      onTap: () => closeMenu(TerminalActionId.hotkeyWindow),
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
@@ -981,7 +918,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.instantReplay,
   ),
   MapEntry(
-    'history peek command history filters search review',
+    'command search search command history ctrl r reuse',
     TerminalActionId.openHistoryPeek,
   ),
   MapEntry(

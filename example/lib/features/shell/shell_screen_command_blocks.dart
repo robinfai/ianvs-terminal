@@ -30,6 +30,7 @@ class ShellCommandBlocksOverlay extends StatefulWidget {
     this.contentPadding = EdgeInsets.zero,
     this.liveTerminalRows = 0,
     this.liveTerminalBuilder,
+    this.onOpenBlockActions,
   });
 
   final ShellCommandBlocksOverlayViewModel viewModel;
@@ -40,6 +41,7 @@ class ShellCommandBlocksOverlay extends StatefulWidget {
   final EdgeInsetsGeometry contentPadding;
   final int liveTerminalRows;
   final ShellCommandBlockLiveTerminalBuilder? liveTerminalBuilder;
+  final ValueChanged<ShellCommandBlockOverlayItem>? onOpenBlockActions;
 
   @override
   State<ShellCommandBlocksOverlay> createState() =>
@@ -113,6 +115,7 @@ class _ShellCommandBlocksOverlayState extends State<ShellCommandBlocksOverlay> {
                             cursor: widget.cursor,
                             liveTerminalRows: widget.liveTerminalRows,
                             liveTerminalBuilder: widget.liveTerminalBuilder,
+                            onOpenBlockActions: widget.onOpenBlockActions,
                           ),
                         ],
                       ],
@@ -138,6 +141,7 @@ class _ShellCommandBlockChrome extends StatelessWidget {
     required this.cursor,
     required this.liveTerminalRows,
     required this.liveTerminalBuilder,
+    required this.onOpenBlockActions,
   });
 
   final ShellCommandBlockOverlayItem block;
@@ -147,6 +151,7 @@ class _ShellCommandBlockChrome extends StatelessWidget {
   final terminal.TerminalCursorConfig cursor;
   final int liveTerminalRows;
   final ShellCommandBlockLiveTerminalBuilder? liveTerminalBuilder;
+  final ValueChanged<ShellCommandBlockOverlayItem>? onOpenBlockActions;
 
   @override
   Widget build(BuildContext context) {
@@ -233,6 +238,28 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                                 foreground: statusColor,
                                 palette: palette,
                               ),
+                              if (onOpenBlockActions != null) ...[
+                                SizedBox(width: palette.spacing.xs),
+                                Tooltip(
+                                  message: 'Block actions',
+                                  child: IconButton(
+                                    key: Key(
+                                      'shell-command-block-actions-${block.id}',
+                                    ),
+                                    onPressed: () => onOpenBlockActions!(block),
+                                    style: IconButton.styleFrom(
+                                      foregroundColor: palette.textPrimary,
+                                      fixedSize: const Size.square(44),
+                                      minimumSize: const Size.square(44),
+                                      maximumSize: const Size.square(44),
+                                      padding: EdgeInsets.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.padded,
+                                    ),
+                                    icon: const Icon(Icons.more_horiz),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                           if (metadata.isNotEmpty) ...[
@@ -557,20 +584,19 @@ class ShellCommandInputBar extends StatelessWidget {
     required this.focusNode,
     required this.enabled,
     required this.onSubmitted,
-    this.cwd,
+    this.onOpenCommandSearch,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool enabled;
-  final String? cwd;
-  final ValueChanged<String> onSubmitted;
+  final Future<bool> Function(String command) onSubmitted;
+  final VoidCallback? onOpenCommandSearch;
 
   @override
   Widget build(BuildContext context) {
     final palette = AppThemeTokens.of(context);
     final theme = Theme.of(context);
-    final cwdLabel = cwd?.trim();
 
     return DecoratedBox(
       key: const Key('shell-command-input-bar'),
@@ -586,58 +612,67 @@ class ShellCommandInputBar extends StatelessWidget {
         child: Row(
           children: [
             Icon(Icons.terminal, size: 16, color: palette.textSubtle),
-            if (cwdLabel != null && cwdLabel.isNotEmpty) ...[
-              SizedBox(width: palette.spacing.md),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 220),
-                child: Text(
-                  cwdLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: palette.textSubtle,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
-            ],
             SizedBox(width: palette.spacing.md),
             Expanded(
-              child: TextField(
-                key: const Key('shell-command-input-field'),
-                controller: controller,
-                focusNode: focusNode,
-                enabled: enabled,
-                autofocus: enabled,
-                textInputAction: TextInputAction.done,
-                onSubmitted: _submit,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: palette.textPrimary,
-                  fontFamily: 'monospace',
-                  fontWeight: FontWeight.w600,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Command',
-                  isDense: true,
-                  filled: true,
-                  fillColor: palette.terminalSurface,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: palette.spacing.md,
-                    vertical: palette.spacing.sm,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(palette.radius.md),
-                    borderSide: BorderSide(color: palette.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(palette.radius.md),
-                    borderSide: BorderSide(color: palette.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(palette.radius.md),
-                    borderSide: BorderSide(
-                      color: palette.focusRing,
-                      width: 1.4,
+              child: CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
+                      _openCommandSearch,
+                  const SingleActivator(LogicalKeyboardKey.keyR, control: true):
+                      _openCommandSearch,
+                },
+                child: Focus(
+                  canRequestFocus: false,
+                  skipTraversal: true,
+                  onKeyEvent: _handleKeyEvent,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 168),
+                    child: TextField(
+                      key: const Key('shell-command-input-field'),
+                      controller: controller,
+                      focusNode: focusNode,
+                      enabled: enabled,
+                      autofocus: enabled,
+                      minLines: 1,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: palette.textPrimary,
+                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w600,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Command',
+                        isDense: true,
+                        filled: true,
+                        fillColor: palette.terminalSurface,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: palette.spacing.md,
+                          vertical: palette.spacing.sm,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            palette.radius.md,
+                          ),
+                          borderSide: BorderSide(color: palette.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            palette.radius.md,
+                          ),
+                          borderSide: BorderSide(color: palette.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            palette.radius.md,
+                          ),
+                          borderSide: BorderSide(
+                            color: palette.focusRing,
+                            width: 1.4,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -646,9 +681,23 @@ class ShellCommandInputBar extends StatelessWidget {
             SizedBox(width: palette.spacing.sm),
             Tooltip(
               message: 'Run command',
-              child: IconButton(
-                onPressed: enabled ? () => _submit(controller.text) : null,
-                icon: const Icon(Icons.keyboard_return),
+              child: SizedBox.square(
+                dimension: 44,
+                child: IconButton(
+                  key: const Key('shell-command-run-button'),
+                  onPressed: enabled
+                      ? () => unawaited(_submit(controller.text))
+                      : null,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size.square(44),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: Icon(
+                    Icons.keyboard_return,
+                    color: enabled ? palette.textPrimary : palette.textSubtle,
+                  ),
+                ),
               ),
             ),
           ],
@@ -657,14 +706,91 @@ class ShellCommandInputBar extends StatelessWidget {
     );
   }
 
-  void _submit(String value) {
-    final command = value.trim();
-    if (command.isEmpty) {
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    final key = event.logicalKey;
+    final isEnter =
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter;
+    if (!isEnter) {
+      return KeyEventResult.ignored;
+    }
+    if (event is! KeyDownEvent) {
+      return KeyEventResult.handled;
+    }
+    if (_hasActiveComposing) {
+      return KeyEventResult.ignored;
+    }
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      _insertText('\n');
+      return KeyEventResult.handled;
+    }
+    unawaited(_submit(controller.text));
+    return KeyEventResult.handled;
+  }
+
+  bool get _hasActiveComposing {
+    final composing = controller.value.composing;
+    return composing.isValid && !composing.isCollapsed;
+  }
+
+  void _insertText(String text) {
+    final current = controller.value;
+    final currentText = current.text;
+    final selection = current.selection;
+    final start = selection.isValid
+        ? selection.start.clamp(0, currentText.length).toInt()
+        : currentText.length;
+    final end = selection.isValid
+        ? selection.end.clamp(0, currentText.length).toInt()
+        : currentText.length;
+    final replaceStart = math.min(start, end);
+    final replaceEnd = math.max(start, end);
+    final nextText = currentText.replaceRange(replaceStart, replaceEnd, text);
+    final nextOffset = replaceStart + text.length;
+    controller.value = current.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextOffset),
+      composing: TextRange.empty,
+    );
+  }
+
+  Future<void> _submit(String value) async {
+    if (value.trim().isEmpty) {
       return;
     }
-    onSubmitted(command);
-    controller.clear();
-    focusNode.requestFocus();
+    final didSubmit = await onSubmitted(value);
+    if (didSubmit) {
+      controller.clear();
+    }
+    _restoreTextInputFocus();
+  }
+
+  void _openCommandSearch() {
+    onOpenCommandSearch?.call();
+  }
+
+  void _restoreTextInputFocus() {
+    if (!enabled) {
+      return;
+    }
+    focusNode.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestTextInputFocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _requestTextInputFocus();
+      });
+    });
+  }
+
+  void _requestTextInputFocus() {
+    final focusContext = focusNode.context;
+    if (focusContext == null ||
+        !focusContext.mounted ||
+        !focusNode.canRequestFocus) {
+      return;
+    }
+    FocusScope.of(focusContext).requestFocus(focusNode);
+    unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.show'));
   }
 }
 

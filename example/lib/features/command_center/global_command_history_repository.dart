@@ -155,6 +155,8 @@ class GlobalCommandHistoryEntry {
     required this.finishedAt,
     this.cwd,
     this.exitCode,
+    this.invocationId,
+    this.sessionId,
   });
 
   factory GlobalCommandHistoryEntry.fromSessionEntry(
@@ -165,6 +167,8 @@ class GlobalCommandHistoryEntry {
       cwd: entry.cwd,
       exitCode: entry.exitCode,
       finishedAt: entry.finishedAt,
+      invocationId: entry.invocationId,
+      sessionId: entry.sessionId,
     );
   }
 
@@ -172,8 +176,11 @@ class GlobalCommandHistoryEntry {
   final String? cwd;
   final int? exitCode;
   final DateTime finishedAt;
+  final String? invocationId;
+  final String? sessionId;
 
   bool get succeeded => exitCode == 0;
+  bool get hasBlockLocator => invocationId != null;
 
   Map<String, Object?> toJson() {
     return {
@@ -181,6 +188,7 @@ class GlobalCommandHistoryEntry {
       'cwd': cwd,
       'exitCode': exitCode,
       'finishedAt': finishedAt.toIso8601String(),
+      'invocationId': invocationId,
     };
   }
 
@@ -195,6 +203,7 @@ class GlobalCommandHistoryEntry {
       cwd: _trimmedStringOrNull(json['cwd']),
       exitCode: _wholeIntOrNull(json['exitCode']),
       finishedAt: finishedAt,
+      invocationId: _trimmedStringOrNull(json['invocationId']),
     );
   }
 }
@@ -211,6 +220,8 @@ GlobalCommandHistoryEntry? _normalizedEntry(GlobalCommandHistoryEntry entry) {
     cwd: _trimmedStringOrNull(entry.cwd),
     exitCode: entry.exitCode,
     finishedAt: entry.finishedAt,
+    invocationId: _trimmedStringOrNull(entry.invocationId),
+    sessionId: _trimmedStringOrNull(entry.sessionId),
   );
 }
 

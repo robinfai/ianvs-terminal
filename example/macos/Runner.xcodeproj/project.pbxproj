@@ -484,7 +484,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal Dev.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal Dev";
 			};
 			name = Debug;
 		};
@@ -499,7 +499,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal Dev.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal Dev";
 			};
 			name = Release;
 		};

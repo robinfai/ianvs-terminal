@@ -4,6 +4,7 @@ import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -141,6 +142,43 @@ void main() {
         }),
         findsNothing,
       );
+    });
+
+    testWidgets('shows a visible block actions button when actions exist', (
+      tester,
+    ) async {
+      final openedBlockIds = <String>[];
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(id: 'cmd-actions', active: true, rowSpan: 3),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.light),
+          home: Scaffold(
+            body: SizedBox(
+              width: 360,
+              height: 160,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+                onOpenBlockActions: (block) => openedBlockIds.add(block.id),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final actionButton = find.byKey(
+        const Key('shell-command-block-actions-cmd-actions'),
+      );
+      expect(actionButton, findsOneWidget);
+      expect(find.byTooltip('Block actions'), findsOneWidget);
+
+      await tester.tap(actionButton);
+      await tester.pump();
+
+      expect(openedBlockIds, ['cmd-actions']);
     });
 
     testWidgets('keeps narrow single-row blocks compact', (tester) async {
@@ -621,8 +659,10 @@ void main() {
               controller: controller,
               focusNode: focusNode,
               enabled: true,
-              cwd: '/repo',
-              onSubmitted: submitted.add,
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
             ),
           ),
         ),
@@ -632,11 +672,245 @@ void main() {
         find.byKey(const Key('shell-command-input-field')),
         'ls -al',
       );
-      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
       expect(submitted, ['ls -al']);
       expect(controller.text, isEmpty);
+      expect(find.text('/repo'), findsNothing);
+    });
+
+    testWidgets('run button keeps the command input text connection active', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'echo alpha',
+      );
+      expect(tester.testTextInput.isVisible, isTrue);
+
+      await tester.tap(find.byIcon(Icons.keyboard_return));
+      await tester.pump();
+
+      expect(submitted, ['echo alpha']);
+      expect(controller.text, isEmpty);
+      expect(focusNode.hasFocus, isTrue);
+      expect(tester.testTextInput.isVisible, isTrue);
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'echo beta',
+      );
+      expect(controller.text, 'echo beta');
+    });
+
+    testWidgets('Shift+Enter inserts newline and failed submit keeps text', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return false;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'echo first',
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+
+      expect(controller.text, 'echo first\n');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(submitted, ['echo first\n']);
+      expect(controller.text, 'echo first\n');
+      expect(focusNode.hasFocus, isTrue);
+      expect(find.text('/repo'), findsNothing);
+    });
+
+    testWidgets('run button submits multiline command input', (tester) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              child: ShellCommandInputBar(
+                controller: controller,
+                focusNode: focusNode,
+                enabled: true,
+                onSubmitted: (command) async {
+                  submitted.add(command);
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        "printf 'multi-one\\n'\nprintf 'multi-two\\n'",
+      );
+      await tester.pump();
+
+      final runButton = find.byTooltip('Run command');
+      expect(runButton, findsOneWidget);
+      expect(tester.getSize(runButton).width, greaterThanOrEqualTo(44));
+      expect(tester.getSize(runButton).height, greaterThanOrEqualTo(44));
+      expect(
+        tester.getTopLeft(runButton).dx,
+        greaterThan(
+          tester
+              .getTopLeft(find.byKey(const Key('shell-command-input-field')))
+              .dx,
+        ),
+      );
+
+      await tester.tap(runButton);
+      await tester.pump();
+
+      expect(submitted, ["printf 'multi-one\\n'\nprintf 'multi-two\\n'"]);
+      expect(controller.text, isEmpty);
+      expect(focusNode.hasFocus, isTrue);
+    });
+
+    testWidgets('Meta+R opens command search from the input field', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      var openCount = 0;
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              onOpenCommandSearch: () => openCount += 1,
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyR, platform: 'macos');
+      await tester.pump();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyR, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+
+      expect(openCount, 1);
+    });
+
+    testWidgets('shortcut listener does not take focus from the text field', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              onOpenCommandSearch: () {},
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      final shortcutFocusFinder = find.byWidgetPredicate(
+        (widget) =>
+            widget is Focus &&
+            widget.onKeyEvent != null &&
+            widget.child is ConstrainedBox,
+      );
+      expect(shortcutFocusFinder, findsOneWidget);
+      final shortcutFocus = tester.widget<Focus>(shortcutFocusFinder);
+
+      expect(shortcutFocus.canRequestFocus, isFalse);
+      expect(shortcutFocus.skipTraversal, isTrue);
     });
   });
 }

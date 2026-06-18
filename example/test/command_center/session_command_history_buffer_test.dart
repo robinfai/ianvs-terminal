@@ -27,6 +27,19 @@ void main() {
       expect(entries.single.exitCode, 0);
       expect(entries.single.succeeded, isTrue);
       expect(entries.single.finishedAt, firstFinishedAt);
+      expect(entries.single.invocationId, isNull);
+    });
+
+    test('keeps invocation id when recording a finished command', () {
+      final buffer = const SessionCommandHistoryBuffer().recordFinished(
+        _finished(command: 'flutter test', finishedAt: firstFinishedAt),
+        invocationId: 'invocation-1',
+      );
+
+      final entries = buffer.entriesForSession('session-a');
+
+      expect(entries, hasLength(1));
+      expect(entries.single.invocationId, 'invocation-1');
     });
 
     test('returns session entries newest first', () {

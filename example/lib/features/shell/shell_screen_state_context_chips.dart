@@ -9,7 +9,7 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
     final cwd =
         _commandCenterRuntime.cwdForSession(pane.sessionId) ??
         pane.shellIntegration.currentDirectory;
-    return _commandBlockCommandCenterAdapter.contextChipsForSession(
+    final chipState = _commandBlockCommandCenterAdapter.contextChipsForSession(
       snapshot:
           _commandBlockSnapshotsBySession[pane.sessionId] ??
           const ShellCommandBlockSnapshot(),
@@ -20,6 +20,24 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       readOnly: _isSessionReadOnly(pane.sessionId),
       selectedBlockId: _selectedCommandBlockIdsBySession[pane.sessionId],
     );
+    return ContextChipState(
+      chips: List<ContextChipModel>.unmodifiable(
+        chipState.chips.where(_showWorkspaceContextChip),
+      ),
+    );
+  }
+
+  bool _showWorkspaceContextChip(ContextChipModel chip) {
+    switch (chip.kind) {
+      case ContextChipKind.lastExit:
+      case ContextChipKind.selectedBlock:
+      case ContextChipKind.readOnly:
+        return true;
+      case ContextChipKind.cwd:
+      case ContextChipKind.profile:
+      case ContextChipKind.shellHook:
+        return false;
+    }
   }
 
   void _handleContextChipIntent({
@@ -94,6 +112,7 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
     required SessionState sessionState,
     required String sessionId,
     required String? blockId,
+    bool showSelectedBlockChip = true,
   }) async {
     final block = _contextChipBlockFor(
       sessionState: sessionState,
@@ -104,8 +123,14 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       _showContextChipMessage('Command block is unavailable.');
       return;
     }
+    if (showSelectedBlockChip) {
+      _mutateState(() {
+        _selectedCommandBlockIdsBySession[sessionId] = block.id;
+      });
+    }
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       isScrollControlled: true,
       builder: (sheetContext) {

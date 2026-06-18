@@ -53,24 +53,21 @@ void main() {
       expect(item.shortcutHint, 'cmd+T');
     });
 
-    test(
-      'command block action is enabled when flags and blocks are present',
-      () {
-        final item = ShellActionViewModelBuilder.forDescriptor(
-          descriptor:
-              ShellActionRegistry.actions[TerminalActionId.openHistoryPeek]!,
-          hasActiveSession: true,
-          productivity: const ShellProductivityState(),
-          commandBlocksHistory: _commandBlocksHistoryFlags,
-          hasCommandBlocks: true,
-        );
+    test('command search action is enabled for an active session', () {
+      final item = ShellActionViewModelBuilder.forDescriptor(
+        descriptor:
+            ShellActionRegistry.actions[TerminalActionId.openHistoryPeek]!,
+        hasActiveSession: true,
+        productivity: const ShellProductivityState(),
+        commandBlocksHistory: _commandBlocksHistoryFlags,
+        hasCommandBlocks: true,
+      );
 
-        expect(item.enabled, isTrue);
-        expect(item.disabledTitle, isNull);
-      },
-    );
+      expect(item.enabled, isTrue);
+      expect(item.disabledTitle, isNull);
+    });
 
-    test('command block action surfaces missing block disabled copy', () {
+    test('command search action no longer depends on captured blocks', () {
       final item = ShellActionViewModelBuilder.forDescriptor(
         descriptor:
             ShellActionRegistry.actions[TerminalActionId.openHistoryPeek]!,
@@ -80,8 +77,8 @@ void main() {
         hasCommandBlocks: false,
       );
 
-      expect(item.enabled, isFalse);
-      expect(item.disabledTitle, 'No command block available');
+      expect(item.enabled, isTrue);
+      expect(item.disabledTitle, isNull);
     });
   });
 }

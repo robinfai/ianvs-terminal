@@ -148,11 +148,7 @@ class ShellActionAvailabilityResolver {
                 ShellActionDisabledReason.readOnly,
               );
       case TerminalActionId.openHistoryPeek:
-        return _resolveCommandBlockAction(
-          commandBlocksHistory: commandBlocksHistory,
-          featureEnabled: commandBlocksHistory.historyPeek,
-          hasCommandBlocks: hasHistoryPeekCommandBlocks ?? hasCommandBlocks,
-        );
+        return ShellActionAvailability.enabledAction;
       case TerminalActionId.replayFromCommandBlock:
         return _resolveCommandBlockAction(
           commandBlocksHistory: commandBlocksHistory,

@@ -9,6 +9,7 @@ class CommandSearchOverlayHost extends StatefulWidget {
     required this.child,
     this.onInsert,
     this.onExplicitExecute,
+    this.onViewBlock,
     this.onClose,
     this.loading = false,
     this.unavailableReason,
@@ -19,6 +20,7 @@ class CommandSearchOverlayHost extends StatefulWidget {
   final Widget child;
   final ValueChanged<String>? onInsert;
   final ValueChanged<String>? onExplicitExecute;
+  final ValueChanged<String>? onViewBlock;
   final VoidCallback? onClose;
   final bool loading;
   final String? unavailableReason;
@@ -66,6 +68,7 @@ class _CommandSearchOverlayHostState extends State<CommandSearchOverlayHost> {
                 controller: widget.controller,
                 onInsert: widget.onInsert,
                 onExplicitExecute: widget.onExplicitExecute,
+                onViewBlock: widget.onViewBlock,
                 onClose: () {
                   setState(() {
                     _visible = false;
@@ -104,6 +107,7 @@ class CommandSearchOverlay extends StatefulWidget {
     required this.controller,
     this.onInsert,
     this.onExplicitExecute,
+    this.onViewBlock,
     this.onClose,
     this.loading = false,
     this.unavailableReason,
@@ -113,6 +117,7 @@ class CommandSearchOverlay extends StatefulWidget {
   final CommandSearchOverlayController controller;
   final ValueChanged<String>? onInsert;
   final ValueChanged<String>? onExplicitExecute;
+  final ValueChanged<String>? onViewBlock;
   final VoidCallback? onClose;
   final bool loading;
   final String? unavailableReason;
@@ -124,6 +129,7 @@ class CommandSearchOverlay extends StatefulWidget {
 class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
   late final TextEditingController _queryController;
   late final FocusNode _focusNode;
+  late final FocusNode _queryFocusNode;
 
   @override
   void initState() {
@@ -133,9 +139,10 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
       text: widget.controller.state.query,
     );
     _focusNode = FocusNode(debugLabel: 'command-search-overlay');
+    _queryFocusNode = FocusNode(debugLabel: 'command-search-overlay-field');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _focusNode.requestFocus();
+        _queryFocusNode.requestFocus();
       }
     });
   }
@@ -154,6 +161,7 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
   void dispose() {
     _queryController.dispose();
     _focusNode.dispose();
+    _queryFocusNode.dispose();
     super.dispose();
   }
 
@@ -185,6 +193,7 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
                 child: TextField(
                   key: const Key('command-search-overlay-field'),
                   controller: _queryController,
+                  focusNode: _queryFocusNode,
                   autofocus: true,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.search),
@@ -197,6 +206,7 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
                     widget.controller.updateQuery(value);
                     setState(() {});
                   },
+                  onSubmitted: (_) => _submitSelection(),
                 ),
               ),
               if (widget.loading) const LinearProgressIndicator(minHeight: 2),
@@ -234,6 +244,9 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
           statusLabel: _statusLabel(result.entry.exitCode),
           lastRunLabel: _lastRunLabel(result.entry.finishedAt),
           selected: selected,
+          onTap: () => _submitOutput(
+            CommandSearchOverlayOutput.insert(result.entry.command),
+          ),
         );
       },
     );
@@ -266,15 +279,7 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
     }
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
-      final execute =
-          HardwareKeyboard.instance.isMetaPressed ||
-          HardwareKeyboard.instance.isControlPressed;
-      final output = widget.controller.handleIntent(
-        execute
-            ? CommandSearchOverlayKeyIntent.executeSelection
-            : CommandSearchOverlayKeyIntent.insertSelection,
-      );
-      _dispatchOutput(output);
+      _submitSelection();
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.keyR &&
@@ -285,19 +290,46 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
     return KeyEventResult.ignored;
   }
 
-  void _dispatchOutput(CommandSearchOverlayOutput output) {
-    final command = output.command;
-    if (command == null) {
-      return;
-    }
+  void dispatchOutput(CommandSearchOverlayOutput output) {
     switch (output.kind) {
       case CommandSearchOverlayOutputKind.insert:
-        widget.onInsert?.call(command);
+        final command = output.command;
+        if (command != null) {
+          widget.onInsert?.call(command);
+        }
       case CommandSearchOverlayOutputKind.explicitExecute:
-        widget.onExplicitExecute?.call(command);
+        final command = output.command;
+        if (command != null) {
+          widget.onExplicitExecute?.call(command);
+        }
+      case CommandSearchOverlayOutputKind.viewBlock:
+        final invocationId = output.invocationId;
+        if (invocationId != null) {
+          widget.onViewBlock?.call(invocationId);
+        }
       case CommandSearchOverlayOutputKind.none:
         break;
     }
+  }
+
+  void debugDispatchOutput(CommandSearchOverlayOutput output) {
+    dispatchOutput(output);
+  }
+
+  void _submitSelection() {
+    final execute =
+        HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isControlPressed;
+    final output = widget.controller.handleIntent(
+      execute
+          ? CommandSearchOverlayKeyIntent.executeSelection
+          : CommandSearchOverlayKeyIntent.insertSelection,
+    );
+    _submitOutput(output);
+  }
+
+  void _submitOutput(CommandSearchOverlayOutput output) {
+    dispatchOutput(output);
   }
 }
 
@@ -317,6 +349,7 @@ class _CommandSearchResultTile extends StatelessWidget {
     required this.statusLabel,
     required this.lastRunLabel,
     required this.selected,
+    required this.onTap,
     super.key,
   });
 
@@ -325,43 +358,51 @@ class _CommandSearchResultTile extends StatelessWidget {
   final String statusLabel;
   final String lastRunLabel;
   final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: selected ? colorScheme.primaryContainer : Colors.transparent,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              command,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: selected
-                    ? colorScheme.onPrimaryContainer
-                    : colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
+        onTap: onTap,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: selected ? colorScheme.primaryContainer : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (cwd != null && cwd!.isNotEmpty)
-                  Text(cwd!, style: theme.textTheme.bodySmall),
-                Text(statusLabel, style: theme.textTheme.bodySmall),
-                Text(lastRunLabel, style: theme.textTheme.bodySmall),
+                Text(
+                  command,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: selected
+                        ? colorScheme.onPrimaryContainer
+                        : colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    if (cwd != null && cwd!.isNotEmpty)
+                      Text(cwd!, style: theme.textTheme.bodySmall),
+                    Text(statusLabel, style: theme.textTheme.bodySmall),
+                    Text(lastRunLabel, style: theme.textTheme.bodySmall),
+                  ],
+                ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );

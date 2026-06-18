@@ -9,8 +9,9 @@ class WindowBridge {
   static void setNativeMenuHandlers({
     Future<void> Function()? onPaste,
     Future<void> Function(NativeFindAction action)? onFind,
+    Future<void> Function()? onCommandSearch,
   }) {
-    if (onPaste == null && onFind == null) {
+    if (onPaste == null && onFind == null && onCommandSearch == null) {
       _channel.setMethodCallHandler(null);
       return;
     }
@@ -28,6 +29,12 @@ class WindowBridge {
             throw MissingPluginException('No handler for ${call.method}');
           }
           await handler(NativeFindAction.fromTag(_findTagFrom(call.arguments)));
+        case 'nativeCommandSearch':
+          final handler = onCommandSearch;
+          if (handler == null) {
+            throw MissingPluginException('No handler for ${call.method}');
+          }
+          await handler();
         default:
           throw MissingPluginException('No handler for ${call.method}');
       }

@@ -261,6 +261,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     WindowBridge.setNativeMenuHandlers(
       onPaste: _handleNativePasteMenu,
       onFind: _handleNativeFindMenu,
+      onCommandSearch: _handleNativeCommandSearchMenu,
     );
     _completionDiagnosticsSnapshot =
         const LocalTerminalPendingCompletionSnapshotFactory(
@@ -409,6 +410,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
       final shortcut = _shortcutActionFor(event);
       if (shortcut == null) {
+        return KeyEventResult.ignored;
+      }
+      final commandInputHasFocus =
+          activeSessionId != null &&
+          (_commandInputFocusNodes[activeSessionId]?.hasFocus ?? false);
+      if (commandInputHasFocus && shortcut.action == TerminalActionId.paste) {
         return KeyEventResult.ignored;
       }
 
@@ -992,6 +999,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                   onOpenPasteHistory: () => _openToolbeltChild(
                                     () => _openPasteHistory(sessionState),
                                   ),
+                                  onOpenCommandSearch: () =>
+                                      _openToolbeltChild(() async {
+                                        _openCommandSearch(activeSessionId);
+                                      }),
                                   onOpenShellIntegrationUtilities: () =>
                                       _openToolbeltChild(
                                         () => _openShellIntegrationUtilities(
@@ -1038,7 +1049,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ),
                 ),
               ),
-              if (commandInputSessionId != null)
+              if (instantReplaySession == null && commandInputSessionId != null)
                 ListenableBuilder(
                   listenable: sessionController.viewportFor(
                     commandInputSessionId,
@@ -1059,10 +1070,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       focusNode: _commandInputFocusNodeFor(
                         commandInputSessionId,
                       ),
-                      enabled: !_isSessionReadOnly(commandInputSessionId),
-                      cwd: statusDirectory?.trim().isNotEmpty == true
-                          ? statusDirectory!.trim()
-                          : statusProfile?.cwd,
+                      enabled:
+                          !_isSessionReadOnly(commandInputSessionId) &&
+                          !_isCommandSearchOpen &&
+                          !_isCommandActionSearchOpen,
+                      onOpenCommandSearch: () =>
+                          _openCommandSearch(commandInputSessionId),
                       onSubmitted: (command) =>
                           _submitCommandInput(commandInputSessionId, command),
                     );

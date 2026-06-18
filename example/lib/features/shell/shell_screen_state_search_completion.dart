@@ -81,8 +81,8 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     return [
       for (final match in matches)
-        if (match.scrollbackOffset >= scopedOutputRange.startRow &&
-            match.scrollbackOffset < scopedOutputRange.endRowExclusive)
+        if (match.row >= scopedOutputRange.startRow &&
+            match.row < scopedOutputRange.endRowExclusive)
           match,
     ];
   }
@@ -287,6 +287,10 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       _searchScopedOutputRange = null;
     });
     if (activeSessionId != null) {
+      if (_commandInputVisibleForSession(activeSessionId)) {
+        _restoreCommandInputFocus(activeSessionId);
+        return;
+      }
       _focusSession(activeSessionId);
     }
   }

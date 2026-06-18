@@ -46,6 +46,7 @@ void main() {
       expect(history.single.command, 'flutter test');
       expect(history.single.cwd, '/repo');
       expect(history.single.exitCode, 0);
+      expect(history.single.invocationId, invocation.id);
     });
 
     test('uses latest cwd event when command events omit cwd', () {
@@ -172,6 +173,7 @@ void main() {
             .blocksForScope(const CommandBlockScope('session-a'));
 
         expect(results.single.entry.command, 'flutter test');
+        expect(results.single.entry.invocationId, invocationId);
         expect(blocks.single.command, 'flutter test');
         expect(blocks.single.outputRange?.startRow, 11);
       },

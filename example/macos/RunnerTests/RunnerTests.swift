@@ -1,7 +1,7 @@
 import Cocoa
 import FlutterMacOS
 import XCTest
-@testable import Ianvs_Terminal
+@testable import Ianvs_Terminal_Dev
 
 class RunnerTests: XCTestCase {
 
@@ -23,6 +23,97 @@ class RunnerTests: XCTestCase {
       "Notifications are disabled for Ianvs Terminal in System Settings."
     )
     XCTAssertNil(error.details)
+  }
+
+  func testReopenChoosesMainFlutterWindowEvenWhenItIsHidden() {
+    let panel = NSPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 120, height: 80),
+      styleMask: [.titled],
+      backing: .buffered,
+      defer: false
+    )
+    let mainWindow = MainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 640, height: 420),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false
+    )
+
+    XCTAssertIdentical(
+      AppDelegate.windowToShowForActivation(from: [panel, mainWindow]),
+      mainWindow
+    )
+  }
+
+  func testReopenUsesRegisteredMainWindowWhenWindowListIsEmpty() {
+    let mainWindow = MainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 640, height: 420),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false
+    )
+    defer { AppDelegate.resetRegisteredMainWindowForTests() }
+
+    AppDelegate.registerMainWindowForActivation(mainWindow)
+
+    XCTAssertIdentical(
+      AppDelegate.windowToShowForActivation(from: []),
+      mainWindow
+    )
+  }
+
+  func testRegisteredMainWindowIsRetainedForActivationFallback() {
+    weak var weakWindow: MainFlutterWindow?
+    defer { AppDelegate.resetRegisteredMainWindowForTests() }
+
+    autoreleasepool {
+      let mainWindow = MainFlutterWindow(
+        contentRect: NSRect(x: 0, y: 0, width: 640, height: 420),
+        styleMask: [.titled, .closable],
+        backing: .buffered,
+        defer: false
+      )
+      weakWindow = mainWindow
+      AppDelegate.registerMainWindowForActivation(mainWindow)
+    }
+
+    XCTAssertNotNil(weakWindow)
+    XCTAssertIdentical(
+      AppDelegate.windowToShowForActivation(from: []),
+      weakWindow
+    )
+  }
+
+  func testReopenUsesMainWindowOutletFallbackWhenWindowListIsEmpty() {
+    let mainWindow = MainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 640, height: 420),
+      styleMask: [.titled, .closable],
+      backing: .buffered,
+      defer: false
+    )
+    defer { AppDelegate.resetRegisteredMainWindowForTests() }
+
+    AppDelegate.resetRegisteredMainWindowForTests()
+
+    XCTAssertIdentical(
+      AppDelegate.windowToShowForActivation(
+        from: [],
+        fallback: mainWindow
+      ),
+      mainWindow
+    )
+  }
+
+  func testMainWindowOrdersFrontAfterAwakeWhenStillHidden() {
+    XCTAssertTrue(MainFlutterWindow.shouldOrderFrontAfterAwake(isVisible: false))
+    XCTAssertFalse(MainFlutterWindow.shouldOrderFrontAfterAwake(isVisible: true))
+  }
+
+  func testAppDoesNotRestoreStaleWindowStateOnLaunch() {
+    let app = NSApplication.shared
+    let delegate = AppDelegate()
+
+    XCTAssertFalse(delegate.applicationSupportsSecureRestorableState(app))
   }
 
   func testNativeWindowDragRegionCoversOnlyLeadingChromeGap() {
@@ -120,6 +211,59 @@ class RunnerTests: XCTestCase {
 
     XCTAssertEqual(nextOrigin.x, -1038)
     XCTAssertEqual(nextOrigin.y, 167)
+  }
+
+  func testLaunchFrameMovesBackInsideVisibleScreenWhenOffscreen() {
+    let visibleFrame = NSRect(x: 0, y: 0, width: 1440, height: 900)
+    let offscreenFrame = NSRect(x: -760, y: 394, width: 800, height: 600)
+
+    let constrainedFrame = MainFlutterWindow.launchFrameInsideVisibleScreen(
+      offscreenFrame,
+      visibleFrame: visibleFrame
+    )
+
+    XCTAssertGreaterThanOrEqual(constrainedFrame.minX, visibleFrame.minX)
+    XCTAssertGreaterThanOrEqual(constrainedFrame.minY, visibleFrame.minY)
+    XCTAssertLessThanOrEqual(constrainedFrame.maxX, visibleFrame.maxX)
+    XCTAssertLessThanOrEqual(constrainedFrame.maxY, visibleFrame.maxY)
+  }
+
+  func testCommandRIsNativeCommandSearchShortcut() {
+    let event = NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [.command],
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: "r",
+      charactersIgnoringModifiers: "r",
+      isARepeat: false,
+      keyCode: 15
+    )
+
+    XCTAssertTrue(
+      MainFlutterWindow.shouldOpenCommandSearchShortcut(event)
+    )
+  }
+
+  func testPlainRIsNotNativeCommandSearchShortcut() {
+    let event = NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [],
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: "r",
+      charactersIgnoringModifiers: "r",
+      isARepeat: false,
+      keyCode: 15
+    )
+
+    XCTAssertFalse(
+      MainFlutterWindow.shouldOpenCommandSearchShortcut(event)
+    )
   }
 
 }

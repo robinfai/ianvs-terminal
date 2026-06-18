@@ -1,4 +1,5 @@
 import 'command_center_runtime.dart';
+import 'command_search_index.dart';
 import 'command_search_intents.dart';
 import 'command_search_overlay_controller.dart';
 import 'global_command_history_repository.dart';
@@ -19,6 +20,8 @@ class CommandSearchShellWiring {
     return CommandSearchOverlayController(
       index: state.searchIndex(globalHistory: globalHistory),
       currentCwd: state.cwdForSession(sessionId),
+      currentSessionId: sessionId,
+      initialScope: CommandSearchHistoryScope.currentSession,
     );
   }
 

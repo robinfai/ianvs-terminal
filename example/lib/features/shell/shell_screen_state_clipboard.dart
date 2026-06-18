@@ -421,8 +421,9 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
 
   Future<bool> _pasteTextToSessionWithPolicy(
     String sessionId,
-    String text,
-  ) async {
+    String text, {
+    bool refocusSessionOnFailure = true,
+  }) async {
     if (text.isEmpty) {
       return false;
     }
@@ -434,12 +435,16 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     );
     switch (decision.kind) {
       case LocalTerminalPasteDecisionKind.blockedReadOnly:
-        _focusSession(sessionId);
+        if (refocusSessionOnFailure) {
+          _focusSession(sessionId);
+        }
         return false;
       case LocalTerminalPasteDecisionKind.requireConfirmation:
         final confirmed = await _confirmPaste(decision);
         if (!confirmed) {
-          _focusSession(sessionId);
+          if (refocusSessionOnFailure) {
+            _focusSession(sessionId);
+          }
           return false;
         }
       case LocalTerminalPasteDecisionKind.sendImmediately:
@@ -578,7 +583,11 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     return true;
   }
 
-  bool _sendPlainTextToSession(String sessionId, String text) {
+  bool _sendPlainTextToSession(
+    String sessionId,
+    String text, {
+    bool refocusSession = true,
+  }) {
     if (text.isEmpty) {
       return false;
     }
@@ -588,7 +597,9 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     ref
         .read(terminalRuntimeControllerProvider)
         .sendInput(sessionId, Uint8List.fromList(utf8.encode(text)));
-    _focusSession(sessionId);
+    if (refocusSession) {
+      _focusSession(sessionId);
+    }
     return true;
   }
 

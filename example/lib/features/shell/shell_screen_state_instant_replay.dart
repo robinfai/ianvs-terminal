@@ -136,17 +136,31 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
 
   void _closeInstantReplayWorkspace() {
     final sourceSessionId = _instantReplayWorkspaceSession?.sourceSessionId;
+    final activeSessionIdAfterClose = ref
+        .read(sessionControllerProvider)
+        .activeSessionId;
     _mutateState(() {
       _instantReplayWorkspaceSession = null;
     });
-    if (sourceSessionId == null) {
+    if (sourceSessionId == null || activeSessionIdAfterClose != sourceSessionId) {
+      return;
+    }
+    if (_commandInputVisibleForSession(sourceSessionId)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        final focusNode = _commandInputFocusNodeFor(sourceSessionId);
+        if (!focusNode.canRequestFocus) {
+          return;
+        }
+        focusNode.requestFocus();
+      });
       return;
     }
     _restoreSessionFocus(
       activeSessionIdBeforeOpen: sourceSessionId,
-      activeSessionIdAfterClose: ref
-          .read(sessionControllerProvider)
-          .activeSessionId,
+      activeSessionIdAfterClose: activeSessionIdAfterClose,
     );
   }
 

@@ -4,6 +4,37 @@ import FlutterMacOS
 @main
 class AppDelegate: FlutterAppDelegate {
   static var suppressNextLastWindowTerminate = false
+  private static var registeredMainWindow: NSWindow?
+
+  static func registerMainWindowForActivation(_ window: NSWindow) {
+    registeredMainWindow = window
+  }
+
+  static func resetRegisteredMainWindowForTests() {
+    registeredMainWindow = nil
+  }
+
+  static func windowToShowForActivation(
+    from windows: [NSWindow],
+    fallback: NSWindow? = registeredMainWindow
+  ) -> NSWindow? {
+    windows.first { $0 is MainFlutterWindow } ??
+      fallback ??
+      registeredMainWindow ??
+      windows.first
+  }
+
+  override func applicationDidFinishLaunching(_ notification: Notification) {
+    super.applicationDidFinishLaunching(notification)
+    DispatchQueue.main.async { [weak self] in
+      self?.showMainWindowIfAvailable(NSApp)
+    }
+  }
+
+  override func applicationDidBecomeActive(_ notification: Notification) {
+    super.applicationDidBecomeActive(notification)
+    showMainWindowIfAvailable(NSApp)
+  }
 
   override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
     let alert = NSAlert()
@@ -29,13 +60,27 @@ class AppDelegate: FlutterAppDelegate {
     _ sender: NSApplication,
     hasVisibleWindows flag: Bool
   ) -> Bool {
-    if !flag, let window = sender.windows.first {
-      window.makeKeyAndOrderFront(nil)
+    if !flag {
+      showMainWindowIfAvailable(sender)
     }
     return true
   }
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
-    return true
+    return false
+  }
+
+  private func showMainWindowIfAvailable(_ sender: NSApplication) {
+    guard let window = Self.windowToShowForActivation(
+      from: sender.windows,
+      fallback: mainFlutterWindow
+    ) else {
+      return
+    }
+    sender.activate(ignoringOtherApps: true)
+    if window.isMiniaturized {
+      window.deminiaturize(nil)
+    }
+    window.makeKeyAndOrderFront(nil)
   }
 }

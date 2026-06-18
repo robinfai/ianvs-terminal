@@ -44,6 +44,7 @@ void main() {
       ]);
       expect(merged.entries.first.cwd, '/repo');
       expect(merged.entries.first.exitCode, 0);
+      expect(merged.entries.first.invocationId, isNotNull);
     });
 
     test('does not copy unrelated session history', () {

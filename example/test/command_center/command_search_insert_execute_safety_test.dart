@@ -71,5 +71,16 @@ void main() {
       expect(intent.text, isNull);
       expect(intent.writesToShell, isFalse);
     });
+
+    test('view block output does not become a shell write', () {
+      final intent = policy.resolve(
+        const CommandSearchOverlayOutput.viewBlock('invocation-1'),
+        readOnly: false,
+      );
+
+      expect(intent.kind, CommandSearchTerminalIntentKind.none);
+      expect(intent.text, isNull);
+      expect(intent.writesToShell, isFalse);
+    });
   });
 }

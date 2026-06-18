@@ -559,10 +559,11 @@ class ShellActionRegistry {
     ),
     TerminalActionId.openHistoryPeek: TerminalActionDescriptor(
       id: TerminalActionId.openHistoryPeek,
-      label: 'open_history_peek',
+      label: 'command_search',
       category: TerminalActionCategory.navigation,
+      shortcutHint: 'ctrl+R',
       terminalInputPolicy: TerminalInputPolicy.appFirst,
-      icon: Icons.history,
+      icon: Icons.search,
       requiresActiveSession: true,
     ),
     TerminalActionId.replayFromCommandBlock: TerminalActionDescriptor(

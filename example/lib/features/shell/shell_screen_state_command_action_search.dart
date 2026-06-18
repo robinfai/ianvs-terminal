@@ -34,6 +34,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
       _commandActionSearchSessionId = null;
       _commandActionSearchController = null;
     });
+    if (sessionId != null && _commandInputVisibleForSession(sessionId)) {
+      _restoreCommandInputFocus(sessionId);
+      return;
+    }
     _focusSession(sessionId);
   }
 
@@ -789,9 +793,16 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
 
   Future<bool> _dispatchCommandActionSearchTerminalIntent(
     String sessionId,
-    CommandSearchTerminalIntent intent,
-  ) async {
+    CommandSearchTerminalIntent intent, {
+    bool explicitExecution = false,
+  }) async {
     final text = intent.text;
+    final useCommandInput = _commandInputVisibleForSession(sessionId);
+    final commandInputText = text == null
+        ? null
+        : intent.kind == CommandSearchTerminalIntentKind.executeText
+        ? _normalizedCommandInputTextForExecution(text)
+        : text;
     switch (intent.kind) {
       case CommandSearchTerminalIntentKind.none:
         _focusSession(sessionId);
@@ -802,16 +813,36 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         return false;
       case CommandSearchTerminalIntentKind.insertText:
       case CommandSearchTerminalIntentKind.executeText:
-        if (text != null && _sendPlainTextToSession(sessionId, text)) {
+        final didHandle =
+            text != null &&
+            (useCommandInput
+                ? await _routeCommandThroughCommandInput(
+                    sessionId,
+                    commandInputText!,
+                    execute:
+                        explicitExecution ||
+                        intent.kind ==
+                            CommandSearchTerminalIntentKind.executeText,
+                  )
+                : _sendPlainTextToSession(sessionId, text));
+        if (didHandle) {
           _closeCommandActionSearch();
           return true;
         }
         return false;
       case CommandSearchTerminalIntentKind.requiresPastePolicy:
         if (text != null) {
-          final didPaste = await _pasteTextToSessionWithPolicy(sessionId, text);
-          _closeCommandActionSearch();
-          return didPaste;
+          final didHandle = useCommandInput
+              ? await _routeCommandThroughCommandInput(
+                  sessionId,
+                  commandInputText!,
+                  execute: explicitExecution,
+                )
+              : await _pasteTextToSessionWithPolicy(sessionId, text);
+          if (didHandle) {
+            _closeCommandActionSearch();
+          }
+          return didHandle;
         }
         return false;
     }
@@ -939,6 +970,7 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         await _dispatchCommandActionSearchTerminalIntent(
           sessionId,
           terminalIntent,
+          explicitExecution: intent.explicitExecution,
         );
       case CommandBlockActionIntentKind.scopedSearch:
         final outputRange = intent.outputRange;

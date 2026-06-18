@@ -129,10 +129,7 @@ class CommandBlockActionReducer {
       CommandSearchTerminalIntentKind.executeText =>
         CommandBlockActionResult.enabled(intent),
       CommandSearchTerminalIntentKind.requiresPastePolicy =>
-        CommandBlockActionResult.disabled(
-          CommandBlockActionDisabledReason.requiresPastePolicy,
-          intent: intent,
-        ),
+        CommandBlockActionResult.enabled(intent),
       CommandSearchTerminalIntentKind.disabled =>
         CommandBlockActionResult.disabled(
           _disabledReasonForTerminalIntent(terminalIntent),

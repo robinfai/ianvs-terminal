@@ -2432,6 +2432,98 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets('command menu action search focuses the query field', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'command-action-search-overlay-query',
+    );
+  });
+
+  testWidgets(
+    'action search escape returns focus to command input in command block mode',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('command-action-search-overlay')),
+        findsNothing,
+      );
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        'shell-command-input-1',
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets('shell search close returns focus to command input', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    await _openShellSearch(tester);
+    expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('terminal-search-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-search-bar')), findsNothing);
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'shell-command-input-1',
+    );
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('action search updates saved command usage after insert', (
     tester,
   ) async {
@@ -3171,6 +3263,135 @@ void main() {
 
     expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('instant replay hides command input while workspace is open', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    const windowBridgeChannel = MethodChannel('app/window_bridge');
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      windowBridgeChannel,
+      (methodCall) async {
+        if (methodCall.method == 'windowMetrics') {
+          return <String, Object?>{
+            'contentWidth': 900.0,
+            'contentHeight': 600.0,
+            'frameWidth': 940.0,
+            'frameHeight': 660.0,
+            'devicePixelRatio': 2.0,
+          };
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        windowBridgeChannel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'recent output', 'style_runs': const []},
+      ],
+      'cursor': {'row': 0, 'col': 13, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
+
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+    await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
+
+    expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsNothing);
+  });
+
+  testWidgets('escape closes instant replay and returns to command input', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    const windowBridgeChannel = MethodChannel('app/window_bridge');
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      windowBridgeChannel,
+      (methodCall) async {
+        if (methodCall.method == 'windowMetrics') {
+          return <String, Object?>{
+            'contentWidth': 900.0,
+            'contentHeight': 600.0,
+            'frameWidth': 940.0,
+            'frameHeight': 660.0,
+            'devicePixelRatio': 2.0,
+          };
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        windowBridgeChannel,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 0, 'text': 'recent output', 'style_runs': const []},
+      ],
+      'cursor': {'row': 0, 'col': 13, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+    await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
+
+    expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('instant-replay-workspace')), findsNothing);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
   });
 
   testWidgets('action search can select command output without shell write', (
@@ -4252,6 +4473,15 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-command-input-bar')),
+        matching: find.text('make'),
+      ),
+      findsOneWidget,
+    );
+    expect(fakeBindings.writes, isEmpty);
+
     await _openCommandMenu(tester);
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
@@ -4267,8 +4497,576 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
-    expect(fakeBindings.writes, [utf8.encode('make'), utf8.encode('make\n')]);
+    expect(fakeBindings.writes, [utf8.encode('make\n')]);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('shell-command-input-field')))
+          .controller!
+          .text,
+      isEmpty,
+    );
   });
+
+  testWidgets(
+    'action search rerun uses command input paste policy for multiline commands',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ printf one', 'style_runs': const []},
+          {'index': 11, 'text': 'first line', 'style_runs': const []},
+          {'index': 12, 'text': 'second line', 'style_runs': const []},
+          {'index': 13, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 13, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 14},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'printf one\nprintf two',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'printf one\nprintf two',
+            'pwd': '/tmp/project',
+            'exit_code': 0,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 13,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'action search',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('command-action-search-overlay-field')),
+        'rerun block command',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('paste-confirmation-dialog')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('shell-command-input-field')),
+            )
+            .controller!
+            .text,
+        'printf one\nprintf two',
+      );
+      expect(fakeBindings.writes, isEmpty);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Paste'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(fakeBindings.writes, hasLength(1));
+      expect(
+        utf8.decode(fakeBindings.writes.single),
+        contains('printf one\nprintf two\n'),
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('shell-command-input-field')),
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'command search inserts into command input in command block mode',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ make', 'style_runs': const []},
+          {'index': 11, 'text': 'done', 'style_runs': const []},
+          {'index': 12, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 12, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 13},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'make',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'make',
+            'pwd': '/tmp/project',
+            'exit_code': 0,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 12,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(const Key('shell-history-peek')));
+      await tester.tap(find.byKey(const Key('shell-history-peek')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('command-search-overlay')), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('shell-command-input-field')),
+            )
+            .controller!
+            .text,
+        'make',
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets('command search query submit inserts the highlighted command', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 10, 'text': r'$ make', 'style_runs': const []},
+        {'index': 11, 'text': 'done', 'style_runs': const []},
+        {'index': 12, 'text': r'$ ', 'style_runs': const []},
+      ],
+      'cursor': {'row': 12, 'col': 2, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 10, 'end': 13},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'preexec',
+          'command': 'make',
+          'prompt_scrollback_offset': 10,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'make',
+          'pwd': '/tmp/project',
+          'exit_code': 0,
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'prompt_started',
+          'prompt_scrollback_offset': 12,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'command search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const Key('command-search-overlay-field')),
+      'ma',
+    );
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('command-search-overlay')), findsNothing);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('shell-command-input-field')))
+          .controller!
+          .text,
+      'make',
+    );
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'shell-command-input-1',
+    );
+    expect(tester.testTextInput.isVisible, isTrue);
+    expect(fakeBindings.writes, isEmpty);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+
+    expect(fakeBindings.writes, [utf8.encode('make\n')]);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('shell-command-input-field')))
+          .controller!
+          .text,
+      isEmpty,
+    );
+  });
+
+  testWidgets('command input meta-r opens command search overlay', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-command-input-field')));
+    await tester.pumpAndSettle();
+
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyR);
+
+    expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      'command-search-overlay-field',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('shell-command-input-field')))
+          .enabled,
+      isFalse,
+    );
+  });
+
+  testWidgets(
+    'command input focused command-v pastes into input instead of live terminal',
+    (tester) async {
+      const clipboardText = 'echo first';
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pumpAndSettle();
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyV);
+
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('shell-command-input-field')),
+            )
+            .controller!
+            .text,
+        clipboardText,
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.macOS,
+    }),
+  );
+
+  testWidgets(
+    'command input multiline submit confirms then sends raw command text',
+    (tester) async {
+      const clipboardText = 'printf one\nprintf two';
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+      fakeBindings.setFrame(
+        1,
+        _terminalFrameJson(
+          rows: const [
+            {'index': 0, 'text': r'$ ', 'style_runs': []},
+          ],
+          modes: const <String, Object?>{'bracketed_paste': true},
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pumpAndSettle();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyV);
+
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('shell-command-input-field')),
+            )
+            .controller!
+            .text,
+        clipboardText,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('paste-confirmation-dialog')),
+        findsOneWidget,
+      );
+      expect(fakeBindings.writes, isEmpty);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Paste'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+
+      expect(fakeBindings.writes, [utf8.encode('$clipboardText\n')]);
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('shell-command-input-field')),
+            )
+            .controller!
+            .text,
+        isEmpty,
+      );
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.macOS,
+    }),
+  );
+
+  testWidgets(
+    'native paste menu targets command input when it is focused',
+    (tester) async {
+      const clipboardText = 'echo first';
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pumpAndSettle();
+
+      await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
+
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('shell-command-input-field')),
+            )
+            .controller!
+            .text,
+        clipboardText,
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.macOS,
+    }),
+  );
 
   testWidgets(
     'action search explains unavailable command block actions without shell write',
@@ -5378,6 +6176,34 @@ void main() {
   );
 
   testWidgets(
+    'native command search shortcut opens command search overlay',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pumpAndSettle();
+
+      await _invokeNativeWindowBridge(
+        tester,
+        const MethodCall('nativeCommandSearch'),
+      );
+
+      expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
     'command-q requests quit confirmation without leaking input',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5603,6 +6429,62 @@ void main() {
           'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
         ),
         findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'notification authorization feedback restores command input focus',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+        notificationSender: ({required title, body, identifier}) async {
+          throw PlatformException(
+            code: 'notification_authorization_failed',
+            message: 'Denied by system',
+          );
+        },
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pumpAndSettle();
+
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        'shell-command-input-1',
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'echo ok',
+            'exit_code': 0,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        'shell-command-input-1',
       );
     },
   );
@@ -6473,6 +7355,9 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
+    expect(find.byKey(const Key('context-chip-cwd')), findsNothing);
+    expect(find.byKey(const Key('context-chip-profile')), findsNothing);
+    expect(find.byKey(const Key('context-chip-shellHook')), findsNothing);
     expect(find.byKey(const Key('context-chip-lastExit')), findsOneWidget);
     expect(find.text('Last exit Exit 2'), findsOneWidget);
 
@@ -6575,6 +7460,10 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
+    expect(find.byKey(const Key('context-chip-cwd')), findsNothing);
+    expect(find.byKey(const Key('context-chip-profile')), findsNothing);
+    expect(find.byKey(const Key('context-chip-shellHook')), findsNothing);
+
     await tester.tap(find.byKey(const Key('context-chip-lastExit')));
     await tester.pumpAndSettle();
 
@@ -6587,6 +7476,94 @@ void main() {
 
     expect(copiedText, 'failed output');
     expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command block card exposes a visible actions entrypoint', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 10, 'text': r'$ false', 'style_runs': const []},
+        {'index': 11, 'text': 'failed output', 'style_runs': const []},
+        {'index': 12, 'text': r'$ ', 'style_runs': const []},
+      ],
+      'cursor': {'row': 12, 'col': 2, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 10, 'end': 13},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'preexec',
+          'command': 'false',
+          'prompt_scrollback_offset': 10,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'false',
+          'pwd': '/tmp/project',
+          'exit_code': 2,
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'prompt_started',
+          'prompt_scrollback_offset': 12,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final actionButton = find.byTooltip('Block actions');
+    expect(actionButton, findsOneWidget);
+    final actionButtonSize = tester.getSize(actionButton);
+    expect(actionButtonSize.width, greaterThanOrEqualTo(44));
+    expect(actionButtonSize.height, greaterThanOrEqualTo(44));
+
+    await tester.tap(actionButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('context-block-action-reinput')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('context-block-action-rerun')), findsOneWidget);
+    expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
   });
 
   testWidgets('selected block chip can save block output without shell write', (
@@ -6673,6 +7650,10 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.byKey(const Key('context-chip-cwd')), findsNothing);
+    expect(find.byKey(const Key('context-chip-profile')), findsNothing);
+    expect(find.byKey(const Key('context-chip-shellHook')), findsNothing);
 
     await tester.tap(find.byKey(const Key('context-chip-lastExit')));
     await tester.pumpAndSettle();
@@ -6963,7 +7944,13 @@ void main() {
     });
     fakeBindings.setSearchMatches(1, 'needle', [
       {'row': 5, 'start_col': 0, 'end_col': 6, 'text': 'older needle'},
-      {'row': 11, 'start_col': 0, 'end_col': 6, 'text': 'needle in block'},
+      {
+        'row': 11,
+        'start_col': 0,
+        'end_col': 6,
+        'text': 'needle in block',
+        'scrollback_offset': 42,
+      },
       {'row': 18, 'start_col': 0, 'end_col': 6, 'text': 'newer needle'},
     ]);
     fakeBindings.enqueueEvent(
@@ -7030,7 +8017,7 @@ void main() {
       'needle',
       'smart_case_substring',
     ]);
-    expect(fakeBindings.scrollToCalls.last, [1, 11]);
+    expect(fakeBindings.scrollToCalls.last, [1, 42]);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -7113,12 +8100,35 @@ void main() {
     await tester.tap(find.byKey(const Key('context-block-action-reinput')));
     await tester.pumpAndSettle();
 
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-command-input-bar')),
+        matching: find.text('/tmp/project'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-command-input-bar')),
+        matching: find.text('false'),
+      ),
+      findsOneWidget,
+    );
+    expect(fakeBindings.writes, isEmpty);
+
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyR);
+
+    expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('context-block-action-rerun')));
     await tester.pumpAndSettle();
 
-    expect(fakeBindings.writes, [utf8.encode('false'), utf8.encode('false\n')]);
+    expect(fakeBindings.writes, [utf8.encode('false\n')]);
   });
 
   testWidgets('shell status bar shows current session context', (tester) async {

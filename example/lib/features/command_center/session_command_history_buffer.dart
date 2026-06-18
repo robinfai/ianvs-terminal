@@ -7,6 +7,7 @@ class SessionCommandHistoryEntry {
     required this.finishedAt,
     this.cwd,
     this.exitCode,
+    this.invocationId,
   });
 
   final String sessionId;
@@ -14,6 +15,7 @@ class SessionCommandHistoryEntry {
   final String? cwd;
   final int? exitCode;
   final DateTime finishedAt;
+  final String? invocationId;
 
   bool get succeeded => exitCode == 0;
 }
@@ -28,8 +30,9 @@ class SessionCommandHistoryBuffer {
   final List<SessionCommandHistoryEntry> entries;
 
   SessionCommandHistoryBuffer recordFinished(
-    CommandLifecycleFinishedEvent event,
-  ) {
+    CommandLifecycleFinishedEvent event, {
+    String? invocationId,
+  }) {
     final command = _trimmedOrNull(event.command);
     if (command == null) {
       return this;
@@ -41,6 +44,7 @@ class SessionCommandHistoryBuffer {
       cwd: _trimmedOrNull(event.cwd),
       exitCode: event.exitCode,
       finishedAt: event.receivedAt,
+      invocationId: _trimmedOrNull(invocationId),
     );
     final withoutDuplicate = entries
         .where((candidate) => !_sameHistoryKey(candidate, entry))

@@ -2,6 +2,7 @@ import 'command_search_query_parser.dart';
 import 'global_command_history_repository.dart';
 
 enum CommandSearchMatchKind { all, exact, prefix, substring, fuzzy }
+enum CommandSearchHistoryScope { currentSession, global }
 
 class CommandSearchResult {
   const CommandSearchResult({
@@ -17,22 +18,25 @@ class CommandSearchResult {
 
 class CommandSearchIndex {
   CommandSearchIndex(Iterable<GlobalCommandHistoryEntry> entries)
-    : _entries = entries.toList(growable: false),
-      _frequencies = _commandFrequencies(entries),
-      _newestFinishedAt = _newest(entries);
+    : _entries = entries
+          .where((entry) => entry.hasBlockLocator)
+          .toList(growable: false);
 
   final List<GlobalCommandHistoryEntry> _entries;
-  final Map<String, int> _frequencies;
-  final DateTime? _newestFinishedAt;
 
   List<CommandSearchResult> search(
     CommandSearchQuery query, {
     String? currentCwd,
     int limit = 20,
+    CommandSearchHistoryScope scope = CommandSearchHistoryScope.global,
+    String? sessionId,
   }) {
     final normalizedText = query.text.toLowerCase();
+    final candidates = _deduplicatedEntriesForScope(scope, sessionId: sessionId);
+    final frequencies = _commandFrequencies(candidates);
+    final newestFinishedAt = _newest(candidates);
     final results = <CommandSearchResult>[];
-    for (final entry in _entries) {
+    for (final entry in candidates) {
       if (!_passesFilters(entry, query)) {
         continue;
       }
@@ -43,7 +47,13 @@ class CommandSearchIndex {
       results.add(
         CommandSearchResult(
           entry: entry,
-          score: _score(entry, matchKind: matchKind, currentCwd: currentCwd),
+          score: _score(
+            entry,
+            matchKind: matchKind,
+            currentCwd: currentCwd,
+            frequencies: frequencies,
+            newestFinishedAt: newestFinishedAt,
+          ),
           matchKind: matchKind,
         ),
       );
@@ -52,20 +62,51 @@ class CommandSearchIndex {
     return results.take(_effectiveLimit(limit)).toList(growable: false);
   }
 
+  Iterable<GlobalCommandHistoryEntry> _entriesForScope(
+    CommandSearchHistoryScope scope, {
+    String? sessionId,
+  }) {
+    return switch (scope) {
+      CommandSearchHistoryScope.currentSession when sessionId != null => _entries
+          .where((entry) => entry.sessionId == sessionId),
+      CommandSearchHistoryScope.currentSession => const <GlobalCommandHistoryEntry>[],
+      CommandSearchHistoryScope.global => _entries,
+    };
+  }
+
+  List<GlobalCommandHistoryEntry> _deduplicatedEntriesForScope(
+    CommandSearchHistoryScope scope, {
+    String? sessionId,
+  }) {
+    final deduplicated = <GlobalCommandHistoryEntry>[];
+    final seenKeys = <String>{};
+    for (final entry in _entriesForScope(scope, sessionId: sessionId)) {
+      if (!seenKeys.add(_historyKey(entry.command, entry.cwd))) {
+        continue;
+      }
+      deduplicated.add(entry);
+    }
+    return deduplicated;
+  }
+
   double _score(
     GlobalCommandHistoryEntry entry, {
     required CommandSearchMatchKind matchKind,
     required String? currentCwd,
+    required Map<String, int> frequencies,
+    required DateTime? newestFinishedAt,
   }) {
     return _matchScore(matchKind) +
-        _recencyScore(entry) +
+        _recencyScore(entry, newestFinishedAt: newestFinishedAt) +
         _cwdScore(entry, currentCwd) +
         _statusScore(entry) +
-        _frequencyScore(entry);
+        _frequencyScore(entry, frequencies: frequencies);
   }
 
-  double _recencyScore(GlobalCommandHistoryEntry entry) {
-    final newestFinishedAt = _newestFinishedAt;
+  double _recencyScore(
+    GlobalCommandHistoryEntry entry, {
+    required DateTime? newestFinishedAt,
+  }) {
     if (newestFinishedAt == null) {
       return 0;
     }
@@ -76,8 +117,11 @@ class CommandSearchIndex {
     return 220 / (1 + ageSeconds / 3600);
   }
 
-  double _frequencyScore(GlobalCommandHistoryEntry entry) {
-    final frequency = _frequencies[_normalizedCommand(entry.command)] ?? 1;
+  double _frequencyScore(
+    GlobalCommandHistoryEntry entry, {
+    required Map<String, int> frequencies,
+  }) {
+    final frequency = frequencies[_normalizedCommand(entry.command)] ?? 1;
     return (frequency - 1).clamp(0, 8).toDouble() * 14;
   }
 }
@@ -223,6 +267,10 @@ DateTime? _newest(Iterable<GlobalCommandHistoryEntry> entries) {
 
 String _normalizedCommand(String command) {
   return command.trim().toLowerCase();
+}
+
+String _historyKey(String command, String? cwd) {
+  return '${_normalizedCommand(command)}\n${cwd?.trim().toLowerCase() ?? ''}';
 }
 
 int _effectiveLimit(int limit) {

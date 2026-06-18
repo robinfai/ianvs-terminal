@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -104,6 +105,32 @@ void main() {
     );
   });
 
+  testWidgets('command menu close button works through semantics tap', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+
+    final closeNode = tester.getSemantics(find.byTooltip('Close actions'));
+    RendererBinding.instance.renderViews.single.owner!.semanticsOwner!
+        .performAction(closeNode.id, SemanticsAction.tap);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Top actions'), findsNothing);
+    expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
+    semantics.dispose();
+  });
+
   testWidgets('shell screen command menu filters actions while typing', (
     tester,
   ) async {
@@ -150,6 +177,83 @@ void main() {
     expect(find.text('New tab'), findsOneWidget);
     expect(find.text('Paste history'), findsOneWidget);
   });
+
+  testWidgets('command menu surfaces command search wording and query terms', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Command search'), findsOneWidget);
+    expect(find.text('History Peek'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'command search',
+    );
+    await tester.pump();
+
+    expect(find.text('Command search'), findsOneWidget);
+  });
+
+  testWidgets('command menu entry opens command search overlay', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('shell-history-peek')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-history-peek')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+    expect(find.byKey(const Key('shell-history-peek-sheet')), findsNothing);
+  });
+
+  testWidgets(
+    'toolbelt command search affordance opens command search overlay',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-toolbelt')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('shell-toolbelt-panel')), findsOneWidget);
+      expect(find.text('Command search'), findsOneWidget);
+      expect(find.text('Command history'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('toolbelt-command-history')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+      expect(find.byKey(const Key('shell-history-peek-sheet')), findsNothing);
+      expect(find.byKey(const Key('shell-toolbelt-panel')), findsNothing);
+    },
+  );
 
   testWidgets('shell screen command menu can create another tab', (
     tester,

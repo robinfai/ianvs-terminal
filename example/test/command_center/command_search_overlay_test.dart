@@ -67,6 +67,18 @@ void main() {
       expect(find.text('flutter test'), findsNothing);
     });
 
+    testWidgets('search field receives focus when the overlay opens', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_app(_overlay(baseTime)));
+      await tester.pump();
+
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('command-search-overlay-field')),
+      );
+      expect(field.focusNode?.hasFocus, isTrue);
+    });
+
     testWidgets('arrow keys move selected result and are consumed', (
       tester,
     ) async {
@@ -122,6 +134,59 @@ void main() {
 
       expect(inserted, ['flutter test']);
       expect(executed, ['flutter test']);
+    });
+
+    testWidgets('search field submit accepts the selected result', (
+      tester,
+    ) async {
+      final inserted = <String>[];
+      await tester.pumpWidget(_app(_overlay(baseTime, onInsert: inserted.add)));
+
+      await tester.enterText(
+        find.byKey(const Key('command-search-overlay-field')),
+        '构建',
+      );
+      await tester.pump();
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+
+      expect(inserted, ['构建项目']);
+    });
+
+    testWidgets('clicking a result accepts it immediately', (tester) async {
+      final inserted = <String>[];
+      await tester.pumpWidget(_app(_overlay(baseTime, onInsert: inserted.add)));
+
+      await tester.tap(
+        find.byKey(const Key('command-search-result-0-selected')),
+      );
+      await tester.pump();
+
+      expect(inserted, ['flutter test']);
+    });
+
+    testWidgets('view block output dispatches through onViewBlock', (
+      tester,
+    ) async {
+      final viewedInvocationIds = <String>[];
+      final controller = _controller(baseTime)
+        ..handleIntent(CommandSearchOverlayKeyIntent.openSearch);
+
+      await tester.pumpWidget(
+        _app(
+          _overlay(
+            baseTime,
+            controller: controller,
+            onViewBlock: viewedInvocationIds.add,
+          ),
+        ),
+      );
+
+      final output = controller.viewSelectedBlock();
+      final state = tester.state(find.byType(CommandSearchOverlay)) as dynamic;
+      state.debugDispatchOutput(output);
+
+      expect(viewedInvocationIds, ['inv-1']);
     });
 
     testWidgets('escape closes overlay and consumes the key', (tester) async {
@@ -186,6 +251,7 @@ CommandSearchOverlay _overlay(
   CommandSearchOverlayController? controller,
   ValueChanged<String>? onInsert,
   ValueChanged<String>? onExplicitExecute,
+  ValueChanged<String>? onViewBlock,
   VoidCallback? onClose,
   bool loading = false,
   String? unavailableReason,
@@ -194,6 +260,7 @@ CommandSearchOverlay _overlay(
     controller: controller ?? _controller(baseTime),
     onInsert: onInsert,
     onExplicitExecute: onExplicitExecute,
+    onViewBlock: onViewBlock,
     onClose: onClose,
     loading: loading,
     unavailableReason: unavailableReason,
@@ -208,20 +275,27 @@ CommandSearchOverlayController _controller(DateTime baseTime) {
         cwd: '/repo',
         exitCode: 0,
         finishedAt: baseTime,
+        invocationId: 'inv-1',
+        sessionId: 'session-a',
       ),
       GlobalCommandHistoryEntry(
         command: 'npm test',
         cwd: '/repo',
         exitCode: 1,
         finishedAt: baseTime.subtract(const Duration(minutes: 2)),
+        invocationId: 'inv-2',
+        sessionId: 'session-a',
       ),
       GlobalCommandHistoryEntry(
         command: '构建项目',
         cwd: '/repo',
         exitCode: null,
         finishedAt: baseTime.subtract(const Duration(minutes: 4)),
+        invocationId: 'inv-3',
+        sessionId: 'session-a',
       ),
     ]),
     currentCwd: '/repo',
+    currentSessionId: 'session-a',
   );
 }

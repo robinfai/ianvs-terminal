@@ -92,19 +92,23 @@ void main() {
       expect(rerun.disabledReason, CommandBlockActionDisabledReason.readOnly);
     });
 
-    test('multiline terminal actions require paste policy', () {
-      final reducer = const CommandBlockActionReducer();
-      final block = _block(command: 'printf one\nprintf two');
+    test(
+      'multiline terminal actions stay enabled and require paste policy',
+      () {
+        final reducer = const CommandBlockActionReducer();
+        final block = _block(command: 'printf one\nprintf two');
 
-      final result = reducer.reduce(CommandBlockAction.rerun, block);
+        final result = reducer.reduce(CommandBlockAction.rerun, block);
 
-      expect(result.enabled, isFalse);
-      expect(
-        result.disabledReason,
-        CommandBlockActionDisabledReason.requiresPastePolicy,
-      );
-      expect(result.intent.terminalIntent!.text, 'printf one\nprintf two');
-    });
+        expect(result.enabled, isTrue);
+        expect(result.disabledReason, isNull);
+        expect(
+          result.intent.terminalIntent!.kind,
+          CommandSearchTerminalIntentKind.requiresPastePolicy,
+        );
+        expect(result.intent.terminalIntent!.text, 'printf one\nprintf two');
+      },
+    );
 
     test(
       'search within block stays scoped and does not touch global search',

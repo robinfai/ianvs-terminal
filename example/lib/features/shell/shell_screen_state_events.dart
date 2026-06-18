@@ -1537,6 +1537,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (activeSessionId == null) {
       return;
     }
+    if (_commandInputVisibleForSession(activeSessionId) &&
+        (_commandInputFocusNodes[activeSessionId]?.hasFocus ?? false)) {
+      final text = await ClipboardBridge.paste();
+      _insertTextIntoCommandInput(activeSessionId, text);
+      return;
+    }
     await _pasteToSession(activeSessionId);
   }
 

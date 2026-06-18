@@ -156,6 +156,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
       readOnly: () => true,
     );
     _applyActiveFrame();
+    _requestReplayFocus();
   }
 
   @override
@@ -172,6 +173,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
         _stopPlayback();
       }
       _applyActiveFrame();
+      _requestReplayFocus();
     }
   }
 
@@ -199,6 +201,15 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
         : _activeSearchMatchIndex
               .clamp(0, _activeSearchMatches.length - 1)
               .toInt();
+  }
+
+  void _requestReplayFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_focusNode.canRequestFocus) {
+        return;
+      }
+      _focusNode.requestFocus();
+    });
   }
 
   int _initialActiveIndex(List<InstantReplayFrame> frames) {
@@ -734,32 +745,37 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
       scopesRoute: true,
       namesRoute: true,
       label: 'Instant Replay workspace',
-      child: ColoredBox(
-        color: palette.canvas,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final controlsHeight = math.min(
-                      260.0,
-                      math.max(220.0, constraints.maxHeight * 0.38),
-                    );
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: replayViewport()),
-                        const SizedBox(height: 12),
-                        SizedBox(height: controlsHeight, child: controls),
-                      ],
-                    );
-                  },
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): widget.onExit,
+        },
+        child: ColoredBox(
+          color: palette.canvas,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final controlsHeight = math.min(
+                        260.0,
+                        math.max(220.0, constraints.maxHeight * 0.38),
+                      );
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: replayViewport()),
+                          const SizedBox(height: 12),
+                          SizedBox(height: controlsHeight, child: controls),
+                        ],
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

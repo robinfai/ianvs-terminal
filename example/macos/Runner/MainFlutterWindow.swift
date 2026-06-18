@@ -218,9 +218,48 @@ class MainFlutterWindow: NSWindow {
     )
   }
 
+  static func launchFrameInsideVisibleScreen(
+    _ frame: NSRect,
+    visibleFrame: NSRect
+  ) -> NSRect {
+    var nextFrame = frame
+    if nextFrame.width > visibleFrame.width {
+      nextFrame.size.width = visibleFrame.width
+    }
+    if nextFrame.height > visibleFrame.height {
+      nextFrame.size.height = visibleFrame.height
+    }
+    nextFrame.origin.x = min(
+      max(nextFrame.origin.x, visibleFrame.minX),
+      visibleFrame.maxX - nextFrame.width
+    )
+    nextFrame.origin.y = min(
+      max(nextFrame.origin.y, visibleFrame.minY),
+      visibleFrame.maxY - nextFrame.height
+    )
+    return nextFrame
+  }
+
+  static func shouldOpenCommandSearchShortcut(_ event: NSEvent?) -> Bool {
+    guard
+      let event,
+      event.type == .keyDown,
+      event.charactersIgnoringModifiers?.lowercased() == "r"
+    else {
+      return false
+    }
+    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    return flags == .command
+  }
+
+  static func shouldOrderFrontAfterAwake(isVisible: Bool) -> Bool {
+    !isVisible
+  }
+
   override func awakeFromNib() {
+    AppDelegate.registerMainWindowForActivation(self)
     let flutterViewController = FlutterViewController()
-    let windowFrame = self.frame
+    let windowFrame = launchFrameForCurrentEnvironment(self.frame)
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
     self.titleVisibility = .hidden
@@ -339,6 +378,26 @@ class MainFlutterWindow: NSWindow {
 
     super.awakeFromNib()
     scheduleTrafficLightCentering()
+    if Self.shouldOrderFrontAfterAwake(isVisible: isVisible) {
+      DispatchQueue.main.async { [weak self] in
+        guard let self else {
+          return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        self.orderFrontRegardless()
+        self.makeKeyAndOrderFront(nil)
+      }
+    }
+  }
+
+  private func launchFrameForCurrentEnvironment(_ frame: NSRect) -> NSRect {
+    guard
+      ProcessInfo.processInfo.environment["IANVS_FORCE_MAIN_SCREEN_WINDOW"] == "1",
+      let visibleFrame = NSScreen.main?.visibleFrame
+    else {
+      return frame
+    }
+    return Self.launchFrameInsideVisibleScreen(frame, visibleFrame: visibleFrame)
   }
 
   deinit {
@@ -352,6 +411,11 @@ class MainFlutterWindow: NSWindow {
   }
 
   override func sendEvent(_ event: NSEvent) {
+    if Self.shouldOpenCommandSearchShortcut(event) {
+      openNativeCommandSearch()
+      return
+    }
+
     let eventMouseLocation = convertPoint(toScreen: event.locationInWindow)
     switch event.type {
     case .leftMouseDown where shouldStartNativeWindowDrag(
@@ -385,6 +449,14 @@ class MainFlutterWindow: NSWindow {
     super.sendEvent(event)
   }
 
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    if Self.shouldOpenCommandSearchShortcut(event) {
+      openNativeCommandSearch()
+      return true
+    }
+    return super.performKeyEquivalent(with: event)
+  }
+
   override func becomeKey() {
     super.becomeKey()
     scheduleTrafficLightCentering()
@@ -401,6 +473,10 @@ class MainFlutterWindow: NSWindow {
   @objc func performFindPanelAction(_ sender: Any?) {
     let tag = (sender as? NSMenuItem)?.tag ?? 1
     windowBridgeChannel?.invokeMethod("nativeFind", arguments: ["tag": tag])
+  }
+
+  private func openNativeCommandSearch() {
+    windowBridgeChannel?.invokeMethod("nativeCommandSearch", arguments: nil)
   }
 
   private func bindNativePasteMenuItems() {

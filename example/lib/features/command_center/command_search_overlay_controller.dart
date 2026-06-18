@@ -10,10 +10,14 @@ enum CommandSearchOverlayKeyIntent {
   executeSelection,
 }
 
-enum CommandSearchOverlayOutputKind { none, insert, explicitExecute }
+enum CommandSearchOverlayOutputKind { none, insert, explicitExecute, viewBlock }
 
 class CommandSearchOverlayOutput {
-  const CommandSearchOverlayOutput._({required this.kind, this.command});
+  const CommandSearchOverlayOutput._({
+    required this.kind,
+    this.command,
+    this.invocationId,
+  });
 
   static const none = CommandSearchOverlayOutput._(
     kind: CommandSearchOverlayOutputKind.none,
@@ -28,8 +32,15 @@ class CommandSearchOverlayOutput {
         command: command,
       );
 
+  const CommandSearchOverlayOutput.viewBlock(String invocationId)
+    : this._(
+        kind: CommandSearchOverlayOutputKind.viewBlock,
+        invocationId: invocationId,
+      );
+
   final CommandSearchOverlayOutputKind kind;
   final String? command;
+  final String? invocationId;
 }
 
 class CommandSearchOverlayState {
@@ -38,18 +49,21 @@ class CommandSearchOverlayState {
     required this.query,
     required this.results,
     required this.selectedIndex,
+    required this.scope,
   });
 
   const CommandSearchOverlayState.closed()
     : isOpen = false,
       query = '',
       results = const <CommandSearchResult>[],
-      selectedIndex = -1;
+      selectedIndex = -1,
+      scope = CommandSearchHistoryScope.currentSession;
 
   final bool isOpen;
   final String query;
   final List<CommandSearchResult> results;
   final int selectedIndex;
+  final CommandSearchHistoryScope scope;
 
   bool get empty => isOpen && results.isEmpty;
 
@@ -65,16 +79,23 @@ class CommandSearchOverlayController {
   CommandSearchOverlayController({
     required CommandSearchIndex index,
     String? currentCwd,
+    String? currentSessionId,
+    CommandSearchHistoryScope initialScope =
+        CommandSearchHistoryScope.currentSession,
     CommandSearchQueryParser parser = const CommandSearchQueryParser(),
   }) : _index = index,
        _currentCwd = currentCwd,
-       _parser = parser;
+       _currentSessionId = currentSessionId,
+       _parser = parser {
+    state = CommandSearchOverlayState.closed().copyWith(scope: initialScope);
+  }
 
   final CommandSearchIndex _index;
   final String? _currentCwd;
+  final String? _currentSessionId;
   final CommandSearchQueryParser _parser;
 
-  CommandSearchOverlayState state = const CommandSearchOverlayState.closed();
+  late CommandSearchOverlayState state;
 
   CommandSearchOverlayOutput handleIntent(
     CommandSearchOverlayKeyIntent intent,
@@ -97,31 +118,55 @@ class CommandSearchOverlayController {
     if (!state.isOpen) {
       return;
     }
-    final results = _index.search(
-      _parser.parse(query),
-      currentCwd: _currentCwd,
-    );
+    final results = _resultsForQuery(query, scope: state.scope);
     state = CommandSearchOverlayState(
       isOpen: true,
       query: query,
       results: results,
       selectedIndex: results.isEmpty ? -1 : 0,
+      scope: state.scope,
     );
   }
 
+  void updateScope(CommandSearchHistoryScope scope) {
+    final query = state.query;
+    if (!state.isOpen) {
+      state = CommandSearchOverlayState.closed().copyWith(scope: scope);
+      return;
+    }
+    final results = _resultsForQuery(query, scope: scope);
+    state = CommandSearchOverlayState(
+      isOpen: true,
+      query: query,
+      results: results,
+      selectedIndex: results.isEmpty ? -1 : 0,
+      scope: scope,
+    );
+  }
+
+  CommandSearchOverlayOutput viewSelectedBlock() {
+    final invocationId = state.selectedResult?.entry.invocationId;
+    if (invocationId == null) {
+      return CommandSearchOverlayOutput.none;
+    }
+    return CommandSearchOverlayOutput.viewBlock(invocationId);
+  }
+
   CommandSearchOverlayOutput _open() {
-    final results = _index.search(_parser.parse(''), currentCwd: _currentCwd);
+    final scope = state.scope;
+    final results = _resultsForQuery('', scope: scope);
     state = CommandSearchOverlayState(
       isOpen: true,
       query: '',
       results: results,
       selectedIndex: results.isEmpty ? -1 : 0,
+      scope: scope,
     );
     return CommandSearchOverlayOutput.none;
   }
 
   CommandSearchOverlayOutput _close() {
-    state = const CommandSearchOverlayState.closed();
+    state = CommandSearchOverlayState.closed().copyWith(scope: state.scope);
     return CommandSearchOverlayOutput.none;
   }
 
@@ -137,6 +182,7 @@ class CommandSearchOverlayController {
       query: state.query,
       results: state.results,
       selectedIndex: nextIndex,
+      scope: state.scope,
     );
     return CommandSearchOverlayOutput.none;
   }
@@ -151,7 +197,38 @@ class CommandSearchOverlayController {
         CommandSearchOverlayOutput.insert(command),
       CommandSearchOverlayOutputKind.explicitExecute =>
         CommandSearchOverlayOutput.explicitExecute(command),
+      CommandSearchOverlayOutputKind.viewBlock => CommandSearchOverlayOutput.none,
       CommandSearchOverlayOutputKind.none => CommandSearchOverlayOutput.none,
     };
+  }
+
+  List<CommandSearchResult> _resultsForQuery(
+    String query, {
+    required CommandSearchHistoryScope scope,
+  }) {
+    return _index.search(
+      _parser.parse(query),
+      currentCwd: _currentCwd,
+      scope: scope,
+      sessionId: _currentSessionId,
+    );
+  }
+}
+
+extension on CommandSearchOverlayState {
+  CommandSearchOverlayState copyWith({
+    bool? isOpen,
+    String? query,
+    List<CommandSearchResult>? results,
+    int? selectedIndex,
+    CommandSearchHistoryScope? scope,
+  }) {
+    return CommandSearchOverlayState(
+      isOpen: isOpen ?? this.isOpen,
+      query: query ?? this.query,
+      results: results ?? this.results,
+      selectedIndex: selectedIndex ?? this.selectedIndex,
+      scope: scope ?? this.scope,
+    );
   }
 }

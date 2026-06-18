@@ -29,6 +29,8 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
 
   void _openCommandSearch(String sessionId) {
     _mutateState(() {
+      _isToolbeltOpen = false;
+      _isHistoryPeekOpen = false;
       _isCommandSearchOpen = true;
       _commandSearchSessionId = sessionId;
       _commandSearchOverlayController = _commandSearchShellWiring.controllerFor(
@@ -39,13 +41,27 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
     });
   }
 
-  void _closeCommandSearch() {
+  Future<void> _handleNativeCommandSearchMenu() async {
+    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
+    if (activeSessionId == null) {
+      return;
+    }
+    _openCommandSearch(activeSessionId);
+  }
+
+  void _closeCommandSearch({bool preferCommandInput = false}) {
     final sessionId = _commandSearchSessionId;
     _mutateState(() {
       _isCommandSearchOpen = false;
       _commandSearchSessionId = null;
       _commandSearchOverlayController = null;
     });
+    if (sessionId != null &&
+        preferCommandInput &&
+        _commandInputVisibleForSession(sessionId)) {
+      _restoreCommandInputFocus(sessionId);
+      return;
+    }
     _focusSession(sessionId);
   }
 
@@ -90,6 +106,12 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
       readOnly: _isSessionReadOnly(sessionId),
     );
     final text = intent.text;
+    final useCommandInput = _commandInputVisibleForSession(sessionId);
+    final commandInputText = text == null
+        ? null
+        : output.kind == CommandSearchOverlayOutputKind.explicitExecute
+        ? _normalizedCommandInputTextForExecution(text)
+        : text;
     switch (intent.kind) {
       case CommandSearchTerminalIntentKind.none:
         _focusSession(sessionId);
@@ -98,11 +120,34 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
         _focusSession(sessionId);
       case CommandSearchTerminalIntentKind.insertText:
       case CommandSearchTerminalIntentKind.executeText:
-        if (text != null && _sendPlainTextToSession(sessionId, text)) {
-          _closeCommandSearch();
+        final didHandle =
+            text != null &&
+            (useCommandInput
+                ? await _routeCommandThroughCommandInput(
+                    sessionId,
+                    commandInputText!,
+                    execute:
+                        output.kind ==
+                        CommandSearchOverlayOutputKind.explicitExecute,
+                  )
+                : _sendPlainTextToSession(sessionId, text));
+        if (didHandle) {
+          _closeCommandSearch(preferCommandInput: useCommandInput);
         }
       case CommandSearchTerminalIntentKind.requiresPastePolicy:
         if (text != null) {
+          if (useCommandInput) {
+            final didHandle = await _routeCommandThroughCommandInput(
+              sessionId,
+              commandInputText!,
+              execute:
+                  output.kind == CommandSearchOverlayOutputKind.explicitExecute,
+            );
+            if (didHandle) {
+              _closeCommandSearch(preferCommandInput: true);
+            }
+            return;
+          }
           await _pasteTextToSessionWithPolicy(sessionId, text);
           _closeCommandSearch();
         }

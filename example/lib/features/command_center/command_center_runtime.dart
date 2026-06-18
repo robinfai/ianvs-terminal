@@ -38,8 +38,10 @@ class CommandCenterRuntimeState {
     GlobalCommandHistoryDocument globalHistory =
         const GlobalCommandHistoryDocument(),
   }) {
-    final merged = globalHistory.mergeSessionEntries(history.entries);
-    return CommandSearchIndex(merged.entries);
+    return CommandSearchIndex([
+      ...history.entries.map(GlobalCommandHistoryEntry.fromSessionEntry),
+      ...globalHistory.entries,
+    ]);
   }
 
   CommandBlockRangeState blockRangeState({
@@ -144,7 +146,10 @@ class CommandCenterRuntimeReducer {
     );
     return state.copyWith(
       lifecycle: lifecycle,
-      history: state.history.recordFinished(historyEvent),
+      history: state.history.recordFinished(
+        historyEvent,
+        invocationId: finished.id,
+      ),
       cwdBySession: _updatedCwdMap(state.cwdBySession, event.sessionId, cwd),
       openInvocationIdsBySession: nextOpen,
     );

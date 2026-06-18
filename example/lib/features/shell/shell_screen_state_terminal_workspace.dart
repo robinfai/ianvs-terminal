@@ -205,31 +205,138 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     );
   }
 
-  void _submitCommandInput(String sessionId, String command) {
-    final text = command.trim();
-    if (text.isEmpty || _isSessionReadOnly(sessionId)) {
+  void _focusCommandInput(String sessionId) {
+    final focusNode = _commandInputFocusNodeFor(sessionId);
+    if (!focusNode.canRequestFocus) {
       return;
     }
-    _recordSubmittedCommandBlockPreviewCapture(sessionId, text);
-    ref
-        .read(terminalRuntimeControllerProvider)
-        .sendInput(sessionId, Uint8List.fromList(utf8.encode('$text\n')));
-    _commandInputFocusNodeFor(sessionId).requestFocus();
+    focusNode.requestFocus();
+    unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.show'));
+  }
+
+  void _restoreCommandInputFocus(String sessionId) {
+    _focusCommandInput(sessionId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _focusCommandInput(sessionId);
+    });
+  }
+
+  void _primeCommandInput(String sessionId, String command) {
+    final controller = _commandInputControllerFor(sessionId);
+    controller.value = TextEditingValue(
+      text: command,
+      selection: TextSelection.collapsed(offset: command.length),
+      composing: TextRange.empty,
+    );
+    _restoreCommandInputFocus(sessionId);
+  }
+
+  void _insertTextIntoCommandInput(String sessionId, String text) {
+    if (text.isEmpty) {
+      return;
+    }
+    final controller = _commandInputControllerFor(sessionId);
+    final current = controller.value;
+    final currentText = current.text;
+    final selection = current.selection;
+    final start = selection.isValid
+        ? selection.start.clamp(0, currentText.length).toInt()
+        : currentText.length;
+    final end = selection.isValid
+        ? selection.end.clamp(0, currentText.length).toInt()
+        : currentText.length;
+    final replaceStart = math.min(start, end);
+    final replaceEnd = math.max(start, end);
+    final nextText = currentText.replaceRange(replaceStart, replaceEnd, text);
+    final nextOffset = replaceStart + text.length;
+    controller.value = current.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextOffset),
+      composing: TextRange.empty,
+    );
+    _restoreCommandInputFocus(sessionId);
+  }
+
+  Future<bool> _submitCommandInput(String sessionId, String command) async {
+    if (command.trim().isEmpty || _isSessionReadOnly(sessionId)) {
+      _restoreCommandInputFocus(sessionId);
+      return false;
+    }
+    _recordSubmittedCommandBlockPreviewCapture(sessionId, command);
+    final didSubmit = command.contains('\n') || command.contains('\r')
+        ? await _sendCommandInputTextWithPasteConfirmation(
+            sessionId,
+            '$command\n',
+          )
+        : _sendPlainTextToSession(
+            sessionId,
+            '$command\n',
+            refocusSession: false,
+          );
+    _restoreCommandInputFocus(sessionId);
+    return didSubmit;
+  }
+
+  Future<bool> _sendCommandInputTextWithPasteConfirmation(
+    String sessionId,
+    String text,
+  ) async {
+    if (text.isEmpty || _isSessionReadOnly(sessionId)) {
+      return false;
+    }
+    final decision = LocalTerminalPasteDecisionResolver.resolve(
+      text: text,
+      readOnly: _isSessionReadOnly(sessionId),
+      pastePolicy: _pastePolicy,
+      historyPolicy: _pasteHistoryPolicy,
+    );
+    switch (decision.kind) {
+      case LocalTerminalPasteDecisionKind.blockedReadOnly:
+        return false;
+      case LocalTerminalPasteDecisionKind.requireConfirmation:
+        final confirmed = await _confirmPaste(decision);
+        if (!confirmed) {
+          return false;
+        }
+      case LocalTerminalPasteDecisionKind.sendImmediately:
+        break;
+    }
+    return _sendPlainTextToSession(
+      sessionId,
+      decision.text,
+      refocusSession: false,
+    );
+  }
+
+  Future<bool> _routeCommandThroughCommandInput(
+    String sessionId,
+    String command, {
+    required bool execute,
+  }) async {
+    _primeCommandInput(sessionId, command);
+    if (!execute) {
+      return true;
+    }
+    final didSubmit = await _submitCommandInput(sessionId, command);
+    if (didSubmit) {
+      _commandInputControllerFor(sessionId).clear();
+    }
+    return didSubmit;
+  }
+
+  String _normalizedCommandInputTextForExecution(String command) {
+    return command.replaceFirst(RegExp(r'(?:\r\n|\r|\n)$'), '');
   }
 
   void _openHistoryPeek() {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
-    if (activeSessionId == null ||
-        !_commandBlocksHistoryFeatureFlags.enabled ||
-        !_commandBlocksHistoryFeatureFlags.commandBlocks ||
-        !_commandBlocksHistoryFeatureFlags.historyPeek ||
-        !_hasHistoryPeekBlocksForSession(activeSessionId)) {
+    if (activeSessionId == null) {
       return;
     }
-    _mutateState(() {
-      _isToolbeltOpen = false;
-      _isHistoryPeekOpen = true;
-    });
+    _openCommandSearch(activeSessionId);
   }
 
   void _closeHistoryPeek() {
@@ -625,6 +732,15 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                           : null,
                                     )
                               : null,
+                          onOpenBlockActions: (block) => unawaited(
+                            _openContextChipBlockActions(
+                              sessionController: sessionController,
+                              sessionState: sessionState,
+                              sessionId: sessionId,
+                              blockId: block.id,
+                              showSelectedBlockChip: false,
+                            ),
+                          ),
                         ),
                       ),
                     if (!isActive)

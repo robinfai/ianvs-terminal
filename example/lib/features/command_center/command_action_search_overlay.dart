@@ -33,6 +33,7 @@ class _CommandActionSearchOverlayState
     extends State<CommandActionSearchOverlay> {
   late final TextEditingController _queryController;
   late final FocusNode _focusNode;
+  late final FocusNode _queryFocusNode;
 
   @override
   void initState() {
@@ -42,9 +43,12 @@ class _CommandActionSearchOverlayState
       text: widget.controller.state.query,
     );
     _focusNode = FocusNode(debugLabel: 'command-action-search-overlay');
+    _queryFocusNode = FocusNode(
+      debugLabel: 'command-action-search-overlay-query',
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _focusNode.requestFocus();
+        _queryFocusNode.requestFocus();
       }
     });
   }
@@ -62,6 +66,7 @@ class _CommandActionSearchOverlayState
   @override
   void dispose() {
     _queryController.dispose();
+    _queryFocusNode.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -94,6 +99,7 @@ class _CommandActionSearchOverlayState
                 child: TextField(
                   key: const Key('command-action-search-overlay-field'),
                   controller: _queryController,
+                  focusNode: _queryFocusNode,
                   autofocus: true,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.manage_search),

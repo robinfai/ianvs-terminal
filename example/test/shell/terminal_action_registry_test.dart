@@ -1,4 +1,5 @@
 import 'package:app/features/shell/shell_action_registry.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -99,6 +100,15 @@ void main() {
         expect(descriptor!.terminalInputPolicy, TerminalInputPolicy.appFirst);
         expect(descriptor.requiresActiveSession, isTrue);
       }
+    });
+
+    test('history peek action surfaces command search metadata', () {
+      final descriptor =
+          ShellActionRegistry.actions[TerminalActionId.openHistoryPeek];
+
+      expect(descriptor, isNotNull);
+      expect(descriptor!.label, 'command_search');
+      expect(descriptor.icon, isNot(Icons.history));
     });
 
     test('default keybindings do not contain hidden conflicts', () {

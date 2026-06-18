@@ -128,28 +128,28 @@ void main() {
       }
     });
 
-    test('block writing actions honor read-only and paste safety', () {
-      final readOnly = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.rerunBlockCommand,
-        hasActiveSession: true,
-        productivity: const ShellProductivityState(readOnly: true),
-        commandBlock: _block(),
-      );
-      final pastePolicy = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.rerunBlockCommand,
-        hasActiveSession: true,
-        productivity: const ShellProductivityState(),
-        commandBlock: _block(command: 'printf one\nprintf two'),
-      );
+    test(
+      'block writing actions honor read-only and allow paste-confirmed writes',
+      () {
+        final readOnly = ShellActionAvailabilityResolver.resolve(
+          actionId: TerminalActionId.rerunBlockCommand,
+          hasActiveSession: true,
+          productivity: const ShellProductivityState(readOnly: true),
+          commandBlock: _block(),
+        );
+        final pastePolicy = ShellActionAvailabilityResolver.resolve(
+          actionId: TerminalActionId.rerunBlockCommand,
+          hasActiveSession: true,
+          productivity: const ShellProductivityState(),
+          commandBlock: _block(command: 'printf one\nprintf two'),
+        );
 
-      expect(readOnly.enabled, isFalse);
-      expect(readOnly.reason, ShellActionDisabledReason.readOnly);
-      expect(pastePolicy.enabled, isFalse);
-      expect(
-        pastePolicy.reason,
-        ShellActionDisabledReason.pasteRequiresConfirmation,
-      );
-    });
+        expect(readOnly.enabled, isFalse);
+        expect(readOnly.reason, ShellActionDisabledReason.readOnly);
+        expect(pastePolicy.enabled, isTrue);
+        expect(pastePolicy.reason, isNull);
+      },
+    );
 
     test('disabled reasons expose stable user-visible diagnostics', () {
       expect(ShellActionDisabledReason.readOnly.title, 'Read-only mode');
@@ -163,7 +163,7 @@ void main() {
       );
     });
 
-    test('command block actions are disabled when feature flags are off', () {
+    test('command search entry stays available with an active session', () {
       final availability = ShellActionAvailabilityResolver.resolve(
         actionId: TerminalActionId.openHistoryPeek,
         hasActiveSession: true,
@@ -172,18 +172,15 @@ void main() {
         hasCommandBlocks: true,
       );
 
-      expect(availability.enabled, isFalse);
-      expect(
-        availability.reason,
-        ShellActionDisabledReason.commandBlocksHistoryDisabled,
-      );
+      expect(availability.enabled, isTrue);
+      expect(availability.reason, isNull);
     });
 
-    test('history peek is enabled only when flag and command blocks exist', () {
+    test('command search entry ignores legacy history flags', () {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: true,
-        historyPeek: true,
+        historyPeek: false,
         failureSnapshots: false,
         reviewWorkspaceEntrypoints: false,
         outputDiff: false,
@@ -200,49 +197,50 @@ void main() {
       expect(availability.enabled, isTrue);
     });
 
-    test('history peek uses any captured command block', () {
-      const flags = CommandBlocksHistoryFeatureFlags(
-        enabled: true,
-        commandBlocks: true,
-        historyPeek: true,
-        failureSnapshots: false,
-        reviewWorkspaceEntrypoints: true,
-        outputDiff: false,
-      );
+    test(
+      'command search entry ignores captured command block availability',
+      () {
+        const flags = CommandBlocksHistoryFeatureFlags(
+          enabled: true,
+          commandBlocks: true,
+          historyPeek: true,
+          failureSnapshots: false,
+          reviewWorkspaceEntrypoints: true,
+          outputDiff: false,
+        );
 
-      final historyPeek = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.openHistoryPeek,
-        hasActiveSession: true,
-        productivity: const ShellProductivityState(),
-        commandBlocksHistory: flags,
-        hasCommandBlocks: true,
-      );
-      final historyPeekWithoutBlocks = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.openHistoryPeek,
-        hasActiveSession: true,
-        productivity: const ShellProductivityState(),
-        commandBlocksHistory: flags,
-        hasCommandBlocks: false,
-      );
-      final replay = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.replayFromCommandBlock,
-        hasActiveSession: true,
-        productivity: const ShellProductivityState(),
-        commandBlocksHistory: flags,
-        hasCommandBlocks: true,
-        hasHistoryPeekCommandBlocks: false,
-      );
+        final historyPeek = ShellActionAvailabilityResolver.resolve(
+          actionId: TerminalActionId.openHistoryPeek,
+          hasActiveSession: true,
+          productivity: const ShellProductivityState(),
+          commandBlocksHistory: flags,
+          hasCommandBlocks: true,
+        );
+        final historyPeekWithoutBlocks =
+            ShellActionAvailabilityResolver.resolve(
+              actionId: TerminalActionId.openHistoryPeek,
+              hasActiveSession: true,
+              productivity: const ShellProductivityState(),
+              commandBlocksHistory: flags,
+              hasCommandBlocks: false,
+            );
+        final replay = ShellActionAvailabilityResolver.resolve(
+          actionId: TerminalActionId.replayFromCommandBlock,
+          hasActiveSession: true,
+          productivity: const ShellProductivityState(),
+          commandBlocksHistory: flags,
+          hasCommandBlocks: true,
+          hasHistoryPeekCommandBlocks: false,
+        );
 
-      expect(historyPeek.enabled, isTrue);
-      expect(historyPeekWithoutBlocks.enabled, isFalse);
-      expect(
-        historyPeekWithoutBlocks.reason,
-        ShellActionDisabledReason.missingCommandBlock,
-      );
-      expect(replay.enabled, isTrue);
-    });
+        expect(historyPeek.enabled, isTrue);
+        expect(historyPeekWithoutBlocks.enabled, isTrue);
+        expect(historyPeekWithoutBlocks.reason, isNull);
+        expect(replay.enabled, isTrue);
+      },
+    );
 
-    test('history peek requires the base command blocks flag', () {
+    test('replay action still requires the base command blocks flag', () {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: false,
@@ -253,7 +251,7 @@ void main() {
       );
 
       final availability = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.openHistoryPeek,
+        actionId: TerminalActionId.replayFromCommandBlock,
         hasActiveSession: true,
         productivity: const ShellProductivityState(),
         commandBlocksHistory: flags,
@@ -267,7 +265,7 @@ void main() {
       );
     });
 
-    test('history peek requires its sub-flag', () {
+    test('replay action still requires its sub-flag', () {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: true,
@@ -278,7 +276,7 @@ void main() {
       );
 
       final availability = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.openHistoryPeek,
+        actionId: TerminalActionId.replayFromCommandBlock,
         hasActiveSession: true,
         productivity: const ShellProductivityState(),
         commandBlocksHistory: flags,

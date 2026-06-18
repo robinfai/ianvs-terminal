@@ -61,6 +61,9 @@ class CommandSearchInsertExecutePolicy {
     CommandSearchOverlayOutput output, {
     required bool readOnly,
   }) {
+    if (output.kind == CommandSearchOverlayOutputKind.viewBlock) {
+      return const CommandSearchTerminalIntent.none();
+    }
     final command = output.command?.trim();
     if (command == null || command.isEmpty) {
       return const CommandSearchTerminalIntent.none(
@@ -83,6 +86,8 @@ class CommandSearchInsertExecutePolicy {
         CommandSearchTerminalIntent.insertText(command),
       CommandSearchOverlayOutputKind.explicitExecute =>
         CommandSearchTerminalIntent.executeText('$command\n'),
+      CommandSearchOverlayOutputKind.viewBlock =>
+        const CommandSearchTerminalIntent.none(),
       CommandSearchOverlayOutputKind.none =>
         const CommandSearchTerminalIntent.none(
           CommandSearchTerminalIntentReason.emptySelection,
