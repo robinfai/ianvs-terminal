@@ -17,11 +17,13 @@ class ShellCommandFinishedEvent extends ShellProductivityEvent {
     required this.command,
     required this.cwd,
     required this.exitCode,
+    this.finishedAt,
   });
 
   final String command;
   final String? cwd;
   final int? exitCode;
+  final DateTime? finishedAt;
 }
 
 class ShellCommandStartedEvent extends ShellProductivityEvent {
@@ -30,12 +32,14 @@ class ShellCommandStartedEvent extends ShellProductivityEvent {
     required this.command,
     required this.commandRow,
     this.cwd,
+    this.startedAt,
   });
 
   final String commandId;
   final String command;
   final int commandRow;
   final String? cwd;
+  final DateTime? startedAt;
 }
 
 class ShellCommandOutputRangeEvent extends ShellProductivityEvent {

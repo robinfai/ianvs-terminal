@@ -52,6 +52,40 @@ void main() {
       expect(block?.outputRange?.endRowExclusive, 13);
     });
 
+    test('preserves shell command block timestamps', () {
+      final startedAt = DateTime.utc(2026, 6, 18, 10);
+      final finishedAt = startedAt.add(const Duration(seconds: 1));
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(
+        blocks: [
+          ShellCommandBlock(
+            id: 'sleep',
+            command: 'sleep 1 && echo 1',
+            status: ShellCommandBlockStatus.succeeded,
+            exitCode: 0,
+            startedAt: startedAt,
+            finishedAt: finishedAt,
+            outputRange: const ShellCommandBlockRange(
+              commandRow: 20,
+              outputStartRow: 21,
+              outputEndRow: 21,
+            ),
+          ),
+        ],
+      );
+
+      final block = adapter.activeCompatibleBlockFor(
+        snapshot: snapshot,
+        sessionId: 'session-a',
+      );
+
+      expect(block?.startedAt, startedAt);
+      expect(block?.finishedAt, finishedAt);
+      expect(
+        block?.finishedAt?.difference(block.startedAt),
+        const Duration(seconds: 1),
+      );
+    });
+
     test('falls back to newest valid block when selected block is missing', () {
       final snapshot = ShellCommandBlockSnapshot.withBlocks(
         blocks: const [

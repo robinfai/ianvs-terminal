@@ -120,6 +120,7 @@ class ShellCommandBlockController {
       id: commandId,
       command: command,
       cwd: cwd,
+      startedAt: event.startedAt,
       status: ShellCommandBlockStatus.running,
       outputRange: outputRange,
     );
@@ -213,6 +214,8 @@ class ShellCommandBlockController {
       command: command,
       cwd: cwd,
       exitCode: event.exitCode,
+      startedAt: runningBlock?.startedAt,
+      finishedAt: event.finishedAt,
       status: status,
       outputRange: outputRange,
       failureSnapshot:

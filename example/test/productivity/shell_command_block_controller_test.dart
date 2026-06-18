@@ -103,7 +103,7 @@ void main() {
       );
       snapshot = ShellCommandBlockController.reduce(
         snapshot,
-        const ShellCommandStartedEvent(
+        ShellCommandStartedEvent(
           commandId: 'cmd-1',
           command: 'dart run tool.dart',
           commandRow: 10,
@@ -129,7 +129,7 @@ void main() {
 
       snapshot = ShellCommandBlockController.reduce(
         snapshot,
-        const ShellCommandStartedEvent(
+        ShellCommandStartedEvent(
           commandId: 'cmd-1',
           command: 'flutter test',
           commandRow: 10,
@@ -156,6 +156,8 @@ void main() {
 
     test('finishes running command block in place', () {
       var snapshot = const ShellCommandBlockSnapshot();
+      final startedAt = DateTime.utc(2026, 6, 18, 10);
+      final finishedAt = startedAt.add(const Duration(milliseconds: 1250));
 
       snapshot = ShellCommandBlockController.reduce(
         snapshot,
@@ -164,10 +166,11 @@ void main() {
       );
       snapshot = ShellCommandBlockController.reduce(
         snapshot,
-        const ShellCommandStartedEvent(
+        ShellCommandStartedEvent(
           commandId: 'cmd-1',
           command: 'flutter test',
           commandRow: 10,
+          startedAt: startedAt,
         ),
         flags: _enabledFlags,
       );
@@ -182,10 +185,11 @@ void main() {
       );
       snapshot = ShellCommandBlockController.reduce(
         snapshot,
-        const ShellCommandFinishedEvent(
+        ShellCommandFinishedEvent(
           command: 'flutter test',
           cwd: null,
           exitCode: 0,
+          finishedAt: finishedAt,
         ),
         flags: _enabledFlags,
       );
@@ -195,6 +199,8 @@ void main() {
       expect(block.id, 'cmd-1');
       expect(block.status, ShellCommandBlockStatus.succeeded);
       expect(block.exitCode, 0);
+      expect(block.startedAt, startedAt);
+      expect(block.finishedAt, finishedAt);
       expect(block.outputRange.outputEndRow, 18);
       expect(snapshot.pendingRange, isNull);
     });

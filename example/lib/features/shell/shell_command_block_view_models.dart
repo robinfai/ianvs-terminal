@@ -572,25 +572,30 @@ String _durationLabel(
   ShellCommandBlock block,
   Map<int, terminal.TerminalRow> rowsByIndex,
 ) {
+  final startedAt = block.startedAt;
+  final finishedAt = block.finishedAt;
+  if (startedAt != null && finishedAt != null) {
+    return _formatDuration(finishedAt.difference(startedAt));
+  }
   final range = block.outputRange;
-  DateTime? startedAt;
-  DateTime? finishedAt;
+  DateTime? rowStartedAt;
+  DateTime? rowFinishedAt;
   for (var row = range.commandRow; row <= range.outputEndRow; row += 1) {
     final modifiedAt = rowsByIndex[row]?.modifiedAt;
     if (modifiedAt == null) {
       continue;
     }
-    if (startedAt == null || modifiedAt.isBefore(startedAt)) {
-      startedAt = modifiedAt;
+    if (rowStartedAt == null || modifiedAt.isBefore(rowStartedAt)) {
+      rowStartedAt = modifiedAt;
     }
-    if (finishedAt == null || modifiedAt.isAfter(finishedAt)) {
-      finishedAt = modifiedAt;
+    if (rowFinishedAt == null || modifiedAt.isAfter(rowFinishedAt)) {
+      rowFinishedAt = modifiedAt;
     }
   }
-  if (startedAt == null || finishedAt == null) {
+  if (rowStartedAt == null || rowFinishedAt == null) {
     return '--';
   }
-  return _formatDuration(finishedAt.difference(startedAt));
+  return _formatDuration(rowFinishedAt.difference(rowStartedAt));
 }
 
 String _formatDuration(Duration duration) {

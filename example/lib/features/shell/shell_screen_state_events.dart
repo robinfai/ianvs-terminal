@@ -189,10 +189,12 @@ class ShellCommandBlockShellHookReducer {
     List<TerminalShellPromptMark> promptMarks =
         const <TerminalShellPromptMark>[],
     int? viewportEndRow,
+    DateTime? occurredAt,
   }) {
     if (!flags.enabled || !flags.commandBlocks) {
       return const ShellCommandBlockSnapshot();
     }
+    final eventAt = occurredAt ?? DateTime.now();
     return switch (normalizeHook(hook)) {
       'bootstrapped' => _bootstrapped(snapshot),
       'precmd' => _precmd(
@@ -214,6 +216,7 @@ class ShellCommandBlockShellHookReducer {
         promptScrollbackOffset: promptScrollbackOffset,
         commandStartRow: commandStartRow,
         promptMarks: promptMarks,
+        occurredAt: eventAt,
       ),
       'command_finished' => _commandFinished(
         snapshot: snapshot,
@@ -225,6 +228,7 @@ class ShellCommandBlockShellHookReducer {
         promptScrollbackOffset: promptScrollbackOffset,
         promptMarks: promptMarks,
         viewportEndRow: viewportEndRow,
+        occurredAt: eventAt,
       ),
       _ => snapshot,
     };
@@ -305,6 +309,7 @@ class ShellCommandBlockShellHookReducer {
     required int? promptScrollbackOffset,
     required int? commandStartRow,
     required List<TerminalShellPromptMark> promptMarks,
+    required DateTime occurredAt,
   }) {
     final commandText = _trimmedShellCommandText(command);
     if (commandText == null) {
@@ -341,6 +346,7 @@ class ShellCommandBlockShellHookReducer {
         command: commandText,
         commandRow: startRow,
         cwd: commandCwd,
+        startedAt: occurredAt,
       ),
       flags: flags,
     );
@@ -409,6 +415,7 @@ class ShellCommandBlockShellHookReducer {
     required int? promptScrollbackOffset,
     required List<TerminalShellPromptMark> promptMarks,
     required int? viewportEndRow,
+    required DateTime occurredAt,
   }) {
     final commandText = _trimmedShellCommandText(command);
     if (commandText == null) {
@@ -458,6 +465,7 @@ class ShellCommandBlockShellHookReducer {
         command: commandText,
         cwd: _trimmedShellHookText(cwd),
         exitCode: exitCode,
+        finishedAt: occurredAt,
       ),
       flags: flags,
     );

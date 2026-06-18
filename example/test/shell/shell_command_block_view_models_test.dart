@@ -401,6 +401,37 @@ void main() {
       },
     );
 
+    test('uses block timestamps for duration when row timestamps match', () {
+      final startedAt = DateTime(2026, 6, 9, 19, 31);
+      final finishedAt = startedAt.add(const Duration(milliseconds: 1250));
+      final rowModifiedAt = startedAt.add(const Duration(seconds: 2));
+
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [
+          _commandBlock(
+            startRow: 20,
+            endRow: 21,
+            command: 'sleep 1 && echo 1',
+            startedAt: startedAt,
+            finishedAt: finishedAt,
+          ),
+        ],
+        viewportStartRow: 20,
+        viewportEndRow: 40,
+        visibleRows: [
+          terminal.TerminalRow(
+            index: 20,
+            text: 'sleep 1 && echo 1',
+            modifiedAt: rowModifiedAt,
+          ),
+          terminal.TerminalRow(index: 21, text: '1', modifiedAt: rowModifiedAt),
+        ],
+        flags: _enabledFlags(),
+      );
+
+      expect(viewModel.blocks.single.durationLabel, '1.3s');
+    });
+
     test('filters prompt and readline rows from output preview', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [
@@ -1077,12 +1108,16 @@ ShellCommandBlock _commandBlock({
   required int endRow,
   String command = 'flutter test',
   String? cwd,
+  DateTime? startedAt,
+  DateTime? finishedAt,
   ShellCommandBlockStatus status = ShellCommandBlockStatus.succeeded,
 }) {
   return ShellCommandBlock(
     id: 'cmd-$startRow-$endRow',
     command: command,
     cwd: cwd,
+    startedAt: startedAt,
+    finishedAt: finishedAt,
     outputRange: ShellCommandBlockRange(
       commandRow: startRow,
       outputStartRow: startRow == endRow ? startRow : startRow + 1,

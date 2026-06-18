@@ -218,28 +218,41 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.only(top: 6),
-                                child: _ShellCommandBlockStatusDot(
-                                  color: statusColor,
-                                ),
-                              ),
+                              _ShellCommandBlockStatusDot(color: statusColor),
                               SizedBox(width: palette.spacing.sm),
                               Expanded(
-                                child: Text(
-                                  inputLine,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  softWrap: false,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: palette.textPrimary,
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.w700,
+                                flex: 3,
+                                child: SizedBox(
+                                  height: 44,
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      inputLine,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      softWrap: false,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: palette.textPrimary,
+                                            fontFamily: 'monospace',
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
                                   ),
                                 ),
                               ),
+                              if (metadata.isNotEmpty) ...[
+                                SizedBox(width: palette.spacing.md),
+                                Flexible(
+                                  flex: 2,
+                                  child: _ShellCommandBlockInlineMetadata(
+                                    labels: metadata,
+                                    palette: palette,
+                                  ),
+                                ),
+                              ],
                               SizedBox(width: palette.spacing.sm),
                               _ShellCommandBlockInfoButton(
                                 block: block,
@@ -277,21 +290,6 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                               ],
                             ],
                           ),
-                          if (metadata.isNotEmpty) ...[
-                            SizedBox(height: palette.spacing.sm),
-                            Wrap(
-                              spacing: palette.spacing.sm,
-                              runSpacing: palette.spacing.xs,
-                              children: [
-                                for (final label in metadata)
-                                  _ShellCommandBlockMetaPill(
-                                    label: label,
-                                    foreground: palette.textMuted,
-                                    palette: palette,
-                                  ),
-                              ],
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -470,36 +468,28 @@ class _ShellCommandBlockTerminalOutputState
   }
 }
 
-class _ShellCommandBlockMetaPill extends StatelessWidget {
-  const _ShellCommandBlockMetaPill({
-    required this.label,
-    required this.foreground,
+class _ShellCommandBlockInlineMetadata extends StatelessWidget {
+  const _ShellCommandBlockInlineMetadata({
+    required this.labels,
     required this.palette,
   });
 
-  final String label;
-  final Color foreground;
+  final List<String> labels;
   final AppThemeTokens palette;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.terminalSurface,
-        borderRadius: BorderRadius.circular(palette.radius.sm),
-        border: Border.all(color: palette.border.withValues(alpha: 0.62)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: palette.spacing.sm,
-          vertical: 3,
-        ),
+    return SizedBox(
+      height: 44,
+      child: Align(
+        alignment: Alignment.centerRight,
         child: Text(
-          label,
+          labels.join(' · '),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.right,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: foreground,
+            color: palette.textMuted,
             fontWeight: FontWeight.w700,
           ),
         ),

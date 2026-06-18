@@ -368,6 +368,8 @@ class ShellCommandBlock {
     int endRow = -1,
     this.cwd,
     this.exitCode,
+    this.startedAt,
+    this.finishedAt,
     this.status = ShellCommandBlockStatus.unknown,
     this.failureSnapshot,
   }) : _outputRange = outputRange,
@@ -383,6 +385,8 @@ class ShellCommandBlock {
     int endRow = -1,
     this.cwd,
     this.exitCode,
+    this.startedAt,
+    this.finishedAt,
     this.status = ShellCommandBlockStatus.unknown,
     List<ShellHistoryMarker> markers = const <ShellHistoryMarker>[],
     this.failureSnapshot,
@@ -395,6 +399,8 @@ class ShellCommandBlock {
   final String command;
   final String? cwd;
   final int? exitCode;
+  final DateTime? startedAt;
+  final DateTime? finishedAt;
   final ShellCommandBlockStatus status;
   final ShellFailureSnapshot? failureSnapshot;
   final ShellCommandBlockRange? _outputRange;
@@ -426,6 +432,8 @@ class ShellCommandBlock {
     String? command,
     Object? cwd = _shellCommandBlockNoChange,
     Object? exitCode = _shellCommandBlockNoChange,
+    Object? startedAt = _shellCommandBlockNoChange,
+    Object? finishedAt = _shellCommandBlockNoChange,
     ShellCommandBlockStatus? status,
     ShellCommandBlockRange? outputRange,
     List<ShellHistoryMarker>? markers,
@@ -440,6 +448,12 @@ class ShellCommandBlock {
       exitCode: identical(exitCode, _shellCommandBlockNoChange)
           ? this.exitCode
           : exitCode as int?,
+      startedAt: identical(startedAt, _shellCommandBlockNoChange)
+          ? this.startedAt
+          : startedAt as DateTime?,
+      finishedAt: identical(finishedAt, _shellCommandBlockNoChange)
+          ? this.finishedAt
+          : finishedAt as DateTime?,
       status: status ?? this.status,
       outputRange: outputRange ?? this.outputRange,
       markers: markers ?? this.markers,

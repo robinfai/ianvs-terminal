@@ -360,9 +360,25 @@ void main() {
         ),
       );
 
-      expect(find.text('/repo'), findsOneWidget);
-      expect(find.text('842ms'), findsOneWidget);
-      expect(find.text('rows 12-18'), findsOneWidget);
+      expect(find.text('/repo · 842ms · rows 12-18'), findsOneWidget);
+      final metadataRight = tester
+          .getTopRight(find.text('/repo · 842ms · rows 12-18'))
+          .dx;
+      final metadataCenterY = tester
+          .getCenter(find.text('/repo · 842ms · rows 12-18'))
+          .dy;
+      final commandCenterY = tester.getCenter(find.text('flutter test')).dy;
+      final infoCenterY = tester
+          .getCenter(find.byKey(const Key('shell-command-block-info-metadata')))
+          .dy;
+      final infoLeft = tester
+          .getTopLeft(
+            find.byKey(const Key('shell-command-block-info-metadata')),
+          )
+          .dx;
+      expect(metadataRight, lessThanOrEqualTo(infoLeft));
+      expect(commandCenterY, closeTo(infoCenterY, 0.5));
+      expect(metadataCenterY, closeTo(infoCenterY, 0.5));
       expect(
         find.byKey(const Key('shell-command-block-terminal-output-metadata')),
         findsOneWidget,
@@ -665,8 +681,15 @@ void main() {
           )
           .dy;
       final commandTop = tester.getTopLeft(find.text(command)).dy;
+      final commandCenterY = tester.getCenter(find.text(command)).dy;
+      final infoCenterY = tester
+          .getCenter(
+            find.byKey(const Key('shell-command-block-info-cmd-inactive-tall')),
+          )
+          .dy;
 
-      expect(commandTop - blockTop, lessThan(24));
+      expect(commandTop - blockTop, lessThan(32));
+      expect(commandCenterY, closeTo(infoCenterY, 0.5));
     });
   });
 

@@ -118,10 +118,12 @@ class ShellCommandBlockCommandCenterAdapter {
       sessionId: sessionId,
       command: block.command,
       cwd: block.cwd,
-      startedAt: _syntheticStartedAtFor(block),
+      startedAt: block.startedAt ?? _syntheticStartedAtFor(block),
       finishedAt: block.status == ShellCommandBlockStatus.running
           ? null
-          : _syntheticStartedAtFor(block),
+          : block.finishedAt ??
+                block.startedAt ??
+                _syntheticStartedAtFor(block),
       exitCode: block.exitCode,
       status: _statusFor(block.status),
       inputRange: CommandBlockRowRange(
