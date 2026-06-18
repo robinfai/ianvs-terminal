@@ -9,7 +9,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('ShellCommandBlocksOverlay', () {
-    testWidgets('renders active failed block status hints', (tester) async {
+    testWidgets('renders active failed block info in a popover', (
+      tester,
+    ) async {
       final item = ShellCommandBlockOverlayItem(
         id: 'cmd-1',
         command: 'flutter test',
@@ -41,13 +43,29 @@ void main() {
       );
 
       expect(find.text('flutter test'), findsOneWidget);
+      expect(find.text('exit 1'), findsNothing);
+      expect(find.text('Output captured'), findsNothing);
+      expect(find.text('Replay context'), findsNothing);
+      expect(find.text('Failure snapshot'), findsNothing);
+      expect(find.text('Previous run'), findsNothing);
+      expect(find.text('Copy output'), findsNothing);
+      expect(find.text('Replay from here'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('shell-command-block-info-cmd-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('shell-command-block-info-popover-cmd-1')),
+        findsOneWidget,
+      );
+      expect(find.text('Block info'), findsOneWidget);
+      expect(find.text('Status'), findsOneWidget);
       expect(find.text('exit 1'), findsOneWidget);
+      expect(find.text('Output'), findsOneWidget);
       expect(find.text('Output captured'), findsOneWidget);
       expect(find.text('Replay context'), findsOneWidget);
       expect(find.text('Failure snapshot'), findsOneWidget);
       expect(find.text('Previous run'), findsNothing);
-      expect(find.text('Copy output'), findsNothing);
-      expect(find.text('Replay from here'), findsNothing);
     });
 
     testWidgets('renders nothing for empty view model', (tester) async {
@@ -111,9 +129,7 @@ void main() {
       expect(scrollableState.position.pixels, greaterThan(0));
     });
 
-    testWidgets('does not expose visual status chips as buttons', (
-      tester,
-    ) async {
+    testWidgets('exposes block info as one button', (tester) async {
       final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
         _overlayItem(id: 'cmd-semantics', active: true, rowSpan: 3),
       ]);
@@ -134,14 +150,15 @@ void main() {
         ),
       );
 
-      expect(
-        find.byWidgetPredicate((widget) {
-          return widget is Semantics &&
-              widget.properties.label == 'Output captured' &&
-              widget.properties.button == true;
-        }),
-        findsNothing,
+      expect(find.text('Output captured'), findsNothing);
+      expect(find.byTooltip('Block info'), findsOneWidget);
+
+      final infoButton = find.byKey(
+        const Key('shell-command-block-info-cmd-semantics'),
       );
+      final infoButtonSize = tester.getSize(infoButton);
+      expect(infoButtonSize.width, greaterThanOrEqualTo(44));
+      expect(infoButtonSize.height, greaterThanOrEqualTo(44));
     });
 
     testWidgets('shows a visible block actions button when actions exist', (
@@ -216,11 +233,12 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text(item.command), findsOneWidget);
-      expect(find.text('exit 1'), findsOneWidget);
-      expect(find.text('Output captured'), findsOneWidget);
-      expect(find.text('Replay context'), findsOneWidget);
-      expect(find.text('Failure snapshot'), findsOneWidget);
-      expect(find.text('Previous run'), findsOneWidget);
+      expect(find.text('exit 1'), findsNothing);
+      expect(find.text('Output captured'), findsNothing);
+      expect(find.text('Replay context'), findsNothing);
+      expect(find.text('Failure snapshot'), findsNothing);
+      expect(find.text('Previous run'), findsNothing);
+      expect(find.byTooltip('Block info'), findsOneWidget);
     });
 
     testWidgets('aligns command blocks to terminal content padding', (
@@ -386,6 +404,12 @@ void main() {
       );
 
       expect(find.text('python manage.py shell'), findsOneWidget);
+      expect(find.text('running'), findsNothing);
+      expect(find.text('Live terminal'), findsNothing);
+      await tester.tap(
+        find.byKey(const Key('shell-command-block-info-running-output')),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('running'), findsOneWidget);
       expect(find.text('Live terminal'), findsOneWidget);
       expect(

@@ -6891,8 +6891,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
 
       expect(find.text('vi public.key'), findsOneWidget);
-      expect(find.text('running'), findsOneWidget);
-      expect(find.text('Live terminal'), findsOneWidget);
+      expect(find.text('running'), findsNothing);
+      expect(find.text('Live terminal'), findsNothing);
+      expect(find.byTooltip('Block info'), findsOneWidget);
 
       fakeBindings.setFrame(
         1,
@@ -6912,6 +6913,7 @@ void main() {
       expect(find.text('vi public.key'), findsNothing);
       expect(find.text('running'), findsNothing);
       expect(find.text('Live terminal'), findsNothing);
+      expect(find.byTooltip('Block info'), findsNothing);
     },
   );
 

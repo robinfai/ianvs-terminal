@@ -218,8 +218,14 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _ShellCommandBlockStatusDot(color: statusColor),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: _ShellCommandBlockStatusDot(
+                                  color: statusColor,
+                                ),
+                              ),
                               SizedBox(width: palette.spacing.sm),
                               Expanded(
                                 child: Text(
@@ -234,11 +240,11 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              SizedBox(width: palette.spacing.md),
-                              _ShellCommandBlockMetaPill(
-                                label: block.statusLabel,
-                                foreground: statusColor,
+                              SizedBox(width: palette.spacing.sm),
+                              _ShellCommandBlockInfoButton(
+                                block: block,
                                 palette: palette,
+                                statusColor: statusColor,
                               ),
                               if (onOpenBlockActions != null) ...[
                                 SizedBox(width: palette.spacing.xs),
@@ -310,18 +316,8 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                         liveTerminalRows: liveTerminalRows,
                         builder: liveTerminalBuilder!,
                       ),
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        palette.spacing.lg,
-                        hasTerminalSurface ? palette.spacing.sm : 0,
-                        palette.spacing.lg,
-                        palette.spacing.lg,
-                      ),
-                      child: _ShellCommandBlockStatusHints(
-                        block: block,
-                        palette: palette,
-                      ),
-                    ),
+                    if (hasTerminalSurface)
+                      SizedBox(height: palette.spacing.sm),
                   ],
                 ),
               ),
@@ -512,36 +508,118 @@ class _ShellCommandBlockMetaPill extends StatelessWidget {
   }
 }
 
-class _ShellCommandBlockStatusHints extends StatelessWidget {
-  const _ShellCommandBlockStatusHints({
+class _ShellCommandBlockInfoButton extends StatelessWidget {
+  const _ShellCommandBlockInfoButton({
     required this.block,
     required this.palette,
+    required this.statusColor,
   });
 
   final ShellCommandBlockOverlayItem block;
   final AppThemeTokens palette;
+  final Color statusColor;
 
   @override
   Widget build(BuildContext context) {
-    final hints = <String>[
-      if (block.outputUsesLiveTerminal) 'Live terminal' else 'Output captured',
-      if (block.showReplayAction) 'Replay context',
-      if (block.showFailureSnapshotAction) 'Failure snapshot',
-      if (block.showDiffAction) 'Previous run',
+    return Tooltip(
+      message: 'Block info',
+      child: Builder(
+        builder: (buttonContext) {
+          return IconButton(
+            key: Key('shell-command-block-info-${block.id}'),
+            onPressed: () => showMenu<void>(
+              context: buttonContext,
+              position: _relativeRectForContext(buttonContext),
+              items: [
+                PopupMenuItem<void>(
+                  key: Key('shell-command-block-info-popover-${block.id}'),
+                  enabled: false,
+                  padding: EdgeInsets.zero,
+                  child: _ShellCommandBlockInfoPopover(
+                    block: block,
+                    palette: palette,
+                    statusColor: statusColor,
+                  ),
+                ),
+              ],
+            ),
+            style: IconButton.styleFrom(
+              foregroundColor: palette.textMuted,
+              fixedSize: const Size.square(44),
+              minimumSize: const Size.square(44),
+              maximumSize: const Size.square(44),
+              padding: EdgeInsets.zero,
+              tapTargetSize: MaterialTapTargetSize.padded,
+            ),
+            icon: const Icon(Icons.info_outline, size: 20),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ShellCommandBlockInfoPopover extends StatelessWidget {
+  const _ShellCommandBlockInfoPopover({
+    required this.block,
+    required this.palette,
+    required this.statusColor,
+  });
+
+  final ShellCommandBlockOverlayItem block;
+  final AppThemeTokens palette;
+  final Color statusColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <_ShellCommandBlockInfoRow>[
+      _ShellCommandBlockInfoRow(
+        label: 'Status',
+        value: block.statusLabel,
+        color: statusColor,
+      ),
+      _ShellCommandBlockInfoRow(
+        label: 'Output',
+        value: block.outputUsesLiveTerminal
+            ? 'Live terminal'
+            : 'Output captured',
+      ),
+      if (block.showReplayAction)
+        const _ShellCommandBlockInfoRow(
+          label: 'Review',
+          value: 'Replay context',
+        ),
+      if (block.showFailureSnapshotAction)
+        const _ShellCommandBlockInfoRow(
+          label: 'Failure',
+          value: 'Failure snapshot',
+        ),
+      if (block.showDiffAction)
+        const _ShellCommandBlockInfoRow(
+          label: 'Compare',
+          value: 'Previous run',
+        ),
     ];
 
-    return ClipRect(
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const NeverScrollableScrollPhysics(),
-        child: Row(
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 220, maxWidth: 280),
+      child: Padding(
+        padding: EdgeInsets.all(palette.spacing.md),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (var index = 0; index < hints.length; index++) ...[
-              if (index > 0) SizedBox(width: palette.spacing.sm),
-              _ShellCommandBlockStatusChip(
-                label: hints[index],
-                palette: palette,
+            Text(
+              'Block info',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: palette.textPrimary,
+                fontWeight: FontWeight.w800,
               ),
+            ),
+            SizedBox(height: palette.spacing.sm),
+            for (var index = 0; index < rows.length; index++) ...[
+              if (index > 0) SizedBox(height: palette.spacing.xs),
+              _ShellCommandBlockInfoLine(row: rows[index], palette: palette),
             ],
           ],
         ),
@@ -550,40 +628,79 @@ class _ShellCommandBlockStatusHints extends StatelessWidget {
   }
 }
 
-class _ShellCommandBlockStatusChip extends StatelessWidget {
-  const _ShellCommandBlockStatusChip({
-    required this.label,
-    required this.palette,
-  });
+class _ShellCommandBlockInfoLine extends StatelessWidget {
+  const _ShellCommandBlockInfoLine({required this.row, required this.palette});
 
-  final String label;
+  final _ShellCommandBlockInfoRow row;
   final AppThemeTokens palette;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.terminalSurface.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(palette.radius.sm),
-        border: Border.all(color: palette.border.withValues(alpha: 0.34)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: palette.spacing.sm,
-          vertical: 2,
-        ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: palette.textSubtle,
-            fontWeight: FontWeight.w600,
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(
+            row.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: palette.textSubtle,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
-      ),
+        SizedBox(width: palette.spacing.sm),
+        Flexible(
+          child: Text(
+            row.value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: row.color ?? palette.textPrimary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
     );
   }
+}
+
+class _ShellCommandBlockInfoRow {
+  const _ShellCommandBlockInfoRow({
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color? color;
+}
+
+RelativeRect _relativeRectForContext(BuildContext context) {
+  final overlay = Overlay.of(context).context.findRenderObject();
+  final overlaySize = overlay is RenderBox
+      ? overlay.size
+      : MediaQuery.sizeOf(context);
+  final overlayBounds = Offset.zero & overlaySize;
+  if (overlay is! RenderBox) {
+    return RelativeRect.fromRect(
+      const Rect.fromLTWH(16, 16, 1, 1),
+      overlayBounds,
+    );
+  }
+  final anchorRect = _globalRectForContext(context);
+  final topLeft = overlay.globalToLocal(anchorRect.topLeft);
+  final bottomRight = overlay.globalToLocal(anchorRect.bottomRight);
+  return RelativeRect.fromRect(
+    Rect.fromPoints(topLeft, bottomRight),
+    overlayBounds,
+  );
 }
 
 class ShellCommandInputBar extends StatelessWidget {
