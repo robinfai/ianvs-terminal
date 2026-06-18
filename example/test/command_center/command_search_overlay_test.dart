@@ -18,6 +18,12 @@ void main() {
       expect(find.text('/repo'), findsWidgets);
       expect(find.text('Succeeded'), findsOneWidget);
       expect(find.text('Last run 2026-06-15 10:00'), findsOneWidget);
+      expect(
+        find.byKey(const Key('command-search-scope-toggle')),
+        findsOneWidget,
+      );
+      expect(find.text('Current'), findsOneWidget);
+      expect(find.text('Global'), findsOneWidget);
     });
 
     testWidgets('host opens overlay from Ctrl-R and consumes shortcut', (
@@ -110,20 +116,11 @@ void main() {
       expect(parentKeyEvents, 0);
     });
 
-    testWidgets('enter emits insert and modified enter emits execute', (
+    testWidgets('enter and modified enter both insert the selected command', (
       tester,
     ) async {
       final inserted = <String>[];
-      final executed = <String>[];
-      await tester.pumpWidget(
-        _app(
-          _overlay(
-            baseTime,
-            onInsert: inserted.add,
-            onExplicitExecute: executed.add,
-          ),
-        ),
-      );
+      await tester.pumpWidget(_app(_overlay(baseTime, onInsert: inserted.add)));
 
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
@@ -132,9 +129,30 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.meta);
       await tester.pump();
 
-      expect(inserted, ['flutter test']);
-      expect(executed, ['flutter test']);
+      expect(inserted, ['flutter test', 'flutter test']);
     });
+
+    testWidgets(
+      'scope toggle switches from current session to global results',
+      (tester) async {
+        final controller = _controller(baseTime);
+        await tester.pumpWidget(
+          _app(_overlay(baseTime, controller: controller)),
+        );
+
+        expect(
+          controller.state.scope,
+          CommandSearchHistoryScope.currentSession,
+        );
+        expect(find.text('git status'), findsNothing);
+
+        await tester.tap(find.text('Global'));
+        await tester.pump();
+
+        expect(controller.state.scope, CommandSearchHistoryScope.global);
+        expect(find.text('git status'), findsOneWidget);
+      },
+    );
 
     testWidgets('search field submit accepts the selected result', (
       tester,
@@ -165,26 +183,19 @@ void main() {
       expect(inserted, ['flutter test']);
     });
 
-    testWidgets('view block output dispatches through onViewBlock', (
+    testWidgets('view block button dispatches through onViewBlock', (
       tester,
     ) async {
       final viewedInvocationIds = <String>[];
-      final controller = _controller(baseTime)
-        ..handleIntent(CommandSearchOverlayKeyIntent.openSearch);
 
       await tester.pumpWidget(
-        _app(
-          _overlay(
-            baseTime,
-            controller: controller,
-            onViewBlock: viewedInvocationIds.add,
-          ),
-        ),
+        _app(_overlay(baseTime, onViewBlock: viewedInvocationIds.add)),
       );
 
-      final output = controller.viewSelectedBlock();
-      final state = tester.state(find.byType(CommandSearchOverlay)) as dynamic;
-      state.debugDispatchOutput(output);
+      await tester.tap(
+        find.byKey(const Key('command-search-view-block')).first,
+      );
+      await tester.pump();
 
       expect(viewedInvocationIds, ['inv-1']);
     });
@@ -218,7 +229,7 @@ void main() {
       );
 
       await tester.pumpWidget(_app(_overlay(baseTime, controller: controller)));
-      expect(find.text('No command history matches'), findsOneWidget);
+      expect(find.text('No command blocks in this scope yet.'), findsOneWidget);
 
       await tester.pumpWidget(
         _app(_overlay(baseTime, controller: controller, loading: true)),
@@ -250,7 +261,6 @@ CommandSearchOverlay _overlay(
   DateTime baseTime, {
   CommandSearchOverlayController? controller,
   ValueChanged<String>? onInsert,
-  ValueChanged<String>? onExplicitExecute,
   ValueChanged<String>? onViewBlock,
   VoidCallback? onClose,
   bool loading = false,
@@ -259,7 +269,6 @@ CommandSearchOverlay _overlay(
   return CommandSearchOverlay(
     controller: controller ?? _controller(baseTime),
     onInsert: onInsert,
-    onExplicitExecute: onExplicitExecute,
     onViewBlock: onViewBlock,
     onClose: onClose,
     loading: loading,
@@ -293,6 +302,14 @@ CommandSearchOverlayController _controller(DateTime baseTime) {
         finishedAt: baseTime.subtract(const Duration(minutes: 4)),
         invocationId: 'inv-3',
         sessionId: 'session-a',
+      ),
+      GlobalCommandHistoryEntry(
+        command: 'git status',
+        cwd: '/repo',
+        exitCode: 0,
+        finishedAt: baseTime.subtract(const Duration(minutes: 8)),
+        invocationId: 'inv-4',
+        sessionId: 'session-b',
       ),
     ]),
     currentCwd: '/repo',

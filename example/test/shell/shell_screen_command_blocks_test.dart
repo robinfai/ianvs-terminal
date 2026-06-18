@@ -148,6 +148,7 @@ void main() {
       tester,
     ) async {
       final openedBlockIds = <String>[];
+      final openedAnchorRects = <Rect>[];
       final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
         _overlayItem(id: 'cmd-actions', active: true, rowSpan: 3),
       ]);
@@ -162,7 +163,10 @@ void main() {
               child: ShellCommandBlocksOverlay(
                 viewModel: viewModel,
                 rowHeight: 18,
-                onOpenBlockActions: (block) => openedBlockIds.add(block.id),
+                onOpenBlockActions: (block, anchorRect) {
+                  openedBlockIds.add(block.id);
+                  openedAnchorRects.add(anchorRect);
+                },
               ),
             ),
           ),
@@ -179,6 +183,7 @@ void main() {
       await tester.pump();
 
       expect(openedBlockIds, ['cmd-actions']);
+      expect(openedAnchorRects.single, tester.getRect(actionButton));
     });
 
     testWidgets('keeps narrow single-row blocks compact', (tester) async {

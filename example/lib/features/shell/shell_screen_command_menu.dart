@@ -64,7 +64,6 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.canSelectCommandOutput,
     required this.commandBlocksHistoryFeatureFlags,
     required this.hasCommandBlocks,
-    required this.hasHistoryPeekCommandBlocks,
   });
 
   final String launcherShortcutLabel;
@@ -92,7 +91,6 @@ class _ShellCommandMenu extends StatefulWidget {
   final bool canSelectCommandOutput;
   final CommandBlocksHistoryFeatureFlags commandBlocksHistoryFeatureFlags;
   final bool hasCommandBlocks;
-  final bool hasHistoryPeekCommandBlocks;
 
   @override
   State<_ShellCommandMenu> createState() => _ShellCommandMenuState();
@@ -184,7 +182,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       return 'No prompt-marked command output is available yet.';
     }
 
-    final historyPeekEnabled = hasActiveSession;
+    final commandSearchEnabled = hasActiveSession;
     final replayFromCommandBlockEnabled =
         hasActiveSession &&
         commandBlocksHistoryFeatureFlags.enabled &&
@@ -192,7 +190,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         commandBlocksHistoryFeatureFlags.reviewWorkspaceEntrypoints &&
         hasCommandBlocks;
 
-    String historyPeekUnavailableReason() {
+    String commandSearchUnavailableReason() {
       if (!hasActiveSession) {
         return activeSessionRequired;
       }
@@ -668,7 +666,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       icon: Icons.integration_instructions_rounded,
                       title: 'Shell integration',
                       subtitle:
-                          'Session action • Command history, directories, and marks.',
+                          'Session action • Shell metadata, directories, and marks.',
                       enabled: hasActiveSession,
                       disabledReason: activeSessionRequired,
                       onTap: () =>
@@ -734,15 +732,15 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       onTap: () => closeMenu(TerminalActionId.instantReplay),
                     ),
                     commandTile(
-                      key: const Key('shell-history-peek'),
-                      actionId: TerminalActionId.openHistoryPeek,
+                      key: const Key('shell-command-search'),
+                      actionId: TerminalActionId.commandSearch,
                       icon: Icons.search_rounded,
                       title: 'Command search',
                       subtitle:
-                          'Session action • Search and reuse command history.',
-                      enabled: historyPeekEnabled,
-                      disabledReason: historyPeekUnavailableReason(),
-                      onTap: () => closeMenu(TerminalActionId.openHistoryPeek),
+                          'Session action • Search and reuse command blocks.',
+                      enabled: commandSearchEnabled,
+                      disabledReason: commandSearchUnavailableReason(),
+                      onTap: () => closeMenu(TerminalActionId.commandSearch),
                     ),
                     commandTile(
                       key: const Key('shell-replay-from-command-block'),
@@ -900,7 +898,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   ),
   MapEntry('paste history recent copied pasted', TerminalActionId.pasteHistory),
   MapEntry(
-    'shell integration command history directories prompt marks',
+    'shell integration metadata directories prompt marks',
     TerminalActionId.shellIntegrationUtilities,
   ),
   MapEntry(
@@ -918,8 +916,8 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.instantReplay,
   ),
   MapEntry(
-    'command search search command history ctrl r reuse',
-    TerminalActionId.openHistoryPeek,
+    'command search command blocks ctrl r reuse',
+    TerminalActionId.commandSearch,
   ),
   MapEntry(
     'replay from command block review command context',

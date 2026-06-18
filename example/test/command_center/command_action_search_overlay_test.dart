@@ -17,7 +17,7 @@ void main() {
         find.byKey(const Key('command-action-search-overlay')),
         findsOneWidget,
       );
-      expect(find.text('Open history search'), findsOneWidget);
+      expect(find.text('Open command search'), findsOneWidget);
       expect(find.text('Action'), findsWidgets);
       expect(find.text('Build release'), findsOneWidget);
       expect(find.text('flutter build macos --release'), findsOneWidget);
@@ -98,7 +98,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
-      expect(openedActions, ['open-history']);
+      expect(openedActions, ['command-search']);
       expect(insertedCommands, ['flutter build macos --release']);
       expect(insertedItems.single.id, 'release-build');
     });
@@ -189,10 +189,10 @@ CommandActionSearchController _controller(DateTime baseTime) {
     index: CommandActionSearchIndex(
       actions: const [
         CommandActionSearchItem.appAction(
-          id: 'open-history',
-          title: 'Open history search',
-          subtitle: 'Search previous commands',
-          keywords: ['search commands'],
+          id: 'command-search',
+          title: 'Open command search',
+          subtitle: 'Search and reuse command blocks',
+          keywords: ['command blocks'],
         ),
         CommandActionSearchItem.appAction(
           id: 'toggle-read-only',

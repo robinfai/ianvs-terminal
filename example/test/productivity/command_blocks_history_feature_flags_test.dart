@@ -9,7 +9,6 @@ void main() {
         const LocalTerminalCommandBlocksHistoryConfig(
           enabled: false,
           commandBlocks: true,
-          historyPeek: true,
           failureSnapshots: true,
           reviewWorkspaceEntrypoints: true,
           outputDiff: true,
@@ -18,7 +17,6 @@ void main() {
 
       expect(flags.enabled, isFalse);
       expect(flags.commandBlocks, isFalse);
-      expect(flags.historyPeek, isFalse);
       expect(flags.failureSnapshots, isFalse);
       expect(flags.reviewWorkspaceEntrypoints, isFalse);
       expect(flags.outputDiff, isFalse);
@@ -29,7 +27,6 @@ void main() {
         const LocalTerminalCommandBlocksHistoryConfig(
           enabled: true,
           commandBlocks: true,
-          historyPeek: false,
           failureSnapshots: true,
           reviewWorkspaceEntrypoints: false,
           outputDiff: true,
@@ -38,7 +35,6 @@ void main() {
 
       expect(flags.enabled, isTrue);
       expect(flags.commandBlocks, isTrue);
-      expect(flags.historyPeek, isFalse);
       expect(flags.failureSnapshots, isTrue);
       expect(flags.reviewWorkspaceEntrypoints, isFalse);
       expect(flags.outputDiff, isTrue);

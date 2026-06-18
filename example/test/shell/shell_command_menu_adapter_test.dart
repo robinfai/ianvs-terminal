@@ -41,11 +41,11 @@ void main() {
         hasCommandBlocks: true,
       );
 
-      final historyPeek = items.singleWhere(
-        (item) => item.actionId == TerminalActionId.openHistoryPeek,
+      final commandSearch = items.singleWhere(
+        (item) => item.actionId == TerminalActionId.commandSearch,
       );
 
-      expect(historyPeek.enabled, isTrue);
+      expect(commandSearch.enabled, isTrue);
     });
 
     test('select runs action through runtime controller', () async {
@@ -83,7 +83,6 @@ ShellActionDispatchContext _context() {
 const _commandBlocksHistoryFlags = CommandBlocksHistoryFeatureFlags(
   enabled: true,
   commandBlocks: true,
-  historyPeek: true,
   failureSnapshots: true,
   reviewWorkspaceEntrypoints: true,
   outputDiff: true,

@@ -98,7 +98,6 @@ part 'shell_screen_sheets.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_command_blocks.dart';
-part 'shell_screen_history_peek.dart';
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -216,7 +215,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, String> _nativeTerminalCommandBlockIdsBySession = {};
   final Map<String, Set<String>> _nativeTerminalCommandBlockIdsSeenBySession =
       {};
-  bool _isHistoryPeekOpen = false;
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
@@ -932,30 +930,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                   onHostKeyEvent: handleShellShortcut,
                                 ),
                               ),
-                              if (_historyPeekVisibleForSession(
-                                activeSessionId,
-                              ))
-                                Builder(
-                                  builder: (context) {
-                                    final width =
-                                        shellHistoryPeekSidePaneWidthForAvailableWidth(
-                                          MediaQuery.sizeOf(context).width,
-                                        );
-                                    if (width <= 0) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return SizedBox(
-                                      width: width,
-                                      child: ShellHistoryPeekSheet(
-                                        maxWidth: width,
-                                        blocks: _historyPeekBlocksForSession(
-                                          activeSessionId,
-                                        ),
-                                        onClose: _closeHistoryPeek,
-                                      ),
-                                    );
-                                  },
-                                ),
                               if (_isToolbeltOpen)
                                 _ShellToolbelt(
                                   capturedOutputCount:

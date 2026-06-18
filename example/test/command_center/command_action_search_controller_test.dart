@@ -40,7 +40,7 @@ void main() {
         ..updateQuery('search');
 
       expect(controller.state.results.map((result) => result.item.id), [
-        'open-history',
+        'command-search',
         'open-review',
       ]);
 
@@ -105,9 +105,9 @@ CommandActionSearchController _controller(DateTime baseTime) {
     index: CommandActionSearchIndex(
       actions: const [
         CommandActionSearchItem.appAction(
-          id: 'open-history',
-          title: 'Open history search',
-          keywords: ['search commands'],
+          id: 'command-search',
+          title: 'Open command search',
+          keywords: ['command blocks'],
         ),
         CommandActionSearchItem.appAction(
           id: 'open-review',

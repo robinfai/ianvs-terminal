@@ -95,7 +95,12 @@ void main() {
       );
 
       await tester.pumpWidget(
-        _app(ContextChips(chips: state.chips, onIntent: intents.add)),
+        _app(
+          ContextChips(
+            chips: state.chips,
+            onIntent: (intent, _) => intents.add(intent),
+          ),
+        ),
       );
 
       expect(find.byKey(const Key('context-chip-cwd')), findsOneWidget);

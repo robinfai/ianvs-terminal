@@ -6,6 +6,8 @@ const int shellCommandBlockLiveTerminalPaddingRows = 3;
 
 typedef ShellCommandBlockLiveTerminalBuilder =
     Widget Function(BuildContext context, ShellCommandBlockOverlayItem block);
+typedef ShellCommandBlockActionCallback =
+    void Function(ShellCommandBlockOverlayItem block, Rect anchorRect);
 
 @visibleForTesting
 int shellCommandBlockLiveTerminalDisplayRows(int actualRows) {
@@ -41,7 +43,7 @@ class ShellCommandBlocksOverlay extends StatefulWidget {
   final EdgeInsetsGeometry contentPadding;
   final int liveTerminalRows;
   final ShellCommandBlockLiveTerminalBuilder? liveTerminalBuilder;
-  final ValueChanged<ShellCommandBlockOverlayItem>? onOpenBlockActions;
+  final ShellCommandBlockActionCallback? onOpenBlockActions;
 
   @override
   State<ShellCommandBlocksOverlay> createState() =>
@@ -151,7 +153,7 @@ class _ShellCommandBlockChrome extends StatelessWidget {
   final terminal.TerminalCursorConfig cursor;
   final int liveTerminalRows;
   final ShellCommandBlockLiveTerminalBuilder? liveTerminalBuilder;
-  final ValueChanged<ShellCommandBlockOverlayItem>? onOpenBlockActions;
+  final ShellCommandBlockActionCallback? onOpenBlockActions;
 
   @override
   Widget build(BuildContext context) {
@@ -242,21 +244,28 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                                 SizedBox(width: palette.spacing.xs),
                                 Tooltip(
                                   message: 'Block actions',
-                                  child: IconButton(
-                                    key: Key(
-                                      'shell-command-block-actions-${block.id}',
-                                    ),
-                                    onPressed: () => onOpenBlockActions!(block),
-                                    style: IconButton.styleFrom(
-                                      foregroundColor: palette.textPrimary,
-                                      fixedSize: const Size.square(44),
-                                      minimumSize: const Size.square(44),
-                                      maximumSize: const Size.square(44),
-                                      padding: EdgeInsets.zero,
-                                      tapTargetSize:
-                                          MaterialTapTargetSize.padded,
-                                    ),
-                                    icon: const Icon(Icons.more_horiz),
+                                  child: Builder(
+                                    builder: (buttonContext) {
+                                      return IconButton(
+                                        key: Key(
+                                          'shell-command-block-actions-${block.id}',
+                                        ),
+                                        onPressed: () => onOpenBlockActions!(
+                                          block,
+                                          _globalRectForContext(buttonContext),
+                                        ),
+                                        style: IconButton.styleFrom(
+                                          foregroundColor: palette.textPrimary,
+                                          fixedSize: const Size.square(44),
+                                          minimumSize: const Size.square(44),
+                                          maximumSize: const Size.square(44),
+                                          padding: EdgeInsets.zero,
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.padded,
+                                        ),
+                                        icon: const Icon(Icons.more_horiz),
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
@@ -792,6 +801,17 @@ class ShellCommandInputBar extends StatelessWidget {
     FocusScope.of(focusContext).requestFocus(focusNode);
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.show'));
   }
+}
+
+Rect _globalRectForContext(BuildContext context) {
+  final renderObject = context.findRenderObject();
+  if (renderObject is! RenderBox || !renderObject.hasSize) {
+    final fallback = renderObject is RenderBox
+        ? renderObject.localToGlobal(Offset.zero)
+        : Offset.zero;
+    return fallback & const Size(1, 1);
+  }
+  return renderObject.localToGlobal(Offset.zero) & renderObject.size;
 }
 
 class _ShellCommandBlockStatusDot extends StatelessWidget {

@@ -36,11 +36,11 @@ void main() {
         await executor.execute(
           const ShellActionSideEffectPlan(
             kind: ShellActionSideEffectKind.commandBlockAction,
-            payload: TerminalActionId.openHistoryPeek,
+            payload: TerminalActionId.commandSearch,
           ),
         );
 
-        expect(calls, [TerminalActionId.openHistoryPeek]);
+        expect(calls, [TerminalActionId.commandSearch]);
       },
     );
 

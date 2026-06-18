@@ -56,7 +56,7 @@ void main() {
     test('command search action is enabled for an active session', () {
       final item = ShellActionViewModelBuilder.forDescriptor(
         descriptor:
-            ShellActionRegistry.actions[TerminalActionId.openHistoryPeek]!,
+            ShellActionRegistry.actions[TerminalActionId.commandSearch]!,
         hasActiveSession: true,
         productivity: const ShellProductivityState(),
         commandBlocksHistory: _commandBlocksHistoryFlags,
@@ -70,7 +70,7 @@ void main() {
     test('command search action no longer depends on captured blocks', () {
       final item = ShellActionViewModelBuilder.forDescriptor(
         descriptor:
-            ShellActionRegistry.actions[TerminalActionId.openHistoryPeek]!,
+            ShellActionRegistry.actions[TerminalActionId.commandSearch]!,
         hasActiveSession: true,
         productivity: const ShellProductivityState(),
         commandBlocksHistory: _commandBlocksHistoryFlags,
@@ -86,7 +86,6 @@ void main() {
 const _commandBlocksHistoryFlags = CommandBlocksHistoryFeatureFlags(
   enabled: true,
   commandBlocks: true,
-  historyPeek: true,
   failureSnapshots: true,
   reviewWorkspaceEntrypoints: true,
   outputDiff: true,

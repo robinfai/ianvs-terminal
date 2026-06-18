@@ -25,7 +25,7 @@ class ShellCommandMenuModel {
     TerminalActionId.coprocess,
     TerminalActionId.passwordManager,
     TerminalActionId.instantReplay,
-    TerminalActionId.openHistoryPeek,
+    TerminalActionId.commandSearch,
     TerminalActionId.replayFromCommandBlock,
     TerminalActionId.search,
     TerminalActionId.openActionSearch,
@@ -43,7 +43,6 @@ class ShellCommandMenuModel {
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
     bool hasCommandBlocks = false,
-    bool? hasHistoryPeekCommandBlocks,
   }) {
     return [
       for (final actionId in defaultActionOrder)
@@ -54,7 +53,6 @@ class ShellCommandMenuModel {
             productivity: productivity,
             commandBlocksHistory: commandBlocksHistory,
             hasCommandBlocks: hasCommandBlocks,
-            hasHistoryPeekCommandBlocks: hasHistoryPeekCommandBlocks,
           ),
     ];
   }

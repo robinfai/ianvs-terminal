@@ -1667,7 +1667,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
           _nativeTerminalCommandBlockIdsBySession.remove(event.sessionId);
           _nativeTerminalCommandBlockIdsSeenBySession.remove(event.sessionId);
-          _isHistoryPeekOpen = false;
         });
       }
       return;
@@ -2541,7 +2540,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _finishedCommandBlockPreviewTargetsBySession.clear();
         _nativeTerminalCommandBlockIdsBySession.clear();
         _nativeTerminalCommandBlockIdsSeenBySession.clear();
-        _isHistoryPeekOpen = false;
       }
     });
   }

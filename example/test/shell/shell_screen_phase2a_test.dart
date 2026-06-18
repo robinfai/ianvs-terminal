@@ -193,7 +193,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Command search'), findsOneWidget);
-    expect(find.text('History Peek'), findsNothing);
+    expect(find.text('Command Search'), findsNothing);
 
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
@@ -217,13 +217,12 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('shell-history-peek')));
+    await tester.ensureVisible(find.byKey(const Key('shell-command-search')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-history-peek')));
+    await tester.tap(find.byKey(const Key('shell-command-search')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
-    expect(find.byKey(const Key('shell-history-peek-sheet')), findsNothing);
   });
 
   testWidgets(
@@ -246,11 +245,10 @@ void main() {
       expect(find.text('Command search'), findsOneWidget);
       expect(find.text('Command history'), findsNothing);
 
-      await tester.tap(find.byKey(const Key('toolbelt-command-history')));
+      await tester.tap(find.byKey(const Key('toolbelt-command-search')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
-      expect(find.byKey(const Key('shell-history-peek-sheet')), findsNothing);
       expect(find.byKey(const Key('shell-toolbelt-panel')), findsNothing);
     },
   );

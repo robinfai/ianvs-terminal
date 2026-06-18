@@ -44,7 +44,7 @@ enum TerminalActionId {
   capturedOutput,
   passwordManager,
   instantReplay,
-  openHistoryPeek,
+  commandSearch,
   replayFromCommandBlock,
   saveCommandSnapshot,
   compareLastCommandRun,
@@ -557,11 +557,11 @@ class ShellActionRegistry {
       icon: Icons.replay,
       requiresActiveSession: true,
     ),
-    TerminalActionId.openHistoryPeek: TerminalActionDescriptor(
-      id: TerminalActionId.openHistoryPeek,
+    TerminalActionId.commandSearch: TerminalActionDescriptor(
+      id: TerminalActionId.commandSearch,
       label: 'command_search',
       category: TerminalActionCategory.navigation,
-      shortcutHint: 'ctrl+R',
+      shortcutHint: '⌘R',
       terminalInputPolicy: TerminalInputPolicy.appFirst,
       icon: Icons.search,
       requiresActiveSession: true,

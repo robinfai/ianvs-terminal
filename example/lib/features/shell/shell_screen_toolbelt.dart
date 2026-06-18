@@ -113,7 +113,7 @@ class _ShellToolbelt extends StatelessWidget {
                             onTap: onOpenPasteHistory,
                           ),
                           _ToolbeltActionRow(
-                            key: const Key('toolbelt-command-history'),
+                            key: const Key('toolbelt-command-search'),
                             icon: Icons.list_alt_rounded,
                             title: 'Command search',
                             countLabel:

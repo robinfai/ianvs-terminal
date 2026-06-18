@@ -114,14 +114,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         const <ShellCommandBlock>[];
   }
 
-  List<ShellCommandBlock> _historyPeekBlocksForSession(String sessionId) {
-    return _commandBlocksForSession(sessionId);
-  }
-
-  bool _hasHistoryPeekBlocksForSession(String sessionId) {
-    return _commandBlocksForSession(sessionId).isNotEmpty;
-  }
-
   String? get _activeCommandBlockId => null;
 
   String? _runningCommandBlockIdForSession(String sessionId) {
@@ -331,29 +323,12 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     return command.replaceFirst(RegExp(r'(?:\r\n|\r|\n)$'), '');
   }
 
-  void _openHistoryPeek() {
+  void _openCommandSearchForActiveSession() {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {
       return;
     }
     _openCommandSearch(activeSessionId);
-  }
-
-  void _closeHistoryPeek() {
-    if (!_isHistoryPeekOpen) {
-      return;
-    }
-    _mutateState(() {
-      _isHistoryPeekOpen = false;
-    });
-  }
-
-  bool _historyPeekVisibleForSession(String sessionId) {
-    return _isHistoryPeekOpen &&
-        _commandBlocksHistoryFeatureFlags.enabled &&
-        _commandBlocksHistoryFeatureFlags.commandBlocks &&
-        _commandBlocksHistoryFeatureFlags.historyPeek &&
-        _hasHistoryPeekBlocksForSession(sessionId);
   }
 
   Widget _buildTerminalWorkspace({
@@ -732,12 +707,13 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                           : null,
                                     )
                               : null,
-                          onOpenBlockActions: (block) => unawaited(
+                          onOpenBlockActions: (block, anchorRect) => unawaited(
                             _openContextChipBlockActions(
                               sessionController: sessionController,
                               sessionState: sessionState,
                               sessionId: sessionId,
                               blockId: block.id,
+                              anchorRect: anchorRect,
                               showSelectedBlockChip: false,
                             ),
                           ),
@@ -793,12 +769,14 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                           alignment: Alignment.topLeft,
                           child: ContextChips(
                             chips: contextChips.chips,
-                            onIntent: (intent) => _handleContextChipIntent(
-                              sessionController: sessionController,
-                              sessionState: sessionState,
-                              sessionId: sessionId,
-                              intent: intent,
-                            ),
+                            onIntent: (intent, anchorRect) =>
+                                _handleContextChipIntent(
+                                  sessionController: sessionController,
+                                  sessionState: sessionState,
+                                  sessionId: sessionId,
+                                  intent: intent,
+                                  anchorRect: anchorRect,
+                                ),
                           ),
                         ),
                       ),
@@ -814,11 +792,11 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                             onInsert: (command) => unawaited(
                               _insertCommandSearchSelection(sessionId, command),
                             ),
-                            onExplicitExecute: (command) => unawaited(
-                              _executeCommandSearchSelection(
-                                sessionId,
-                                command,
-                              ),
+                            onViewBlock: (blockId) => _viewCommandSearchBlock(
+                              sessionController: sessionController,
+                              sessionState: sessionState,
+                              sessionId: sessionId,
+                              blockId: blockId,
                             ),
                             onClose: _closeCommandSearch,
                           ),

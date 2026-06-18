@@ -2459,6 +2459,44 @@ void main() {
     );
   });
 
+  testWidgets('action search command search result opens command search', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'command search',
+    );
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('command-action-search-overlay')),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'action search escape returns focus to command input in command block mode',
     (tester) async {
@@ -4702,8 +4740,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
 
       await _openCommandMenu(tester);
-      await tester.ensureVisible(find.byKey(const Key('shell-history-peek')));
-      await tester.tap(find.byKey(const Key('shell-history-peek')));
+      await tester.ensureVisible(find.byKey(const Key('shell-command-search')));
+      await tester.tap(find.byKey(const Key('shell-command-search')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
@@ -4840,6 +4878,97 @@ void main() {
           .text,
       isEmpty,
     );
+  });
+
+  testWidgets('command search view block selects the matching command block', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    fakeBindings.setFrame(1, {
+      'rows': [
+        {'index': 10, 'text': r'$ make', 'style_runs': const []},
+        {'index': 11, 'text': 'done', 'style_runs': const []},
+        {'index': 12, 'text': r'$ ', 'style_runs': const []},
+      ],
+      'cursor': {'row': 12, 'col': 2, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 10, 'end': 13},
+      ],
+      'viewport_start_row': 10,
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 20,
+    });
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'preexec',
+          'command': 'make',
+          'prompt_scrollback_offset': 10,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'make',
+          'pwd': '/tmp/project',
+          'exit_code': 0,
+        },
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'prompt_started',
+          'prompt_scrollback_offset': 12,
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'command search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('command-search-view-block')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('command-search-overlay')), findsNothing);
+    expect(find.byKey(const Key('context-chip-selectedBlock')), findsOneWidget);
+    expect(find.text('Command block range is unavailable.'), findsNothing);
+    expect(fakeBindings.scrollToCalls.last, [1, 10]);
+    expect(fakeBindings.writes, isEmpty);
   });
 
   testWidgets('command input meta-r opens command search overlay', (
@@ -7471,6 +7600,12 @@ void main() {
 
     await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
     await tester.pumpAndSettle();
+
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(
+      find.byKey(const Key('context-block-action-copy-command')),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('context-block-action-copy-output')));
     await tester.pumpAndSettle();
 
@@ -7558,6 +7693,7 @@ void main() {
     await tester.tap(actionButton);
     await tester.pumpAndSettle();
 
+    expect(find.byType(BottomSheet), findsNothing);
     expect(
       find.byKey(const Key('context-block-action-reinput')),
       findsOneWidget,
@@ -7669,7 +7805,7 @@ void main() {
       await tester.tap(find.text('Save block output'));
       await Future<void>.delayed(const Duration(milliseconds: 500));
     });
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     final exportDirectory = Directory(
       '${supportDirectory.path}/scrollback_exports',
@@ -10089,7 +10225,6 @@ LocalTerminalConfigDocument _commandBlocksHistoryConfig() {
     commandBlocksHistory: LocalTerminalCommandBlocksHistoryConfig(
       enabled: true,
       commandBlocks: true,
-      historyPeek: true,
       failureSnapshots: true,
       reviewWorkspaceEntrypoints: true,
       outputDiff: true,

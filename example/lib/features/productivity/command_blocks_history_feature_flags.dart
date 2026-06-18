@@ -4,7 +4,6 @@ class CommandBlocksHistoryFeatureFlags {
   const CommandBlocksHistoryFeatureFlags({
     required this.enabled,
     required this.commandBlocks,
-    required this.historyPeek,
     required this.failureSnapshots,
     required this.reviewWorkspaceEntrypoints,
     required this.outputDiff,
@@ -13,7 +12,6 @@ class CommandBlocksHistoryFeatureFlags {
   static const disabled = CommandBlocksHistoryFeatureFlags(
     enabled: false,
     commandBlocks: false,
-    historyPeek: false,
     failureSnapshots: false,
     reviewWorkspaceEntrypoints: false,
     outputDiff: false,
@@ -21,7 +19,6 @@ class CommandBlocksHistoryFeatureFlags {
 
   final bool enabled;
   final bool commandBlocks;
-  final bool historyPeek;
   final bool failureSnapshots;
   final bool reviewWorkspaceEntrypoints;
   final bool outputDiff;
@@ -35,7 +32,6 @@ class CommandBlocksHistoryFeatureFlags {
     return CommandBlocksHistoryFeatureFlags(
       enabled: true,
       commandBlocks: config.commandBlocks,
-      historyPeek: config.historyPeek,
       failureSnapshots: config.failureSnapshots,
       reviewWorkspaceEntrypoints: config.reviewWorkspaceEntrypoints,
       outputDiff: config.outputDiff,
@@ -46,7 +42,6 @@ class CommandBlocksHistoryFeatureFlags {
     return {
       'enabled': enabled,
       'commandBlocks': commandBlocks,
-      'historyPeek': historyPeek,
       'failureSnapshots': failureSnapshots,
       'reviewWorkspaceEntrypoints': reviewWorkspaceEntrypoints,
       'outputDiff': outputDiff,

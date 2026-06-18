@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'command_search_index.dart';
 import 'command_search_overlay_controller.dart';
 
 class CommandSearchOverlayHost extends StatefulWidget {
@@ -8,7 +9,6 @@ class CommandSearchOverlayHost extends StatefulWidget {
     required this.controller,
     required this.child,
     this.onInsert,
-    this.onExplicitExecute,
     this.onViewBlock,
     this.onClose,
     this.loading = false,
@@ -19,7 +19,6 @@ class CommandSearchOverlayHost extends StatefulWidget {
   final CommandSearchOverlayController controller;
   final Widget child;
   final ValueChanged<String>? onInsert;
-  final ValueChanged<String>? onExplicitExecute;
   final ValueChanged<String>? onViewBlock;
   final VoidCallback? onClose;
   final bool loading;
@@ -67,7 +66,6 @@ class _CommandSearchOverlayHostState extends State<CommandSearchOverlayHost> {
               child: CommandSearchOverlay(
                 controller: widget.controller,
                 onInsert: widget.onInsert,
-                onExplicitExecute: widget.onExplicitExecute,
                 onViewBlock: widget.onViewBlock,
                 onClose: () {
                   setState(() {
@@ -106,7 +104,6 @@ class CommandSearchOverlay extends StatefulWidget {
   const CommandSearchOverlay({
     required this.controller,
     this.onInsert,
-    this.onExplicitExecute,
     this.onViewBlock,
     this.onClose,
     this.loading = false,
@@ -116,7 +113,6 @@ class CommandSearchOverlay extends StatefulWidget {
 
   final CommandSearchOverlayController controller;
   final ValueChanged<String>? onInsert;
-  final ValueChanged<String>? onExplicitExecute;
   final ValueChanged<String>? onViewBlock;
   final VoidCallback? onClose;
   final bool loading;
@@ -190,23 +186,51 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                child: TextField(
-                  key: const Key('command-search-overlay-field'),
-                  controller: _queryController,
-                  focusNode: _queryFocusNode,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
-                    hintText: 'Search command history',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  textInputAction: TextInputAction.search,
-                  onChanged: (value) {
-                    widget.controller.updateQuery(value);
-                    setState(() {});
-                  },
-                  onSubmitted: (_) => _submitSelection(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      key: const Key('command-search-overlay-field'),
+                      controller: _queryController,
+                      focusNode: _queryFocusNode,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search),
+                        hintText: 'Search command blocks',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      textInputAction: TextInputAction.search,
+                      onChanged: (value) {
+                        widget.controller.updateQuery(value);
+                        setState(() {});
+                      },
+                      onSubmitted: (_) => _submitSelection(),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SegmentedButton<CommandSearchHistoryScope>(
+                        key: const Key('command-search-scope-toggle'),
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(
+                            value: CommandSearchHistoryScope.currentSession,
+                            label: Text('Current'),
+                          ),
+                          ButtonSegment(
+                            value: CommandSearchHistoryScope.global,
+                            label: Text('Global'),
+                          ),
+                        ],
+                        selected: {state.scope},
+                        onSelectionChanged: (selection) {
+                          widget.controller.updateScope(selection.single);
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
               if (widget.loading) const LinearProgressIndicator(minHeight: 2),
@@ -222,7 +246,11 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
     final state = widget.controller.state;
     if (state.results.isEmpty) {
       return _OverlayMessage(
-        text: widget.unavailableReason ?? 'No command history matches',
+        text:
+            widget.unavailableReason ??
+            (state.query.trim().isEmpty
+                ? 'No command blocks in this scope yet.'
+                : 'No matching command blocks in this scope.'),
       );
     }
     return ListView.builder(
@@ -247,6 +275,13 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
           onTap: () => _submitOutput(
             CommandSearchOverlayOutput.insert(result.entry.command),
           ),
+          onViewBlock: result.entry.invocationId == null
+              ? null
+              : () => _submitOutput(
+                  CommandSearchOverlayOutput.viewBlock(
+                    result.entry.invocationId!,
+                  ),
+                ),
         );
       },
     );
@@ -298,10 +333,7 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
           widget.onInsert?.call(command);
         }
       case CommandSearchOverlayOutputKind.explicitExecute:
-        final command = output.command;
-        if (command != null) {
-          widget.onExplicitExecute?.call(command);
-        }
+        break;
       case CommandSearchOverlayOutputKind.viewBlock:
         final invocationId = output.invocationId;
         if (invocationId != null) {
@@ -317,13 +349,8 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
   }
 
   void _submitSelection() {
-    final execute =
-        HardwareKeyboard.instance.isMetaPressed ||
-        HardwareKeyboard.instance.isControlPressed;
     final output = widget.controller.handleIntent(
-      execute
-          ? CommandSearchOverlayKeyIntent.executeSelection
-          : CommandSearchOverlayKeyIntent.insertSelection,
+      CommandSearchOverlayKeyIntent.insertSelection,
     );
     _submitOutput(output);
   }
@@ -350,6 +377,7 @@ class _CommandSearchResultTile extends StatelessWidget {
     required this.lastRunLabel,
     required this.selected,
     required this.onTap,
+    required this.onViewBlock,
     super.key,
   });
 
@@ -359,6 +387,7 @@ class _CommandSearchResultTile extends StatelessWidget {
   final String lastRunLabel;
   final bool selected;
   final VoidCallback onTap;
+  final VoidCallback? onViewBlock;
 
   @override
   Widget build(BuildContext context) {
@@ -376,29 +405,42 @@ class _CommandSearchResultTile extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  command,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: selected
-                        ? colorScheme.onPrimaryContainer
-                        : colorScheme.onSurface,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        command,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: selected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          if (cwd != null && cwd!.isNotEmpty)
+                            Text(cwd!, style: theme.textTheme.bodySmall),
+                          Text(statusLabel, style: theme.textTheme.bodySmall),
+                          Text(lastRunLabel, style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    if (cwd != null && cwd!.isNotEmpty)
-                      Text(cwd!, style: theme.textTheme.bodySmall),
-                    Text(statusLabel, style: theme.textTheme.bodySmall),
-                    Text(lastRunLabel, style: theme.textTheme.bodySmall),
-                  ],
+                const SizedBox(width: 8),
+                IconButton(
+                  key: const Key('command-search-view-block'),
+                  tooltip: 'View command block',
+                  icon: const Icon(Icons.segment),
+                  onPressed: onViewBlock,
                 ),
               ],
             ),

@@ -82,7 +82,7 @@ void main() {
 
     test('command block actions return command block action result', () {
       const actionIds = <TerminalActionId>[
-        TerminalActionId.openHistoryPeek,
+        TerminalActionId.commandSearch,
         TerminalActionId.replayFromCommandBlock,
         TerminalActionId.saveCommandSnapshot,
         TerminalActionId.compareLastCommandRun,

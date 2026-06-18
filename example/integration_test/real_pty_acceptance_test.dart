@@ -34,7 +34,6 @@ const _commandBlocksHistoryConfig = LocalTerminalConfigDocument(
   commandBlocksHistory: LocalTerminalCommandBlocksHistoryConfig(
     enabled: true,
     commandBlocks: true,
-    historyPeek: true,
     failureSnapshots: true,
     reviewWorkspaceEntrypoints: true,
     outputDiff: true,

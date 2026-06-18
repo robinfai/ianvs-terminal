@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 const _enabledFlags = CommandBlocksHistoryFeatureFlags(
   enabled: true,
   commandBlocks: true,
-  historyPeek: false,
   failureSnapshots: true,
   reviewWorkspaceEntrypoints: false,
   outputDiff: false,
@@ -16,7 +15,6 @@ const _enabledFlags = CommandBlocksHistoryFeatureFlags(
 const _flagsWithoutFailureSnapshots = CommandBlocksHistoryFeatureFlags(
   enabled: true,
   commandBlocks: true,
-  historyPeek: false,
   failureSnapshots: false,
   reviewWorkspaceEntrypoints: false,
   outputDiff: false,

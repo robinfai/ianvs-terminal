@@ -86,7 +86,7 @@ class ShellProductivityActionReducer {
       TerminalActionId.globalSearch => ShellProductivitySearchResult(
         context.search.clear(),
       ),
-      TerminalActionId.openHistoryPeek ||
+      TerminalActionId.commandSearch ||
       TerminalActionId.replayFromCommandBlock ||
       TerminalActionId.saveCommandSnapshot ||
       TerminalActionId.compareLastCommandRun ||

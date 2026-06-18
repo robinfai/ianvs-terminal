@@ -20,7 +20,7 @@ void main() {
         containsAll([
           TerminalActionId.profiles,
           TerminalActionId.dynamicProfiles,
-          TerminalActionId.openHistoryPeek,
+          TerminalActionId.commandSearch,
           TerminalActionId.splitRight,
           TerminalActionId.splitDown,
         ]),
@@ -70,11 +70,11 @@ void main() {
         hasCommandBlocks: true,
       );
 
-      final historyPeek = items.singleWhere(
-        (item) => item.actionId == TerminalActionId.openHistoryPeek,
+      final commandSearch = items.singleWhere(
+        (item) => item.actionId == TerminalActionId.commandSearch,
       );
 
-      expect(historyPeek.enabled, isTrue);
+      expect(commandSearch.enabled, isTrue);
     });
   });
 }
@@ -82,7 +82,6 @@ void main() {
 const _commandBlocksHistoryFlags = CommandBlocksHistoryFeatureFlags(
   enabled: true,
   commandBlocks: true,
-  historyPeek: true,
   failureSnapshots: true,
   reviewWorkspaceEntrypoints: true,
   outputDiff: true,

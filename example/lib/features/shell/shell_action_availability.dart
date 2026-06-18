@@ -89,7 +89,6 @@ class ShellActionAvailabilityResolver {
     CommandBlocksHistoryFeatureFlags commandBlocksHistory =
         CommandBlocksHistoryFeatureFlags.disabled,
     bool hasCommandBlocks = false,
-    bool? hasHistoryPeekCommandBlocks,
   }) {
     final descriptor = ShellActionRegistry.actions[actionId];
     if (descriptor?.requiresActiveSession == true && !hasActiveSession) {
@@ -147,7 +146,7 @@ class ShellActionAvailabilityResolver {
             : ShellActionAvailability.disabled(
                 ShellActionDisabledReason.readOnly,
               );
-      case TerminalActionId.openHistoryPeek:
+      case TerminalActionId.commandSearch:
         return ShellActionAvailability.enabledAction;
       case TerminalActionId.replayFromCommandBlock:
         return _resolveCommandBlockAction(

@@ -690,7 +690,6 @@ class _RealPtyCommandBlockHarness {
   static const _flags = CommandBlocksHistoryFeatureFlags(
     enabled: true,
     commandBlocks: true,
-    historyPeek: true,
     failureSnapshots: true,
     reviewWorkspaceEntrypoints: true,
     outputDiff: true,

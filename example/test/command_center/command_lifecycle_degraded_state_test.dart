@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('CommandLifecycleDegradedState', () {
-    test('keeps history search limited when shell integration is disabled', () {
+    test('keeps command search limited when shell integration is disabled', () {
       final state = const CommandLifecycleDegradedState(
         shellIntegrationEnabled: false,
         hasHistory: true,

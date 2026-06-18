@@ -1066,7 +1066,6 @@ CommandBlocksHistoryFeatureFlags _enabledFlags({
   return CommandBlocksHistoryFeatureFlags(
     enabled: true,
     commandBlocks: true,
-    historyPeek: false,
     failureSnapshots: failureSnapshots,
     reviewWorkspaceEntrypoints: reviewWorkspaceEntrypoints,
     outputDiff: outputDiff,

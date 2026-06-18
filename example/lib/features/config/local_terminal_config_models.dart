@@ -482,7 +482,6 @@ class LocalTerminalCommandBlocksHistoryConfig {
   const LocalTerminalCommandBlocksHistoryConfig({
     this.enabled = false,
     this.commandBlocks = false,
-    this.historyPeek = false,
     this.failureSnapshots = false,
     this.reviewWorkspaceEntrypoints = false,
     this.outputDiff = false,
@@ -490,7 +489,6 @@ class LocalTerminalCommandBlocksHistoryConfig {
 
   final bool enabled;
   final bool commandBlocks;
-  final bool historyPeek;
   final bool failureSnapshots;
   final bool reviewWorkspaceEntrypoints;
   final bool outputDiff;
@@ -498,7 +496,6 @@ class LocalTerminalCommandBlocksHistoryConfig {
   LocalTerminalCommandBlocksHistoryConfig copyWith({
     bool? enabled,
     bool? commandBlocks,
-    bool? historyPeek,
     bool? failureSnapshots,
     bool? reviewWorkspaceEntrypoints,
     bool? outputDiff,
@@ -506,7 +503,6 @@ class LocalTerminalCommandBlocksHistoryConfig {
     return LocalTerminalCommandBlocksHistoryConfig(
       enabled: enabled ?? this.enabled,
       commandBlocks: commandBlocks ?? this.commandBlocks,
-      historyPeek: historyPeek ?? this.historyPeek,
       failureSnapshots: failureSnapshots ?? this.failureSnapshots,
       reviewWorkspaceEntrypoints:
           reviewWorkspaceEntrypoints ?? this.reviewWorkspaceEntrypoints,
@@ -518,7 +514,6 @@ class LocalTerminalCommandBlocksHistoryConfig {
     return {
       'enabled': enabled,
       'commandBlocks': commandBlocks,
-      'historyPeek': historyPeek,
       'failureSnapshots': failureSnapshots,
       'reviewWorkspaceEntrypoints': reviewWorkspaceEntrypoints,
       'outputDiff': outputDiff,
@@ -534,7 +529,6 @@ class LocalTerminalCommandBlocksHistoryConfig {
     return LocalTerminalCommandBlocksHistoryConfig(
       enabled: _boolFromJson(json['enabled'], false),
       commandBlocks: _boolFromJson(json['commandBlocks'], false),
-      historyPeek: _boolFromJson(json['historyPeek'], false),
       failureSnapshots: _boolFromJson(json['failureSnapshots'], false),
       reviewWorkspaceEntrypoints: _boolFromJson(
         json['reviewWorkspaceEntrypoints'],

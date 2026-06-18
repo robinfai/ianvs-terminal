@@ -82,8 +82,8 @@ void main() {
       final index = CommandActionSearchIndex(
         actions: const [
           CommandActionSearchItem.appAction(
-            id: 'open-history',
-            title: 'Open history search',
+            id: 'command-search',
+            title: 'Open command search',
           ),
         ],
         savedCommands: [
@@ -107,7 +107,7 @@ void main() {
       final results = index.search('', limit: 2);
 
       expect(results.map((result) => result.item.id), [
-        'open-history',
+        'command-search',
         'hot-command',
       ]);
     });

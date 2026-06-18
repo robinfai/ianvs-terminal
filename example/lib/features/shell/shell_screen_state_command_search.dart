@@ -30,7 +30,6 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
   void _openCommandSearch(String sessionId) {
     _mutateState(() {
       _isToolbeltOpen = false;
-      _isHistoryPeekOpen = false;
       _isCommandSearchOpen = true;
       _commandSearchSessionId = sessionId;
       _commandSearchOverlayController = _commandSearchShellWiring.controllerFor(
@@ -65,6 +64,86 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
     _focusSession(sessionId);
   }
 
+  void _viewCommandSearchBlock({
+    required SessionController sessionController,
+    required SessionState sessionState,
+    required String sessionId,
+    required String blockId,
+  }) {
+    final resolvedBlockId = _resolveCommandSearchBlockId(
+      sessionId: sessionId,
+      blockId: blockId,
+    );
+    _closeCommandSearch();
+    _navigateToContextChipBlock(
+      sessionController: sessionController,
+      sessionState: sessionState,
+      sessionId: sessionId,
+      blockId: resolvedBlockId,
+    );
+  }
+
+  String? _resolveCommandSearchBlockId({
+    required String sessionId,
+    required String blockId,
+  }) {
+    final snapshot =
+        _commandBlockSnapshotsBySession[sessionId] ??
+        const ShellCommandBlockSnapshot();
+    if (_commandBlockCommandCenterAdapter.compatibleBlockById(
+          snapshot: snapshot,
+          sessionId: sessionId,
+          blockId: blockId,
+        ) !=
+        null) {
+      return blockId;
+    }
+
+    final entry = _commandSearchEntryForBlockId(blockId);
+    if (entry == null) {
+      return blockId;
+    }
+    for (final candidate in snapshot.blocks.reversed) {
+      if (!candidate.isValid || candidate.command != entry.command) {
+        continue;
+      }
+      if (!_nullableTrimmedEquals(candidate.cwd, entry.cwd)) {
+        continue;
+      }
+      if (entry.exitCode != null && candidate.exitCode != entry.exitCode) {
+        continue;
+      }
+      return candidate.id;
+    }
+    return blockId;
+  }
+
+  GlobalCommandHistoryEntry? _commandSearchEntryForBlockId(String blockId) {
+    final controller = _commandSearchOverlayController;
+    if (controller == null) {
+      return null;
+    }
+    for (final result in controller.state.results) {
+      final entry = result.entry;
+      if (entry.invocationId == blockId) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  bool _nullableTrimmedEquals(String? left, String? right) {
+    final normalizedLeft = left?.trim();
+    final normalizedRight = right?.trim();
+    final effectiveLeft = normalizedLeft == null || normalizedLeft.isEmpty
+        ? null
+        : normalizedLeft;
+    final effectiveRight = normalizedRight == null || normalizedRight.isEmpty
+        ? null
+        : normalizedRight;
+    return effectiveLeft == effectiveRight;
+  }
+
   CommandSearchOverlayController _commandSearchControllerFor(String sessionId) {
     final controller = _commandSearchOverlayController;
     if (controller != null && _commandSearchSessionId == sessionId) {
@@ -84,16 +163,6 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
     return _dispatchCommandSearchOutput(
       sessionId,
       CommandSearchOverlayOutput.insert(command),
-    );
-  }
-
-  Future<void> _executeCommandSearchSelection(
-    String sessionId,
-    String command,
-  ) {
-    return _dispatchCommandSearchOutput(
-      sessionId,
-      CommandSearchOverlayOutput.explicitExecute(command),
     );
   }
 

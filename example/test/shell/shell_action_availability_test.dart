@@ -165,7 +165,7 @@ void main() {
 
     test('command search entry stays available with an active session', () {
       final availability = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.openHistoryPeek,
+        actionId: TerminalActionId.commandSearch,
         hasActiveSession: true,
         productivity: const ShellProductivityState(),
         commandBlocksHistory: CommandBlocksHistoryFeatureFlags.disabled,
@@ -180,14 +180,13 @@ void main() {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: true,
-        historyPeek: false,
         failureSnapshots: false,
         reviewWorkspaceEntrypoints: false,
         outputDiff: false,
       );
 
       final availability = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.openHistoryPeek,
+        actionId: TerminalActionId.commandSearch,
         hasActiveSession: true,
         productivity: const ShellProductivityState(),
         commandBlocksHistory: flags,
@@ -203,22 +202,21 @@ void main() {
         const flags = CommandBlocksHistoryFeatureFlags(
           enabled: true,
           commandBlocks: true,
-          historyPeek: true,
           failureSnapshots: false,
           reviewWorkspaceEntrypoints: true,
           outputDiff: false,
         );
 
-        final historyPeek = ShellActionAvailabilityResolver.resolve(
-          actionId: TerminalActionId.openHistoryPeek,
+        final commandSearch = ShellActionAvailabilityResolver.resolve(
+          actionId: TerminalActionId.commandSearch,
           hasActiveSession: true,
           productivity: const ShellProductivityState(),
           commandBlocksHistory: flags,
           hasCommandBlocks: true,
         );
-        final historyPeekWithoutBlocks =
+        final commandSearchWithoutBlocks =
             ShellActionAvailabilityResolver.resolve(
-              actionId: TerminalActionId.openHistoryPeek,
+              actionId: TerminalActionId.commandSearch,
               hasActiveSession: true,
               productivity: const ShellProductivityState(),
               commandBlocksHistory: flags,
@@ -230,12 +228,11 @@ void main() {
           productivity: const ShellProductivityState(),
           commandBlocksHistory: flags,
           hasCommandBlocks: true,
-          hasHistoryPeekCommandBlocks: false,
         );
 
-        expect(historyPeek.enabled, isTrue);
-        expect(historyPeekWithoutBlocks.enabled, isTrue);
-        expect(historyPeekWithoutBlocks.reason, isNull);
+        expect(commandSearch.enabled, isTrue);
+        expect(commandSearchWithoutBlocks.enabled, isTrue);
+        expect(commandSearchWithoutBlocks.reason, isNull);
         expect(replay.enabled, isTrue);
       },
     );
@@ -244,7 +241,6 @@ void main() {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: false,
-        historyPeek: true,
         failureSnapshots: false,
         reviewWorkspaceEntrypoints: false,
         outputDiff: false,
@@ -269,7 +265,6 @@ void main() {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: true,
-        historyPeek: false,
         failureSnapshots: false,
         reviewWorkspaceEntrypoints: false,
         outputDiff: false,
@@ -292,7 +287,7 @@ void main() {
 
     test('active session gate runs before command block gates', () {
       final availability = ShellActionAvailabilityResolver.resolve(
-        actionId: TerminalActionId.openHistoryPeek,
+        actionId: TerminalActionId.commandSearch,
         hasActiveSession: false,
         productivity: const ShellProductivityState(),
         commandBlocksHistory: CommandBlocksHistoryFeatureFlags.disabled,
@@ -310,7 +305,6 @@ void main() {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: true,
-        historyPeek: true,
         failureSnapshots: true,
         reviewWorkspaceEntrypoints: true,
         outputDiff: true,
@@ -335,7 +329,6 @@ void main() {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: true,
-        historyPeek: false,
         failureSnapshots: false,
         reviewWorkspaceEntrypoints: false,
         outputDiff: false,
@@ -368,7 +361,6 @@ void main() {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: false,
-        historyPeek: true,
         failureSnapshots: true,
         reviewWorkspaceEntrypoints: true,
         outputDiff: true,

@@ -86,7 +86,7 @@ void main() {
 
     test('command block history actions expose descriptors', () {
       const commandBlockActionIds = <TerminalActionId>{
-        TerminalActionId.openHistoryPeek,
+        TerminalActionId.commandSearch,
         TerminalActionId.replayFromCommandBlock,
         TerminalActionId.saveCommandSnapshot,
         TerminalActionId.compareLastCommandRun,
@@ -102,12 +102,13 @@ void main() {
       }
     });
 
-    test('history peek action surfaces command search metadata', () {
+    test('command search action surfaces command search metadata', () {
       final descriptor =
-          ShellActionRegistry.actions[TerminalActionId.openHistoryPeek];
+          ShellActionRegistry.actions[TerminalActionId.commandSearch];
 
       expect(descriptor, isNotNull);
       expect(descriptor!.label, 'command_search');
+      expect(descriptor.shortcutHint, '⌘R');
       expect(descriptor.icon, isNot(Icons.history));
     });
 

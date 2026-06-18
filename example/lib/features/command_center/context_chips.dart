@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 
 import 'context_chip_models.dart';
 
+typedef ContextChipIntentCallback =
+    void Function(ContextChipClickIntent intent, Rect anchorRect);
+
 class ContextChips extends StatelessWidget {
   const ContextChips({required this.chips, this.onIntent, super.key});
 
   final List<ContextChipModel> chips;
-  final ValueChanged<ContextChipClickIntent>? onIntent;
+  final ContextChipIntentCallback? onIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +32,7 @@ class _ContextChip extends StatelessWidget {
   const _ContextChip({required this.chip, required this.onIntent, super.key});
 
   final ContextChipModel chip;
-  final ValueChanged<ContextChipClickIntent>? onIntent;
+  final ContextChipIntentCallback? onIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +50,9 @@ class _ContextChip extends StatelessWidget {
         '${chip.label} ${chip.value}',
         overflow: TextOverflow.ellipsis,
       ),
-      onPressed: canPress ? () => onIntent?.call(chip.intent) : null,
+      onPressed: canPress
+          ? () => onIntent?.call(chip.intent, _globalRectFor(context))
+          : null,
       backgroundColor: colors.background,
       side: BorderSide(color: colors.outline),
       visualDensity: VisualDensity.compact,
@@ -66,6 +71,17 @@ IconData _iconFor(ContextChipKind kind) {
     ContextChipKind.selectedBlock => Icons.segment,
     ContextChipKind.readOnly => Icons.lock,
   };
+}
+
+Rect _globalRectFor(BuildContext context) {
+  final renderObject = context.findRenderObject();
+  if (renderObject is! RenderBox || !renderObject.hasSize) {
+    final fallback = renderObject is RenderBox
+        ? renderObject.localToGlobal(Offset.zero)
+        : Offset.zero;
+    return fallback & const Size(1, 1);
+  }
+  return renderObject.localToGlobal(Offset.zero) & renderObject.size;
 }
 
 _ChipColors _chipColors(ColorScheme colorScheme, ContextChipTone tone) {
