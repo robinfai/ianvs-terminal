@@ -18,6 +18,8 @@ void main() {
 
       expect(result.source, LocalTerminalConfigBootstrapSource.localConfig);
       expect(result.config.defaultProfileId, 'local');
+      expect(result.config.commandBlocksHistory.enabled, isFalse);
+      expect(result.config.commandBlocksHistory.commandBlocks, isFalse);
     });
 
     test('migrates legacy app preferences when local config is absent', () {
@@ -47,6 +49,21 @@ void main() {
       expect(result.config.appearance.themeMode, TerminalThemeMode.dark);
       expect(result.config.appearance.terminalViewportPadding, 18);
       expect(result.config.notifications.enabled, isFalse);
+      expect(result.config.commandCenter.enabled, isTrue);
+      expect(result.config.commandCenter.historySearch, isTrue);
+      expect(result.config.commandCenter.commandBlocks, isTrue);
+      expect(result.config.commandCenter.commandBar, isTrue);
+      expect(result.config.commandCenter.contextChips, isTrue);
+      expect(result.config.commandCenter.reviewEntrypoints, isTrue);
+      expect(result.config.commandCenter.verificationDiagnostics, isTrue);
+      expect(result.config.commandBlocksHistory.enabled, isTrue);
+      expect(result.config.commandBlocksHistory.commandBlocks, isTrue);
+      expect(result.config.commandBlocksHistory.failureSnapshots, isTrue);
+      expect(
+        result.config.commandBlocksHistory.reviewWorkspaceEntrypoints,
+        isTrue,
+      );
+      expect(result.config.commandBlocksHistory.outputDiff, isTrue);
     });
 
     test('falls back to defaults when no config sources exist', () {
@@ -62,6 +79,21 @@ void main() {
         result.config.appearance.terminalViewportPadding,
         TerminalAppAppearance.defaultTerminalViewportPadding,
       );
+      expect(result.config.commandCenter.enabled, isTrue);
+      expect(result.config.commandCenter.historySearch, isTrue);
+      expect(result.config.commandCenter.commandBlocks, isTrue);
+      expect(result.config.commandCenter.commandBar, isTrue);
+      expect(result.config.commandCenter.contextChips, isTrue);
+      expect(result.config.commandCenter.reviewEntrypoints, isTrue);
+      expect(result.config.commandCenter.verificationDiagnostics, isTrue);
+      expect(result.config.commandBlocksHistory.enabled, isTrue);
+      expect(result.config.commandBlocksHistory.commandBlocks, isTrue);
+      expect(result.config.commandBlocksHistory.failureSnapshots, isTrue);
+      expect(
+        result.config.commandBlocksHistory.reviewWorkspaceEntrypoints,
+        isTrue,
+      );
+      expect(result.config.commandBlocksHistory.outputDiff, isTrue);
     });
   });
 }

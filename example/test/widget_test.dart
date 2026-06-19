@@ -2608,7 +2608,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     final loadedDocument = await repository.load();
-    expect(fakeBindings.writes, [utf8.encode('git status --short')]);
+    expect(fakeBindings.writes, isEmpty);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('shell-command-input-field')))
+          .controller!
+          .text,
+      'git status --short',
+    );
     expect(loadedDocument.entries.single.useCount, 1);
     expect(loadedDocument.entries.single.lastUsedAt, isNotNull);
   });
