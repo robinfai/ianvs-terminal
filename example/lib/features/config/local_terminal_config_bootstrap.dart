@@ -21,30 +21,6 @@ enum LocalTerminalConfigBootstrapSource {
 class LocalTerminalConfigBootstrap {
   const LocalTerminalConfigBootstrap._();
 
-  static const runtimeDefaultCommandCenter = LocalTerminalCommandCenterConfig(
-    enabled: true,
-    historySearch: true,
-    commandBlocks: true,
-    commandBar: true,
-    contextChips: true,
-    reviewEntrypoints: true,
-    verificationDiagnostics: true,
-  );
-
-  static const runtimeDefaultCommandBlocksHistory =
-      LocalTerminalCommandBlocksHistoryConfig(
-        enabled: true,
-        commandBlocks: true,
-        failureSnapshots: true,
-        reviewWorkspaceEntrypoints: true,
-        outputDiff: true,
-      );
-
-  static const runtimeDefaults = LocalTerminalConfigDocument(
-    commandCenter: runtimeDefaultCommandCenter,
-    commandBlocksHistory: runtimeDefaultCommandBlocksHistory,
-  );
-
   static LocalTerminalConfigBootstrapResult resolve({
     required LocalTerminalConfigDocument? localConfig,
     required TerminalAppPreferencesDocument? legacyAppPreferences,
@@ -58,7 +34,7 @@ class LocalTerminalConfigBootstrap {
 
     if (legacyAppPreferences != null) {
       return LocalTerminalConfigBootstrapResult(
-        config: _withRuntimeDefaults(
+        config: LocalTerminalConfigMigration.withRuntimeDefaults(
           LocalTerminalConfigMigration.fromLegacyAppPreferences(
             legacyAppPreferences,
           ),
@@ -68,17 +44,8 @@ class LocalTerminalConfigBootstrap {
     }
 
     return const LocalTerminalConfigBootstrapResult(
-      config: runtimeDefaults,
+      config: LocalTerminalConfigMigration.runtimeDefaults,
       source: LocalTerminalConfigBootstrapSource.defaults,
-    );
-  }
-
-  static LocalTerminalConfigDocument _withRuntimeDefaults(
-    LocalTerminalConfigDocument config,
-  ) {
-    return config.copyWith(
-      commandCenter: runtimeDefaultCommandCenter,
-      commandBlocksHistory: runtimeDefaultCommandBlocksHistory,
     );
   }
 }

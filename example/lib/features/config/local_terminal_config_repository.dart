@@ -23,12 +23,15 @@ class LocalTerminalConfigRepository {
 
     try {
       final raw = await file.readAsString();
-      return LocalTerminalConfigDocument.fromJson(
-        jsonDecode(raw) as Map<String, Object?>,
+      final json = jsonDecode(raw) as Map<String, Object?>;
+      final document = LocalTerminalConfigDocument.fromJson(json);
+      return LocalTerminalConfigMigration.withRuntimeDefaultsForMissingLocalKeys(
+        document,
+        json,
       );
     } on Object {
       await _quarantineCorruptFile(file);
-      const repaired = LocalTerminalConfigDocument();
+      const repaired = LocalTerminalConfigMigration.runtimeDefaults;
       await save(repaired);
       return repaired;
     }
@@ -55,6 +58,30 @@ class LocalTerminalConfigRepository {
 class LocalTerminalConfigMigration {
   const LocalTerminalConfigMigration._();
 
+  static const runtimeDefaultCommandCenter = LocalTerminalCommandCenterConfig(
+    enabled: true,
+    historySearch: true,
+    commandBlocks: true,
+    commandBar: true,
+    contextChips: true,
+    reviewEntrypoints: true,
+    verificationDiagnostics: true,
+  );
+
+  static const runtimeDefaultCommandBlocksHistory =
+      LocalTerminalCommandBlocksHistoryConfig(
+        enabled: true,
+        commandBlocks: true,
+        failureSnapshots: true,
+        reviewWorkspaceEntrypoints: true,
+        outputDiff: true,
+      );
+
+  static const runtimeDefaults = LocalTerminalConfigDocument(
+    commandCenter: runtimeDefaultCommandCenter,
+    commandBlocksHistory: runtimeDefaultCommandBlocksHistory,
+  );
+
   static LocalTerminalConfigDocument fromLegacyAppPreferences(
     TerminalAppPreferencesDocument? preferences,
   ) {
@@ -75,6 +102,29 @@ class LocalTerminalConfigMigration {
         bell: notifications.bell,
         activity: notifications.activity,
       ),
+    );
+  }
+
+  static LocalTerminalConfigDocument withRuntimeDefaults(
+    LocalTerminalConfigDocument document,
+  ) {
+    return document.copyWith(
+      commandCenter: runtimeDefaultCommandCenter,
+      commandBlocksHistory: runtimeDefaultCommandBlocksHistory,
+    );
+  }
+
+  static LocalTerminalConfigDocument withRuntimeDefaultsForMissingLocalKeys(
+    LocalTerminalConfigDocument document,
+    Map<String, Object?> json,
+  ) {
+    return document.copyWith(
+      commandCenter: json.containsKey('commandCenter')
+          ? document.commandCenter
+          : runtimeDefaultCommandCenter,
+      commandBlocksHistory: json.containsKey('commandBlocksHistory')
+          ? document.commandBlocksHistory
+          : runtimeDefaultCommandBlocksHistory,
     );
   }
 }

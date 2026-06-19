@@ -40,6 +40,96 @@ void main() {
       expect(loaded!.defaultProfileId, 'local-dev');
       expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
       expect(loaded.hotkeyWindow.enabled, isTrue);
+      expect(loaded.commandCenter.enabled, isFalse);
+      expect(loaded.commandBlocksHistory.enabled, isFalse);
+    });
+
+    test('migrates old local configs missing runtime feature keys', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-config-missing-runtime-keys',
+      );
+      final file = File('${directory.path}/ianvs_config.json');
+      await file.writeAsString(
+        jsonEncode({
+          'schemaVersion': 1,
+          'defaultProfileId': 'local-dev',
+          'appearance': {'themeMode': 'dark'},
+        }),
+      );
+      final repository = LocalTerminalConfigRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(loaded!.defaultProfileId, 'local-dev');
+      expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
+      expect(loaded.commandCenter.enabled, isTrue);
+      expect(loaded.commandCenter.historySearch, isTrue);
+      expect(loaded.commandCenter.commandBlocks, isTrue);
+      expect(loaded.commandCenter.commandBar, isTrue);
+      expect(loaded.commandCenter.contextChips, isTrue);
+      expect(loaded.commandCenter.reviewEntrypoints, isTrue);
+      expect(loaded.commandCenter.verificationDiagnostics, isTrue);
+      expect(loaded.commandBlocksHistory.enabled, isTrue);
+      expect(loaded.commandBlocksHistory.commandBlocks, isTrue);
+      expect(loaded.commandBlocksHistory.failureSnapshots, isTrue);
+      expect(loaded.commandBlocksHistory.reviewWorkspaceEntrypoints, isTrue);
+      expect(loaded.commandBlocksHistory.outputDiff, isTrue);
+      expect(
+        directory.listSync().any(
+          (entry) => entry.path.contains('ianvs_config.json.corrupt'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('preserves explicit local runtime feature flags', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-config-explicit-runtime-keys',
+      );
+      final file = File('${directory.path}/ianvs_config.json');
+      await file.writeAsString(
+        jsonEncode({
+          'schemaVersion': 1,
+          'commandCenter': {
+            'enabled': false,
+            'historySearch': false,
+            'commandBlocks': false,
+            'commandBar': false,
+            'contextChips': false,
+            'reviewEntrypoints': false,
+            'verificationDiagnostics': false,
+          },
+          'commandBlocksHistory': {
+            'enabled': false,
+            'commandBlocks': false,
+            'failureSnapshots': false,
+            'reviewWorkspaceEntrypoints': false,
+            'outputDiff': false,
+          },
+        }),
+      );
+      final repository = LocalTerminalConfigRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(loaded!.commandCenter.enabled, isFalse);
+      expect(loaded.commandCenter.historySearch, isFalse);
+      expect(loaded.commandCenter.commandBlocks, isFalse);
+      expect(loaded.commandCenter.commandBar, isFalse);
+      expect(loaded.commandCenter.contextChips, isFalse);
+      expect(loaded.commandCenter.reviewEntrypoints, isFalse);
+      expect(loaded.commandCenter.verificationDiagnostics, isFalse);
+      expect(loaded.commandBlocksHistory.enabled, isFalse);
+      expect(loaded.commandBlocksHistory.commandBlocks, isFalse);
+      expect(loaded.commandBlocksHistory.failureSnapshots, isFalse);
+      expect(loaded.commandBlocksHistory.reviewWorkspaceEntrypoints, isFalse);
+      expect(loaded.commandBlocksHistory.outputDiff, isFalse);
     });
 
     test('keeps config values when only schema version is invalid', () async {
