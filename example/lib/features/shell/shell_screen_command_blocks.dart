@@ -896,65 +896,96 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                           ),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxHeight: 168),
-                            child: Semantics(
-                              container: true,
-                              label: 'Command input',
-                              hint: fieldHint,
-                              textField: true,
-                              enabled: widget.enabled,
-                              child: TextField(
-                                key: const Key('shell-command-input-field'),
-                                controller: widget.controller,
-                                focusNode: widget.focusNode,
-                                enabled: widget.enabled,
-                                autofocus: widget.enabled,
-                                minLines: 1,
-                                maxLines: null,
-                                keyboardType: TextInputType.multiline,
-                                textInputAction: TextInputAction.newline,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: palette.textPrimary,
-                                      fontFamily: 'monospace',
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                decoration: InputDecoration(
-                                  hintText: fieldHint,
-                                  isDense: true,
-                                  filled: true,
-                                  fillColor: palette.terminalSurface,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    horizontal: palette.spacing.md,
-                                    vertical: palette.spacing.sm,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: palette.spacing.sm,
                                   ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      palette.radius.md,
-                                    ),
-                                    borderSide: BorderSide(
-                                      color: palette.border,
-                                    ),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      palette.radius.md,
-                                    ),
-                                    borderSide: BorderSide(
-                                      color: palette.border,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(
-                                      palette.radius.md,
-                                    ),
-                                    borderSide: BorderSide(
-                                      color: accent,
-                                      width: 1.4,
+                                  child: Semantics(
+                                    container: true,
+                                    label: 'Command input',
+                                    value: 'Command input',
+                                    readOnly: true,
+                                    enabled: widget.enabled,
+                                    child: ExcludeSemantics(
+                                      child: Text(
+                                        'Command input',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.copyWith(
+                                              color: palette.textMuted,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                                onChanged: _handleTextChanged,
-                              ),
+                                const SizedBox(height: 2),
+                                Flexible(
+                                  fit: FlexFit.loose,
+                                  child: TextField(
+                                    key: const Key('shell-command-input-field'),
+                                    controller: widget.controller,
+                                    focusNode: widget.focusNode,
+                                    enabled: widget.enabled,
+                                    autofocus: widget.enabled,
+                                    minLines: 1,
+                                    maxLines: null,
+                                    keyboardType: TextInputType.multiline,
+                                    textInputAction: TextInputAction.newline,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: palette.textPrimary,
+                                          fontFamily: 'monospace',
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                    decoration: InputDecoration(
+                                      hintText: fieldHint,
+                                      isDense: true,
+                                      filled: true,
+                                      fillColor: palette.terminalSurface,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: palette.spacing.md,
+                                        vertical: palette.spacing.sm,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          palette.radius.md,
+                                        ),
+                                        borderSide: BorderSide(
+                                          color: palette.border,
+                                        ),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          palette.radius.md,
+                                        ),
+                                        borderSide: BorderSide(
+                                          color: palette.border,
+                                        ),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          palette.radius.md,
+                                        ),
+                                        borderSide: BorderSide(
+                                          color: accent,
+                                          width: 1.4,
+                                        ),
+                                      ),
+                                    ),
+                                    onChanged: _handleTextChanged,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
