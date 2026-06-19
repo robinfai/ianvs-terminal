@@ -192,6 +192,8 @@ void main() {
         _app(_overlay(baseTime, onViewBlock: viewedInvocationIds.add)),
       );
 
+      expect(find.bySemanticsLabel('View command block'), findsWidgets);
+
       await tester.tap(
         find.byKey(const Key('command-search-view-block')).first,
       );

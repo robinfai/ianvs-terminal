@@ -261,31 +261,32 @@ class _ShellCommandBlockChrome extends StatelessWidget {
                               ),
                               if (onOpenBlockActions != null) ...[
                                 SizedBox(width: palette.spacing.xs),
-                                Tooltip(
-                                  message: 'Block actions',
-                                  child: Builder(
-                                    builder: (buttonContext) {
-                                      return IconButton(
-                                        key: Key(
-                                          'shell-command-block-actions-${block.id}',
-                                        ),
-                                        onPressed: () => onOpenBlockActions!(
-                                          block,
-                                          _globalRectForContext(buttonContext),
-                                        ),
-                                        style: IconButton.styleFrom(
-                                          foregroundColor: palette.textPrimary,
-                                          fixedSize: const Size.square(44),
-                                          minimumSize: const Size.square(44),
-                                          maximumSize: const Size.square(44),
-                                          padding: EdgeInsets.zero,
-                                          tapTargetSize:
-                                              MaterialTapTargetSize.padded,
-                                        ),
-                                        icon: const Icon(Icons.more_horiz),
-                                      );
-                                    },
-                                  ),
+                                Builder(
+                                  builder: (buttonContext) {
+                                    return IconButton(
+                                      key: Key(
+                                        'shell-command-block-actions-${block.id}',
+                                      ),
+                                      tooltip: 'Block actions',
+                                      onPressed: () => onOpenBlockActions!(
+                                        block,
+                                        _globalRectForContext(buttonContext),
+                                      ),
+                                      style: IconButton.styleFrom(
+                                        foregroundColor: palette.textPrimary,
+                                        fixedSize: const Size.square(44),
+                                        minimumSize: const Size.square(44),
+                                        maximumSize: const Size.square(44),
+                                        padding: EdgeInsets.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.padded,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.more_horiz,
+                                        semanticLabel: 'Block actions',
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ],
@@ -511,40 +512,42 @@ class _ShellCommandBlockInfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Block info',
-      child: Builder(
-        builder: (buttonContext) {
-          return IconButton(
-            key: Key('shell-command-block-info-${block.id}'),
-            onPressed: () => showMenu<void>(
-              context: buttonContext,
-              position: _relativeRectForContext(buttonContext),
-              items: [
-                PopupMenuItem<void>(
-                  key: Key('shell-command-block-info-popover-${block.id}'),
-                  enabled: false,
-                  padding: EdgeInsets.zero,
-                  child: _ShellCommandBlockInfoPopover(
-                    block: block,
-                    palette: palette,
-                    statusColor: statusColor,
-                  ),
+    return Builder(
+      builder: (buttonContext) {
+        return IconButton(
+          key: Key('shell-command-block-info-${block.id}'),
+          tooltip: 'Block info',
+          onPressed: () => showMenu<void>(
+            context: buttonContext,
+            position: _relativeRectForContext(buttonContext),
+            items: [
+              PopupMenuItem<void>(
+                key: Key('shell-command-block-info-popover-${block.id}'),
+                enabled: false,
+                padding: EdgeInsets.zero,
+                child: _ShellCommandBlockInfoPopover(
+                  block: block,
+                  palette: palette,
+                  statusColor: statusColor,
                 ),
-              ],
-            ),
-            style: IconButton.styleFrom(
-              foregroundColor: palette.textMuted,
-              fixedSize: const Size.square(44),
-              minimumSize: const Size.square(44),
-              maximumSize: const Size.square(44),
-              padding: EdgeInsets.zero,
-              tapTargetSize: MaterialTapTargetSize.padded,
-            ),
-            icon: const Icon(Icons.info_outline, size: 20),
-          );
-        },
-      ),
+              ),
+            ],
+          ),
+          style: IconButton.styleFrom(
+            foregroundColor: palette.textMuted,
+            fixedSize: const Size.square(44),
+            minimumSize: const Size.square(44),
+            maximumSize: const Size.square(44),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.padded,
+          ),
+          icon: const Icon(
+            Icons.info_outline,
+            size: 20,
+            semanticLabel: 'Block info',
+          ),
+        );
+      },
     );
   }
 }

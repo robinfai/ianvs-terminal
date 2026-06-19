@@ -439,7 +439,10 @@ class _CommandSearchResultTile extends StatelessWidget {
                 IconButton(
                   key: const Key('command-search-view-block'),
                   tooltip: 'View command block',
-                  icon: const Icon(Icons.segment),
+                  icon: const Icon(
+                    Icons.segment,
+                    semanticLabel: 'View command block',
+                  ),
                   onPressed: onViewBlock,
                 ),
               ],

@@ -157,6 +157,7 @@ void main() {
       final infoButton = find.byKey(
         const Key('shell-command-block-info-cmd-semantics'),
       );
+      expect(find.bySemanticsLabel('Block info'), findsOneWidget);
       final infoButtonSize = tester.getSize(infoButton);
       expect(infoButtonSize.width, greaterThanOrEqualTo(44));
       expect(infoButtonSize.height, greaterThanOrEqualTo(44));
@@ -196,6 +197,7 @@ void main() {
       );
       expect(actionButton, findsOneWidget);
       expect(find.byTooltip('Block actions'), findsOneWidget);
+      expect(find.bySemanticsLabel('Block actions'), findsOneWidget);
 
       await tester.tap(actionButton);
       await tester.pump();
