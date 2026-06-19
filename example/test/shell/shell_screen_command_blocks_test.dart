@@ -799,6 +799,7 @@ void main() {
         find.byKey(const Key('shell-command-input-model-label')),
         findsOneWidget,
       );
+      expect(find.bySemanticsLabel('Command input'), findsOneWidget);
       expect(find.text('cwd app'), findsOneWidget);
       expect(find.text('Agent draft'), findsOneWidget);
     });

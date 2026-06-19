@@ -762,6 +762,10 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
             final classification = _classificationFor(text);
             final suggestions = _suggestionsFor(text, classification);
             final accent = _universalInputAccentColor(palette, classification);
+            final fieldHint = _universalInputFieldHint(
+              widget.inputMode,
+              classification,
+            );
             final canSend = widget.enabled && text.trimRight().isNotEmpty;
             final effectiveActiveIndex = suggestions.isEmpty
                 ? -1
@@ -889,57 +893,65 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                           ),
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxHeight: 168),
-                            child: TextField(
-                              key: const Key('shell-command-input-field'),
-                              controller: widget.controller,
-                              focusNode: widget.focusNode,
+                            child: Semantics(
+                              container: true,
+                              label: 'Command input',
+                              hint: fieldHint,
+                              textField: true,
                               enabled: widget.enabled,
-                              autofocus: widget.enabled,
-                              minLines: 1,
-                              maxLines: null,
-                              keyboardType: TextInputType.multiline,
-                              textInputAction: TextInputAction.newline,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: palette.textPrimary,
-                                    fontFamily: 'monospace',
-                                    fontWeight: FontWeight.w600,
+                              child: TextField(
+                                key: const Key('shell-command-input-field'),
+                                controller: widget.controller,
+                                focusNode: widget.focusNode,
+                                enabled: widget.enabled,
+                                autofocus: widget.enabled,
+                                minLines: 1,
+                                maxLines: null,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: TextInputAction.newline,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: palette.textPrimary,
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                decoration: InputDecoration(
+                                  hintText: fieldHint,
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor: palette.terminalSurface,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: palette.spacing.md,
+                                    vertical: palette.spacing.sm,
                                   ),
-                              decoration: InputDecoration(
-                                hintText: _universalInputFieldHint(
-                                  widget.inputMode,
-                                  classification,
-                                ),
-                                isDense: true,
-                                filled: true,
-                                fillColor: palette.terminalSurface,
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: palette.spacing.md,
-                                  vertical: palette.spacing.sm,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    palette.radius.md,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      palette.radius.md,
+                                    ),
+                                    borderSide: BorderSide(
+                                      color: palette.border,
+                                    ),
                                   ),
-                                  borderSide: BorderSide(color: palette.border),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    palette.radius.md,
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      palette.radius.md,
+                                    ),
+                                    borderSide: BorderSide(
+                                      color: palette.border,
+                                    ),
                                   ),
-                                  borderSide: BorderSide(color: palette.border),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    palette.radius.md,
-                                  ),
-                                  borderSide: BorderSide(
-                                    color: accent,
-                                    width: 1.4,
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      palette.radius.md,
+                                    ),
+                                    borderSide: BorderSide(
+                                      color: accent,
+                                      width: 1.4,
+                                    ),
                                   ),
                                 ),
+                                onChanged: _handleTextChanged,
                               ),
-                              onChanged: _handleTextChanged,
                             ),
                           ),
                         ),
