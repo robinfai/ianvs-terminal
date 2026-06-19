@@ -619,6 +619,22 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         }
       case TerminalActionId.commandSearch:
         _openCommandSearchForActiveSession();
+      case TerminalActionId.previousCommandBlock:
+        if (!_navigateCommandBlock(
+          sessionId,
+          CommandBlockNavigationTarget.previous,
+          showBlockedFeedback: true,
+        )) {
+          _focusSession(sessionId);
+        }
+      case TerminalActionId.nextCommandBlock:
+        if (!_navigateCommandBlock(
+          sessionId,
+          CommandBlockNavigationTarget.next,
+          showBlockedFeedback: true,
+        )) {
+          _focusSession(sessionId);
+        }
       case TerminalActionId.hotkeyWindow:
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:

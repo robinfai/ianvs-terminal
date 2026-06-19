@@ -148,6 +148,12 @@ class ShellActionAvailabilityResolver {
               );
       case TerminalActionId.commandSearch:
         return ShellActionAvailability.enabledAction;
+      case TerminalActionId.previousCommandBlock:
+      case TerminalActionId.nextCommandBlock:
+        return _resolveCommandBlockAction(
+          commandBlocksHistory: commandBlocksHistory,
+          hasCommandBlocks: hasCommandBlocks,
+        );
       case TerminalActionId.replayFromCommandBlock:
         return _resolveCommandBlockAction(
           commandBlocksHistory: commandBlocksHistory,

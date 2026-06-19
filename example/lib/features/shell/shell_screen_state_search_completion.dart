@@ -600,6 +600,9 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       _universalInputPinnedContextChips = const [];
       _autoComposerClassification = inputState.classification;
       _autoComposerSuggestions = inputState.suggestions;
+      _autoComposerCommandDrafts = inputState.drafts;
+      _autoComposerCommandDraftText = '';
+      _autoComposerCommandDraftsLoading = inputState.draftsLoading;
       _activeAutoComposerIndex = 0;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -615,6 +618,9 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     _mutateState(() {
       _isAutoComposerOpen = false;
       _autoComposerSuggestions = const [];
+      _autoComposerCommandDrafts = const [];
+      _autoComposerCommandDraftText = '';
+      _autoComposerCommandDraftsLoading = false;
       _activeAutoComposerIndex = 0;
       _universalInputPinnedContextChips = const [];
       _autoComposerClassification = UniversalInputClassification.empty(
@@ -632,28 +638,43 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     _mutateState(() {
       _autoComposerClassification = inputState.classification;
       _autoComposerSuggestions = inputState.suggestions;
+      _autoComposerCommandDrafts = inputState.drafts;
+      _autoComposerCommandDraftText = text;
+      _autoComposerCommandDraftsLoading = inputState.draftsLoading;
       _activeAutoComposerIndex = 0;
     });
+    _maybeRequestAutoComposerCommandDrafts(text, inputState.classification);
   }
 
   bool _handleUniversalInputModePrefix(String text) {
-    final mode = switch (text) {
-      '* ' || '＊ ' => UniversalInputMode.agent,
-      '! ' || '！ ' => UniversalInputMode.terminal,
-      _ => null,
-    };
-    if (mode == null) {
+    final prefix = _universalInputModePrefixForText(text);
+    if (prefix == null) {
       return false;
     }
 
-    _autoComposerController.clear();
-    final inputState = _autoComposerInputStateForText('', null, mode);
+    _autoComposerController.value = TextEditingValue(
+      text: prefix.text,
+      selection: TextSelection.collapsed(offset: prefix.text.length),
+      composing: TextRange.empty,
+    );
+    final inputState = _autoComposerInputStateForText(
+      prefix.text,
+      null,
+      prefix.mode,
+    );
     _mutateState(() {
-      _universalInputMode = mode;
+      _universalInputMode = prefix.mode;
       _autoComposerClassification = inputState.classification;
       _autoComposerSuggestions = inputState.suggestions;
+      _autoComposerCommandDrafts = inputState.drafts;
+      _autoComposerCommandDraftText = prefix.text;
+      _autoComposerCommandDraftsLoading = inputState.draftsLoading;
       _activeAutoComposerIndex = 0;
     });
+    _maybeRequestAutoComposerCommandDrafts(
+      prefix.text,
+      inputState.classification,
+    );
     return true;
   }
 
@@ -670,8 +691,15 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       _universalInputMode = mode;
       _autoComposerClassification = inputState.classification;
       _autoComposerSuggestions = inputState.suggestions;
+      _autoComposerCommandDrafts = inputState.drafts;
+      _autoComposerCommandDraftText = _autoComposerController.text;
+      _autoComposerCommandDraftsLoading = inputState.draftsLoading;
       _activeAutoComposerIndex = 0;
     });
+    _maybeRequestAutoComposerCommandDrafts(
+      _autoComposerController.text,
+      inputState.classification,
+    );
     _autoComposerFocusNode.requestFocus();
   }
 
@@ -697,9 +725,21 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
           ? const <String>{}
           : _universalInputCommandVocabularyFor(state, activeSessionId),
     ).classify(text, mode: mode ?? _universalInputMode);
+    final drafts = _autoComposerCommandDraftsForText(
+      text,
+      state,
+      classification,
+    );
     return _AutoComposerInputState(
       classification: classification,
-      suggestions: _autoComposerSuggestionsForText(text, state, classification),
+      suggestions: drafts.isNotEmpty
+          ? drafts.map((draft) => draft.command).toList(growable: false)
+          : _autoComposerSuggestionsForText(text, state, classification),
+      drafts: drafts,
+      draftsLoading:
+          classification.isNaturalLanguage &&
+          _autoComposerCommandDraftsLoading &&
+          _autoComposerCommandDraftText == text.trimRight(),
     );
   }
 
@@ -712,13 +752,17 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final classification = UniversalInputClassifier(
       commandVocabulary: _universalInputCommandVocabularyFor(state, sessionId),
     ).classify(text, mode: mode ?? _universalInputMode);
+    final drafts = _commandInputDraftsForText(sessionId, text, classification);
     return _AutoComposerInputState(
       classification: classification,
-      suggestions: _commandInputSuggestionsForText(
-        sessionId,
-        text,
-        classification,
-      ),
+      suggestions: drafts.isNotEmpty
+          ? drafts.map((draft) => draft.command).toList(growable: false)
+          : _commandInputSuggestionsForText(sessionId, text, classification),
+      drafts: drafts,
+      draftsLoading:
+          classification.isNaturalLanguage &&
+          _commandInputDraftLoadingSessionIds.contains(sessionId) &&
+          _commandInputDraftTextBySession[sessionId] == text.trimRight(),
     );
   }
 
@@ -905,6 +949,15 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     _mutateState(() {
       _universalInputModelLabel = modelLabel;
     });
+    final controller = _commandInputControllers[sessionId];
+    if (controller != null) {
+      final inputState = _commandInputStateForText(sessionId, controller.text);
+      _maybeRequestCommandInputDrafts(
+        sessionId,
+        controller.text,
+        inputState.classification,
+      );
+    }
     _restoreCommandInputFocus(sessionId);
   }
 
@@ -924,9 +977,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     UniversalInputClassification? classification,
   ]) {
     if (classification?.isNaturalLanguage ?? false) {
-      return universalInputCommandSuggestionsForText(
-        text,
-      ).map((suggestion) => suggestion.command).toList(growable: false);
+      return const <String>[];
     }
     final SessionState state =
         sessionState ?? ref.read(sessionControllerProvider);
@@ -945,15 +996,298 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     ]);
   }
 
+  List<CommandDraft> _autoComposerCommandDraftsForText(
+    String text,
+    SessionState sessionState,
+    UniversalInputClassification classification,
+  ) {
+    if (!classification.isNaturalLanguage) {
+      return const <CommandDraft>[];
+    }
+    final normalizedText = text.trimRight();
+    if (_autoComposerCommandDraftText == normalizedText &&
+        _autoComposerCommandDrafts.isNotEmpty) {
+      return _autoComposerCommandDrafts;
+    }
+    return const <CommandDraft>[];
+  }
+
+  List<CommandDraft> _commandInputDraftsForText(
+    String sessionId,
+    String text,
+    UniversalInputClassification classification,
+  ) {
+    if (!classification.isNaturalLanguage) {
+      return const <CommandDraft>[];
+    }
+    final normalizedText = text.trimRight();
+    final storedDrafts = _commandInputDraftsBySession[sessionId];
+    if (_commandInputDraftTextBySession[sessionId] == normalizedText &&
+        storedDrafts != null &&
+        storedDrafts.isNotEmpty) {
+      return storedDrafts;
+    }
+    return const <CommandDraft>[];
+  }
+
+  Map<String, CommandDraft> _commandDraftDetailsByCommand(
+    List<CommandDraft> drafts,
+  ) {
+    return {for (final draft in drafts) draft.command: draft};
+  }
+
+  String _naturalLanguageCommandUnavailableMessageFor(
+    TerminalProfile? profile,
+  ) {
+    if (!_commandIntelligenceService.remoteAvailableFor(
+      apiKey: profile?.commandIntelligence.apiKey,
+    )) {
+      return 'Add an OpenAI-compatible API key to this profile or set DEEPSEEK_API_KEY.';
+    }
+    return 'No command suggestion was generated. Try adding more context.';
+  }
+
+  bool _shouldRequestRemoteCommandDraftsFor(TerminalProfile? profile) {
+    return _commandIntelligenceService.remoteAvailableFor(
+      apiKey: profile?.commandIntelligence.apiKey,
+    );
+  }
+
+  void _maybeRequestAutoComposerCommandDrafts(
+    String text,
+    UniversalInputClassification classification,
+  ) {
+    final normalizedText = text.trimRight();
+    if (!classification.isNaturalLanguage || normalizedText.isEmpty) {
+      _mutateState(() {
+        _autoComposerCommandDrafts = const [];
+        _autoComposerCommandDraftText = normalizedText;
+        _autoComposerCommandDraftsLoading = false;
+      });
+      return;
+    }
+    final sessionState = ref.read(sessionControllerProvider);
+    final profile = _activeUniversalInputProfile(sessionState);
+    if (!_shouldRequestRemoteCommandDraftsFor(profile)) {
+      _mutateState(() {
+        _autoComposerCommandDrafts = const [];
+        _autoComposerCommandDraftText = normalizedText;
+        _autoComposerCommandDraftsLoading = false;
+      });
+      return;
+    }
+    final requestSerial = ++_commandIntelligenceRequestSerial;
+    _mutateState(() {
+      _autoComposerCommandDrafts = const [];
+      _autoComposerCommandDraftText = normalizedText;
+      _autoComposerCommandDraftsLoading = true;
+    });
+    unawaited(() async {
+      final drafts = await _commandIntelligenceService.draftCommands(
+        CommandDraftRequest(
+          input: normalizedText,
+          cwd: _activeUniversalInputCwd(sessionState),
+          recentCommands: _activeUniversalInputRecentCommands(sessionState),
+          contextChips: _universalInputPinnedContextChips,
+          modelLabel: _universalInputModelLabel,
+          apiBaseUrl: profile?.commandIntelligence.baseUrl,
+          apiKey: profile?.commandIntelligence.apiKey,
+          apiModel: profile?.commandIntelligence.model,
+          preferRemote: _universalInputModelLabel == 'Agent draft',
+        ),
+      );
+      if (!mounted ||
+          requestSerial != _commandIntelligenceRequestSerial ||
+          _autoComposerController.text.trimRight() != normalizedText) {
+        return;
+      }
+      _mutateState(() {
+        _autoComposerCommandDrafts = drafts;
+        _autoComposerCommandDraftText = normalizedText;
+        _autoComposerCommandDraftsLoading = false;
+        _autoComposerSuggestions = drafts
+            .map((draft) => draft.command)
+            .toList(growable: false);
+        _activeAutoComposerIndex = 0;
+      });
+    }());
+  }
+
+  void _updateCommandInputDrafts(String sessionId, String text) {
+    final inputState = _commandInputStateForText(sessionId, text);
+    _maybeRequestCommandInputDrafts(sessionId, text, inputState.classification);
+  }
+
+  void _maybeRequestCommandInputDrafts(
+    String sessionId,
+    String text,
+    UniversalInputClassification classification,
+  ) {
+    final normalizedText = text.trimRight();
+    if (!classification.isNaturalLanguage || normalizedText.isEmpty) {
+      _mutateState(() {
+        _commandInputDraftsBySession.remove(sessionId);
+        _commandInputDraftTextBySession[sessionId] = normalizedText;
+        _commandInputDraftLoadingSessionIds.remove(sessionId);
+      });
+      return;
+    }
+    final state = ref.read(sessionControllerProvider);
+    final pane = _paneForSession(state, sessionId);
+    final profile = pane == null ? null : _profileForPane(pane, state.profiles);
+    if (!_shouldRequestRemoteCommandDraftsFor(profile)) {
+      _mutateState(() {
+        _commandInputDraftsBySession.remove(sessionId);
+        _commandInputDraftTextBySession[sessionId] = normalizedText;
+        _commandInputDraftLoadingSessionIds.remove(sessionId);
+      });
+      return;
+    }
+    final requestSerial = ++_commandIntelligenceRequestSerial;
+    _mutateState(() {
+      _commandInputDraftsBySession.remove(sessionId);
+      _commandInputDraftTextBySession[sessionId] = normalizedText;
+      _commandInputDraftLoadingSessionIds.add(sessionId);
+    });
+    unawaited(() async {
+      final drafts = await _commandIntelligenceService.draftCommands(
+        CommandDraftRequest(
+          input: normalizedText,
+          cwd: pane?.shellIntegration.currentDirectory,
+          recentCommands: pane?.shellIntegration.recentCommands ?? const [],
+          contextChips: _universalInputPinnedContextChips,
+          modelLabel: _universalInputModelLabel,
+          apiBaseUrl: profile?.commandIntelligence.baseUrl,
+          apiKey: profile?.commandIntelligence.apiKey,
+          apiModel: profile?.commandIntelligence.model,
+          preferRemote: _universalInputModelLabel == 'Agent draft',
+        ),
+      );
+      if (!mounted ||
+          requestSerial != _commandIntelligenceRequestSerial ||
+          _commandInputControllers[sessionId]?.text.trimRight() !=
+              normalizedText) {
+        return;
+      }
+      _mutateState(() {
+        _commandInputDraftsBySession[sessionId] = drafts;
+        _commandInputDraftTextBySession[sessionId] = normalizedText;
+        _commandInputDraftLoadingSessionIds.remove(sessionId);
+      });
+    }());
+  }
+
+  Future<List<CommandDraft>> _generateCommandDraftsForInput({
+    required String sessionId,
+    required String text,
+    required UniversalInputClassification classification,
+  }) async {
+    final normalizedText = text.trimRight();
+    if (!classification.isNaturalLanguage || normalizedText.isEmpty) {
+      return const <CommandDraft>[];
+    }
+    final state = ref.read(sessionControllerProvider);
+    final pane = _paneForSession(state, sessionId);
+    final profile = pane == null ? null : _profileForPane(pane, state.profiles);
+    final requestSerial = ++_commandIntelligenceRequestSerial;
+    _mutateState(() {
+      _commandInputDraftTextBySession[sessionId] = normalizedText;
+      _commandInputDraftLoadingSessionIds.add(sessionId);
+    });
+    final drafts = await _commandIntelligenceService.draftCommands(
+      CommandDraftRequest(
+        input: normalizedText,
+        cwd: pane?.shellIntegration.currentDirectory,
+        recentCommands: pane?.shellIntegration.recentCommands ?? const [],
+        contextChips: _universalInputPinnedContextChips,
+        modelLabel: _universalInputModelLabel,
+        apiBaseUrl: profile?.commandIntelligence.baseUrl,
+        apiKey: profile?.commandIntelligence.apiKey,
+        apiModel: profile?.commandIntelligence.model,
+        preferRemote: _universalInputModelLabel == 'Agent draft',
+      ),
+    );
+    if (!mounted ||
+        requestSerial != _commandIntelligenceRequestSerial ||
+        _commandInputControllers[sessionId]?.text.trimRight() !=
+            normalizedText) {
+      return const <CommandDraft>[];
+    }
+    _mutateState(() {
+      _commandInputDraftsBySession[sessionId] = drafts;
+      _commandInputDraftTextBySession[sessionId] = normalizedText;
+      _commandInputDraftLoadingSessionIds.remove(sessionId);
+    });
+    return drafts;
+  }
+
+  void _acceptCommandCorrection(
+    String sessionId,
+    CommandCorrection correction,
+  ) {
+    final controller = _commandInputControllerFor(sessionId);
+    controller.value = TextEditingValue(
+      text: correction.command,
+      selection: TextSelection.collapsed(offset: correction.command.length),
+      composing: TextRange.empty,
+    );
+    _dismissActiveCommandCorrection();
+    _restoreCommandInputFocus(sessionId);
+  }
+
+  void _dismissActiveCommandCorrection() {
+    if (_activeCommandCorrection == null &&
+        _activeCommandCorrectionSessionId == null) {
+      return;
+    }
+    _mutateState(() {
+      _activeCommandCorrection = null;
+      _activeCommandCorrectionSessionId = null;
+    });
+  }
+
+  String? _activeUniversalInputCwd(SessionState sessionState) {
+    final activeSessionId = sessionState.activeSessionId;
+    if (activeSessionId == null) {
+      return null;
+    }
+    return _paneForSession(
+      sessionState,
+      activeSessionId,
+    )?.shellIntegration.currentDirectory;
+  }
+
+  List<String> _activeUniversalInputRecentCommands(SessionState sessionState) {
+    final activeSessionId = sessionState.activeSessionId;
+    if (activeSessionId == null) {
+      return const <String>[];
+    }
+    return _paneForSession(
+          sessionState,
+          activeSessionId,
+        )?.shellIntegration.recentCommands ??
+        const <String>[];
+  }
+
+  TerminalProfile? _activeUniversalInputProfile(SessionState sessionState) {
+    final activeSessionId = sessionState.activeSessionId;
+    if (activeSessionId == null) {
+      return null;
+    }
+    final pane = _paneForSession(sessionState, activeSessionId);
+    if (pane == null) {
+      return null;
+    }
+    return _profileForPane(pane, sessionState.profiles);
+  }
+
   List<String> _commandInputSuggestionsForText(
     String sessionId,
     String text,
     UniversalInputClassification classification,
   ) {
     if (classification.isNaturalLanguage) {
-      return universalInputCommandSuggestionsForText(
-        text,
-      ).map((suggestion) => suggestion.command).toList(growable: false);
+      return const <String>[];
     }
     final state = ref.read(sessionControllerProvider);
     final frame = ref
@@ -1004,12 +1338,15 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       _universalInputMode = nextMode;
       _autoComposerClassification = inputState.classification;
       _autoComposerSuggestions = inputState.suggestions;
+      _autoComposerCommandDrafts = inputState.drafts;
+      _autoComposerCommandDraftText = nextText;
+      _autoComposerCommandDraftsLoading = inputState.draftsLoading;
       _activeAutoComposerIndex = 0;
     });
     _autoComposerFocusNode.requestFocus();
   }
 
-  void _sendAutoComposerCommand() {
+  Future<void> _sendAutoComposerCommand() async {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {
       return;
@@ -1020,8 +1357,44 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     final inputState = _autoComposerInputStateForText(command);
     if (inputState.classification.isNaturalLanguage) {
-      if (inputState.suggestions.isNotEmpty) {
-        final suggestion = inputState.suggestions.first;
+      var drafts = inputState.drafts;
+      if (drafts.isEmpty && !_autoComposerCommandDraftsLoading) {
+        _maybeRequestAutoComposerCommandDrafts(
+          command,
+          inputState.classification,
+        );
+      }
+      if (drafts.isEmpty) {
+        final requestState = ref.read(sessionControllerProvider);
+        final profile = _activeUniversalInputProfile(requestState);
+        drafts = await _commandIntelligenceService.draftCommands(
+          CommandDraftRequest(
+            input: command,
+            cwd: _activeUniversalInputCwd(requestState),
+            recentCommands: _activeUniversalInputRecentCommands(requestState),
+            contextChips: _universalInputPinnedContextChips,
+            modelLabel: _universalInputModelLabel,
+            apiBaseUrl: profile?.commandIntelligence.baseUrl,
+            apiKey: profile?.commandIntelligence.apiKey,
+            apiModel: profile?.commandIntelligence.model,
+            preferRemote: _universalInputModelLabel == 'Agent draft',
+          ),
+        );
+        if (!mounted || _autoComposerController.text.trimRight() != command) {
+          return;
+        }
+        _mutateState(() {
+          _autoComposerCommandDrafts = drafts;
+          _autoComposerCommandDraftText = command;
+          _autoComposerCommandDraftsLoading = false;
+          _autoComposerSuggestions = drafts
+              .map((draft) => draft.command)
+              .toList(growable: false);
+          _activeAutoComposerIndex = 0;
+        });
+      }
+      if (drafts.isNotEmpty) {
+        final suggestion = drafts.first.command;
         _autoComposerController.value = TextEditingValue(
           text: suggestion,
           selection: TextSelection.collapsed(offset: suggestion.length),
@@ -1035,6 +1408,9 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
           _universalInputMode = UniversalInputMode.auto;
           _autoComposerClassification = terminalState.classification;
           _autoComposerSuggestions = terminalState.suggestions;
+          _autoComposerCommandDrafts = terminalState.drafts;
+          _autoComposerCommandDraftText = suggestion;
+          _autoComposerCommandDraftsLoading = false;
           _activeAutoComposerIndex = 0;
         });
         _autoComposerFocusNode.requestFocus();
@@ -1045,11 +1421,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
         );
         return;
       }
+      final profile = _activeUniversalInputProfile(
+        ref.read(sessionControllerProvider),
+      );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Natural language detected. Choose a command suggestion or switch to Terminal mode.',
-          ),
+        SnackBar(
+          content: Text(_naturalLanguageCommandUnavailableMessageFor(profile)),
         ),
       );
       _autoComposerFocusNode.requestFocus();
@@ -1058,6 +1435,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     if (!_sendPlainTextToSession(activeSessionId, '$command\n')) {
       return;
     }
+    _dismissActiveCommandCorrection();
     _autoComposerController.clear();
     _closeAutoComposer();
   }

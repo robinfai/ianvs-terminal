@@ -61,6 +61,20 @@ void main() {
       expect(viewModel.blocks.single.showReplayAction, isTrue);
     });
 
+    test('marks bookmarked blocks in overlay state', () {
+      final block = _commandBlock(startRow: 10, endRow: 12);
+      final viewModel = ShellCommandBlockViewModelBuilder.build(
+        blocks: [block],
+        viewportStartRow: 8,
+        viewportEndRow: 24,
+        bookmarkedBlockIds: {block.id},
+        flags: _enabledFlags(),
+      );
+
+      expect(viewModel.blocks.single.id, block.id);
+      expect(viewModel.blocks.single.bookmarked, isTrue);
+    });
+
     test('marks running blocks as live terminal output', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [

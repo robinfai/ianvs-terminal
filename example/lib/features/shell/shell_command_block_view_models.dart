@@ -44,6 +44,7 @@ class ShellCommandBlockOverlayItem {
     this.durationLabel = '--',
     this.outputPreview = '',
     this.outputRangeLabel = '',
+    this.bookmarked = false,
     required this.showFailureSnapshotAction,
     required this.showReplayAction,
     required this.showDiffAction,
@@ -65,6 +66,7 @@ class ShellCommandBlockOverlayItem {
   final String durationLabel;
   final String outputPreview;
   final String outputRangeLabel;
+  final bool bookmarked;
 
   /// Failed-only failure snapshot action.
   final bool showFailureSnapshotAction;
@@ -85,6 +87,7 @@ class ShellCommandBlockViewModelBuilder {
     List<terminal.TerminalRow> visibleRows = const <terminal.TerminalRow>[],
     Map<String, List<terminal.TerminalRow>> capturedRowsByBlockId =
         const <String, List<terminal.TerminalRow>>{},
+    Set<String> bookmarkedBlockIds = const <String>{},
     int viewportCols = 0,
     String? activeBlockId,
     int visibleLimit = shellCommandBlockStackVisibleLimit,
@@ -152,6 +155,7 @@ class ShellCommandBlockViewModelBuilder {
             preferFallbackRows: preferCapturedRows,
           ),
           outputRangeLabel: _outputRangeLabel(block, terminalRows),
+          bookmarked: bookmarkedBlockIds.contains(block.id),
           showFailureSnapshotAction:
               flags.failureSnapshots &&
               block.status == ShellCommandBlockStatus.failed,

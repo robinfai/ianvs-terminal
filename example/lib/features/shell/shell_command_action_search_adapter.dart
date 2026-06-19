@@ -213,6 +213,18 @@ List<String> _actionSearchAliasesFor(TerminalActionId actionId) {
       'block review',
       'command block review',
     ],
+    TerminalActionId.previousCommandBlock => const [
+      'navigate command blocks',
+      'previous block',
+      'select previous command block',
+      'warp block navigation',
+    ],
+    TerminalActionId.nextCommandBlock => const [
+      'navigate command blocks',
+      'next block',
+      'select next command block',
+      'warp block navigation',
+    ],
     _ => const <String>[],
   };
 }

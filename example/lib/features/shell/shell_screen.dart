@@ -19,6 +19,7 @@ import '../command_center/command_action_search_shell_wiring.dart';
 import '../command_center/command_block_action_reducer.dart';
 import '../command_center/command_block_actions.dart';
 import '../command_center/command_block_models.dart';
+import '../command_center/command_block_navigation.dart';
 import '../command_center/command_center_runtime.dart';
 import '../command_center/command_center_shell_event_wiring.dart';
 import '../command_center/command_lifecycle_degraded_state.dart';
@@ -33,6 +34,7 @@ import '../command_center/context_chips.dart';
 import '../command_center/global_command_history_repository.dart';
 import '../command_center/saved_command_repository.dart';
 import '../command_center/shell_command_block_command_center_adapter.dart';
+import '../command_center/sticky_command_header.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
@@ -68,6 +70,7 @@ import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
 import 'shell_command_action_search_adapter.dart';
 import 'shell_command_block_view_models.dart';
+import 'command_intelligence_service.dart';
 import 'shell_shortcut_bridge.dart';
 import 'universal_input.dart';
 import 'window_bridge.dart';
@@ -136,6 +139,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, int> _terminalFrameSequenceBySession = {};
   final Map<String, String> _searchRefreshFrameSignatures = {};
   final Map<String, String> _selectedCommandBlockIdsBySession = {};
+  final Map<String, Set<String>> _bookmarkedCommandBlockIdsBySession = {};
   final TextEditingController _autoComposerController = TextEditingController();
   final FocusNode _autoComposerFocusNode = FocusNode();
   final Set<String> _sessionsSeenForActivityNotifications = {};
@@ -156,6 +160,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const CommandActionSearchShellWiring();
   final ShellCommandActionSearchAdapter _commandActionSearchAdapter =
       const ShellCommandActionSearchAdapter();
+  final CommandIntelligenceService _commandIntelligenceService =
+      CommandIntelligenceService.fromEnvironment();
   late final SavedCommandRepository _savedCommandRepository;
   CommandCenterRuntimeState _commandCenterRuntime =
       const CommandCenterRuntimeState();
@@ -237,7 +243,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
   List<String> _autoComposerSuggestions = const [];
+  List<CommandDraft> _autoComposerCommandDrafts = const [];
+  String _autoComposerCommandDraftText = '';
+  bool _autoComposerCommandDraftsLoading = false;
   int _activeAutoComposerIndex = 0;
+  final Map<String, List<CommandDraft>> _commandInputDraftsBySession = {};
+  final Map<String, String> _commandInputDraftTextBySession = {};
+  final Set<String> _commandInputDraftLoadingSessionIds = {};
+  int _commandIntelligenceRequestSerial = 0;
+  int _commandCorrectionRequestSerial = 0;
+  bool _suggestCorrectedCommands = true;
+  CommandCorrection? _activeCommandCorrection;
+  String? _activeCommandCorrectionSessionId;
   List<String> _universalInputPinnedContextChips = const [];
   String _universalInputModelLabel = 'Local heuristic';
   UniversalInputMode _universalInputMode = UniversalInputMode.auto;
@@ -307,6 +324,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _searchFocusNode.dispose();
     _autoComposerController.dispose();
     _autoComposerFocusNode.dispose();
+    _commandIntelligenceService.close();
     super.dispose();
   }
 
@@ -433,6 +451,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       );
       if (commandSearchResult != null) {
         return commandSearchResult;
+      }
+      final commandBlockSelectionResult =
+          _handleSelectedCommandBlockNavigationKey(event, activeSessionId);
+      if (commandBlockSelectionResult != null) {
+        return commandBlockSelectionResult;
       }
       final shortcut = _shortcutActionFor(event);
       if (shortcut == null) {
@@ -808,6 +831,26 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           }
           _navigateShellPrompt(activeSessionId, direction: 1);
           return KeyEventResult.handled;
+        case TerminalActionId.previousCommandBlock:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _navigateCommandBlock(
+            activeSessionId,
+            CommandBlockNavigationTarget.previous,
+            showBlockedFeedback: true,
+          );
+          return KeyEventResult.handled;
+        case TerminalActionId.nextCommandBlock:
+          if (activeSessionId == null) {
+            return KeyEventResult.handled;
+          }
+          _navigateCommandBlock(
+            activeSessionId,
+            CommandBlockNavigationTarget.next,
+            showBlockedFeedback: true,
+          );
+          return KeyEventResult.handled;
         case TerminalActionId.closeActiveTab:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
@@ -1107,6 +1150,39 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             text,
                             classification,
                           ),
+                      suggestionDetailsForInput: (text, classification) =>
+                          _commandDraftDetailsByCommand(
+                            _commandInputDraftsForText(
+                              commandInputSessionId,
+                              text,
+                              classification,
+                            ),
+                          ),
+                      suggestionsLoadingForInput: (text, classification) {
+                        if (!classification.isNaturalLanguage) {
+                          return false;
+                        }
+                        return _commandInputDraftLoadingSessionIds.contains(
+                              commandInputSessionId,
+                            ) &&
+                            _commandInputDraftTextBySession[commandInputSessionId] ==
+                                text.trimRight();
+                      },
+                      onGenerateCommandDrafts: (text, classification) =>
+                          _generateCommandDraftsForInput(
+                            sessionId: commandInputSessionId,
+                            text: text,
+                            classification: classification,
+                          ),
+                      commandCorrection:
+                          _activeCommandCorrectionSessionId ==
+                              commandInputSessionId
+                          ? _activeCommandCorrection
+                          : null,
+                      naturalLanguageUnavailableMessage:
+                          _naturalLanguageCommandUnavailableMessageFor(
+                            commandInputProfile,
+                          ),
                       contextChips: commandInputPane == null
                           ? const <String>[]
                           : _universalInputContextChipsFor(
@@ -1128,12 +1204,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         commandInputSessionId,
                         value,
                       ),
+                      onChanged: (text) => _updateCommandInputDrafts(
+                        commandInputSessionId,
+                        text,
+                      ),
                       onModelSelected: (modelLabel) => _setCommandInputModel(
                         commandInputSessionId,
                         modelLabel,
                       ),
                       onOpenCommandSearch: () =>
                           _openCommandSearch(commandInputSessionId),
+                      onAcceptCommandCorrection: (correction) =>
+                          _acceptCommandCorrection(
+                            commandInputSessionId,
+                            correction,
+                          ),
+                      onDismissCommandCorrection:
+                          _dismissActiveCommandCorrection,
                       onSubmitted: (command) =>
                           _submitCommandInput(commandInputSessionId, command),
                     );

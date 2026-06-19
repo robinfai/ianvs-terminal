@@ -168,7 +168,15 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _activeAutocompleteIndex = 0;
       _autoComposerController.clear();
       _autoComposerSuggestions = const [];
+      _autoComposerCommandDrafts = const [];
+      _autoComposerCommandDraftText = '';
+      _autoComposerCommandDraftsLoading = false;
+      _commandInputDraftsBySession.clear();
+      _commandInputDraftTextBySession.clear();
+      _commandInputDraftLoadingSessionIds.clear();
       _activeAutoComposerIndex = 0;
+      _activeCommandCorrection = null;
+      _activeCommandCorrectionSessionId = null;
       _universalInputPinnedContextChips = const [];
       _universalInputModelLabel = 'Local heuristic';
       _universalInputMode = UniversalInputMode.auto;
@@ -201,6 +209,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _clearNewOutputForTab(
       _tabForSession(ref.read(sessionControllerProvider), sessionId),
     );
+    if (_activeCommandCorrectionSessionId != null &&
+        _activeCommandCorrectionSessionId != sessionId) {
+      _activeCommandCorrection = null;
+      _activeCommandCorrectionSessionId = null;
+    }
     sessionController.activateSession(sessionId);
     _focusSession(sessionId);
   }

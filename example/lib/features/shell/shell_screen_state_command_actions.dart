@@ -1215,6 +1215,26 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           ),
         );
         return;
+      case TerminalActionId.previousCommandBlock:
+        if (currentSessionId == null) {
+          return;
+        }
+        _navigateCommandBlock(
+          currentSessionId,
+          CommandBlockNavigationTarget.previous,
+          showBlockedFeedback: true,
+        );
+        return;
+      case TerminalActionId.nextCommandBlock:
+        if (currentSessionId == null) {
+          return;
+        }
+        _navigateCommandBlock(
+          currentSessionId,
+          CommandBlockNavigationTarget.next,
+          showBlockedFeedback: true,
+        );
+        return;
       case TerminalActionId.search:
         if (currentSessionId == null) {
           return;

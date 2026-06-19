@@ -14,6 +14,11 @@ void main() {
         id: 'default',
         name: 'Local Shell',
         tags: const ['work', 'prod'],
+        commandIntelligence: const TerminalProfileCommandIntelligenceConfig(
+          baseUrl: 'https://old.example.com',
+          apiKey: 'old-key',
+          model: 'deepseek-v4-pro',
+        ),
         sessionConfig: const terminal.TerminalSessionConfig(
           launch: terminal.TerminalLaunchConfig(
             program: '/bin/bash',
@@ -87,6 +92,33 @@ void main() {
             .controller!
             .text,
         '/bin/bash',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.byKey(const Key('profile-editor-openai-base-url')),
+            )
+            .controller!
+            .text,
+        'https://old.example.com',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.byKey(const Key('profile-editor-openai-api-key')),
+            )
+            .controller!
+            .text,
+        'old-key',
+      );
+      expect(
+        tester
+            .widget<TextFormField>(
+              find.byKey(const Key('profile-editor-openai-model')),
+            )
+            .controller!
+            .text,
+        'deepseek-v4-pro',
       );
       expect(find.text('Colors'), findsOneWidget);
       expect(find.text('Special'), findsOneWidget);
@@ -168,6 +200,22 @@ void main() {
       await tester.enterText(
         find.byKey(const Key('profile-editor-env-value-1')),
         'truecolor',
+      );
+      await _ensureVisible(
+        tester,
+        find.byKey(const Key('profile-editor-openai-base-url')),
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-editor-openai-base-url')),
+        'https://api.deepseek.com',
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-editor-openai-api-key')),
+        'profile-key',
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-editor-openai-model')),
+        'deepseek-v4-flash',
       );
 
       await _ensureVisible(
@@ -405,6 +453,14 @@ void main() {
         'TERM_PROGRAM': 'ianvs terminal',
         'COLORTERM': 'truecolor',
       });
+      expect(
+        savedProfile!.commandIntelligence,
+        const TerminalProfileCommandIntelligenceConfig(
+          baseUrl: 'https://api.deepseek.com',
+          apiKey: 'profile-key',
+          model: 'deepseek-v4-flash',
+        ),
+      );
       expect(savedProfile!.terminalEmulation, TerminalEmulation.xterm256);
       expect(savedProfile!.scrollbackLines, 12000);
       expect(savedProfile!.sessionConfig.shellIntegration.enabled, isFalse);
@@ -479,6 +535,22 @@ void main() {
       const Key('profile-editor-switch-rules'),
     );
     _expectDescendant(
+      const Key('profile-editor-section-command-intelligence'),
+      const Key('profile-editor-group-openai-compatible'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-group-openai-compatible'),
+      const Key('profile-editor-openai-base-url'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-group-openai-compatible'),
+      const Key('profile-editor-openai-api-key'),
+    );
+    _expectDescendant(
+      const Key('profile-editor-group-openai-compatible'),
+      const Key('profile-editor-openai-model'),
+    );
+    _expectDescendant(
       const Key('profile-editor-section-session'),
       const Key('profile-editor-emulation'),
     );
@@ -506,6 +578,7 @@ void main() {
     expect(find.text('Identity'), findsOneWidget);
     expect(find.text('Startup'), findsOneWidget);
     expect(find.text('Automation'), findsOneWidget);
+    expect(find.text('Command intelligence'), findsOneWidget);
     expect(find.text('Terminal session'), findsOneWidget);
     expect(find.text('Appearance'), findsOneWidget);
     expect(find.text('Interaction'), findsOneWidget);
@@ -657,6 +730,14 @@ void main() {
     await tester.enterText(find.byKey(const Key('profile-editor-shell')), '');
     await _ensureVisible(
       tester,
+      find.byKey(const Key('profile-editor-openai-base-url')),
+    );
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-openai-base-url')),
+      'deepseek',
+    );
+    await _ensureVisible(
+      tester,
       find.byKey(const Key('profile-editor-scrollback')),
     );
     await tester.enterText(
@@ -695,6 +776,7 @@ void main() {
     expect(savedProfile, isNull);
     expect(find.text('Name is required'), findsOneWidget);
     expect(find.text('Shell is required'), findsOneWidget);
+    expect(find.text('Base URL must be an absolute HTTP URL'), findsOneWidget);
     expect(
       find.text('Scrollback lines must be a positive integer'),
       findsOneWidget,

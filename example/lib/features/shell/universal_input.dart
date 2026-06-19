@@ -7,7 +7,9 @@ enum UniversalInputDecisionSource {
   explicitTerminalMode,
   explicitAgentMode,
   naturalLanguageOneOffAllowlist,
+  naturalLanguageDenylist,
   shellCommandAllowlist,
+  multilineCommand,
   commandVocabulary,
   shellSyntax,
   cjkNaturalLanguage,
@@ -63,16 +65,148 @@ class UniversalInputCommandSuggestion {
   const UniversalInputCommandSuggestion({
     required this.command,
     required this.reason,
+    this.source = CommandSuggestionSource.localHeuristic,
+    this.confidence = 0.86,
+    this.riskLevel = CommandRiskLevel.safe,
   });
 
   final String command;
   final String reason;
+  final CommandSuggestionSource source;
+  final double confidence;
+  final CommandRiskLevel riskLevel;
+}
+
+enum CommandSuggestionSource { localHeuristic, localCorrectionRule, deepSeek }
+
+enum CommandRiskLevel { safe, caution, destructive }
+
+extension CommandSuggestionSourceLabel on CommandSuggestionSource {
+  String get label {
+    return switch (this) {
+      CommandSuggestionSource.localHeuristic => 'Local',
+      CommandSuggestionSource.localCorrectionRule => 'Rule',
+      CommandSuggestionSource.deepSeek => 'DeepSeek',
+    };
+  }
+}
+
+extension CommandRiskLevelLabel on CommandRiskLevel {
+  String get label {
+    return switch (this) {
+      CommandRiskLevel.safe => 'Safe',
+      CommandRiskLevel.caution => 'Caution',
+      CommandRiskLevel.destructive => 'Destructive',
+    };
+  }
+}
+
+class CommandDraft {
+  const CommandDraft({
+    required this.command,
+    required this.reason,
+    this.source = CommandSuggestionSource.localHeuristic,
+    this.confidence = 0.86,
+    this.riskLevel = CommandRiskLevel.safe,
+  });
+
+  final String command;
+  final String reason;
+  final CommandSuggestionSource source;
+  final double confidence;
+  final CommandRiskLevel riskLevel;
+
+  UniversalInputCommandSuggestion toSuggestion() {
+    return UniversalInputCommandSuggestion(
+      command: command,
+      reason: reason,
+      source: source,
+      confidence: confidence,
+      riskLevel: riskLevel,
+    );
+  }
+}
+
+class CommandCorrection {
+  const CommandCorrection({
+    required this.command,
+    required this.reason,
+    required this.ruleId,
+    this.source = CommandSuggestionSource.localCorrectionRule,
+    this.confidence = 0.82,
+    this.riskLevel = CommandRiskLevel.safe,
+  });
+
+  final String command;
+  final String reason;
+  final String ruleId;
+  final CommandSuggestionSource source;
+  final double confidence;
+  final CommandRiskLevel riskLevel;
+}
+
+class CommandDraftRequest {
+  const CommandDraftRequest({
+    required this.input,
+    this.cwd,
+    this.recentCommands = const <String>[],
+    this.contextChips = const <String>[],
+    this.modelLabel,
+    this.apiBaseUrl,
+    this.apiKey,
+    this.apiModel,
+    this.allowRemote = true,
+    this.preferRemote = false,
+  });
+
+  final String input;
+  final String? cwd;
+  final List<String> recentCommands;
+  final List<String> contextChips;
+  final String? modelLabel;
+  final String? apiBaseUrl;
+  final String? apiKey;
+  final String? apiModel;
+  final bool allowRemote;
+  final bool preferRemote;
+}
+
+class CommandCorrectionRequest {
+  const CommandCorrectionRequest({
+    required this.command,
+    this.cwd,
+    this.exitCode,
+    this.outputTail = '',
+    this.recentCommands = const <String>[],
+    this.recentDirectories = const <String>[],
+    this.apiBaseUrl,
+    this.apiKey,
+    this.apiModel,
+    this.allowRemote = true,
+    this.preferRemote = false,
+  });
+
+  final String command;
+  final String? cwd;
+  final int? exitCode;
+  final String outputTail;
+  final List<String> recentCommands;
+  final List<String> recentDirectories;
+  final String? apiBaseUrl;
+  final String? apiKey;
+  final String? apiModel;
+  final bool allowRemote;
+  final bool preferRemote;
 }
 
 class UniversalInputClassifier {
-  const UniversalInputClassifier({this.commandVocabulary = const <String>{}});
+  const UniversalInputClassifier({
+    this.commandVocabulary = const <String>{},
+    this.naturalLanguageDenylist = const <String>{},
+  });
 
   final Set<String> commandVocabulary;
+  final Set<String> naturalLanguageDenylist;
 
   UniversalInputClassification classify(
     String input, {
@@ -105,12 +239,32 @@ class UniversalInputClassifier {
     }
 
     final firstToken = _normalizeToken(tokens.first);
+    if (_matchesNaturalLanguageDenylist(normalizedInput, tokens)) {
+      return UniversalInputClassification(
+        mode: mode,
+        kind: UniversalInputKind.command,
+        source: UniversalInputDecisionSource.naturalLanguageDenylist,
+        confidence: 0.99,
+        tokens: tokens,
+      );
+    }
+
     if (tokens.length == 1 && _isNaturalLanguageOneOffOrPrefix(firstToken)) {
       return UniversalInputClassification(
         mode: mode,
         kind: UniversalInputKind.naturalLanguage,
         source: UniversalInputDecisionSource.naturalLanguageOneOffAllowlist,
         confidence: 0.94,
+        tokens: tokens,
+      );
+    }
+
+    if (_isLikelyMultilineCommand(normalizedInput)) {
+      return UniversalInputClassification(
+        mode: mode,
+        kind: UniversalInputKind.command,
+        source: UniversalInputDecisionSource.multilineCommand,
+        confidence: 0.92,
         tokens: tokens,
       );
     }
@@ -189,6 +343,54 @@ class UniversalInputClassifier {
     }
     return false;
   }
+
+  bool _matchesNaturalLanguageDenylist(String input, List<String> tokens) {
+    if (naturalLanguageDenylist.isEmpty) {
+      return false;
+    }
+    final normalizedInput = input.toLowerCase();
+    final firstToken = _normalizeToken(tokens.first);
+    return naturalLanguageDenylist.any((entry) {
+      final normalizedEntry = entry.trim().toLowerCase();
+      if (normalizedEntry.isEmpty) {
+        return false;
+      }
+      return firstToken == normalizedEntry ||
+          normalizedInput == normalizedEntry ||
+          normalizedInput.startsWith('$normalizedEntry ');
+    });
+  }
+
+  bool _isLikelyMultilineCommand(String input) {
+    if (!input.contains('\n')) {
+      return false;
+    }
+    final lines = input
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    if (lines.length < 2) {
+      return false;
+    }
+    var commandLines = 0;
+    for (final line in lines) {
+      final lineTokens = parseUniversalInputTokens(line);
+      if (lineTokens.isEmpty) {
+        continue;
+      }
+      final firstToken = _normalizeToken(lineTokens.first);
+      if (_knownShellCommands.contains(firstToken) ||
+          commandVocabulary.contains(firstToken) ||
+          _oneOffShellCommandKeywords.contains(firstToken) ||
+          _startsLikeShellCommand(line, lineTokens) ||
+          _hasShellSyntaxMajority(lineTokens) ||
+          line.endsWith('\\')) {
+        commandLines += 1;
+      }
+    }
+    return commandLines >= (lines.length * 0.66).ceil();
+  }
 }
 
 List<String> parseUniversalInputTokens(String query) {
@@ -261,103 +463,317 @@ List<String> parseUniversalInputTokens(String query) {
 List<UniversalInputCommandSuggestion> universalInputCommandSuggestionsForText(
   String input,
 ) {
-  final normalized = input.trim().toLowerCase();
-  if (normalized.isEmpty) {
-    return const <UniversalInputCommandSuggestion>[];
-  }
-
-  final suggestions = <UniversalInputCommandSuggestion>[];
-  void add(String command, String reason) {
-    if (suggestions.any((suggestion) => suggestion.command == command)) {
-      return;
-    }
-    suggestions.add(
-      UniversalInputCommandSuggestion(command: command, reason: reason),
-    );
-  }
-
-  if (_matchesAny(normalized, const [
-    'git status',
-    'what changed',
-    'changes in git',
-    'repo status',
-    'working tree',
-    '仓库状态',
-    'git 状态',
-    '有什么改动',
-  ])) {
-    add('git status --short --branch', 'Show repository status');
-  }
-  if (_matchesAny(normalized, const [
-    'git diff',
-    'show diff',
-    '查看 diff',
-    '查看改动',
-    '代码改动',
-  ])) {
-    add('git diff --stat', 'Summarize changed files');
-  }
-  if (_matchesAny(normalized, const [
-    'list files',
-    'show files',
-    'directory files',
-    '列出文件',
-    '看看文件',
-    '显示文件',
-  ])) {
-    add('ls -la', 'List files');
-  }
-  if (_matchesAny(normalized, const [
-    'where am i',
-    'current directory',
-    'print working directory',
-    '当前目录',
-    '我在哪',
-  ])) {
-    add('pwd', 'Print current directory');
-  }
-  if (_matchesAny(normalized, const [
-    'find text',
-    'search text',
-    'search files',
-    '查找文本',
-    '搜索文本',
-    '搜索文件',
-  ])) {
-    add('rg ', 'Search files');
-  }
-  if (_matchesAny(normalized, const [
-    'run tests',
-    'flutter tests',
-    '跑测试',
-    '运行测试',
-    '执行测试',
-  ])) {
-    add('flutter test', 'Run Flutter tests');
-  }
-  if (_matchesAny(normalized, const [
-    'analyze dart',
-    'dart analyze',
-    'static analysis',
-    '静态分析',
-    '代码分析',
-  ])) {
-    add('dart analyze', 'Run Dart analyzer');
-  }
-  if (_matchesAny(normalized, const [
-    'clear screen',
-    'clean terminal',
-    '清屏',
-    '清空终端',
-  ])) {
-    add('clear', 'Clear the terminal');
-  }
-
-  return suggestions.take(5).toList(growable: false);
+  return const <UniversalInputCommandSuggestion>[];
 }
 
-bool _matchesAny(String normalized, List<String> needles) {
-  return needles.any(normalized.contains);
+List<CommandDraft> universalInputCommandDraftsForText(
+  String input, {
+  String? cwd,
+}) {
+  return const <CommandDraft>[];
+}
+
+CommandCorrection? universalInputLocalCorrectionFor(
+  CommandCorrectionRequest request,
+) {
+  final command = request.command.trim();
+  if (command.isEmpty) {
+    return null;
+  }
+  final output = request.outputTail;
+  final outputLower = output.toLowerCase();
+  final tokens = parseUniversalInputTokens(command);
+  if (tokens.isEmpty) {
+    return null;
+  }
+
+  final upstream = _gitPushUpstreamCorrection(command, output, outputLower);
+  if (upstream != null) {
+    return upstream;
+  }
+
+  final permission = _permissionCorrection(command, outputLower);
+  if (permission != null) {
+    return permission;
+  }
+
+  final cdCorrection = _cdPathCorrection(command, tokens, request);
+  if (cdCorrection != null) {
+    return cdCorrection;
+  }
+
+  final typo = _executableTypoCorrection(command, tokens);
+  if (typo != null) {
+    return typo;
+  }
+
+  return null;
+}
+
+CommandRiskLevel universalInputRiskLevelForCommand(String command) {
+  final normalized = command.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return CommandRiskLevel.safe;
+  }
+  if (RegExp(
+        r'(^|[;&|]\s*)rm\s+-[^\n;&|]*[rf][^\n;&|]*\s+',
+      ).hasMatch(normalized) ||
+      RegExp(r'\b(dd|mkfs|shutdown|reboot)\b').hasMatch(normalized)) {
+    return CommandRiskLevel.destructive;
+  }
+  if (RegExp(
+    r'(^|[;&|]\s*)(sudo|chmod|chown|chgrp|kill|pkill)\b',
+  ).hasMatch(normalized)) {
+    return CommandRiskLevel.caution;
+  }
+  if (RegExp(
+    r'\b(brew|npm|pnpm|yarn|pip|gem|cargo)\s+(install|add|remove|uninstall|update|upgrade)\b',
+  ).hasMatch(normalized)) {
+    return CommandRiskLevel.caution;
+  }
+  if (RegExp(r'(^|[^>])>{1,2}\s*\S+').hasMatch(normalized)) {
+    return CommandRiskLevel.caution;
+  }
+  return CommandRiskLevel.safe;
+}
+
+String redactUniversalInputCommandContext(
+  String input, {
+  int maxLines = 80,
+  int maxChars = 8192,
+}) {
+  final tail = input
+      .split('\n')
+      .where((line) => line.trim().isNotEmpty)
+      .toList(growable: false);
+  final limitedLines = tail.length <= maxLines
+      ? tail
+      : tail.sublist(tail.length - maxLines);
+  var redacted = limitedLines.join('\n');
+  if (redacted.length > maxChars) {
+    redacted = redacted.substring(redacted.length - maxChars);
+  }
+  redacted = redacted.replaceAllMapped(
+    RegExp(
+      r'''\b([A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASS)[A-Z0-9_]*\s*=\s*)([^\s'"]+)''',
+      caseSensitive: false,
+    ),
+    (match) => '${match.group(1)}[REDACTED]',
+  );
+  redacted = redacted.replaceAllMapped(
+    RegExp(
+      r'\b(token|api[_-]?key|secret|password)=([^&\s]+)',
+      caseSensitive: false,
+    ),
+    (match) => '${match.group(1)}=[REDACTED]',
+  );
+  redacted = redacted.replaceAllMapped(
+    RegExp(r'\b(bearer\s+)[A-Za-z0-9._~+/=-]{12,}', caseSensitive: false),
+    (match) => '${match.group(1)}[REDACTED]',
+  );
+  return redacted;
+}
+
+CommandCorrection? _executableTypoCorrection(
+  String command,
+  List<String> tokens,
+) {
+  final firstToken = _normalizeToken(tokens.first);
+  if (firstToken.isEmpty ||
+      _knownShellCommands.contains(firstToken) ||
+      _oneOffShellCommandKeywords.contains(firstToken)) {
+    return null;
+  }
+  final explicitCorrection = _commonExecutableTypos[firstToken];
+  final correctedExecutable =
+      explicitCorrection ?? _nearestKnownExecutable(firstToken);
+  if (correctedExecutable == null) {
+    return null;
+  }
+  final corrected = command.replaceFirst(
+    RegExp(RegExp.escape(tokens.first)),
+    correctedExecutable,
+  );
+  if (corrected == command) {
+    return null;
+  }
+  return CommandCorrection(
+    command: corrected,
+    reason: 'Corrects the executable name to $correctedExecutable.',
+    ruleId: 'executable-typo',
+    confidence: explicitCorrection == null ? 0.74 : 0.92,
+    riskLevel: universalInputRiskLevelForCommand(corrected),
+  );
+}
+
+CommandCorrection? _gitPushUpstreamCorrection(
+  String command,
+  String output,
+  String outputLower,
+) {
+  final normalized = command.trim().toLowerCase();
+  if (normalized != 'git push' && !normalized.startsWith('git push ')) {
+    return null;
+  }
+  if (!outputLower.contains('set-upstream') &&
+      !outputLower.contains('no upstream branch')) {
+    return null;
+  }
+  final explicit = RegExp(
+    r'git push --set-upstream\s+origin\s+([^\s]+)',
+    caseSensitive: false,
+  ).firstMatch(output);
+  final branch =
+      explicit?.group(1) ??
+      RegExp(
+        r'current branch\s+([A-Za-z0-9._/-]+)',
+        caseSensitive: false,
+      ).firstMatch(output)?.group(1) ??
+      'HEAD';
+  final corrected = 'git push --set-upstream origin $branch';
+  return CommandCorrection(
+    command: corrected,
+    reason: 'Adds the missing upstream branch for git push.',
+    ruleId: 'git-push-upstream',
+    confidence: branch == 'HEAD' ? 0.72 : 0.9,
+    riskLevel: universalInputRiskLevelForCommand(corrected),
+  );
+}
+
+CommandCorrection? _permissionCorrection(String command, String output) {
+  if (!output.contains('permission denied')) {
+    return null;
+  }
+  final tokens = parseUniversalInputTokens(command);
+  if (tokens.isEmpty) {
+    return null;
+  }
+  final executable = RegExp(r'^\s*(\S+)').firstMatch(command)?.group(1);
+  if (executable != null &&
+      (executable.startsWith('./') || executable.startsWith('../'))) {
+    final corrected = 'chmod +x $executable && $command';
+    return CommandCorrection(
+      command: corrected,
+      reason: 'Makes the script executable before running it again.',
+      ruleId: 'permission-script-executable',
+      confidence: 0.84,
+      riskLevel: universalInputRiskLevelForCommand(corrected),
+    );
+  }
+  if (!command.trimLeft().startsWith('sudo ')) {
+    final corrected = 'sudo $command';
+    return CommandCorrection(
+      command: corrected,
+      reason: 'Retries the command with elevated permissions.',
+      ruleId: 'permission-sudo',
+      confidence: 0.68,
+      riskLevel: universalInputRiskLevelForCommand(corrected),
+    );
+  }
+  return null;
+}
+
+CommandCorrection? _cdPathCorrection(
+  String command,
+  List<String> tokens,
+  CommandCorrectionRequest request,
+) {
+  if (_normalizeToken(tokens.first) != 'cd' || tokens.length < 2) {
+    return null;
+  }
+  final requestedPath = tokens[1].replaceAll(RegExp(r'''^['"]|['"]$'''), '');
+  if (requestedPath.trim().isEmpty || request.recentDirectories.isEmpty) {
+    return null;
+  }
+  String? bestPath;
+  var bestDistance = 1 << 20;
+  final requestedLeaf = _pathLeaf(requestedPath).toLowerCase();
+  for (final directory in request.recentDirectories) {
+    final candidate = directory.trim();
+    if (candidate.isEmpty) {
+      continue;
+    }
+    final distance = _levenshteinDistance(
+      requestedLeaf,
+      _pathLeaf(candidate).toLowerCase(),
+    );
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestPath = candidate;
+    }
+  }
+  if (bestPath == null || bestDistance > 3) {
+    return null;
+  }
+  final corrected = 'cd ${_shellQuotePath(bestPath)}';
+  return CommandCorrection(
+    command: corrected,
+    reason: 'Uses the closest recent directory path.',
+    ruleId: 'cd-path-fuzzy',
+    confidence: 0.72,
+    riskLevel: universalInputRiskLevelForCommand(corrected),
+  );
+}
+
+String? _nearestKnownExecutable(String token) {
+  String? best;
+  var bestDistance = 1 << 20;
+  for (final candidate in _knownShellCommands) {
+    final distance = _levenshteinDistance(token, candidate);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = candidate;
+    }
+  }
+  if (best == null) {
+    return null;
+  }
+  final maxDistance = token.length <= 4 ? 2 : 3;
+  return bestDistance <= maxDistance ? best : null;
+}
+
+int _levenshteinDistance(String left, String right) {
+  if (left == right) {
+    return 0;
+  }
+  if (left.isEmpty) {
+    return right.length;
+  }
+  if (right.isEmpty) {
+    return left.length;
+  }
+  var previous = List<int>.generate(right.length + 1, (index) => index);
+  for (var leftIndex = 0; leftIndex < left.length; leftIndex += 1) {
+    final current = List<int>.filled(right.length + 1, 0);
+    current[0] = leftIndex + 1;
+    for (var rightIndex = 0; rightIndex < right.length; rightIndex += 1) {
+      final substitutionCost = left[leftIndex] == right[rightIndex] ? 0 : 1;
+      current[rightIndex + 1] = [
+        current[rightIndex] + 1,
+        previous[rightIndex + 1] + 1,
+        previous[rightIndex] + substitutionCost,
+      ].reduce((value, element) => value < element ? value : element);
+    }
+    previous = current;
+  }
+  return previous.last;
+}
+
+String _pathLeaf(String path) {
+  final withoutTrailingSlash = path.endsWith('/') && path.length > 1
+      ? path.substring(0, path.length - 1)
+      : path;
+  final slashIndex = withoutTrailingSlash.lastIndexOf('/');
+  return slashIndex == -1
+      ? withoutTrailingSlash
+      : withoutTrailingSlash.substring(slashIndex + 1);
+}
+
+String _shellQuotePath(String path) {
+  if (!RegExp(r'\s').hasMatch(path)) {
+    return path;
+  }
+  return "'${path.replaceAll("'", r"'\''")}'";
 }
 
 bool _startsLikeShellCommand(String input, List<String> tokens) {
@@ -510,6 +926,19 @@ const _oneOffNaturalLanguageWords = <String>{
   'how',
   'nice',
   '1. ',
+};
+
+const _commonExecutableTypos = <String, String>{
+  'gti': 'git',
+  'gut': 'git',
+  'got': 'git',
+  'pyhton': 'python',
+  'pythno': 'python',
+  'pythong': 'python',
+  'fluter': 'flutter',
+  'flutetr': 'flutter',
+  'drat': 'dart',
+  'sl': 'ls',
 };
 
 const _knownShellCommands = <String>{

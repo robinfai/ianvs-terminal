@@ -36,6 +36,18 @@ void main() {
       expect(config.commandCenter.contextChips, isFalse);
       expect(config.commandCenter.reviewEntrypoints, isFalse);
       expect(config.commandCenter.verificationDiagnostics, isFalse);
+      expect(config.universalInput.suggestCorrectedCommands, isTrue);
+    });
+
+    test('universal input config decodes correction suggestions flag', () {
+      final config = LocalTerminalConfigDocument.fromJson(const {
+        'universalInput': {'suggestCorrectedCommands': false},
+      });
+
+      expect(config.universalInput.suggestCorrectedCommands, isFalse);
+      expect(config.universalInput.toJson(), {
+        'suggestCorrectedCommands': false,
+      });
     });
 
     test('command center config decodes explicit flags', () {

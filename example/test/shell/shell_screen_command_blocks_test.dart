@@ -1,4 +1,6 @@
+import 'package:app/features/command_center/command_block_navigation.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
+import 'package:app/features/productivity/shell_command_block_controller.dart';
 import 'package:app/features/shell/shell_command_block_view_models.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/shell/universal_input.dart';
@@ -204,6 +206,42 @@ void main() {
 
       expect(openedBlockIds, ['cmd-actions']);
       expect(openedAnchorRects.single, tester.getRect(actionButton));
+    });
+
+    testWidgets('tapping a block selects it for command center context', (
+      tester,
+    ) async {
+      final selectedBlockIds = <String>[];
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'cmd-select',
+          command: 'flutter test --watch',
+          active: false,
+          rowSpan: 3,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.light),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 180,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+                onSelectBlock: (block) => selectedBlockIds.add(block.id),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-block-cmd-select')));
+      await tester.pump();
+
+      expect(selectedBlockIds, ['cmd-select']);
     });
 
     testWidgets('keeps narrow single-row blocks compact', (tester) async {
@@ -694,6 +732,235 @@ void main() {
       expect(commandTop - blockTop, lessThan(32));
       expect(commandCenterY, closeTo(infoCenterY, 0.5));
     });
+
+    testWidgets('shows bookmark control and toggles the selected block', (
+      tester,
+    ) async {
+      final toggled = <String>[];
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(id: 'cmd-bookmark', active: true, bookmarked: true),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 420,
+              height: 180,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+                onToggleBlockBookmark: (block) => toggled.add(block.id),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final bookmarkFinder = find.byKey(
+        const Key('shell-command-block-bookmark-cmd-bookmark'),
+      );
+      expect(bookmarkFinder, findsOneWidget);
+      expect(find.byTooltip('Remove bookmark'), findsOneWidget);
+
+      await tester.tap(bookmarkFinder);
+      await tester.pump();
+
+      expect(toggled, ['cmd-bookmark']);
+    });
+
+    testWidgets('filters captured block output rows from the block toolbar', (
+      tester,
+    ) async {
+      final viewModel = ShellCommandBlocksOverlayViewModel.withBlocks([
+        _overlayItem(
+          id: 'cmd-filter',
+          command: 'cat log.txt',
+          active: true,
+          terminalRows: const [
+            terminal.TerminalRow(index: 0, text: 'INFO booted'),
+            terminal.TerminalRow(index: 1, text: 'ERROR failed'),
+            terminal.TerminalRow(index: 2, text: 'TRACE ignored'),
+          ],
+          terminalViewportCols: 80,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: SizedBox(
+              width: 520,
+              height: 240,
+              child: ShellCommandBlocksOverlay(
+                viewModel: viewModel,
+                rowHeight: 18,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(
+        find.byKey(const Key('shell-command-block-filter-cmd-filter')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const Key('shell-command-block-filter-editor-cmd-filter')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-block-filter-query-cmd-filter')),
+        'ERROR',
+      );
+      await tester.pump();
+
+      final preview = tester.widget<terminal.TerminalFramePreview>(
+        find.byType(terminal.TerminalFramePreview),
+      );
+      expect(preview.frame.rows.map((row) => row.text), ['ERROR failed']);
+    });
+  });
+
+  group('shellCommandBlocksStickyHeaderResolution', () {
+    test(
+      'resolves the sticky header from the shell command block snapshot',
+      () {
+        final snapshot = ShellCommandBlockSnapshot.withBlocks(
+          blocks: const [
+            ShellCommandBlock(
+              id: 'cmd-long-output',
+              command: 'seq 1 1000',
+              cwd: '/repo',
+              status: ShellCommandBlockStatus.succeeded,
+              outputRange: ShellCommandBlockRange(
+                commandRow: 10,
+                outputStartRow: 11,
+                outputEndRow: 120,
+              ),
+            ),
+          ],
+        );
+
+        final result = shellCommandBlocksStickyHeaderResolution(
+          snapshot: snapshot,
+          sessionId: 'session-a',
+          viewportStartRow: 60,
+          viewportRows: 24,
+          modes: terminal.TerminalFrameModes.empty,
+          shellIntegrationEnabled: true,
+        );
+
+        expect(result.visible, isTrue);
+        expect(result.header?.blockId, 'cmd-long-output');
+        expect(result.header?.command, 'seq 1 1000');
+        expect(result.header?.cwdLabel, '/repo');
+        expect(result.header?.blockEndRowExclusive, 121);
+      },
+    );
+
+    test('hides the sticky header in the alternate screen buffer', () {
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(
+        blocks: const [
+          ShellCommandBlock(
+            id: 'cmd-vim',
+            command: 'vim README.md',
+            status: ShellCommandBlockStatus.running,
+            outputRange: ShellCommandBlockRange(
+              commandRow: 0,
+              outputStartRow: 1,
+              outputEndRow: 80,
+            ),
+          ),
+        ],
+      );
+
+      final result = shellCommandBlocksStickyHeaderResolution(
+        snapshot: snapshot,
+        sessionId: 'session-a',
+        viewportStartRow: 20,
+        viewportRows: 24,
+        modes: const terminal.TerminalFrameModes(alternateScreen: true),
+        shellIntegrationEnabled: true,
+      );
+
+      expect(result.visible, isFalse);
+      expect(result.header, isNull);
+    });
+  });
+
+  group('shellCommandBlocksNavigationResult', () {
+    test('navigates command block snapshots by selected block', () {
+      final snapshot = ShellCommandBlockSnapshot.withBlocks(
+        blocks: const [
+          ShellCommandBlock(
+            id: 'cmd-one',
+            command: 'echo one',
+            status: ShellCommandBlockStatus.succeeded,
+            outputRange: ShellCommandBlockRange(
+              commandRow: 10,
+              outputStartRow: 11,
+              outputEndRow: 12,
+            ),
+          ),
+          ShellCommandBlock(
+            id: 'cmd-two',
+            command: 'echo two',
+            status: ShellCommandBlockStatus.succeeded,
+            outputRange: ShellCommandBlockRange(
+              commandRow: 20,
+              outputStartRow: 21,
+              outputEndRow: 22,
+            ),
+          ),
+        ],
+      );
+
+      final next = shellCommandBlocksNavigationResult(
+        snapshot: snapshot,
+        sessionId: 'session-a',
+        selectedBlockId: 'cmd-one',
+        target: CommandBlockNavigationTarget.next,
+        shellIntegrationEnabled: true,
+      );
+      final previous = shellCommandBlocksNavigationResult(
+        snapshot: snapshot,
+        sessionId: 'session-a',
+        selectedBlockId: 'cmd-two',
+        target: CommandBlockNavigationTarget.previous,
+        shellIntegrationEnabled: true,
+      );
+
+      expect(next.enabled, isTrue);
+      expect(next.intent.blockId, 'cmd-two');
+      expect(next.intent.row, 20);
+      expect(previous.enabled, isTrue);
+      expect(previous.intent.blockId, 'cmd-one');
+      expect(previous.intent.row, 10);
+    });
+
+    test('reports a disabled reason when no command blocks exist', () {
+      final result = shellCommandBlocksNavigationResult(
+        snapshot: const ShellCommandBlockSnapshot(),
+        sessionId: 'session-a',
+        selectedBlockId: null,
+        target: CommandBlockNavigationTarget.next,
+        shellIntegrationEnabled: true,
+      );
+
+      expect(result.enabled, isFalse);
+      expect(
+        result.disabledReason,
+        CommandBlockNavigationDisabledReason.noCommandBlocks,
+      );
+      expect(
+        shellCommandBlocksNavigationMessage(result.disabledReason),
+        'No command blocks are available to navigate.',
+      );
+    });
   });
 
   group('ShellCommandInputBar', () {
@@ -801,9 +1068,231 @@ void main() {
         find.byKey(const Key('shell-command-input-model-label')),
         findsOneWidget,
       );
+      final field = tester.widget<TextField>(
+        find.byKey(const Key('shell-command-input-field')),
+      );
+      expect(field.keyboardType, TextInputType.multiline);
+      expect(field.textInputAction, TextInputAction.newline);
+      expect(field.maxLines, isNull);
       expect(find.bySemanticsLabel('Command input'), findsOneWidget);
       expect(find.text('cwd app'), findsOneWidget);
       expect(find.text('Agent draft'), findsOneWidget);
+    });
+
+    testWidgets('stacks universal input context editor and toolbelt rows', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 720,
+                child: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  inputMode: UniversalInputMode.auto,
+                  contextChips: const ['cwd app'],
+                  modelLabel: 'Default | auto',
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final barDecoration =
+          tester
+                  .widget<DecoratedBox>(
+                    find.byKey(const Key('shell-command-input-bar')),
+                  )
+                  .decoration
+              as BoxDecoration;
+      expect(barDecoration.borderRadius, isNotNull);
+      expect(barDecoration.border, isNotNull);
+
+      final chipRect = tester.getRect(find.text('cwd app'));
+      final fieldRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-field')),
+      );
+      final modeRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-mode-terminal')),
+      );
+      final contextRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-context')),
+      );
+      final detectionRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-detection-label')),
+      );
+      final modelLabelRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-model-label')),
+      );
+      final runRect = tester.getRect(
+        find.byKey(const Key('shell-command-run-button')),
+      );
+
+      expect(chipRect.bottom, lessThan(fieldRect.top));
+      expect(fieldRect.bottom, lessThan(modeRect.top));
+      expect(contextRect.center.dy, closeTo(modeRect.center.dy, 4));
+      expect(detectionRect.center.dy, closeTo(modeRect.center.dy, 4));
+      expect(modelLabelRect.center.dy, closeTo(runRect.center.dy, 4));
+      expect(runRect.left, greaterThan(modelLabelRect.left));
+    });
+
+    testWidgets('mode prefix keeps remaining text in the command bar', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      var mode = UniversalInputMode.auto;
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return MaterialApp(
+              theme: buildIanvsTerminalTheme(Brightness.dark),
+              home: Scaffold(
+                body: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  inputMode: mode,
+                  onModeChanged: (nextMode) {
+                    setState(() {
+                      mode = nextMode;
+                    });
+                  },
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        '! git status',
+      );
+      await tester.pump();
+
+      expect(mode, UniversalInputMode.terminal);
+      expect(controller.text, 'git status');
+      expect(find.text('Terminal command'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        '* explain the last failure',
+      );
+      await tester.pump();
+
+      expect(mode, UniversalInputMode.agent);
+      expect(controller.text, 'explain the last failure');
+      expect(find.text('Agent natural language'), findsOneWidget);
+    });
+
+    testWidgets('typing slash opens slash commands and removes trigger', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.auto,
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        '/',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('/git-status'), findsOneWidget);
+      await tester.tap(find.text('/git-status'));
+      await tester.pumpAndSettle();
+
+      expect(controller.text, 'git status --short --branch');
+      expect(find.text('/git-status'), findsNothing);
+    });
+
+    testWidgets('typing at-sign opens context menu and removes trigger', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final selectedContext = <String>[];
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return MaterialApp(
+              theme: buildIanvsTerminalTheme(Brightness.dark),
+              home: Scaffold(
+                body: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  inputMode: UniversalInputMode.auto,
+                  contextChips: selectedContext,
+                  contextOptions: const [
+                    UniversalInputToolOption(
+                      id: 'cwd',
+                      label: '@cwd',
+                      value: '@cwd app',
+                      icon: Icons.folder_rounded,
+                      detail: 'app',
+                    ),
+                  ],
+                  onContextSelected: (value) {
+                    setState(() {
+                      selectedContext.add(value);
+                    });
+                  },
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        '@',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('@cwd'), findsOneWidget);
+      await tester.tap(find.text('@cwd'));
+      await tester.pumpAndSettle();
+
+      expect(controller.text, isEmpty);
+      expect(find.text('@cwd app'), findsOneWidget);
     });
 
     testWidgets('natural-language send inserts the first suggestion', (
@@ -861,6 +1350,180 @@ void main() {
       expect(
         find.text('Suggested command inserted. Press Enter to run it.'),
         findsOneWidget,
+      );
+    });
+
+    testWidgets('command correction panel accepts with button', (tester) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      var accepted = false;
+      CommandCorrection? correction = const CommandCorrection(
+        command: 'git status',
+        reason: 'Corrects the executable name to git.',
+        ruleId: 'executable-typo',
+      );
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return MaterialApp(
+              theme: buildIanvsTerminalTheme(Brightness.dark),
+              home: Scaffold(
+                body: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  commandCorrection: correction,
+                  onAcceptCommandCorrection: (value) {
+                    setState(() {
+                      accepted = true;
+                      controller.value = TextEditingValue(
+                        text: value.command,
+                        selection: TextSelection.collapsed(
+                          offset: value.command.length,
+                        ),
+                      );
+                      correction = null;
+                    });
+                  },
+                  onDismissCommandCorrection: () {
+                    setState(() {
+                      correction = null;
+                    });
+                  },
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('shell-command-correction-panel')),
+        findsOneWidget,
+      );
+      expect(find.text('git status'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('shell-command-correction-accept')),
+      );
+      await tester.pump();
+
+      expect(accepted, isTrue);
+      expect(controller.text, 'git status');
+      expect(
+        find.byKey(const Key('shell-command-correction-panel')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('command correction panel accepts with right arrow', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      CommandCorrection? correction = const CommandCorrection(
+        command: 'git status',
+        reason: 'Corrects the executable name to git.',
+        ruleId: 'executable-typo',
+      );
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return MaterialApp(
+              theme: buildIanvsTerminalTheme(Brightness.dark),
+              home: Scaffold(
+                body: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  commandCorrection: correction,
+                  onAcceptCommandCorrection: (value) {
+                    setState(() {
+                      controller.value = TextEditingValue(
+                        text: value.command,
+                        selection: TextSelection.collapsed(
+                          offset: value.command.length,
+                        ),
+                      );
+                      correction = null;
+                    });
+                  },
+                  onDismissCommandCorrection: () {
+                    setState(() {
+                      correction = null;
+                    });
+                  },
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+
+      expect(controller.text, 'git status');
+      expect(
+        find.byKey(const Key('shell-command-correction-panel')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('typing dismisses command correction panel', (tester) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      CommandCorrection? correction = const CommandCorrection(
+        command: 'git status',
+        reason: 'Corrects the executable name to git.',
+        ruleId: 'executable-typo',
+      );
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return MaterialApp(
+              theme: buildIanvsTerminalTheme(Brightness.dark),
+              home: Scaffold(
+                body: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  commandCorrection: correction,
+                  onDismissCommandCorrection: () {
+                    setState(() {
+                      correction = null;
+                    });
+                  },
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'echo hello',
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('shell-command-correction-panel')),
+        findsNothing,
       );
     });
 
@@ -1085,12 +1748,15 @@ void main() {
         ),
       );
 
-      final shortcutFocusFinder = find.byWidgetPredicate(
-        (widget) =>
-            widget is Focus &&
-            widget.onKeyEvent != null &&
-            widget.child is ConstrainedBox,
-      );
+      final shortcutFocusFinder = find.byWidgetPredicate((widget) {
+        if (widget is! Focus ||
+            widget.onKeyEvent == null ||
+            widget.child is! TextField) {
+          return false;
+        }
+        return (widget.child as TextField).key ==
+            const Key('shell-command-input-field');
+      });
       expect(shortcutFocusFinder, findsOneWidget);
       final shortcutFocus = tester.widget<Focus>(shortcutFocusFinder);
 
@@ -1148,6 +1814,7 @@ ShellCommandBlockOverlayItem _overlayItem({
   String durationLabel = '--',
   String outputPreview = '',
   String outputRangeLabel = '',
+  bool bookmarked = false,
   List<terminal.TerminalRow> terminalRows = const <terminal.TerminalRow>[],
   int terminalViewportCols = 0,
   int liveTerminalViewportRowOffset = 0,
@@ -1169,6 +1836,7 @@ ShellCommandBlockOverlayItem _overlayItem({
     durationLabel: durationLabel,
     outputPreview: outputPreview,
     outputRangeLabel: outputRangeLabel,
+    bookmarked: bookmarked,
     showFailureSnapshotAction: true,
     showReplayAction: true,
     showDiffAction: showDiffAction,

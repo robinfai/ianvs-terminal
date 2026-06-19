@@ -15,6 +15,7 @@ class LocalTerminalConfigDocument {
     this.shellIntegration = const LocalTerminalShellIntegrationConfig(),
     this.notifications = const LocalTerminalNotificationsConfig(),
     this.hotkeyWindow = const LocalTerminalHotkeyWindowConfig(),
+    this.universalInput = const LocalTerminalUniversalInputConfig(),
     this.commandCenter = const LocalTerminalCommandCenterConfig(),
     this.commandBlocksHistory = const LocalTerminalCommandBlocksHistoryConfig(),
   });
@@ -43,6 +44,7 @@ class LocalTerminalConfigDocument {
   final LocalTerminalShellIntegrationConfig shellIntegration;
   final LocalTerminalNotificationsConfig notifications;
   final LocalTerminalHotkeyWindowConfig hotkeyWindow;
+  final LocalTerminalUniversalInputConfig universalInput;
   final LocalTerminalCommandCenterConfig commandCenter;
   final LocalTerminalCommandBlocksHistoryConfig commandBlocksHistory;
 
@@ -57,6 +59,7 @@ class LocalTerminalConfigDocument {
     LocalTerminalShellIntegrationConfig? shellIntegration,
     LocalTerminalNotificationsConfig? notifications,
     LocalTerminalHotkeyWindowConfig? hotkeyWindow,
+    LocalTerminalUniversalInputConfig? universalInput,
     LocalTerminalCommandCenterConfig? commandCenter,
     LocalTerminalCommandBlocksHistoryConfig? commandBlocksHistory,
   }) {
@@ -74,6 +77,7 @@ class LocalTerminalConfigDocument {
       shellIntegration: shellIntegration ?? this.shellIntegration,
       notifications: notifications ?? this.notifications,
       hotkeyWindow: hotkeyWindow ?? this.hotkeyWindow,
+      universalInput: universalInput ?? this.universalInput,
       commandCenter: commandCenter ?? this.commandCenter,
       commandBlocksHistory: commandBlocksHistory ?? this.commandBlocksHistory,
     );
@@ -91,6 +95,7 @@ class LocalTerminalConfigDocument {
       'shellIntegration': shellIntegration.toJson(),
       'notifications': notifications.toJson(),
       'hotkeyWindow': hotkeyWindow.toJson(),
+      'universalInput': universalInput.toJson(),
       'commandCenter': commandCenter.toJson(),
       'commandBlocksHistory': commandBlocksHistory.toJson(),
     };
@@ -137,6 +142,9 @@ class LocalTerminalConfigDocument {
       ),
       hotkeyWindow: LocalTerminalHotkeyWindowConfig.fromJson(
         _objectMap(json['hotkeyWindow']),
+      ),
+      universalInput: LocalTerminalUniversalInputConfig.fromJson(
+        _objectMap(json['universalInput']),
       ),
       commandCenter: LocalTerminalCommandCenterConfig.fromJson(
         _objectMap(json['commandCenter']),
@@ -473,6 +481,39 @@ class LocalTerminalCommandCenterConfig {
       verificationDiagnostics: _boolFromJson(
         json?['verificationDiagnostics'],
         false,
+      ),
+    );
+  }
+}
+
+class LocalTerminalUniversalInputConfig {
+  const LocalTerminalUniversalInputConfig({
+    this.suggestCorrectedCommands = true,
+  });
+
+  final bool suggestCorrectedCommands;
+
+  LocalTerminalUniversalInputConfig copyWith({bool? suggestCorrectedCommands}) {
+    return LocalTerminalUniversalInputConfig(
+      suggestCorrectedCommands:
+          suggestCorrectedCommands ?? this.suggestCorrectedCommands,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return {'suggestCorrectedCommands': suggestCorrectedCommands};
+  }
+
+  static LocalTerminalUniversalInputConfig fromJson(
+    Map<Object?, Object?>? json,
+  ) {
+    if (json == null) {
+      return const LocalTerminalUniversalInputConfig();
+    }
+    return LocalTerminalUniversalInputConfig(
+      suggestCorrectedCommands: _boolFromJson(
+        json['suggestCorrectedCommands'],
+        true,
       ),
     );
   }

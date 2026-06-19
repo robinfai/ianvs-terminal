@@ -150,10 +150,30 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       );
     }
 
+    final bookmarked =
+        _bookmarkedCommandBlockIdsBySession[sessionId]?.contains(block.id) ??
+        false;
     await showMenu<void>(
       context: context,
       position: _contextBlockActionMenuPosition(anchorRect),
       items: [
+        PopupMenuItem<void>(
+          key: const Key('context-block-action-toggle-bookmark'),
+          onTap: () => _toggleCommandBlockBookmark(sessionId, block.id),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                bookmarked ? Icons.bookmark : Icons.bookmark_border,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(bookmarked ? 'Remove bookmark' : 'Toggle bookmark'),
+              ),
+            ],
+          ),
+        ),
         _contextBlockActionMenuItem(
           key: const Key('context-block-action-copy-command'),
           action: CommandBlockAction.copyCommand,

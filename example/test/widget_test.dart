@@ -7423,7 +7423,7 @@ void main() {
   });
 
   testWidgets(
-    'auto composer detects natural language and inserts a command suggestion before running',
+    'auto composer requires DeepSeek for natural-language command generation',
     (tester) async {
       final fakeBindings = FakePtyBackend();
 
@@ -7454,8 +7454,15 @@ void main() {
       await tester.tap(find.byKey(const Key('shell-auto-composer')));
       await tester.pumpAndSettle();
 
-      expect(find.text('cwd project'), findsOneWidget);
-      expect(find.text('last ok'), findsOneWidget);
+      final composer = find.byKey(const Key('terminal-auto-composer'));
+      expect(
+        find.descendant(of: composer, matching: find.text('cwd project')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: composer, matching: find.text('last ok')),
+        findsOneWidget,
+      );
 
       await tester.enterText(
         find.byKey(const Key('terminal-auto-composer-field')),
@@ -7463,8 +7470,17 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Auto detected natural language'), findsOneWidget);
-      expect(find.text('ls -la'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: composer,
+          matching: find.text('Auto detected natural language'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: composer, matching: find.text('ls -la')),
+        findsNothing,
+      );
 
       final writeCountBeforeSuggestion = fakeBindings.writes.length;
       await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
@@ -7472,20 +7488,29 @@ void main() {
 
       expect(fakeBindings.writes.length, writeCountBeforeSuggestion);
       expect(
-        find.text('Suggested command inserted. Press Enter to run it.'),
+        find.byWidgetPredicate((widget) {
+          if (widget is! Text) {
+            return false;
+          }
+          final data = widget.data ?? '';
+          return data ==
+                  'Set DEEPSEEK_API_KEY to generate commands from natural language.' ||
+              data ==
+                  'No command suggestion was generated. Try adding more context.';
+        }),
         findsOneWidget,
       );
       final composerField = tester.widget<TextField>(
         find.byKey(const Key('terminal-auto-composer-field')),
       );
-      expect(composerField.controller?.text, 'ls -la');
-      expect(find.text('Auto detected command'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
-      await tester.pumpAndSettle();
-
-      expect(fakeBindings.writes.last, utf8.encode('ls -la\n'));
-      expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
+      expect(composerField.controller?.text, 'show files in this directory');
+      expect(
+        find.descendant(
+          of: composer,
+          matching: find.text('Auto detected natural language'),
+        ),
+        findsOneWidget,
+      );
     },
   );
 
@@ -7513,13 +7538,25 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Auto detected natural language'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-auto-composer')),
+        matching: find.text('Auto detected natural language'),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(
       find.byKey(const Key('terminal-auto-composer-mode-terminal')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Terminal command'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-auto-composer')),
+        matching: find.text('Terminal command'),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
     await tester.pumpAndSettle();
@@ -7589,14 +7626,21 @@ void main() {
     await tester.tap(find.byKey(const Key('shell-auto-composer')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Local heuristic'), findsOneWidget);
+    final composer = find.byKey(const Key('terminal-auto-composer'));
+    expect(
+      find.descendant(of: composer, matching: find.text('Local heuristic')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('terminal-auto-composer-context')));
     await tester.pumpAndSettle();
     expect(find.text('@last-command'), findsOneWidget);
     await tester.tap(find.text('@last-command'));
     await tester.pumpAndSettle();
-    expect(find.text('@last pwd'), findsOneWidget);
+    expect(
+      find.descendant(of: composer, matching: find.text('@last pwd')),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('terminal-auto-composer-slash')));
     await tester.pumpAndSettle();
@@ -7607,13 +7651,22 @@ void main() {
       find.byKey(const Key('terminal-auto-composer-field')),
     );
     expect(composerField.controller?.text, 'git status --short --branch');
-    expect(find.text('Auto detected command'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: composer,
+        matching: find.text('Auto detected command'),
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byKey(const Key('terminal-auto-composer-model')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Agent draft'));
     await tester.pumpAndSettle();
-    expect(find.text('Agent draft'), findsOneWidget);
+    expect(
+      find.descendant(of: composer, matching: find.text('Agent draft')),
+      findsOneWidget,
+    );
 
     composerField = tester.widget<TextField>(
       find.byKey(const Key('terminal-auto-composer-field')),
@@ -7645,7 +7698,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Agent mode'), findsOneWidget);
+      final composer = find.byKey(const Key('terminal-auto-composer'));
+      expect(
+        find.descendant(of: composer, matching: find.text('Agent mode')),
+        findsOneWidget,
+      );
       var composerField = tester.widget<TextField>(
         find.byKey(const Key('terminal-auto-composer-field')),
       );
@@ -7662,7 +7719,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Terminal mode'), findsOneWidget);
+      expect(
+        find.descendant(of: composer, matching: find.text('Terminal mode')),
+        findsOneWidget,
+      );
       composerField = tester.widget<TextField>(
         find.byKey(const Key('terminal-auto-composer-field')),
       );
@@ -7679,7 +7739,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Terminal mode'), findsOneWidget);
+      expect(
+        find.descendant(of: composer, matching: find.text('Terminal mode')),
+        findsOneWidget,
+      );
       composerField = tester.widget<TextField>(
         find.byKey(const Key('terminal-auto-composer-field')),
       );
@@ -7696,7 +7759,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Agent mode'), findsOneWidget);
+      expect(
+        find.descendant(of: composer, matching: find.text('Agent mode')),
+        findsOneWidget,
+      );
 
       await _sendControlShortcut(
         tester,
@@ -7996,6 +8062,92 @@ void main() {
     expect(find.byKey(const Key('context-block-action-rerun')), findsOneWidget);
     expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
   });
+
+  testWidgets(
+    'clicking a command block selects it for command center context',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ false', 'style_runs': const []},
+          {'index': 11, 'text': 'failed output', 'style_runs': const []},
+          {'index': 12, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 12, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 13},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'false',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'false',
+            'pwd': '/tmp/project',
+            'exit_code': 2,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 12,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
+
+      await tester.tap(
+        find.byKey(const Key('shell-command-block-1:command:10')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('context-chip-selectedBlock')),
+        findsOneWidget,
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
   testWidgets('selected block chip can save block output without shell write', (
     tester,

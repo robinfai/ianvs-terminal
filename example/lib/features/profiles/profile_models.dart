@@ -13,6 +13,9 @@ typedef TerminalProfileCursor = terminal_pkg.TerminalCursorConfig;
 typedef TerminalProfileAppearance = terminal_pkg.TerminalDisplayConfig;
 typedef TerminalProfileInteraction = terminal_pkg.TerminalInteractionConfig;
 
+const String defaultCommandIntelligenceBaseUrl = 'https://api.deepseek.com';
+const String defaultCommandIntelligenceModel = 'deepseek-v4-flash';
+
 enum TerminalProfileTriggerAction { notify, sendText }
 
 enum TerminalProfileSwitchRuleKind { hostname, username, directory }
@@ -118,6 +121,84 @@ class TerminalProfileLoadWarning {
   );
 }
 
+class TerminalProfileCommandIntelligenceConfig {
+  const TerminalProfileCommandIntelligenceConfig({
+    this.baseUrl,
+    this.apiKey,
+    this.model,
+  });
+
+  final String? baseUrl;
+  final String? apiKey;
+  final String? model;
+
+  bool get isEmpty =>
+      _trimmedStringOrNull(baseUrl) == null &&
+      _trimmedStringOrNull(apiKey) == null &&
+      _trimmedStringOrNull(model) == null;
+
+  Map<String, Object?> toJson() {
+    final normalizedBaseUrl = _trimmedStringOrNull(baseUrl);
+    final normalizedApiKey = _trimmedStringOrNull(apiKey);
+    final normalizedModel = _trimmedStringOrNull(model);
+    return {
+      'baseUrl': ?normalizedBaseUrl,
+      'apiKey': ?normalizedApiKey,
+      'model': ?normalizedModel,
+    };
+  }
+
+  static TerminalProfileCommandIntelligenceConfig _fromJson(
+    Object? rawValue,
+    _TerminalProfileWarningSink warningSink, {
+    String path = 'commandIntelligence',
+  }) {
+    if (rawValue == null) {
+      return const TerminalProfileCommandIntelligenceConfig();
+    }
+    final map = _asStringMap(rawValue);
+    if (map == null) {
+      warningSink.add(
+        path: path,
+        rawValue: rawValue,
+        fallbackSummary: 'used no command intelligence configuration',
+      );
+      return const TerminalProfileCommandIntelligenceConfig();
+    }
+    return TerminalProfileCommandIntelligenceConfig(
+      baseUrl: _optionalProfileStringFromJson(
+        map['baseUrl'] ?? map['apiBaseUrl'] ?? map['url'],
+        warningSink,
+        path: '$path.baseUrl',
+        fallbackSummary: 'ignored invalid OpenAI-compatible base URL',
+      ),
+      apiKey: _optionalProfileStringFromJson(
+        map['apiKey'] ?? map['key'],
+        warningSink,
+        path: '$path.apiKey',
+        fallbackSummary: 'ignored invalid OpenAI-compatible API key',
+      ),
+      model: _optionalProfileStringFromJson(
+        map['model'] ?? map['apiModel'] ?? map['modelId'],
+        warningSink,
+        path: '$path.model',
+        fallbackSummary: 'ignored invalid OpenAI-compatible model',
+      ),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TerminalProfileCommandIntelligenceConfig &&
+        other.baseUrl == baseUrl &&
+        other.apiKey == apiKey &&
+        other.model == model;
+  }
+
+  @override
+  int get hashCode => Object.hash(baseUrl, apiKey, model);
+}
+
 class TerminalProfile {
   TerminalProfile({
     required this.id,
@@ -135,6 +216,7 @@ class TerminalProfile {
     this.tags = const [],
     this.triggers = const [],
     this.switchRules = const [],
+    this.commandIntelligence = const TerminalProfileCommandIntelligenceConfig(),
   }) : sessionConfig = terminal_pkg.TerminalSessionConfig(
          launch: terminal_pkg.TerminalLaunchConfig(
            program: shell,
@@ -155,6 +237,7 @@ class TerminalProfile {
     this.tags = const [],
     this.triggers = const [],
     this.switchRules = const [],
+    this.commandIntelligence = const TerminalProfileCommandIntelligenceConfig(),
   });
 
   final String id;
@@ -162,6 +245,7 @@ class TerminalProfile {
   final List<String> tags;
   final List<TerminalProfileTrigger> triggers;
   final List<TerminalProfileSwitchRule> switchRules;
+  final TerminalProfileCommandIntelligenceConfig commandIntelligence;
   final terminal_pkg.TerminalSessionConfig sessionConfig;
 
   String get shell => sessionConfig.launch.program;
@@ -190,6 +274,7 @@ class TerminalProfile {
     List<String>? tags,
     List<TerminalProfileTrigger>? triggers,
     List<TerminalProfileSwitchRule>? switchRules,
+    TerminalProfileCommandIntelligenceConfig? commandIntelligence,
   }) {
     final baseConfig = sessionConfig ?? this.sessionConfig;
     final nextLaunch = baseConfig.launch.copyWith(
@@ -204,6 +289,7 @@ class TerminalProfile {
       tags: tags ?? this.tags,
       triggers: triggers ?? this.triggers,
       switchRules: switchRules ?? this.switchRules,
+      commandIntelligence: commandIntelligence ?? this.commandIntelligence,
       sessionConfig: baseConfig.copyWith(
         launch: nextLaunch,
         emulation: terminalEmulation,
@@ -216,6 +302,7 @@ class TerminalProfile {
 
   Map<String, Object?> toJson() {
     final configJson = sessionConfig.toJson();
+    final commandIntelligenceJson = commandIntelligence.toJson();
     return {
       'id': id,
       'name': name,
@@ -226,6 +313,8 @@ class TerminalProfile {
         'automaticProfileSwitching': switchRules
             .map((rule) => rule.toJson())
             .toList(),
+      if (commandIntelligenceJson.isNotEmpty)
+        'commandIntelligence': commandIntelligenceJson,
       ...configJson,
     };
   }
@@ -256,6 +345,15 @@ class TerminalProfile {
       json['automaticProfileSwitching'] ?? json['switchRules'],
       warningSink,
     );
+    final commandIntelligencePath = _commandIntelligencePath(json);
+    final commandIntelligence =
+        TerminalProfileCommandIntelligenceConfig._fromJson(
+          commandIntelligencePath == null
+              ? null
+              : json[commandIntelligencePath],
+          warningSink,
+          path: commandIntelligencePath ?? 'commandIntelligence',
+        );
 
     if (parsedId == null || parsedId.isEmpty) {
       warningSink.add(
@@ -290,6 +388,7 @@ class TerminalProfile {
       tags: tags,
       triggers: triggers,
       switchRules: switchRules,
+      commandIntelligence: commandIntelligence,
       sessionConfig: sessionConfig,
     );
   }
@@ -306,7 +405,7 @@ class TerminalProfilesDocument {
     this.loadWarnings = const [],
   });
 
-  static const int currentSchemaVersion = 4;
+  static const int currentSchemaVersion = 5;
 
   final int schemaVersion;
   final List<TerminalProfile> profiles;
@@ -535,6 +634,44 @@ Map<String, Object?>? _asStringMap(Object? value) {
 
 String? _stringOrNull(Object? value) {
   return value is String ? value : null;
+}
+
+String? _trimmedStringOrNull(String? value) {
+  final trimmed = value?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
+String? _optionalProfileStringFromJson(
+  Object? rawValue,
+  _TerminalProfileWarningSink warningSink, {
+  required String path,
+  required String fallbackSummary,
+}) {
+  if (rawValue == null) {
+    return null;
+  }
+  if (rawValue is! String) {
+    warningSink.add(
+      path: path,
+      rawValue: rawValue,
+      fallbackSummary: fallbackSummary,
+    );
+    return null;
+  }
+  return _trimmedStringOrNull(rawValue);
+}
+
+String? _commandIntelligencePath(Map<String, Object?> json) {
+  if (json.containsKey('commandIntelligence')) {
+    return 'commandIntelligence';
+  }
+  if (json.containsKey('openAICompatible')) {
+    return 'openAICompatible';
+  }
+  if (json.containsKey('openAiCompatible')) {
+    return 'openAiCompatible';
+  }
+  return null;
 }
 
 List<String> _profileTagsFromJson(

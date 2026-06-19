@@ -42,6 +42,11 @@ void main() {
                 pattern: '/srv/app',
               ),
             ],
+            commandIntelligence: const TerminalProfileCommandIntelligenceConfig(
+              baseUrl: 'https://api.deepseek.com',
+              apiKey: 'profile-key',
+              model: 'deepseek-v4-flash',
+            ),
           ),
         ],
       );
@@ -70,6 +75,14 @@ void main() {
           pattern: '/srv/app',
         ),
       ]);
+      expect(
+        loaded.profiles.single.commandIntelligence,
+        const TerminalProfileCommandIntelligenceConfig(
+          baseUrl: 'https://api.deepseek.com',
+          apiKey: 'profile-key',
+          model: 'deepseek-v4-flash',
+        ),
+      );
       expect(
         raw['schemaVersion'],
         TerminalProfilesDocument.currentSchemaVersion,
@@ -104,6 +117,17 @@ void main() {
             containsPair('kind', 'hostname'),
             containsPair('kind', 'directory'),
           ]),
+        ),
+      );
+      expect(
+        (raw['profiles'] as List<dynamic>).single,
+        containsPair(
+          'commandIntelligence',
+          allOf(
+            containsPair('baseUrl', 'https://api.deepseek.com'),
+            containsPair('apiKey', 'profile-key'),
+            containsPair('model', 'deepseek-v4-flash'),
+          ),
         ),
       );
     },
@@ -282,6 +306,11 @@ void main() {
               'copyOnSelect': true,
               'optionDragMode': 'normal_selection',
             },
+            'commandIntelligence': {
+              'baseUrl': 'https://api.deepseek.com',
+              'apiKey': 'nested-key',
+              'model': 'deepseek-v4-flash',
+            },
           },
         ],
       }),
@@ -320,6 +349,14 @@ void main() {
     expect(
       loaded.profiles.single.interaction.optionDragMode,
       TerminalOptionDragMode.normalSelection,
+    );
+    expect(
+      loaded.profiles.single.commandIntelligence,
+      const TerminalProfileCommandIntelligenceConfig(
+        baseUrl: 'https://api.deepseek.com',
+        apiKey: 'nested-key',
+        model: 'deepseek-v4-flash',
+      ),
     );
     expect(loaded.profiles.single.appearance.colors.foreground, '#EEEEEE');
     expect(loaded.profiles.single.appearance.colors.background, '#111111');
@@ -412,6 +449,11 @@ void main() {
               'cursor': {'shape': 'triangle', 'blink': 'yes'},
             },
             'interaction': {'copyOnSelect': 'no', 'optionDragMode': 'diagonal'},
+            'commandIntelligence': {
+              'baseUrl': 7,
+              'apiKey': false,
+              'model': const ['deepseek-v4-flash'],
+            },
           },
         ],
       });
@@ -478,6 +520,10 @@ void main() {
         loaded.profiles.single.interaction.optionDragMode,
         TerminalOptionDragMode.blockSelection,
       );
+      expect(
+        loaded.profiles.single.commandIntelligence,
+        const TerminalProfileCommandIntelligenceConfig(),
+      );
       expect(loaded.loadWarnings, isNotEmpty);
       expect(
         loaded.loadWarnings.map((warning) => warning.path),
@@ -512,6 +558,9 @@ void main() {
           'appearance.cursor.blink',
           'interaction.copyOnSelect',
           'interaction.optionDragMode',
+          'commandIntelligence.baseUrl',
+          'commandIntelligence.apiKey',
+          'commandIntelligence.model',
         ]),
       );
       expect(loaded.toJson().containsKey('loadWarnings'), isFalse);

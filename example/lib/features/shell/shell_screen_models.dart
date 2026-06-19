@@ -11,10 +11,47 @@ class _AutoComposerInputState {
   const _AutoComposerInputState({
     required this.classification,
     required this.suggestions,
+    this.drafts = const <CommandDraft>[],
+    this.draftsLoading = false,
   });
 
   final UniversalInputClassification classification;
   final List<String> suggestions;
+  final List<CommandDraft> drafts;
+  final bool draftsLoading;
+}
+
+class _UniversalInputModePrefixResult {
+  const _UniversalInputModePrefixResult({
+    required this.mode,
+    required this.text,
+  });
+
+  final UniversalInputMode mode;
+  final String text;
+}
+
+_UniversalInputModePrefixResult? _universalInputModePrefixForText(String text) {
+  final trimmedLeft = text.trimLeft();
+  if (trimmedLeft.isEmpty) {
+    return null;
+  }
+  final marker = trimmedLeft[0];
+  final mode = switch (marker) {
+    '*' || '＊' => UniversalInputMode.agent,
+    '!' || '！' => UniversalInputMode.terminal,
+    _ => null,
+  };
+  if (mode == null) {
+    return null;
+  }
+  if (trimmedLeft.length > 1 && trimmedLeft[1].trim().isNotEmpty) {
+    return null;
+  }
+  final remainingText = trimmedLeft.length == 1
+      ? ''
+      : trimmedLeft.substring(1).trimLeft();
+  return _UniversalInputModePrefixResult(mode: mode, text: remainingText);
 }
 
 class UniversalInputToolOption {

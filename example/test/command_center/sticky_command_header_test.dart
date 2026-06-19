@@ -41,6 +41,7 @@ void main() {
 
       expect(result.header?.blockId, 'long-test');
       expect(result.header?.command, 'flutter test --coverage');
+      expect(result.header?.blockEndRowExclusive, 180);
       expect(result.visibleRange, visibleRange);
       expect(result.scrollbackRowsInspected, 0);
       expect(result.writesToScrollback, isFalse);
@@ -185,6 +186,50 @@ void main() {
         ),
         findsNothing,
       );
+    });
+
+    testWidgets('can expose a jump to bottom action for the header', (
+      tester,
+    ) async {
+      const scope = CommandBlockScope('session-a');
+      final resolver = StickyCommandHeaderResolver();
+      var jumpCount = 0;
+      final resolution = resolver.resolve(
+        blocks: [
+          _block(
+            id: 'long',
+            command: 'seq 1 1000',
+            scope: scope,
+            inputStart: 0,
+            outputStart: 1,
+            outputEnd: 120,
+          ),
+        ],
+        viewport: const StickyCommandHeaderViewport(
+          scope: scope,
+          visibleRange: CommandBlockRowRange(startRow: 40, endRowExclusive: 70),
+        ),
+      );
+
+      await tester.pumpWidget(
+        _app(
+          StickyCommandHeaderOverlay(
+            resolution: resolution,
+            onJumpToBlockEnd: () => jumpCount += 1,
+            child: const SizedBox(key: Key('terminal-surface')),
+          ),
+        ),
+      );
+
+      expect(find.byTooltip('Jump to bottom of block'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const Key('sticky-command-header-jump-bottom')),
+      );
+      await tester.pump();
+
+      expect(jumpCount, 1);
+      expect(resolution.header?.blockEndRowExclusive, 120);
     });
 
     testWidgets('does not render when resolver disables the header', (

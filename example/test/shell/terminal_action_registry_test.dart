@@ -91,6 +91,8 @@ void main() {
         TerminalActionId.saveCommandSnapshot,
         TerminalActionId.compareLastCommandRun,
         TerminalActionId.markCommandBlock,
+        TerminalActionId.previousCommandBlock,
+        TerminalActionId.nextCommandBlock,
       };
 
       for (final actionId in commandBlockActionIds) {

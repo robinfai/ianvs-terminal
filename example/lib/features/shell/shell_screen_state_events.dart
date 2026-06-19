@@ -1619,6 +1619,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _sessionsSeenForNewOutputBadges.remove(event.sessionId);
         _sessionsWithNewOutput.remove(event.sessionId);
         _triggerMatchesBySession.remove(event.sessionId);
+        _bookmarkedCommandBlockIdsBySession.remove(event.sessionId);
         _commandBlockSnapshotsBySession.remove(event.sessionId);
         _commandBlockPreviewRowsBySession.remove(event.sessionId);
         _pendingCommandBlockPreviewRowsBySession.remove(event.sessionId);
@@ -1627,6 +1628,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
         _nativeTerminalCommandBlockIdsBySession.remove(event.sessionId);
         _nativeTerminalCommandBlockIdsSeenBySession.remove(event.sessionId);
+        _commandInputDraftsBySession.remove(event.sessionId);
+        _commandInputDraftTextBySession.remove(event.sessionId);
+        _commandInputDraftLoadingSessionIds.remove(event.sessionId);
+        if (_activeCommandCorrectionSessionId == event.sessionId) {
+          _activeCommandCorrection = null;
+          _activeCommandCorrectionSessionId = null;
+        }
         _stopCoprocess(event.sessionId);
         _clearCapturedOutput(event.sessionId);
         _notifySessionExit(event.sessionId, event.exitCode);
@@ -1822,6 +1830,78 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       }
       _removeMatchedPendingCommandBlockPreviewRows(event.sessionId, snapshot);
     });
+    if (normalizedHook == 'command_finished') {
+      _maybeRequestCommandCorrectionForFinishedHook(
+        event: event,
+        snapshot: snapshot,
+        capturedPreviewRows: capturedPreviewRows,
+      );
+    }
+  }
+
+  void _maybeRequestCommandCorrectionForFinishedHook({
+    required terminal.TerminalSessionShellHookEvent event,
+    required ShellCommandBlockSnapshot snapshot,
+    required Map<String, List<terminal.TerminalRow>> capturedPreviewRows,
+  }) {
+    final command = event.command?.trim();
+    final exitCode = event.exitCode;
+    if (!_suggestCorrectedCommands ||
+        command == null ||
+        command.isEmpty ||
+        exitCode == null ||
+        exitCode == 0) {
+      return;
+    }
+    ShellCommandBlock? block;
+    for (final candidate in snapshot.blocks.reversed) {
+      if (candidate.command == command) {
+        block = candidate;
+        break;
+      }
+    }
+    if (block == null) {
+      return;
+    }
+    final existingRows =
+        _commandBlockPreviewRowsBySession[event.sessionId]?[block.id] ??
+        const <terminal.TerminalRow>[];
+    final rows = capturedPreviewRows[block.id] ?? existingRows;
+    final outputTail = rows.map((row) => row.text).join('\n');
+    final state = ref.read(sessionControllerProvider);
+    final pane = _paneForSession(state, event.sessionId);
+    final profile = pane == null ? null : _profileForPane(pane, state.profiles);
+    final requestSerial = ++_commandCorrectionRequestSerial;
+    unawaited(() async {
+      final correction = await _commandIntelligenceService.correctCommand(
+        CommandCorrectionRequest(
+          command: command,
+          cwd:
+              event.cwd ??
+              block?.cwd ??
+              pane?.shellIntegration.currentDirectory,
+          exitCode: exitCode,
+          outputTail: outputTail,
+          recentCommands: pane?.shellIntegration.recentCommands ?? const [],
+          recentDirectories:
+              pane?.shellIntegration.recentDirectories ?? const [],
+          apiBaseUrl: profile?.commandIntelligence.baseUrl,
+          apiKey: profile?.commandIntelligence.apiKey,
+          apiModel: profile?.commandIntelligence.model,
+          preferRemote: _universalInputModelLabel == 'Agent draft',
+        ),
+      );
+      if (!mounted ||
+          requestSerial != _commandCorrectionRequestSerial ||
+          correction == null ||
+          correction.command.trim() == command) {
+        return;
+      }
+      _mutateState(() {
+        _activeCommandCorrection = correction;
+        _activeCommandCorrectionSessionId = event.sessionId;
+      });
+    }());
   }
 
   _SubmittedCommandBlockPreviewCapture
@@ -2534,6 +2614,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           CommandBlocksHistoryFeatureFlags.fromConfig(
             configBootstrap.config.commandBlocksHistory,
           );
+      _suggestCorrectedCommands =
+          configBootstrap.config.universalInput.suggestCorrectedCommands;
       _commandFinishedNotificationsEnabled =
           preferences.notifications.commandFinished;
       _bellNotificationsEnabled = preferences.notifications.bell;
@@ -2542,6 +2624,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           !_commandBlocksHistoryFeatureFlags.commandBlocks) {
         _commandBlockSnapshotsBySession.clear();
         _commandBlockPreviewRowsBySession.clear();
+        _bookmarkedCommandBlockIdsBySession.clear();
         _pendingCommandBlockPreviewRowsBySession.clear();
         _submittedCommandBlockPreviewCapturesBySession.clear();
         _submittedCommandBlockPreviewBlockIdsBySession.clear();

@@ -38,6 +38,7 @@ class StickyCommandHeaderModel {
     required this.durationLabel,
     required this.semanticLabel,
     required this.tone,
+    this.blockEndRowExclusive,
   });
 
   factory StickyCommandHeaderModel.fromBlock(CommandBlock block) {
@@ -49,6 +50,7 @@ class StickyCommandHeaderModel {
     final durationLabel = _durationLabel(
       block.finishedAt?.difference(block.startedAt),
     );
+    final visibleRange = _visibleRangeForBlock(block);
 
     return StickyCommandHeaderModel(
       blockId: block.id,
@@ -60,6 +62,7 @@ class StickyCommandHeaderModel {
           'Command $command, $statusLabel, cwd $cwdLabel, duration '
           '$durationLabel',
       tone: _toneForStatus(block.status),
+      blockEndRowExclusive: visibleRange?.endRowExclusive,
     );
   }
 
@@ -70,6 +73,7 @@ class StickyCommandHeaderModel {
   final String durationLabel;
   final String semanticLabel;
   final StickyCommandHeaderTone tone;
+  final int? blockEndRowExclusive;
 
   bool get writesToScrollback => false;
 }
@@ -155,12 +159,14 @@ class StickyCommandHeaderOverlay extends StatelessWidget {
   const StickyCommandHeaderOverlay({
     required this.resolution,
     required this.child,
+    this.onJumpToBlockEnd,
     this.padding = const EdgeInsets.fromLTRB(12, 10, 12, 0),
     super.key,
   });
 
   final StickyCommandHeaderResolution resolution;
   final Widget child;
+  final VoidCallback? onJumpToBlockEnd;
   final EdgeInsets padding;
 
   @override
@@ -176,9 +182,13 @@ class StickyCommandHeaderOverlay extends StatelessWidget {
             left: padding.left,
             right: padding.right,
             child: IgnorePointer(
+              ignoring: onJumpToBlockEnd == null,
               child: Align(
                 alignment: Alignment.topCenter,
-                child: StickyCommandHeader(header: header),
+                child: StickyCommandHeader(
+                  header: header,
+                  onJumpToBlockEnd: onJumpToBlockEnd,
+                ),
               ),
             ),
           ),
@@ -188,9 +198,14 @@ class StickyCommandHeaderOverlay extends StatelessWidget {
 }
 
 class StickyCommandHeader extends StatelessWidget {
-  const StickyCommandHeader({required this.header, super.key});
+  const StickyCommandHeader({
+    required this.header,
+    this.onJumpToBlockEnd,
+    super.key,
+  });
 
   final StickyCommandHeaderModel header;
+  final VoidCallback? onJumpToBlockEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -223,11 +238,30 @@ class StickyCommandHeader extends StatelessWidget {
                   colors: colors,
                   colorScheme: colorScheme,
                 );
+                final jumpButton = onJumpToBlockEnd == null
+                    ? null
+                    : _HeaderJumpButton(
+                        onPressed: onJumpToBlockEnd!,
+                        foreground: colors.foreground,
+                      );
                 if (compact) {
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [title, const SizedBox(height: 6), meta],
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Expanded(child: title),
+                          if (jumpButton != null) ...[
+                            const SizedBox(width: 6),
+                            jumpButton,
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      meta,
+                    ],
                   );
                 }
                 return Row(
@@ -236,12 +270,39 @@ class StickyCommandHeader extends StatelessWidget {
                     Expanded(child: title),
                     const SizedBox(width: 10),
                     Flexible(child: meta),
+                    if (jumpButton != null) ...[
+                      const SizedBox(width: 6),
+                      jumpButton,
+                    ],
                   ],
                 );
               },
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HeaderJumpButton extends StatelessWidget {
+  const _HeaderJumpButton({required this.onPressed, required this.foreground});
+
+  final VoidCallback onPressed;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.square(
+      dimension: 34,
+      child: IconButton(
+        key: const Key('sticky-command-header-jump-bottom'),
+        tooltip: 'Jump to bottom of block',
+        onPressed: onPressed,
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        color: foreground,
+        icon: const Icon(Icons.keyboard_double_arrow_down_rounded),
       ),
     );
   }

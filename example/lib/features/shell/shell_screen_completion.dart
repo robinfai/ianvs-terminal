@@ -107,7 +107,7 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
   }
 }
 
-class _TerminalAutoComposer extends StatelessWidget {
+class _TerminalAutoComposer extends StatefulWidget {
   const _TerminalAutoComposer({
     required this.controller,
     required this.focusNode,
@@ -116,6 +116,8 @@ class _TerminalAutoComposer extends StatelessWidget {
     required this.contextChips,
     required this.contextOptions,
     required this.suggestions,
+    this.suggestionDetails = const <String, CommandDraft>{},
+    this.suggestionsLoading = false,
     required this.activeIndex,
     required this.modelLabel,
     required this.palette,
@@ -138,6 +140,8 @@ class _TerminalAutoComposer extends StatelessWidget {
   final List<String> contextChips;
   final List<UniversalInputToolOption> contextOptions;
   final List<String> suggestions;
+  final Map<String, CommandDraft> suggestionDetails;
+  final bool suggestionsLoading;
   final int activeIndex;
   final String modelLabel;
   final AppThemeTokens palette;
@@ -153,7 +157,37 @@ class _TerminalAutoComposer extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
+  State<_TerminalAutoComposer> createState() => _TerminalAutoComposerState();
+}
+
+class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
+  final GlobalKey<PopupMenuButtonState<String>> _contextMenuKey =
+      GlobalKey<PopupMenuButtonState<String>>();
+  final GlobalKey<PopupMenuButtonState<String>> _slashMenuKey =
+      GlobalKey<PopupMenuButtonState<String>>();
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
+    final focusNode = widget.focusNode;
+    final inputMode = widget.inputMode;
+    final classification = widget.classification;
+    final contextChips = widget.contextChips;
+    final contextOptions = widget.contextOptions;
+    final suggestions = widget.suggestions;
+    final suggestionDetails = widget.suggestionDetails;
+    final suggestionsLoading = widget.suggestionsLoading;
+    final activeIndex = widget.activeIndex;
+    final modelLabel = widget.modelLabel;
+    final palette = widget.palette;
+    final onModeChanged = widget.onModeChanged;
+    final onChanged = widget.onChanged;
+    final onModelSelected = widget.onModelSelected;
+    final onPrevious = widget.onPrevious;
+    final onNext = widget.onNext;
+    final onAcceptSuggestion = widget.onAcceptSuggestion;
+    final onSend = widget.onSend;
+    final onClose = widget.onClose;
     final canSend = controller.text.trimRight().isNotEmpty;
     final accent = _universalInputAccentColor(palette, classification);
     final statusLabel = _universalInputStatusLabel(inputMode, classification);
@@ -229,28 +263,34 @@ class _TerminalAutoComposer extends StatelessWidget {
                   ],
                   const SizedBox(height: 6),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        _universalInputLeadingIcon(classification),
-                        size: 18,
-                        color: accent,
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Icon(
+                          _universalInputLeadingIcon(classification),
+                          size: 18,
+                          color: accent,
+                        ),
                       ),
                       const SizedBox(width: 6),
                       _UniversalInputToolMenuButton(
                         key: const Key('terminal-auto-composer-context'),
+                        menuButtonKey: _contextMenuKey,
                         tooltip: 'Add context',
                         icon: Icons.alternate_email_rounded,
                         options: contextOptions,
                         palette: palette,
-                        onSelected: onContextSelected,
+                        onSelected: _handleContextSelected,
                       ),
                       _UniversalInputToolMenuButton(
                         key: const Key('terminal-auto-composer-slash'),
+                        menuButtonKey: _slashMenuKey,
                         tooltip: 'Slash commands',
                         icon: Icons.bolt_rounded,
                         options: _universalInputSlashCommandOptions,
                         palette: palette,
-                        onSelected: onSlashCommandSelected,
+                        onSelected: _handleSlashCommandSelected,
                       ),
                       _UniversalInputToolMenuButton(
                         key: const Key('terminal-auto-composer-model'),
@@ -262,14 +302,20 @@ class _TerminalAutoComposer extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: TextField(
-                          key: const Key('terminal-auto-composer-field'),
+                        child: _UniversalInputAutocompleteField(
+                          fieldKey: const Key('terminal-auto-composer-field'),
                           controller: controller,
                           focusNode: focusNode,
-                          minLines: 1,
-                          maxLines: 3,
-                          textInputAction: TextInputAction.send,
-                          style: Theme.of(context).textTheme.bodyMedium
+                          hintText: _universalInputFieldHint(
+                            inputMode,
+                            classification,
+                          ),
+                          suggestions: suggestions,
+                          suggestionDetails: suggestionDetails,
+                          suggestionsLoading: suggestionsLoading,
+                          activeIndex: activeIndex,
+                          palette: palette,
+                          textStyle: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
                                 color: palette.textPrimary,
                                 fontWeight: FontWeight.w600,
@@ -283,11 +329,14 @@ class _TerminalAutoComposer extends StatelessWidget {
                             isDense: true,
                           ),
                           onChanged: onChanged,
-                          onSubmitted: (_) {
-                            if (controller.text.trimRight().isNotEmpty) {
-                              onSend();
-                            }
-                          },
+                          onPrevious: onPrevious,
+                          onNext: onNext,
+                          onAcceptSuggestion: onAcceptSuggestion,
+                          onSend: onSend,
+                          onContextTrigger: () =>
+                              _contextMenuKey.currentState?.showButtonMenu(),
+                          onSlashTrigger: () =>
+                              _slashMenuKey.currentState?.showButtonMenu(),
                         ),
                       ),
                       _buildCompactActionButton(
@@ -328,22 +377,6 @@ class _TerminalAutoComposer extends StatelessWidget {
                       ),
                     ],
                   ),
-                  if (suggestions.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    const Divider(height: 1),
-                    const SizedBox(height: 4),
-                    for (
-                      var index = 0;
-                      index < suggestions.length && index < 5;
-                      index++
-                    )
-                      _AutoComposerSuggestionTile(
-                        suggestion: suggestions[index],
-                        active: index == activeIndex,
-                        palette: palette,
-                        onTap: () => onAcceptSuggestion(suggestions[index]),
-                      ),
-                  ],
                 ],
               ),
             ),
@@ -351,6 +384,242 @@ class _TerminalAutoComposer extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _handleContextSelected(String value) {
+    if (_removeInlineTrigger('@')) {
+      widget.onChanged(widget.controller.text);
+    }
+    widget.onContextSelected(value);
+  }
+
+  void _handleSlashCommandSelected(String value) {
+    if (_removeInlineTrigger('/')) {
+      widget.onChanged(widget.controller.text);
+    }
+    widget.onSlashCommandSelected(value);
+  }
+
+  bool _removeInlineTrigger(String trigger) {
+    return _removeUniversalInputInlineTrigger(widget.controller, trigger);
+  }
+}
+
+class _UniversalInputAutocompleteField extends StatelessWidget {
+  const _UniversalInputAutocompleteField({
+    required this.fieldKey,
+    required this.controller,
+    required this.focusNode,
+    required this.hintText,
+    required this.suggestions,
+    this.suggestionDetails = const <String, CommandDraft>{},
+    this.suggestionsLoading = false,
+    required this.activeIndex,
+    required this.palette,
+    required this.onChanged,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onAcceptSuggestion,
+    required this.onSend,
+    required this.onContextTrigger,
+    required this.onSlashTrigger,
+    this.onAcceptCorrection,
+    this.onDismissCorrection,
+    this.enabled = true,
+    this.autofocus = false,
+    this.semanticLabel,
+    this.textStyle,
+    this.decoration,
+    this.maxLines = 8,
+    this.maxHeight,
+    this.suggestionLimit = 5,
+    this.suggestionKeyPrefix = 'terminal-auto-composer',
+  });
+
+  final Key fieldKey;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final String hintText;
+  final List<String> suggestions;
+  final Map<String, CommandDraft> suggestionDetails;
+  final bool suggestionsLoading;
+  final int activeIndex;
+  final AppThemeTokens palette;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final ValueChanged<String> onAcceptSuggestion;
+  final VoidCallback onSend;
+  final VoidCallback onContextTrigger;
+  final VoidCallback onSlashTrigger;
+  final VoidCallback? onAcceptCorrection;
+  final VoidCallback? onDismissCorrection;
+  final bool enabled;
+  final bool autofocus;
+  final String? semanticLabel;
+  final TextStyle? textStyle;
+  final InputDecoration? decoration;
+  final int? maxLines;
+  final double? maxHeight;
+  final int suggestionLimit;
+  final String suggestionKeyPrefix;
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveActiveIndex = suggestions.isEmpty
+        ? -1
+        : activeIndex.clamp(0, suggestions.length - 1);
+    final field = Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: _handleKeyEvent,
+      child: TextField(
+        key: fieldKey,
+        controller: controller,
+        focusNode: focusNode,
+        enabled: enabled,
+        autofocus: autofocus,
+        minLines: 1,
+        maxLines: maxLines,
+        keyboardType: TextInputType.multiline,
+        textInputAction: TextInputAction.newline,
+        style: textStyle,
+        decoration:
+            decoration ??
+            InputDecoration(
+              hintText: hintText,
+              border: InputBorder.none,
+              isDense: true,
+            ),
+        onChanged: _handleChanged,
+      ),
+    );
+    final semanticField = semanticLabel == null
+        ? field
+        : Semantics(
+            container: true,
+            enabled: enabled,
+            label: semanticLabel,
+            textField: true,
+            child: field,
+          );
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (maxHeight == null)
+          semanticField
+        else
+          Flexible(
+            fit: FlexFit.loose,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight!),
+              child: semanticField,
+            ),
+          ),
+        if (suggestions.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          const Divider(height: 1),
+          const SizedBox(height: 4),
+          for (
+            var index = 0;
+            index < suggestions.length && index < suggestionLimit;
+            index++
+          )
+            _AutoComposerSuggestionTile(
+              suggestion: suggestions[index],
+              draft: suggestionDetails[suggestions[index]],
+              active: index == effectiveActiveIndex,
+              palette: palette,
+              keyPrefix: suggestionKeyPrefix,
+              onTap: () => onAcceptSuggestion(suggestions[index]),
+            ),
+        ] else if (suggestionsLoading) ...[
+          const SizedBox(height: 6),
+          const Divider(height: 1),
+          const SizedBox(height: 4),
+          _UniversalInputLoadingSuggestionTile(palette: palette),
+        ],
+      ],
+    );
+    return content;
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (!enabled) {
+      return KeyEventResult.ignored;
+    }
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    if (_hasActiveComposing) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final isEnter =
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter;
+    if (isEnter) {
+      if (HardwareKeyboard.instance.isShiftPressed) {
+        if (event is! KeyRepeatEvent) {
+          _insertTextAtSelection(controller, '\n');
+          onChanged(controller.text);
+        }
+        return KeyEventResult.handled;
+      }
+      if (event is! KeyRepeatEvent && controller.text.trimRight().isNotEmpty) {
+        onSend();
+      }
+      return KeyEventResult.handled;
+    }
+    if (suggestions.length > 1 && key == LogicalKeyboardKey.arrowUp) {
+      onPrevious();
+      return KeyEventResult.handled;
+    }
+    if (suggestions.length > 1 && key == LogicalKeyboardKey.arrowDown) {
+      onNext();
+      return KeyEventResult.handled;
+    }
+    if (suggestions.isNotEmpty && key == LogicalKeyboardKey.tab) {
+      if (event is! KeyRepeatEvent) {
+        final suggestionIndex = activeIndex.clamp(0, suggestions.length - 1);
+        onAcceptSuggestion(suggestions[suggestionIndex]);
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowRight &&
+        onAcceptCorrection != null &&
+        controller.text.trim().isEmpty) {
+      if (event is! KeyRepeatEvent) {
+        onAcceptCorrection!();
+      }
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape && onDismissCorrection != null) {
+      if (event is! KeyRepeatEvent) {
+        onDismissCorrection!();
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  bool get _hasActiveComposing {
+    final composing = controller.value.composing;
+    return composing.isValid && !composing.isCollapsed;
+  }
+
+  void _handleChanged(String text) {
+    onChanged(text);
+    final trigger = _universalInputInlineTriggerFor(text, controller.selection);
+    switch (trigger) {
+      case _UniversalInputInlineTrigger.context:
+        onContextTrigger();
+      case _UniversalInputInlineTrigger.slash:
+        onSlashTrigger();
+      case null:
+        break;
+    }
   }
 }
 
@@ -393,15 +662,10 @@ class _UniversalInputStatusPill extends StatelessWidget {
 }
 
 class _UniversalInputModelBadge extends StatelessWidget {
-  const _UniversalInputModelBadge({
-    required this.label,
-    required this.palette,
-    this.keyPrefix = 'terminal-auto-composer',
-  });
+  const _UniversalInputModelBadge({required this.label, required this.palette});
 
   final String label;
   final AppThemeTokens palette;
-  final String keyPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -415,7 +679,7 @@ class _UniversalInputModelBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         child: Text(
           label,
-          key: Key('$keyPrefix-model-label'),
+          key: const Key('terminal-auto-composer-model-label'),
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: palette.textSubtle,
@@ -430,6 +694,7 @@ class _UniversalInputModelBadge extends StatelessWidget {
 class _UniversalInputToolMenuButton extends StatelessWidget {
   const _UniversalInputToolMenuButton({
     super.key,
+    this.menuButtonKey,
     required this.tooltip,
     required this.icon,
     required this.options,
@@ -437,6 +702,7 @@ class _UniversalInputToolMenuButton extends StatelessWidget {
     required this.onSelected,
   });
 
+  final GlobalKey<PopupMenuButtonState<String>>? menuButtonKey;
   final String tooltip;
   final IconData icon;
   final List<UniversalInputToolOption> options;
@@ -453,6 +719,7 @@ class _UniversalInputToolMenuButton extends StatelessWidget {
         excludeSemantics: true,
         label: tooltip,
         child: PopupMenuButton<String>(
+          key: menuButtonKey,
           tooltip: tooltip,
           padding: EdgeInsets.zero,
           splashRadius: 16,
@@ -715,6 +982,113 @@ String _universalInputSendTooltip(UniversalInputClassification classification) {
   return classification.isNaturalLanguage ? 'Suggest command' : 'Send command';
 }
 
+enum _UniversalInputInlineTrigger { context, slash }
+
+_UniversalInputInlineTrigger? _universalInputInlineTriggerFor(
+  String text,
+  TextSelection selection,
+) {
+  if (!selection.isValid || !selection.isCollapsed) {
+    return null;
+  }
+  final tokenRange = _universalInputCurrentTokenRange(
+    text,
+    selection.baseOffset,
+  );
+  if (tokenRange == null) {
+    return null;
+  }
+  final token = text.substring(tokenRange.start, tokenRange.end);
+  return switch (token) {
+    '@' => _UniversalInputInlineTrigger.context,
+    '/' => _UniversalInputInlineTrigger.slash,
+    _ => null,
+  };
+}
+
+TextRange? _universalInputCurrentTokenRange(String text, int cursor) {
+  if (text.isEmpty) {
+    return null;
+  }
+  final safeCursor = cursor.clamp(0, text.length).toInt();
+  var start = safeCursor;
+  while (start > 0 && !_universalInputTokenBoundary(text[start - 1])) {
+    start -= 1;
+  }
+  var end = safeCursor;
+  while (end < text.length && !_universalInputTokenBoundary(text[end])) {
+    end += 1;
+  }
+  if (start == end) {
+    return null;
+  }
+  return TextRange(start: start, end: end);
+}
+
+bool _universalInputTokenBoundary(String character) {
+  return character.trim().isEmpty;
+}
+
+bool _removeUniversalInputInlineTrigger(
+  TextEditingController controller,
+  String trigger,
+) {
+  final selection = controller.selection;
+  if (!selection.isValid || !selection.isCollapsed) {
+    return false;
+  }
+  final tokenRange = _universalInputCurrentTokenRange(
+    controller.text,
+    selection.baseOffset,
+  );
+  if (tokenRange == null) {
+    return false;
+  }
+  final token = controller.text.substring(tokenRange.start, tokenRange.end);
+  if (token != trigger) {
+    return false;
+  }
+  final nextText = controller.text.replaceRange(
+    tokenRange.start,
+    tokenRange.end,
+    '',
+  );
+  controller.value = TextEditingValue(
+    text: nextText,
+    selection: TextSelection.collapsed(offset: tokenRange.start),
+    composing: TextRange.empty,
+  );
+  return true;
+}
+
+void _insertTextAtSelection(
+  TextEditingController controller,
+  String insertedText,
+) {
+  final current = controller.value;
+  final currentText = current.text;
+  final selection = current.selection;
+  final start = selection.isValid
+      ? selection.start.clamp(0, currentText.length).toInt()
+      : currentText.length;
+  final end = selection.isValid
+      ? selection.end.clamp(0, currentText.length).toInt()
+      : currentText.length;
+  final replaceStart = math.min(start, end);
+  final replaceEnd = math.max(start, end);
+  final nextText = currentText.replaceRange(
+    replaceStart,
+    replaceEnd,
+    insertedText,
+  );
+  final nextOffset = replaceStart + insertedText.length;
+  controller.value = current.copyWith(
+    text: nextText,
+    selection: TextSelection.collapsed(offset: nextOffset),
+    composing: TextRange.empty,
+  );
+}
+
 class _AutocompleteSuggestionTile extends StatelessWidget {
   const _AutocompleteSuggestionTile({
     required this.suggestion,
@@ -770,20 +1144,24 @@ class _AutocompleteSuggestionTile extends StatelessWidget {
 class _AutoComposerSuggestionTile extends StatelessWidget {
   const _AutoComposerSuggestionTile({
     required this.suggestion,
+    this.draft,
     required this.active,
     required this.palette,
     required this.onTap,
+    this.keyPrefix = 'terminal-auto-composer',
   });
 
   final String suggestion;
+  final CommandDraft? draft;
   final bool active;
   final AppThemeTokens palette;
   final VoidCallback onTap;
+  final String keyPrefix;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      key: Key('terminal-auto-composer-suggestion-$suggestion'),
+      key: Key('$keyPrefix-suggestion-$suggestion'),
       label: suggestion,
       button: true,
       selected: active,
@@ -796,10 +1174,10 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
             color: active
                 ? palette.accent.withValues(alpha: 0.14)
                 : Colors.transparent,
-            child: SizedBox(
-              height: 30,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: draft == null ? 30 : 46),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 child: Row(
                   children: [
                     Icon(
@@ -811,17 +1189,34 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        suggestion,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: active
-                              ? palette.textPrimary
-                              : palette.textSubtle,
-                          fontWeight: active
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            suggestion,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: active
+                                      ? palette.textPrimary
+                                      : palette.textSubtle,
+                                  fontWeight: active
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  fontFamily: 'monospace',
+                                ),
+                          ),
+                          if (draft != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${draft!.source.label} · ${draft!.riskLevel.label} · ${draft!.reason}',
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: palette.textMuted),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
@@ -830,6 +1225,48 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _UniversalInputLoadingSuggestionTile extends StatelessWidget {
+  const _UniversalInputLoadingSuggestionTile({required this.palette});
+
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const Key('universal-input-suggestions-loading'),
+      height: 34,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 26,
+            child: Center(
+              child: SizedBox(
+                width: 13,
+                height: 13,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: palette.accent,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Generating command suggestion...',
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: palette.textSubtle,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

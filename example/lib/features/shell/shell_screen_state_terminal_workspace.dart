@@ -104,6 +104,83 @@ bool shellCommandInputVisibleForCommandBlocks({
       );
 }
 
+@visibleForTesting
+StickyCommandHeaderResolution shellCommandBlocksStickyHeaderResolution({
+  required ShellCommandBlockSnapshot snapshot,
+  required String sessionId,
+  required int viewportStartRow,
+  required int viewportRows,
+  required terminal.TerminalFrameModes modes,
+  required bool shellIntegrationEnabled,
+  ShellCommandBlockCommandCenterAdapter adapter =
+      const ShellCommandBlockCommandCenterAdapter(),
+  StickyCommandHeaderResolver resolver = const StickyCommandHeaderResolver(),
+}) {
+  final visibleStartRow = math.max(0, viewportStartRow);
+  final visibleRows = math.max(1, viewportRows);
+  return resolver.resolve(
+    blocks: adapter.compatibleBlocksFor(
+      snapshot: snapshot,
+      sessionId: sessionId,
+    ),
+    viewport: StickyCommandHeaderViewport(
+      scope: CommandBlockScope(sessionId),
+      visibleRange: CommandBlockRowRange(
+        startRow: visibleStartRow,
+        endRowExclusive: visibleStartRow + visibleRows,
+      ),
+      altBufferActive: modes.alternateScreen,
+    ),
+    shellIntegrationEnabled: shellIntegrationEnabled,
+  );
+}
+
+@visibleForTesting
+CommandBlockNavigationResult shellCommandBlocksNavigationResult({
+  required ShellCommandBlockSnapshot snapshot,
+  required String sessionId,
+  required String? selectedBlockId,
+  required CommandBlockNavigationTarget target,
+  required bool shellIntegrationEnabled,
+  ShellCommandBlockCommandCenterAdapter adapter =
+      const ShellCommandBlockCommandCenterAdapter(),
+  CommandBlockNavigationController controller =
+      const CommandBlockNavigationController(),
+}) {
+  return controller.navigate(
+    CommandBlockRangeState.fromBlocks(
+      adapter.compatibleBlocksFor(snapshot: snapshot, sessionId: sessionId),
+      shellIntegrationEnabled: shellIntegrationEnabled,
+    ),
+    state: CommandBlockNavigationState(
+      scope: CommandBlockScope(sessionId),
+      selectedBlockId: selectedBlockId,
+    ),
+    target: target,
+  );
+}
+
+@visibleForTesting
+String shellCommandBlocksNavigationMessage(
+  CommandBlockNavigationDisabledReason? reason,
+) {
+  return switch (reason) {
+    CommandBlockNavigationDisabledReason.shellIntegrationDisabled =>
+      'Shell integration is not available for command block navigation.',
+    CommandBlockNavigationDisabledReason.noCommandBlocks =>
+      'No command blocks are available to navigate.',
+    CommandBlockNavigationDisabledReason.missingInputRange =>
+      'Command block navigation needs command input ranges.',
+    CommandBlockNavigationDisabledReason.noPreviousBlock =>
+      'No previous command block is available.',
+    CommandBlockNavigationDisabledReason.noNextBlock =>
+      'No next command block is available.',
+    CommandBlockNavigationDisabledReason.noFailedBlock =>
+      'No failed command block is available.',
+    null => 'Command block navigation is unavailable.',
+  };
+}
+
 extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
   List<ShellCommandBlock> _commandBlocksForSession(String sessionId) {
     if (!_commandBlocksHistoryFeatureFlags.enabled ||
@@ -114,7 +191,120 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         const <ShellCommandBlock>[];
   }
 
-  String? get _activeCommandBlockId => null;
+  void _toggleCommandBlockBookmark(String sessionId, String blockId) {
+    final trimmedBlockId = blockId.trim();
+    if (trimmedBlockId.isEmpty) {
+      return;
+    }
+    _mutateState(() {
+      final current = Set<String>.of(
+        _bookmarkedCommandBlockIdsBySession[sessionId] ?? const <String>{},
+      );
+      if (!current.remove(trimmedBlockId)) {
+        current.add(trimmedBlockId);
+      }
+      if (current.isEmpty) {
+        _bookmarkedCommandBlockIdsBySession.remove(sessionId);
+      } else {
+        _bookmarkedCommandBlockIdsBySession[sessionId] =
+            Set<String>.unmodifiable(current);
+      }
+      _selectedCommandBlockIdsBySession[sessionId] = trimmedBlockId;
+    });
+  }
+
+  void _selectCommandBlock(String sessionId, String blockId) {
+    final trimmedBlockId = blockId.trim();
+    if (trimmedBlockId.isEmpty) {
+      return;
+    }
+    _mutateState(() {
+      _selectedCommandBlockIdsBySession[sessionId] = trimmedBlockId;
+    });
+    _focusSession(sessionId);
+  }
+
+  String? _activeCommandBlockIdForSession(String sessionId) {
+    return _selectedCommandBlockIdsBySession[sessionId];
+  }
+
+  KeyEventResult? _handleSelectedCommandBlockNavigationKey(
+    KeyEvent event,
+    String? activeSessionId,
+  ) {
+    if (activeSessionId == null ||
+        !_selectedCommandBlockIdsBySession.containsKey(activeSessionId) ||
+        HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isAltPressed ||
+        HardwareKeyboard.instance.isShiftPressed) {
+      return null;
+    }
+
+    final target = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowUp => CommandBlockNavigationTarget.previous,
+      LogicalKeyboardKey.arrowDown => CommandBlockNavigationTarget.next,
+      _ => null,
+    };
+    if (target == null) {
+      return null;
+    }
+
+    _navigateCommandBlock(
+      activeSessionId,
+      target,
+      showBlockedFeedback: event is! KeyRepeatEvent,
+    );
+    return KeyEventResult.handled;
+  }
+
+  bool _navigateCommandBlock(
+    String sessionId,
+    CommandBlockNavigationTarget target, {
+    bool showBlockedFeedback = false,
+  }) {
+    final result = shellCommandBlocksNavigationResult(
+      snapshot:
+          _commandBlockSnapshotsBySession[sessionId] ??
+          const ShellCommandBlockSnapshot(),
+      sessionId: sessionId,
+      selectedBlockId: _selectedCommandBlockIdsBySession[sessionId],
+      target: target,
+      shellIntegrationEnabled:
+          _commandBlocksHistoryFeatureFlags.enabled &&
+          _commandBlocksHistoryFeatureFlags.commandBlocks,
+    );
+    if (!result.enabled) {
+      if (showBlockedFeedback && mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                shellCommandBlocksNavigationMessage(result.disabledReason),
+              ),
+            ),
+          );
+      }
+      return false;
+    }
+    final intent = result.intent;
+    final blockId = intent.blockId;
+    final row = intent.row;
+    if (intent.kind != CommandBlockNavigationIntentKind.scrollToBlock ||
+        blockId == null ||
+        row == null) {
+      return false;
+    }
+    _mutateState(() {
+      _selectedCommandBlockIdsBySession[sessionId] = blockId;
+    });
+    ref
+        .read(terminalRuntimeControllerProvider)
+        .scrollViewportTo(sessionId, row);
+    _focusSession(sessionId);
+    return true;
+  }
 
   String? _runningCommandBlockIdForSession(String sessionId) {
     final blocks = _commandBlocksForSession(sessionId);
@@ -268,6 +458,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
             '$command\n',
             refocusSession: false,
           );
+    if (didSubmit) {
+      _dismissActiveCommandCorrection();
+    }
     _restoreCommandInputFocus(sessionId);
     return didSubmit;
   }
@@ -613,8 +806,11 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                   capturedRowsByBlockId: _capturedCommandBlockRowsForSession(
                     sessionId,
                   ),
+                  bookmarkedBlockIds:
+                      _bookmarkedCommandBlockIdsBySession[sessionId] ??
+                      const <String>{},
                   viewportCols: frame.viewportCols,
-                  activeBlockId: _activeCommandBlockId,
+                  activeBlockId: _activeCommandBlockIdForSession(sessionId),
                 );
             final nativeTerminalBlockId =
                 _syncNativeTerminalCommandBlockIdForSession(
@@ -642,6 +838,21 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                   modes: frame.modes,
                   nativeTerminalBlockId: nativeTerminalBlockId,
                 );
+            final stickyHeaderResolution =
+                shellCommandBlocksStickyHeaderResolution(
+                  snapshot:
+                      _commandBlockSnapshotsBySession[sessionId] ??
+                      const ShellCommandBlockSnapshot(),
+                  sessionId: sessionId,
+                  viewportStartRow: frame.viewportStartRow,
+                  viewportRows: frame.viewportRows,
+                  modes: frame.modes,
+                  shellIntegrationEnabled:
+                      _commandBlocksHistoryFeatureFlags.enabled &&
+                      _commandBlocksHistoryFeatureFlags.commandBlocks,
+                );
+            final stickyHeaderEndRowExclusive =
+                stickyHeaderResolution.header?.blockEndRowExclusive;
 
             return Listener(
               onPointerDown: (event) {
@@ -666,59 +877,91 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                 ),
                 child: Stack(
                   children: [
-                    if (hideDefaultTerminal)
-                      Positioned.fill(
-                        child: ColoredBox(
-                          color: terminalColors.canvasBackground,
-                        ),
-                      )
-                    else
-                      Positioned.fill(
-                        child: buildSessionTerminalViewport(
-                          terminalFocusNode: focusNode,
-                          contentPadding: terminalViewportPadding,
-                          onMeasuredCellSizeChanged:
-                              handleMeasuredCellSizeChanged,
-                        ),
-                      ),
-                    if (renderCommandBlocksOverlay)
-                      Positioned.fill(
-                        child: ShellCommandBlocksOverlay(
-                          viewModel: commandBlocksViewModel,
-                          rowHeight:
-                              _measuredTerminalCellSizes[sessionId]?.height ??
-                              terminal.terminalFallbackCellSize.height,
-                          colors: terminalColors,
-                          font: terminalFont,
-                          cursor: terminalCursor,
-                          contentPadding: terminalViewportPadding,
-                          liveTerminalRows: frame.viewportRows,
-                          liveTerminalBuilder: embedLiveTerminal
-                              ? (context, block) =>
-                                    buildSessionTerminalViewport(
-                                      key: Key(
-                                        'shell-command-block-live-terminal-'
-                                        'viewport-${block.id}',
+                    Positioned.fill(
+                      child: StickyCommandHeaderOverlay(
+                        resolution: stickyHeaderResolution,
+                        onJumpToBlockEnd: stickyHeaderEndRowExclusive == null
+                            ? null
+                            : () {
+                                final targetOffset = math.max(
+                                  0,
+                                  stickyHeaderEndRowExclusive -
+                                      frame.viewportRows,
+                                );
+                                ref
+                                    .read(terminalRuntimeControllerProvider)
+                                    .scrollViewportTo(sessionId, targetOffset);
+                              },
+                        child: Stack(
+                          children: [
+                            if (hideDefaultTerminal)
+                              Positioned.fill(
+                                child: ColoredBox(
+                                  color: terminalColors.canvasBackground,
+                                ),
+                              )
+                            else
+                              Positioned.fill(
+                                child: buildSessionTerminalViewport(
+                                  terminalFocusNode: focusNode,
+                                  contentPadding: terminalViewportPadding,
+                                  onMeasuredCellSizeChanged:
+                                      handleMeasuredCellSizeChanged,
+                                ),
+                              ),
+                            if (renderCommandBlocksOverlay)
+                              Positioned.fill(
+                                child: ShellCommandBlocksOverlay(
+                                  viewModel: commandBlocksViewModel,
+                                  rowHeight:
+                                      _measuredTerminalCellSizes[sessionId]
+                                          ?.height ??
+                                      terminal.terminalFallbackCellSize.height,
+                                  colors: terminalColors,
+                                  font: terminalFont,
+                                  cursor: terminalCursor,
+                                  contentPadding: terminalViewportPadding,
+                                  liveTerminalRows: frame.viewportRows,
+                                  liveTerminalBuilder: embedLiveTerminal
+                                      ? (
+                                          context,
+                                          block,
+                                        ) => buildSessionTerminalViewport(
+                                          key: Key(
+                                            'shell-command-block-live-terminal-'
+                                            'viewport-${block.id}',
+                                          ),
+                                          contentPadding: EdgeInsets.zero,
+                                          onMeasuredCellSizeChanged:
+                                              hideDefaultTerminal
+                                              ? handleMeasuredCellSizeChanged
+                                              : null,
+                                        )
+                                      : null,
+                                  onOpenBlockActions: (block, anchorRect) =>
+                                      unawaited(
+                                        _openContextChipBlockActions(
+                                          sessionController: sessionController,
+                                          sessionState: sessionState,
+                                          sessionId: sessionId,
+                                          blockId: block.id,
+                                          anchorRect: anchorRect,
+                                          showSelectedBlockChip: false,
+                                        ),
                                       ),
-                                      contentPadding: EdgeInsets.zero,
-                                      onMeasuredCellSizeChanged:
-                                          hideDefaultTerminal
-                                          ? handleMeasuredCellSizeChanged
-                                          : null,
-                                    )
-                              : null,
-                          onOpenBlockActions: (block, anchorRect) => unawaited(
-                            _openContextChipBlockActions(
-                              sessionController: sessionController,
-                              sessionState: sessionState,
-                              sessionId: sessionId,
-                              blockId: block.id,
-                              anchorRect: anchorRect,
-                              showSelectedBlockChip: false,
-                            ),
-                          ),
+                                  onSelectBlock: (block) =>
+                                      _selectCommandBlock(sessionId, block.id),
+                                  onToggleBlockBookmark: (block) =>
+                                      _toggleCommandBlockBookmark(
+                                        sessionId,
+                                        block.id,
+                                      ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
+                    ),
                     if (!isActive)
                       Positioned.fill(
                         child: IgnorePointer(
@@ -864,6 +1107,10 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                             profile,
                           ),
                           suggestions: _autoComposerSuggestions,
+                          suggestionDetails: _commandDraftDetailsByCommand(
+                            _autoComposerCommandDrafts,
+                          ),
+                          suggestionsLoading: _autoComposerCommandDraftsLoading,
                           activeIndex: _activeAutoComposerIndex,
                           modelLabel: _universalInputModelLabel,
                           palette: palette,
@@ -875,7 +1122,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                           onPrevious: () => _moveAutoComposerSuggestion(-1),
                           onNext: () => _moveAutoComposerSuggestion(1),
                           onAcceptSuggestion: _acceptAutoComposerSuggestion,
-                          onSend: _sendAutoComposerCommand,
+                          onSend: () => unawaited(_sendAutoComposerCommand()),
                           onClose: _closeAutoComposer,
                         ),
                       ),

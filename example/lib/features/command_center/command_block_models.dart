@@ -174,6 +174,18 @@ class CommandBlockRangeState {
     required this.shellIntegrationEnabled,
   });
 
+  factory CommandBlockRangeState.fromBlocks(
+    Iterable<CommandBlock> blocks, {
+    bool shellIntegrationEnabled = true,
+  }) {
+    return CommandBlockRangeState._(
+      blocks: List<CommandBlock>.unmodifiable(
+        _clipOutputRanges(blocks.toList(growable: false)),
+      ),
+      shellIntegrationEnabled: shellIntegrationEnabled,
+    );
+  }
+
   factory CommandBlockRangeState.fromInvocations(
     Iterable<CommandInvocation> invocations, {
     required Map<String, CommandBlockTerminalRanges> rangesByInvocationId,

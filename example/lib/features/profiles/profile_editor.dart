@@ -292,6 +292,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final TextEditingController _switchRulesController;
   late final TextEditingController _shellController;
   late final TextEditingController _cwdController;
+  late final TextEditingController _openAiBaseUrlController;
+  late final TextEditingController _openAiApiKeyController;
+  late final TextEditingController _openAiModelController;
   late final TextEditingController _scrollbackController;
   late final TextEditingController _fontFamilyController;
   late final TextEditingController _fontSizeController;
@@ -300,6 +303,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final FocusNode _triggersFocusNode;
   late final FocusNode _switchRulesFocusNode;
   late final FocusNode _shellFocusNode;
+  late final FocusNode _openAiBaseUrlFocusNode;
+  late final FocusNode _openAiModelFocusNode;
   late final FocusNode _scrollbackFocusNode;
   late final FocusNode _fontFamilyFocusNode;
   late final FocusNode _fontSizeFocusNode;
@@ -330,6 +335,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
     _shellController = _trackedController(text: profile.shell);
     _cwdController = _trackedController(text: profile.cwd ?? '');
+    _openAiBaseUrlController = _trackedController(
+      text: profile.commandIntelligence.baseUrl ?? '',
+    );
+    _openAiApiKeyController = _trackedController(
+      text: profile.commandIntelligence.apiKey ?? '',
+    );
+    _openAiModelController = _trackedController(
+      text: profile.commandIntelligence.model ?? '',
+    );
     _scrollbackController = _trackedController(
       text: profile.scrollbackLines.toString(),
     );
@@ -348,6 +362,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       debugLabel: 'profile-editor-switch-rules',
     );
     _shellFocusNode = FocusNode(debugLabel: 'profile-editor-shell');
+    _openAiBaseUrlFocusNode = FocusNode(
+      debugLabel: 'profile-editor-openai-base-url',
+    );
+    _openAiModelFocusNode = FocusNode(
+      debugLabel: 'profile-editor-openai-model',
+    );
     _scrollbackFocusNode = FocusNode(debugLabel: 'profile-editor-scrollback');
     _fontFamilyFocusNode = FocusNode(debugLabel: 'profile-editor-font-family');
     _fontSizeFocusNode = FocusNode(debugLabel: 'profile-editor-font-size');
@@ -389,6 +409,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       _switchRulesController,
       _shellController,
       _cwdController,
+      _openAiBaseUrlController,
+      _openAiApiKeyController,
+      _openAiModelController,
       _scrollbackController,
       _fontFamilyController,
       _fontSizeController,
@@ -402,6 +425,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       _triggersFocusNode,
       _switchRulesFocusNode,
       _shellFocusNode,
+      _openAiBaseUrlFocusNode,
+      _openAiModelFocusNode,
       _scrollbackFocusNode,
       _fontFamilyFocusNode,
       _fontSizeFocusNode,
@@ -587,6 +612,21 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     return null;
   }
 
+  String? _optionalHttpUrlError(String value, String label) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null ||
+        !uri.hasScheme ||
+        !uri.hasAuthority ||
+        (uri.scheme != 'http' && uri.scheme != 'https')) {
+      return '$label must be an absolute HTTP URL';
+    }
+    return null;
+  }
+
   String? _envKeyError(int index) {
     final trimmed = _envControllers[index].keyController.text.trim();
     if (trimmed.isEmpty) {
@@ -768,6 +808,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     ];
   }
 
+  String? _nonEmptyControllerText(TextEditingController controller) {
+    final trimmed = controller.text.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
   Map<String, String> _envEntries() {
     final env = <String, String>{};
     for (final entry in _envControllers) {
@@ -800,6 +845,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       tags: _normalizedTagsFromText(_tagsController.text),
       triggers: _triggersFromText(_triggersController.text),
       switchRules: _switchRulesFromText(_switchRulesController.text),
+      commandIntelligence: TerminalProfileCommandIntelligenceConfig(
+        baseUrl: _nonEmptyControllerText(_openAiBaseUrlController),
+        apiKey: _nonEmptyControllerText(_openAiApiKeyController),
+        model: _nonEmptyControllerText(_openAiModelController),
+      ),
       shell: _shellController.text.trim(),
       args: _nonEmptyEntries(_argControllers),
       env: _envEntries(),
@@ -985,6 +1035,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     }
     if (_switchRuleLinesError(_switchRulesController.text) != null) {
       return _switchRulesFocusNode;
+    }
+    if (_optionalHttpUrlError(_openAiBaseUrlController.text, 'Base URL') !=
+        null) {
+      return _openAiBaseUrlFocusNode;
     }
     for (final entry in _envControllers) {
       if (_envKeyError(_envControllers.indexOf(entry)) != null) {
@@ -1175,6 +1229,59 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             ),
                             validator: (value) =>
                                 _switchRuleLinesError(value ?? ''),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  SettingsSection(
+                    key: const Key(
+                      'profile-editor-section-command-intelligence',
+                    ),
+                    title: 'Command intelligence',
+                    description:
+                        'Configure natural-language command generation for this profile.',
+                    children: [
+                      _ProfileFormGroup(
+                        key: const Key(
+                          'profile-editor-group-openai-compatible',
+                        ),
+                        title: 'OpenAI-compatible API',
+                        children: [
+                          TextFormField(
+                            key: const Key('profile-editor-openai-base-url'),
+                            controller: _openAiBaseUrlController,
+                            focusNode: _openAiBaseUrlFocusNode,
+                            decoration: const InputDecoration(
+                              labelText: 'Base URL',
+                              hintText: defaultCommandIntelligenceBaseUrl,
+                            ),
+                            keyboardType: TextInputType.url,
+                            textInputAction: TextInputAction.next,
+                            validator: (value) =>
+                                _optionalHttpUrlError(value ?? '', 'Base URL'),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            key: const Key('profile-editor-openai-api-key'),
+                            controller: _openAiApiKeyController,
+                            decoration: const InputDecoration(
+                              labelText: 'API key',
+                            ),
+                            obscureText: true,
+                            enableSuggestions: false,
+                            autocorrect: false,
+                            textInputAction: TextInputAction.next,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            key: const Key('profile-editor-openai-model'),
+                            controller: _openAiModelController,
+                            focusNode: _openAiModelFocusNode,
+                            decoration: const InputDecoration(
+                              labelText: 'Model',
+                              hintText: defaultCommandIntelligenceModel,
+                            ),
                           ),
                         ],
                       ),
