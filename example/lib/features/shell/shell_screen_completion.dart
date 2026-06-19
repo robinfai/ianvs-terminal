@@ -136,7 +136,7 @@ class _TerminalAutoComposer extends StatelessWidget {
   final UniversalInputMode inputMode;
   final UniversalInputClassification classification;
   final List<String> contextChips;
-  final List<_UniversalInputToolOption> contextOptions;
+  final List<UniversalInputToolOption> contextOptions;
   final List<String> suggestions;
   final int activeIndex;
   final String modelLabel;
@@ -393,10 +393,15 @@ class _UniversalInputStatusPill extends StatelessWidget {
 }
 
 class _UniversalInputModelBadge extends StatelessWidget {
-  const _UniversalInputModelBadge({required this.label, required this.palette});
+  const _UniversalInputModelBadge({
+    required this.label,
+    required this.palette,
+    this.keyPrefix = 'terminal-auto-composer',
+  });
 
   final String label;
   final AppThemeTokens palette;
+  final String keyPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -410,7 +415,7 @@ class _UniversalInputModelBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         child: Text(
           label,
-          key: const Key('terminal-auto-composer-model-label'),
+          key: Key('$keyPrefix-model-label'),
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: palette.textSubtle,
@@ -434,7 +439,7 @@ class _UniversalInputToolMenuButton extends StatelessWidget {
 
   final String tooltip;
   final IconData icon;
-  final List<_UniversalInputToolOption> options;
+  final List<UniversalInputToolOption> options;
   final AppThemeTokens palette;
   final ValueChanged<String> onSelected;
 
@@ -509,11 +514,13 @@ class _UniversalInputModeSwitcher extends StatelessWidget {
     required this.mode,
     required this.palette,
     required this.onModeChanged,
+    this.keyPrefix = 'terminal-auto-composer',
   });
 
   final UniversalInputMode mode;
   final AppThemeTokens palette;
   final ValueChanged<UniversalInputMode> onModeChanged;
+  final String keyPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -527,7 +534,7 @@ class _UniversalInputModeSwitcher extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _UniversalInputModeButton(
-            key: const Key('terminal-auto-composer-mode-terminal'),
+            key: Key('$keyPrefix-mode-terminal'),
             mode: UniversalInputMode.terminal,
             currentMode: mode,
             icon: Icons.terminal_rounded,
@@ -536,7 +543,7 @@ class _UniversalInputModeSwitcher extends StatelessWidget {
             onModeChanged: onModeChanged,
           ),
           _UniversalInputModeButton(
-            key: const Key('terminal-auto-composer-mode-auto'),
+            key: Key('$keyPrefix-mode-auto'),
             mode: UniversalInputMode.auto,
             currentMode: mode,
             icon: Icons.auto_mode_rounded,
@@ -545,7 +552,7 @@ class _UniversalInputModeSwitcher extends StatelessWidget {
             onModeChanged: onModeChanged,
           ),
           _UniversalInputModeButton(
-            key: const Key('terminal-auto-composer-mode-agent'),
+            key: Key('$keyPrefix-mode-agent'),
             mode: UniversalInputMode.agent,
             currentMode: mode,
             icon: Icons.auto_awesome_rounded,

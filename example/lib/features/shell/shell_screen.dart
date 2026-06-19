@@ -1072,6 +1072,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     )) {
                       return const SizedBox.shrink();
                     }
+                    final commandInputPane = _paneForSession(
+                      sessionState,
+                      commandInputSessionId,
+                    );
+                    final commandInputProfile = commandInputPane == null
+                        ? null
+                        : _profileForPane(
+                            commandInputPane,
+                            sessionState.profiles,
+                          );
                     return ShellCommandInputBar(
                       key: ValueKey(
                         'shell-command-input-$commandInputSessionId',
@@ -1086,6 +1096,42 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           !_isSessionReadOnly(commandInputSessionId) &&
                           !_isCommandSearchOpen &&
                           !_isCommandActionSearchOpen,
+                      inputMode: _universalInputMode,
+                      classifyInput: (text) => _commandInputStateForText(
+                        commandInputSessionId,
+                        text,
+                      ).classification,
+                      suggestionsForInput: (text, classification) =>
+                          _commandInputSuggestionsForText(
+                            commandInputSessionId,
+                            text,
+                            classification,
+                          ),
+                      contextChips: commandInputPane == null
+                          ? const <String>[]
+                          : _universalInputContextChipsFor(
+                              commandInputPane,
+                              commandInputProfile,
+                            ),
+                      contextOptions: commandInputPane == null
+                          ? const <UniversalInputToolOption>[]
+                          : _universalInputContextOptionsFor(
+                              commandInputPane,
+                              commandInputProfile,
+                            ),
+                      modelLabel: _universalInputModelLabel,
+                      onModeChanged: (mode) => _setCommandInputUniversalMode(
+                        commandInputSessionId,
+                        mode,
+                      ),
+                      onContextSelected: (value) => _addCommandInputContextChip(
+                        commandInputSessionId,
+                        value,
+                      ),
+                      onModelSelected: (modelLabel) => _setCommandInputModel(
+                        commandInputSessionId,
+                        modelLabel,
+                      ),
                       onOpenCommandSearch: () =>
                           _openCommandSearch(commandInputSessionId),
                       onSubmitted: (command) =>

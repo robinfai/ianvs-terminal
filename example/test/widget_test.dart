@@ -7545,7 +7545,13 @@ void main() {
       await _sendMetaShortcut(tester, LogicalKeyboardKey.keyI);
 
       expect(find.byKey(const Key('terminal-auto-composer')), findsOneWidget);
-      expect(find.text('Auto-detect ready'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('terminal-auto-composer')),
+          matching: find.text('Auto-detect ready'),
+        ),
+        findsOneWidget,
+      );
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),

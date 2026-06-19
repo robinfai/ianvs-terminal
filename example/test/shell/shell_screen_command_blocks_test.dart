@@ -1,6 +1,7 @@
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/shell/shell_command_block_view_models.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/shell/universal_input.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
@@ -732,6 +733,134 @@ void main() {
       expect(find.text('/repo'), findsNothing);
     });
 
+    testWidgets('renders universal input controls in the command bar', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.auto,
+              contextChips: const ['cwd app'],
+              contextOptions: const [
+                UniversalInputToolOption(
+                  id: 'cwd',
+                  label: '@cwd',
+                  value: '@cwd app',
+                  icon: Icons.folder_rounded,
+                  detail: 'app',
+                ),
+              ],
+              modelLabel: 'Agent draft',
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('shell-command-input-mode-terminal')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-mode-auto')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-mode-agent')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-detection-label')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-context')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-slash')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-model')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-model-label')),
+        findsOneWidget,
+      );
+      expect(find.text('cwd app'), findsOneWidget);
+      expect(find.text('Agent draft'), findsOneWidget);
+    });
+
+    testWidgets('natural-language send inserts the first suggestion', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.auto,
+              classifyInput: (text) {
+                if (text.trim().isEmpty) {
+                  return const UniversalInputClassification.empty(
+                    mode: UniversalInputMode.auto,
+                  );
+                }
+                return UniversalInputClassification(
+                  mode: UniversalInputMode.auto,
+                  kind: UniversalInputKind.naturalLanguage,
+                  source: UniversalInputDecisionSource.naturalLanguageScore,
+                  confidence: 0.9,
+                  tokens: text.trim().split(RegExp(r'\s+')),
+                );
+              },
+              suggestionsForInput: (_, _) => const ['ls -la'],
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'show hidden files',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('shell-command-run-button')));
+      await tester.pump();
+
+      expect(submitted, isEmpty);
+      expect(controller.text, 'ls -la');
+      expect(
+        find.text('Suggested command inserted. Press Enter to run it.'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('run button keeps the command input text connection active', (
       tester,
     ) async {
@@ -764,9 +893,10 @@ void main() {
         find.byKey(const Key('shell-command-input-field')),
         'echo alpha',
       );
+      await tester.pump();
       expect(tester.testTextInput.isVisible, isTrue);
 
-      await tester.tap(find.byIcon(Icons.keyboard_return));
+      await tester.tap(find.byKey(const Key('shell-command-run-button')));
       await tester.pump();
 
       expect(submitted, ['echo alpha']);
@@ -865,7 +995,7 @@ void main() {
       );
       await tester.pump();
 
-      final runButton = find.byTooltip('Run command');
+      final runButton = find.byKey(const Key('shell-command-run-button'));
       expect(runButton, findsOneWidget);
       expect(tester.getSize(runButton).width, greaterThanOrEqualTo(44));
       expect(tester.getSize(runButton).height, greaterThanOrEqualTo(44));

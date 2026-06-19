@@ -703,6 +703,25 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     );
   }
 
+  _AutoComposerInputState _commandInputStateForText(
+    String sessionId,
+    String text, [
+    UniversalInputMode? mode,
+  ]) {
+    final state = ref.read(sessionControllerProvider);
+    final classification = UniversalInputClassifier(
+      commandVocabulary: _universalInputCommandVocabularyFor(state, sessionId),
+    ).classify(text, mode: mode ?? _universalInputMode);
+    return _AutoComposerInputState(
+      classification: classification,
+      suggestions: _commandInputSuggestionsForText(
+        sessionId,
+        text,
+        classification,
+      ),
+    );
+  }
+
   Set<String> _universalInputCommandVocabularyFor(
     SessionState sessionState,
     String sessionId,
@@ -756,16 +775,16 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     return chips.take(7).toList(growable: false);
   }
 
-  List<_UniversalInputToolOption> _universalInputContextOptionsFor(
+  List<UniversalInputToolOption> _universalInputContextOptionsFor(
     TerminalPane pane,
     TerminalProfile? profile,
   ) {
     final integration = pane.shellIntegration;
-    final options = <_UniversalInputToolOption>[];
+    final options = <UniversalInputToolOption>[];
     final cwd = integration.currentDirectory;
     if (cwd != null && cwd.trim().isNotEmpty) {
       options.add(
-        _UniversalInputToolOption(
+        UniversalInputToolOption(
           id: 'cwd',
           label: '@cwd',
           value: '@cwd ${_compactDirectoryName(cwd)}',
@@ -777,7 +796,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final lastCommand = integration.lastCommand;
     if (lastCommand != null && lastCommand.trim().isNotEmpty) {
       options.add(
-        _UniversalInputToolOption(
+        UniversalInputToolOption(
           id: 'last-command',
           label: '@last-command',
           value: '@last ${_compactText(lastCommand, 28)}',
@@ -789,7 +808,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final exitCode = integration.lastExitCode;
     if (exitCode != null) {
       options.add(
-        _UniversalInputToolOption(
+        UniversalInputToolOption(
           id: 'last-status',
           label: '@last-status',
           value: exitCode == 0 ? '@status ok' : '@status exit $exitCode',
@@ -802,7 +821,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     if (profile != null && profile.name.trim().isNotEmpty) {
       options.add(
-        _UniversalInputToolOption(
+        UniversalInputToolOption(
           id: 'profile',
           label: '@profile',
           value: '@profile ${_compactText(profile.name.trim(), 28)}',
@@ -813,7 +832,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     if (options.isEmpty) {
       options.add(
-        const _UniversalInputToolOption(
+        const UniversalInputToolOption(
           id: 'session',
           label: '@session',
           value: '@session active shell',
@@ -858,6 +877,37 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     _autoComposerFocusNode.requestFocus();
   }
 
+  void _setCommandInputUniversalMode(
+    String sessionId,
+    UniversalInputMode mode,
+  ) {
+    if (_universalInputMode != mode) {
+      _mutateState(() {
+        _universalInputMode = mode;
+      });
+    }
+    _restoreCommandInputFocus(sessionId);
+  }
+
+  void _addCommandInputContextChip(String sessionId, String value) {
+    _mutateState(() {
+      if (!_universalInputPinnedContextChips.contains(value)) {
+        _universalInputPinnedContextChips = [
+          ..._universalInputPinnedContextChips,
+          value,
+        ];
+      }
+    });
+    _restoreCommandInputFocus(sessionId);
+  }
+
+  void _setCommandInputModel(String sessionId, String modelLabel) {
+    _mutateState(() {
+      _universalInputModelLabel = modelLabel;
+    });
+    _restoreCommandInputFocus(sessionId);
+  }
+
   String _compactDirectoryName(String path) {
     final trimmed = path.trim();
     final withoutTrailingSlash = trimmed.endsWith('/') && trimmed.length > 1
@@ -891,6 +941,28 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final prefix = _autoComposerPrefixForText(text);
     return _mergeAutocompleteSuggestions([
       _shellCommandAutocompleteSuggestions(state, activeSessionId, prefix),
+      _autocompleteSuggestionsForFrame(frame, prefix),
+    ]);
+  }
+
+  List<String> _commandInputSuggestionsForText(
+    String sessionId,
+    String text,
+    UniversalInputClassification classification,
+  ) {
+    if (classification.isNaturalLanguage) {
+      return universalInputCommandSuggestionsForText(
+        text,
+      ).map((suggestion) => suggestion.command).toList(growable: false);
+    }
+    final state = ref.read(sessionControllerProvider);
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .viewportFor(sessionId)
+        .frame;
+    final prefix = _autoComposerPrefixForText(text);
+    return _mergeAutocompleteSuggestions([
+      _shellCommandAutocompleteSuggestions(state, sessionId, prefix),
       _autocompleteSuggestionsForFrame(frame, prefix),
     ]);
   }

@@ -17,8 +17,8 @@ class _AutoComposerInputState {
   final List<String> suggestions;
 }
 
-class _UniversalInputToolOption {
-  const _UniversalInputToolOption({
+class UniversalInputToolOption {
+  const UniversalInputToolOption({
     required this.id,
     required this.label,
     required this.value,
@@ -33,22 +33,22 @@ class _UniversalInputToolOption {
   final String? detail;
 }
 
-const List<_UniversalInputToolOption> _universalInputSlashCommandOptions = [
-  _UniversalInputToolOption(
+const List<UniversalInputToolOption> _universalInputSlashCommandOptions = [
+  UniversalInputToolOption(
     id: 'git-status',
     label: '/git-status',
     value: 'git status --short --branch',
     icon: Icons.account_tree_rounded,
     detail: 'Repository state',
   ),
-  _UniversalInputToolOption(
+  UniversalInputToolOption(
     id: 'tests',
     label: '/tests',
     value: 'run tests',
     icon: Icons.fact_check_rounded,
     detail: 'Suggest a test command',
   ),
-  _UniversalInputToolOption(
+  UniversalInputToolOption(
     id: 'explain',
     label: '/explain',
     value: 'explain the last command output',
@@ -57,22 +57,22 @@ const List<_UniversalInputToolOption> _universalInputSlashCommandOptions = [
   ),
 ];
 
-const List<_UniversalInputToolOption> _universalInputModelOptions = [
-  _UniversalInputToolOption(
+const List<UniversalInputToolOption> _universalInputModelOptions = [
+  UniversalInputToolOption(
     id: 'local',
     label: 'Local heuristic',
     value: 'Local heuristic',
     icon: Icons.memory_rounded,
     detail: 'Local detection',
   ),
-  _UniversalInputToolOption(
+  UniversalInputToolOption(
     id: 'agent',
     label: 'Agent draft',
     value: 'Agent draft',
     icon: Icons.auto_awesome_rounded,
     detail: 'Natural-language prompts',
   ),
-  _UniversalInputToolOption(
+  UniversalInputToolOption(
     id: 'shell',
     label: 'Shell strict',
     value: 'Shell strict',

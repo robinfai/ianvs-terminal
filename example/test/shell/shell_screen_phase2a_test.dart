@@ -231,7 +231,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('terminal-auto-composer')), findsOneWidget);
-    expect(find.text('Auto-detect ready'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('terminal-auto-composer')),
+        matching: find.text('Auto-detect ready'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('command menu entry opens command search overlay', (

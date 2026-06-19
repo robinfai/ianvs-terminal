@@ -693,13 +693,23 @@ RelativeRect _relativeRectForContext(BuildContext context) {
   );
 }
 
-class ShellCommandInputBar extends StatelessWidget {
+class ShellCommandInputBar extends StatefulWidget {
   const ShellCommandInputBar({
     super.key,
     required this.controller,
     required this.focusNode,
     required this.enabled,
     required this.onSubmitted,
+    this.inputMode = UniversalInputMode.terminal,
+    this.classifyInput,
+    this.suggestionsForInput,
+    this.contextChips = const <String>[],
+    this.contextOptions = const <UniversalInputToolOption>[],
+    this.modelLabel = 'Local heuristic',
+    this.onModeChanged,
+    this.onChanged,
+    this.onContextSelected,
+    this.onModelSelected,
     this.onOpenCommandSearch,
   });
 
@@ -707,12 +717,32 @@ class ShellCommandInputBar extends StatelessWidget {
   final FocusNode focusNode;
   final bool enabled;
   final Future<bool> Function(String command) onSubmitted;
+  final UniversalInputMode inputMode;
+  final UniversalInputClassification Function(String text)? classifyInput;
+  final List<String> Function(
+    String text,
+    UniversalInputClassification classification,
+  )?
+  suggestionsForInput;
+  final List<String> contextChips;
+  final List<UniversalInputToolOption> contextOptions;
+  final String modelLabel;
+  final ValueChanged<UniversalInputMode>? onModeChanged;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onContextSelected;
+  final ValueChanged<String>? onModelSelected;
   final VoidCallback? onOpenCommandSearch;
+
+  @override
+  State<ShellCommandInputBar> createState() => _ShellCommandInputBarState();
+}
+
+class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
+  int _activeSuggestionIndex = 0;
 
   @override
   Widget build(BuildContext context) {
     final palette = AppThemeTokens.of(context);
-    final theme = Theme.of(context);
 
     return DecoratedBox(
       key: const Key('shell-command-input-bar'),
@@ -725,104 +755,306 @@ class ShellCommandInputBar extends StatelessWidget {
           horizontal: palette.spacing.lg,
           vertical: palette.spacing.sm,
         ),
-        child: Row(
-          children: [
-            Icon(Icons.terminal, size: 16, color: palette.textSubtle),
-            SizedBox(width: palette.spacing.md),
-            Expanded(
-              child: CallbackShortcuts(
-                bindings: {
-                  const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
-                      _openCommandSearch,
-                  const SingleActivator(LogicalKeyboardKey.keyR, control: true):
-                      _openCommandSearch,
-                },
-                child: Focus(
-                  canRequestFocus: false,
-                  skipTraversal: true,
-                  onKeyEvent: _handleKeyEvent,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 168),
-                    child: TextField(
-                      key: const Key('shell-command-input-field'),
-                      controller: controller,
-                      focusNode: focusNode,
-                      enabled: enabled,
-                      autofocus: enabled,
-                      minLines: 1,
-                      maxLines: null,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: palette.textPrimary,
-                        fontFamily: 'monospace',
-                        fontWeight: FontWeight.w600,
+        child: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: widget.controller,
+          builder: (context, value, _) {
+            final text = value.text;
+            final classification = _classificationFor(text);
+            final suggestions = _suggestionsFor(text, classification);
+            final accent = _universalInputAccentColor(palette, classification);
+            final canSend = widget.enabled && text.trimRight().isNotEmpty;
+            final effectiveActiveIndex = suggestions.isEmpty
+                ? -1
+                : _activeSuggestionIndex.clamp(0, suggestions.length - 1);
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    _UniversalInputModeSwitcher(
+                      keyPrefix: 'shell-command-input',
+                      mode: widget.inputMode,
+                      palette: palette,
+                      onModeChanged: _handleModeChanged,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _UniversalInputStatusPill(
+                        key: const Key('shell-command-input-detection-label'),
+                        label: _universalInputStatusLabel(
+                          widget.inputMode,
+                          classification,
+                        ),
+                        accent: accent,
+                        palette: palette,
                       ),
-                      decoration: InputDecoration(
-                        hintText: 'Command',
-                        isDense: true,
-                        filled: true,
-                        fillColor: palette.terminalSurface,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: palette.spacing.md,
-                          vertical: palette.spacing.sm,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            palette.radius.md,
+                    ),
+                    const SizedBox(width: 6),
+                    _UniversalInputModelBadge(
+                      keyPrefix: 'shell-command-input',
+                      label: widget.modelLabel,
+                      palette: palette,
+                    ),
+                  ],
+                ),
+                if (widget.contextChips.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final chip in widget.contextChips) ...[
+                            _UniversalInputContextChip(
+                              label: chip,
+                              palette: palette,
+                            ),
+                            const SizedBox(width: 5),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: Icon(
+                        _universalInputLeadingIcon(classification),
+                        size: 18,
+                        color: accent,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: _UniversalInputToolMenuButton(
+                        key: const Key('shell-command-input-context'),
+                        tooltip: 'Add context',
+                        icon: Icons.alternate_email_rounded,
+                        options: widget.contextOptions,
+                        palette: palette,
+                        onSelected: _handleContextSelected,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: _UniversalInputToolMenuButton(
+                        key: const Key('shell-command-input-slash'),
+                        tooltip: 'Slash commands',
+                        icon: Icons.bolt_rounded,
+                        options: _universalInputSlashCommandOptions,
+                        palette: palette,
+                        onSelected: _insertSnippet,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: _UniversalInputToolMenuButton(
+                        key: const Key('shell-command-input-model'),
+                        tooltip: 'Model picker',
+                        icon: Icons.tune_rounded,
+                        options: _universalInputModelOptions,
+                        palette: palette,
+                        onSelected: _handleModelSelected,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: CallbackShortcuts(
+                        bindings: {
+                          const SingleActivator(
+                            LogicalKeyboardKey.keyR,
+                            meta: true,
+                          ): _openCommandSearch,
+                          const SingleActivator(
+                            LogicalKeyboardKey.keyR,
+                            control: true,
+                          ): _openCommandSearch,
+                        },
+                        child: Focus(
+                          canRequestFocus: false,
+                          skipTraversal: true,
+                          onKeyEvent: (node, event) => _handleKeyEvent(
+                            context,
+                            node,
+                            event,
+                            classification,
+                            suggestions,
                           ),
-                          borderSide: BorderSide(color: palette.border),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            palette.radius.md,
-                          ),
-                          borderSide: BorderSide(color: palette.border),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            palette.radius.md,
-                          ),
-                          borderSide: BorderSide(
-                            color: palette.focusRing,
-                            width: 1.4,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 168),
+                            child: TextField(
+                              key: const Key('shell-command-input-field'),
+                              controller: widget.controller,
+                              focusNode: widget.focusNode,
+                              enabled: widget.enabled,
+                              autofocus: widget.enabled,
+                              minLines: 1,
+                              maxLines: null,
+                              keyboardType: TextInputType.multiline,
+                              textInputAction: TextInputAction.newline,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: palette.textPrimary,
+                                    fontFamily: 'monospace',
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                              decoration: InputDecoration(
+                                hintText: _universalInputFieldHint(
+                                  widget.inputMode,
+                                  classification,
+                                ),
+                                isDense: true,
+                                filled: true,
+                                fillColor: palette.terminalSurface,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: palette.spacing.md,
+                                  vertical: palette.spacing.sm,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    palette.radius.md,
+                                  ),
+                                  borderSide: BorderSide(color: palette.border),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    palette.radius.md,
+                                  ),
+                                  borderSide: BorderSide(color: palette.border),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    palette.radius.md,
+                                  ),
+                                  borderSide: BorderSide(
+                                    color: accent,
+                                    width: 1.4,
+                                  ),
+                                ),
+                              ),
+                              onChanged: _handleTextChanged,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                    _buildCompactActionButton(
+                      key: const Key('shell-command-input-previous'),
+                      tooltip: 'Previous completion',
+                      onPressed: suggestions.length < 2
+                          ? null
+                          : () => _moveSuggestion(-1, suggestions.length),
+                      splashRadius: 16,
+                      iconSize: 18,
+                      icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                    ),
+                    _buildCompactActionButton(
+                      key: const Key('shell-command-input-next'),
+                      tooltip: 'Next completion',
+                      onPressed: suggestions.length < 2
+                          ? null
+                          : () => _moveSuggestion(1, suggestions.length),
+                      splashRadius: 16,
+                      iconSize: 18,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    ),
+                    _buildCompactActionButton(
+                      key: const Key('shell-command-run-button'),
+                      tooltip: _universalInputSendTooltip(classification),
+                      onPressed: canSend
+                          ? () => unawaited(
+                              _submit(
+                                context,
+                                text,
+                                classification,
+                                _prioritizedSuggestions(
+                                  suggestions,
+                                  effectiveActiveIndex,
+                                ),
+                              ),
+                            )
+                          : null,
+                      splashRadius: 18,
+                      iconSize: 19,
+                      icon: Icon(
+                        classification.isNaturalLanguage
+                            ? Icons.auto_fix_high_rounded
+                            : Icons.keyboard_return_rounded,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-            SizedBox(width: palette.spacing.sm),
-            Tooltip(
-              message: 'Run command',
-              child: SizedBox.square(
-                dimension: 44,
-                child: IconButton(
-                  key: const Key('shell-command-run-button'),
-                  onPressed: enabled
-                      ? () => unawaited(_submit(controller.text))
-                      : null,
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size.square(44),
-                    padding: EdgeInsets.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  icon: Icon(
-                    Icons.keyboard_return,
-                    color: enabled ? palette.textPrimary : palette.textSubtle,
-                  ),
-                ),
-              ),
-            ),
-          ],
+                if (suggestions.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  const Divider(height: 1),
+                  const SizedBox(height: 4),
+                  for (
+                    var index = 0;
+                    index < suggestions.length && index < 4;
+                    index++
+                  )
+                    _AutoComposerSuggestionTile(
+                      suggestion: suggestions[index],
+                      active: index == effectiveActiveIndex,
+                      palette: palette,
+                      onTap: () =>
+                          _acceptSuggestion(suggestions[index], classification),
+                    ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+  UniversalInputClassification _classificationFor(String text) {
+    return widget.classifyInput?.call(text) ??
+        UniversalInputClassifier().classify(text, mode: widget.inputMode);
+  }
+
+  List<String> _suggestionsFor(
+    String text,
+    UniversalInputClassification classification,
+  ) {
+    return widget.suggestionsForInput?.call(text, classification) ??
+        const <String>[];
+  }
+
+  List<String> _prioritizedSuggestions(List<String> suggestions, int index) {
+    if (suggestions.isEmpty || index < 0 || index >= suggestions.length) {
+      return suggestions;
+    }
+    return [
+      suggestions[index],
+      for (
+        var candidateIndex = 0;
+        candidateIndex < suggestions.length;
+        candidateIndex++
+      )
+        if (candidateIndex != index) suggestions[candidateIndex],
+    ];
+  }
+
+  KeyEventResult _handleKeyEvent(
+    BuildContext context,
+    FocusNode node,
+    KeyEvent event,
+    UniversalInputClassification classification,
+    List<String> suggestions,
+  ) {
     final key = event.logicalKey;
     final isEnter =
         key == LogicalKeyboardKey.enter ||
@@ -840,17 +1072,29 @@ class ShellCommandInputBar extends StatelessWidget {
       _insertText('\n');
       return KeyEventResult.handled;
     }
-    unawaited(_submit(controller.text));
+    unawaited(
+      _submit(
+        context,
+        widget.controller.text,
+        classification,
+        _prioritizedSuggestions(
+          suggestions,
+          suggestions.isEmpty
+              ? -1
+              : _activeSuggestionIndex.clamp(0, suggestions.length - 1),
+        ),
+      ),
+    );
     return KeyEventResult.handled;
   }
 
   bool get _hasActiveComposing {
-    final composing = controller.value.composing;
+    final composing = widget.controller.value.composing;
     return composing.isValid && !composing.isCollapsed;
   }
 
   void _insertText(String text) {
-    final current = controller.value;
+    final current = widget.controller.value;
     final currentText = current.text;
     final selection = current.selection;
     final start = selection.isValid
@@ -863,33 +1107,156 @@ class ShellCommandInputBar extends StatelessWidget {
     final replaceEnd = math.max(start, end);
     final nextText = currentText.replaceRange(replaceStart, replaceEnd, text);
     final nextOffset = replaceStart + text.length;
-    controller.value = current.copyWith(
+    widget.controller.value = current.copyWith(
       text: nextText,
       selection: TextSelection.collapsed(offset: nextOffset),
       composing: TextRange.empty,
     );
   }
 
-  Future<void> _submit(String value) async {
+  Future<void> _submit(
+    BuildContext context,
+    String value,
+    UniversalInputClassification classification,
+    List<String> suggestions,
+  ) async {
     if (value.trim().isEmpty) {
       return;
     }
-    final didSubmit = await onSubmitted(value);
+    if (classification.isNaturalLanguage) {
+      if (suggestions.isNotEmpty) {
+        _acceptSuggestion(suggestions.first, classification);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Suggested command inserted. Press Enter to run it.'),
+          ),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Natural language detected. Choose a command suggestion or switch to Terminal mode.',
+          ),
+        ),
+      );
+      _restoreTextInputFocus();
+      return;
+    }
+    final didSubmit = await widget.onSubmitted(value);
     if (didSubmit) {
-      controller.clear();
+      widget.controller.clear();
     }
     _restoreTextInputFocus();
   }
 
+  void _handleTextChanged(String text) {
+    final mode = switch (text) {
+      '* ' || '＊ ' => UniversalInputMode.agent,
+      '! ' || '！ ' => UniversalInputMode.terminal,
+      _ => null,
+    };
+    if (mode != null && widget.onModeChanged != null) {
+      widget.controller.clear();
+      widget.onModeChanged!(mode);
+      _restoreTextInputFocus();
+      setState(() {
+        _activeSuggestionIndex = 0;
+      });
+      return;
+    }
+    widget.onChanged?.call(text);
+    setState(() {
+      _activeSuggestionIndex = 0;
+    });
+  }
+
+  void _handleModeChanged(UniversalInputMode mode) {
+    if (!widget.enabled) {
+      return;
+    }
+    widget.onModeChanged?.call(mode);
+    setState(() {
+      _activeSuggestionIndex = 0;
+    });
+    _restoreTextInputFocus();
+  }
+
+  void _handleContextSelected(String value) {
+    widget.onContextSelected?.call(value);
+    _restoreTextInputFocus();
+  }
+
+  void _handleModelSelected(String value) {
+    widget.onModelSelected?.call(value);
+    _restoreTextInputFocus();
+  }
+
+  void _insertSnippet(String snippet) {
+    final currentText = widget.controller.text;
+    final separator = currentText.trimRight().isEmpty || snippet.startsWith(' ')
+        ? ''
+        : ' ';
+    final nextText = '${currentText.trimRight()}$separator$snippet';
+    widget.controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+      composing: TextRange.empty,
+    );
+    widget.onChanged?.call(nextText);
+    setState(() {
+      _activeSuggestionIndex = 0;
+    });
+    _restoreTextInputFocus();
+  }
+
+  void _moveSuggestion(int delta, int length) {
+    if (length < 2) {
+      return;
+    }
+    final nextIndex = (_activeSuggestionIndex + delta) % length;
+    setState(() {
+      _activeSuggestionIndex = nextIndex < 0 ? nextIndex + length : nextIndex;
+    });
+    _restoreTextInputFocus();
+  }
+
+  void _acceptSuggestion(
+    String suggestion,
+    UniversalInputClassification classification,
+  ) {
+    final currentText = widget.controller.text;
+    final prefix =
+        RegExp(r'[A-Za-z0-9_./:-]+$').firstMatch(currentText)?.group(0) ?? '';
+    final replaceWholeInput = classification.isNaturalLanguage;
+    final nextText = replaceWholeInput || prefix.isEmpty
+        ? suggestion
+        : '${currentText.substring(0, currentText.length - prefix.length)}'
+              '$suggestion';
+    widget.controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+      composing: TextRange.empty,
+    );
+    if (replaceWholeInput) {
+      widget.onModeChanged?.call(UniversalInputMode.auto);
+    }
+    widget.onChanged?.call(nextText);
+    setState(() {
+      _activeSuggestionIndex = 0;
+    });
+    _restoreTextInputFocus();
+  }
+
   void _openCommandSearch() {
-    onOpenCommandSearch?.call();
+    widget.onOpenCommandSearch?.call();
   }
 
   void _restoreTextInputFocus() {
-    if (!enabled) {
+    if (!widget.enabled) {
       return;
     }
-    focusNode.unfocus();
+    widget.focusNode.unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestTextInputFocus();
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -899,13 +1266,13 @@ class ShellCommandInputBar extends StatelessWidget {
   }
 
   void _requestTextInputFocus() {
-    final focusContext = focusNode.context;
+    final focusContext = widget.focusNode.context;
     if (focusContext == null ||
         !focusContext.mounted ||
-        !focusNode.canRequestFocus) {
+        !widget.focusNode.canRequestFocus) {
       return;
     }
-    FocusScope.of(focusContext).requestFocus(focusNode);
+    FocusScope.of(focusContext).requestFocus(widget.focusNode);
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.show'));
   }
 }
