@@ -12,6 +12,41 @@ enum CommandSearchOverlayKeyIntent {
 
 enum CommandSearchOverlayOutputKind { none, insert, explicitExecute, viewBlock }
 
+enum CommandSearchAgentActionKind { explain, debug }
+
+class CommandSearchAgentActionRequest {
+  const CommandSearchAgentActionRequest({
+    required this.kind,
+    required this.command,
+    this.cwd,
+    this.exitCode,
+    this.invocationId,
+    this.sessionId,
+  });
+
+  factory CommandSearchAgentActionRequest.fromResult({
+    required CommandSearchAgentActionKind kind,
+    required CommandSearchResult result,
+  }) {
+    final entry = result.entry;
+    return CommandSearchAgentActionRequest(
+      kind: kind,
+      command: entry.command,
+      cwd: entry.cwd,
+      exitCode: entry.exitCode,
+      invocationId: entry.invocationId,
+      sessionId: entry.sessionId,
+    );
+  }
+
+  final CommandSearchAgentActionKind kind;
+  final String command;
+  final String? cwd;
+  final int? exitCode;
+  final String? invocationId;
+  final String? sessionId;
+}
+
 class CommandSearchOverlayOutput {
   const CommandSearchOverlayOutput._({
     required this.kind,
@@ -152,6 +187,19 @@ class CommandSearchOverlayController {
     return CommandSearchOverlayOutput.viewBlock(invocationId);
   }
 
+  CommandSearchAgentActionRequest? agentActionForSelected(
+    CommandSearchAgentActionKind kind,
+  ) {
+    final result = state.selectedResult;
+    if (result == null) {
+      return null;
+    }
+    return CommandSearchAgentActionRequest.fromResult(
+      kind: kind,
+      result: result,
+    );
+  }
+
   CommandSearchOverlayOutput _open() {
     final scope = state.scope;
     final results = _resultsForQuery('', scope: scope);
@@ -197,7 +245,8 @@ class CommandSearchOverlayController {
         CommandSearchOverlayOutput.insert(command),
       CommandSearchOverlayOutputKind.explicitExecute =>
         CommandSearchOverlayOutput.explicitExecute(command),
-      CommandSearchOverlayOutputKind.viewBlock => CommandSearchOverlayOutput.none,
+      CommandSearchOverlayOutputKind.viewBlock =>
+        CommandSearchOverlayOutput.none,
       CommandSearchOverlayOutputKind.none => CommandSearchOverlayOutput.none,
     };
   }

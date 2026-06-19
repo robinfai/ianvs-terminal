@@ -120,6 +120,12 @@ class _TerminalAutoComposer extends StatefulWidget {
     this.suggestionsLoading = false,
     required this.activeIndex,
     required this.modelLabel,
+    this.availableModes = const <UniversalInputMode>{
+      UniversalInputMode.auto,
+      UniversalInputMode.terminal,
+      UniversalInputMode.agent,
+    },
+    this.modelOptions = _universalInputModelOptions,
     required this.palette,
     required this.onModeChanged,
     required this.onChanged,
@@ -144,6 +150,8 @@ class _TerminalAutoComposer extends StatefulWidget {
   final bool suggestionsLoading;
   final int activeIndex;
   final String modelLabel;
+  final Set<UniversalInputMode> availableModes;
+  final List<UniversalInputToolOption> modelOptions;
   final AppThemeTokens palette;
   final ValueChanged<UniversalInputMode> onModeChanged;
   final ValueChanged<String> onChanged;
@@ -179,6 +187,8 @@ class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
     final suggestionsLoading = widget.suggestionsLoading;
     final activeIndex = widget.activeIndex;
     final modelLabel = widget.modelLabel;
+    final availableModes = widget.availableModes;
+    final modelOptions = widget.modelOptions;
     final palette = widget.palette;
     final onModeChanged = widget.onModeChanged;
     final onChanged = widget.onChanged;
@@ -198,188 +208,202 @@ class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
         alignment: Alignment.bottomCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: palette.overlay.withValues(alpha: 0.97),
-              borderRadius: BorderRadius.circular(palette.radius.lg),
-              border: Border.all(color: accent.withValues(alpha: 0.42)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.24),
-                  blurRadius: 16,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      _UniversalInputModeSwitcher(
-                        mode: inputMode,
-                        palette: palette,
-                        onModeChanged: onModeChanged,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _UniversalInputStatusPill(
-                          key: const Key(
-                            'terminal-auto-composer-detection-label',
-                          ),
-                          label: statusLabel,
-                          accent: accent,
-                          palette: palette,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _UniversalInputModelBadge(
-                        label: modelLabel,
-                        palette: palette,
-                      ),
-                    ],
-                  ),
-                  if (contextChips.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            for (final chip in contextChips) ...[
-                              _UniversalInputContextChip(
-                                label: chip,
-                                palette: palette,
-                              ),
-                              const SizedBox(width: 5),
-                            ],
-                          ],
-                        ),
-                      ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: palette.overlay.withValues(alpha: 0.97),
+                  borderRadius: BorderRadius.circular(palette.radius.lg),
+                  border: Border.all(color: accent.withValues(alpha: 0.42)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.24),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
                     ),
                   ],
-                  const SizedBox(height: 6),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Icon(
-                          _universalInputLeadingIcon(classification),
-                          size: 18,
-                          color: accent,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _UniversalInputToolMenuButton(
-                        key: const Key('terminal-auto-composer-context'),
-                        menuButtonKey: _contextMenuKey,
-                        tooltip: 'Add context',
-                        icon: Icons.alternate_email_rounded,
-                        options: contextOptions,
-                        palette: palette,
-                        onSelected: _handleContextSelected,
-                      ),
-                      _UniversalInputToolMenuButton(
-                        key: const Key('terminal-auto-composer-slash'),
-                        menuButtonKey: _slashMenuKey,
-                        tooltip: 'Slash commands',
-                        icon: Icons.bolt_rounded,
-                        options: _universalInputSlashCommandOptions,
-                        palette: palette,
-                        onSelected: _handleSlashCommandSelected,
-                      ),
-                      _UniversalInputToolMenuButton(
-                        key: const Key('terminal-auto-composer-model'),
-                        tooltip: 'Model picker',
-                        icon: Icons.tune_rounded,
-                        options: _universalInputModelOptions,
-                        palette: palette,
-                        onSelected: onModelSelected,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _UniversalInputAutocompleteField(
-                          fieldKey: const Key('terminal-auto-composer-field'),
-                          controller: controller,
-                          focusNode: focusNode,
-                          hintText: _universalInputFieldHint(
-                            inputMode,
-                            classification,
+                      Row(
+                        children: [
+                          _UniversalInputModeSwitcher(
+                            mode: inputMode,
+                            availableModes: availableModes,
+                            palette: palette,
+                            onModeChanged: onModeChanged,
                           ),
-                          suggestions: suggestions,
-                          suggestionDetails: suggestionDetails,
-                          suggestionsLoading: suggestionsLoading,
-                          activeIndex: activeIndex,
-                          palette: palette,
-                          textStyle: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: palette.textPrimary,
-                                fontWeight: FontWeight.w600,
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _UniversalInputStatusPill(
+                              key: const Key(
+                                'terminal-auto-composer-detection-label',
                               ),
-                          decoration: InputDecoration(
-                            hintText: _universalInputFieldHint(
+                              label: statusLabel,
+                              accent: accent,
+                              palette: palette,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _UniversalInputModelBadge(
+                            label: modelLabel,
+                            palette: palette,
+                          ),
+                        ],
+                      ),
+                      if (contextChips.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                for (final chip in contextChips) ...[
+                                  _UniversalInputContextChip(
+                                    label: chip,
+                                    palette: palette,
+                                  ),
+                                  const SizedBox(width: 5),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Icon(
+                              _universalInputLeadingIcon(classification),
+                              size: 18,
+                              color: accent,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _UniversalInputToolMenuButton(
+                            key: const Key('terminal-auto-composer-context'),
+                            menuButtonKey: _contextMenuKey,
+                            tooltip: 'Add context',
+                            icon: Icons.alternate_email_rounded,
+                            options: contextOptions,
+                            palette: palette,
+                            onSelected: _handleContextSelected,
+                          ),
+                          _UniversalInputToolMenuButton(
+                            key: const Key('terminal-auto-composer-slash'),
+                            menuButtonKey: _slashMenuKey,
+                            tooltip: 'Slash commands',
+                            icon: Icons.bolt_rounded,
+                            options: _universalInputSlashCommandOptions,
+                            palette: palette,
+                            onSelected: _handleSlashCommandSelected,
+                          ),
+                          _UniversalInputToolMenuButton(
+                            key: const Key('terminal-auto-composer-model'),
+                            tooltip: 'Model picker',
+                            icon: Icons.tune_rounded,
+                            options: modelOptions,
+                            palette: palette,
+                            onSelected: onModelSelected,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: _UniversalInputAutocompleteField(
+                              fieldKey: const Key(
+                                'terminal-auto-composer-field',
+                              ),
+                              controller: controller,
+                              focusNode: focusNode,
+                              hintText: _universalInputFieldHint(
+                                inputMode,
+                                classification,
+                              ),
+                              suggestions: suggestions,
+                              suggestionDetails: suggestionDetails,
+                              suggestionsLoading: suggestionsLoading,
+                              activeIndex: activeIndex,
+                              palette: palette,
+                              textStyle: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: palette.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                              decoration: InputDecoration(
+                                hintText: _universalInputFieldHint(
+                                  inputMode,
+                                  classification,
+                                ),
+                                border: InputBorder.none,
+                                isDense: true,
+                              ),
+                              onChanged: onChanged,
+                              onPrevious: onPrevious,
+                              onNext: onNext,
+                              onAcceptSuggestion: onAcceptSuggestion,
+                              onSend: onSend,
+                              onContextTrigger: () => _contextMenuKey
+                                  .currentState
+                                  ?.showButtonMenu(),
+                              onSlashTrigger: () =>
+                                  _slashMenuKey.currentState?.showButtonMenu(),
+                            ),
+                          ),
+                          _buildCompactActionButton(
+                            key: const Key('terminal-auto-composer-previous'),
+                            tooltip: 'Previous completion',
+                            onPressed: suggestions.length < 2
+                                ? null
+                                : onPrevious,
+                            splashRadius: 16,
+                            iconSize: 18,
+                            icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                          ),
+                          _buildCompactActionButton(
+                            key: const Key('terminal-auto-composer-next'),
+                            tooltip: 'Next completion',
+                            onPressed: suggestions.length < 2 ? null : onNext,
+                            splashRadius: 16,
+                            iconSize: 18,
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                          ),
+                          _buildCompactActionButton(
+                            key: const Key('terminal-auto-composer-send'),
+                            tooltip: _universalInputSendTooltip(
                               inputMode,
                               classification,
                             ),
-                            border: InputBorder.none,
-                            isDense: true,
+                            onPressed: canSend ? onSend : null,
+                            splashRadius: 16,
+                            iconSize: 18,
+                            icon: Icon(
+                              classification.isNaturalLanguage
+                                  ? Icons.auto_fix_high_rounded
+                                  : Icons.send_rounded,
+                            ),
                           ),
-                          onChanged: onChanged,
-                          onPrevious: onPrevious,
-                          onNext: onNext,
-                          onAcceptSuggestion: onAcceptSuggestion,
-                          onSend: onSend,
-                          onContextTrigger: () =>
-                              _contextMenuKey.currentState?.showButtonMenu(),
-                          onSlashTrigger: () =>
-                              _slashMenuKey.currentState?.showButtonMenu(),
-                        ),
-                      ),
-                      _buildCompactActionButton(
-                        key: const Key('terminal-auto-composer-previous'),
-                        tooltip: 'Previous completion',
-                        onPressed: suggestions.length < 2 ? null : onPrevious,
-                        splashRadius: 16,
-                        iconSize: 18,
-                        icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                      ),
-                      _buildCompactActionButton(
-                        key: const Key('terminal-auto-composer-next'),
-                        tooltip: 'Next completion',
-                        onPressed: suggestions.length < 2 ? null : onNext,
-                        splashRadius: 16,
-                        iconSize: 18,
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                      ),
-                      _buildCompactActionButton(
-                        key: const Key('terminal-auto-composer-send'),
-                        tooltip: _universalInputSendTooltip(classification),
-                        onPressed: canSend ? onSend : null,
-                        splashRadius: 16,
-                        iconSize: 18,
-                        icon: Icon(
-                          classification.isNaturalLanguage
-                              ? Icons.auto_fix_high_rounded
-                              : Icons.send_rounded,
-                        ),
-                      ),
-                      _buildCompactActionButton(
-                        key: const Key('terminal-auto-composer-close'),
-                        tooltip: 'Close composer',
-                        onPressed: onClose,
-                        splashRadius: 16,
-                        iconSize: 18,
-                        icon: const Icon(Icons.close_rounded),
+                          _buildCompactActionButton(
+                            key: const Key('terminal-auto-composer-close'),
+                            tooltip: 'Close composer',
+                            onPressed: onClose,
+                            splashRadius: 16,
+                            iconSize: 18,
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -637,6 +661,10 @@ class _UniversalInputStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: accent,
+      fontWeight: FontWeight.w700,
+    );
     return Align(
       alignment: Alignment.centerLeft,
       child: DecoratedBox(
@@ -650,10 +678,7 @@ class _UniversalInputStatusPill extends StatelessWidget {
           child: Text(
             label,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: accent,
-              fontWeight: FontWeight.w700,
-            ),
+            style: labelStyle,
           ),
         ),
       ),
@@ -781,12 +806,18 @@ class _UniversalInputModeSwitcher extends StatelessWidget {
     required this.mode,
     required this.palette,
     required this.onModeChanged,
+    this.availableModes = const <UniversalInputMode>{
+      UniversalInputMode.auto,
+      UniversalInputMode.terminal,
+      UniversalInputMode.agent,
+    },
     this.keyPrefix = 'terminal-auto-composer',
   });
 
   final UniversalInputMode mode;
   final AppThemeTokens palette;
   final ValueChanged<UniversalInputMode> onModeChanged;
+  final Set<UniversalInputMode> availableModes;
   final String keyPrefix;
 
   @override
@@ -800,33 +831,36 @@ class _UniversalInputModeSwitcher extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _UniversalInputModeButton(
-            key: Key('$keyPrefix-mode-terminal'),
-            mode: UniversalInputMode.terminal,
-            currentMode: mode,
-            icon: Icons.terminal_rounded,
-            tooltip: 'Terminal mode',
-            palette: palette,
-            onModeChanged: onModeChanged,
-          ),
-          _UniversalInputModeButton(
-            key: Key('$keyPrefix-mode-auto'),
-            mode: UniversalInputMode.auto,
-            currentMode: mode,
-            icon: Icons.auto_mode_rounded,
-            tooltip: 'Auto mode',
-            palette: palette,
-            onModeChanged: onModeChanged,
-          ),
-          _UniversalInputModeButton(
-            key: Key('$keyPrefix-mode-agent'),
-            mode: UniversalInputMode.agent,
-            currentMode: mode,
-            icon: Icons.auto_awesome_rounded,
-            tooltip: 'Agent mode',
-            palette: palette,
-            onModeChanged: onModeChanged,
-          ),
+          if (availableModes.contains(UniversalInputMode.terminal))
+            _UniversalInputModeButton(
+              key: Key('$keyPrefix-mode-terminal'),
+              mode: UniversalInputMode.terminal,
+              currentMode: mode,
+              icon: Icons.terminal_rounded,
+              tooltip: 'Terminal mode',
+              palette: palette,
+              onModeChanged: onModeChanged,
+            ),
+          if (availableModes.contains(UniversalInputMode.auto))
+            _UniversalInputModeButton(
+              key: Key('$keyPrefix-mode-auto'),
+              mode: UniversalInputMode.auto,
+              currentMode: mode,
+              icon: Icons.auto_mode_rounded,
+              tooltip: 'Auto mode',
+              palette: palette,
+              onModeChanged: onModeChanged,
+            ),
+          if (availableModes.contains(UniversalInputMode.agent))
+            _UniversalInputModeButton(
+              key: Key('$keyPrefix-mode-agent'),
+              mode: UniversalInputMode.agent,
+              currentMode: mode,
+              icon: Icons.auto_awesome_rounded,
+              tooltip: 'Agent mode',
+              palette: palette,
+              onModeChanged: onModeChanged,
+            ),
         ],
       ),
     );
@@ -978,7 +1012,13 @@ String _universalInputFieldHint(
   };
 }
 
-String _universalInputSendTooltip(UniversalInputClassification classification) {
+String _universalInputSendTooltip(
+  UniversalInputMode mode,
+  UniversalInputClassification classification,
+) {
+  if (mode == UniversalInputMode.agent) {
+    return 'Send Agent message';
+  }
   return classification.isNaturalLanguage ? 'Suggest command' : 'Send command';
 }
 

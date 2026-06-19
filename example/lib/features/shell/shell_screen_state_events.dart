@@ -1888,7 +1888,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           apiBaseUrl: profile?.commandIntelligence.baseUrl,
           apiKey: profile?.commandIntelligence.apiKey,
           apiModel: profile?.commandIntelligence.model,
-          preferRemote: _universalInputModelLabel == 'Agent draft',
+          allowRemote: _agentProviderDraftEnabled,
+          preferRemote: _agentProviderDraftRequested,
         ),
       );
       if (!mounted ||
@@ -2614,8 +2615,23 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           CommandBlocksHistoryFeatureFlags.fromConfig(
             configBootstrap.config.commandBlocksHistory,
           );
+      _commandCenterFeatureFlags = CommandCenterFeatureFlags.fromConfig(
+        configBootstrap.config.commandCenter,
+      );
       _suggestCorrectedCommands =
           configBootstrap.config.universalInput.suggestCorrectedCommands;
+      if (!_commandCenterFeatureFlags.agentConversation) {
+        _universalInputMode = _fallbackUniversalInputModeForAgentDisabled(
+          _universalInputMode,
+        );
+      }
+      if (!_commandCenterFeatureFlags.agentProviderDraft &&
+          _universalInputModelLabel == 'Agent draft') {
+        _universalInputModelLabel = 'Local heuristic';
+      }
+      if (!_commandCenterFeatureFlags.agentCommandSearchActions) {
+        _agentPromptActionsBySession.clear();
+      }
       _commandFinishedNotificationsEnabled =
           preferences.notifications.commandFinished;
       _bellNotificationsEnabled = preferences.notifications.bell;

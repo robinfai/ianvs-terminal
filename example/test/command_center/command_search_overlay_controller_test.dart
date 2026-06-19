@@ -119,6 +119,24 @@ void main() {
       expect(output.command, isNull);
     });
 
+    test('agentActionForSelected returns selected command metadata', () {
+      final controller = _controller(baseTime)
+        ..handleIntent(CommandSearchOverlayKeyIntent.openSearch)
+        ..updateQuery('flutter');
+
+      final request = controller.agentActionForSelected(
+        CommandSearchAgentActionKind.explain,
+      );
+
+      expect(request, isNotNull);
+      expect(request!.kind, CommandSearchAgentActionKind.explain);
+      expect(request.command, 'flutter test');
+      expect(request.cwd, '/repo');
+      expect(request.exitCode, 0);
+      expect(request.invocationId, 'inv-1');
+      expect(request.sessionId, 'session-a');
+    });
+
     test('keeps a stable empty state when no results match', () {
       final controller = _controller(baseTime)
         ..handleIntent(CommandSearchOverlayKeyIntent.openSearch)

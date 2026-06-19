@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
+import '../agent_center/agent_center.dart';
 import '../command_center/command_action_search_controller.dart';
 import '../command_center/command_action_search_index.dart';
 import '../command_center/command_action_search_overlay.dart';
@@ -20,6 +21,7 @@ import '../command_center/command_block_action_reducer.dart';
 import '../command_center/command_block_actions.dart';
 import '../command_center/command_block_models.dart';
 import '../command_center/command_block_navigation.dart';
+import '../command_center/command_center_feature_flags.dart';
 import '../command_center/command_center_runtime.dart';
 import '../command_center/command_center_shell_event_wiring.dart';
 import '../command_center/command_lifecycle_degraded_state.dart';
@@ -126,6 +128,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final Map<String, TextEditingController> _commandInputControllers = {};
   final Map<String, FocusNode> _commandInputFocusNodes = {};
+  final Map<String, ShellAgentPromptAction> _agentPromptActionsBySession = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');
   final Map<String, Size> _scheduledViewportSizes = {};
   final Map<String, Size> _committedViewportSizes = {};
@@ -207,6 +210,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const LocalTerminalPasteHistoryPolicy();
   CommandBlocksHistoryFeatureFlags _commandBlocksHistoryFeatureFlags =
       CommandBlocksHistoryFeatureFlags.disabled;
+  CommandCenterFeatureFlags _commandCenterFeatureFlags =
+      const CommandCenterFeatureFlags();
   final Map<String, ShellCommandBlockSnapshot> _commandBlockSnapshotsBySession =
       {};
   final Map<String, Map<String, List<terminal.TerminalRow>>>
@@ -252,6 +257,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _commandInputDraftLoadingSessionIds = {};
   int _commandIntelligenceRequestSerial = 0;
   int _commandCorrectionRequestSerial = 0;
+  int _agentPromptActionSerial = 0;
   bool _suggestCorrectedCommands = true;
   CommandCorrection? _activeCommandCorrection;
   String? _activeCommandCorrectionSessionId;
@@ -1195,7 +1201,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               commandInputPane,
                               commandInputProfile,
                             ),
-                      modelLabel: _universalInputModelLabel,
+                      modelLabel: _effectiveUniversalInputModelLabel,
+                      availableModes: _availableUniversalInputModes,
+                      modelOptions: _availableUniversalInputModelOptions,
+                      agentContextSnapshot: commandInputPane == null
+                          ? null
+                          : _agentContextSnapshotFor(
+                              commandInputPane,
+                              commandInputProfile,
+                            ),
+                      agentPromptAction:
+                          _commandCenterFeatureFlags.agentCommandSearchActions
+                          ? _agentPromptActionsBySession[commandInputSessionId]
+                          : null,
+                      readOnly: _isSessionReadOnly(commandInputSessionId),
                       onModeChanged: (mode) => _setCommandInputUniversalMode(
                         commandInputSessionId,
                         mode,

@@ -66,6 +66,12 @@ class LocalTerminalConfigMigration {
     contextChips: true,
     reviewEntrypoints: true,
     verificationDiagnostics: true,
+    agentCenter: true,
+    agentConversation: true,
+    agentContext: true,
+    agentCommandProposals: true,
+    agentProviderDraft: true,
+    agentCommandSearchActions: true,
   );
 
   static const runtimeDefaultCommandBlocksHistory =
@@ -120,11 +126,51 @@ class LocalTerminalConfigMigration {
   ) {
     return document.copyWith(
       commandCenter: json.containsKey('commandCenter')
-          ? document.commandCenter
+          ? _commandCenterWithRuntimeDefaultsForMissingKeys(
+              document.commandCenter,
+              json['commandCenter'],
+            )
           : runtimeDefaultCommandCenter,
       commandBlocksHistory: json.containsKey('commandBlocksHistory')
           ? document.commandBlocksHistory
           : runtimeDefaultCommandBlocksHistory,
+    );
+  }
+
+  static LocalTerminalCommandCenterConfig
+  _commandCenterWithRuntimeDefaultsForMissingKeys(
+    LocalTerminalCommandCenterConfig config,
+    Object? rawCommandCenter,
+  ) {
+    final json = rawCommandCenter is Map
+        ? rawCommandCenter.cast<Object?, Object?>()
+        : const <Object?, Object?>{};
+    return LocalTerminalCommandCenterConfig(
+      enabled: config.enabled,
+      historySearch: config.historySearch,
+      commandBlocks: config.commandBlocks,
+      commandBar: config.commandBar,
+      contextChips: config.contextChips,
+      reviewEntrypoints: config.reviewEntrypoints,
+      verificationDiagnostics: config.verificationDiagnostics,
+      agentCenter: json.containsKey('agentCenter')
+          ? config.agentCenter
+          : runtimeDefaultCommandCenter.agentCenter,
+      agentConversation: json.containsKey('agentConversation')
+          ? config.agentConversation
+          : runtimeDefaultCommandCenter.agentConversation,
+      agentContext: json.containsKey('agentContext')
+          ? config.agentContext
+          : runtimeDefaultCommandCenter.agentContext,
+      agentCommandProposals: json.containsKey('agentCommandProposals')
+          ? config.agentCommandProposals
+          : runtimeDefaultCommandCenter.agentCommandProposals,
+      agentProviderDraft: json.containsKey('agentProviderDraft')
+          ? config.agentProviderDraft
+          : runtimeDefaultCommandCenter.agentProviderDraft,
+      agentCommandSearchActions: json.containsKey('agentCommandSearchActions')
+          ? config.agentCommandSearchActions
+          : runtimeDefaultCommandCenter.agentCommandSearchActions,
     );
   }
 }

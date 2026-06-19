@@ -159,11 +159,14 @@ Hyper-like `Phase 0` 到 `Phase 4` 连同 defaults 清理已经进入历史阶�
 Command Center 是独立产品线，不替换当前 `M1` 到 `M5`。它可以和 runtime/xterm
 证据、shell hook 契约、workspace expansion 并行推进，但每个任务都必须守住这些护栏：
 
-- 普通输入默认发给 shell，不做自然语言自动识别。
+- 普通输入默认发给 shell；自然语言识别进入
+  [Warp post-Universal-Input track](COMMAND_CENTER_WARP_POST_UNIVERSAL_INPUT_SPEC.md)，但必须
+  通过可见 route UI、可配置 policy 和明确安全门。
 - 不重写 renderer，不把 command block header 写入 scrollback。
 - 产品 UI 留在 `example/`，`packages/ianvs_terminal` 只保留中性 terminal 能力。
 - 不绕过 read-only、paste confirmation、shortcut isolation 或现有 terminal input policy。
-- v1 不做 Agent / AI、remote / SSH、cloud sync、协作或插件生态。
+- 早期 “v1 不做 Agent / AI” 限制已被当前实现 track 覆盖；remote / SSH、cloud
+  sync、协作和插件生态仍不属于当前切片。
 
 Command Center 的执行入口是 `docs/tasks/command-center/`。任务从 `T-300` 起步，
 按完整任务文档执行，不沿用旧 Hyper-like phase 编号。

@@ -1,3 +1,4 @@
+import 'package:app/features/agent_center/agent_center.dart';
 import 'package:app/features/command_center/command_block_navigation.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/productivity/shell_command_block_controller.dart';
@@ -1077,6 +1078,837 @@ void main() {
       expect(find.bySemanticsLabel('Command input'), findsOneWidget);
       expect(find.text('cwd app'), findsOneWidget);
       expect(find.text('Agent draft'), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-command-agent-conversation-pane')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-model')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Env: DEEPSEEK_API_KEY; secret value stays outside Agent requests.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('hides Agent controls when rollout excludes Agent mode', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final requestedModes = <UniversalInputMode>[];
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.auto,
+              availableModes: const <UniversalInputMode>{
+                UniversalInputMode.auto,
+                UniversalInputMode.terminal,
+              },
+              modelOptions: const <UniversalInputToolOption>[
+                UniversalInputToolOption(
+                  id: 'local',
+                  label: 'Local heuristic',
+                  value: 'Local heuristic',
+                  icon: Icons.memory_rounded,
+                  detail: 'Local only; no provider secret required.',
+                ),
+                UniversalInputToolOption(
+                  id: 'shell',
+                  label: 'Shell strict',
+                  value: 'Shell strict',
+                  icon: Icons.terminal_rounded,
+                  detail: 'Command-first routing; no provider secret required.',
+                ),
+              ],
+              onModeChanged: requestedModes.add,
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('shell-command-input-mode-terminal')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-mode-auto')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-mode-agent')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-model')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Local heuristic'), findsWidgets);
+      expect(find.text('Shell strict'), findsWidgets);
+      expect(find.text('Agent draft'), findsNothing);
+
+      await tester.tap(find.text('Shell strict').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        '* explain this session',
+      );
+      await tester.pump();
+
+      expect(requestedModes, isEmpty);
+      expect(controller.text, '* explain this session');
+    });
+
+    testWidgets('renders an Agent conversation pane in agent mode', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.byKey(const Key('shell-command-agent-conversation-pane')),
+        findsOneWidget,
+      );
+      expect(find.text('Agent conversation'), findsOneWidget);
+      expect(find.text('Ready'), findsOneWidget);
+      expect(find.bySemanticsLabel('Agent message composer'), findsOneWidget);
+      expect(find.bySemanticsLabel('Command input'), findsNothing);
+    });
+
+    testWidgets('redacts manual Agent context chip text', (tester) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              contextChips: const <String>[
+                'cwd ianvs-password=demo-not-real-secret',
+              ],
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('cwd ianvs-password=[REDACTED]'), findsNWidgets(2));
+      expect(find.textContaining('demo-not-real-secret'), findsNothing);
+    });
+
+    testWidgets('sends an Agent message and renders streamed reply', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              agentRuntimeAdapter: MockAgentRuntimeAdapter(
+                steps: <MockAgentResponseStep>[
+                  MockAgentResponseStep.text('Use '),
+                  MockAgentResponseStep.text('pwd to inspect the directory.'),
+                ],
+              ),
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'Explain my working directory',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('shell-command-run-button')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, isEmpty);
+      expect(controller.text, isEmpty);
+      expect(find.text('Explain my working directory'), findsOneWidget);
+      expect(find.text('Use pwd to inspect the directory.'), findsOneWidget);
+      expect(find.text('Complete'), findsOneWidget);
+    });
+
+    testWidgets('sends Agent provider config without provider secret values', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final adapter = _RecordingAgentRuntimeAdapter();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              modelLabel: 'Agent draft',
+              agentRuntimeAdapter: adapter,
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'Explain the current session',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('shell-command-run-button')));
+      await tester.pumpAndSettle();
+
+      expect(adapter.requests, hasLength(1));
+      final modelConfig = adapter.requests.single.modelConfig;
+      expect(modelConfig?.providerId, 'agent');
+      expect(modelConfig?.providerLabel, 'Agent draft');
+      expect(modelConfig?.model, 'deepseek-command-draft');
+      expect(
+        modelConfig?.secretBoundary,
+        'Env: DEEPSEEK_API_KEY; secret value stays outside Agent requests.',
+      );
+      expect(modelConfig?.secretBoundary, isNot(contains('sk-test-secret')));
+      expect(modelConfig?.secretBoundary, isNot(contains('actual-secret')));
+    });
+
+    testWidgets('sends an external Agent prompt action with context', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final adapter = _RecordingAgentRuntimeAdapter();
+      final contextSnapshot = const AgentContextBuilder().build(
+        AgentContextSource(
+          terminalSessionId: 'terminal-1',
+          cwd: '/repo',
+          shell: '/bin/zsh',
+          readOnly: false,
+          shellHookAvailable: true,
+          selectedBlock: AgentCommandBlockSnapshot(
+            id: 'block-search-result',
+            command: 'npm test',
+            exitCode: 1,
+            outputExcerpt: '1 failing test',
+          ),
+        ),
+      );
+      ShellAgentPromptAction? promptAction;
+      late StateSetter setHostState;
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                setHostState = setState;
+                return ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  inputMode: UniversalInputMode.agent,
+                  agentRuntimeAdapter: adapter,
+                  agentContextSnapshot: contextSnapshot,
+                  agentPromptAction: promptAction,
+                  onSubmitted: (command) async {
+                    submitted.add(command);
+                    return true;
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      setHostState(() {
+        promptAction = const ShellAgentPromptAction(
+          id: 1,
+          prompt:
+              'Debug command from search history (exit 1) in /repo: npm test',
+        );
+      });
+      await tester.pumpAndSettle();
+
+      expect(submitted, isEmpty);
+      expect(adapter.requests, hasLength(1));
+      expect(
+        adapter.requests.single.messages
+            .lastWhere((message) => message.role == AgentMessageRole.user)
+            .plainText,
+        'Debug command from search history (exit 1) in /repo: npm test',
+      );
+      expect(
+        adapter.requests.single.context.snapshot?.selectedBlock?.id,
+        'block-search-result',
+      );
+      expect(find.text('Context received.'), findsOneWidget);
+      expect(controller.text, isEmpty);
+    });
+
+    testWidgets('Remember session sends summary as Agent memory bridge', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final adapter = _RecordingAgentRuntimeAdapter();
+      final contextSnapshot = const AgentContextBuilder().build(
+        AgentContextSource(
+          terminalSessionId: 'terminal-1',
+          cwd: '/repo',
+          shell: '/bin/zsh',
+          profileName: 'Local Shell',
+          readOnly: false,
+          shellHookAvailable: true,
+          selectedBlock: AgentCommandBlockSnapshot(
+            id: 'block-selected',
+            command: 'flutter test',
+            exitCode: 0,
+          ),
+          lastFailedBlock: AgentCommandBlockSnapshot(
+            id: 'block-failed',
+            command: 'dart analyze',
+            exitCode: 1,
+          ),
+          recentCommands: <AgentRecentCommandSnapshot>[
+            AgentRecentCommandSnapshot(
+              command: 'flutter test',
+              status: AgentRecentCommandStatus.succeeded,
+              exitCode: 0,
+            ),
+            AgentRecentCommandSnapshot(
+              command: 'dart analyze',
+              status: AgentRecentCommandStatus.failed,
+              exitCode: 1,
+            ),
+          ],
+        ),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              agentRuntimeAdapter: adapter,
+              agentContextSnapshot: contextSnapshot,
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Summary'), findsOneWidget);
+      expect(
+        find.byKey(const Key('agent-remember-session-summary')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('agent-remember-session-summary')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, isEmpty);
+      expect(adapter.requests, hasLength(1));
+      final request = adapter.requests.single;
+      expect(
+        request.messages
+            .lastWhere((message) => message.role == AgentMessageRole.user)
+            .plainText,
+        allOf(
+          startsWith(
+            'Remember this terminal session summary for this Agent conversation:',
+          ),
+          contains('Terminal session: terminal-1'),
+          contains('Recent commands: 2 (1 failed)'),
+          contains('Last failed: dart analyze (exit 1)'),
+        ),
+      );
+      expect(request.context.snapshot?.sessionSummary, isNotNull);
+      expect(
+        request.context.snapshot?.attachments.map(
+          (attachment) => attachment.kind,
+        ),
+        contains(AgentContextAttachmentKind.sessionSummary),
+      );
+      expect(controller.text, isEmpty);
+    });
+
+    testWidgets('Agent block actions attach selected and failed context', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final adapter = _RecordingAgentRuntimeAdapter();
+      final contextSnapshot = const AgentContextBuilder().build(
+        AgentContextSource(
+          terminalSessionId: 'terminal-1',
+          cwd: '/repo',
+          shell: '/bin/zsh',
+          readOnly: false,
+          shellHookAvailable: true,
+          selectedBlock: AgentCommandBlockSnapshot(
+            id: 'block-selected',
+            command: 'flutter test',
+            exitCode: 0,
+            outputExcerpt: 'All tests passed',
+          ),
+          lastFailedBlock: AgentCommandBlockSnapshot(
+            id: 'block-failed',
+            command: 'dart analyze',
+            exitCode: 1,
+            outputExcerpt: 'error: missing import',
+          ),
+        ),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              agentRuntimeAdapter: adapter,
+              agentContextSnapshot: contextSnapshot,
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Block'), findsOneWidget);
+      expect(find.byTooltip('flutter test'), findsOneWidget);
+      expect(find.text('Last failed'), findsOneWidget);
+      expect(find.byTooltip('dart analyze'), findsOneWidget);
+      expect(
+        find.byKey(const Key('agent-explain-selected-block')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('agent-debug-last-failed-block')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('agent-explain-selected-block')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, isEmpty);
+      expect(adapter.requests, hasLength(1));
+      expect(
+        adapter.requests.single.messages
+            .lastWhere((message) => message.role == AgentMessageRole.user)
+            .parts
+            .single
+            .text,
+        'Explain selected terminal block: flutter test',
+      );
+      expect(
+        adapter.requests.single.context.snapshot?.selectedBlock?.id,
+        'block-selected',
+      );
+      expect(
+        adapter.requests.single.context.snapshot?.lastFailedBlock?.id,
+        'block-failed',
+      );
+      expect(find.text('Context received.'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('agent-debug-last-failed-block')));
+      await tester.pumpAndSettle();
+
+      expect(adapter.requests, hasLength(2));
+      expect(
+        adapter.requests.last.messages
+            .lastWhere((message) => message.role == AgentMessageRole.user)
+            .parts
+            .single
+            .text,
+        'Debug last failed terminal block (exit 1): dart analyze',
+      );
+      expect(adapter.requests.last.context.cwd, '/repo');
+      expect(adapter.requests.last.context.readOnly, isFalse);
+    });
+
+    testWidgets('reviews and inserts an Agent command proposal as a draft', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final changed = <String>[];
+      UniversalInputMode? requestedMode;
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final proposal = AgentCommandProposal(
+        id: 'proposal-pwd',
+        conversationId: 'conversation',
+        command: 'pwd',
+        explanation:
+            'Print the current working directory without modifying files.',
+        riskLevel: AgentCommandRiskLevel.low,
+        warnings: const <String>['Read-only command.'],
+        detectedEffects: const <String>['Prints the working directory.'],
+        requiresConfirmation: false,
+        source: AgentCommandProposalSource.mock,
+        createdAt: DateTime(2026),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              agentRuntimeAdapter: MockAgentRuntimeAdapter(
+                steps: <MockAgentResponseStep>[
+                  MockAgentResponseStep.text('Try this safe command.'),
+                  MockAgentResponseStep.commandProposal(proposal),
+                ],
+              ),
+              onChanged: changed.add,
+              onModeChanged: (mode) {
+                requestedMode = mode;
+              },
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'Suggest a safe cwd command',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('shell-command-run-button')));
+      await tester.pumpAndSettle();
+
+      expect(submitted, isEmpty);
+      expect(controller.text, isEmpty);
+      expect(find.text('Proposed command'), findsOneWidget);
+      expect(find.text('pwd'), findsOneWidget);
+      expect(find.text('Low risk'), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.byKey(const Key('agent-command-proposal-review')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('agent-command-proposal-review')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('agent-command-proposal-review-dialog')),
+        findsOneWidget,
+      );
+      expect(find.text('Review command proposal'), findsOneWidget);
+      expect(find.text('Direct run eligible'), findsOneWidget);
+      expect(
+        find.text(
+          'Print the current working directory without modifying files.',
+        ),
+        findsWidgets,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('agent-command-proposal-review-insert')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('agent-command-proposal-review-dialog')),
+        findsNothing,
+      );
+      expect(controller.text, 'pwd');
+      expect(changed.last, 'pwd');
+      expect(requestedMode, UniversalInputMode.terminal);
+      expect(submitted, isEmpty);
+    });
+
+    testWidgets('runs a low-risk Agent command proposal from review', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final changed = <String>[];
+      UniversalInputMode? requestedMode;
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final proposal = AgentCommandProposal(
+        id: 'proposal-run-pwd',
+        conversationId: 'conversation',
+        command: 'pwd',
+        explanation:
+            'Print the current working directory without modifying files.',
+        riskLevel: AgentCommandRiskLevel.low,
+        requiresConfirmation: false,
+        source: AgentCommandProposalSource.mock,
+        createdAt: DateTime(2026),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              agentRuntimeAdapter: MockAgentRuntimeAdapter(
+                steps: <MockAgentResponseStep>[
+                  MockAgentResponseStep.commandProposal(proposal),
+                ],
+              ),
+              onChanged: changed.add,
+              onModeChanged: (mode) {
+                requestedMode = mode;
+              },
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'Run a safe cwd command',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('shell-command-run-button')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('agent-command-proposal-review')),
+      );
+      await tester.tap(find.byKey(const Key('agent-command-proposal-review')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const Key('agent-command-proposal-review-run')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(submitted, ['pwd']);
+      expect(controller.text, isEmpty);
+      expect(changed, containsAllInOrder(<String>['pwd', '']));
+      expect(requestedMode, UniversalInputMode.terminal);
+      expect(find.text('Agent command sent to terminal.'), findsOneWidget);
+    });
+
+    testWidgets('requires confirmation before running risky Agent proposals', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final proposal = AgentCommandProposal(
+        id: 'proposal-sudo',
+        conversationId: 'conversation',
+        command: 'sudo lsof -i :8080',
+        explanation: 'Inspect listeners with elevated privileges.',
+        riskLevel: AgentCommandRiskLevel.medium,
+        requiresConfirmation: false,
+        source: AgentCommandProposalSource.mock,
+        createdAt: DateTime(2026),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              agentRuntimeAdapter: MockAgentRuntimeAdapter(
+                steps: <MockAgentResponseStep>[
+                  MockAgentResponseStep.commandProposal(proposal),
+                ],
+              ),
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'Find the server on port 8080',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('shell-command-run-button')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('agent-command-proposal-review')),
+      );
+      await tester.tap(find.byKey(const Key('agent-command-proposal-review')));
+      await tester.pumpAndSettle();
+
+      final disabledRun = tester.widget<FilledButton>(
+        find.byKey(const Key('agent-command-proposal-review-run')),
+      );
+      expect(disabledRun.onPressed, isNull);
+      expect(
+        find.byKey(const Key('agent-command-proposal-run-confirmation')),
+        findsOneWidget,
+      );
+      expect(submitted, isEmpty);
+
+      await tester.tap(
+        find.byKey(const Key('agent-command-proposal-run-confirmation')),
+      );
+      await tester.pumpAndSettle();
+      final enabledRun = tester.widget<FilledButton>(
+        find.byKey(const Key('agent-command-proposal-review-run')),
+      );
+      expect(enabledRun.onPressed, isNotNull);
+
+      await tester.tap(
+        find.byKey(const Key('agent-command-proposal-review-run')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(submitted, ['sudo lsof -i :8080']);
+    });
+
+    testWidgets('cancels an in-flight Agent stream from the pane', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.agent,
+              agentRuntimeAdapter: MockAgentRuntimeAdapter(
+                steps: <MockAgentResponseStep>[
+                  MockAgentResponseStep.text('This should not appear.'),
+                ],
+                stepDelay: const Duration(milliseconds: 80),
+              ),
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'Keep waiting',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('shell-command-run-button')));
+      await tester.pump();
+
+      expect(find.text('Streaming'), findsWidgets);
+
+      await tester.tap(find.byKey(const Key('agent-conversation-cancel')));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump();
+
+      expect(find.text('Cancelled'), findsWidgets);
+      expect(find.text('This should not appear.'), findsNothing);
     });
 
     testWidgets('stacks universal input context editor and toolbelt rows', (
@@ -1773,6 +2605,24 @@ Finder _scrollableDescendant(Finder parent, AxisDirection axisDirection) {
       return widget is Scrollable && widget.axisDirection == axisDirection;
     }),
   );
+}
+
+class _RecordingAgentRuntimeAdapter implements AgentRuntimeAdapter {
+  final requests = <AgentRequest>[];
+
+  @override
+  Stream<AgentResponseEvent> send(AgentRequest request) async* {
+    requests.add(request);
+    yield AgentResponseStarted(requestId: request.id);
+    yield AgentResponseTextDelta(
+      requestId: request.id,
+      delta: 'Context received.',
+    );
+    yield AgentResponseCompleted(requestId: request.id);
+  }
+
+  @override
+  Future<void> cancel(String requestId) async {}
 }
 
 Widget _fakeLiveTerminalBuilder(

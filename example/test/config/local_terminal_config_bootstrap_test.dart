@@ -56,6 +56,12 @@ void main() {
       expect(result.config.commandCenter.contextChips, isTrue);
       expect(result.config.commandCenter.reviewEntrypoints, isTrue);
       expect(result.config.commandCenter.verificationDiagnostics, isTrue);
+      expect(result.config.commandCenter.agentCenter, isTrue);
+      expect(result.config.commandCenter.agentConversation, isTrue);
+      expect(result.config.commandCenter.agentContext, isTrue);
+      expect(result.config.commandCenter.agentCommandProposals, isTrue);
+      expect(result.config.commandCenter.agentProviderDraft, isTrue);
+      expect(result.config.commandCenter.agentCommandSearchActions, isTrue);
       expect(result.config.commandBlocksHistory.enabled, isTrue);
       expect(result.config.commandBlocksHistory.commandBlocks, isTrue);
       expect(result.config.commandBlocksHistory.failureSnapshots, isTrue);
@@ -86,6 +92,12 @@ void main() {
       expect(result.config.commandCenter.contextChips, isTrue);
       expect(result.config.commandCenter.reviewEntrypoints, isTrue);
       expect(result.config.commandCenter.verificationDiagnostics, isTrue);
+      expect(result.config.commandCenter.agentCenter, isTrue);
+      expect(result.config.commandCenter.agentConversation, isTrue);
+      expect(result.config.commandCenter.agentContext, isTrue);
+      expect(result.config.commandCenter.agentCommandProposals, isTrue);
+      expect(result.config.commandCenter.agentProviderDraft, isTrue);
+      expect(result.config.commandCenter.agentCommandSearchActions, isTrue);
       expect(result.config.commandBlocksHistory.enabled, isTrue);
       expect(result.config.commandBlocksHistory.commandBlocks, isTrue);
       expect(result.config.commandBlocksHistory.failureSnapshots, isTrue);

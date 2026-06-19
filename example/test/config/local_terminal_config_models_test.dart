@@ -36,6 +36,12 @@ void main() {
       expect(config.commandCenter.contextChips, isFalse);
       expect(config.commandCenter.reviewEntrypoints, isFalse);
       expect(config.commandCenter.verificationDiagnostics, isFalse);
+      expect(config.commandCenter.agentCenter, isFalse);
+      expect(config.commandCenter.agentConversation, isFalse);
+      expect(config.commandCenter.agentContext, isFalse);
+      expect(config.commandCenter.agentCommandProposals, isFalse);
+      expect(config.commandCenter.agentProviderDraft, isFalse);
+      expect(config.commandCenter.agentCommandSearchActions, isFalse);
       expect(config.universalInput.suggestCorrectedCommands, isTrue);
     });
 
@@ -60,6 +66,12 @@ void main() {
           'contextChips': true,
           'reviewEntrypoints': false,
           'verificationDiagnostics': true,
+          'agentCenter': true,
+          'agentConversation': true,
+          'agentContext': true,
+          'agentCommandProposals': true,
+          'agentProviderDraft': false,
+          'agentCommandSearchActions': true,
         },
       });
 
@@ -70,6 +82,12 @@ void main() {
       expect(config.commandCenter.contextChips, isTrue);
       expect(config.commandCenter.reviewEntrypoints, isFalse);
       expect(config.commandCenter.verificationDiagnostics, isTrue);
+      expect(config.commandCenter.agentCenter, isTrue);
+      expect(config.commandCenter.agentConversation, isTrue);
+      expect(config.commandCenter.agentContext, isTrue);
+      expect(config.commandCenter.agentCommandProposals, isTrue);
+      expect(config.commandCenter.agentProviderDraft, isFalse);
+      expect(config.commandCenter.agentCommandSearchActions, isTrue);
       expect(config.commandCenter.toJson(), {
         'enabled': true,
         'historySearch': true,
@@ -78,6 +96,12 @@ void main() {
         'contextChips': true,
         'reviewEntrypoints': false,
         'verificationDiagnostics': true,
+        'agentCenter': true,
+        'agentConversation': true,
+        'agentContext': true,
+        'agentCommandProposals': true,
+        'agentProviderDraft': false,
+        'agentCommandSearchActions': true,
       });
     });
 

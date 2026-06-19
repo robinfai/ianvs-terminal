@@ -173,6 +173,17 @@ flutter test test/widget_test.dart --plain-name "selected block chip opens scope
 flutter test test/widget_test.dart --plain-name "selected block chip can reinput and rerun block command"
 ```
 
+Agent Center lane 最小命令：
+
+```bash
+bash tools/agent_center_verification_gate.sh
+```
+
+该 gate 覆盖 dedicated Agent conversation、input ownership、mock runtime、context
+privacy、provider secret boundary、command proposal safety、Agent-to-terminal bridge、
+feature flags / staged rollout 和 `Ctrl-R` command search Agent actions。详见
+[T-523 Agent Center Test Gates and Regression Suite](T-523-agent-center-test-gates.md)。
+
 Full example regression gate remains the default from `docs/TESTING.md`:
 
 ```bash
@@ -198,6 +209,7 @@ Run this matrix after wiring Command Center UI into a real terminal surface. Rec
 | sticky header | View succeeded, running, failed, and unknown command blocks. | Failed state includes `failed` or exit code text; cwd, exit code, and duration are readable by text/semantics, not only color. |
 | alt-buffer / pager | Open `less`, `vim`, or another fullscreen/pager/alt-buffer app. | Sticky header is hidden or delayed; it must not show stale command context over fullscreen content. |
 | Instant Replay review | From a command block, use `Replay from here` and `Open in Review`. | Replay starts near the relevant frame or row range; review source is read-only; live terminal continues and does not receive review input. |
+| Agent Center | Switch to Agent mode, send a question, review/insert a proposal, inspect provider boundary, and trigger an Agent action from `Ctrl-R`. | Agent owns only the Agent composer; terminal receives no hidden writes; provider secrets are not shown; proposal execution remains gated. |
 
 ## Performance Gates
 
@@ -227,6 +239,9 @@ Stop implementation or release verification immediately and fix before continuin
 - History search, sticky header, context chips, or block range creation scans full scrollback on every keypress/scroll tick.
 - Review/Instant Replay shares a writable input controller with live terminal, pauses live terminal unintentionally, or routes review input into the live shell.
 - Future Agent, saved command, or any natural-language mode is triggered by ordinary text instead of an explicit disabled/enabled entry.
+- Agent context leaves process without redaction and size-budget filtering, or raw provider secrets appear in Agent requests, UI labels, logs, snapshots, or memory prompts.
+- Agent tests require provider credentials, real provider network calls, or machine-specific secrets.
+- Agent command proposals bypass review, read-only, paste confirmation, shortcut isolation, terminal input policy, risk confirmation, or direct-run eligibility.
 - Any required automated command fails, hangs, or shows flaky behavior that cannot be explained and reproduced.
 
 ## Verification Commands

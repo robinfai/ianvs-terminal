@@ -7,7 +7,8 @@ void main() {
       final router = CommandCenterModeRouter();
 
       expect(router.state.mode, CommandCenterMode.terminal);
-      expect(router.state.inputOwner, CommandCenterInputOwner.terminal);
+      expect(router.state.inputOwner, InputOwner.terminalPty);
+      expect(router.state.appInputMode, AppInputMode.terminal);
 
       final decision = router.route(
         const CommandCenterModeRequest.textInput('git status'),
@@ -16,7 +17,7 @@ void main() {
       expect(decision.disposition, CommandCenterRouteDisposition.passThrough);
       expect(decision.passesThroughToTerminal, isTrue);
       expect(decision.consumedByCommandCenter, isFalse);
-      expect(decision.inputOwner, CommandCenterInputOwner.terminal);
+      expect(decision.inputOwner, InputOwner.terminalPty);
       expect(router.state.mode, CommandCenterMode.terminal);
     });
 
@@ -36,7 +37,7 @@ void main() {
       );
       expect(search.disposition, CommandCenterRouteDisposition.consumed);
       expect(search.transitioned, isTrue);
-      expect(search.inputOwner, CommandCenterInputOwner.commandSearch);
+      expect(search.inputOwner, InputOwner.commandSearchOverlay);
       expect(router.state.mode, CommandCenterMode.commandSearch);
 
       final actionSearch = router.route(
@@ -46,7 +47,7 @@ void main() {
         ),
       );
       expect(actionSearch.disposition, CommandCenterRouteDisposition.consumed);
-      expect(actionSearch.inputOwner, CommandCenterInputOwner.actionSearch);
+      expect(actionSearch.inputOwner, InputOwner.actionSearchOverlay);
       expect(router.state.mode, CommandCenterMode.actionSearch);
 
       final commandBar = router.route(
@@ -55,7 +56,7 @@ void main() {
           source: CommandCenterModeRequestSource.explicitEntry,
         ),
       );
-      expect(commandBar.inputOwner, CommandCenterInputOwner.commandBar);
+      expect(commandBar.inputOwner, InputOwner.terminalCommandBar);
       expect(router.state.mode, CommandCenterMode.commandBar);
     });
 
@@ -75,23 +76,24 @@ void main() {
       expect(router.state.mode, CommandCenterMode.terminal);
     });
 
-    test('future agent is a disabled extension point', () {
+    test('opens agent conversation as a first-class mode', () {
       final router = CommandCenterModeRouter();
 
       final decision = router.route(
         const CommandCenterModeRequest.shortcut(
-          CommandCenterModeShortcut.futureAgent,
+          CommandCenterModeShortcut.agentConversation,
         ),
       );
 
-      expect(decision.disposition, CommandCenterRouteDisposition.disabled);
-      expect(decision.disabledReason, CommandCenterModeDisabledReason.disabled);
+      expect(decision.disposition, CommandCenterRouteDisposition.consumed);
+      expect(decision.inputOwner, InputOwner.agentConversationComposer);
       expect(decision.consumedByCommandCenter, isTrue);
       expect(decision.passesThroughToTerminal, isFalse);
-      expect(router.state.mode, CommandCenterMode.terminal);
+      expect(router.state.mode, CommandCenterMode.agentConversation);
+      expect(router.state.appInputMode, AppInputMode.agentConversation);
     });
 
-    test('ordinary text never becomes an agent prompt', () {
+    test('ordinary terminal text never silently becomes an agent prompt', () {
       final router = CommandCenterModeRouter();
 
       final decision = router.route(
@@ -103,6 +105,44 @@ void main() {
       expect(decision.disposition, CommandCenterRouteDisposition.passThrough);
       expect(decision.reason, CommandCenterRouteReason.terminalFirst);
       expect(router.state.mode, CommandCenterMode.terminal);
+    });
+
+    test(
+      'represents active terminal session and agent conversation together',
+      () {
+        const state = CommandCenterModeState(
+          mode: CommandCenterMode.agentConversation,
+          activeTerminalSessionId: 'terminal-1',
+          activeAgentConversationId: 'agent-1',
+          autoDetectionEnabled: true,
+        );
+
+        expect(state.inputOwner, InputOwner.agentConversationComposer);
+        expect(state.inputRoutingState.activeTerminalSessionId, 'terminal-1');
+        expect(state.inputRoutingState.activeAgentConversationId, 'agent-1');
+        expect(state.inputRoutingState.autoDetectionEnabled, isTrue);
+      },
+    );
+
+    test('cancel from command review returns to agent conversation', () {
+      final router = CommandCenterModeRouter(
+        state: const CommandCenterModeState(
+          mode: CommandCenterMode.agentCommandReview,
+          activeAgentConversationId: 'agent-1',
+        ),
+      );
+
+      final decision = router.route(const CommandCenterModeRequest.cancel());
+
+      expect(decision.disposition, CommandCenterRouteDisposition.consumed);
+      expect(
+        decision.reason,
+        CommandCenterRouteReason.commandReviewCancelledToAgent,
+      );
+      expect(decision.previousMode, CommandCenterMode.agentCommandReview);
+      expect(decision.mode, CommandCenterMode.agentConversation);
+      expect(decision.inputOwner, InputOwner.agentConversationComposer);
+      expect(router.state.mode, CommandCenterMode.agentConversation);
     });
 
     test('active mode owns input until cancelled', () {
@@ -118,7 +158,7 @@ void main() {
 
       expect(text.disposition, CommandCenterRouteDisposition.consumed);
       expect(text.reason, CommandCenterRouteReason.activeModeOwnsInput);
-      expect(text.inputOwner, CommandCenterInputOwner.commandSearch);
+      expect(text.inputOwner, InputOwner.commandSearchOverlay);
       expect(text.passesThroughToTerminal, isFalse);
 
       final unknown = router.route(

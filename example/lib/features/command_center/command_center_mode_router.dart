@@ -1,9 +1,17 @@
+import '../agent_center/agent_mode.dart';
+
+export '../agent_center/agent_mode.dart'
+    show AppInputMode, InputOwner, InputRoutingState;
+
 const defaultCommandCenterEnabledModes = <CommandCenterMode>{
   CommandCenterMode.terminal,
   CommandCenterMode.commandBar,
   CommandCenterMode.commandSearch,
   CommandCenterMode.actionSearch,
   CommandCenterMode.savedCommand,
+  CommandCenterMode.agentConversation,
+  CommandCenterMode.agentInlineAsk,
+  CommandCenterMode.agentCommandReview,
 };
 
 enum CommandCenterMode {
@@ -12,16 +20,9 @@ enum CommandCenterMode {
   commandSearch,
   actionSearch,
   savedCommand,
-  futureAgent,
-}
-
-enum CommandCenterInputOwner {
-  terminal,
-  commandBar,
-  commandSearch,
-  actionSearch,
-  savedCommand,
-  futureAgent,
+  agentConversation,
+  agentInlineAsk,
+  agentCommandReview,
 }
 
 enum CommandCenterModeRequestKind { textInput, open, shortcut, cancel }
@@ -37,7 +38,8 @@ enum CommandCenterModeShortcut {
   commandSearch,
   actionSearch,
   savedCommand,
-  futureAgent,
+  agentConversation,
+  agentInlineAsk,
   cancel,
   unknown,
 }
@@ -51,6 +53,7 @@ enum CommandCenterRouteReason {
   activeModeOwnsInput,
   disabledMode,
   noActiveModeToCancel,
+  commandReviewCancelledToAgent,
 }
 
 enum CommandCenterModeDisabledReason { disabled }
@@ -59,23 +62,31 @@ class CommandCenterModeState {
   const CommandCenterModeState({
     this.mode = CommandCenterMode.terminal,
     this.enabledModes = defaultCommandCenterEnabledModes,
+    this.activeTerminalSessionId,
+    this.activeAgentConversationId,
+    this.autoDetectionEnabled = false,
   });
 
   final CommandCenterMode mode;
   final Set<CommandCenterMode> enabledModes;
+  final String? activeTerminalSessionId;
+  final String? activeAgentConversationId;
+  final bool autoDetectionEnabled;
 
-  CommandCenterInputOwner get inputOwner {
-    return switch (mode) {
-      CommandCenterMode.terminal => CommandCenterInputOwner.terminal,
-      CommandCenterMode.commandBar => CommandCenterInputOwner.commandBar,
-      CommandCenterMode.commandSearch => CommandCenterInputOwner.commandSearch,
-      CommandCenterMode.actionSearch => CommandCenterInputOwner.actionSearch,
-      CommandCenterMode.savedCommand => CommandCenterInputOwner.savedCommand,
-      CommandCenterMode.futureAgent => CommandCenterInputOwner.futureAgent,
-    };
+  AppInputMode get appInputMode => _appInputModeForCommandCenterMode(mode);
+
+  InputOwner get inputOwner => inputOwnerForMode(appInputMode);
+
+  bool get terminalOwnsInput => inputOwner == InputOwner.terminalPty;
+
+  InputRoutingState get inputRoutingState {
+    return InputRoutingState(
+      mode: appInputMode,
+      activeTerminalSessionId: activeTerminalSessionId,
+      activeAgentConversationId: activeAgentConversationId,
+      autoDetectionEnabled: autoDetectionEnabled,
+    );
   }
-
-  bool get terminalOwnsInput => inputOwner == CommandCenterInputOwner.terminal;
 
   bool isEnabled(CommandCenterMode mode) {
     return enabledModes.contains(mode);
@@ -84,10 +95,18 @@ class CommandCenterModeState {
   CommandCenterModeState copyWith({
     CommandCenterMode? mode,
     Set<CommandCenterMode>? enabledModes,
+    String? activeTerminalSessionId,
+    String? activeAgentConversationId,
+    bool? autoDetectionEnabled,
   }) {
     return CommandCenterModeState(
       mode: mode ?? this.mode,
       enabledModes: enabledModes ?? this.enabledModes,
+      activeTerminalSessionId:
+          activeTerminalSessionId ?? this.activeTerminalSessionId,
+      activeAgentConversationId:
+          activeAgentConversationId ?? this.activeAgentConversationId,
+      autoDetectionEnabled: autoDetectionEnabled ?? this.autoDetectionEnabled,
     );
   }
 }
@@ -151,7 +170,7 @@ class CommandCenterRouteDecision {
   final CommandCenterRouteDisposition disposition;
   final CommandCenterMode previousMode;
   final CommandCenterMode mode;
-  final CommandCenterInputOwner inputOwner;
+  final InputOwner inputOwner;
   final CommandCenterRouteReason reason;
   final CommandCenterModeRequestSource source;
   final CommandCenterModeDisabledReason? disabledReason;
@@ -162,7 +181,7 @@ class CommandCenterRouteDecision {
 
   bool get passesThroughToTerminal {
     return disposition == CommandCenterRouteDisposition.passThrough &&
-        inputOwner == CommandCenterInputOwner.terminal;
+        inputOwner == InputOwner.terminalPty;
   }
 
   bool get transitioned => previousMode != mode;
@@ -260,6 +279,19 @@ class CommandCenterModeRouter {
       );
     }
 
+    if (state.mode == CommandCenterMode.agentCommandReview) {
+      final previousMode = state.mode;
+      state = state.copyWith(mode: CommandCenterMode.agentConversation);
+      return CommandCenterRouteDecision(
+        disposition: CommandCenterRouteDisposition.consumed,
+        previousMode: previousMode,
+        mode: state.mode,
+        inputOwner: state.inputOwner,
+        reason: CommandCenterRouteReason.commandReviewCancelledToAgent,
+        source: request.source,
+      );
+    }
+
     final previousMode = state.mode;
     state = state.copyWith(mode: CommandCenterMode.terminal);
     return CommandCenterRouteDecision(
@@ -296,9 +328,25 @@ CommandCenterMode? _modeForShortcut(CommandCenterModeShortcut? shortcut) {
     CommandCenterModeShortcut.commandSearch => CommandCenterMode.commandSearch,
     CommandCenterModeShortcut.actionSearch => CommandCenterMode.actionSearch,
     CommandCenterModeShortcut.savedCommand => CommandCenterMode.savedCommand,
-    CommandCenterModeShortcut.futureAgent => CommandCenterMode.futureAgent,
+    CommandCenterModeShortcut.agentConversation =>
+      CommandCenterMode.agentConversation,
+    CommandCenterModeShortcut.agentInlineAsk =>
+      CommandCenterMode.agentInlineAsk,
     CommandCenterModeShortcut.cancel ||
     CommandCenterModeShortcut.unknown ||
     null => null,
+  };
+}
+
+AppInputMode _appInputModeForCommandCenterMode(CommandCenterMode mode) {
+  return switch (mode) {
+    CommandCenterMode.terminal => AppInputMode.terminal,
+    CommandCenterMode.commandBar => AppInputMode.terminalCommandBar,
+    CommandCenterMode.commandSearch => AppInputMode.commandSearch,
+    CommandCenterMode.actionSearch => AppInputMode.actionSearch,
+    CommandCenterMode.savedCommand => AppInputMode.savedCommandSearch,
+    CommandCenterMode.agentConversation => AppInputMode.agentConversation,
+    CommandCenterMode.agentInlineAsk => AppInputMode.agentInlineAsk,
+    CommandCenterMode.agentCommandReview => AppInputMode.agentCommandReview,
   };
 }

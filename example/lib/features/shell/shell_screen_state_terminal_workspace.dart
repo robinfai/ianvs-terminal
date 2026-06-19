@@ -1041,6 +1041,15 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                               sessionId: sessionId,
                               blockId: blockId,
                             ),
+                            onAskAgent:
+                                _commandCenterFeatureFlags
+                                    .agentCommandSearchActions
+                                ? (request) =>
+                                      _askAgentAboutCommandSearchResult(
+                                        sessionId: sessionId,
+                                        request: request,
+                                      )
+                                : null,
                             onClose: _closeCommandSearch,
                           ),
                         ),
@@ -1112,7 +1121,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                           ),
                           suggestionsLoading: _autoComposerCommandDraftsLoading,
                           activeIndex: _activeAutoComposerIndex,
-                          modelLabel: _universalInputModelLabel,
+                          modelLabel: _effectiveUniversalInputModelLabel,
+                          availableModes: _availableUniversalInputModes,
+                          modelOptions: _availableUniversalInputModelOptions,
                           palette: palette,
                           onModeChanged: _setUniversalInputMode,
                           onChanged: _updateAutoComposerSuggestions,

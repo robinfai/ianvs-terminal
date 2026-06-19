@@ -10,6 +10,7 @@ class CommandSearchOverlayHost extends StatefulWidget {
     required this.child,
     this.onInsert,
     this.onViewBlock,
+    this.onAskAgent,
     this.onClose,
     this.loading = false,
     this.unavailableReason,
@@ -20,6 +21,7 @@ class CommandSearchOverlayHost extends StatefulWidget {
   final Widget child;
   final ValueChanged<String>? onInsert;
   final ValueChanged<String>? onViewBlock;
+  final ValueChanged<CommandSearchAgentActionRequest>? onAskAgent;
   final VoidCallback? onClose;
   final bool loading;
   final String? unavailableReason;
@@ -67,6 +69,7 @@ class _CommandSearchOverlayHostState extends State<CommandSearchOverlayHost> {
                 controller: widget.controller,
                 onInsert: widget.onInsert,
                 onViewBlock: widget.onViewBlock,
+                onAskAgent: widget.onAskAgent,
                 onClose: () {
                   setState(() {
                     _visible = false;
@@ -105,6 +108,7 @@ class CommandSearchOverlay extends StatefulWidget {
     required this.controller,
     this.onInsert,
     this.onViewBlock,
+    this.onAskAgent,
     this.onClose,
     this.loading = false,
     this.unavailableReason,
@@ -114,6 +118,7 @@ class CommandSearchOverlay extends StatefulWidget {
   final CommandSearchOverlayController controller;
   final ValueChanged<String>? onInsert;
   final ValueChanged<String>? onViewBlock;
+  final ValueChanged<CommandSearchAgentActionRequest>? onAskAgent;
   final VoidCallback? onClose;
   final bool loading;
   final String? unavailableReason;
@@ -282,6 +287,25 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
                     result.entry.invocationId!,
                   ),
                 ),
+          onExplainWithAgent: widget.onAskAgent == null
+              ? null
+              : () => widget.onAskAgent!(
+                  CommandSearchAgentActionRequest.fromResult(
+                    kind: CommandSearchAgentActionKind.explain,
+                    result: result,
+                  ),
+                ),
+          onDebugWithAgent:
+              widget.onAskAgent == null || result.entry.exitCode == null
+              ? null
+              : result.entry.exitCode == 0
+              ? null
+              : () => widget.onAskAgent!(
+                  CommandSearchAgentActionRequest.fromResult(
+                    kind: CommandSearchAgentActionKind.debug,
+                    result: result,
+                  ),
+                ),
         );
       },
     );
@@ -378,6 +402,8 @@ class _CommandSearchResultTile extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.onViewBlock,
+    required this.onExplainWithAgent,
+    required this.onDebugWithAgent,
     super.key,
   });
 
@@ -388,6 +414,8 @@ class _CommandSearchResultTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final VoidCallback? onViewBlock;
+  final VoidCallback? onExplainWithAgent;
+  final VoidCallback? onDebugWithAgent;
 
   @override
   Widget build(BuildContext context) {
@@ -436,6 +464,26 @@ class _CommandSearchResultTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
+                if (onExplainWithAgent != null)
+                  IconButton(
+                    key: const Key('command-search-agent-explain'),
+                    tooltip: 'Explain command with Agent',
+                    icon: const Icon(
+                      Icons.auto_awesome_rounded,
+                      semanticLabel: 'Explain command with Agent',
+                    ),
+                    onPressed: onExplainWithAgent,
+                  ),
+                if (onDebugWithAgent != null)
+                  IconButton(
+                    key: const Key('command-search-agent-debug'),
+                    tooltip: 'Debug command with Agent',
+                    icon: const Icon(
+                      Icons.bug_report_rounded,
+                      semanticLabel: 'Debug command with Agent',
+                    ),
+                    onPressed: onDebugWithAgent,
+                  ),
                 IconButton(
                   key: const Key('command-search-view-block'),
                   tooltip: 'View command block',

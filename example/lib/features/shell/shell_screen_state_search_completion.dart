@@ -648,7 +648,8 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
 
   bool _handleUniversalInputModePrefix(String text) {
     final prefix = _universalInputModePrefixForText(text);
-    if (prefix == null) {
+    if (prefix == null ||
+        !_availableUniversalInputModes.contains(prefix.mode)) {
       return false;
     }
 
@@ -679,16 +680,17 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   void _setUniversalInputMode(UniversalInputMode mode) {
-    if (_universalInputMode == mode) {
+    final nextMode = _effectiveUniversalInputMode(mode);
+    if (_universalInputMode == nextMode) {
       return;
     }
     final inputState = _autoComposerInputStateForText(
       _autoComposerController.text,
       null,
-      mode,
+      nextMode,
     );
     _mutateState(() {
-      _universalInputMode = mode;
+      _universalInputMode = nextMode;
       _autoComposerClassification = inputState.classification;
       _autoComposerSuggestions = inputState.suggestions;
       _autoComposerCommandDrafts = inputState.drafts;
@@ -704,12 +706,67 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   void _cycleUniversalInputMode() {
-    final nextMode = switch (_universalInputMode) {
-      UniversalInputMode.auto => UniversalInputMode.agent,
-      UniversalInputMode.agent => UniversalInputMode.terminal,
-      UniversalInputMode.terminal => UniversalInputMode.auto,
-    };
+    final modes = _availableUniversalInputModes.toList(growable: false);
+    final currentIndex = modes.indexOf(_universalInputMode);
+    final nextMode = modes[(currentIndex + 1) % modes.length];
     _setUniversalInputMode(nextMode);
+  }
+
+  Set<UniversalInputMode> get _availableUniversalInputModes {
+    if (_commandCenterFeatureFlags.agentConversation) {
+      return const <UniversalInputMode>{
+        UniversalInputMode.auto,
+        UniversalInputMode.terminal,
+        UniversalInputMode.agent,
+      };
+    }
+    return const <UniversalInputMode>{
+      UniversalInputMode.auto,
+      UniversalInputMode.terminal,
+    };
+  }
+
+  UniversalInputMode _effectiveUniversalInputMode(UniversalInputMode mode) {
+    return _availableUniversalInputModes.contains(mode)
+        ? mode
+        : _fallbackUniversalInputModeForAgentDisabled(mode);
+  }
+
+  UniversalInputMode _fallbackUniversalInputModeForAgentDisabled(
+    UniversalInputMode mode,
+  ) {
+    return switch (mode) {
+      UniversalInputMode.agent => UniversalInputMode.auto,
+      UniversalInputMode.auto || UniversalInputMode.terminal => mode,
+    };
+  }
+
+  List<UniversalInputToolOption> get _availableUniversalInputModelOptions {
+    if (_commandCenterFeatureFlags.agentProviderDraft) {
+      return _universalInputModelOptions;
+    }
+    return [
+      for (final option in _universalInputModelOptions)
+        if (option.value != 'Agent draft') option,
+    ];
+  }
+
+  String get _effectiveUniversalInputModelLabel {
+    final modelLabel = _universalInputModelLabel;
+    return _availableUniversalInputModelOptions.any(
+          (option) => option.value == modelLabel,
+        )
+        ? modelLabel
+        : 'Local heuristic';
+  }
+
+  bool get _agentProviderDraftEnabled {
+    return _commandCenterFeatureFlags.agentProviderDraft;
+  }
+
+  bool get _agentProviderDraftRequested {
+    return _agentProviderDraftEnabled &&
+        _effectiveUniversalInputModelLabel == 'Agent draft';
   }
 
   _AutoComposerInputState _autoComposerInputStateForText(
@@ -888,6 +945,117 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     return options;
   }
 
+  AgentContextSnapshot _agentContextSnapshotFor(
+    TerminalPane pane,
+    TerminalProfile? profile,
+  ) {
+    final sessionId = pane.sessionId;
+    final integration = pane.shellIntegration;
+    final snapshot =
+        _commandBlockSnapshotsBySession[sessionId] ??
+        const ShellCommandBlockSnapshot();
+    final selectedBlock = _agentBlockById(
+      sessionId,
+      snapshot,
+      _selectedCommandBlockIdsBySession[sessionId],
+    );
+    final lastFailedBlock = _agentLastFailedBlock(sessionId, snapshot);
+    final lastCommand = integration.lastCommand?.trim();
+    return const AgentContextBuilder().build(
+      AgentContextSource(
+        terminalSessionId: sessionId,
+        cwd: integration.currentDirectory,
+        shell: profile?.shell,
+        profileId: profile?.id ?? pane.profileId,
+        profileName: profile?.name,
+        readOnly: _isSessionReadOnly(sessionId),
+        shellHookAvailable:
+            _commandBlocksHistoryFeatureFlags.enabled &&
+            _commandBlocksHistoryFeatureFlags.commandBlocks,
+        selectedBlock: selectedBlock,
+        lastFailedBlock: lastFailedBlock,
+        recentCommands: lastCommand == null || lastCommand.isEmpty
+            ? const <AgentRecentCommandSnapshot>[]
+            : <AgentRecentCommandSnapshot>[
+                AgentRecentCommandSnapshot(
+                  command: lastCommand,
+                  status: _agentRecentStatusForExitCode(
+                    integration.lastExitCode,
+                  ),
+                  cwd: integration.currentDirectory,
+                  exitCode: integration.lastExitCode,
+                ),
+              ],
+      ),
+    );
+  }
+
+  AgentCommandBlockSnapshot? _agentBlockById(
+    String sessionId,
+    ShellCommandBlockSnapshot snapshot,
+    String? blockId,
+  ) {
+    final id = blockId?.trim();
+    if (id == null || id.isEmpty) {
+      return null;
+    }
+    for (final block in snapshot.blocks) {
+      if (block.id == id && block.isValid) {
+        return _agentBlockSnapshotFor(sessionId, block);
+      }
+    }
+    return null;
+  }
+
+  AgentCommandBlockSnapshot? _agentLastFailedBlock(
+    String sessionId,
+    ShellCommandBlockSnapshot snapshot,
+  ) {
+    for (final block in snapshot.blocks.reversed) {
+      if (block.isValid && block.status == ShellCommandBlockStatus.failed) {
+        return _agentBlockSnapshotFor(sessionId, block);
+      }
+    }
+    return null;
+  }
+
+  AgentCommandBlockSnapshot _agentBlockSnapshotFor(
+    String sessionId,
+    ShellCommandBlock block,
+  ) {
+    return AgentCommandBlockSnapshot(
+      id: block.id,
+      command: block.command,
+      cwd: block.cwd,
+      exitCode: block.exitCode,
+      outputExcerpt: _agentBlockOutputExcerpt(sessionId, block.id),
+      startedAt: block.startedAt,
+      finishedAt: block.finishedAt,
+    );
+  }
+
+  String? _agentBlockOutputExcerpt(String sessionId, String blockId) {
+    final rows = _commandBlockPreviewRowsBySession[sessionId]?[blockId];
+    if (rows == null || rows.isEmpty) {
+      return null;
+    }
+    final text = rows
+        .map((row) => row.text.trimRight())
+        .where((line) => line.trim().isNotEmpty)
+        .join('\n')
+        .trim();
+    return text.isEmpty ? null : text;
+  }
+
+  AgentRecentCommandStatus _agentRecentStatusForExitCode(int? exitCode) {
+    if (exitCode == null) {
+      return AgentRecentCommandStatus.unknown;
+    }
+    return exitCode == 0
+        ? AgentRecentCommandStatus.succeeded
+        : AgentRecentCommandStatus.failed;
+  }
+
   void _addUniversalInputContextChip(String value) {
     _mutateState(() {
       if (!_universalInputPinnedContextChips.contains(value)) {
@@ -915,6 +1083,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   void _setUniversalInputModel(String modelLabel) {
+    if (!_availableUniversalInputModelOptions.any(
+      (option) => option.value == modelLabel,
+    )) {
+      _autoComposerFocusNode.requestFocus();
+      return;
+    }
     _mutateState(() {
       _universalInputModelLabel = modelLabel;
     });
@@ -925,9 +1099,10 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     String sessionId,
     UniversalInputMode mode,
   ) {
-    if (_universalInputMode != mode) {
+    final nextMode = _effectiveUniversalInputMode(mode);
+    if (_universalInputMode != nextMode) {
       _mutateState(() {
-        _universalInputMode = mode;
+        _universalInputMode = nextMode;
       });
     }
     _restoreCommandInputFocus(sessionId);
@@ -946,6 +1121,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   void _setCommandInputModel(String sessionId, String modelLabel) {
+    if (!_availableUniversalInputModelOptions.any(
+      (option) => option.value == modelLabel,
+    )) {
+      _restoreCommandInputFocus(sessionId);
+      return;
+    }
     _mutateState(() {
       _universalInputModelLabel = modelLabel;
     });
@@ -1093,7 +1274,8 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
           apiBaseUrl: profile?.commandIntelligence.baseUrl,
           apiKey: profile?.commandIntelligence.apiKey,
           apiModel: profile?.commandIntelligence.model,
-          preferRemote: _universalInputModelLabel == 'Agent draft',
+          allowRemote: _agentProviderDraftEnabled,
+          preferRemote: _agentProviderDraftRequested,
         ),
       );
       if (!mounted ||
@@ -1160,7 +1342,8 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
           apiBaseUrl: profile?.commandIntelligence.baseUrl,
           apiKey: profile?.commandIntelligence.apiKey,
           apiModel: profile?.commandIntelligence.model,
-          preferRemote: _universalInputModelLabel == 'Agent draft',
+          allowRemote: _agentProviderDraftEnabled,
+          preferRemote: _agentProviderDraftRequested,
         ),
       );
       if (!mounted ||
@@ -1204,7 +1387,8 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
         apiBaseUrl: profile?.commandIntelligence.baseUrl,
         apiKey: profile?.commandIntelligence.apiKey,
         apiModel: profile?.commandIntelligence.model,
-        preferRemote: _universalInputModelLabel == 'Agent draft',
+        allowRemote: _agentProviderDraftEnabled,
+        preferRemote: _agentProviderDraftRequested,
       ),
     );
     if (!mounted ||
@@ -1377,7 +1561,8 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
             apiBaseUrl: profile?.commandIntelligence.baseUrl,
             apiKey: profile?.commandIntelligence.apiKey,
             apiModel: profile?.commandIntelligence.model,
-            preferRemote: _universalInputModelLabel == 'Agent draft',
+            allowRemote: _agentProviderDraftEnabled,
+            preferRemote: _agentProviderDraftRequested,
           ),
         );
         if (!mounted || _autoComposerController.text.trimRight() != command) {

@@ -83,6 +83,79 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
     );
   }
 
+  void _askAgentAboutCommandSearchResult({
+    required String sessionId,
+    required CommandSearchAgentActionRequest request,
+  }) {
+    if (!_commandCenterFeatureFlags.agentCommandSearchActions) {
+      _closeCommandSearch(preferCommandInput: true);
+      return;
+    }
+    final prompt = _commandSearchAgentPrompt(request);
+    final selectedBlockId = _commandSearchAgentBlockIdFor(
+      sessionId: sessionId,
+      request: request,
+    );
+    _mutateState(() {
+      _isCommandSearchOpen = false;
+      _commandSearchSessionId = null;
+      _commandSearchOverlayController = null;
+      _universalInputMode = UniversalInputMode.agent;
+      if (selectedBlockId != null) {
+        _selectedCommandBlockIdsBySession[sessionId] = selectedBlockId;
+      }
+      _agentPromptActionsBySession[sessionId] = ShellAgentPromptAction(
+        id: ++_agentPromptActionSerial,
+        prompt: prompt,
+      );
+    });
+    _restoreCommandInputFocus(sessionId);
+  }
+
+  String? _commandSearchAgentBlockIdFor({
+    required String sessionId,
+    required CommandSearchAgentActionRequest request,
+  }) {
+    final invocationId = request.invocationId?.trim();
+    if (invocationId == null || invocationId.isEmpty) {
+      return null;
+    }
+    final requestSessionId = request.sessionId?.trim();
+    if (requestSessionId != null &&
+        requestSessionId.isNotEmpty &&
+        requestSessionId != sessionId) {
+      return null;
+    }
+    final resolvedBlockId = _resolveCommandSearchBlockId(
+      sessionId: sessionId,
+      blockId: invocationId,
+    );
+    final snapshot =
+        _commandBlockSnapshotsBySession[sessionId] ??
+        const ShellCommandBlockSnapshot();
+    final compatibleBlock = _commandBlockCommandCenterAdapter
+        .compatibleBlockById(
+          snapshot: snapshot,
+          sessionId: sessionId,
+          blockId: resolvedBlockId,
+        );
+    return compatibleBlock?.id;
+  }
+
+  String _commandSearchAgentPrompt(CommandSearchAgentActionRequest request) {
+    final cwd = request.cwd?.trim();
+    final cwdSuffix = cwd == null || cwd.isEmpty ? '' : ' in $cwd';
+    final exitSuffix = request.exitCode == null
+        ? ''
+        : ' (exit ${request.exitCode})';
+    return switch (request.kind) {
+      CommandSearchAgentActionKind.explain =>
+        'Explain command from search history$cwdSuffix: ${request.command}',
+      CommandSearchAgentActionKind.debug =>
+        'Debug command from search history$exitSuffix$cwdSuffix: ${request.command}',
+    };
+  }
+
   String? _resolveCommandSearchBlockId({
     required String sessionId,
     required String blockId,

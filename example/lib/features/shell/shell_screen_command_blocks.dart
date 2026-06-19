@@ -1344,6 +1344,16 @@ class ShellCommandInputBar extends StatefulWidget {
     this.contextChips = const <String>[],
     this.contextOptions = const <UniversalInputToolOption>[],
     this.modelLabel = 'Local heuristic',
+    this.availableModes = const <UniversalInputMode>{
+      UniversalInputMode.auto,
+      UniversalInputMode.terminal,
+      UniversalInputMode.agent,
+    },
+    this.modelOptions = _universalInputModelOptions,
+    this.agentRuntimeAdapter,
+    this.agentContextSnapshot,
+    this.agentPromptAction,
+    this.readOnly = false,
     this.onModeChanged,
     this.onChanged,
     this.onContextSelected,
@@ -1381,6 +1391,12 @@ class ShellCommandInputBar extends StatefulWidget {
   final List<String> contextChips;
   final List<UniversalInputToolOption> contextOptions;
   final String modelLabel;
+  final Set<UniversalInputMode> availableModes;
+  final List<UniversalInputToolOption> modelOptions;
+  final AgentRuntimeAdapter? agentRuntimeAdapter;
+  final AgentContextSnapshot? agentContextSnapshot;
+  final ShellAgentPromptAction? agentPromptAction;
+  final bool readOnly;
   final ValueChanged<UniversalInputMode>? onModeChanged;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onContextSelected;
@@ -1393,12 +1409,66 @@ class ShellCommandInputBar extends StatefulWidget {
   State<ShellCommandInputBar> createState() => _ShellCommandInputBarState();
 }
 
+class ShellAgentPromptAction {
+  const ShellAgentPromptAction({required this.id, required this.prompt});
+
+  final int id;
+  final String prompt;
+}
+
 class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
+  static const _agentConversationId = 'shell-command-agent-conversation';
+
   int _activeSuggestionIndex = 0;
   final GlobalKey<PopupMenuButtonState<String>> _contextMenuKey =
       GlobalKey<PopupMenuButtonState<String>>();
   final GlobalKey<PopupMenuButtonState<String>> _slashMenuKey =
       GlobalKey<PopupMenuButtonState<String>>();
+  late AgentRuntimeAdapter _agentRuntimeAdapter;
+  late AgentConversation _agentConversation;
+  StreamSubscription<AgentResponseEvent>? _agentResponseSubscription;
+  String? _activeAgentRequestId;
+  String? _activeAssistantMessageId;
+  int _agentMessageSerial = 0;
+  int _agentRequestSerial = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _agentRuntimeAdapter = widget.agentRuntimeAdapter ?? _defaultAgentRuntime();
+    _agentConversation = AgentConversation.empty(
+      id: _agentConversationId,
+      title: 'Agent conversation',
+      now: DateTime.now(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant ShellCommandInputBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.agentRuntimeAdapter != widget.agentRuntimeAdapter &&
+        widget.agentRuntimeAdapter != null) {
+      _agentRuntimeAdapter = widget.agentRuntimeAdapter!;
+    }
+    final nextAction = widget.agentPromptAction;
+    if (nextAction != null &&
+        oldWidget.agentPromptAction?.id != nextAction.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            widget.inputMode != UniversalInputMode.agent ||
+            widget.agentPromptAction?.id != nextAction.id) {
+          return;
+        }
+        _sendAgentMessage(nextAction.prompt);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    unawaited(_agentResponseSubscription?.cancel());
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1440,15 +1510,17 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
               builder: (context, value, _) {
                 final text = value.text;
                 final classification = _classificationFor(text);
-                final suggestions = _suggestionsFor(text, classification);
-                final suggestionDetails = _suggestionDetailsFor(
-                  text,
-                  classification,
-                );
-                final suggestionsLoading = _suggestionsLoadingFor(
-                  text,
-                  classification,
-                );
+                final isAgentMode =
+                    widget.inputMode == UniversalInputMode.agent;
+                final suggestions = isAgentMode
+                    ? const <String>[]
+                    : _suggestionsFor(text, classification);
+                final suggestionDetails = isAgentMode
+                    ? const <String, CommandDraft>{}
+                    : _suggestionDetailsFor(text, classification);
+                final suggestionsLoading = isAgentMode
+                    ? false
+                    : _suggestionsLoadingFor(text, classification);
                 final accent = _universalInputAccentColor(
                   palette,
                   classification,
@@ -1475,7 +1547,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                             children: [
                               for (final chip in widget.contextChips) ...[
                                 _UniversalInputContextChip(
-                                  label: chip,
+                                  label: _redactedAgentContextChipText(chip),
                                   palette: palette,
                                 ),
                                 const SizedBox(width: 5),
@@ -1484,6 +1556,27 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (isAgentMode) ...[
+                      SizedBox(
+                        key: const Key('shell-command-agent-conversation-pane'),
+                        height: _agentConversationPaneHeight(),
+                        child: AgentConversationPane(
+                          conversation: _agentConversation,
+                          contextChips: _agentConversationContextChips(),
+                          compact: true,
+                          onCancelStreaming: _activeAgentRequestId == null
+                              ? null
+                              : _cancelAgentResponse,
+                          onReviewProposal: _reviewAgentProposal,
+                          onInsertProposal: _insertAgentProposal,
+                        ),
+                      ),
+                      if (_hasAgentContextActions()) ...[
+                        const SizedBox(height: 8),
+                        _buildAgentContextActionRow(palette),
+                      ],
                       const SizedBox(height: 8),
                     ],
                     CallbackShortcuts(
@@ -1503,7 +1596,9 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                         focusNode: widget.focusNode,
                         enabled: widget.enabled,
                         autofocus: widget.enabled,
-                        semanticLabel: 'Command input',
+                        semanticLabel: isAgentMode
+                            ? 'Agent message composer'
+                            : 'Command input',
                         hintText: fieldHint,
                         suggestions: suggestions,
                         suggestionDetails: suggestionDetails,
@@ -1564,6 +1659,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                         _UniversalInputModeSwitcher(
                           keyPrefix: 'shell-command-input',
                           mode: widget.inputMode,
+                          availableModes: widget.availableModes,
                           palette: palette,
                           onModeChanged: _handleModeChanged,
                         ),
@@ -1635,7 +1731,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                             key: const Key('shell-command-input-model'),
                             keyPrefix: 'shell-command-input',
                             label: widget.modelLabel,
-                            options: _universalInputModelOptions,
+                            options: widget.modelOptions,
                             palette: palette,
                             onSelected: _handleModelSelected,
                           ),
@@ -1643,7 +1739,10 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                         const SizedBox(width: 6),
                         _buildCompactActionButton(
                           key: const Key('shell-command-run-button'),
-                          tooltip: _universalInputSendTooltip(classification),
+                          tooltip: _universalInputSendTooltip(
+                            widget.inputMode,
+                            classification,
+                          ),
                           onPressed: canSend
                               ? () => unawaited(
                                   _submit(
@@ -1734,6 +1833,10 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
     if (value.trim().isEmpty) {
       return;
     }
+    if (widget.inputMode == UniversalInputMode.agent) {
+      _sendAgentMessage(value);
+      return;
+    }
     if (classification.isNaturalLanguage) {
       if (suggestions.isNotEmpty) {
         _acceptSuggestion(suggestions.first, classification);
@@ -1779,7 +1882,9 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
       widget.onDismissCommandCorrection?.call();
     }
     final prefix = _universalInputModePrefixForText(text);
-    if (prefix != null && widget.onModeChanged != null) {
+    if (prefix != null &&
+        widget.onModeChanged != null &&
+        widget.availableModes.contains(prefix.mode)) {
       widget.controller.value = TextEditingValue(
         text: prefix.text,
         selection: TextSelection.collapsed(offset: prefix.text.length),
@@ -1793,14 +1898,16 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
       });
       return;
     }
-    widget.onChanged?.call(text);
+    if (widget.inputMode != UniversalInputMode.agent) {
+      widget.onChanged?.call(text);
+    }
     setState(() {
       _activeSuggestionIndex = 0;
     });
   }
 
   void _handleModeChanged(UniversalInputMode mode) {
-    if (!widget.enabled) {
+    if (!widget.enabled || !widget.availableModes.contains(mode)) {
       return;
     }
     widget.onModeChanged?.call(mode);
@@ -1829,6 +1936,9 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
   }
 
   void _handleModelSelected(String value) {
+    if (!widget.modelOptions.any((option) => option.value == value)) {
+      return;
+    }
     widget.onModelSelected?.call(value);
     _restoreTextInputFocus();
   }
@@ -1849,6 +1959,431 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
       _activeSuggestionIndex = 0;
     });
     _restoreTextInputFocus();
+  }
+
+  void _sendAgentMessage(String value) {
+    final text = value.trimRight();
+    if (text.trim().isEmpty) {
+      return;
+    }
+    unawaited(_agentResponseSubscription?.cancel());
+
+    final now = DateTime.now();
+    final requestId = 'shell-agent-request-${++_agentRequestSerial}';
+    final assistantMessageId = _nextAgentMessageId('assistant');
+    final userMessage = AgentMessage.userText(
+      id: _nextAgentMessageId('user'),
+      conversationId: _agentConversation.id,
+      text: text,
+      createdAt: now,
+    );
+    final assistantMessage = AgentMessage.assistantText(
+      id: assistantMessageId,
+      conversationId: _agentConversation.id,
+      text: '',
+      status: AgentMessageStatus.streaming,
+      createdAt: now,
+    );
+    final nextConversation = _agentConversation
+        .appendMessage(userMessage)
+        .appendMessage(assistantMessage)
+        .markStreaming(now);
+
+    setState(() {
+      _agentConversation = nextConversation;
+      _activeAgentRequestId = requestId;
+      _activeAssistantMessageId = assistantMessageId;
+      widget.controller.clear();
+    });
+
+    final providerConfig = AgentProviderCatalog.defaults.byLabel(
+      widget.modelLabel,
+    );
+    final request = AgentRequest(
+      id: requestId,
+      conversationId: _agentConversation.id,
+      messages: nextConversation.messages,
+      context: _agentRequestContext(),
+      modelConfig: providerConfig.toModelConfig(),
+    );
+    _agentResponseSubscription = _agentRuntimeAdapter
+        .send(request)
+        .listen(_handleAgentResponseEvent);
+    _restoreTextInputFocus();
+  }
+
+  bool _hasAgentContextActions() {
+    final snapshot = widget.agentContextSnapshot;
+    return snapshot?.selectedBlock != null ||
+        snapshot?.lastFailedBlock != null ||
+        snapshot?.sessionSummary != null;
+  }
+
+  Widget _buildAgentContextActionRow(AppThemeTokens palette) {
+    final snapshot = widget.agentContextSnapshot;
+    final selectedBlock = snapshot?.selectedBlock;
+    final lastFailedBlock = snapshot?.lastFailedBlock;
+    final sessionSummary = snapshot?.sessionSummary;
+    return Wrap(
+      spacing: palette.spacing.sm,
+      runSpacing: palette.spacing.xs,
+      children: [
+        if (sessionSummary != null)
+          OutlinedButton.icon(
+            key: const Key('agent-remember-session-summary'),
+            onPressed: widget.enabled
+                ? () => _sendAgentMessage(
+                    _rememberSessionSummaryPrompt(sessionSummary),
+                  )
+                : null,
+            icon: const Icon(Icons.memory_rounded),
+            label: const Text('Remember session'),
+          ),
+        if (selectedBlock != null)
+          OutlinedButton.icon(
+            key: const Key('agent-explain-selected-block'),
+            onPressed: widget.enabled
+                ? () => _sendAgentMessage(
+                    _explainSelectedBlockPrompt(selectedBlock),
+                  )
+                : null,
+            icon: const Icon(Icons.segment_rounded),
+            label: const Text('Explain selected block'),
+          ),
+        if (lastFailedBlock != null)
+          OutlinedButton.icon(
+            key: const Key('agent-debug-last-failed-block'),
+            onPressed: widget.enabled
+                ? () => _sendAgentMessage(
+                    _debugLastFailedBlockPrompt(lastFailedBlock),
+                  )
+                : null,
+            icon: const Icon(Icons.bug_report_rounded),
+            label: const Text('Debug last failed'),
+          ),
+      ],
+    );
+  }
+
+  AgentRequestContext _agentRequestContext() {
+    final snapshot = widget.agentContextSnapshot;
+    return AgentRequestContext(
+      terminalSessionId: snapshot?.terminalSessionId,
+      cwd: snapshot?.cwd,
+      readOnly: snapshot?.readOnly ?? widget.readOnly,
+      snapshot: snapshot,
+    );
+  }
+
+  void _handleAgentResponseEvent(AgentResponseEvent event) {
+    if (!mounted || event.requestId != _activeAgentRequestId) {
+      return;
+    }
+    final now = DateTime.now();
+    switch (event) {
+      case AgentResponseStarted():
+        setState(() {
+          _agentConversation = _agentConversation.markStreaming(now);
+        });
+      case AgentResponseTextDelta(:final delta):
+        _replaceActiveAssistantMessage(
+          (message) {
+            final text = _agentResponseTextFor(message) + delta;
+            return message.copyWith(
+              parts: _agentPartsWithResponseText(message, text),
+              status: AgentMessageStatus.streaming,
+              createdAt: now,
+            );
+          },
+          status: AgentConversationStatus.streaming,
+          updatedAt: now,
+        );
+      case AgentResponseCommandProposal(:final proposal):
+        _replaceActiveAssistantMessage(
+          (message) {
+            return message.copyWith(
+              parts: <AgentMessagePart>[
+                ...message.parts,
+                AgentMessagePart.commandProposal(proposal),
+              ],
+              status: AgentMessageStatus.streaming,
+              createdAt: now,
+            );
+          },
+          status: AgentConversationStatus.streaming,
+          updatedAt: now,
+        );
+      case AgentResponseCompleted():
+        _replaceActiveAssistantMessage(
+          (message) {
+            return message.copyWith(
+              status: AgentMessageStatus.completed,
+              createdAt: now,
+            );
+          },
+          status: AgentConversationStatus.completed,
+          updatedAt: now,
+        );
+        _clearActiveAgentRequest();
+      case AgentResponseCancelled():
+        _replaceActiveAssistantMessage(
+          (message) {
+            return message.copyWith(
+              status: AgentMessageStatus.cancelled,
+              createdAt: now,
+            );
+          },
+          status: AgentConversationStatus.cancelled,
+          updatedAt: now,
+        );
+        _clearActiveAgentRequest();
+      case AgentResponseFailed(:final error):
+        _replaceActiveAssistantMessage(
+          (message) {
+            return message.copyWith(
+              parts: <AgentMessagePart>[
+                ...message.parts,
+                AgentMessagePart.diagnostic(error.toString()),
+              ],
+              status: AgentMessageStatus.failed,
+              createdAt: now,
+            );
+          },
+          status: AgentConversationStatus.failed,
+          updatedAt: now,
+        );
+        _clearActiveAgentRequest();
+    }
+  }
+
+  void _replaceActiveAssistantMessage(
+    AgentMessage Function(AgentMessage message) update, {
+    required AgentConversationStatus status,
+    required DateTime updatedAt,
+  }) {
+    final messageId = _activeAssistantMessageId;
+    final message = messageId == null
+        ? null
+        : _agentConversation.messageById(messageId);
+    if (message == null) {
+      return;
+    }
+    setState(() {
+      _agentConversation = _agentConversation
+          .replaceMessage(update(message))
+          .copyWith(status: status, updatedAt: updatedAt);
+    });
+  }
+
+  Future<void> _cancelAgentResponse() async {
+    final requestId = _activeAgentRequestId;
+    if (requestId == null) {
+      return;
+    }
+    await _agentRuntimeAdapter.cancel(requestId);
+  }
+
+  Future<void> _reviewAgentProposal(AgentCommandProposal proposal) async {
+    if (!mounted) {
+      return;
+    }
+
+    final action = await showDialog<_AgentCommandProposalReviewAction>(
+      context: context,
+      builder: (dialogContext) {
+        return _AgentCommandProposalReviewDialog(
+          key: const Key('agent-command-proposal-review-dialog'),
+          proposal: proposal,
+          readOnly: widget.readOnly,
+          onClose: () => Navigator.of(dialogContext).pop(),
+          onInsert: () => Navigator.of(
+            dialogContext,
+          ).pop(_AgentCommandProposalReviewAction.insert),
+          onRun: () => Navigator.of(
+            dialogContext,
+          ).pop(_AgentCommandProposalReviewAction.run),
+        );
+      },
+    );
+
+    if (!mounted) {
+      return;
+    }
+    switch (action) {
+      case _AgentCommandProposalReviewAction.insert:
+        _insertAgentProposal(proposal);
+      case _AgentCommandProposalReviewAction.run:
+        await _runAgentProposal(proposal);
+      case null:
+        break;
+    }
+
+    if (mounted) {
+      _restoreTextInputFocus();
+    }
+  }
+
+  void _insertAgentProposal(AgentCommandProposal proposal) {
+    widget.controller.value = TextEditingValue(
+      text: proposal.command,
+      selection: TextSelection.collapsed(offset: proposal.command.length),
+      composing: TextRange.empty,
+    );
+    widget.onModeChanged?.call(UniversalInputMode.terminal);
+    widget.onChanged?.call(proposal.command);
+    _restoreTextInputFocus();
+  }
+
+  Future<void> _runAgentProposal(AgentCommandProposal proposal) async {
+    final decision = const AgentCommandSafetyPipeline().evaluate(
+      AgentCommandSafetyRequest(
+        proposal: proposal,
+        readOnly: widget.readOnly,
+        userConfirmed: true,
+      ),
+    );
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (!decision.canExecute) {
+      messenger?.showSnackBar(SnackBar(content: Text(decision.message)));
+      return;
+    }
+
+    widget.controller.value = TextEditingValue(
+      text: proposal.command,
+      selection: TextSelection.collapsed(offset: proposal.command.length),
+      composing: TextRange.empty,
+    );
+    widget.onModeChanged?.call(UniversalInputMode.terminal);
+    widget.onChanged?.call(proposal.command);
+
+    final didSubmit = await widget.onSubmitted(proposal.command);
+    if (!mounted) {
+      return;
+    }
+    if (didSubmit) {
+      widget.controller.clear();
+      widget.onChanged?.call('');
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Agent command sent to terminal.')),
+      );
+    } else {
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Agent command was not sent.')),
+      );
+    }
+  }
+
+  void _clearActiveAgentRequest() {
+    _activeAgentRequestId = null;
+    _activeAssistantMessageId = null;
+  }
+
+  String _nextAgentMessageId(String role) {
+    return 'shell-agent-$role-${++_agentMessageSerial}';
+  }
+
+  String _agentResponseTextFor(AgentMessage message) {
+    for (final part in message.parts) {
+      if (part.kind == AgentMessagePartKind.text ||
+          part.kind == AgentMessagePartKind.markdown) {
+        return part.text;
+      }
+    }
+    return '';
+  }
+
+  List<AgentMessagePart> _agentPartsWithResponseText(
+    AgentMessage message,
+    String text,
+  ) {
+    final nonTextParts = message.parts.where(
+      (part) =>
+          part.kind != AgentMessagePartKind.text &&
+          part.kind != AgentMessagePartKind.markdown,
+    );
+    return <AgentMessagePart>[
+      if (text.isNotEmpty) AgentMessagePart.text(text),
+      ...nonTextParts,
+    ];
+  }
+
+  List<AgentContextChipModel> _agentConversationContextChips() {
+    final snapshot = widget.agentContextSnapshot;
+    if (snapshot != null) {
+      final state = AgentContextChipState.fromSnapshot(snapshot);
+      return <AgentContextChipModel>[
+        ...state.chips,
+        ..._manualAgentContextChips(),
+      ];
+    }
+    return _manualAgentContextChips();
+  }
+
+  List<AgentContextChipModel> _manualAgentContextChips() {
+    return widget.contextChips
+        .map((chip) {
+          final redacted = _redactedAgentContextChipText(chip);
+          return AgentContextChipModel(
+            attachmentId: chip,
+            kind: AgentContextAttachmentKind.manualText,
+            label: redacted,
+            preview: redacted,
+            semanticLabel: 'Agent context: $redacted',
+            tone: AgentContextChipTone.normal,
+          );
+        })
+        .toList(growable: false);
+  }
+
+  double _agentConversationPaneHeight() {
+    if (_agentConversation.messages.isEmpty) {
+      return 118;
+    }
+    final hasCommandProposal = _agentConversation.messages.any(
+      (message) => message.parts.any((part) => part.commandProposal != null),
+    );
+    return hasCommandProposal ? 292 : 196;
+  }
+
+  String _explainSelectedBlockPrompt(AgentCommandBlockSnapshot block) {
+    return 'Explain selected terminal block: ${block.command}';
+  }
+
+  String _debugLastFailedBlockPrompt(AgentCommandBlockSnapshot block) {
+    final exit = block.exitCode == null ? '' : ' (exit ${block.exitCode})';
+    return 'Debug last failed terminal block$exit: ${block.command}';
+  }
+
+  String _rememberSessionSummaryPrompt(AgentSessionSummary summary) {
+    return 'Remember this terminal session summary for this Agent conversation:\n'
+        '${summary.toMemoryText()}';
+  }
+
+  AgentRuntimeAdapter _defaultAgentRuntime() {
+    return MockAgentRuntimeAdapter(
+      steps: <MockAgentResponseStep>[
+        MockAgentResponseStep.text('Mock Agent response for this terminal. '),
+        MockAgentResponseStep.text('Here is a safe read-only proposal.'),
+        MockAgentResponseStep.commandProposal(
+          AgentCommandProposal(
+            id: 'mock-proposal-pwd',
+            conversationId: _agentConversationId,
+            command: 'pwd',
+            explanation:
+                'Print the current working directory without modifying files.',
+            riskLevel: AgentCommandRiskLevel.low,
+            warnings: const <String>['Read-only command.'],
+            detectedEffects: const <String>[
+              'Prints the active terminal working directory.',
+            ],
+            requiresConfirmation: false,
+            source: AgentCommandProposalSource.mock,
+            createdAt: DateTime.now(),
+          ),
+        ),
+      ],
+      stepDelay: const Duration(milliseconds: 5000),
+    );
   }
 
   void _moveSuggestion(int delta, int length) {
@@ -1925,6 +2460,292 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
     FocusScope.of(focusContext).requestFocus(widget.focusNode);
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.show'));
   }
+}
+
+enum _AgentCommandProposalReviewAction { insert, run }
+
+class _AgentCommandProposalReviewDialog extends StatefulWidget {
+  const _AgentCommandProposalReviewDialog({
+    super.key,
+    required this.proposal,
+    required this.readOnly,
+    required this.onClose,
+    required this.onInsert,
+    required this.onRun,
+  });
+
+  final AgentCommandProposal proposal;
+  final bool readOnly;
+  final VoidCallback onClose;
+  final VoidCallback onInsert;
+  final VoidCallback onRun;
+
+  @override
+  State<_AgentCommandProposalReviewDialog> createState() =>
+      _AgentCommandProposalReviewDialogState();
+}
+
+class _AgentCommandProposalReviewDialogState
+    extends State<_AgentCommandProposalReviewDialog> {
+  bool _executionConfirmed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final safetyPipeline = const AgentCommandSafetyPipeline();
+    final decision = safetyPipeline.evaluate(
+      AgentCommandSafetyRequest(
+        proposal: widget.proposal,
+        readOnly: widget.readOnly,
+        userConfirmed: _executionConfirmed,
+      ),
+    );
+    final needsConfirmation =
+        !decision.blocked &&
+        safetyPipeline.requiresExplicitConfirmation(widget.proposal);
+    return AppDialogScaffold(
+      title: 'Review command proposal',
+      subtitle: 'Inspect the Agent proposal before inserting or running it.',
+      onClose: widget.onClose,
+      constraints: const BoxConstraints(maxWidth: 560),
+      body: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Command',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: theme.textSubtle,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: theme.spacing.xs),
+            DecoratedBox(
+              key: const Key('agent-command-proposal-review-command'),
+              decoration: BoxDecoration(
+                color: theme.terminalSurface,
+                borderRadius: BorderRadius.circular(theme.radius.sm),
+                border: Border.all(color: theme.border),
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: theme.spacing.md,
+                  vertical: theme.spacing.sm,
+                ),
+                child: SelectableText(
+                  widget.proposal.command,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: theme.textPrimary,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: theme.spacing.md),
+            Wrap(
+              spacing: theme.spacing.sm,
+              runSpacing: theme.spacing.xs,
+              children: [
+                _AgentProposalReviewPill(
+                  label: _agentProposalRiskLabel(widget.proposal.riskLevel),
+                  icon: Icons.shield_outlined,
+                ),
+                _AgentProposalReviewPill(
+                  label: widget.proposal.requiresConfirmation
+                      ? 'Confirmation required'
+                      : 'Direct run eligible',
+                  icon: widget.proposal.requiresConfirmation
+                      ? Icons.verified_user_outlined
+                      : Icons.play_arrow_rounded,
+                ),
+              ],
+            ),
+            SizedBox(height: theme.spacing.lg),
+            Text(
+              widget.proposal.explanation,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: theme.textPrimary,
+                height: 1.34,
+              ),
+            ),
+            SizedBox(height: theme.spacing.md),
+            _AgentProposalReviewDetail(
+              icon: decision.canExecute
+                  ? Icons.verified_rounded
+                  : decision.blocked
+                  ? Icons.lock_rounded
+                  : Icons.fact_check_rounded,
+              text: decision.message,
+              color: decision.canExecute
+                  ? theme.success
+                  : decision.blocked
+                  ? theme.danger
+                  : theme.warning,
+            ),
+            if (needsConfirmation) ...[
+              SizedBox(height: theme.spacing.md),
+              CheckboxListTile(
+                key: const Key('agent-command-proposal-run-confirmation'),
+                value: _executionConfirmed,
+                onChanged: (value) {
+                  setState(() {
+                    _executionConfirmed = value ?? false;
+                  });
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  'I reviewed this command and want to run it.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+            if (widget.proposal.cwd != null) ...[
+              SizedBox(height: theme.spacing.md),
+              _AgentProposalReviewDetail(
+                icon: Icons.folder_rounded,
+                text: widget.proposal.cwd!,
+              ),
+            ],
+            if (widget.proposal.warnings.isNotEmpty) ...[
+              SizedBox(height: theme.spacing.md),
+              for (final warning in widget.proposal.warnings)
+                _AgentProposalReviewDetail(
+                  icon: Icons.warning_amber_rounded,
+                  text: warning,
+                  color: theme.warning,
+                ),
+            ],
+            if (widget.proposal.detectedEffects.isNotEmpty) ...[
+              SizedBox(height: theme.spacing.md),
+              for (final effect in widget.proposal.detectedEffects)
+                _AgentProposalReviewDetail(
+                  icon: Icons.info_outline_rounded,
+                  text: effect,
+                ),
+            ],
+          ],
+        ),
+      ),
+      footer: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton(
+            key: const Key('agent-command-proposal-review-close'),
+            onPressed: widget.onClose,
+            child: const Text('Close'),
+          ),
+          SizedBox(width: theme.spacing.sm),
+          OutlinedButton.icon(
+            key: const Key('agent-command-proposal-review-insert'),
+            onPressed: widget.onInsert,
+            icon: const Icon(Icons.input_rounded),
+            label: const Text('Insert'),
+          ),
+          SizedBox(width: theme.spacing.sm),
+          FilledButton.icon(
+            key: const Key('agent-command-proposal-review-run'),
+            onPressed: decision.canExecute ? widget.onRun : null,
+            icon: Icon(
+              decision.blocked ? Icons.lock_rounded : Icons.play_arrow_rounded,
+            ),
+            label: Text(decision.blocked ? 'Blocked' : 'Run'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentProposalReviewPill extends StatelessWidget {
+  const _AgentProposalReviewPill({required this.label, required this.icon});
+
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.chrome,
+        borderRadius: BorderRadius.circular(theme.radius.sm),
+        border: Border.all(color: theme.border),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: theme.spacing.sm,
+          vertical: theme.spacing.xs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: theme.textMuted),
+            SizedBox(width: theme.spacing.xs),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: theme.textPrimary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AgentProposalReviewDetail extends StatelessWidget {
+  const _AgentProposalReviewDetail({
+    required this.icon,
+    required this.text,
+    this.color,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return Padding(
+      padding: EdgeInsets.only(top: theme.spacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: color ?? theme.textMuted),
+          SizedBox(width: theme.spacing.sm),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: theme.textMuted,
+                height: 1.3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _agentProposalRiskLabel(AgentCommandRiskLevel riskLevel) {
+  return switch (riskLevel) {
+    AgentCommandRiskLevel.low => 'Low risk',
+    AgentCommandRiskLevel.medium => 'Medium risk',
+    AgentCommandRiskLevel.high => 'High risk',
+    AgentCommandRiskLevel.destructive => 'Destructive',
+    AgentCommandRiskLevel.unknown => 'Unknown risk',
+  };
 }
 
 class _UniversalInputModelMenuChip extends StatelessWidget {
@@ -2039,6 +2860,10 @@ class _UniversalInputModelMenuChip extends StatelessWidget {
       ),
     );
   }
+}
+
+String _redactedAgentContextChipText(String chip) {
+  return const AgentContextPrivacyFilter().redactText(chip);
 }
 
 Rect _globalRectForContext(BuildContext context) {

@@ -202,6 +202,39 @@ void main() {
       expect(viewedInvocationIds, ['inv-1']);
     });
 
+    testWidgets('agent action buttons dispatch without inserting commands', (
+      tester,
+    ) async {
+      final inserted = <String>[];
+      final requests = <CommandSearchAgentActionRequest>[];
+
+      await tester.pumpWidget(
+        _app(
+          _overlay(baseTime, onInsert: inserted.add, onAskAgent: requests.add),
+        ),
+      );
+
+      await tester.tap(
+        find.byKey(const Key('command-search-agent-explain')).first,
+      );
+      await tester.pump();
+
+      expect(inserted, isEmpty);
+      expect(requests, hasLength(1));
+      expect(requests.single.kind, CommandSearchAgentActionKind.explain);
+      expect(requests.single.command, 'flutter test');
+      expect(requests.single.invocationId, 'inv-1');
+
+      await tester.tap(find.byKey(const Key('command-search-agent-debug')));
+      await tester.pump();
+
+      expect(inserted, isEmpty);
+      expect(requests, hasLength(2));
+      expect(requests.last.kind, CommandSearchAgentActionKind.debug);
+      expect(requests.last.command, 'npm test');
+      expect(requests.last.exitCode, 1);
+    });
+
     testWidgets('escape closes overlay and consumes the key', (tester) async {
       var closed = false;
       var parentKeyEvents = 0;
@@ -264,6 +297,7 @@ CommandSearchOverlay _overlay(
   CommandSearchOverlayController? controller,
   ValueChanged<String>? onInsert,
   ValueChanged<String>? onViewBlock,
+  ValueChanged<CommandSearchAgentActionRequest>? onAskAgent,
   VoidCallback? onClose,
   bool loading = false,
   String? unavailableReason,
@@ -272,6 +306,7 @@ CommandSearchOverlay _overlay(
     controller: controller ?? _controller(baseTime),
     onInsert: onInsert,
     onViewBlock: onViewBlock,
+    onAskAgent: onAskAgent,
     onClose: onClose,
     loading: loading,
     unavailableReason: unavailableReason,

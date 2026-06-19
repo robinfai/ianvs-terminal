@@ -446,6 +446,12 @@ class LocalTerminalCommandCenterConfig {
     this.contextChips = false,
     this.reviewEntrypoints = false,
     this.verificationDiagnostics = false,
+    this.agentCenter = false,
+    this.agentConversation = false,
+    this.agentContext = false,
+    this.agentCommandProposals = false,
+    this.agentProviderDraft = false,
+    this.agentCommandSearchActions = false,
   });
 
   final bool enabled;
@@ -455,6 +461,12 @@ class LocalTerminalCommandCenterConfig {
   final bool contextChips;
   final bool reviewEntrypoints;
   final bool verificationDiagnostics;
+  final bool agentCenter;
+  final bool agentConversation;
+  final bool agentContext;
+  final bool agentCommandProposals;
+  final bool agentProviderDraft;
+  final bool agentCommandSearchActions;
 
   Map<String, Object?> toJson() {
     return {
@@ -465,6 +477,12 @@ class LocalTerminalCommandCenterConfig {
       'contextChips': contextChips,
       'reviewEntrypoints': reviewEntrypoints,
       'verificationDiagnostics': verificationDiagnostics,
+      'agentCenter': agentCenter,
+      'agentConversation': agentConversation,
+      'agentContext': agentContext,
+      'agentCommandProposals': agentCommandProposals,
+      'agentProviderDraft': agentProviderDraft,
+      'agentCommandSearchActions': agentCommandSearchActions,
     };
   }
 
@@ -480,6 +498,18 @@ class LocalTerminalCommandCenterConfig {
       reviewEntrypoints: _boolFromJson(json?['reviewEntrypoints'], false),
       verificationDiagnostics: _boolFromJson(
         json?['verificationDiagnostics'],
+        false,
+      ),
+      agentCenter: _boolFromJson(json?['agentCenter'], false),
+      agentConversation: _boolFromJson(json?['agentConversation'], false),
+      agentContext: _boolFromJson(json?['agentContext'], false),
+      agentCommandProposals: _boolFromJson(
+        json?['agentCommandProposals'],
+        false,
+      ),
+      agentProviderDraft: _boolFromJson(json?['agentProviderDraft'], false),
+      agentCommandSearchActions: _boolFromJson(
+        json?['agentCommandSearchActions'],
         false,
       ),
     );

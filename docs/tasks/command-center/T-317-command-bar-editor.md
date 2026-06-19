@@ -13,8 +13,10 @@
 
 ## Non-goals
 
-- 不做自然语言自动识别。
-- 不实现 Agent / AI command generation。
+- 不在 command bar 内隐式接管自然语言；自然语言 route 必须由 Agent Center 的可见
+  router/policy 决定。
+- 不让 Agent / AI generated command 绕过 command proposal review 或 execution
+  safety pipeline。
 - 不绕过 read-only 或 paste confirmation。
 - 不做 quote/bracket auto-pair 第一版。
 - 不把 editor 下沉到 `packages/ianvs_terminal`。
@@ -31,6 +33,7 @@
 - 长命令 soft wrap，不改变实际发送文本。
 - 从 command search、block re-input 或 multiline paste 进入的文本都先进入 command
   input。
+- Agent proposal 的 Insert 只能写入 command input draft，不能自动执行。
 - read-only 阻止发送。
 - IME composition 不被抢。
 
@@ -52,6 +55,7 @@ flutter test test/command_center/command_bar_editor_test.dart
 - 启用 read-only 后尝试发送命令，确认不会写入 shell。
 - 从 command search、block re-input 和 multiline paste 插入文本，确认都先进入
   command input，且不会自动执行。
+- 从 Agent proposal 插入命令时，确认进入 command input draft，未写入 PTY。
 
 ## Done When
 

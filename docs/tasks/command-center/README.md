@@ -5,12 +5,17 @@ Command Center 的任务执行入口。
 
 ## 全局护栏
 
-- 普通输入默认发给 shell。
-- 不做自然语言自动识别。
+- 普通输入默认发给 shell，terminal-first 是默认行为，不是禁止 Agent 的理由。
+- 自然语言识别进入当前 Warp post-Universal-Input track，但必须有可见路由和可配置
+  policy；模糊输入不能自动执行。
 - 不重写 terminal renderer。
 - 不把产品 UI 下沉到 `packages/ianvs_terminal`。
 - 不绕过 read-only、paste confirmation、shortcut isolation 或 terminal input policy。
-- v1 不做 Agent / AI、remote / SSH、cloud sync、协作或插件生态。
+- 早期 “v1 不做 Agent / AI” 约束已被
+  [Command Center Warp Post-Universal-Input Spec](../../COMMAND_CENTER_WARP_POST_UNIVERSAL_INPUT_SPEC.md)
+  覆盖；Agent conversation、NL router、mock runtime、command proposal/review
+  进入本实现 track。
+- remote / SSH、cloud sync、协作和插件生态仍不属于当前切片，除非后续任务单独扩展。
 
 ## 执行阶段
 
@@ -67,6 +72,19 @@ T-322
 ```
 
 `T-322` 贯穿全程，但作为收口任务沉淀自动化、手工、性能和 stop condition 验证门。
+
+Agent Center lane:
+
+```text
+T-500 -> T-501 -> T-502 -> T-503 -> T-504 -> T-505 -> T-506
+T-507 -> T-508 -> T-509 -> T-510 -> T-511 -> T-512 -> T-513
+T-514 -> T-515 -> T-516 -> T-517 -> T-518 -> T-519 -> T-520
+T-521 -> T-522 -> T-523 -> T-524
+```
+
+该 lane 以干净 terminal session 和 dedicated Agent conversation 为核心。Agent 只能提出
+命令草稿或 proposal，执行必须经过显式 review、read-only、paste/shortcut isolation 和
+风险确认策略。
 
 ## 任务索引
 
@@ -160,3 +178,5 @@ T-322
 - [Selected Block Review Entrypoint](T-387-selected-block-review-entrypoint.md)
 - [Action Search Selected Block Priority](T-388-action-search-selected-block-priority.md)
 - [Saved Command Usage Metadata](T-389-saved-command-usage-metadata.md)
+- [Agent Center Test Gates and Regression Suite](T-523-agent-center-test-gates.md)
+- [Agent Center Feature Flags and Staged Rollout](T-524-agent-center-feature-flags-staged-rollout.md)

@@ -100,21 +100,21 @@ const List<UniversalInputToolOption> _universalInputModelOptions = [
     label: 'Local heuristic',
     value: 'Local heuristic',
     icon: Icons.memory_rounded,
-    detail: 'Local detection',
+    detail: 'Local only; no provider secret required.',
   ),
   UniversalInputToolOption(
     id: 'agent',
     label: 'Agent draft',
     value: 'Agent draft',
     icon: Icons.auto_awesome_rounded,
-    detail: 'Natural-language prompts',
+    detail: 'Env: DEEPSEEK_API_KEY; secret value stays outside Agent requests.',
   ),
   UniversalInputToolOption(
     id: 'shell',
     label: 'Shell strict',
     value: 'Shell strict',
     icon: Icons.terminal_rounded,
-    detail: 'Command-first',
+    detail: 'Command-first routing; no provider secret required.',
   ),
 ];
 

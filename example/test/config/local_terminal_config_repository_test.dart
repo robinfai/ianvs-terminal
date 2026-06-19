@@ -72,6 +72,12 @@ void main() {
       expect(loaded.commandCenter.contextChips, isTrue);
       expect(loaded.commandCenter.reviewEntrypoints, isTrue);
       expect(loaded.commandCenter.verificationDiagnostics, isTrue);
+      expect(loaded.commandCenter.agentCenter, isTrue);
+      expect(loaded.commandCenter.agentConversation, isTrue);
+      expect(loaded.commandCenter.agentContext, isTrue);
+      expect(loaded.commandCenter.agentCommandProposals, isTrue);
+      expect(loaded.commandCenter.agentProviderDraft, isTrue);
+      expect(loaded.commandCenter.agentCommandSearchActions, isTrue);
       expect(loaded.commandBlocksHistory.enabled, isTrue);
       expect(loaded.commandBlocksHistory.commandBlocks, isTrue);
       expect(loaded.commandBlocksHistory.failureSnapshots, isTrue);
@@ -84,6 +90,44 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'migrates old command center configs missing Agent rollout keys',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs terminal-config-missing-agent-rollout-keys',
+        );
+        final file = File('${directory.path}/ianvs_config.json');
+        await file.writeAsString(
+          jsonEncode({
+            'schemaVersion': 1,
+            'commandCenter': {
+              'enabled': true,
+              'historySearch': true,
+              'commandBlocks': true,
+              'commandBar': true,
+              'contextChips': true,
+              'reviewEntrypoints': true,
+              'verificationDiagnostics': true,
+            },
+          }),
+        );
+        final repository = LocalTerminalConfigRepository(
+          directoryResolver: () async => directory,
+        );
+
+        final loaded = await repository.load();
+
+        expect(loaded, isNotNull);
+        expect(loaded!.commandCenter.enabled, isTrue);
+        expect(loaded.commandCenter.agentCenter, isTrue);
+        expect(loaded.commandCenter.agentConversation, isTrue);
+        expect(loaded.commandCenter.agentContext, isTrue);
+        expect(loaded.commandCenter.agentCommandProposals, isTrue);
+        expect(loaded.commandCenter.agentProviderDraft, isTrue);
+        expect(loaded.commandCenter.agentCommandSearchActions, isTrue);
+      },
+    );
 
     test('preserves explicit local runtime feature flags', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -101,6 +145,12 @@ void main() {
             'contextChips': false,
             'reviewEntrypoints': false,
             'verificationDiagnostics': false,
+            'agentCenter': false,
+            'agentConversation': false,
+            'agentContext': false,
+            'agentCommandProposals': false,
+            'agentProviderDraft': false,
+            'agentCommandSearchActions': false,
           },
           'commandBlocksHistory': {
             'enabled': false,
@@ -125,6 +175,12 @@ void main() {
       expect(loaded.commandCenter.contextChips, isFalse);
       expect(loaded.commandCenter.reviewEntrypoints, isFalse);
       expect(loaded.commandCenter.verificationDiagnostics, isFalse);
+      expect(loaded.commandCenter.agentCenter, isFalse);
+      expect(loaded.commandCenter.agentConversation, isFalse);
+      expect(loaded.commandCenter.agentContext, isFalse);
+      expect(loaded.commandCenter.agentCommandProposals, isFalse);
+      expect(loaded.commandCenter.agentProviderDraft, isFalse);
+      expect(loaded.commandCenter.agentCommandSearchActions, isFalse);
       expect(loaded.commandBlocksHistory.enabled, isFalse);
       expect(loaded.commandBlocksHistory.commandBlocks, isFalse);
       expect(loaded.commandBlocksHistory.failureSnapshots, isFalse);
