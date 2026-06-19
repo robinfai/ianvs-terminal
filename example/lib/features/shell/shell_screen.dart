@@ -69,6 +69,7 @@ import 'shell_action_runtime_bindings.dart';
 import 'shell_command_action_search_adapter.dart';
 import 'shell_command_block_view_models.dart';
 import 'shell_shortcut_bridge.dart';
+import 'universal_input.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_state_events.dart';
@@ -237,6 +238,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   int _activeAutocompleteIndex = 0;
   List<String> _autoComposerSuggestions = const [];
   int _activeAutoComposerIndex = 0;
+  List<String> _universalInputPinnedContextChips = const [];
+  String _universalInputModelLabel = 'Local heuristic';
+  UniversalInputMode _universalInputMode = UniversalInputMode.auto;
+  UniversalInputClassification _autoComposerClassification =
+      const UniversalInputClassification.empty(mode: UniversalInputMode.auto);
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
   _InstantReplayWorkspaceSession? _instantReplayWorkspaceSession;
   List<_TerminalAnnotation> _annotations = const [];
@@ -393,6 +399,28 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         return copyModeResult;
       }
       if (_isAutoComposerOpen) {
+        final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
+        final isControlPressed = HardwareKeyboard.instance.isControlPressed;
+        final usesMetaShortcuts =
+            _usesMetaShortcuts || ref.read(referenceDemoModeProvider);
+        final usesAppModifier = usesMetaShortcuts
+            ? isMetaPressed && !isControlPressed
+            : isControlPressed && !isMetaPressed;
+        if (usesAppModifier && event.logicalKey == LogicalKeyboardKey.keyI) {
+          if (event is! KeyRepeatEvent) {
+            _cycleUniversalInputMode();
+          }
+          return KeyEventResult.handled;
+        }
+        if (isControlPressed &&
+            !isMetaPressed &&
+            !HardwareKeyboard.instance.isAltPressed &&
+            event.logicalKey == LogicalKeyboardKey.keyC) {
+          if (event is! KeyRepeatEvent) {
+            _closeAutoComposer();
+          }
+          return KeyEventResult.handled;
+        }
         if (event.logicalKey == LogicalKeyboardKey.escape) {
           _closeAutoComposer();
           return KeyEventResult.handled;
@@ -453,6 +481,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           'toggleCommandPalette',
           'toggleHotkeyWindow',
           'openDefaults',
+          'autoComposer',
         },
         callbacks: ShellActionProductionCallbacks(
           newTab: (_) {
@@ -610,6 +639,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               );
             }
             _openAutocomplete();
+            return const ShellActionBindingResult.completed();
+          },
+          autoComposer: (_) {
+            if (activeSessionId == null) {
+              return const ShellActionBindingResult.skipped(
+                'Auto composer requires an active session.',
+              );
+            }
+            _openAutoComposer();
             return const ShellActionBindingResult.completed();
           },
           copyMode: (_) {

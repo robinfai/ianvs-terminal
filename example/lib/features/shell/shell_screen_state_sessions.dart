@@ -169,6 +169,12 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _autoComposerController.clear();
       _autoComposerSuggestions = const [];
       _activeAutoComposerIndex = 0;
+      _universalInputPinnedContextChips = const [];
+      _universalInputModelLabel = 'Local heuristic';
+      _universalInputMode = UniversalInputMode.auto;
+      _autoComposerClassification = const UniversalInputClassification.empty(
+        mode: UniversalInputMode.auto,
+      );
       _copyModeAnchorRow = null;
       _copyModeAnchorCol = null;
       _copyModeExtentRow = null;

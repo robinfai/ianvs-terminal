@@ -21,6 +21,12 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
       _commandSearchOverlayController = null;
       _isAutocompleteOpen = false;
       _isAutoComposerOpen = false;
+      _autoComposerSuggestions = const [];
+      _activeAutoComposerIndex = 0;
+      _universalInputPinnedContextChips = const [];
+      _autoComposerClassification = UniversalInputClassification.empty(
+        mode: _universalInputMode,
+      );
       _commandActionSearchController = _buildCommandActionSearchController(
         sessionId,
       );

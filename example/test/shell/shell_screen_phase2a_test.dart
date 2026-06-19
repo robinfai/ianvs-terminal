@@ -66,13 +66,13 @@ void main() {
     );
 
     expect(find.byKey(const Key('shell-chrome-menu')), findsOneWidget);
-    expect(find.text('Top actions'), findsNothing);
+    expect(find.text('Command Center'), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Top actions'), findsOneWidget);
+    expect(find.text('Command Center'), findsOneWidget);
     expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
     expect(find.text('New tab'), findsOneWidget);
     expect(find.text('Search terminal output'), findsWidgets);
@@ -94,7 +94,7 @@ void main() {
     await tester.tap(find.byTooltip('Close actions'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Top actions'), findsNothing);
+    expect(find.text('Command Center'), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
@@ -126,7 +126,7 @@ void main() {
         .performAction(closeNode.id, SemanticsAction.tap);
     await tester.pumpAndSettle();
 
-    expect(find.text('Top actions'), findsNothing);
+    expect(find.text('Command Center'), findsNothing);
     expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
     semantics.dispose();
   });
@@ -204,6 +204,36 @@ void main() {
     expect(find.text('Command search'), findsOneWidget);
   });
 
+  testWidgets('command menu finds universal input by agent language', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'agent',
+    );
+    await tester.pump();
+
+    expect(find.text('Universal input'), findsOneWidget);
+    expect(find.text('New tab'), findsNothing);
+
+    await tester.tap(find.text('Universal input'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('terminal-auto-composer')), findsOneWidget);
+    expect(find.text('Auto-detect ready'), findsOneWidget);
+  });
+
   testWidgets('command menu entry opens command search overlay', (
     tester,
   ) async {
@@ -272,7 +302,7 @@ void main() {
     await tester.tap(find.text('New tab'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Top actions'), findsNothing);
+    expect(find.text('Command Center'), findsNothing);
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);

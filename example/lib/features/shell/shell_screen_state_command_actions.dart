@@ -110,7 +110,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
 
     final commandMenuRoute = RawDialogRoute<TerminalActionId>(
       barrierDismissible: true,
-      barrierLabel: 'Close command menu',
+      barrierLabel: 'Close Command Center',
       barrierColor: Colors.black.withValues(alpha: 0.42),
       transitionDuration: animationsEnabled
           ? const Duration(milliseconds: 160)

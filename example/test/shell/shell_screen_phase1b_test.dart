@@ -91,7 +91,7 @@ void main() {
       ),
     );
     expect(find.bySemanticsLabel('New tab'), findsOneWidget);
-    expect(find.bySemanticsLabel('Open command menu'), findsOneWidget);
+    expect(find.bySemanticsLabel('Open Command Center'), findsOneWidget);
   });
 
   testWidgets(

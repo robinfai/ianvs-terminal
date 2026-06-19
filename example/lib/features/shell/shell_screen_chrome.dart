@@ -84,7 +84,7 @@ class _ShellChromeBar extends StatelessWidget {
             if (!referenceDemoMode) ...[
               _buildChromeIconButton(
                 key: const Key('shell-chrome-menu'),
-                tooltip: 'Open command menu',
+                tooltip: 'Open Command Center',
                 onPressed: onShowCommandMenu,
                 iconSize: 16,
                 hoverBackgroundColor: chromeTone.hoverBackground,

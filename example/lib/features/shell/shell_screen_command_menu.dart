@@ -269,7 +269,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         children: [
                           Expanded(
                             child: Text(
-                              'Top actions',
+                              'Command Center',
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
                                     color: palette.textPrimary,
@@ -790,9 +790,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       key: const Key('shell-auto-composer'),
                       actionId: TerminalActionId.autoComposer,
                       icon: Icons.edit_note_rounded,
-                      title: 'Auto Composer',
+                      title: 'Universal input',
                       subtitle:
-                          'Session action • Native command editor with completions.',
+                          'Session action • Ask, run, add context, or choose tools.',
                       enabled: hasActiveSession && !isActiveSessionReadOnly,
                       disabledReason: hasActiveSession
                           ? readOnlySendRequired
@@ -823,7 +823,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Open command menu with $launcherShortcutLabel',
+                              'Open Command Center with $launcherShortcutLabel',
                               style: Theme.of(context).textTheme.labelMedium
                                   ?.copyWith(color: palette.textSubtle),
                             ),
@@ -902,7 +902,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.shellIntegrationUtilities,
   ),
   MapEntry(
-    'select command output prompt marks',
+    'select command block command output prompt marks',
     TerminalActionId.selectCommandOutput,
   ),
   MapEntry('tmux integration control mode', TerminalActionId.tmuxIntegration),
@@ -934,7 +934,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.autocomplete,
   ),
   MapEntry(
-    'auto composer command editor completions',
+    'auto composer universal input command block command editor completions natural language agent ai ask prompt terminal mode context slash model toolbelt',
     TerminalActionId.autoComposer,
   ),
   MapEntry('hotkey window summon hide shell', TerminalActionId.hotkeyWindow),

@@ -10,7 +10,7 @@ use par_term_emu_core_rust::color::{Color, NamedColor};
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::{
-    Terminal, TerminalDamage, TerminalProcessDebugStats, snapshot::ExportFormat,
+    snapshot::ExportFormat, Terminal, TerminalDamage, TerminalProcessDebugStats,
 };
 use parking_lot::Mutex;
 use regex::RegexBuilder;
@@ -18,8 +18,8 @@ use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
-    Arc, LazyLock,
     atomic::{AtomicBool, Ordering},
+    Arc, LazyLock,
 };
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -679,7 +679,7 @@ impl TerminalSession {
             DEFAULT_ROWS as usize,
             scrollback_lines,
         );
-        apply_profile_colors(&mut terminal, &profile_colors);
+        apply_profile_colors_and_reset_screen(&mut terminal, &profile_colors);
         if emulation == TerminalEmulation::Vt220 {
             terminal.process(b"\x1b[62;1\"p");
         }
@@ -830,21 +830,19 @@ impl TerminalSession {
 
     fn start_resource_sampler(session: &Arc<Self>) {
         let resource_session = Arc::clone(session);
-        thread::spawn(move || {
-            loop {
-                if resource_session.exited.load(Ordering::SeqCst) {
-                    break;
-                }
-                let keep_sampling = resource_session.record_resource_sample();
-                let failures = resource_session
-                    .resource_sampler_state
-                    .lock()
-                    .consecutive_failures;
-                if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
-                    break;
-                }
-                thread::sleep(RESOURCE_SAMPLE_INTERVAL);
+        thread::spawn(move || loop {
+            if resource_session.exited.load(Ordering::SeqCst) {
+                break;
             }
+            let keep_sampling = resource_session.record_resource_sample();
+            let failures = resource_session
+                .resource_sampler_state
+                .lock()
+                .consecutive_failures;
+            if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
+                break;
+            }
+            thread::sleep(RESOURCE_SAMPLE_INTERVAL);
         });
     }
 
@@ -986,7 +984,7 @@ impl TerminalSession {
             let transcript = state.transcript.clone();
             let mut terminal =
                 Terminal::with_scrollback(cols as usize, rows as usize, self.scrollback_lines);
-            apply_profile_colors(&mut terminal, &self.profile_colors);
+            apply_profile_colors_and_reset_screen(&mut terminal, &self.profile_colors);
             if self.emulation == TerminalEmulation::Vt220 {
                 terminal.process(b"\x1b[62;1\"p");
             }
@@ -1301,6 +1299,7 @@ impl TerminalSession {
                     terminal.alt_grid().row(row),
                     terminal.alt_grid().is_line_wrapped(row),
                     &theme,
+                    true,
                 );
                 rows.push(TerminalSearchRow {
                     row,
@@ -1320,6 +1319,7 @@ impl TerminalSession {
                         grid.scrollback_line(visible_index),
                         grid.is_scrollback_wrapped(visible_index),
                         &theme,
+                        false,
                     )
                 } else {
                     let screen_row = visible_index.saturating_sub(scrollback_len);
@@ -1327,6 +1327,7 @@ impl TerminalSession {
                         grid.row(screen_row),
                         grid.is_line_wrapped(screen_row),
                         &theme,
+                        screen_row == terminal.cursor().row,
                     )
                 };
                 rows.push(TerminalSearchRow {
@@ -2138,7 +2139,12 @@ fn extract_viewport_row(
     let (cells, wrapped) = row_cells_for_visible_index(terminal, absolute_visible_index);
     let continues_from_previous = absolute_visible_index > 0
         && row_cells_for_visible_index(terminal, absolute_visible_index - 1).1;
-    let extracted = extract_row(cells, wrapped, &theme);
+    let extracted = extract_row(
+        cells,
+        wrapped,
+        &theme,
+        preserve_trailing_blank_style_for_visible_index(terminal, absolute_visible_index),
+    );
     let hyperlinks = if emulation == TerminalEmulation::Xterm256 {
         extract_hyperlinks_for_row(terminal, cells, viewport_row)
     } else {
@@ -2527,12 +2533,14 @@ fn extract_row(
     cells: Option<&[Cell]>,
     wrapped: bool,
     theme: &TerminalThemeSnapshot,
+    preserve_trailing_blank_style: bool,
 ) -> ExtractedRow {
     let mut text = String::new();
     let mut style_runs = Vec::new();
     let mut run_start = 0usize;
     let mut run_style: Option<TerminalStyleRun> = None;
     let mut column_offset = 0usize;
+    let last_content_column = last_visible_content_column(cells);
 
     for cell in cells.unwrap_or_default() {
         if cell.flags.wide_char_spacer() {
@@ -2544,17 +2552,29 @@ fn extract_row(
         let column_start = column_offset;
         column_offset += cell.width();
         let column_end = column_offset;
+        let strip_trailing_blank_style = !preserve_trailing_blank_style
+            && last_content_column > 0
+            && column_start >= last_content_column
+            && !cell_has_visible_content(&grapheme);
         let style = TerminalStyleRun {
             start: column_start,
             end: column_end,
-            foreground: color_to_hex_delta(cell.fg, theme.default_fg, &theme.ansi_palette),
-            background: color_to_hex_delta(cell.bg, theme.default_bg, &theme.ansi_palette),
-            bold: cell.flags.bold(),
-            dim: cell.flags.dim(),
-            italic: cell.flags.italic(),
-            underline: cell.flags.underline(),
-            blink: cell.flags.blink(),
-            inverse: cell.flags.reverse(),
+            foreground: if strip_trailing_blank_style {
+                None
+            } else {
+                color_to_hex_delta(cell.fg, theme.default_fg, &theme.ansi_palette)
+            },
+            background: if strip_trailing_blank_style {
+                None
+            } else {
+                color_to_hex_delta(cell.bg, theme.default_bg, &theme.ansi_palette)
+            },
+            bold: !strip_trailing_blank_style && cell.flags.bold(),
+            dim: !strip_trailing_blank_style && cell.flags.dim(),
+            italic: !strip_trailing_blank_style && cell.flags.italic(),
+            underline: !strip_trailing_blank_style && cell.flags.underline(),
+            blink: !strip_trailing_blank_style && cell.flags.blink(),
+            inverse: !strip_trailing_blank_style && cell.flags.reverse(),
         };
 
         match &run_style {
@@ -2586,6 +2606,28 @@ fn extract_row(
         wrapped,
         style_runs,
     }
+}
+
+fn last_visible_content_column(cells: Option<&[Cell]>) -> usize {
+    let mut last_content_column = 0usize;
+    let mut column_offset = 0usize;
+
+    for cell in cells.unwrap_or_default() {
+        if cell.flags.wide_char_spacer() {
+            continue;
+        }
+        let grapheme = cell.get_grapheme();
+        column_offset += cell.width();
+        if cell_has_visible_content(&grapheme) {
+            last_content_column = column_offset;
+        }
+    }
+
+    last_content_column
+}
+
+fn cell_has_visible_content(grapheme: &str) -> bool {
+    grapheme.chars().any(|character| !character.is_whitespace())
 }
 
 struct TerminalSearchPattern {
@@ -2798,6 +2840,20 @@ fn primary_row_cells_for_visible_index(
             (grid.row(screen_row), grid.is_line_wrapped(screen_row))
         }
     }
+}
+
+fn preserve_trailing_blank_style_for_visible_index(
+    terminal: &Terminal,
+    visible_index: usize,
+) -> bool {
+    if terminal.is_alt_screen_active() {
+        return true;
+    }
+    let cursor_visible_index = terminal
+        .grid()
+        .scrollback_len()
+        .saturating_add(terminal.cursor().row);
+    visible_index == cursor_visible_index
 }
 
 fn slice_cells_columns(cells: Option<&[Cell]>, start_col: usize, end_col: usize) -> String {
@@ -3223,6 +3279,13 @@ fn apply_profile_colors(terminal: &mut Terminal, colors: &TerminalProfileColors)
     apply_profile_ansi_colors(terminal, &colors.bright, 8);
 }
 
+fn apply_profile_colors_and_reset_screen(terminal: &mut Terminal, colors: &TerminalProfileColors) {
+    apply_profile_colors(terminal, colors);
+    // Keep parser colors and preallocated blank cells aligned with profile
+    // defaults; ED 2 alone would clear cells back to library defaults.
+    terminal.process(b"\x1b[0m\x1b[H\x1b[J");
+}
+
 fn apply_profile_ansi_colors(
     terminal: &mut Terminal,
     colors: &TerminalProfileAnsiColors,
@@ -3507,6 +3570,7 @@ pub fn take_events(session_id: u64) -> Result<Vec<TerminalEvent>, SessionError> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::TerminalProfileSpecialColors;
     use par_term_emu_core_rust::cell::Cell;
     use par_term_emu_core_rust::terminal::Terminal;
 
@@ -3570,7 +3634,7 @@ mod tests {
             ansi_palette,
         };
 
-        let extracted = extract_row(Some(&row), false, &theme);
+        let extracted = extract_row(Some(&row), false, &theme, true);
 
         assert_eq!(extracted.text, "你a");
         assert_eq!(extracted.style_runs.len(), 2);
@@ -3600,7 +3664,7 @@ mod tests {
         };
         let row = vec![Cell::with_colors('a', default_fg, default_bg)];
 
-        let extracted = extract_row(Some(&row), false, &theme);
+        let extracted = extract_row(Some(&row), false, &theme, true);
 
         assert_eq!(extracted.text, "a");
         assert_eq!(extracted.style_runs.len(), 1);
@@ -3608,6 +3672,75 @@ mod tests {
         assert_eq!(extracted.style_runs[0].end, 1);
         assert_eq!(extracted.style_runs[0].foreground, None);
         assert_eq!(extracted.style_runs[0].background, None);
+    }
+
+    #[test]
+    fn extract_row_omits_trailing_blank_background_when_not_preserved() {
+        let terminal = Terminal::with_scrollback(6, 2, 16);
+        let ansi_palette = *terminal.get_ansi_palette();
+        let default_fg = Color::Rgb(0x1F, 0x29, 0x37);
+        let default_bg = Color::Rgb(0xF6, 0xF3, 0xEC);
+        let leaked_bg = Color::Rgb(0x00, 0x00, 0x00);
+        let theme = TerminalThemeSnapshot {
+            default_fg,
+            default_bg,
+            ansi_palette,
+        };
+        let mut row = vec![
+            Cell::with_colors('a', default_fg, default_bg),
+            Cell::with_colors('b', default_fg, default_bg),
+            Cell::with_colors('c', default_fg, default_bg),
+        ];
+        row.extend((0..3).map(|_| Cell::with_colors(' ', default_fg, leaked_bg)));
+
+        let extracted = extract_row(Some(&row), false, &theme, false);
+        let preserved = extract_row(Some(&row), false, &theme, true);
+
+        assert_eq!(extracted.text, "abc   ");
+        assert!(
+            extracted
+                .style_runs
+                .iter()
+                .all(|run| run.background.is_none()),
+            "non-cursor main-screen rows should not export prompt-background leaks: {:?}",
+            extracted.style_runs
+        );
+        assert!(
+            preserved
+                .style_runs
+                .iter()
+                .any(|run| run.background == Some("#000000".to_string())),
+            "cursor or alternate-screen rows still preserve intentional trailing backgrounds"
+        );
+    }
+
+    #[test]
+    fn profile_colors_repaint_initial_blank_cells() {
+        let mut terminal = Terminal::with_scrollback(6, 2, 16);
+        let colors = TerminalProfileColors {
+            special: TerminalProfileSpecialColors {
+                foreground: Some("#1f2937".to_string()),
+                background: Some("#f6f3ec".to_string()),
+                ..TerminalProfileSpecialColors::default()
+            },
+            ..TerminalProfileColors::default()
+        };
+
+        apply_profile_colors_and_reset_screen(&mut terminal, &colors);
+        terminal.process(b"abc");
+
+        let theme = terminal_theme_snapshot(&terminal);
+        let extracted = extract_row(terminal.grid().row(0), false, &theme, false);
+
+        assert_eq!(extracted.text, "abc   ");
+        assert!(
+            extracted
+                .style_runs
+                .iter()
+                .all(|run| run.background.is_none()),
+            "profile default backgrounds should stay implicit for both text and trailing blanks: {:?}",
+            extracted.style_runs
+        );
     }
 
     #[test]
@@ -3811,11 +3944,9 @@ mod tests {
     fn host_protocol_observe_keeps_split_osc_sequences_working() {
         let mut state = HostProtocolState::default();
 
-        assert!(
-            state
-                .observe(b"\x1b]1;build", TerminalEmulation::Xterm256)
-                .is_empty()
-        );
+        assert!(state
+            .observe(b"\x1b]1;build", TerminalEmulation::Xterm256)
+            .is_empty());
         assert!(!state.buffer.is_empty());
 
         let events = state.observe(b" icon\x07", TerminalEmulation::Xterm256);
@@ -3829,14 +3960,12 @@ mod tests {
     fn host_protocol_observe_emits_split_shell_hook_dcs() {
         let mut state = HostProtocolState::default();
 
-        assert!(
-            state
-                .observe(
-                    b"\x1bPhook;7b22686f6f6b223a22707265636d64222c",
-                    TerminalEmulation::Xterm256
-                )
-                .is_empty()
-        );
+        assert!(state
+            .observe(
+                b"\x1bPhook;7b22686f6f6b223a22707265636d64222c",
+                TerminalEmulation::Xterm256
+            )
+            .is_empty());
         assert!(!state.buffer.is_empty());
 
         let events = state.observe(

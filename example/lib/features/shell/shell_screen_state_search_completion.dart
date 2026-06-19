@@ -591,13 +591,15 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       return;
     }
     _autoComposerController.clear();
-    final suggestions = _autoComposerSuggestionsForText('', sessionState);
+    final inputState = _autoComposerInputStateForText('', sessionState);
     _mutateState(() {
       _isAutoComposerOpen = true;
       _isSearchOpen = false;
       _isAutocompleteOpen = false;
       _isCopyModeOpen = false;
-      _autoComposerSuggestions = suggestions;
+      _universalInputPinnedContextChips = const [];
+      _autoComposerClassification = inputState.classification;
+      _autoComposerSuggestions = inputState.suggestions;
       _activeAutoComposerIndex = 0;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -614,22 +616,268 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       _isAutoComposerOpen = false;
       _autoComposerSuggestions = const [];
       _activeAutoComposerIndex = 0;
+      _universalInputPinnedContextChips = const [];
+      _autoComposerClassification = UniversalInputClassification.empty(
+        mode: _universalInputMode,
+      );
     });
     _focusSession(activeSessionId);
   }
 
   void _updateAutoComposerSuggestions(String text) {
-    final suggestions = _autoComposerSuggestionsForText(text);
+    if (_handleUniversalInputModePrefix(text)) {
+      return;
+    }
+    final inputState = _autoComposerInputStateForText(text);
     _mutateState(() {
-      _autoComposerSuggestions = suggestions;
+      _autoComposerClassification = inputState.classification;
+      _autoComposerSuggestions = inputState.suggestions;
       _activeAutoComposerIndex = 0;
     });
+  }
+
+  bool _handleUniversalInputModePrefix(String text) {
+    final mode = switch (text) {
+      '* ' || '＊ ' => UniversalInputMode.agent,
+      '! ' || '！ ' => UniversalInputMode.terminal,
+      _ => null,
+    };
+    if (mode == null) {
+      return false;
+    }
+
+    _autoComposerController.clear();
+    final inputState = _autoComposerInputStateForText('', null, mode);
+    _mutateState(() {
+      _universalInputMode = mode;
+      _autoComposerClassification = inputState.classification;
+      _autoComposerSuggestions = inputState.suggestions;
+      _activeAutoComposerIndex = 0;
+    });
+    return true;
+  }
+
+  void _setUniversalInputMode(UniversalInputMode mode) {
+    if (_universalInputMode == mode) {
+      return;
+    }
+    final inputState = _autoComposerInputStateForText(
+      _autoComposerController.text,
+      null,
+      mode,
+    );
+    _mutateState(() {
+      _universalInputMode = mode;
+      _autoComposerClassification = inputState.classification;
+      _autoComposerSuggestions = inputState.suggestions;
+      _activeAutoComposerIndex = 0;
+    });
+    _autoComposerFocusNode.requestFocus();
+  }
+
+  void _cycleUniversalInputMode() {
+    final nextMode = switch (_universalInputMode) {
+      UniversalInputMode.auto => UniversalInputMode.agent,
+      UniversalInputMode.agent => UniversalInputMode.terminal,
+      UniversalInputMode.terminal => UniversalInputMode.auto,
+    };
+    _setUniversalInputMode(nextMode);
+  }
+
+  _AutoComposerInputState _autoComposerInputStateForText(
+    String text, [
+    SessionState? sessionState,
+    UniversalInputMode? mode,
+  ]) {
+    final SessionState state =
+        sessionState ?? ref.read(sessionControllerProvider);
+    final activeSessionId = state.activeSessionId;
+    final classification = UniversalInputClassifier(
+      commandVocabulary: activeSessionId == null
+          ? const <String>{}
+          : _universalInputCommandVocabularyFor(state, activeSessionId),
+    ).classify(text, mode: mode ?? _universalInputMode);
+    return _AutoComposerInputState(
+      classification: classification,
+      suggestions: _autoComposerSuggestionsForText(text, state, classification),
+    );
+  }
+
+  Set<String> _universalInputCommandVocabularyFor(
+    SessionState sessionState,
+    String sessionId,
+  ) {
+    final vocabulary = <String>{};
+    final pane = _paneForSession(sessionState, sessionId);
+    final shellIntegration = pane?.shellIntegration;
+    if (shellIntegration == null) {
+      return vocabulary;
+    }
+    for (final command in shellIntegration.recentCommands) {
+      final firstToken = _firstShellToken(command);
+      if (firstToken != null) {
+        vocabulary.add(firstToken);
+      }
+    }
+    return vocabulary;
+  }
+
+  String? _firstShellToken(String command) {
+    final match = RegExp(r'^\s*([A-Za-z0-9_./:-]+)').firstMatch(command);
+    return match?.group(1)?.toLowerCase();
+  }
+
+  List<String> _universalInputContextChipsFor(
+    TerminalPane pane,
+    TerminalProfile? profile,
+  ) {
+    final integration = pane.shellIntegration;
+    final chips = <String>[];
+    final cwd = integration.currentDirectory;
+    if (cwd != null && cwd.trim().isNotEmpty) {
+      chips.add('cwd ${_compactDirectoryName(cwd)}');
+    }
+    if (profile != null && profile.name.trim().isNotEmpty) {
+      chips.add(profile.name.trim());
+    }
+    final exitCode = integration.lastExitCode;
+    if (exitCode != null) {
+      chips.add(exitCode == 0 ? 'last ok' : 'last exit $exitCode');
+    }
+    final lastCommand = integration.lastCommand;
+    if (lastCommand != null && lastCommand.trim().isNotEmpty) {
+      chips.add('last ${_compactText(lastCommand, 28)}');
+    }
+    for (final chip in _universalInputPinnedContextChips) {
+      if (!chips.contains(chip)) {
+        chips.add(chip);
+      }
+    }
+    return chips.take(7).toList(growable: false);
+  }
+
+  List<_UniversalInputToolOption> _universalInputContextOptionsFor(
+    TerminalPane pane,
+    TerminalProfile? profile,
+  ) {
+    final integration = pane.shellIntegration;
+    final options = <_UniversalInputToolOption>[];
+    final cwd = integration.currentDirectory;
+    if (cwd != null && cwd.trim().isNotEmpty) {
+      options.add(
+        _UniversalInputToolOption(
+          id: 'cwd',
+          label: '@cwd',
+          value: '@cwd ${_compactDirectoryName(cwd)}',
+          icon: Icons.folder_rounded,
+          detail: cwd,
+        ),
+      );
+    }
+    final lastCommand = integration.lastCommand;
+    if (lastCommand != null && lastCommand.trim().isNotEmpty) {
+      options.add(
+        _UniversalInputToolOption(
+          id: 'last-command',
+          label: '@last-command',
+          value: '@last ${_compactText(lastCommand, 28)}',
+          icon: Icons.history_rounded,
+          detail: _compactText(lastCommand, 48),
+        ),
+      );
+    }
+    final exitCode = integration.lastExitCode;
+    if (exitCode != null) {
+      options.add(
+        _UniversalInputToolOption(
+          id: 'last-status',
+          label: '@last-status',
+          value: exitCode == 0 ? '@status ok' : '@status exit $exitCode',
+          icon: exitCode == 0
+              ? Icons.check_circle_rounded
+              : Icons.error_outline_rounded,
+          detail: exitCode == 0 ? 'Last command succeeded' : 'Exit $exitCode',
+        ),
+      );
+    }
+    if (profile != null && profile.name.trim().isNotEmpty) {
+      options.add(
+        _UniversalInputToolOption(
+          id: 'profile',
+          label: '@profile',
+          value: '@profile ${_compactText(profile.name.trim(), 28)}',
+          icon: Icons.badge_rounded,
+          detail: profile.name.trim(),
+        ),
+      );
+    }
+    if (options.isEmpty) {
+      options.add(
+        const _UniversalInputToolOption(
+          id: 'session',
+          label: '@session',
+          value: '@session active shell',
+          icon: Icons.terminal_rounded,
+          detail: 'Active shell',
+        ),
+      );
+    }
+    return options;
+  }
+
+  void _addUniversalInputContextChip(String value) {
+    _mutateState(() {
+      if (!_universalInputPinnedContextChips.contains(value)) {
+        _universalInputPinnedContextChips = [
+          ..._universalInputPinnedContextChips,
+          value,
+        ];
+      }
+    });
+    _autoComposerFocusNode.requestFocus();
+  }
+
+  void _insertUniversalInputSnippet(String snippet) {
+    final currentText = _autoComposerController.text;
+    final separator = currentText.trimRight().isEmpty || snippet.startsWith(' ')
+        ? ''
+        : ' ';
+    final nextText = '${currentText.trimRight()}$separator$snippet';
+    _autoComposerController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+    );
+    _updateAutoComposerSuggestions(nextText);
+    _autoComposerFocusNode.requestFocus();
+  }
+
+  void _setUniversalInputModel(String modelLabel) {
+    _mutateState(() {
+      _universalInputModelLabel = modelLabel;
+    });
+    _autoComposerFocusNode.requestFocus();
+  }
+
+  String _compactDirectoryName(String path) {
+    final trimmed = path.trim();
+    final withoutTrailingSlash = trimmed.endsWith('/') && trimmed.length > 1
+        ? trimmed.substring(0, trimmed.length - 1)
+        : trimmed;
+    final segments = withoutTrailingSlash.split('/');
+    final last = segments.isEmpty ? withoutTrailingSlash : segments.last;
+    return _compactText(last.isEmpty ? withoutTrailingSlash : last, 28);
   }
 
   List<String> _autoComposerSuggestionsForText(
     String text, [
     SessionState? sessionState,
+    UniversalInputClassification? classification,
   ]) {
+    if (classification?.isNaturalLanguage ?? false) {
+      return universalInputCommandSuggestionsForText(
+        text,
+      ).map((suggestion) => suggestion.command).toList(growable: false);
+    }
     final SessionState state =
         sessionState ?? ref.read(sessionControllerProvider);
     final activeSessionId = state.activeSessionId;
@@ -667,7 +915,8 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   void _acceptAutoComposerSuggestion(String suggestion) {
     final currentText = _autoComposerController.text;
     final prefix = _autoComposerPrefixForText(currentText);
-    final nextText = prefix.isEmpty
+    final replaceWholeInput = _autoComposerClassification.isNaturalLanguage;
+    final nextText = replaceWholeInput || prefix.isEmpty
         ? suggestion
         : '${currentText.substring(0, currentText.length - prefix.length)}'
               '$suggestion';
@@ -675,7 +924,16 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       text: nextText,
       selection: TextSelection.collapsed(offset: nextText.length),
     );
-    _updateAutoComposerSuggestions(nextText);
+    final nextMode = replaceWholeInput
+        ? UniversalInputMode.auto
+        : _universalInputMode;
+    final inputState = _autoComposerInputStateForText(nextText, null, nextMode);
+    _mutateState(() {
+      _universalInputMode = nextMode;
+      _autoComposerClassification = inputState.classification;
+      _autoComposerSuggestions = inputState.suggestions;
+      _activeAutoComposerIndex = 0;
+    });
     _autoComposerFocusNode.requestFocus();
   }
 
@@ -686,6 +944,43 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     final command = _autoComposerController.text.trimRight();
     if (command.isEmpty) {
+      return;
+    }
+    final inputState = _autoComposerInputStateForText(command);
+    if (inputState.classification.isNaturalLanguage) {
+      if (inputState.suggestions.isNotEmpty) {
+        final suggestion = inputState.suggestions.first;
+        _autoComposerController.value = TextEditingValue(
+          text: suggestion,
+          selection: TextSelection.collapsed(offset: suggestion.length),
+        );
+        final terminalState = _autoComposerInputStateForText(
+          suggestion,
+          null,
+          UniversalInputMode.auto,
+        );
+        _mutateState(() {
+          _universalInputMode = UniversalInputMode.auto;
+          _autoComposerClassification = terminalState.classification;
+          _autoComposerSuggestions = terminalState.suggestions;
+          _activeAutoComposerIndex = 0;
+        });
+        _autoComposerFocusNode.requestFocus();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Suggested command inserted. Press Enter to run it.'),
+          ),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Natural language detected. Choose a command suggestion or switch to Terminal mode.',
+          ),
+        ),
+      );
+      _autoComposerFocusNode.requestFocus();
       return;
     }
     if (!_sendPlainTextToSession(activeSessionId, '$command\n')) {

@@ -2040,7 +2040,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Top actions'), findsOneWidget);
+      expect(find.text('Command Center'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -2074,7 +2074,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Top actions'), findsNothing);
+      expect(find.text('Command Center'), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
@@ -6243,7 +6243,7 @@ void main() {
         platform: 'linux',
       );
 
-      expect(find.text('Top actions'), findsNothing);
+      expect(find.text('Command Center'), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
@@ -7414,6 +7414,286 @@ void main() {
     );
     expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
   });
+
+  testWidgets(
+    'auto composer detects natural language and inserts a command suggestion before running',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'pwd',
+            'pwd': '/Users/dev/project',
+            'exit_code': 0,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
+      await tester.tap(find.byKey(const Key('shell-auto-composer')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('cwd project'), findsOneWidget);
+      expect(find.text('last ok'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-auto-composer-field')),
+        'show files in this directory',
+      );
+      await tester.pump();
+
+      expect(find.text('Auto detected natural language'), findsOneWidget);
+      expect(find.text('ls -la'), findsOneWidget);
+
+      final writeCountBeforeSuggestion = fakeBindings.writes.length;
+      await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes.length, writeCountBeforeSuggestion);
+      expect(
+        find.text('Suggested command inserted. Press Enter to run it.'),
+        findsOneWidget,
+      );
+      final composerField = tester.widget<TextField>(
+        find.byKey(const Key('terminal-auto-composer-field')),
+      );
+      expect(composerField.controller?.text, 'ls -la');
+      expect(find.text('Auto detected command'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes.last, utf8.encode('ls -la\n'));
+      expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
+    },
+  );
+
+  testWidgets('auto composer terminal mode override sends text as a command', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
+    await tester.tap(find.byKey(const Key('shell-auto-composer')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('terminal-auto-composer-field')),
+      'show files',
+    );
+    await tester.pump();
+
+    expect(find.text('Auto detected natural language'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const Key('terminal-auto-composer-mode-terminal')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Terminal command'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes.last, utf8.encode('show files\n'));
+  });
+
+  testWidgets(
+    'command-i opens universal input from the terminal viewport',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyI);
+
+      expect(find.byKey(const Key('terminal-auto-composer')), findsOneWidget);
+      expect(find.text('Auto-detect ready'), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets('auto composer toolbelt adds context slash commands and model', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'pwd',
+          'pwd': '/Users/dev/project',
+          'exit_code': 0,
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
+    await tester.tap(find.byKey(const Key('shell-auto-composer')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Local heuristic'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('terminal-auto-composer-context')));
+    await tester.pumpAndSettle();
+    expect(find.text('@last-command'), findsOneWidget);
+    await tester.tap(find.text('@last-command'));
+    await tester.pumpAndSettle();
+    expect(find.text('@last pwd'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('terminal-auto-composer-slash')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('/git-status'));
+    await tester.pumpAndSettle();
+
+    var composerField = tester.widget<TextField>(
+      find.byKey(const Key('terminal-auto-composer-field')),
+    );
+    expect(composerField.controller?.text, 'git status --short --branch');
+    expect(find.text('Auto detected command'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('terminal-auto-composer-model')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Agent draft'));
+    await tester.pumpAndSettle();
+    expect(find.text('Agent draft'), findsOneWidget);
+
+    composerField = tester.widget<TextField>(
+      find.byKey(const Key('terminal-auto-composer-field')),
+    );
+    expect(composerField.controller?.text, 'git status --short --branch');
+  });
+
+  testWidgets(
+    'auto composer supports mode prefixes and control-c agent exits',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
+      await tester.tap(find.byKey(const Key('shell-auto-composer')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-auto-composer-field')),
+        '* ',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Agent mode'), findsOneWidget);
+      var composerField = tester.widget<TextField>(
+        find.byKey(const Key('terminal-auto-composer-field')),
+      );
+      expect(composerField.controller?.text, isEmpty);
+
+      await tester.tap(
+        find.byKey(const Key('terminal-auto-composer-mode-auto')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-auto-composer-field')),
+        '! ',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Terminal mode'), findsOneWidget);
+      composerField = tester.widget<TextField>(
+        find.byKey(const Key('terminal-auto-composer-field')),
+      );
+      expect(composerField.controller?.text, isEmpty);
+
+      await tester.tap(
+        find.byKey(const Key('terminal-auto-composer-mode-auto')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-auto-composer-field')),
+        '！ ',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Terminal mode'), findsOneWidget);
+      composerField = tester.widget<TextField>(
+        find.byKey(const Key('terminal-auto-composer-field')),
+      );
+      expect(composerField.controller?.text, isEmpty);
+
+      await tester.tap(
+        find.byKey(const Key('terminal-auto-composer-mode-auto')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('terminal-auto-composer-field')),
+        '＊ ',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Agent mode'), findsOneWidget);
+
+      await _sendControlShortcut(
+        tester,
+        LogicalKeyboardKey.keyC,
+        platform: 'macos',
+      );
+
+      expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
+    },
+  );
 
   testWidgets('context chip navigates to the last failed command block', (
     tester,

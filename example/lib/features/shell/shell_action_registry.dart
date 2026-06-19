@@ -661,6 +661,12 @@ class ShellActionRegistry {
       id: TerminalActionId.autoComposer,
       label: 'auto_composer',
       category: TerminalActionCategory.session,
+      shortcutHint: 'cmd+I',
+      defaultKeyBinding: TerminalKeyBinding(
+        scope: TerminalKeyBindingScope.terminalFocused,
+        meta: true,
+        key: LogicalKeyboardKey.keyI,
+      ),
       icon: Icons.edit_note,
       requiresActiveSession: true,
     ),

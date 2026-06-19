@@ -7,6 +7,80 @@ class _ShellShortcut {
   final int? tabIndex;
 }
 
+class _AutoComposerInputState {
+  const _AutoComposerInputState({
+    required this.classification,
+    required this.suggestions,
+  });
+
+  final UniversalInputClassification classification;
+  final List<String> suggestions;
+}
+
+class _UniversalInputToolOption {
+  const _UniversalInputToolOption({
+    required this.id,
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.detail,
+  });
+
+  final String id;
+  final String label;
+  final String value;
+  final IconData icon;
+  final String? detail;
+}
+
+const List<_UniversalInputToolOption> _universalInputSlashCommandOptions = [
+  _UniversalInputToolOption(
+    id: 'git-status',
+    label: '/git-status',
+    value: 'git status --short --branch',
+    icon: Icons.account_tree_rounded,
+    detail: 'Repository state',
+  ),
+  _UniversalInputToolOption(
+    id: 'tests',
+    label: '/tests',
+    value: 'run tests',
+    icon: Icons.fact_check_rounded,
+    detail: 'Suggest a test command',
+  ),
+  _UniversalInputToolOption(
+    id: 'explain',
+    label: '/explain',
+    value: 'explain the last command output',
+    icon: Icons.auto_awesome_rounded,
+    detail: 'Agent prompt',
+  ),
+];
+
+const List<_UniversalInputToolOption> _universalInputModelOptions = [
+  _UniversalInputToolOption(
+    id: 'local',
+    label: 'Local heuristic',
+    value: 'Local heuristic',
+    icon: Icons.memory_rounded,
+    detail: 'Local detection',
+  ),
+  _UniversalInputToolOption(
+    id: 'agent',
+    label: 'Agent draft',
+    value: 'Agent draft',
+    icon: Icons.auto_awesome_rounded,
+    detail: 'Natural-language prompts',
+  ),
+  _UniversalInputToolOption(
+    id: 'shell',
+    label: 'Shell strict',
+    value: 'Shell strict',
+    icon: Icons.terminal_rounded,
+    detail: 'Command-first',
+  ),
+];
+
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
 
 final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepository>((ref) {
