@@ -20,4 +20,6 @@ native/vendor/**/target/
 native/vendor/**/.cargo-ok
 native/vendor/**/.cargo_vcs_info.json
 native/vendor/**/Cargo.toml.orig
+tools/fig_completion_wasm/rust/target/
+tools/fig_completion_wasm/dist/
 .worktrees/

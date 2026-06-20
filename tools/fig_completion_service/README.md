@@ -50,3 +50,7 @@ The current engine intentionally implements a safe subset of Fig semantics:
 static specs, subcommands, options, static argument suggestions, file/folder
 templates, and recent command fallback. Dynamic script/custom generators should
 be added behind explicit timeout, environment, and cache boundaries.
+
+There is also a WASM backend at `tools/fig_completion_wasm`. It keeps the same
+HTTP request/response contract while moving the pure Fig matching core into a
+Rust WebAssembly module and leaving filesystem/`kubectl` providers in the host.
