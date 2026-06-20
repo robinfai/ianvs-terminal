@@ -8,6 +8,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow = "1.0"
+ianvs_fig_completion_wasm = { path = "../../tools/fig_completion_wasm/rust" }
 libc = "0.2"
 parking_lot = "0.12"
 portable-pty = "0.9.0"

@@ -1,13 +1,12 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:app/features/command_center/fig_completion_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 void main() {
   group('FigCompletionService', () {
-    test('decodes sidecar completion suggestions', () {
+    test('decodes native completion suggestions', () {
       final response = FigCompletionResponse.fromJson({
         'items': [
           {
@@ -33,38 +32,21 @@ void main() {
       expect(response.items.single.source, 'fig:git');
     });
 
-    test('posts command input context to the sidecar', () async {
-      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      addTearDown(() => server.close(force: true));
-      final received = <Map<String, Object?>>[];
-      unawaited(() async {
-        await for (final request in server) {
-          final body = await utf8.decoder.bind(request).join();
-          received.add(jsonDecode(body) as Map<String, Object?>);
-          request.response.headers.contentType = ContentType.json;
-          request.response.write(
-            jsonEncode({
-              'items': [
-                {
-                  'name': 'checkout',
-                  'insertText': 'checkout',
-                  'replaceStart': 4,
-                  'replaceEnd': 7,
-                  'type': 'subcommand',
-                },
-              ],
-            }),
-          );
-          await request.response.close();
-        }
-      }());
-
-      final service = FigCompletionService(
-        endpoint: Uri.parse('http://${server.address.host}:${server.port}'),
-        timeout: const Duration(seconds: 1),
-        failureBackoff: Duration.zero,
+    test('passes command input context through native bindings', () async {
+      final bindings = _FakeFigCompletionBindings(
+        responseJson: jsonEncode({
+          'items': [
+            {
+              'name': 'checkout',
+              'insertText': 'checkout',
+              'replaceStart': 4,
+              'replaceEnd': 7,
+              'type': 'subcommand',
+            },
+          ],
+        }),
       );
-      addTearDown(service.close);
+      final service = FigCompletionService(bindings: bindings);
 
       final response = await service.complete(
         const FigCompletionRequest(
@@ -80,30 +62,20 @@ void main() {
 
       expect(response, isNotNull);
       expect(response!.items.single.name, 'checkout');
-      expect(received, hasLength(1));
-      expect(received.single['text'], 'git che');
-      expect(received.single['cursorOffset'], 7);
-      expect(received.single['cwd'], '/repo');
-      expect(received.single['shell'], '/bin/zsh');
-      expect(received.single['sessionId'], 'session-a');
+      expect(bindings.requests, hasLength(1));
+      final received =
+          jsonDecode(bindings.requests.single) as Map<String, Object?>;
+      expect(received['text'], 'git che');
+      expect(received['cursorOffset'], 7);
+      expect(received['cwd'], '/repo');
+      expect(received['shell'], '/bin/zsh');
+      expect(received['sessionId'], 'session-a');
     });
 
-    test('returns null when the sidecar rejects a request', () async {
-      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      addTearDown(() => server.close(force: true));
-      unawaited(() async {
-        await for (final request in server) {
-          request.response.statusCode = HttpStatus.internalServerError;
-          await request.response.close();
-        }
-      }());
-
+    test('returns null when native bindings return invalid JSON', () async {
       final service = FigCompletionService(
-        endpoint: Uri.parse('http://${server.address.host}:${server.port}'),
-        timeout: const Duration(seconds: 1),
-        failureBackoff: Duration.zero,
+        bindings: _FakeFigCompletionBindings(responseJson: '{'),
       );
-      addTearDown(service.close);
 
       final response = await service.complete(
         const FigCompletionRequest(text: 'git che', cursorOffset: 7),
@@ -112,4 +84,17 @@ void main() {
       expect(response, isNull);
     });
   });
+}
+
+class _FakeFigCompletionBindings implements FigCompletionBindings {
+  _FakeFigCompletionBindings({required this.responseJson});
+
+  final String? responseJson;
+  final List<String> requests = <String>[];
+
+  @override
+  String? completeJson(String requestJson) {
+    requests.add(requestJson);
+    return responseJson;
+  }
 }

@@ -437,6 +437,7 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
     required this.hintText,
     required this.suggestions,
     this.suggestionDetails = const <String, CommandDraft>{},
+    this.figSuggestionDetails = const <String, FigCompletionSuggestion>{},
     this.suggestionsLoading = false,
     required this.activeIndex,
     required this.palette,
@@ -467,6 +468,7 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
   final String hintText;
   final List<String> suggestions;
   final Map<String, CommandDraft> suggestionDetails;
+  final Map<String, FigCompletionSuggestion> figSuggestionDetails;
   final bool suggestionsLoading;
   final int activeIndex;
   final AppThemeTokens palette;
@@ -495,38 +497,45 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
     final effectiveActiveIndex = suggestions.isEmpty
         ? -1
         : activeIndex.clamp(0, suggestions.length - 1);
-    final field = Focus(
-      canRequestFocus: false,
-      skipTraversal: true,
-      onKeyEvent: _handleKeyEvent,
-      child: TextField(
-        key: fieldKey,
-        controller: controller,
-        focusNode: focusNode,
-        enabled: enabled,
-        autofocus: autofocus,
-        minLines: 1,
-        maxLines: maxLines,
-        keyboardType: TextInputType.multiline,
-        textInputAction: TextInputAction.newline,
-        style: textStyle,
-        decoration:
-            decoration ??
-            InputDecoration(
-              hintText: hintText,
-              border: InputBorder.none,
-              isDense: true,
-            ),
-        onChanged: _handleChanged,
+    final field = CallbackShortcuts(
+      bindings: {
+        if (suggestions.length > 1) ...{
+          const SingleActivator(LogicalKeyboardKey.arrowUp): onPrevious,
+          const SingleActivator(LogicalKeyboardKey.arrowDown): onNext,
+        },
+      },
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onKeyEvent: _handleKeyEvent,
+        child: TextField(
+          key: fieldKey,
+          controller: controller,
+          focusNode: focusNode,
+          enabled: enabled,
+          autofocus: autofocus,
+          minLines: 1,
+          maxLines: maxLines,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
+          style: textStyle,
+          decoration:
+              decoration ??
+              InputDecoration(
+                hintText: hintText,
+                border: InputBorder.none,
+                isDense: true,
+              ),
+          onChanged: _handleChanged,
+        ),
       ),
     );
     final semanticField = semanticLabel == null
         ? field
         : Semantics(
             container: true,
-            enabled: enabled,
+            explicitChildNodes: true,
             label: semanticLabel,
-            textField: true,
             child: field,
           );
     final constrainedField = maxHeight == null
@@ -541,15 +550,24 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
                 _UniversalInputSuggestionPresentation.plain
         ? Flexible(fit: FlexFit.loose, child: constrainedField)
         : constrainedField;
+    final visibleSuggestionCount = suggestions.isEmpty
+        ? 0
+        : math.min(suggestions.length, suggestionLimit);
+    final firstVisibleSuggestionIndex = visibleSuggestionCount == 0
+        ? 0
+        : (effectiveActiveIndex - visibleSuggestionCount + 1)
+              .clamp(0, suggestions.length - visibleSuggestionCount)
+              .toInt();
     final suggestionWidgets = <Widget>[
       for (
-        var index = 0;
-        index < suggestions.length && index < suggestionLimit;
+        var index = firstVisibleSuggestionIndex;
+        index < firstVisibleSuggestionIndex + visibleSuggestionCount;
         index++
       )
         _AutoComposerSuggestionTile(
           suggestion: suggestions[index],
           draft: suggestionDetails[suggestions[index]],
+          figSuggestion: figSuggestionDetails[suggestions[index]],
           active: index == effectiveActiveIndex,
           palette: palette,
           keyPrefix: suggestionKeyPrefix,
@@ -1493,6 +1511,7 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
   const _AutoComposerSuggestionTile({
     required this.suggestion,
     this.draft,
+    this.figSuggestion,
     required this.active,
     required this.palette,
     required this.onTap,
@@ -1502,6 +1521,7 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
 
   final String suggestion;
   final CommandDraft? draft;
+  final FigCompletionSuggestion? figSuggestion;
   final bool active;
   final AppThemeTokens palette;
   final VoidCallback onTap;
@@ -1510,10 +1530,16 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDangerous = figSuggestion?.isDangerous == true;
+    final semanticsLabel = isDangerous
+        ? '$suggestion, dangerous command'
+        : suggestion;
     switch (presentation) {
       case _UniversalInputSuggestionPresentation.commandInputPanel:
         return _CommandInputSuggestionTile(
           suggestion: suggestion,
+          isDangerous: isDangerous,
+          semanticsLabel: semanticsLabel,
           active: active,
           palette: palette,
           keyPrefix: keyPrefix,
@@ -1524,7 +1550,7 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
     }
     return Semantics(
       key: Key('$keyPrefix-suggestion-$suggestion'),
-      label: suggestion,
+      label: semanticsLabel,
       button: true,
       selected: active,
       onTap: onTap,
@@ -1543,11 +1569,17 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(
-                      active
+                      isDangerous
+                          ? Icons.warning_amber_rounded
+                          : active
                           ? Icons.keyboard_return_rounded
                           : Icons.subdirectory_arrow_right_rounded,
                       size: 15,
-                      color: active ? palette.accent : palette.textSubtle,
+                      color: isDangerous
+                          ? palette.danger
+                          : active
+                          ? palette.accent
+                          : palette.textSubtle,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -1595,6 +1627,8 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
 class _CommandInputSuggestionTile extends StatelessWidget {
   const _CommandInputSuggestionTile({
     required this.suggestion,
+    required this.isDangerous,
+    required this.semanticsLabel,
     required this.active,
     required this.palette,
     required this.keyPrefix,
@@ -1602,6 +1636,8 @@ class _CommandInputSuggestionTile extends StatelessWidget {
   });
 
   final String suggestion;
+  final bool isDangerous;
+  final String semanticsLabel;
   final bool active;
   final AppThemeTokens palette;
   final String keyPrefix;
@@ -1612,13 +1648,17 @@ class _CommandInputSuggestionTile extends StatelessWidget {
     final rowHeight = palette.controls.regular + palette.spacing.lg;
     final iconBoxSize = palette.controls.dense - palette.spacing.xs;
     final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: active ? palette.textPrimary : palette.textMuted,
+      color: isDangerous
+          ? palette.danger
+          : active
+          ? palette.textPrimary
+          : palette.textMuted,
       fontFamily: 'monospace',
       fontWeight: active ? FontWeight.w700 : FontWeight.w600,
     );
     return Semantics(
       key: Key('$keyPrefix-suggestion-$suggestion'),
-      label: suggestion,
+      label: semanticsLabel,
       button: true,
       selected: active,
       onTap: onTap,
@@ -1656,11 +1696,17 @@ class _CommandInputSuggestionTile extends StatelessWidget {
                   child: SizedBox.square(
                     dimension: iconBoxSize,
                     child: Icon(
-                      active
+                      isDangerous
+                          ? Icons.warning_amber_rounded
+                          : active
                           ? Icons.keyboard_return_rounded
                           : Icons.terminal_rounded,
                       size: 16,
-                      color: active ? palette.accent : palette.textSubtle,
+                      color: isDangerous
+                          ? palette.danger
+                          : active
+                          ? palette.accent
+                          : palette.textSubtle,
                     ),
                   ),
                 ),

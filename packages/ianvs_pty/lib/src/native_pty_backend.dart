@@ -33,6 +33,8 @@ typedef _RequestSessionNative =
     ffi.Pointer<Utf8> Function(ffi.Uint64, ffi.Pointer<Utf8>);
 typedef _RequestSessionDart =
     ffi.Pointer<Utf8> Function(int, ffi.Pointer<Utf8>);
+typedef _FigCompleteNative = ffi.Pointer<Utf8> Function(ffi.Pointer<Utf8>);
+typedef _FigCompleteDart = ffi.Pointer<Utf8> Function(ffi.Pointer<Utf8>);
 typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
 typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
@@ -158,6 +160,48 @@ abstract class PtyBindings {
   String? sessionDiagnosticsJson(int sessionId, String kind);
   String? sessionTakeFrameDiffJson(int sessionId);
   List<PtyEvent> sessionPollEvents(int sessionId);
+}
+
+abstract class FigCompletionBindings {
+  String? completeJson(String requestJson);
+}
+
+class NativeFigCompletionBindings implements FigCompletionBindings {
+  NativeFigCompletionBindings(ffi.DynamicLibrary library)
+    : _completeJson = library
+          .lookupFunction<_FigCompleteNative, _FigCompleteDart>(
+            'ianvs_fig_complete_json',
+          ),
+      _stringFree = library.lookupFunction<_FreeStringNative, _FreeStringDart>(
+        'ianvs_string_free',
+      );
+
+  final _FigCompleteDart _completeJson;
+  final _FreeStringDart _stringFree;
+
+  factory NativeFigCompletionBindings.load() {
+    return NativeFigCompletionBindings(
+      ffi.DynamicLibrary.open(_resolveLibraryPath()),
+    );
+  }
+
+  @override
+  String? completeJson(String requestJson) {
+    final requestPointer = requestJson.toNativeUtf8();
+    ffi.Pointer<Utf8> resultPointer = ffi.nullptr;
+    try {
+      resultPointer = _completeJson(requestPointer);
+      if (resultPointer == ffi.nullptr) {
+        return null;
+      }
+      return resultPointer.toDartString();
+    } finally {
+      malloc.free(requestPointer);
+      if (resultPointer != ffi.nullptr) {
+        _stringFree(resultPointer);
+      }
+    }
+  }
 }
 
 class NativePtyBindings implements PtyBindings {

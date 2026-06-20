@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
 
@@ -220,6 +221,48 @@ void main() {
         ? 'libianvs_core.dylib is unavailable for this test run.'
         : false,
   );
+
+  test(
+    'native fig completion bindings can bridge to the real Rust core',
+    () {
+      final libraryPath = _workspaceCoreLibraryPath!;
+      final bindings = NativeFigCompletionBindings(
+        ffi.DynamicLibrary.open(libraryPath),
+      );
+
+      final response = bindings.completeJson(
+        '{"text":"git che","cursorOffset":7}',
+      );
+      final lsResponse = bindings.completeJson(
+        jsonEncode({
+          'text': 'ls ./',
+          'cursorOffset': 5,
+          'cwd': Directory.current.path,
+        }),
+      );
+      final kubectlResponse = bindings.completeJson(
+        '{"text":"kubectl get ","cursorOffset":12}',
+      );
+
+      expect(File(libraryPath).existsSync(), isTrue);
+      expect(response, contains('"checkout"'));
+      expect(response, contains('"cherry-pick"'));
+      expect(_completionItemNames(lsResponse), contains('./packages/'));
+      expect(_completionItemNames(kubectlResponse), contains('pods'));
+    },
+    skip: _workspaceCoreLibraryPath == null
+        ? 'libianvs_core.dylib is unavailable for this test run.'
+        : false,
+  );
+}
+
+List<String> _completionItemNames(String? responseJson) {
+  final response = jsonDecode(responseJson!) as Map<String, Object?>;
+  final items = response['items'] as List<Object?>;
+  return [
+    for (final item in items.cast<Map<String, Object?>>())
+      item['name'] as String,
+  ];
 }
 
 String? _resolveWorkspaceCoreLibraryPath() {

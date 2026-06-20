@@ -1309,6 +1309,9 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     UniversalInputClassification classification,
   ) {
     if (classification.isNaturalLanguage || text.trimRight().isEmpty) {
+      _figCompletionDebounceTimer?.cancel();
+      _figCompletionRequestSerial += 1;
+      _pendingFigCompletionRequestsBySession.remove(sessionId);
       _mutateState(() {
         _figCompletionSuggestionsBySession.remove(sessionId);
         _figCompletionTextBySession[sessionId] = text;
@@ -1322,40 +1325,96 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       return;
     }
 
+    _figCompletionDebounceTimer?.cancel();
+    final requestSerial = ++_figCompletionRequestSerial;
+    if (_figCompletionInFlightSessionIds.contains(sessionId)) {
+      _pendingFigCompletionRequestsBySession[sessionId] =
+          _PendingFigCompletionRequest(
+            text: text,
+            requestSerial: requestSerial,
+          );
+      _mutateState(() {
+        _figCompletionSuggestionsBySession.remove(sessionId);
+        _figCompletionTextBySession[sessionId] = text;
+        _figCompletionLoadingSessionIds.add(sessionId);
+      });
+      return;
+    }
+    _mutateState(() {
+      _figCompletionSuggestionsBySession.remove(sessionId);
+      _figCompletionTextBySession[sessionId] = text;
+      _figCompletionLoadingSessionIds.remove(sessionId);
+    });
+    _figCompletionDebounceTimer = Timer(
+      _ShellScreenState._figCompletionDebounce,
+      () {
+        _requestFigCompletions(sessionId, text, requestSerial);
+      },
+    );
+  }
+
+  void _requestFigCompletions(
+    String sessionId,
+    String text,
+    int requestSerial,
+  ) {
+    if (!mounted || requestSerial != _figCompletionRequestSerial) {
+      return;
+    }
+    if (_commandInputControllers[sessionId]?.text != text) {
+      return;
+    }
     final state = ref.read(sessionControllerProvider);
     final pane = _paneForSession(state, sessionId);
     final profile = pane == null ? null : _profileForPane(pane, state.profiles);
     final controller = _commandInputControllers[sessionId];
     final cursorOffset = _commandInputCursorOffset(controller, text);
-    final requestSerial = ++_figCompletionRequestSerial;
+    _figCompletionInFlightSessionIds.add(sessionId);
     _mutateState(() {
       _figCompletionSuggestionsBySession.remove(sessionId);
       _figCompletionTextBySession[sessionId] = text;
       _figCompletionLoadingSessionIds.add(sessionId);
     });
     unawaited(() async {
-      final response = await _figCompletionService.complete(
-        FigCompletionRequest(
-          text: text,
-          cursorOffset: cursorOffset,
-          cwd: pane?.shellIntegration.currentDirectory,
-          shell: profile?.shell,
-          sessionId: sessionId,
-          environmentVariables: profile?.env ?? const <String, String>{},
-          recentCommands: pane?.shellIntegration.recentCommands ?? const [],
-        ),
-      );
-      if (!mounted ||
-          requestSerial != _figCompletionRequestSerial ||
-          _commandInputControllers[sessionId]?.text != text) {
-        return;
+      try {
+        final response = await _figCompletionService.complete(
+          FigCompletionRequest(
+            text: text,
+            cursorOffset: cursorOffset,
+            cwd: pane?.shellIntegration.currentDirectory,
+            shell: profile?.shell,
+            sessionId: sessionId,
+            environmentVariables: profile?.env ?? const <String, String>{},
+            recentCommands: pane?.shellIntegration.recentCommands ?? const [],
+          ),
+        );
+        if (!mounted ||
+            requestSerial != _figCompletionRequestSerial ||
+            _commandInputControllers[sessionId]?.text != text) {
+          return;
+        }
+        _mutateState(() {
+          _figCompletionSuggestionsBySession[sessionId] =
+              response?.items ?? const <FigCompletionSuggestion>[];
+          _figCompletionTextBySession[sessionId] = text;
+          _figCompletionLoadingSessionIds.remove(sessionId);
+        });
+      } finally {
+        _figCompletionInFlightSessionIds.remove(sessionId);
+        final pending = _pendingFigCompletionRequestsBySession.remove(
+          sessionId,
+        );
+        if (mounted &&
+            pending != null &&
+            pending.requestSerial == _figCompletionRequestSerial &&
+            _commandInputControllers[sessionId]?.text == pending.text) {
+          _requestFigCompletions(
+            sessionId,
+            pending.text,
+            pending.requestSerial,
+          );
+        }
       }
-      _mutateState(() {
-        _figCompletionSuggestionsBySession[sessionId] =
-            response?.items ?? const <FigCompletionSuggestion>[];
-        _figCompletionTextBySession[sessionId] = text;
-        _figCompletionLoadingSessionIds.remove(sessionId);
-      });
     }());
   }
 
@@ -1580,11 +1639,15 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     final suggestions =
         _figCompletionSuggestionsBySession[sessionId] ??
         const <FigCompletionSuggestion>[];
-    return {
-      for (final suggestion in suggestions)
-        if (suggestion.replacementText.trim().isNotEmpty)
-          suggestion.replacementText: suggestion,
-    };
+    final details = <String, FigCompletionSuggestion>{};
+    for (final suggestion in suggestions) {
+      final replacementText = suggestion.replacementText;
+      if (replacementText.trim().isEmpty) {
+        continue;
+      }
+      details.putIfAbsent(replacementText, () => suggestion);
+    }
+    return details;
   }
 
   String _autoComposerPrefixForText(String text) {
@@ -1862,4 +1925,14 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     return marks.first;
   }
+}
+
+class _PendingFigCompletionRequest {
+  const _PendingFigCompletionRequest({
+    required this.text,
+    required this.requestSerial,
+  });
+
+  final String text;
+  final int requestSerial;
 }

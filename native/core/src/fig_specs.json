@@ -1,0 +1,2524 @@
+[
+  {
+    "name": "cd",
+    "description": "Change directory",
+    "args": {
+      "name": "directory",
+      "template": "folders"
+    }
+  },
+  {
+    "name": "ls",
+    "description": "List directory contents",
+    "options": [
+      {
+        "name": [
+          "-a",
+          "--all"
+        ],
+        "description": "Show hidden entries"
+      },
+      {
+        "name": [
+          "-l"
+        ],
+        "description": "Use long listing format"
+      },
+      {
+        "name": [
+          "-h",
+          "--human-readable"
+        ],
+        "description": "Human sizes"
+      },
+      {
+        "name": [
+          "-R",
+          "--recursive"
+        ],
+        "description": "List recursively"
+      }
+    ],
+    "args": {
+      "name": "path",
+      "template": [
+        "filepaths",
+        "folders"
+      ],
+      "isVariadic": true
+    }
+  },
+  {
+    "name": "cat",
+    "description": "Print files",
+    "options": [
+      {
+        "name": [
+          "-n",
+          "--number"
+        ],
+        "description": "Number output lines"
+      },
+      {
+        "name": [
+          "-b",
+          "--number-nonblank"
+        ],
+        "description": "Number non-empty lines"
+      }
+    ],
+    "args": {
+      "name": "file",
+      "template": "files",
+      "isVariadic": true
+    }
+  },
+  {
+    "name": "git",
+    "description": "Distributed version control",
+    "options": [
+      {
+        "name": [
+          "-C"
+        ],
+        "description": "Run as if git was started in path",
+        "args": {
+          "template": "folders"
+        }
+      },
+      {
+        "name": [
+          "--help"
+        ],
+        "description": "Show help"
+      },
+      {
+        "name": [
+          "--version"
+        ],
+        "description": "Show version"
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "add",
+        "description": "Add file contents to the index",
+        "options": [
+          {
+            "name": [
+              "-A",
+              "--all"
+            ],
+            "description": "Add all changes"
+          },
+          {
+            "name": [
+              "-p",
+              "--patch"
+            ],
+            "description": "Interactively choose hunks"
+          }
+        ],
+        "args": {
+          "name": "pathspec",
+          "template": "filepaths",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": [
+          "checkout",
+          "co"
+        ],
+        "description": "Switch branches or restore files",
+        "options": [
+          {
+            "name": [
+              "-b"
+            ],
+            "description": "Create and checkout a new branch"
+          },
+          {
+            "name": [
+              "--detach"
+            ],
+            "description": "Detach HEAD"
+          },
+          {
+            "name": [
+              "--track"
+            ],
+            "description": "Set up upstream tracking"
+          }
+        ],
+        "args": {
+          "name": "branch",
+          "suggestions": [
+            "main",
+            "master",
+            "develop",
+            "HEAD"
+          ]
+        }
+      },
+      {
+        "name": "cherry-pick",
+        "description": "Apply changes introduced by commits",
+        "options": [
+          {
+            "name": [
+              "--continue"
+            ],
+            "description": "Continue after resolving conflicts"
+          },
+          {
+            "name": [
+              "--abort"
+            ],
+            "description": "Cancel the operation"
+          },
+          {
+            "name": [
+              "-n",
+              "--no-commit"
+            ],
+            "description": "Do not automatically commit"
+          }
+        ]
+      },
+      {
+        "name": "commit",
+        "description": "Record changes to the repository",
+        "options": [
+          {
+            "name": [
+              "-m",
+              "--message"
+            ],
+            "description": "Use the given commit message",
+            "args": {
+              "name": "message"
+            }
+          },
+          {
+            "name": [
+              "--amend"
+            ],
+            "description": "Amend the previous commit"
+          },
+          {
+            "name": [
+              "--no-edit"
+            ],
+            "description": "Reuse the selected commit message"
+          },
+          {
+            "name": [
+              "-s",
+              "--signoff"
+            ],
+            "description": "Add Signed-off-by trailer"
+          }
+        ]
+      },
+      {
+        "name": "diff",
+        "description": "Show changes",
+        "options": [
+          {
+            "name": [
+              "--cached",
+              "--staged"
+            ],
+            "description": "Compare staged changes"
+          },
+          {
+            "name": [
+              "--stat"
+            ],
+            "description": "Generate a diffstat"
+          },
+          {
+            "name": [
+              "--name-only"
+            ],
+            "description": "Show only changed names"
+          }
+        ],
+        "args": {
+          "name": "path",
+          "template": "filepaths",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": "log",
+        "description": "Show commit logs",
+        "options": [
+          {
+            "name": [
+              "--oneline"
+            ],
+            "description": "Show one commit per line"
+          },
+          {
+            "name": [
+              "--graph"
+            ],
+            "description": "Draw commit graph"
+          },
+          {
+            "name": [
+              "--decorate"
+            ],
+            "description": "Print ref names"
+          }
+        ]
+      },
+      {
+        "name": "push",
+        "description": "Update remote refs",
+        "options": [
+          {
+            "name": [
+              "-u",
+              "--set-upstream"
+            ],
+            "description": "Set upstream for git pull/status"
+          },
+          {
+            "name": [
+              "--force-with-lease"
+            ],
+            "description": "Force safely if remote did not move",
+            "isDangerous": true
+          },
+          {
+            "name": [
+              "--tags"
+            ],
+            "description": "Push tags"
+          }
+        ]
+      },
+      {
+        "name": "pull",
+        "description": "Fetch from and integrate with another repository"
+      },
+      {
+        "name": "status",
+        "description": "Show working tree status"
+      },
+      {
+        "name": "switch",
+        "description": "Switch branches",
+        "args": {
+          "suggestions": [
+            "main",
+            "master",
+            "develop"
+          ]
+        }
+      },
+      {
+        "name": "restore",
+        "description": "Restore working tree files",
+        "args": {
+          "template": "filepaths"
+        }
+      },
+      {
+        "name": "stash",
+        "description": "Stash local changes"
+      },
+      {
+        "name": "branch",
+        "description": "List, create, or delete branches"
+      }
+    ]
+  },
+  {
+    "name": "flutter",
+    "description": "Flutter command-line tool",
+    "options": [
+      {
+        "name": [
+          "--version"
+        ],
+        "description": "Show Flutter version"
+      },
+      {
+        "name": [
+          "-v",
+          "--verbose"
+        ],
+        "description": "Verbose logging"
+      },
+      {
+        "name": [
+          "--suppress-analytics"
+        ],
+        "description": "Suppress analytics for this run"
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "test",
+        "description": "Run Flutter tests",
+        "options": [
+          {
+            "name": [
+              "--plain-name"
+            ],
+            "description": "Run tests matching a name"
+          },
+          {
+            "name": [
+              "--coverage"
+            ],
+            "description": "Collect coverage"
+          },
+          {
+            "name": [
+              "-d",
+              "--device-id"
+            ],
+            "description": "Target device id",
+            "args": {
+              "suggestions": [
+                "macos",
+                "chrome"
+              ]
+            }
+          }
+        ],
+        "args": {
+          "template": "filepaths",
+          "isOptional": true
+        }
+      },
+      {
+        "name": "analyze",
+        "description": "Analyze project Dart code"
+      },
+      {
+        "name": "doctor",
+        "description": "Show Flutter installation status"
+      },
+      {
+        "name": "devices",
+        "description": "List connected devices"
+      },
+      {
+        "name": "run",
+        "description": "Run the app",
+        "options": [
+          {
+            "name": [
+              "-d",
+              "--device-id"
+            ],
+            "description": "Target device id",
+            "args": {
+              "suggestions": [
+                "macos",
+                "chrome"
+              ]
+            }
+          },
+          {
+            "name": [
+              "--dart-define"
+            ],
+            "description": "Define a compile-time variable"
+          }
+        ]
+      },
+      {
+        "name": "pub",
+        "description": "Work with packages",
+        "subcommands": [
+          {
+            "name": "add",
+            "description": "Add dependencies",
+            "args": {
+              "name": "package"
+            }
+          },
+          {
+            "name": "get",
+            "description": "Get packages"
+          },
+          {
+            "name": "upgrade",
+            "description": "Upgrade packages"
+          },
+          {
+            "name": "run",
+            "description": "Run an executable from a package"
+          }
+        ]
+      },
+      {
+        "name": "build",
+        "description": "Build an executable app"
+      }
+    ]
+  },
+  {
+    "name": "dart",
+    "description": "Dart command-line tool",
+    "subcommands": [
+      {
+        "name": "analyze",
+        "description": "Analyze Dart code"
+      },
+      {
+        "name": "format",
+        "description": "Format Dart code",
+        "args": {
+          "template": "filepaths",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": "test",
+        "description": "Run tests",
+        "args": {
+          "template": "filepaths",
+          "isOptional": true
+        }
+      },
+      {
+        "name": "run",
+        "description": "Run a Dart program"
+      },
+      {
+        "name": "pub",
+        "description": "Work with packages",
+        "subcommands": [
+          {
+            "name": "add",
+            "description": "Add dependencies"
+          },
+          {
+            "name": "get",
+            "description": "Get packages"
+          },
+          {
+            "name": "upgrade",
+            "description": "Upgrade dependencies"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": [
+      "kubectl",
+      "k"
+    ],
+    "description": "Kubernetes command-line tool",
+    "options": [
+      {
+        "name": [
+          "-n",
+          "--namespace"
+        ],
+        "description": "Target namespace",
+        "args": {
+          "name": "namespace",
+          "template": "kubeNamespaces"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--context"
+        ],
+        "description": "Target kubeconfig context",
+        "args": {
+          "name": "context",
+          "template": "kubeContexts"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--kubeconfig"
+        ],
+        "description": "Path to the kubeconfig file",
+        "args": {
+          "name": "file",
+          "template": "files"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "-A",
+          "--all-namespaces"
+        ],
+        "description": "List resources across all namespaces",
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "-o",
+          "--output"
+        ],
+        "description": "Output format",
+        "args": {
+          "name": "format",
+          "suggestions": [
+            "wide",
+            "yaml",
+            "json",
+            "name",
+            "jsonpath="
+          ]
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--help"
+        ],
+        "description": "Show help",
+        "isPersistent": true
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "get",
+        "description": "Display one or many resources",
+        "options": [
+          {
+            "name": [
+              "--watch",
+              "-w"
+            ],
+            "description": "Watch changes"
+          },
+          {
+            "name": [
+              "--show-labels"
+            ],
+            "description": "Show labels as columns"
+          },
+          {
+            "name": [
+              "--selector",
+              "-l"
+            ],
+            "description": "Filter by label selector",
+            "args": {
+              "name": "selector"
+            }
+          }
+        ],
+        "args": [
+          {
+            "name": "resource",
+            "template": "kubeResourceTypes"
+          },
+          {
+            "name": "name",
+            "template": "kubeResourceNames",
+            "isOptional": true,
+            "isVariadic": true
+          }
+        ]
+      },
+      {
+        "name": "describe",
+        "description": "Show details of a resource",
+        "args": [
+          {
+            "name": "resource",
+            "template": "kubeResourceTypes"
+          },
+          {
+            "name": "name",
+            "template": "kubeResourceNames",
+            "isOptional": true,
+            "isVariadic": true
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "description": "Delete resources",
+        "isDangerous": true,
+        "options": [
+          {
+            "name": [
+              "--dry-run"
+            ],
+            "description": "Preview the delete request"
+          },
+          {
+            "name": [
+              "--force"
+            ],
+            "description": "Force immediate deletion",
+            "isDangerous": true
+          }
+        ],
+        "args": [
+          {
+            "name": "resource",
+            "template": "kubeResourceTypes"
+          },
+          {
+            "name": "name",
+            "template": "kubeResourceNames",
+            "isOptional": true,
+            "isVariadic": true
+          }
+        ]
+      },
+      {
+        "name": "logs",
+        "description": "Print pod logs",
+        "options": [
+          {
+            "name": [
+              "-f",
+              "--follow"
+            ],
+            "description": "Follow log output"
+          },
+          {
+            "name": [
+              "--previous",
+              "-p"
+            ],
+            "description": "Print logs from the previous container"
+          },
+          {
+            "name": [
+              "--tail"
+            ],
+            "description": "Number of recent lines to show",
+            "args": {
+              "name": "lines"
+            }
+          }
+        ],
+        "args": {
+          "name": "pod",
+          "template": "kubePodNames"
+        }
+      },
+      {
+        "name": "exec",
+        "description": "Execute a command in a container",
+        "options": [
+          {
+            "name": [
+              "-it"
+            ],
+            "description": "Use stdin and a TTY"
+          },
+          {
+            "name": [
+              "--container",
+              "-c"
+            ],
+            "description": "Container name",
+            "args": {
+              "name": "container"
+            }
+          }
+        ],
+        "args": {
+          "name": "pod",
+          "template": "kubePodNames"
+        }
+      },
+      {
+        "name": "apply",
+        "description": "Apply a configuration to a resource",
+        "options": [
+          {
+            "name": [
+              "-f",
+              "--filename"
+            ],
+            "description": "File, directory, or URL",
+            "args": {
+              "template": [
+                "filepaths",
+                "folders"
+              ]
+            }
+          },
+          {
+            "name": [
+              "--server-side"
+            ],
+            "description": "Use server-side apply"
+          },
+          {
+            "name": [
+              "--dry-run"
+            ],
+            "description": "Preview the apply request"
+          }
+        ],
+        "args": {
+          "name": "file",
+          "template": [
+            "filepaths",
+            "folders"
+          ],
+          "isOptional": true
+        }
+      },
+      {
+        "name": "create",
+        "description": "Create resources",
+        "subcommands": [
+          {
+            "name": "deployment",
+            "description": "Create a deployment",
+            "args": {
+              "name": "name"
+            }
+          },
+          {
+            "name": "service",
+            "description": "Create a service"
+          },
+          {
+            "name": "namespace",
+            "description": "Create a namespace",
+            "args": {
+              "name": "name"
+            }
+          },
+          {
+            "name": "configmap",
+            "description": "Create a config map",
+            "args": {
+              "name": "name"
+            }
+          },
+          {
+            "name": "secret",
+            "description": "Create a secret"
+          }
+        ]
+      },
+      {
+        "name": "config",
+        "description": "Modify kubeconfig files",
+        "subcommands": [
+          {
+            "name": "get-contexts",
+            "description": "Display contexts"
+          },
+          {
+            "name": "current-context",
+            "description": "Display the current context"
+          },
+          {
+            "name": "use-context",
+            "description": "Set the current context",
+            "args": {
+              "name": "context",
+              "template": "kubeContexts"
+            }
+          },
+          {
+            "name": "set-context",
+            "description": "Set a context entry",
+            "args": {
+              "name": "context",
+              "template": "kubeContexts"
+            }
+          }
+        ]
+      },
+      {
+        "name": "rollout",
+        "description": "Manage rollout state",
+        "subcommands": [
+          {
+            "name": "status",
+            "description": "Show rollout status",
+            "args": {
+              "name": "resource",
+              "suggestions": [
+                "deployment",
+                "daemonset",
+                "statefulset"
+              ]
+            }
+          },
+          {
+            "name": "restart",
+            "description": "Restart a resource",
+            "args": {
+              "name": "resource",
+              "suggestions": [
+                "deployment",
+                "daemonset",
+                "statefulset"
+              ]
+            }
+          },
+          {
+            "name": "history",
+            "description": "View rollout history",
+            "args": {
+              "name": "resource",
+              "suggestions": [
+                "deployment",
+                "daemonset",
+                "statefulset"
+              ]
+            }
+          },
+          {
+            "name": "undo",
+            "description": "Undo a rollout",
+            "args": {
+              "name": "resource",
+              "suggestions": [
+                "deployment",
+                "daemonset",
+                "statefulset"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "scale",
+        "description": "Set a new size for resources",
+        "args": [
+          {
+            "name": "resource",
+            "template": "kubeResourceTypes"
+          },
+          {
+            "name": "name",
+            "template": "kubeResourceNames",
+            "isOptional": true
+          }
+        ]
+      },
+      {
+        "name": "port-forward",
+        "description": "Forward local ports to a pod",
+        "args": {
+          "name": "pod",
+          "template": "kubePodNames"
+        }
+      },
+      {
+        "name": "top",
+        "description": "Display resource usage",
+        "subcommands": [
+          {
+            "name": "pod",
+            "description": "Display pod usage"
+          },
+          {
+            "name": "node",
+            "description": "Display node usage"
+          }
+        ]
+      },
+      {
+        "name": "explain",
+        "description": "Get documentation for a resource",
+        "args": {
+          "name": "resource",
+          "template": "kubeResourceTypes"
+        }
+      },
+      {
+        "name": "api-resources",
+        "description": "Print supported API resources"
+      },
+      {
+        "name": "cluster-info",
+        "description": "Display cluster information"
+      },
+      {
+        "name": "version",
+        "description": "Print client and server version"
+      }
+    ]
+  },
+  {
+    "name": "npm",
+    "description": "Node package manager",
+    "subcommands": [
+      {
+        "name": "install",
+        "description": "Install packages",
+        "args": {
+          "name": "package",
+          "isVariadic": true
+        }
+      },
+    {
+      "name": "run",
+      "description": "Run a package script",
+      "args": {
+        "template": "packageScripts",
+        "suggestions": [
+          "dev",
+          "build",
+            "test",
+            "lint",
+            "start"
+          ]
+        }
+      },
+      {
+        "name": "test",
+        "description": "Run package tests"
+      },
+      {
+        "name": "start",
+        "description": "Start package"
+      },
+      {
+        "name": "exec",
+        "description": "Run a package binary"
+      },
+      {
+        "name": "update",
+        "description": "Update packages"
+      }
+    ],
+    "options": [
+      {
+        "name": [
+          "--workspace"
+        ],
+        "description": "Run in a workspace"
+      },
+      {
+        "name": [
+          "--prefix"
+        ],
+        "description": "Run command in path",
+        "args": {
+          "template": "folders"
+        }
+      },
+      {
+        "name": [
+          "--global",
+          "-g"
+        ],
+        "description": "Use global mode"
+      }
+    ]
+  },
+  {
+    "name": "docker",
+    "description": "Docker command-line tool",
+    "options": [
+      {
+        "name": [
+          "--help"
+        ],
+        "description": "Show help"
+      },
+      {
+        "name": [
+          "--version"
+        ],
+        "description": "Show Docker version"
+      },
+      {
+        "name": [
+          "--context"
+        ],
+        "description": "Use a Docker context",
+        "args": {
+          "name": "context"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "-H",
+          "--host"
+        ],
+        "description": "Daemon socket to connect to",
+        "args": {
+          "name": "host"
+        },
+        "isPersistent": true
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "build",
+        "description": "Build an image from a Dockerfile",
+        "options": [
+          {
+            "name": [
+              "-t",
+              "--tag"
+            ],
+            "description": "Name and optionally tag the image",
+            "args": {
+              "name": "name"
+            }
+          },
+          {
+            "name": [
+              "-f",
+              "--file"
+            ],
+            "description": "Path to Dockerfile",
+            "args": {
+              "template": "files"
+            }
+          },
+          {
+            "name": [
+              "--pull"
+            ],
+            "description": "Always attempt to pull a newer base image"
+          },
+          {
+            "name": [
+              "--no-cache"
+            ],
+            "description": "Do not use cache when building"
+          }
+        ],
+        "args": {
+          "name": "context",
+          "template": "folders",
+          "isOptional": true
+        }
+      },
+      {
+        "name": "run",
+        "description": "Run a command in a new container",
+        "options": [
+          {
+            "name": [
+              "--rm"
+            ],
+            "description": "Remove container when it exits"
+          },
+          {
+            "name": [
+              "-i",
+              "--interactive"
+            ],
+            "description": "Keep STDIN open"
+          },
+          {
+            "name": [
+              "-t",
+              "--tty"
+            ],
+            "description": "Allocate a pseudo-TTY"
+          },
+          {
+            "name": [
+              "-d",
+              "--detach"
+            ],
+            "description": "Run container in background"
+          },
+          {
+            "name": [
+              "-p",
+              "--publish"
+            ],
+            "description": "Publish container port",
+            "args": {
+              "name": "port"
+            }
+          },
+          {
+            "name": [
+              "-v",
+              "--volume"
+            ],
+            "description": "Bind mount a volume",
+            "args": {
+              "name": "volume",
+              "template": "filepaths"
+            }
+          },
+          {
+            "name": [
+              "--name"
+            ],
+            "description": "Assign a container name",
+            "args": {
+              "name": "name"
+            }
+          },
+          {
+            "name": [
+              "-e",
+              "--env"
+            ],
+            "description": "Set environment variables",
+            "args": {
+              "name": "env"
+            }
+          }
+        ],
+        "args": {
+          "name": "image"
+        }
+      },
+      {
+        "name": "ps",
+        "description": "List containers",
+        "options": [
+          {
+            "name": [
+              "-a",
+              "--all"
+            ],
+            "description": "Show all containers"
+          },
+          {
+            "name": [
+              "-q",
+              "--quiet"
+            ],
+            "description": "Only display IDs"
+          }
+        ]
+      },
+      {
+        "name": "images",
+        "description": "List images",
+        "options": [
+          {
+            "name": [
+              "-a",
+              "--all"
+            ],
+            "description": "Show all images"
+          },
+          {
+            "name": [
+              "-q",
+              "--quiet"
+            ],
+            "description": "Only display IDs"
+          }
+        ]
+      },
+      {
+        "name": "pull",
+        "description": "Pull an image from a registry",
+        "args": {
+          "name": "image"
+        }
+      },
+      {
+        "name": "push",
+        "description": "Push an image to a registry",
+        "args": {
+          "name": "image"
+        }
+      },
+      {
+        "name": "exec",
+        "description": "Run a command in a running container",
+        "options": [
+          {
+            "name": [
+              "-i",
+              "--interactive"
+            ],
+            "description": "Keep STDIN open"
+          },
+          {
+            "name": [
+              "-t",
+              "--tty"
+            ],
+            "description": "Allocate a pseudo-TTY"
+          }
+        ],
+        "args": {
+          "name": "container"
+        }
+      },
+      {
+        "name": "logs",
+        "description": "Fetch logs from a container",
+        "options": [
+          {
+            "name": [
+              "-f",
+              "--follow"
+            ],
+            "description": "Follow log output"
+          },
+          {
+            "name": [
+              "--tail"
+            ],
+            "description": "Number of lines to show",
+            "args": {
+              "name": "lines"
+            }
+          }
+        ],
+        "args": {
+          "name": "container"
+        }
+      },
+      {
+        "name": "stop",
+        "description": "Stop containers",
+        "args": {
+          "name": "container",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": "rm",
+        "description": "Remove containers",
+        "options": [
+          {
+            "name": [
+              "-f",
+              "--force"
+            ],
+            "description": "Force removal",
+            "isDangerous": true
+          }
+        ],
+        "args": {
+          "name": "container",
+          "isVariadic": true
+        },
+        "isDangerous": true
+      },
+      {
+        "name": "rmi",
+        "description": "Remove images",
+        "options": [
+          {
+            "name": [
+              "-f",
+              "--force"
+            ],
+            "description": "Force removal",
+            "isDangerous": true
+          }
+        ],
+        "args": {
+          "name": "image",
+          "isVariadic": true
+        },
+        "isDangerous": true
+      },
+      {
+        "name": "compose",
+        "description": "Run Docker Compose commands",
+        "options": [
+          {
+            "name": [
+              "-f",
+              "--file"
+            ],
+            "description": "Compose file",
+            "args": {
+              "template": "files"
+            }
+          },
+          {
+            "name": [
+              "-p",
+              "--project-name"
+            ],
+            "description": "Project name",
+            "args": {
+              "name": "name"
+            }
+          }
+        ],
+        "subcommands": [
+          {
+            "name": "up",
+            "description": "Create and start containers",
+            "options": [
+              {
+                "name": [
+                  "-d",
+                  "--detach"
+                ],
+                "description": "Run in background"
+              },
+              {
+                "name": [
+                  "--build"
+                ],
+                "description": "Build images before starting"
+              }
+            ]
+          },
+          {
+            "name": "down",
+            "description": "Stop and remove resources",
+            "options": [
+              {
+                "name": [
+                  "-v",
+                  "--volumes"
+                ],
+                "description": "Remove named volumes",
+                "isDangerous": true
+              }
+            ],
+            "isDangerous": true
+          },
+          {
+            "name": "build",
+            "description": "Build service images"
+          },
+          {
+            "name": "logs",
+            "description": "View service logs",
+            "options": [
+              {
+                "name": [
+                  "-f",
+                  "--follow"
+                ],
+                "description": "Follow log output"
+              }
+            ]
+          },
+          {
+            "name": "ps",
+            "description": "List containers"
+          },
+          {
+            "name": "exec",
+            "description": "Execute a command in a running service",
+            "args": {
+              "name": "service"
+            }
+          },
+          {
+            "name": "restart",
+            "description": "Restart services"
+          },
+          {
+            "name": "pull",
+            "description": "Pull service images"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "brew",
+    "description": "Homebrew package manager",
+    "options": [
+      {
+        "name": [
+          "--version"
+        ],
+        "description": "Show Homebrew version"
+      },
+      {
+        "name": [
+          "--prefix"
+        ],
+        "description": "Show or use Homebrew prefix"
+      },
+      {
+        "name": [
+          "--repository"
+        ],
+        "description": "Show Homebrew repository"
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "install",
+        "description": "Install formulae or casks",
+        "options": [
+          {
+            "name": [
+              "--cask"
+            ],
+            "description": "Treat all named arguments as casks"
+          },
+          {
+            "name": [
+              "--formula"
+            ],
+            "description": "Treat all named arguments as formulae"
+          }
+        ],
+        "args": {
+          "name": "formula",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": [
+          "uninstall",
+          "remove",
+          "rm"
+        ],
+        "description": "Uninstall formulae or casks",
+        "options": [
+          {
+            "name": [
+              "--cask"
+            ],
+            "description": "Treat arguments as casks"
+          },
+          {
+            "name": [
+              "--zap"
+            ],
+            "description": "Remove related files",
+            "isDangerous": true
+          }
+        ],
+        "args": {
+          "name": "formula",
+          "isVariadic": true
+        },
+        "isDangerous": true
+      },
+      {
+        "name": "update",
+        "description": "Fetch the newest Homebrew version"
+      },
+      {
+        "name": "upgrade",
+        "description": "Upgrade outdated formulae or casks",
+        "args": {
+          "name": "formula",
+          "isOptional": true,
+          "isVariadic": true
+        }
+      },
+      {
+        "name": "list",
+        "description": "List installed formulae or files",
+        "options": [
+          {
+            "name": [
+              "--cask"
+            ],
+            "description": "List casks"
+          },
+          {
+            "name": [
+              "--formula"
+            ],
+            "description": "List formulae"
+          }
+        ]
+      },
+      {
+        "name": "search",
+        "description": "Search for formulae or casks",
+        "args": {
+          "name": "text"
+        }
+      },
+      {
+        "name": "info",
+        "description": "Display formula or cask information",
+        "args": {
+          "name": "formula",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": "tap",
+        "description": "Tap a formula repository",
+        "args": {
+          "name": "tap"
+        }
+      },
+      {
+        "name": "bundle",
+        "description": "Manage a Brewfile",
+        "options": [
+          {
+            "name": [
+              "--file"
+            ],
+            "description": "Use a Brewfile",
+            "args": {
+              "template": "files"
+            }
+          }
+        ],
+        "subcommands": [
+          {
+            "name": "install",
+            "description": "Install from Brewfile"
+          },
+          {
+            "name": "dump",
+            "description": "Write current dependencies to Brewfile"
+          },
+          {
+            "name": "cleanup",
+            "description": "Uninstall dependencies missing from Brewfile",
+            "isDangerous": true
+          },
+          {
+            "name": "check",
+            "description": "Check Brewfile dependencies"
+          }
+        ]
+      },
+      {
+        "name": "services",
+        "description": "Manage background services",
+        "subcommands": [
+          {
+            "name": "list",
+            "description": "List services"
+          },
+          {
+            "name": "start",
+            "description": "Start a service",
+            "args": {
+              "name": "formula"
+            }
+          },
+          {
+            "name": "stop",
+            "description": "Stop a service",
+            "args": {
+              "name": "formula"
+            }
+          },
+          {
+            "name": "restart",
+            "description": "Restart a service",
+            "args": {
+              "name": "formula"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "cargo",
+    "description": "Rust package manager",
+    "options": [
+      {
+        "name": [
+          "--version"
+        ],
+        "description": "Show Cargo version"
+      },
+      {
+        "name": [
+          "--manifest-path"
+        ],
+        "description": "Path to Cargo.toml",
+        "args": {
+          "template": "files"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "-p",
+          "--package"
+        ],
+        "description": "Package to operate on",
+        "args": {
+          "name": "package"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--workspace"
+        ],
+        "description": "Operate on all workspace packages",
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--all-features"
+        ],
+        "description": "Activate all available features",
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--features"
+        ],
+        "description": "Space or comma separated feature list",
+        "args": {
+          "name": "features"
+        },
+        "isPersistent": true
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "build",
+        "description": "Compile the current package",
+        "options": [
+          {
+            "name": [
+              "--release"
+            ],
+            "description": "Build optimized artifacts"
+          },
+          {
+            "name": [
+              "--target"
+            ],
+            "description": "Build for the target triple",
+            "args": {
+              "name": "triple"
+            }
+          }
+        ]
+      },
+      {
+        "name": "check",
+        "description": "Check without producing binaries",
+        "options": [
+          {
+            "name": [
+              "--tests"
+            ],
+            "description": "Check test targets"
+          },
+          {
+            "name": [
+              "--all-targets"
+            ],
+            "description": "Check all targets"
+          }
+        ]
+      },
+      {
+        "name": "test",
+        "description": "Run tests",
+        "options": [
+          {
+            "name": [
+              "--release"
+            ],
+            "description": "Test optimized artifacts"
+          },
+          {
+            "name": [
+              "--doc"
+            ],
+            "description": "Test documentation examples"
+          }
+        ],
+        "args": {
+          "name": "testname",
+          "isOptional": true
+        }
+      },
+      {
+        "name": "run",
+        "description": "Run a binary",
+        "options": [
+          {
+            "name": [
+              "--release"
+            ],
+            "description": "Run optimized binary"
+          },
+          {
+            "name": [
+              "--bin"
+            ],
+            "description": "Binary target",
+            "args": {
+              "name": "name"
+            }
+          }
+        ]
+      },
+      {
+        "name": "fmt",
+        "description": "Format Rust source files",
+        "options": [
+          {
+            "name": [
+              "--check"
+            ],
+            "description": "Check formatting without writing"
+          }
+        ]
+      },
+      {
+        "name": "clippy",
+        "description": "Run Clippy lints",
+        "options": [
+          {
+            "name": [
+              "--fix"
+            ],
+            "description": "Apply lint fixes"
+          },
+          {
+            "name": [
+              "--all-targets"
+            ],
+            "description": "Check all targets"
+          }
+        ]
+      },
+      {
+        "name": "add",
+        "description": "Add dependencies to Cargo.toml",
+        "options": [
+          {
+            "name": [
+              "--dev"
+            ],
+            "description": "Add as development dependency"
+          },
+          {
+            "name": [
+              "--build"
+            ],
+            "description": "Add as build dependency"
+          }
+        ],
+        "args": {
+          "name": "package",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": "update",
+        "description": "Update dependencies"
+      },
+      {
+        "name": "clean",
+        "description": "Remove generated artifacts",
+        "isDangerous": true
+      },
+      {
+        "name": "doc",
+        "description": "Build documentation",
+        "options": [
+          {
+            "name": [
+              "--open"
+            ],
+            "description": "Open docs in a browser"
+          },
+          {
+            "name": [
+              "--no-deps"
+            ],
+            "description": "Do not build dependency docs"
+          }
+        ]
+      },
+      {
+        "name": "install",
+        "description": "Install a Rust binary",
+        "args": {
+          "name": "crate"
+        }
+      },
+      {
+        "name": "new",
+        "description": "Create a new package",
+        "args": {
+          "name": "path"
+        }
+      },
+      {
+        "name": "init",
+        "description": "Create a package in an existing directory",
+        "args": {
+          "name": "path",
+          "template": "folders",
+          "isOptional": true
+        }
+      },
+      {
+        "name": "bench",
+        "description": "Run benchmarks"
+      },
+      {
+        "name": "publish",
+        "description": "Upload a package to the registry"
+      },
+      {
+        "name": "tree",
+        "description": "Display dependency tree"
+      }
+    ]
+  },
+  {
+    "name": "pnpm",
+    "description": "Fast disk space efficient package manager",
+    "options": [
+      {
+        "name": [
+          "--version"
+        ],
+        "description": "Show pnpm version"
+      },
+      {
+        "name": [
+          "-C",
+          "--dir"
+        ],
+        "description": "Change to directory",
+        "args": {
+          "template": "folders"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "-w",
+          "--workspace-root"
+        ],
+        "description": "Run on the workspace root",
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--filter"
+        ],
+        "description": "Restrict selector",
+        "args": {
+          "name": "selector"
+        },
+        "isPersistent": true
+      }
+    ],
+    "subcommands": [
+      {
+        "name": [
+          "install",
+          "i"
+        ],
+        "description": "Install dependencies"
+      },
+      {
+        "name": "add",
+        "description": "Add dependencies",
+        "options": [
+          {
+            "name": [
+              "-D",
+              "--save-dev"
+            ],
+            "description": "Add as dev dependency"
+          },
+          {
+            "name": [
+              "-g",
+              "--global"
+            ],
+            "description": "Install globally"
+          }
+        ],
+        "args": {
+          "name": "package",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": [
+          "remove",
+          "rm"
+        ],
+        "description": "Remove dependencies",
+        "args": {
+          "name": "package",
+          "isVariadic": true
+        },
+        "isDangerous": true
+      },
+      {
+        "name": "run",
+        "description": "Run a script",
+        "args": {
+          "template": "packageScripts",
+          "suggestions": [
+            "dev",
+            "build",
+            "test",
+            "lint",
+            "start",
+            "format"
+          ]
+        }
+      },
+      {
+        "name": "exec",
+        "description": "Execute a command in package context",
+        "args": {
+          "name": "command"
+        }
+      },
+      {
+        "name": "dlx",
+        "description": "Fetch and run a package binary",
+        "args": {
+          "name": "package"
+        }
+      },
+      {
+        "name": "test",
+        "description": "Run package tests"
+      },
+      {
+        "name": "dev",
+        "description": "Run dev script"
+      },
+      {
+        "name": "build",
+        "description": "Run build script"
+      },
+      {
+        "name": "start",
+        "description": "Run start script"
+      },
+      {
+        "name": [
+          "update",
+          "up"
+        ],
+        "description": "Update dependencies",
+        "args": {
+          "name": "package",
+          "isOptional": true,
+          "isVariadic": true
+        }
+      },
+      {
+        "name": [
+          "list",
+          "ls"
+        ],
+        "description": "List installed packages"
+      },
+      {
+        "name": "approve-builds",
+        "description": "Approve dependencies for running scripts"
+      }
+    ]
+  },
+  {
+    "name": "yarn",
+    "description": "Yarn package manager",
+    "options": [
+      {
+        "name": [
+          "--version"
+        ],
+        "description": "Show Yarn version"
+      },
+      {
+        "name": [
+          "--cwd"
+        ],
+        "description": "Run command in directory",
+        "args": {
+          "template": "folders"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--verbose"
+        ],
+        "description": "Print verbose output",
+        "isPersistent": true
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "install",
+        "description": "Install dependencies"
+      },
+      {
+        "name": "add",
+        "description": "Add dependencies",
+        "options": [
+          {
+            "name": [
+              "-D",
+              "--dev"
+            ],
+            "description": "Add as dev dependency"
+          },
+          {
+            "name": [
+              "-P",
+              "--peer"
+            ],
+            "description": "Add as peer dependency"
+          }
+        ],
+        "args": {
+          "name": "package",
+          "isVariadic": true
+        }
+      },
+      {
+        "name": "remove",
+        "description": "Remove dependencies",
+        "args": {
+          "name": "package",
+          "isVariadic": true
+        },
+        "isDangerous": true
+      },
+      {
+        "name": "run",
+        "description": "Run a script",
+        "args": {
+          "template": "packageScripts",
+          "suggestions": [
+            "dev",
+            "build",
+            "test",
+            "lint",
+            "start",
+            "format"
+          ]
+        }
+      },
+      {
+        "name": "test",
+        "description": "Run package tests"
+      },
+      {
+        "name": "start",
+        "description": "Run start script"
+      },
+      {
+        "name": "build",
+        "description": "Run build script"
+      },
+      {
+        "name": "dev",
+        "description": "Run dev script"
+      },
+      {
+        "name": "upgrade",
+        "description": "Upgrade dependencies",
+        "args": {
+          "name": "package",
+          "isOptional": true,
+          "isVariadic": true
+        }
+      },
+      {
+        "name": "dlx",
+        "description": "Fetch and run a package binary",
+        "args": {
+          "name": "package"
+        }
+      },
+      {
+        "name": "exec",
+        "description": "Execute a command in package context",
+        "args": {
+          "name": "command"
+        }
+      },
+      {
+        "name": "workspace",
+        "description": "Run command in a workspace",
+        "args": {
+          "name": "workspace"
+        }
+      },
+      {
+        "name": "workspaces",
+        "description": "Manage workspaces",
+        "subcommands": [
+          {
+            "name": "list",
+            "description": "List workspaces"
+          },
+          {
+            "name": "focus",
+            "description": "Install a focused workspace"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "gh",
+    "description": "GitHub CLI",
+    "options": [
+      {
+        "name": [
+          "-R",
+          "--repo"
+        ],
+        "description": "Select another repository",
+        "args": {
+          "name": "owner/repo"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--hostname"
+        ],
+        "description": "GitHub hostname",
+        "args": {
+          "name": "host"
+        },
+        "isPersistent": true
+      },
+      {
+        "name": [
+          "--help"
+        ],
+        "description": "Show help"
+      }
+    ],
+    "subcommands": [
+      {
+        "name": "auth",
+        "description": "Authenticate gh and git",
+        "subcommands": [
+          {
+            "name": "login",
+            "description": "Log in to GitHub"
+          },
+          {
+            "name": "logout",
+            "description": "Log out of GitHub",
+            "isDangerous": true
+          },
+          {
+            "name": "status",
+            "description": "View authentication status"
+          },
+          {
+            "name": "refresh",
+            "description": "Refresh stored credentials"
+          },
+          {
+            "name": "setup-git",
+            "description": "Configure git to use gh as credential helper"
+          }
+        ]
+      },
+      {
+        "name": "repo",
+        "description": "Manage repositories",
+        "subcommands": [
+          {
+            "name": "clone",
+            "description": "Clone a repository",
+            "args": {
+              "name": "repository"
+            }
+          },
+          {
+            "name": "create",
+            "description": "Create a repository"
+          },
+          {
+            "name": "fork",
+            "description": "Fork a repository"
+          },
+          {
+            "name": "view",
+            "description": "View a repository",
+            "options": [
+              {
+                "name": [
+                  "--web"
+                ],
+                "description": "Open in browser"
+              }
+            ]
+          },
+          {
+            "name": "sync",
+            "description": "Sync a fork"
+          },
+          {
+            "name": "list",
+            "description": "List repositories"
+          }
+        ]
+      },
+      {
+        "name": "pr",
+        "description": "Manage pull requests",
+        "subcommands": [
+          {
+            "name": "list",
+            "description": "List pull requests"
+          },
+          {
+            "name": "view",
+            "description": "View a pull request",
+            "options": [
+              {
+                "name": [
+                  "--web"
+                ],
+                "description": "Open in browser"
+              },
+              {
+                "name": [
+                  "--json"
+                ],
+                "description": "Output JSON fields",
+                "args": {
+                  "name": "fields"
+                }
+              }
+            ]
+          },
+          {
+            "name": "checkout",
+            "description": "Check out a pull request",
+            "args": {
+              "name": "number/url/branch"
+            }
+          },
+          {
+            "name": "create",
+            "description": "Create a pull request"
+          },
+          {
+            "name": "status",
+            "description": "Show pull request status"
+          },
+          {
+            "name": "diff",
+            "description": "View changes in a pull request"
+          },
+          {
+            "name": "checks",
+            "description": "Show CI status"
+          },
+          {
+            "name": "comment",
+            "description": "Add a pull request comment"
+          },
+          {
+            "name": "merge",
+            "description": "Merge a pull request",
+            "isDangerous": true
+          },
+          {
+            "name": "ready",
+            "description": "Mark a draft pull request ready"
+          },
+          {
+            "name": "review",
+            "description": "Add a pull request review"
+          }
+        ]
+      },
+      {
+        "name": "issue",
+        "description": "Manage issues",
+        "subcommands": [
+          {
+            "name": "list",
+            "description": "List issues"
+          },
+          {
+            "name": "view",
+            "description": "View an issue",
+            "options": [
+              {
+                "name": [
+                  "--web"
+                ],
+                "description": "Open in browser"
+              }
+            ]
+          },
+          {
+            "name": "create",
+            "description": "Create an issue"
+          },
+          {
+            "name": "status",
+            "description": "Show issue status"
+          },
+          {
+            "name": "close",
+            "description": "Close an issue",
+            "isDangerous": true
+          },
+          {
+            "name": "reopen",
+            "description": "Reopen an issue"
+          }
+        ]
+      },
+      {
+        "name": "workflow",
+        "description": "Manage GitHub Actions workflows",
+        "subcommands": [
+          {
+            "name": "list",
+            "description": "List workflows"
+          },
+          {
+            "name": "view",
+            "description": "View a workflow"
+          },
+          {
+            "name": "run",
+            "description": "Run a workflow"
+          },
+          {
+            "name": "enable",
+            "description": "Enable a workflow"
+          },
+          {
+            "name": "disable",
+            "description": "Disable a workflow",
+            "isDangerous": true
+          }
+        ]
+      },
+      {
+        "name": "run",
+        "description": "Manage workflow runs",
+        "subcommands": [
+          {
+            "name": "list",
+            "description": "List workflow runs"
+          },
+          {
+            "name": "view",
+            "description": "View a workflow run"
+          },
+          {
+            "name": "watch",
+            "description": "Watch a workflow run"
+          },
+          {
+            "name": "rerun",
+            "description": "Rerun a workflow run"
+          },
+          {
+            "name": "cancel",
+            "description": "Cancel a workflow run",
+            "isDangerous": true
+          },
+          {
+            "name": "download",
+            "description": "Download artifacts",
+            "options": [
+              {
+                "name": [
+                  "-D",
+                  "--dir"
+                ],
+                "description": "Directory to download into",
+                "args": {
+                  "template": "folders"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "api",
+        "description": "Make an authenticated GitHub API request",
+        "args": {
+          "name": "endpoint"
+        }
+      },
+      {
+        "name": "browse",
+        "description": "Open the repository in a browser"
+      },
+      {
+        "name": "gist",
+        "description": "Manage gists",
+        "subcommands": [
+          {
+            "name": "list",
+            "description": "List gists"
+          },
+          {
+            "name": "view",
+            "description": "View a gist"
+          },
+          {
+            "name": "create",
+            "description": "Create a gist",
+            "args": {
+              "template": "files"
+            }
+          },
+          {
+            "name": "delete",
+            "description": "Delete a gist",
+            "isDangerous": true
+          }
+        ]
+      },
+      {
+        "name": "release",
+        "description": "Manage releases",
+        "subcommands": [
+          {
+            "name": "list",
+            "description": "List releases"
+          },
+          {
+            "name": "view",
+            "description": "View a release"
+          },
+          {
+            "name": "create",
+            "description": "Create a release"
+          },
+          {
+            "name": "download",
+            "description": "Download release assets"
+          },
+          {
+            "name": "delete",
+            "description": "Delete a release",
+            "isDangerous": true
+          }
+        ]
+      }
+    ]
+  }
+]

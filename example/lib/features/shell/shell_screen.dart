@@ -116,6 +116,7 @@ class ShellScreen extends ConsumerStatefulWidget {
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _workspaceCueDuration = Duration(milliseconds: 1400);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
+  static const _figCompletionDebounce = Duration(milliseconds: 120);
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
   static const _pasteHistoryLimit = 30;
   static const _capturedOutputLimit = 80;
@@ -167,7 +168,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final CommandIntelligenceService _commandIntelligenceService =
       CommandIntelligenceService.fromEnvironment();
   final FigCompletionService _figCompletionService =
-      FigCompletionService.fromEnvironment();
+      FigCompletionService.load();
   late final SavedCommandRepository _savedCommandRepository;
   CommandCenterRuntimeState _commandCenterRuntime =
       const CommandCenterRuntimeState();
@@ -180,6 +181,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   Timer? _workspaceCueTimer;
   Timer? _viewportResizeTimer;
+  Timer? _figCompletionDebounceTimer;
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
@@ -262,6 +264,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   _figCompletionSuggestionsBySession = {};
   final Map<String, String> _figCompletionTextBySession = {};
   final Set<String> _figCompletionLoadingSessionIds = {};
+  final Set<String> _figCompletionInFlightSessionIds = {};
+  final Map<String, _PendingFigCompletionRequest>
+  _pendingFigCompletionRequestsBySession = {};
   int _figCompletionRequestSerial = 0;
   int _commandIntelligenceRequestSerial = 0;
   int _commandCorrectionRequestSerial = 0;
@@ -326,6 +331,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _terminalEventSubscription?.cancel();
     _workspaceCueTimer?.cancel();
     _viewportResizeTimer?.cancel();
+    _figCompletionDebounceTimer?.cancel();
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }

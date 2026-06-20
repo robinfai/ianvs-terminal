@@ -9,6 +9,7 @@ import 'package:app/features/shell/universal_input.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -2131,6 +2132,144 @@ void main() {
       expect(focusNode.hasFocus, isTrue);
     });
 
+    testWidgets('command input suggestions page past visible rows', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.light),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 900,
+                child: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  inputMode: UniversalInputMode.terminal,
+                  suggestionsForInput: (_, _) => const [
+                    './alpha/',
+                    './beta/',
+                    './gamma/',
+                    './delta/',
+                    './epsilon/',
+                    './zeta/',
+                    './eta/',
+                    './theta/',
+                  ],
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'ls ./',
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('shell-command-input-suggestion-./alpha/')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-suggestion-./delta/')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-suggestion-./zeta/')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-suggestion-./eta/')),
+        findsNothing,
+      );
+
+      for (var index = 0; index < 6; index += 1) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+      }
+      await tester.pump();
+
+      final selectedSuggestion = find.byKey(
+        const Key('shell-command-input-suggestion-./eta/'),
+      );
+      expect(
+        find.byKey(const Key('shell-command-input-suggestion-./alpha/')),
+        findsNothing,
+      );
+      expect(selectedSuggestion, findsOneWidget);
+      expect(
+        tester.getSemantics(selectedSuggestion),
+        matchesSemantics(
+          label: './eta/',
+          isButton: true,
+          hasTapAction: true,
+          hasSelectedState: true,
+          isSelected: true,
+        ),
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(controller.text, 'ls ./eta/');
+      expect(focusNode.hasFocus, isTrue);
+    });
+
+    testWidgets('command input semantics expose the typed value', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.light),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.terminal,
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'git che',
+      );
+      await tester.pump();
+
+      expect(find.bySemanticsLabel('Command input'), findsOneWidget);
+      final fieldSemantics = tester.getSemantics(
+        find.byKey(const Key('shell-command-input-field')),
+      );
+      final fieldSemanticsData = fieldSemantics.getSemanticsData();
+      expect(fieldSemanticsData.value, 'git che');
+      expect(fieldSemanticsData.flagsCollection.isTextField, isTrue);
+      expect(fieldSemanticsData.hasAction(SemanticsAction.setText), isTrue);
+      semantics.dispose();
+    });
+
     testWidgets('tab and click accept command input suggestions', (
       tester,
     ) async {
@@ -2182,7 +2321,7 @@ void main() {
       expect(focusNode.hasFocus, isTrue);
     });
 
-    testWidgets('tab applies Fig sidecar replacement ranges', (tester) async {
+    testWidgets('tab applies Fig native replacement ranges', (tester) async {
       final controller = TextEditingController();
       final focusNode = FocusNode();
       final changed = <String>[];
@@ -2230,6 +2369,72 @@ void main() {
       expect(controller.selection.baseOffset, 10);
       expect(changed.last, 'git commit --amend');
       expect(focusNode.hasFocus, isTrue);
+    });
+
+    testWidgets('dangerous Fig suggestions expose warning affordance', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.terminal,
+              suggestionsForInput: (_, _) => const ['merge'],
+              figSuggestionsForInput: (_, _) => const {
+                'merge': FigCompletionSuggestion(
+                  name: 'merge',
+                  replacementText: 'merge',
+                  replaceStart: 6,
+                  replaceEnd: 8,
+                  cursorOffset: 11,
+                  type: 'subcommand',
+                  source: 'fig:gh',
+                  isDangerous: true,
+                ),
+              },
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'gh pr me',
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final suggestion = find.byKey(
+        const Key('shell-command-input-suggestion-merge'),
+      );
+      expect(suggestion, findsOneWidget);
+      expect(
+        tester.getSemantics(suggestion),
+        matchesSemantics(
+          label: 'merge, dangerous command',
+          isButton: true,
+          hasTapAction: true,
+          hasSelectedState: true,
+          isSelected: true,
+        ),
+      );
+      expect(
+        find.byIcon(Icons.warning_amber_rounded, skipOffstage: false),
+        findsOneWidget,
+      );
+      semantics.dispose();
     });
 
     testWidgets('command input suggestions stay inside a narrow bar', (

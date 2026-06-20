@@ -1,4 +1,4 @@
-use crate::session;
+use crate::{fig_completion, session};
 use libc::{c_char, c_int};
 use std::ffi::{CStr, CString};
 
@@ -146,6 +146,29 @@ pub unsafe extern "C" fn ianvs_session_request_json(
         .ok()
         .and_then(|value| session::request_session_json(session_id, value).ok())
         .flatten()
+    {
+        Some(json) => CString::new(json)
+            .map(CString::into_raw)
+            .unwrap_or(std::ptr::null_mut()),
+        None => std::ptr::null_mut(),
+    }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+///
+/// `request_json` must be a valid, NUL-terminated UTF-8 string pointer that
+/// remains alive for the duration of this call.
+pub unsafe extern "C" fn ianvs_fig_complete_json(request_json: *const c_char) -> *mut c_char {
+    if request_json.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let request_json = unsafe { CStr::from_ptr(request_json) };
+    match request_json
+        .to_str()
+        .ok()
+        .map(fig_completion::complete_request_json)
     {
         Some(json) => CString::new(json)
             .map(CString::into_raw)

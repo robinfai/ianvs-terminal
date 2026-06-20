@@ -195,6 +195,7 @@ struct StaticSuggestionObject {
 #[serde(default, rename_all = "camelCase")]
 struct HostSuggestion {
     name: String,
+    insert_text: Option<String>,
     display_name: Option<String>,
     description: Option<String>,
     #[serde(rename = "type")]
@@ -416,6 +417,7 @@ fn command_suggestions(
         }
         suggestions.push(make_suggestion(SuggestionParts {
             name,
+            insert_text: None,
             display_name: None,
             description: spec.description.clone(),
             kind: Some("subcommand".to_owned()),
@@ -456,6 +458,7 @@ fn recent_command_suggestions(
         seen.insert(command_key);
         suggestions.push(make_suggestion(SuggestionParts {
             name: command.as_str(),
+            insert_text: None,
             display_name: None,
             description: Some("Recent command".to_owned()),
             kind: Some("history".to_owned()),
@@ -493,6 +496,7 @@ fn option_suggestions(
             }
             suggestions.push(make_suggestion(SuggestionParts {
                 name,
+                insert_text: None,
                 display_name: None,
                 description: option.description.clone(),
                 kind: Some("option".to_owned()),
@@ -522,6 +526,7 @@ fn subcommand_suggestions(
             }
             suggestions.push(make_suggestion(SuggestionParts {
                 name,
+                insert_text: None,
                 display_name: subcommand.display_name.clone(),
                 description: subcommand.description.clone(),
                 kind: Some("subcommand".to_owned()),
@@ -623,6 +628,7 @@ fn static_arg_suggestions(
                 if matches_prefix(name, &normalized_prefix) {
                     suggestions.push(make_suggestion(SuggestionParts {
                         name,
+                        insert_text: None,
                         display_name: None,
                         description: arg.description.clone(),
                         kind: Some(arg.kind.clone().unwrap_or_else(|| "arg".to_owned())),
@@ -640,6 +646,7 @@ fn static_arg_suggestions(
                     }
                     suggestions.push(make_suggestion(SuggestionParts {
                         name,
+                        insert_text: None,
                         display_name: object.display_name.clone(),
                         description: object
                             .description
@@ -690,6 +697,7 @@ fn template_suggestions(
             }
             suggestions.push(make_suggestion(SuggestionParts {
                 name: item.name.as_str(),
+                insert_text: item.insert_text.clone(),
                 display_name: item.display_name.clone(),
                 description: item.description.clone(),
                 kind: item.kind.clone(),
@@ -800,11 +808,7 @@ fn response_for_suggestions(
     let mut seen = HashSet::new();
     let mut deduped = Vec::new();
     for item in items {
-        let key = format!(
-            "{}|{}",
-            item.insert_text,
-            item.kind.as_deref().unwrap_or_default()
-        );
+        let key = item.insert_text.clone();
         if seen.insert(key) {
             deduped.push(item);
         }
@@ -817,6 +821,7 @@ fn response_for_suggestions(
 
 struct SuggestionParts<'a> {
     name: &'a str,
+    insert_text: Option<String>,
     display_name: Option<String>,
     description: Option<String>,
     kind: Option<String>,
@@ -827,9 +832,9 @@ struct SuggestionParts<'a> {
 }
 
 fn make_suggestion(parts: SuggestionParts<'_>) -> Suggestion {
-    let insert_text = parts.name.to_owned();
+    let insert_text = parts.insert_text.unwrap_or_else(|| parts.name.to_owned());
     Suggestion {
-        name: insert_text.clone(),
+        name: parts.name.to_owned(),
         display_name: parts.display_name,
         insert_text: insert_text.clone(),
         replace_start: parts.current_token.start,
@@ -944,5 +949,45 @@ mod tests {
         let value: Value = serde_json::from_str(&output).unwrap();
         assert_eq!(value["items"][0]["name"], "./alpha/");
         assert_eq!(value["items"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn dedupes_static_and_template_suggestions_by_insert_text() {
+        let output = complete_json(
+            br#"{
+              "text":"npm run te",
+              "cursorOffset":10,
+              "specs":[{"name":"npm","subcommands":[{"name":"run","args":{"template":"packageScripts","suggestions":["test"]}}]}],
+              "hostTemplates":{
+                "packageScripts":[{"name":"test","type":"script","source":"fig:packageScripts","priority":68}]
+              }
+            }"#,
+        );
+        let value: Value = serde_json::from_str(&output).unwrap();
+        let items = value["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["name"], "test");
+        assert_eq!(items[0]["type"], "script");
+    }
+
+    #[test]
+    fn host_template_can_match_raw_name_and_insert_escaped_text() {
+        let output = complete_json(
+            br#"{
+              "text":"cat ./My\\ ",
+              "cursorOffset":10,
+              "specs":[{"name":"cat","args":{"template":"files"}}],
+              "hostTemplates":{
+                "files":[{"name":"./My File.txt","insertText":"./My\\ File.txt","type":"file","source":"fig:files","priority":65}]
+              }
+            }"#,
+        );
+        let value: Value = serde_json::from_str(&output).unwrap();
+        let items = value["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["name"], "./My File.txt");
+        assert_eq!(items[0]["insertText"], "./My\\ File.txt");
+        assert_eq!(items[0]["replaceStart"], 4);
+        assert_eq!(items[0]["replaceEnd"], 10);
     }
 }

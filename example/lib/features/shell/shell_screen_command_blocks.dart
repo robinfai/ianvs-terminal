@@ -1613,12 +1613,13 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                         hintText: fieldHint,
                         suggestions: suggestions,
                         suggestionDetails: suggestionDetails,
+                        figSuggestionDetails: figSuggestions,
                         suggestionsLoading: suggestionsLoading,
                         activeIndex: effectiveActiveIndex,
                         palette: palette,
                         maxLines: null,
                         maxHeight: 168,
-                        suggestionLimit: 4,
+                        suggestionLimit: 6,
                         suggestionKeyPrefix: 'shell-command-input',
                         suggestionPresentation:
                             _UniversalInputSuggestionPresentation

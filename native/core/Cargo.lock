@@ -604,6 +604,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cbindgen",
+ "ianvs_fig_completion_wasm",
  "libc",
  "par-term-emu-core-rust",
  "parking_lot",
@@ -614,6 +615,14 @@ dependencies = [
  "strip-ansi-escapes",
  "tempfile",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "ianvs_fig_completion_wasm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

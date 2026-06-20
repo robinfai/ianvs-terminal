@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:isolate';
 
-const String defaultFigCompletionSidecarUrl = 'http://127.0.0.1:17382';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 class FigCompletionRequest {
   const FigCompletionRequest({
@@ -125,75 +125,181 @@ class FigCompletionSuggestion {
 
 class FigCompletionService {
   FigCompletionService({
-    Uri? endpoint,
-    this.timeout = const Duration(milliseconds: 220),
-    this.failureBackoff = const Duration(seconds: 5),
-    HttpClient? httpClient,
-  }) : endpoint = endpoint ?? Uri.parse(defaultFigCompletionSidecarUrl),
-       _httpClient = httpClient ?? HttpClient(),
-       _ownsHttpClient = httpClient == null;
+    FigCompletionBindings? bindings,
+    bool? runNativeInBackground,
+  }) : _bindings = bindings,
+       _runNativeInBackground = runNativeInBackground ?? bindings == null;
 
-  factory FigCompletionService.fromEnvironment({
-    Map<String, String>? environment,
-    HttpClient? httpClient,
-  }) {
-    final env = environment ?? Platform.environment;
-    final configured = _nonEmpty(env['IANVS_FIG_COMPLETION_URL']);
-    return FigCompletionService(
-      endpoint: Uri.parse(configured ?? defaultFigCompletionSidecarUrl),
-      httpClient: httpClient,
-    );
+  factory FigCompletionService.load() {
+    return FigCompletionService();
   }
 
-  final Uri endpoint;
-  final Duration timeout;
-  final Duration failureBackoff;
-  final HttpClient _httpClient;
-  final bool _ownsHttpClient;
-  DateTime? _disabledUntil;
+  final FigCompletionBindings? _bindings;
+  final bool _runNativeInBackground;
+  _FigCompletionWorker? _worker;
 
   Future<FigCompletionResponse?> complete(FigCompletionRequest input) async {
-    final disabledUntil = _disabledUntil;
-    if (disabledUntil != null && DateTime.now().isBefore(disabledUntil)) {
-      return null;
-    }
     try {
-      final request = await _httpClient.postUrl(_completeUri).timeout(timeout);
-      request.headers.contentType = ContentType.json;
-      request.write(jsonEncode(input.toJson()));
-      final response = await request.close().timeout(timeout);
-      final body = await utf8.decoder.bind(response).join().timeout(timeout);
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        _markTemporarilyUnavailable();
+      final body = await _completeJson(jsonEncode(input.toJson()));
+      if (body == null || body.trim().isEmpty) {
         return null;
       }
-      _disabledUntil = null;
       return FigCompletionResponse.fromJson(jsonDecode(body));
     } on Object {
-      _markTemporarilyUnavailable();
       return null;
     }
   }
 
   void close() {
-    if (_ownsHttpClient) {
-      _httpClient.close(force: true);
-    }
+    _worker?.close();
+    _worker = null;
   }
 
-  Uri get _completeUri {
-    if (endpoint.path.endsWith('/complete')) {
-      return endpoint;
+  Future<String?> _completeJson(String requestJson) {
+    if (_runNativeInBackground) {
+      return (_worker ??= _FigCompletionWorker()).complete(requestJson);
     }
-    final path = endpoint.path.replaceFirst(RegExp(r'/+$'), '');
-    return endpoint.replace(
-      path: path.isEmpty ? '/complete' : '$path/complete',
-    );
+    final bindings = _bindings ?? NativeFigCompletionBindings.load();
+    return Future.value(bindings.completeJson(requestJson));
+  }
+}
+
+class _FigCompletionWorker {
+  Isolate? _isolate;
+  ReceivePort? _receivePort;
+  StreamSubscription<Object?>? _subscription;
+  Completer<SendPort>? _ready;
+  SendPort? _sendPort;
+  int _nextRequestId = 0;
+  final Map<int, Completer<String?>> _pending = <int, Completer<String?>>{};
+
+  Future<String?> complete(String requestJson) async {
+    final sendPort = await _ensureStarted();
+    final requestId = _nextRequestId++;
+    final completer = Completer<String?>();
+    _pending[requestId] = completer;
+    sendPort.send(<Object?>[requestId, requestJson]);
+    return completer.future;
   }
 
-  void _markTemporarilyUnavailable() {
-    _disabledUntil = DateTime.now().add(failureBackoff);
+  Future<SendPort> _ensureStarted() {
+    final sendPort = _sendPort;
+    if (sendPort != null) {
+      return Future<SendPort>.value(sendPort);
+    }
+    final ready = _ready;
+    if (ready != null) {
+      return ready.future;
+    }
+
+    final nextReady = Completer<SendPort>();
+    final receivePort = ReceivePort();
+    _ready = nextReady;
+    _receivePort = receivePort;
+    _subscription = receivePort.listen(_handleMessage);
+    Isolate.spawn(
+      _figCompletionWorkerMain,
+      receivePort.sendPort,
+      debugName: 'Fig completion worker',
+      errorsAreFatal: true,
+      onError: receivePort.sendPort,
+      onExit: receivePort.sendPort,
+    ).then((isolate) {
+      _isolate = isolate;
+    }, onError: _completeWorkerFailure);
+    return nextReady.future;
   }
+
+  void _handleMessage(Object? message) {
+    if (message == null) {
+      _completeWorkerFailure(StateError('Fig completion worker exited.'));
+      return;
+    }
+    if (message is SendPort) {
+      _sendPort = message;
+      final ready = _ready;
+      if (ready != null && !ready.isCompleted) {
+        ready.complete(message);
+      }
+      return;
+    }
+    if (message is! List<Object?> || message.length != 2) {
+      return;
+    }
+    final requestId = message[0];
+    if (requestId is! int) {
+      _completeWorkerFailure(StateError(message.first.toString()));
+      return;
+    }
+    _pending.remove(requestId)?.complete(_stringValue(message[1]));
+  }
+
+  void _completeWorkerFailure(Object error) {
+    final ready = _ready;
+    if (ready != null && !ready.isCompleted) {
+      ready.completeError(error);
+    }
+    for (final completer in _pending.values) {
+      if (!completer.isCompleted) {
+        completer.complete(null);
+      }
+    }
+    _pending.clear();
+    _subscription?.cancel();
+    _receivePort?.close();
+    _isolate = null;
+    _receivePort = null;
+    _subscription = null;
+    _ready = null;
+    _sendPort = null;
+  }
+
+  void close() {
+    _sendPort?.send(const <Object?>['close']);
+    _isolate?.kill(priority: Isolate.immediate);
+    _subscription?.cancel();
+    _receivePort?.close();
+    for (final completer in _pending.values) {
+      if (!completer.isCompleted) {
+        completer.complete(null);
+      }
+    }
+    _pending.clear();
+    _isolate = null;
+    _receivePort = null;
+    _subscription = null;
+    _ready = null;
+    _sendPort = null;
+  }
+}
+
+void _figCompletionWorkerMain(SendPort hostPort) {
+  final receivePort = ReceivePort();
+  final bindings = NativeFigCompletionBindings.load();
+  hostPort.send(receivePort.sendPort);
+  receivePort.listen((message) {
+    if (message is List<Object?> &&
+        message.length == 1 &&
+        message.single == 'close') {
+      receivePort.close();
+      return;
+    }
+    if (message is! List<Object?> || message.length != 2) {
+      return;
+    }
+    final requestId = message[0];
+    final requestJson = message[1];
+    if (requestId is! int || requestJson is! String) {
+      return;
+    }
+    String? responseJson;
+    try {
+      responseJson = bindings.completeJson(requestJson);
+    } on Object {
+      responseJson = null;
+    }
+    hostPort.send(<Object?>[requestId, responseJson]);
+  });
 }
 
 String? _nonEmpty(String? value) {
