@@ -55,7 +55,8 @@ impl TerminalSearchMode {
             Some("case_insensitive_substring") => Self::CaseInsensitiveSubstring,
             Some("case_sensitive_regex") => Self::CaseSensitiveRegex,
             Some("case_insensitive_regex") => Self::CaseInsensitiveRegex,
-            Some("smart_case_substring") | _ => Self::SmartCaseSubstring,
+            Some("smart_case_substring") => Self::SmartCaseSubstring,
+            _ => Self::SmartCaseSubstring,
         }
     }
 
@@ -95,6 +96,12 @@ struct TerminalSearchLogicalSegment {
 }
 
 static STORE: LazyLock<SessionStore> = LazyLock::new(SessionStore::default);
+const MAX_HOST_PROTOCOL_BUFFER_BYTES: usize = 4096;
+const MAX_OSC52_CLIPBOARD_DECODED_BYTES: usize = 1024 * 1024;
+const MAX_OSC52_CLIPBOARD_ENCODED_CHARS: usize = MAX_OSC52_CLIPBOARD_DECODED_BYTES.div_ceil(3) * 4;
+const MAX_OSC52_SELECTION_BYTES: usize = 32;
+const MAX_INCOMPLETE_OSC52_SEQUENCE_BYTES: usize =
+    2 + 3 + MAX_OSC52_SELECTION_BYTES + 1 + MAX_OSC52_CLIPBOARD_ENCODED_CHARS;
 
 #[derive(Clone, Debug)]
 enum CallbackEvent {
@@ -342,10 +349,12 @@ impl SessionStore {
     }
 
     pub fn close_session(&self, session_id: u64) -> Result<(), SessionError> {
-        if let Some(session) = self.sessions.lock().remove(&session_id) {
-            session.close()?;
-        }
-        Ok(())
+        let session = self
+            .sessions
+            .lock()
+            .remove(&session_id)
+            .ok_or(SessionError::MissingSession(session_id))?;
+        session.close()
     }
 }
 
@@ -412,8 +421,18 @@ impl HostProtocolState {
             return Vec::new();
         }
 
+        let previous_len = self.buffer.len();
         self.buffer.extend_from_slice(bytes);
         let mut events = Vec::new();
+        if self.buffer.starts_with(b"\x1b]52;")
+            && !appended_bytes_contain_osc_terminator(&self.buffer, previous_len, bytes)
+        {
+            if self.buffer.len() > MAX_INCOMPLETE_OSC52_SEQUENCE_BYTES {
+                self.buffer.clear();
+            }
+            return events;
+        }
+
         let mut index = 0usize;
 
         while index < self.buffer.len() {
@@ -455,8 +474,8 @@ impl HostProtocolState {
 
         if index > 0 {
             self.buffer.drain(..index);
-        } else if self.buffer.len() > 4096 {
-            let keep = 4096usize.min(self.buffer.len());
+        } else if self.buffer.len() > MAX_HOST_PROTOCOL_BUFFER_BYTES {
+            let keep = MAX_HOST_PROTOCOL_BUFFER_BYTES.min(self.buffer.len());
             self.buffer.drain(..self.buffer.len() - keep);
         }
 
@@ -580,9 +599,23 @@ impl HostProtocolState {
             }
             b"52" => {
                 let mut args = remainder.splitn(2, |byte| *byte == b';');
-                let selection =
-                    String::from_utf8_lossy(args.next().unwrap_or_default()).into_owned();
-                let data = String::from_utf8_lossy(args.next().unwrap_or_default()).into_owned();
+                let raw_selection = args.next().unwrap_or_default();
+                let raw_data = args.next().unwrap_or_default();
+                if raw_selection.len() > MAX_OSC52_SELECTION_BYTES
+                    || raw_data.len() > MAX_OSC52_CLIPBOARD_ENCODED_CHARS
+                    || !raw_selection.is_ascii()
+                    || !raw_data.is_ascii()
+                {
+                    return;
+                }
+                let Ok(selection) = std::str::from_utf8(raw_selection) else {
+                    return;
+                };
+                let Ok(data) = std::str::from_utf8(raw_data) else {
+                    return;
+                };
+                let selection = selection.to_string();
+                let data = data.to_string();
                 let selection = if selection.is_empty() {
                     "c".to_string()
                 } else {
@@ -636,6 +669,18 @@ impl HostProtocolState {
             events.push(CallbackEvent::Resize { rows, cols });
         }
     }
+}
+
+fn appended_bytes_contain_osc_terminator(
+    buffer: &[u8],
+    previous_len: usize,
+    appended: &[u8],
+) -> bool {
+    appended.contains(&0x07)
+        || appended.windows(2).any(|window| window == b"\x1b\\")
+        || (previous_len > 0
+            && buffer.get(previous_len - 1) == Some(&0x1b)
+            && appended.first() == Some(&b'\\'))
 }
 
 pub struct TerminalSession {
@@ -824,7 +869,12 @@ impl TerminalSession {
 
     pub fn close(&self) -> Result<(), SessionError> {
         self.exited.store(true, Ordering::SeqCst);
-        let _ = self.child.lock().kill();
+        let mut child = self.child.lock();
+        let _ = child.kill();
+        child
+            .wait()
+            .map(|_| ())
+            .map_err(|error| SessionError::Io(error.to_string()))?;
         Ok(())
     }
 
@@ -1234,17 +1284,17 @@ impl TerminalSession {
             if frame_kind == TerminalFrameKind::Snapshot {
                 build_snapshot_frame(terminal, self.emulation, viewport_start_row, viewport_rows)
             } else {
-                build_delta_frame(
+                build_delta_frame(DeltaFrameInput {
                     terminal,
-                    self.emulation,
+                    emulation: self.emulation,
                     viewport_start_row,
                     viewport_rows,
                     scrollback_len,
                     alt_screen_active,
-                    &pending_frame_work,
-                    &last_rows,
+                    pending_frame_work: &pending_frame_work,
+                    previous_rows: &last_rows,
                     viewport_row_shift,
-                )
+                })
             };
         *last_rows = current_rows;
         *last_frame_meta = Some(frame_meta);
@@ -2171,13 +2221,13 @@ fn shift_cached_rows(
     viewport_row_shift: i32,
 ) -> Vec<CachedRowState> {
     let mut shifted = vec![CachedRowState::default(); viewport_rows];
-    for row in 0..viewport_rows {
+    for (row, shifted_row) in shifted.iter_mut().enumerate() {
         let previous_index = row as isize - viewport_row_shift as isize;
         let Some(previous_index) = usize::try_from(previous_index).ok() else {
             continue;
         };
         if let Some(previous_row) = previous_rows.get(previous_index) {
-            shifted[row] = previous_row.clone();
+            *shifted_row = previous_row.clone();
         }
     }
     shifted
@@ -2226,16 +2276,20 @@ fn build_snapshot_frame(
     )
 }
 
-fn build_delta_frame(
-    terminal: &Terminal,
+struct DeltaFrameInput<'a> {
+    terminal: &'a Terminal,
     emulation: TerminalEmulation,
     viewport_start_row: usize,
     viewport_rows: usize,
     scrollback_len: usize,
     alt_screen_active: bool,
-    pending_frame_work: &PendingFrameWork,
-    previous_rows: &[CachedRowState],
+    pending_frame_work: &'a PendingFrameWork,
+    previous_rows: &'a [CachedRowState],
     viewport_row_shift: i32,
+}
+
+fn build_delta_frame(
+    input: DeltaFrameInput<'_>,
 ) -> (
     Vec<TerminalRow>,
     Vec<TerminalHyperlinkRange>,
@@ -2245,20 +2299,29 @@ fn build_delta_frame(
     usize,
 ) {
     let candidate_row_indexes = delta_candidate_row_indexes(
-        pending_frame_work,
-        viewport_rows,
-        viewport_start_row,
-        scrollback_len,
-        alt_screen_active,
-        viewport_row_shift,
+        input.pending_frame_work,
+        input.viewport_rows,
+        input.viewport_start_row,
+        input.scrollback_len,
+        input.alt_screen_active,
+        input.viewport_row_shift,
     );
-    let mut next_rows = shift_cached_rows(previous_rows, viewport_rows, viewport_row_shift);
+    let mut next_rows = shift_cached_rows(
+        input.previous_rows,
+        input.viewport_rows,
+        input.viewport_row_shift,
+    );
     let mut dirty_row_indexes = Vec::new();
     let mut rows = Vec::new();
     let mut hyperlinks = Vec::new();
 
     for row_index in &candidate_row_indexes {
-        let extracted = extract_viewport_row(terminal, emulation, viewport_start_row, *row_index);
+        let extracted = extract_viewport_row(
+            input.terminal,
+            input.emulation,
+            input.viewport_start_row,
+            *row_index,
+        );
         let row_state = cached_row_state_for(&extracted);
         if next_rows.get(*row_index) != Some(&row_state) {
             dirty_row_indexes.push(*row_index);
@@ -2300,7 +2363,12 @@ fn delta_candidate_row_indexes(
             });
 
     add_shift_exposed_rows(&mut candidates, viewport_rows, viewport_row_shift);
+    let skip_redundant_scroll_dirty_rows = uses_viewport_shift
+        && dirty_rows_cover_full_active_screen(&pending_frame_work.dirty_rows, viewport_rows);
     for row in &pending_frame_work.dirty_rows {
+        if skip_redundant_scroll_dirty_rows && *row < viewport_rows {
+            continue;
+        }
         if let Some(visible_row) = visible_row_for_screen_row(
             *row,
             viewport_start_row,
@@ -2327,17 +2395,17 @@ fn delta_candidate_row_indexes(
         }
     }
 
-    if let Some(scroll_region) = pending_frame_work.scroll_region.as_ref() {
-        if !uses_viewport_shift {
-            add_visible_rows_for_scroll_region(
-                &mut candidates,
-                scroll_region,
-                viewport_start_row,
-                viewport_rows,
-                scrollback_len,
-                alt_screen_active,
-            );
-        }
+    if let Some(scroll_region) = pending_frame_work.scroll_region.as_ref()
+        && !uses_viewport_shift
+    {
+        add_visible_rows_for_scroll_region(
+            &mut candidates,
+            scroll_region,
+            viewport_start_row,
+            viewport_rows,
+            scrollback_len,
+            alt_screen_active,
+        );
     }
 
     add_visible_cursor_row(
@@ -2358,6 +2426,10 @@ fn delta_candidate_row_indexes(
     );
 
     candidates.into_iter().collect()
+}
+
+fn dirty_rows_cover_full_active_screen(dirty_rows: &BTreeSet<usize>, viewport_rows: usize) -> bool {
+    viewport_rows > 0 && (0..viewport_rows).all(|row| dirty_rows.contains(&row))
 }
 
 fn add_shift_exposed_rows(
@@ -3958,6 +4030,51 @@ mod tests {
         assert!(events.is_empty());
         assert_eq!(state.window_icon_name.as_deref(), Some("build icon"));
         assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_observe_drops_oversized_osc52_clipboard_copy() {
+        let mut state = HostProtocolState::default();
+        let mut sequence = b"\x1b]52;c;".to_vec();
+        sequence.extend(std::iter::repeat_n(
+            b'A',
+            MAX_OSC52_CLIPBOARD_ENCODED_CHARS + 1,
+        ));
+        sequence.push(0x07);
+
+        let events = state.observe(&sequence, TerminalEmulation::Xterm256);
+
+        assert!(events.is_empty());
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_byte_stream_emits_large_osc52_clipboard_copy_below_cap() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+        let mut host_protocol = HostProtocolState::default();
+        let payload = "A".repeat(6000);
+        let sequence = format!("\x1b]52;c;{payload}\x07");
+        let mut events = Vec::new();
+
+        process_terminal_output_with_immediate_responses_and_host_events(
+            &mut terminal,
+            &mut host_protocol,
+            TerminalEmulation::Xterm256,
+            sequence.as_bytes(),
+            &mut |_, _, _| {},
+            &mut |processed_bytes, event| events.push((processed_bytes, event)),
+        );
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].0, sequence.len());
+        match &events[0].1 {
+            CallbackEvent::ClipboardCopy { selection, data } => {
+                assert_eq!(selection, "c");
+                assert_eq!(data, &payload);
+            }
+            event => panic!("expected clipboard copy event, got {event:?}"),
+        }
+        assert!(host_protocol.buffer.is_empty());
     }
 
     #[test]

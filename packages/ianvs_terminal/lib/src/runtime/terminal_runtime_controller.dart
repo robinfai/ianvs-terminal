@@ -11,6 +11,10 @@ import '../terminal/selection_controller.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 
+const int _maxOsc52ClipboardDecodedBytes = 1024 * 1024;
+const int _maxOsc52ClipboardEncodedChars =
+    ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
+
 typedef TerminalWindowResizeCallback =
     Future<void> Function({
       required double widthDelta,
@@ -325,8 +329,19 @@ class TerminalRuntimeController {
     if (!hasSession(sessionId)) {
       return;
     }
-    _backend.closeSession(sessionId);
-    _removeSessionState(sessionId);
+    Object? closeError;
+    StackTrace? closeStackTrace;
+    try {
+      _backend.closeSession(sessionId);
+    } catch (error, stackTrace) {
+      closeError = error;
+      closeStackTrace = stackTrace;
+    } finally {
+      _removeSessionState(sessionId);
+    }
+    if (closeError != null) {
+      Error.throwWithStackTrace(closeError, closeStackTrace!);
+    }
   }
 
   void sendInput(String sessionId, Uint8List bytes) {
@@ -1083,9 +1098,19 @@ class TerminalRuntimeController {
   }
 
   Uint8List? _decodeOsc52ClipboardPayload(String raw) {
+    if (raw.length > _maxOsc52ClipboardEncodedChars) {
+      return null;
+    }
     final normalized = raw.replaceAll(RegExp(r'\s+'), '');
+    if (normalized.length > _maxOsc52ClipboardEncodedChars) {
+      return null;
+    }
     try {
-      return Uint8List.fromList(base64.decode(normalized));
+      final decoded = base64.decode(normalized);
+      if (decoded.length > _maxOsc52ClipboardDecodedBytes) {
+        return null;
+      }
+      return Uint8List.fromList(decoded);
     } on FormatException {
       return null;
     }
@@ -1182,9 +1207,17 @@ class TerminalRuntimeController {
   }
 
   void dispose() {
+    Object? closeError;
+    StackTrace? closeStackTrace;
     for (final sessionId in _activeSessionIds.toList(growable: false)) {
-      _backend.closeSession(sessionId);
-      _removeSessionState(sessionId);
+      try {
+        _backend.closeSession(sessionId);
+      } catch (error, stackTrace) {
+        closeError ??= error;
+        closeStackTrace ??= stackTrace;
+      } finally {
+        _removeSessionState(sessionId);
+      }
     }
     _pollTimer?.cancel();
     for (final timers in _warmUpTimers.values) {
@@ -1198,6 +1231,9 @@ class TerminalRuntimeController {
     _events.close();
     _inputEvents.close();
     _resizeEvents.close();
+    if (closeError != null) {
+      Error.throwWithStackTrace(closeError, closeStackTrace!);
+    }
   }
 }
 

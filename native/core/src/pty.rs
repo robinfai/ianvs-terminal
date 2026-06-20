@@ -135,7 +135,7 @@ where
     F: Fn(ShellIntegrationKind, &TerminalProfile, &str) -> std::io::Result<ShellIntegrationProxy>,
 {
     let program = if profile.launch.program.is_empty() {
-        crate::platform::macos::default_shell()
+        crate::platform::default_shell()
     } else {
         profile.launch.program.clone()
     };
@@ -144,19 +144,15 @@ where
     let mut args = profile.launch.args.clone();
     let mut shell_integration_proxy = None;
 
-    if let Some(kind) = shell_integration_kind(profile, &program) {
-        if let Ok(proxy) = create_proxy(kind, profile, &program) {
-            match kind {
-                ShellIntegrationKind::Zsh => apply_zsh_shell_integration(&mut env, &proxy),
-                ShellIntegrationKind::Bash => {
-                    apply_bash_shell_integration(&mut args, &mut env, &proxy)
-                }
-                ShellIntegrationKind::Fish => {
-                    apply_fish_shell_integration(&mut args, &mut env, &proxy)
-                }
-            }
-            shell_integration_proxy = Some(proxy);
+    if let Some(kind) = shell_integration_kind(profile, &program)
+        && let Ok(proxy) = create_proxy(kind, profile, &program)
+    {
+        match kind {
+            ShellIntegrationKind::Zsh => apply_zsh_shell_integration(&mut env, &proxy),
+            ShellIntegrationKind::Bash => apply_bash_shell_integration(&mut args, &mut env, &proxy),
+            ShellIntegrationKind::Fish => apply_fish_shell_integration(&mut args, &mut env, &proxy),
         }
+        shell_integration_proxy = Some(proxy);
     }
 
     CommandPlan {
@@ -756,6 +752,22 @@ mod tests {
         build_command_plan_with_proxy_factory(profile, |_kind, _profile, _program| {
             panic!("proxy factory should not be called")
         })
+    }
+
+    #[test]
+    fn empty_program_uses_platform_default_shell() {
+        let profile = profile(
+            "",
+            vec![],
+            BTreeMap::new(),
+            TerminalEmulation::Xterm256,
+            false,
+        );
+
+        let plan = build_plan_without_proxy(&profile);
+
+        assert_eq!(plan.program, crate::platform::default_shell());
+        assert!(!plan.program.is_empty());
     }
 
     fn helper_path_env() -> (tempfile::TempDir, String) {

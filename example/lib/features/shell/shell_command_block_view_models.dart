@@ -309,6 +309,16 @@ ShellCommandBlockOutputCapture shellCommandBlockOutputCaptureFrom(
   for (var sourceIndex = 0; sourceIndex < sourceList.length; sourceIndex += 1) {
     final source = sourceList[sourceIndex];
     final text = source.text.trimRight();
+    final nextText = sourceIndex < sourceList.length - 1
+        ? sourceList[sourceIndex + 1].text.trimRight()
+        : null;
+    if (rows.isEmpty &&
+        nextText != null &&
+        _looksLikePromptWithWrappedCommandPrefix(text, nextText, block)) {
+      skippedLeadingPrompt = true;
+      sourceIndex += 1;
+      continue;
+    }
     if (rows.isEmpty &&
         sourceIndex < sourceList.length - 1 &&
         _looksLikeWrappedCommandContinuation(text, block)) {
@@ -339,6 +349,36 @@ ShellCommandBlockOutputCapture shellCommandBlockOutputCaptureFrom(
   );
 }
 
+bool _looksLikePromptWithWrappedCommandPrefix(
+  String text,
+  String nextText,
+  ShellCommandBlock block,
+) {
+  if (text.isEmpty || nextText.isEmpty) {
+    return false;
+  }
+  final command = _normalizePromptDetectionText(block.command);
+  final line = _normalizePromptDetectionText(text);
+  final nextLine = _normalizePromptDetectionText(nextText);
+  if (command.isEmpty || line.isEmpty || nextLine.isEmpty) {
+    return false;
+  }
+  final commandParts = command.split(' ');
+  if (commandParts.length < 2) {
+    return false;
+  }
+  for (var index = 1; index < commandParts.length; index += 1) {
+    final prefix = commandParts.sublist(0, index).join(' ');
+    final suffix = commandParts.sublist(index).join(' ');
+    if (nextLine == suffix &&
+        line.contains(prefix) &&
+        _looksLikePromptPrefixLine(line, block)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool _looksLikeWrappedCommandContinuation(
   String text,
   ShellCommandBlock block,
@@ -361,6 +401,19 @@ bool _looksLikeWrappedCommandContinuation(
     }
   }
   return false;
+}
+
+bool _looksLikePromptPrefixLine(String line, ShellCommandBlock block) {
+  final containsPromptTime = _promptTimePattern.hasMatch(line);
+  final containsPromptCue = _promptCuePattern.hasMatch(line);
+  final containsLocationCue = _containsPromptLocationCue(line, block.cwd);
+  final containsStrongLocationCue = _containsStrongPromptLocationCue(
+    line,
+    block.cwd,
+  );
+  return containsPromptCue ||
+      containsStrongLocationCue ||
+      (containsPromptTime && containsLocationCue);
 }
 
 List<terminal.TerminalRow> _trimTrailingBlankRows(

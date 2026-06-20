@@ -115,6 +115,60 @@ void main() {
     expect(bindings.lastSessionId, isNull);
   });
 
+  test('native pty backend clamps resize values before FFI', () {
+    final bindings = _RecordingPtyBindings();
+    final backend = NativePtyBackend.fromBindings(bindings);
+
+    backend.resizeSession(
+      '9',
+      cols: 70000,
+      rows: 24,
+      pixelWidth: 120000,
+      pixelHeight: 70001,
+    );
+
+    expect(bindings.resizeCalls.single, <int>[9, 0xffff, 24, 0xffff, 0xffff]);
+  });
+
+  test('native pty backend rejects negative native values before FFI', () {
+    final bindings = _RecordingPtyBindings();
+    final backend = NativePtyBackend.fromBindings(bindings);
+
+    expect(
+      () => backend.resizeSession(
+        '9',
+        cols: 80,
+        rows: 24,
+        pixelWidth: -1,
+        pixelHeight: 600,
+      ),
+      throwsArgumentError,
+    );
+    expect(() => backend.scrollViewportTo('9', -1), throwsArgumentError);
+    expect(bindings.resizeCalls, isEmpty);
+    expect(bindings.scrollToCalls, isEmpty);
+  });
+
+  test('native pty backend surfaces failing native status codes', () {
+    final bindings = _RecordingPtyBindings()..status = -1;
+    final backend = NativePtyBackend.fromBindings(bindings);
+
+    expect(() => backend.closeSession('1'), throwsStateError);
+    expect(
+      () => backend.resizeSession(
+        '1',
+        cols: 80,
+        rows: 24,
+        pixelWidth: 800,
+        pixelHeight: 600,
+      ),
+      throwsStateError,
+    );
+    expect(() => backend.writeInput('1', const [0x41]), throwsStateError);
+    expect(() => backend.scrollViewport('1', 3), throwsStateError);
+    expect(() => backend.scrollViewportTo('1', 4), throwsStateError);
+  });
+
   test('pty event decoding skips malformed entries', () {
     final events = PtyEvent.listFromJson(<Object?>[
       <String, Object?>{
@@ -252,5 +306,38 @@ class _RequestRecordingPtyBindings extends _NoopPtyBindings {
     lastSessionId = sessionId;
     lastRequestJson = requestJson;
     return response;
+  }
+}
+
+class _RecordingPtyBindings extends _NoopPtyBindings {
+  int status = 0;
+  final List<List<int>> resizeCalls = <List<int>>[];
+  final List<(int, int)> scrollToCalls = <(int, int)>[];
+
+  @override
+  int sessionClose(int sessionId) => status;
+
+  @override
+  int sessionResize(
+    int sessionId,
+    int cols,
+    int rows,
+    int pixelWidth,
+    int pixelHeight,
+  ) {
+    resizeCalls.add(<int>[sessionId, cols, rows, pixelWidth, pixelHeight]);
+    return status;
+  }
+
+  @override
+  int sessionWrite(int sessionId, List<int> bytes) => status;
+
+  @override
+  int sessionScroll(int sessionId, int deltaLines) => status;
+
+  @override
+  int sessionScrollTo(int sessionId, int offset) {
+    scrollToCalls.add((sessionId, offset));
+    return status;
   }
 }

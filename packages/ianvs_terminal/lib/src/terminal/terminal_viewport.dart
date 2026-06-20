@@ -1567,7 +1567,9 @@ class _TerminalViewportState extends State<TerminalViewport>
       previousValue: previousValue,
       hadActiveComposition: hadActiveComposition,
     );
-    if (text.isNotEmpty && _shouldForwardCommittedText(text)) {
+    if (text.isNotEmpty &&
+        (_shouldForwardCommittedText(text) ||
+            _isTextInputOnlyAsciiCommit(text, previousValue))) {
       widget.inputController.sendText(text);
     }
     _clearTextInputState();
@@ -1670,6 +1672,18 @@ class _TerminalViewportState extends State<TerminalViewport>
         _awaitingSystemTextCommit ||
         _containsNonAscii(text) ||
         text.runes.length > 1;
+  }
+
+  bool _isTextInputOnlyAsciiCommit(
+    String text,
+    TextEditingValue previousValue,
+  ) {
+    return previousValue.text.isEmpty &&
+        !_hadImeComposition &&
+        !_awaitingSystemTextCommit &&
+        _isPrintableAscii(text) &&
+        text.runes.length == 1 &&
+        HardwareKeyboard.instance.logicalKeysPressed.isEmpty;
   }
 
   bool _isPrintableAscii(String text) {

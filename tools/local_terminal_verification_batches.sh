@@ -65,7 +65,7 @@ print_batch() {
   case "$1" in
     formatting)
       cat <<'EOF'
-dart format \
+dart format --output=none --set-exit-if-changed \
   example/lib \
   example/test \
   example/integration_test \
@@ -213,7 +213,7 @@ run_batch() {
 
   case "$1" in
     formatting)
-      dart format \
+      dart format --output=none --set-exit-if-changed \
         example/lib \
         example/test \
         example/integration_test \

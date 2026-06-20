@@ -867,6 +867,31 @@ void main() {
       expect(echoCapture.rows.map((row) => row.text), ['hello']);
     });
 
+    test(
+      'output capture drops prompt command prefixes with wrapped continuations',
+      () {
+        final block = _commandBlock(
+          startRow: 10,
+          endRow: 13,
+          command: 'ls -la',
+          cwd: '/tmp/ianvs-terminal-test',
+        );
+
+        final capture = shellCommandBlockOutputCaptureFrom(block, const [
+          terminal.TerminalRow(index: 0, text: '/tmp/ianvs-terminal-test ls'),
+          terminal.TerminalRow(index: 1, text: ' -la'),
+          terminal.TerminalRow(index: 2, text: 'total 8'),
+          terminal.TerminalRow(index: 3, text: '-rw-r--r-- alpha.txt'),
+        ]);
+
+        expect(capture.rows.map((row) => row.text), [
+          'total 8',
+          '-rw-r--r-- alpha.txt',
+        ]);
+        expect(capture.reachedPromptBoundary, isFalse);
+      },
+    );
+
     test('reviewWorkspaceEntrypoints flag drives replay action', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [_commandBlock(startRow: 1, endRow: 4)],

@@ -958,6 +958,34 @@ void main() {
     expect(resizeEvents, isEmpty);
   });
 
+  testWidgets(
+    'terminal runtime controller removes local state when native close fails',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend()
+        ..closeError = StateError('native close failed');
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      expect(() => runtime.closeSession(sessionId), throwsStateError);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(runtimeBackend.closeCalls, <String>[sessionId]);
+
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+      expect(runtimeBackend.writeCalls, isEmpty);
+    },
+  );
+
   testWidgets('terminal runtime controller emits typed shell hook events', (
     tester,
   ) async {
@@ -2356,6 +2384,43 @@ void main() {
     },
   );
 
+  testWidgets(
+    'terminal runtime controller rejects oversized OSC 52 copy payloads',
+    (tester) async {
+      final copiedTexts = <String>[];
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (text) async {
+          copiedTexts.add(text);
+        },
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final oversizedPayload = base64.encode(Uint8List(1024 * 1024 + 1));
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_copy',
+          sessionId: sessionId,
+          payload: <String, Object?>{'data': oversizedPayload},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(copiedTexts, isEmpty);
+    },
+  );
+
   testWidgets('terminal runtime controller can block OSC 52 copy events', (
     tester,
   ) async {
@@ -2624,6 +2689,40 @@ void main() {
     expect(runtimeBackend.closeCalls, <String>['1', '2']);
   });
 
+  testWidgets(
+    'terminal runtime controller dispose cleans all state when native close fails',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend()
+        ..closeError = StateError('native close failed');
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+
+      final firstSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final secondSessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/zsh'),
+        ),
+      );
+
+      expect(() => runtime.dispose(), throwsStateError);
+
+      expect(runtimeBackend.closeCalls, <String>[
+        firstSessionId,
+        secondSessionId,
+      ]);
+      expect(runtime.hasSession(firstSessionId), isFalse);
+      expect(runtime.hasSession(secondSessionId), isFalse);
+    },
+  );
+
   testWidgets('terminal runtime controller continues to handle exit events', (
     tester,
   ) async {
@@ -2804,6 +2903,7 @@ class _FakePtyBackend
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
   bool returnNullJsonRequests = false;
+  Object? closeError;
 
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
@@ -2868,6 +2968,10 @@ class _FakePtyBackend
   @override
   void closeSession(String sessionId) {
     closeCalls.add(sessionId);
+    final error = closeError;
+    if (error != null) {
+      throw error;
+    }
     _frames.remove(sessionId);
     _queuedFrames.remove(sessionId);
     _queuedRawFrames.remove(sessionId);

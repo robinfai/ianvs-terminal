@@ -365,6 +365,9 @@ class Terminal implements TerminalDisposable {
   }
 
   void scrollToLine(int line) {
+    if (line < 0) {
+      throw ArgumentError.value(line, 'line', 'must be non-negative');
+    }
     _runtime.scrollViewportTo(_requireSessionId(), line);
   }
 
@@ -401,8 +404,19 @@ class Terminal implements TerminalDisposable {
     if (sessionId == null) {
       return;
     }
-    _sessionId = null;
-    _runtime.closeSession(sessionId);
+    Object? closeError;
+    StackTrace? closeStackTrace;
+    try {
+      _runtime.closeSession(sessionId);
+    } catch (error, stackTrace) {
+      closeError = error;
+      closeStackTrace = stackTrace;
+    } finally {
+      _sessionId = null;
+    }
+    if (closeError != null) {
+      Error.throwWithStackTrace(closeError, closeStackTrace!);
+    }
   }
 
   @override
@@ -410,7 +424,14 @@ class Terminal implements TerminalDisposable {
     if (_disposed) {
       return;
     }
-    close();
+    Object? disposeError;
+    StackTrace? disposeStackTrace;
+    try {
+      close();
+    } catch (error, stackTrace) {
+      disposeError = error;
+      disposeStackTrace = stackTrace;
+    }
     _disposed = true;
     for (final addon in _addons.reversed.toList(growable: false)) {
       addon.dispose();
@@ -428,7 +449,15 @@ class Terminal implements TerminalDisposable {
     _titleChangeEvents.close();
     _exitEvents.close();
     if (_disposeRuntime) {
-      _runtime.dispose();
+      try {
+        _runtime.dispose();
+      } catch (error, stackTrace) {
+        disposeError ??= error;
+        disposeStackTrace ??= stackTrace;
+      }
+    }
+    if (disposeError != null) {
+      Error.throwWithStackTrace(disposeError, disposeStackTrace!);
     }
   }
 

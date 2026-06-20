@@ -152,31 +152,17 @@ fn streaming_scrollback_profile() -> TerminalProfile {
     )
 }
 
-fn single_line_scroll_shift_profile(gate_path: &Path) -> TerminalProfile {
-    let mut env = BTreeMap::new();
-    env.insert(
-        "IANVS_SCROLL_GATE".to_string(),
-        gate_path.display().to_string(),
-    );
+fn single_line_scroll_shift_profile() -> TerminalProfile {
     local_profile(
         "single-line-scroll-shift",
         "Single Line Scroll Shift",
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            r#"python3 -c 'import os, sys, time
-gate = os.environ["IANVS_SCROLL_GATE"]
-for i in range(5):
-    sys.stdout.write(f"line{i:02d}\n")
-sys.stdout.flush()
-while not os.path.exists(gate):
-    time.sleep(0.01)
-sys.stdout.write("line05\n")
-sys.stdout.flush()
-'"#
-            .to_string(),
+            "i=0; while [ \"$i\" -lt 6 ]; do printf 'line%02d\\n' \"$i\"; i=$((i + 1)); done; sleep 1; printf 'line06\\n'; sleep 0.1"
+                .to_string(),
         ],
-        env,
+        BTreeMap::new(),
         TerminalEmulation::Xterm256,
     )
 }
@@ -615,10 +601,10 @@ fn vt220_wraparound_repaint_profile() -> TerminalProfile {
 
 fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     for _ in 0..SESSION_WAIT_ATTEMPTS {
-        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
-            if frame.contains(needle) {
-                return frame;
-            }
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap()
+            && frame.contains(needle)
+        {
+            return frame;
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -901,7 +887,7 @@ fn frame_row_with_text<'a>(frame: &'a serde_json::Value, needle: &str) -> &'a se
         .expect("expected matching frame row")
 }
 
-fn frame_row_at_index<'a>(frame: &'a serde_json::Value, index: u64) -> &'a serde_json::Value {
+fn frame_row_at_index(frame: &serde_json::Value, index: u64) -> &serde_json::Value {
     frame["rows"]
         .as_array()
         .and_then(|rows| rows.iter().find(|row| row["index"].as_u64() == Some(index)))
@@ -911,6 +897,13 @@ fn frame_row_at_index<'a>(frame: &'a serde_json::Value, index: u64) -> &'a serde
 #[test]
 fn ping_returns_expected_value() {
     assert_eq!(session::ping(), 42);
+}
+
+#[test]
+fn close_session_reports_missing_session_ids() {
+    let error = session::close_session(u64::MAX).unwrap_err();
+
+    assert_eq!(error.to_string(), format!("missing session {}", u64::MAX));
 }
 
 #[test]
@@ -2513,13 +2506,12 @@ fn vt220_wraparound_repaint_keeps_full_width_rows_dirty_and_complete() {
         frame_row_at_index(&second_parsed, 2)["text"].as_str(),
         Some("*****")
     );
-    assert_eq!(
+    assert!(
         second_parsed["dirty_ranges"]
             .as_array()
             .is_some_and(|ranges| ranges.iter().any(|range| {
                 range["start"].as_u64() == Some(0) && range["end"].as_u64().unwrap_or_default() >= 3
             })),
-        true,
         "wrap-around repaint should cover all three rows in at least one dirty range: {}",
         serde_json::to_string_pretty(&second_parsed).unwrap()
     );
@@ -2864,19 +2856,16 @@ fn scrolling_output_keeps_using_delta_frames_after_viewport_advances() {
 
 #[test]
 fn single_line_scroll_reports_viewport_row_shift_and_bottom_dirty_range() {
-    let gate = tempdir().unwrap();
-    let gate_path = gate.path().join("continue");
     let session_id = session::create_session(
-        &serde_json::to_string(&single_line_scroll_shift_profile(&gate_path)).unwrap(),
+        &serde_json::to_string(&single_line_scroll_shift_profile()).unwrap(),
     )
     .unwrap();
     session::resize_session(session_id, 40, 5, 0, 0).unwrap();
 
-    let _ = wait_for_frame_containing(session_id, "line04");
+    let _ = wait_for_frame_containing(session_id, "line05");
     wait_for_frame_idle(session_id);
-    fs::write(&gate_path, "").unwrap();
 
-    let shifted = wait_for_frame_containing(session_id, "line05");
+    let shifted = wait_for_frame_containing(session_id, "line06");
     let shifted_parsed: serde_json::Value = serde_json::from_str(&shifted).unwrap();
 
     assert_eq!(shifted_parsed["frame_kind"].as_str(), Some("delta"));
@@ -2905,18 +2894,15 @@ fn single_line_scroll_reports_viewport_row_shift_and_bottom_dirty_range() {
 
 #[test]
 fn damage_driven_delta_reports_low_rows_scanned_for_single_line_scroll() {
-    let gate = tempdir().unwrap();
-    let gate_path = gate.path().join("continue");
     let session_id = session::create_session(
-        &serde_json::to_string(&single_line_scroll_shift_profile(&gate_path)).unwrap(),
+        &serde_json::to_string(&single_line_scroll_shift_profile()).unwrap(),
     )
     .unwrap();
     session::resize_session(session_id, 40, 5, 0, 0).unwrap();
 
-    let _ = wait_for_frame_containing(session_id, "line04");
-    wait_for_frame_idle(session_id);
-    fs::write(&gate_path, "").unwrap();
     let _ = wait_for_frame_containing(session_id, "line05");
+    wait_for_frame_idle(session_id);
+    let _ = wait_for_frame_containing(session_id, "line06");
     let debug_stats = session::take_frame_debug_stats_json(session_id)
         .unwrap()
         .expect("expected frame debug stats");

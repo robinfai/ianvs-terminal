@@ -269,6 +269,61 @@ void main() {
     }
   });
 
+  testWidgets('terminal viewport forwards text-input-only ASCII commits', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = _runtimeFor(backend);
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    final viewportController = TerminalViewportController()
+      ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+    final inputController = TerminalInputController(
+      sessionId: sessionId,
+      runtime: runtime,
+      readFrame: () => viewportController.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 640,
+            height: 240,
+            child: TerminalViewport(
+              controller: viewportController,
+              selectionController: SelectionController(),
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    tester.testTextInput.updateEditingValue(
+      const TextEditingValue(
+        text: 'a',
+        selection: TextSelection.collapsed(offset: 1),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      backend.writeCalls.map(utf8.decode).toList(growable: false),
+      <String>['a'],
+    );
+  });
+
   testWidgets(
     'terminal input controller does not repeat app-modifier paste shortcuts',
     (tester) async {

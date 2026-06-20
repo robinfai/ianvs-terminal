@@ -228,6 +228,34 @@ void main() {
     expect(terminal.isOpen, isFalse);
   });
 
+  testWidgets(
+    'terminal facade dispose releases local resources when native close fails',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..closeError = StateError('native close failed');
+      final runtime = _runtimeFor(backend);
+      final terminal = Terminal(
+        runtime: runtime,
+        sessionConfig: const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+        disposeRuntime: true,
+      );
+      final lifecycle = <String>[];
+      terminal.loadAddon(_RecordingAddon(lifecycle));
+      terminal.open();
+      final sessionId = terminal.sessionId!;
+
+      expect(() => terminal.dispose(), throwsStateError);
+
+      expect(backend.closeCalls, <String>[sessionId]);
+      expect(runtime.hasSession(sessionId), isFalse);
+      expect(terminal.isOpen, isFalse);
+      expect(terminal.disposed, isTrue);
+      expect(lifecycle, <String>['activate:false', 'dispose']);
+    },
+  );
+
   testWidgets('terminal facade rejects zero resize dimensions', (tester) async {
     final backend = _FakePtyBackend();
     final runtime = _runtimeFor(backend);
@@ -247,6 +275,26 @@ void main() {
     expect(backend.resizeCalls, hasLength(resizeCallCount));
     expect(terminal.cols, 80);
     expect(terminal.rows, 24);
+  });
+
+  testWidgets('terminal facade rejects negative scroll targets', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = _runtimeFor(backend);
+    addTearDown(runtime.dispose);
+    final terminal = Terminal(
+      runtime: runtime,
+      sessionConfig: const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    addTearDown(terminal.dispose);
+    terminal.open();
+
+    final scrollToCallCount = backend.scrollToCalls.length;
+    expect(() => terminal.scrollToLine(-1), throwsArgumentError);
+    expect(backend.scrollToCalls, hasLength(scrollToCallCount));
   });
 
   testWidgets('terminal facade clamps excessive resize dimensions', (
@@ -314,6 +362,7 @@ class _FakePtyBackend
   final Map<String, Map<String, Object?>> _frames =
       <String, Map<String, Object?>>{};
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
+  Object? closeError;
   int _nextSessionId = 0;
 
   Map<String, Object?>? get lastCreateSessionPayload {
@@ -346,6 +395,10 @@ class _FakePtyBackend
   @override
   void closeSession(String sessionId) {
     closeCalls.add(sessionId);
+    final error = closeError;
+    if (error != null) {
+      throw error;
+    }
     _frames.remove(sessionId);
     _queuedEvents.remove(sessionId);
   }

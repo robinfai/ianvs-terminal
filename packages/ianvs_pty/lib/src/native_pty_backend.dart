@@ -4,6 +4,9 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 
+const int _maxNativeUint16 = 0xffff;
+const int _maxNativeEventJsonUtf8Bytes = 2 * 1024 * 1024;
+
 typedef _PingNative = ffi.Int32 Function();
 typedef _PingDart = int Function();
 typedef _CreateSessionNative = ffi.Uint64 Function(ffi.Pointer<Utf8>);
@@ -331,13 +334,35 @@ class NativePtyBindings implements PtyBindings {
       return const <PtyEvent>[];
     }
     try {
-      final raw = resultPointer.toDartString();
+      final raw = _boundedUtf8StringFromPointer(
+        resultPointer,
+        _maxNativeEventJsonUtf8Bytes,
+      );
+      if (raw == null) {
+        return const <PtyEvent>[];
+      }
       return PtyEvent.listFromJson(jsonDecode(raw));
     } on Object {
       return const <PtyEvent>[];
     } finally {
       _stringFree(resultPointer);
     }
+  }
+}
+
+String? _boundedUtf8StringFromPointer(
+  ffi.Pointer<Utf8> pointer,
+  int maxUtf8Bytes,
+) {
+  final bytes = pointer.cast<ffi.Uint8>().asTypedList(maxUtf8Bytes + 1);
+  final terminatorIndex = bytes.indexOf(0);
+  if (terminatorIndex < 0 || terminatorIndex > maxUtf8Bytes) {
+    return null;
+  }
+  try {
+    return utf8.decode(bytes.sublist(0, terminatorIndex));
+  } on FormatException {
+    return null;
   }
 }
 
@@ -395,7 +420,10 @@ class NativePtyBackend
 
   @override
   void closeSession(String sessionId) {
-    _bindings.sessionClose(_nativeSessionId(sessionId));
+    _checkNativeStatus(
+      'close session',
+      _bindings.sessionClose(_nativeSessionId(sessionId)),
+    );
   }
 
   @override
@@ -406,28 +434,43 @@ class NativePtyBackend
     required int pixelWidth,
     required int pixelHeight,
   }) {
-    _bindings.sessionResize(
-      _nativeSessionId(sessionId),
-      cols,
-      rows,
-      pixelWidth,
-      pixelHeight,
+    _checkNativeStatus(
+      'resize session',
+      _bindings.sessionResize(
+        _nativeSessionId(sessionId),
+        _nativeUint16('cols', cols),
+        _nativeUint16('rows', rows),
+        _nativeUint16('pixelWidth', pixelWidth),
+        _nativeUint16('pixelHeight', pixelHeight),
+      ),
     );
   }
 
   @override
   void writeInput(String sessionId, List<int> bytes) {
-    _bindings.sessionWrite(_nativeSessionId(sessionId), bytes);
+    _checkNativeStatus(
+      'write input',
+      _bindings.sessionWrite(_nativeSessionId(sessionId), bytes),
+    );
   }
 
   @override
   void scrollViewport(String sessionId, int deltaLines) {
-    _bindings.sessionScroll(_nativeSessionId(sessionId), deltaLines);
+    _checkNativeStatus(
+      'scroll viewport',
+      _bindings.sessionScroll(_nativeSessionId(sessionId), deltaLines),
+    );
   }
 
   @override
   void scrollViewportTo(String sessionId, int offset) {
-    _bindings.sessionScrollTo(_nativeSessionId(sessionId), offset);
+    if (offset < 0) {
+      throw ArgumentError.value(offset, 'offset', 'must be non-negative');
+    }
+    _checkNativeStatus(
+      'scroll viewport to offset',
+      _bindings.sessionScrollTo(_nativeSessionId(sessionId), offset),
+    );
   }
 
   @override
@@ -454,6 +497,12 @@ class NativePtyBackend
   }
 }
 
+void _checkNativeStatus(String operation, int status) {
+  if (status != 0) {
+    throw StateError('Failed to $operation: native status $status');
+  }
+}
+
 int _nativeSessionId(String sessionId) {
   final parsed = int.tryParse(sessionId);
   if (parsed == null || parsed <= 0) {
@@ -464,6 +513,13 @@ int _nativeSessionId(String sessionId) {
     );
   }
   return parsed;
+}
+
+int _nativeUint16(String name, int value) {
+  if (value < 0) {
+    throw ArgumentError.value(value, name, 'must be non-negative');
+  }
+  return value > _maxNativeUint16 ? _maxNativeUint16 : value;
 }
 
 String _resolveLibraryPath() {

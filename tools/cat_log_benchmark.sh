@@ -80,6 +80,11 @@ if [[ -z "$out_dir" ]]; then
   exit 1
 fi
 
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "cat_log_benchmark.sh currently requires macOS: it uses /usr/bin/time -lp, stat -f%z, and .dylib native artifacts." >&2
+  exit 2
+fi
+
 if [[ "${out_dir#/}" == "$out_dir" ]]; then
   echo "--out-dir must be an absolute path" >&2
   exit 1
