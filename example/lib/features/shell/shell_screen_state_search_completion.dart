@@ -1299,7 +1299,75 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
 
   void _updateCommandInputDrafts(String sessionId, String text) {
     final inputState = _commandInputStateForText(sessionId, text);
+    _maybeRequestFigCompletions(sessionId, text, inputState.classification);
     _maybeRequestCommandInputDrafts(sessionId, text, inputState.classification);
+  }
+
+  void _maybeRequestFigCompletions(
+    String sessionId,
+    String text,
+    UniversalInputClassification classification,
+  ) {
+    if (classification.isNaturalLanguage || text.trimRight().isEmpty) {
+      _mutateState(() {
+        _figCompletionSuggestionsBySession.remove(sessionId);
+        _figCompletionTextBySession[sessionId] = text;
+        _figCompletionLoadingSessionIds.remove(sessionId);
+      });
+      return;
+    }
+    if (_figCompletionTextBySession[sessionId] == text &&
+        (_figCompletionSuggestionsBySession.containsKey(sessionId) ||
+            _figCompletionLoadingSessionIds.contains(sessionId))) {
+      return;
+    }
+
+    final state = ref.read(sessionControllerProvider);
+    final pane = _paneForSession(state, sessionId);
+    final profile = pane == null ? null : _profileForPane(pane, state.profiles);
+    final controller = _commandInputControllers[sessionId];
+    final cursorOffset = _commandInputCursorOffset(controller, text);
+    final requestSerial = ++_figCompletionRequestSerial;
+    _mutateState(() {
+      _figCompletionSuggestionsBySession.remove(sessionId);
+      _figCompletionTextBySession[sessionId] = text;
+      _figCompletionLoadingSessionIds.add(sessionId);
+    });
+    unawaited(() async {
+      final response = await _figCompletionService.complete(
+        FigCompletionRequest(
+          text: text,
+          cursorOffset: cursorOffset,
+          cwd: pane?.shellIntegration.currentDirectory,
+          shell: profile?.shell,
+          sessionId: sessionId,
+          environmentVariables: profile?.env ?? const <String, String>{},
+          recentCommands: pane?.shellIntegration.recentCommands ?? const [],
+        ),
+      );
+      if (!mounted ||
+          requestSerial != _figCompletionRequestSerial ||
+          _commandInputControllers[sessionId]?.text != text) {
+        return;
+      }
+      _mutateState(() {
+        _figCompletionSuggestionsBySession[sessionId] =
+            response?.items ?? const <FigCompletionSuggestion>[];
+        _figCompletionTextBySession[sessionId] = text;
+        _figCompletionLoadingSessionIds.remove(sessionId);
+      });
+    }());
+  }
+
+  int _commandInputCursorOffset(
+    TextEditingController? controller,
+    String fallbackText,
+  ) {
+    final selection = controller?.selection;
+    if (selection == null || !selection.isValid) {
+      return fallbackText.length;
+    }
+    return selection.baseOffset.clamp(0, fallbackText.length).toInt();
   }
 
   void _maybeRequestCommandInputDrafts(
@@ -1482,9 +1550,41 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
         .frame;
     final prefix = _autoComposerPrefixForText(text);
     return _mergeAutocompleteSuggestions([
+      _figCompletionSuggestionsForText(sessionId, text),
       _shellCommandAutocompleteSuggestions(state, sessionId, prefix),
       _autocompleteSuggestionsForFrame(frame, prefix),
     ]);
+  }
+
+  List<String> _figCompletionSuggestionsForText(String sessionId, String text) {
+    if (_figCompletionTextBySession[sessionId] != text) {
+      return const <String>[];
+    }
+    final suggestions =
+        _figCompletionSuggestionsBySession[sessionId] ??
+        const <FigCompletionSuggestion>[];
+    return [
+      for (final suggestion in suggestions)
+        if (suggestion.replacementText.trim().isNotEmpty)
+          suggestion.replacementText,
+    ];
+  }
+
+  Map<String, FigCompletionSuggestion> _figCompletionSuggestionDetailsForText(
+    String sessionId,
+    String text,
+  ) {
+    if (_figCompletionTextBySession[sessionId] != text) {
+      return const <String, FigCompletionSuggestion>{};
+    }
+    final suggestions =
+        _figCompletionSuggestionsBySession[sessionId] ??
+        const <FigCompletionSuggestion>[];
+    return {
+      for (final suggestion in suggestions)
+        if (suggestion.replacementText.trim().isNotEmpty)
+          suggestion.replacementText: suggestion,
+    };
   }
 
   String _autoComposerPrefixForText(String text) {

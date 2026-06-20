@@ -14,6 +14,35 @@ class AppDelegate: FlutterAppDelegate {
     registeredMainWindow = nil
   }
 
+  static func savedApplicationStateURL(
+    bundleIdentifier: String?,
+    homeDirectory: URL
+  ) -> URL? {
+    guard let bundleIdentifier, !bundleIdentifier.isEmpty else {
+      return nil
+    }
+    return homeDirectory
+      .appendingPathComponent("Library", isDirectory: true)
+      .appendingPathComponent("Saved Application State", isDirectory: true)
+      .appendingPathComponent("\(bundleIdentifier).savedState", isDirectory: true)
+  }
+
+  static func removeSavedApplicationState(
+    bundleIdentifier: String? = Bundle.main.bundleIdentifier,
+    homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+    fileManager: FileManager = .default
+  ) {
+    guard
+      let url = savedApplicationStateURL(
+        bundleIdentifier: bundleIdentifier,
+        homeDirectory: homeDirectory
+      )
+    else {
+      return
+    }
+    try? fileManager.removeItem(at: url)
+  }
+
   static func windowToShowForActivation(
     from windows: [NSWindow],
     fallback: NSWindow? = registeredMainWindow
@@ -24,15 +53,17 @@ class AppDelegate: FlutterAppDelegate {
       windows.first
   }
 
+  override func applicationWillFinishLaunching(_ notification: Notification) {
+    Self.removeSavedApplicationState()
+  }
+
   override func applicationDidFinishLaunching(_ notification: Notification) {
-    super.applicationDidFinishLaunching(notification)
     DispatchQueue.main.async { [weak self] in
       self?.showMainWindowIfAvailable(NSApp)
     }
   }
 
   override func applicationDidBecomeActive(_ notification: Notification) {
-    super.applicationDidBecomeActive(notification)
     showMainWindowIfAvailable(NSApp)
   }
 

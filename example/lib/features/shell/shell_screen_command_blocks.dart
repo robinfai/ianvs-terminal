@@ -1335,6 +1335,7 @@ class ShellCommandInputBar extends StatefulWidget {
     this.inputMode = UniversalInputMode.terminal,
     this.classifyInput,
     this.suggestionsForInput,
+    this.figSuggestionsForInput,
     this.suggestionDetailsForInput,
     this.suggestionsLoadingForInput,
     this.onGenerateCommandDrafts,
@@ -1374,6 +1375,11 @@ class ShellCommandInputBar extends StatefulWidget {
     UniversalInputClassification classification,
   )?
   suggestionsForInput;
+  final Map<String, FigCompletionSuggestion> Function(
+    String text,
+    UniversalInputClassification classification,
+  )?
+  figSuggestionsForInput;
   final Map<String, CommandDraft> Function(
     String text,
     UniversalInputClassification classification,
@@ -1517,6 +1523,9 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                 final suggestions = showInputSuggestions
                     ? _suggestionsFor(text, classification)
                     : const <String>[];
+                final figSuggestions = showInputSuggestions
+                    ? _figSuggestionsFor(text, classification)
+                    : const <String, FigCompletionSuggestion>{};
                 final suggestionDetails = showInputSuggestions
                     ? _suggestionDetailsFor(text, classification)
                     : const <String, CommandDraft>{};
@@ -1633,8 +1642,11 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                         onPrevious: () =>
                             _moveSuggestion(-1, suggestions.length),
                         onNext: () => _moveSuggestion(1, suggestions.length),
-                        onAcceptSuggestion: (suggestion) =>
-                            _acceptSuggestion(suggestion, classification),
+                        onAcceptSuggestion: (suggestion) => _acceptSuggestion(
+                          suggestion,
+                          classification,
+                          figSuggestions[suggestion],
+                        ),
                         onSend: () => unawaited(
                           _submit(
                             context,
@@ -1796,6 +1808,14 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
   ) {
     return widget.suggestionsForInput?.call(text, classification) ??
         const <String>[];
+  }
+
+  Map<String, FigCompletionSuggestion> _figSuggestionsFor(
+    String text,
+    UniversalInputClassification classification,
+  ) {
+    return widget.figSuggestionsForInput?.call(text, classification) ??
+        const <String, FigCompletionSuggestion>{};
   }
 
   Map<String, CommandDraft> _suggestionDetailsFor(
@@ -2404,8 +2424,13 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
 
   void _acceptSuggestion(
     String suggestion,
-    UniversalInputClassification classification,
-  ) {
+    UniversalInputClassification classification, [
+    FigCompletionSuggestion? figSuggestion,
+  ]) {
+    if (!classification.isNaturalLanguage && figSuggestion != null) {
+      _acceptFigSuggestion(figSuggestion);
+      return;
+    }
     final currentText = widget.controller.text;
     final prefix =
         RegExp(r'[A-Za-z0-9_./:-]+$').firstMatch(currentText)?.group(0) ?? '';
@@ -2422,6 +2447,47 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
     if (replaceWholeInput) {
       widget.onModeChanged?.call(UniversalInputMode.auto);
     }
+    widget.onChanged?.call(nextText);
+    setState(() {
+      _activeSuggestionIndex = 0;
+    });
+    _restoreTextInputFocus();
+  }
+
+  void _acceptFigSuggestion(FigCompletionSuggestion suggestion) {
+    final current = widget.controller.value;
+    final currentText = current.text;
+    final rawStart = suggestion.replaceStart;
+    final rawEnd = suggestion.replaceEnd;
+    final hasValidRange =
+        rawStart != null &&
+        rawEnd != null &&
+        rawStart >= 0 &&
+        rawEnd >= rawStart &&
+        rawEnd <= currentText.length;
+    final prefix =
+        RegExp(r'[A-Za-z0-9_./:-]+$').firstMatch(currentText)?.group(0) ?? '';
+    final replaceStart = hasValidRange
+        ? rawStart
+        : prefix.isEmpty
+        ? currentText.length
+        : currentText.length - prefix.length;
+    final replaceEnd = hasValidRange ? rawEnd : currentText.length;
+    final nextText = currentText.replaceRange(
+      replaceStart,
+      replaceEnd,
+      suggestion.replacementText,
+    );
+    final cursorOffset =
+        suggestion.cursorOffset ??
+        replaceStart + suggestion.replacementText.length;
+    widget.controller.value = current.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(
+        offset: cursorOffset.clamp(0, nextText.length).toInt(),
+      ),
+      composing: TextRange.empty,
+    );
     widget.onChanged?.call(nextText);
     setState(() {
       _activeSuggestionIndex = 0;

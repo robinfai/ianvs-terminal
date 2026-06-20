@@ -1,5 +1,6 @@
 import 'package:app/features/agent_center/agent_center.dart';
 import 'package:app/features/command_center/command_block_navigation.dart';
+import 'package:app/features/command_center/fig_completion_service.dart';
 import 'package:app/features/productivity/shell_productivity_models.dart';
 import 'package:app/features/productivity/shell_command_block_controller.dart';
 import 'package:app/features/shell/shell_command_block_view_models.dart';
@@ -2178,6 +2179,56 @@ void main() {
       await tester.pump();
 
       expect(controller.text, 'git cherry-pick');
+      expect(focusNode.hasFocus, isTrue);
+    });
+
+    testWidgets('tab applies Fig sidecar replacement ranges', (tester) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final changed = <String>[];
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.terminal,
+              suggestionsForInput: (_, _) => const ['commit'],
+              figSuggestionsForInput: (_, _) => const {
+                'commit': FigCompletionSuggestion(
+                  name: 'commit',
+                  replacementText: 'commit',
+                  replaceStart: 4,
+                  replaceEnd: 6,
+                  cursorOffset: 10,
+                  type: 'subcommand',
+                  source: 'fig:git',
+                ),
+              },
+              onChanged: changed.add,
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'git cm --amend',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(controller.text, 'git commit --amend');
+      expect(controller.selection.baseOffset, 10);
+      expect(changed.last, 'git commit --amend');
       expect(focusNode.hasFocus, isTrue);
     });
 

@@ -266,6 +266,7 @@ class MainFlutterWindow: NSWindow {
     self.titlebarAppearsTransparent = true
     self.isMovable = false
     self.isMovableByWindowBackground = false
+    self.isRestorable = false
     self.styleMask.insert(.fullSizeContentView)
     observeTrafficLightLayoutChanges()
 

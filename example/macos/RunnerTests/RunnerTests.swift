@@ -116,6 +116,24 @@ class RunnerTests: XCTestCase {
     XCTAssertFalse(delegate.applicationSupportsSecureRestorableState(app))
   }
 
+  func testSavedApplicationStatePathUsesBundleIdentifier() {
+    let home = URL(fileURLWithPath: "/Users/example", isDirectory: true)
+
+    XCTAssertEqual(
+      AppDelegate.savedApplicationStateURL(
+        bundleIdentifier: "dev.ianvs.terminal.dev",
+        homeDirectory: home
+      )?.path,
+      "/Users/example/Library/Saved Application State/dev.ianvs.terminal.dev.savedState"
+    )
+    XCTAssertNil(
+      AppDelegate.savedApplicationStateURL(
+        bundleIdentifier: nil,
+        homeDirectory: home
+      )
+    )
+  }
+
   func testNativeWindowDragRegionCoversOnlyLeadingChromeGap() {
     let contentSize = NSSize(width: 900, height: 600)
 

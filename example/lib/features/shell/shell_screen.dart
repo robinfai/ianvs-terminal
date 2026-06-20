@@ -24,6 +24,7 @@ import '../command_center/command_block_navigation.dart';
 import '../command_center/command_center_feature_flags.dart';
 import '../command_center/command_center_runtime.dart';
 import '../command_center/command_center_shell_event_wiring.dart';
+import '../command_center/fig_completion_service.dart';
 import '../command_center/command_lifecycle_degraded_state.dart';
 import '../command_center/command_history_persistence_wiring.dart';
 import '../command_center/command_search_intents.dart';
@@ -165,6 +166,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       const ShellCommandActionSearchAdapter();
   final CommandIntelligenceService _commandIntelligenceService =
       CommandIntelligenceService.fromEnvironment();
+  final FigCompletionService _figCompletionService =
+      FigCompletionService.fromEnvironment();
   late final SavedCommandRepository _savedCommandRepository;
   CommandCenterRuntimeState _commandCenterRuntime =
       const CommandCenterRuntimeState();
@@ -255,6 +258,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, List<CommandDraft>> _commandInputDraftsBySession = {};
   final Map<String, String> _commandInputDraftTextBySession = {};
   final Set<String> _commandInputDraftLoadingSessionIds = {};
+  final Map<String, List<FigCompletionSuggestion>>
+  _figCompletionSuggestionsBySession = {};
+  final Map<String, String> _figCompletionTextBySession = {};
+  final Set<String> _figCompletionLoadingSessionIds = {};
+  int _figCompletionRequestSerial = 0;
   int _commandIntelligenceRequestSerial = 0;
   int _commandCorrectionRequestSerial = 0;
   int _agentPromptActionSerial = 0;
@@ -331,6 +339,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _autoComposerController.dispose();
     _autoComposerFocusNode.dispose();
     _commandIntelligenceService.close();
+    _figCompletionService.close();
     super.dispose();
   }
 
@@ -1170,6 +1179,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             text,
                             classification,
                           ),
+                      figSuggestionsForInput: (text, classification) =>
+                          _figCompletionSuggestionDetailsForText(
+                            commandInputSessionId,
+                            text,
+                          ),
                       suggestionDetailsForInput: (text, classification) =>
                           _commandDraftDetailsByCommand(
                             _commandInputDraftsForText(
@@ -1180,7 +1194,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           ),
                       suggestionsLoadingForInput: (text, classification) {
                         if (!classification.isNaturalLanguage) {
-                          return false;
+                          return _figCompletionLoadingSessionIds.contains(
+                                commandInputSessionId,
+                              ) &&
+                              _figCompletionTextBySession[commandInputSessionId] ==
+                                  text;
                         }
                         return _commandInputDraftLoadingSessionIds.contains(
                               commandInputSessionId,
