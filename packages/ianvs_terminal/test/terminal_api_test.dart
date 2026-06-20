@@ -6,6 +6,22 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
+  test('terminal options clamp dimensions and rendering settings', () {
+    const options = TerminalOptions(
+      cols: -1,
+      rows: maxTerminalDimension + 1,
+      scrollback: maxTerminalScrollbackLines + 1,
+      fontSize: double.infinity,
+      lineHeight: double.nan,
+    );
+
+    expect(options.cols, defaultTerminalColumns);
+    expect(options.rows, maxTerminalDimension);
+    expect(options.scrollback, maxTerminalScrollbackLines);
+    expect(options.fontSize, terminalFontSize);
+    expect(options.lineHeight, terminalLineHeight);
+  });
+
   testWidgets('terminal facade opens with xterm-style options and addons', (
     tester,
   ) async {
@@ -231,6 +247,35 @@ void main() {
     expect(backend.resizeCalls, hasLength(resizeCallCount));
     expect(terminal.cols, 80);
     expect(terminal.rows, 24);
+  });
+
+  testWidgets('terminal facade clamps excessive resize dimensions', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    final runtime = _runtimeFor(backend);
+    addTearDown(runtime.dispose);
+    final terminal = Terminal(
+      runtime: runtime,
+      sessionConfig: const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    addTearDown(terminal.dispose);
+    terminal.open();
+
+    terminal.resize(maxTerminalDimension + 10, maxTerminalDimension + 20);
+    await tester.pump();
+
+    expect(terminal.cols, maxTerminalDimension);
+    expect(terminal.rows, maxTerminalDimension);
+    expect(backend.resizeCalls.last, <Object?>[
+      '1',
+      maxTerminalDimension,
+      maxTerminalDimension,
+      589815,
+      1179630,
+    ]);
   });
 }
 

@@ -10,7 +10,7 @@ use par_term_emu_core_rust::color::{Color, NamedColor};
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::{
-    snapshot::ExportFormat, Terminal, TerminalDamage, TerminalProcessDebugStats,
+    Terminal, TerminalDamage, TerminalProcessDebugStats, snapshot::ExportFormat,
 };
 use parking_lot::Mutex;
 use regex::RegexBuilder;
@@ -18,8 +18,8 @@ use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
     Arc, LazyLock,
+    atomic::{AtomicBool, Ordering},
 };
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -830,19 +830,21 @@ impl TerminalSession {
 
     fn start_resource_sampler(session: &Arc<Self>) {
         let resource_session = Arc::clone(session);
-        thread::spawn(move || loop {
-            if resource_session.exited.load(Ordering::SeqCst) {
-                break;
+        thread::spawn(move || {
+            loop {
+                if resource_session.exited.load(Ordering::SeqCst) {
+                    break;
+                }
+                let keep_sampling = resource_session.record_resource_sample();
+                let failures = resource_session
+                    .resource_sampler_state
+                    .lock()
+                    .consecutive_failures;
+                if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
+                    break;
+                }
+                thread::sleep(RESOURCE_SAMPLE_INTERVAL);
             }
-            let keep_sampling = resource_session.record_resource_sample();
-            let failures = resource_session
-                .resource_sampler_state
-                .lock()
-                .consecutive_failures;
-            if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
-                break;
-            }
-            thread::sleep(RESOURCE_SAMPLE_INTERVAL);
         });
     }
 
@@ -3944,9 +3946,11 @@ mod tests {
     fn host_protocol_observe_keeps_split_osc_sequences_working() {
         let mut state = HostProtocolState::default();
 
-        assert!(state
-            .observe(b"\x1b]1;build", TerminalEmulation::Xterm256)
-            .is_empty());
+        assert!(
+            state
+                .observe(b"\x1b]1;build", TerminalEmulation::Xterm256)
+                .is_empty()
+        );
         assert!(!state.buffer.is_empty());
 
         let events = state.observe(b" icon\x07", TerminalEmulation::Xterm256);
@@ -3960,12 +3964,14 @@ mod tests {
     fn host_protocol_observe_emits_split_shell_hook_dcs() {
         let mut state = HostProtocolState::default();
 
-        assert!(state
-            .observe(
-                b"\x1bPhook;7b22686f6f6b223a22707265636d64222c",
-                TerminalEmulation::Xterm256
-            )
-            .is_empty());
+        assert!(
+            state
+                .observe(
+                    b"\x1bPhook;7b22686f6f6b223a22707265636d64222c",
+                    TerminalEmulation::Xterm256
+                )
+                .is_empty()
+        );
         assert!(!state.buffer.is_empty());
 
         let events = state.observe(

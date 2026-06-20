@@ -1,4 +1,18 @@
+const int defaultTerminalColumns = 80;
+const int defaultTerminalRows = 24;
+const int maxTerminalDimension = 0xffff;
 const int defaultTerminalScrollbackLines = 8000;
+const int maxTerminalScrollbackLines = 100000;
+
+int normalizeTerminalScrollbackLines(int value) {
+  if (value < 1) {
+    return defaultTerminalScrollbackLines;
+  }
+  if (value > maxTerminalScrollbackLines) {
+    return maxTerminalScrollbackLines;
+  }
+  return value;
+}
 
 const String terminalPrimaryFontFamily = 'JetBrainsMono Nerd Font Mono';
 const double terminalFontSize = 14;

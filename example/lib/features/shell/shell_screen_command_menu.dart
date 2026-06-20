@@ -530,6 +530,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ),
                       ),
                     commandTile(
+                      key: const Key('shell-copy-selection'),
                       actionId: TerminalActionId.copy,
                       icon: Icons.copy_rounded,
                       title: 'Copy selection',

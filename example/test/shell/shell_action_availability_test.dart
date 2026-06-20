@@ -176,7 +176,7 @@ void main() {
       expect(availability.reason, isNull);
     });
 
-    test('command search entry ignores legacy history flags', () {
+    test('command search entry ignores optional command block sub-flags', () {
       const flags = CommandBlocksHistoryFeatureFlags(
         enabled: true,
         commandBlocks: true,

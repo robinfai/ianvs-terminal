@@ -65,10 +65,7 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
   ) {
     final sessionState = ref.read(sessionControllerProvider);
     final activeSessionId = sessionState.activeSessionId;
-    final activeCommandBlock = _activeCommandActionSearchBlock(
-      sessionState,
-      sessionId,
-    );
+    final activeCommandBlock = _activeCommandActionSearchBlock(sessionId);
     return _commandActionSearchShellWiring.controllerFor(
       actions: _commandActionSearchAdapter.itemsFor(
         hasActiveSession: activeSessionId != null,
@@ -887,10 +884,7 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
       return;
     }
     final action = _commandBlockActionForActionSearch(actionId);
-    final block = _activeCommandActionSearchBlock(
-      sessionState,
-      currentSessionId,
-    );
+    final block = _activeCommandActionSearchBlock(currentSessionId);
     if (action == null || block == null) {
       _showCommandActionSearchBlockedIntent('No command block is selected.');
       _focusSession(sessionId);
@@ -1061,11 +1055,8 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
     }
   }
 
-  CommandBlock? _activeCommandActionSearchBlock(
-    SessionState sessionState,
-    String sessionId,
-  ) {
-    return _commandBlockCommandCenterAdapter.activeCompatibleBlockFor(
+  CommandBlock? _activeCommandActionSearchBlock(String sessionId) {
+    return _commandBlockCommandCenterAdapter.activeCommandBlockFor(
       snapshot:
           _commandBlockSnapshotsBySession[sessionId] ??
           const ShellCommandBlockSnapshot(),

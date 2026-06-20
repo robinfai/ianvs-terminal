@@ -133,13 +133,12 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
     final snapshot =
         _commandBlockSnapshotsBySession[sessionId] ??
         const ShellCommandBlockSnapshot();
-    final compatibleBlock = _commandBlockCommandCenterAdapter
-        .compatibleBlockById(
-          snapshot: snapshot,
-          sessionId: sessionId,
-          blockId: resolvedBlockId,
-        );
-    return compatibleBlock?.id;
+    final commandBlock = _commandBlockCommandCenterAdapter.commandBlockById(
+      snapshot: snapshot,
+      sessionId: sessionId,
+      blockId: resolvedBlockId,
+    );
+    return commandBlock?.id;
   }
 
   String _commandSearchAgentPrompt(CommandSearchAgentActionRequest request) {
@@ -163,7 +162,7 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
     final snapshot =
         _commandBlockSnapshotsBySession[sessionId] ??
         const ShellCommandBlockSnapshot();
-    if (_commandBlockCommandCenterAdapter.compatibleBlockById(
+    if (_commandBlockCommandCenterAdapter.commandBlockById(
           snapshot: snapshot,
           sessionId: sessionId,
           blockId: blockId,

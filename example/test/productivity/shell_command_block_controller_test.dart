@@ -617,10 +617,15 @@ void main() {
   });
 
   group('Shell command block models', () {
-    test('treats omitted range as invalid', () {
+    test('treats invalid range as invalid', () {
       const block = ShellCommandBlock(
-        id: 'missing-range',
+        id: 'bad-range',
         command: 'flutter test',
+        outputRange: ShellCommandBlockRange(
+          commandRow: -1,
+          outputStartRow: -1,
+          outputEndRow: -1,
+        ),
       );
 
       expect(block.isValid, isFalse);

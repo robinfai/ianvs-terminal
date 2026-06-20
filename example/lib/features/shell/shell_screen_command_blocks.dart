@@ -2816,46 +2816,61 @@ class _UniversalInputModelMenuChip extends StatelessWidget {
               ),
           ];
         },
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 260),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: palette.chrome.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(palette.radius.sm),
-              border: Border.all(color: palette.border),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.psychology_alt_rounded,
-                    size: 16,
-                    color: palette.accent,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxWidth = math.min(260.0, constraints.maxWidth);
+            if (maxWidth < 24) {
+              return SizedBox(width: math.max(0.0, maxWidth), height: 28);
+            }
+            final iconOnly = maxWidth < 80;
+            return SizedBox(
+              width: maxWidth.isFinite ? maxWidth : null,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: palette.chrome.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(palette.radius.sm),
+                  border: Border.all(color: palette.border),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: iconOnly ? 5 : 8,
+                    vertical: 5,
                   ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      label,
-                      key: Key('$keyPrefix-model-label'),
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: palette.textSubtle,
-                        fontWeight: FontWeight.w700,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.psychology_alt_rounded,
+                        size: 16,
+                        color: palette.accent,
                       ),
-                    ),
+                      if (!iconOnly) ...[
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            label,
+                            key: Key('$keyPrefix-model-label'),
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: palette.textSubtle,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 16,
+                          color: palette.textMuted,
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 16,
-                    color: palette.textMuted,
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

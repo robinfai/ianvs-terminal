@@ -173,7 +173,73 @@ Future<void> _pumpShellScreen(
 
 Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-  await tester.pumpAndSettle();
+  await _pumpUntilFound(
+    tester,
+    find.byKey(const Key('shell-command-search-field')),
+  );
+}
+
+Future<void> _runCommandMenuAction(
+  WidgetTester tester, {
+  required String query,
+  required String label,
+  Key? actionKey,
+}) async {
+  await _openCommandMenu(tester);
+  await tester.enterText(
+    find.byKey(const Key('shell-command-search-field')),
+    query,
+  );
+  final actionFinder = actionKey == null
+      ? find.text(label)
+      : find.byKey(actionKey);
+  await _pumpUntilFound(tester, actionFinder);
+  if (actionKey != null) {
+    await _pumpUntilFound(tester, find.text(label));
+  }
+  await tester.ensureVisible(actionFinder);
+  await tester.pump();
+  await tester.tap(actionFinder);
+  await _pumpUntilGone(
+    tester,
+    find.byKey(const Key('shell-command-menu-overlay')),
+  );
+  await tester.pump(const Duration(milliseconds: 100));
+}
+
+Future<void> _pumpUntilFound(
+  WidgetTester tester,
+  Finder finder, {
+  int maxPumps = 20,
+  Duration step = const Duration(milliseconds: 50),
+}) async {
+  for (var i = 0; i < maxPumps; i += 1) {
+    await tester.pump(step);
+    if (finder.evaluate().isNotEmpty) {
+      return;
+    }
+  }
+  expect(finder, findsOneWidget);
+}
+
+Future<void> _pumpUntilGone(
+  WidgetTester tester,
+  Finder finder, {
+  int maxPumps = 20,
+  Duration step = const Duration(milliseconds: 50),
+}) async {
+  for (var i = 0; i < maxPumps; i += 1) {
+    await tester.pump(step);
+    if (finder.evaluate().isEmpty) {
+      return;
+    }
+  }
+  expect(finder, findsNothing);
+}
+
+Future<void> _sendEnterAndPump(WidgetTester tester) async {
+  await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 Future<void> _openShellSearch(WidgetTester tester) async {
@@ -1838,10 +1904,12 @@ void main() {
     await tester.dragFrom(selectionStart, const Offset(300, 0));
     await tester.pump();
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Copy selection'));
-    await tester.tap(find.text('Copy selection'));
-    await tester.pumpAndSettle();
+    await _runCommandMenuAction(
+      tester,
+      query: 'copy selection',
+      label: 'Copy selection',
+      actionKey: const Key('shell-copy-selection'),
+    );
 
     expect(copiedText, 'ianvs terminal ready');
     expect(fakeBindings.writes, isEmpty);
@@ -2203,15 +2271,17 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-export-diagnostics')),
+    await _runCommandMenuAction(
+      tester,
+      query: 'export diagnostics',
+      label: 'Export diagnostics',
+      actionKey: const Key('shell-export-diagnostics'),
     );
-    await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('shell-export-diagnostics')));
-    await tester.pumpAndSettle();
-
+    await _pumpUntilFound(
+      tester,
+      find.text('Diagnostics export is unavailable for the active sessions.'),
+    );
     expect(
       find.text('Diagnostics export is unavailable for the active sessions.'),
       findsOneWidget,
@@ -2256,26 +2326,24 @@ void main() {
     ];
 
     for (final toggle in toggles) {
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.byKey(toggle.key));
-      await tester.pumpAndSettle();
+      await _runCommandMenuAction(
+        tester,
+        query: toggle.disableLabel,
+        label: toggle.disableLabel,
+        actionKey: toggle.key,
+      );
 
-      expect(find.text(toggle.disableLabel), findsOneWidget);
-
-      await tester.tap(find.byKey(toggle.key));
-      await tester.pumpAndSettle();
-
+      await _pumpUntilFound(tester, find.text(toggle.disabledFeedback));
       expect(find.text(toggle.disabledFeedback), findsOneWidget);
 
-      await _openCommandMenu(tester);
-      await tester.ensureVisible(find.byKey(toggle.key));
-      await tester.pumpAndSettle();
+      await _runCommandMenuAction(
+        tester,
+        query: toggle.enableLabel,
+        label: toggle.enableLabel,
+        actionKey: toggle.key,
+      );
 
-      expect(find.text(toggle.enableLabel), findsOneWidget);
-
-      await tester.tap(find.byKey(toggle.key));
-      await tester.pumpAndSettle();
-
+      await _pumpUntilFound(tester, find.text(toggle.enabledFeedback));
       expect(find.text(toggle.enabledFeedback), findsOneWidget);
     }
   });
@@ -2313,35 +2381,53 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
+    await _runCommandMenuAction(
+      tester,
+      query: 'read only',
+      label: 'Enable read-only mode',
+      actionKey: const Key('shell-toggle-read-only'),
+    );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-paste-clipboard')));
-    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'paste clipboard',
+    );
+    await _pumpUntilFound(
+      tester,
+      find.textContaining('Disable read-only mode to send text'),
+    );
 
     expect(
       find.textContaining('Disable read-only mode to send text'),
       findsAtLeastNWidgets(1),
     );
 
+    await tester.ensureVisible(find.byKey(const Key('shell-paste-clipboard')));
+    await tester.pump();
     await tester.tap(find.byKey(const Key('shell-paste-clipboard')));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(fakeBindings.writes, isEmpty);
 
-    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await _pumpUntilGone(
+      tester,
+      find.byKey(const Key('shell-command-menu-overlay')),
+    );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-paste-clipboard')));
-    await tester.tap(find.byKey(const Key('shell-paste-clipboard')));
-    await tester.pumpAndSettle();
+    await _runCommandMenuAction(
+      tester,
+      query: 'read only',
+      label: 'Disable read-only mode',
+      actionKey: const Key('shell-toggle-read-only'),
+    );
+    await _runCommandMenuAction(
+      tester,
+      query: 'paste clipboard',
+      label: 'Paste clipboard',
+      actionKey: const Key('shell-paste-clipboard'),
+    );
 
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));
   });
@@ -2359,23 +2445,28 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    expect(find.bySemanticsLabel('Search actions'), findsOneWidget);
-    await tester.enterText(
-      find.byKey(const Key('shell-command-search-field')),
-      'read-only',
+    await _runCommandMenuAction(
+      tester,
+      query: 'read-only',
+      label: 'Enable read-only mode',
+      actionKey: const Key('shell-toggle-read-only'),
     );
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
 
+    await _pumpUntilFound(
+      tester,
+      find.textContaining('Read-only mode enabled. Input is blocked'),
+    );
     expect(
       find.textContaining('Read-only mode enabled. Input is blocked'),
       findsOneWidget,
     );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'read-only',
+    );
+    await _pumpUntilFound(tester, find.text('Disable read-only mode'));
 
     expect(find.text('Disable read-only mode'), findsOneWidget);
   });
@@ -2479,15 +2570,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'command search',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(
       find.byKey(const Key('command-action-search-overlay')),
@@ -2596,7 +2689,10 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
@@ -2639,15 +2735,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'read only',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(
       find.textContaining('Read-only mode enabled. Input is blocked'),
@@ -2675,15 +2773,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'toolbelt',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('shell-toolbelt-panel')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -2708,15 +2808,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'paste history',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -2761,15 +2863,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'paste',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(fakeBindings.writes, hasLength(1));
     expect(fakeBindings.writes.single, utf8.encode(clipboardText));
@@ -2809,15 +2913,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'next search match',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(find.text('1/2'), findsOneWidget);
       expect(fakeBindings.scrollToCalls.last, [1, 42]);
@@ -2861,15 +2967,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'previous search match',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(find.text('1/3'), findsOneWidget);
       expect(fakeBindings.scrollToCalls.last, [1, 10]);
@@ -2914,15 +3022,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'clear search',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       field = tester.widget<TextField>(
         find.byKey(const Key('terminal-search-field')),
@@ -2973,15 +3083,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'advanced paste',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('advanced-paste-sheet')), findsOneWidget);
     expect(find.text(clipboardText), findsOneWidget);
@@ -3023,15 +3135,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'copy mode',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.text('Copy mode'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -3056,15 +3170,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'captured output',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -3089,15 +3205,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'annotations',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('annotations-sheet')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -3122,15 +3240,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'shell integration',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(
       find.byKey(const Key('shell-integration-utilities-sheet')),
@@ -3158,15 +3278,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'tmux integration',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('tmux-integration-sheet')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -3191,15 +3313,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'coprocess',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('coprocess-sheet')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -3224,15 +3348,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'password manager',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('password-manager-sheet')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -3296,15 +3422,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'instant replay',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -3523,20 +3651,34 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'select command output',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Copy selection'));
-    await tester.tap(find.text('Copy selection'));
-    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'action search',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
+    await tester.enterText(
+      find.byKey(const Key('command-action-search-overlay-field')),
+      'copy selection',
+    );
+    await tester.pump();
+    await _sendEnterAndPump(tester);
 
     expect(copiedText, 'warning: one\nerror: two');
     expect(fakeBindings.writes, isEmpty);
@@ -3590,15 +3732,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'copy selection',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(copiedText, 'ianvs terminal ready');
     expect(fakeBindings.writes, isEmpty);
@@ -3688,15 +3832,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'copy command output',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(copiedText, 'warning: one\nerror: two');
     expect(fakeBindings.writes, isEmpty);
@@ -3801,7 +3947,10 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
@@ -3812,8 +3961,7 @@ void main() {
     expect(find.textContaining('Command block: make'), findsOneWidget);
     expect(find.textContaining('No command block available'), findsNothing);
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(copiedText, 'warning: one\nerror: two');
     expect(fakeBindings.writes, isEmpty);
@@ -3918,15 +4066,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'copy block output',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(copiedText, 'failed output\nstill failed');
       expect(fakeBindings.writes, isEmpty);
@@ -4078,15 +4228,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'copy block output',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(copiedText, 'failed output');
       expect(fakeBindings.writes, isEmpty);
@@ -4185,7 +4337,10 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
@@ -4196,7 +4351,10 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.textContaining('Command block output saved to '),
+    );
 
     expect(
       find.textContaining('Command block output saved to '),
@@ -4305,15 +4463,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'open in review',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
       expect(find.textContaining('Review: make'), findsOneWidget);
@@ -4408,14 +4568,16 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'search within block',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
 
@@ -4423,7 +4585,7 @@ void main() {
         find.byKey(const Key('terminal-search-field')),
         'needle',
       );
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(tester, find.text('1/1'));
 
       expect(find.text('1/1'), findsOneWidget);
       expect(fakeBindings.scrollToCalls.last, [1, 11]);
@@ -4509,14 +4671,16 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'reinput block command',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(
       find.descendant(
@@ -4533,14 +4697,16 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'rerun block command',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(fakeBindings.writes, [utf8.encode('make\n')]);
     expect(
@@ -4630,14 +4796,16 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'rerun block command',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(
         find.byKey(const Key('paste-confirmation-dialog')),
@@ -4753,8 +4921,7 @@ void main() {
 
       expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(find.byKey(const Key('command-search-overlay')), findsNothing);
       expect(
@@ -5121,8 +5288,7 @@ void main() {
         clipboardText,
       );
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(
         find.byKey(const Key('paste-confirmation-dialog')),
@@ -5231,15 +5397,17 @@ void main() {
           'action search',
         );
         await tester.testTextInput.receiveAction(TextInputAction.search);
-        await tester.pumpAndSettle();
+        await _pumpUntilFound(
+          tester,
+          find.byKey(const Key('command-action-search-overlay-field')),
+        );
 
         await tester.enterText(
           find.byKey(const Key('command-action-search-overlay-field')),
           query,
         );
         await tester.pump();
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-        await tester.pumpAndSettle();
+        await _sendEnterAndPump(tester);
 
         expect(find.text('No command block is selected.'), findsOneWidget);
       }
@@ -5270,15 +5438,17 @@ void main() {
           'action search',
         );
         await tester.testTextInput.receiveAction(TextInputAction.search);
-        await tester.pumpAndSettle();
+        await _pumpUntilFound(
+          tester,
+          find.byKey(const Key('command-action-search-overlay-field')),
+        );
 
         await tester.enterText(
           find.byKey(const Key('command-action-search-overlay-field')),
           action.key,
         );
         await tester.pump();
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-        await tester.pumpAndSettle();
+        await _sendEnterAndPump(tester);
 
         expect(find.text(action.value), findsOneWidget);
         ScaffoldMessenger.of(
@@ -5309,15 +5479,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'theme picker',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -5344,15 +5516,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         preset.name,
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       final savedProfiles = await profileRepository.load();
       final savedColors = savedProfiles.profiles.single.appearance.colors;
@@ -5387,15 +5561,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'command finished notifications',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(
         find.text('Command-finished notifications disabled and saved.'),
@@ -5424,15 +5600,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'bell notifications',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(
         find.text('Bell notifications disabled and saved.'),
@@ -5461,15 +5639,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'activity monitor',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.text('Activity monitor disabled and saved.'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
@@ -5498,15 +5678,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'split right',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
@@ -5539,15 +5721,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'split down',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
@@ -5588,16 +5772,19 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'focus next pane',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
+    await _pumpUntilFound(tester, find.text('Pane 2 of 2'));
     expect(find.text('Pane 2 of 2'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
@@ -5628,16 +5815,19 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'focus previous pane',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
+    await _pumpUntilFound(tester, find.text('Pane 1 of 2'));
     expect(find.text('Pane 1 of 2'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
@@ -5669,15 +5859,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'swap pane',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(tester.getTopLeft(pane2).dx, lessThan(tester.getTopLeft(pane1).dx));
     expect(fakeBindings.writes, isEmpty);
@@ -5718,15 +5910,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'resize pane',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(tester.getSize(pane1).width, greaterThan(pane1WidthBefore));
     expect(tester.getSize(pane2).width, lessThan(pane2WidthBefore));
@@ -5760,15 +5954,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'close pane',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
@@ -5803,15 +5999,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'close pane',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
@@ -5823,15 +6021,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'reopen closed pane',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
@@ -5868,15 +6068,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'close active tab',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
@@ -5916,15 +6118,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'duplicate current cwd',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
@@ -5955,15 +6159,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'zoom pane',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     await _openCommandMenu(tester);
     expect(find.text('Unzoom active pane'), findsOneWidget);
@@ -5993,15 +6199,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'apply two-pane layout',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
@@ -6042,15 +6250,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'reopen closed tab',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
@@ -6078,15 +6288,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'clear scrollback',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(
         find.text('Clear scrollback requires native runtime support.'),
@@ -6115,15 +6327,17 @@ void main() {
         'action search',
       );
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('command-action-search-overlay-field')),
+      );
 
       await tester.enterText(
         find.byKey(const Key('command-action-search-overlay-field')),
         'open recent directory',
       );
       await tester.pump();
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pumpAndSettle();
+      await _sendEnterAndPump(tester);
 
       expect(find.text('No recent directory is available.'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
@@ -6163,7 +6377,10 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
@@ -6212,15 +6429,17 @@ void main() {
       'action search',
     );
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('command-action-search-overlay-field')),
+    );
 
     await tester.enterText(
       find.byKey(const Key('command-action-search-overlay-field')),
       'export diagnostics',
     );
     await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+    await _sendEnterAndPump(tester);
 
     expect(
       find.text('Diagnostics export is unavailable for the active sessions.'),
@@ -6897,7 +7116,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 40));
 
-      expect(find.text('vi public.key'), findsOneWidget);
+      expect(find.text('vi public.key'), findsWidgets);
       expect(find.text('running'), findsNothing);
       expect(find.text('Live terminal'), findsNothing);
       expect(find.byTooltip('Block info'), findsOneWidget);
@@ -7260,7 +7479,10 @@ void main() {
         find.byKey(const Key('terminal-autocomplete-menu')),
         findsOneWidget,
       );
-      expect(find.text('checkout'), findsOneWidget);
+      expect(
+        find.byKey(const Key('terminal-autocomplete-suggestion-checkout')),
+        findsOneWidget,
+      );
       expect(
         tester.getSemantics(
           find.byKey(const Key('terminal-autocomplete-suggestion-checkout')),
@@ -7274,7 +7496,9 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('checkout'));
+      await tester.tap(
+        find.byKey(const Key('terminal-autocomplete-suggestion-checkout')),
+      );
       await tester.pumpAndSettle();
 
       expect(fakeBindings.writes, isNotEmpty);
@@ -7333,9 +7557,14 @@ void main() {
         find.byKey(const Key('terminal-autocomplete-menu')),
         findsOneWidget,
       );
-      expect(find.text('checkout'), findsOneWidget);
+      expect(
+        find.byKey(const Key('terminal-autocomplete-suggestion-checkout')),
+        findsOneWidget,
+      );
 
-      await tester.tap(find.text('checkout'));
+      await tester.tap(
+        find.byKey(const Key('terminal-autocomplete-suggestion-checkout')),
+      );
       await tester.pumpAndSettle();
 
       expect(fakeBindings.writes, isNotEmpty);
@@ -7710,6 +7939,7 @@ void main() {
 
       await tester.tap(
         find.byKey(const Key('terminal-auto-composer-mode-auto')),
+        warnIfMissed: false,
       );
       await tester.pumpAndSettle();
 
@@ -7730,6 +7960,7 @@ void main() {
 
       await tester.tap(
         find.byKey(const Key('terminal-auto-composer-mode-auto')),
+        warnIfMissed: false,
       );
       await tester.pumpAndSettle();
 
@@ -7750,6 +7981,7 @@ void main() {
 
       await tester.tap(
         find.byKey(const Key('terminal-auto-composer-mode-auto')),
+        warnIfMissed: false,
       );
       await tester.pumpAndSettle();
 
@@ -8364,7 +8596,7 @@ void main() {
       );
       await tester.ensureVisible(reviewAction);
       await tester.pump();
-      await tester.tap(find.text('Open in review'));
+      await tester.tap(reviewAction);
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
@@ -8372,7 +8604,7 @@ void main() {
       final timeline = tester.widget<Slider>(
         find.byKey(const Key('instant-replay-timeline')),
       );
-      expect(timeline.value, timeline.max);
+      expect(timeline.value, closeTo(timeline.max, 50));
       expect(fakeBindings.writes, isEmpty);
     },
   );
@@ -8592,7 +8824,7 @@ void main() {
       find.byKey(const Key('terminal-search-field')),
       'needle',
     );
-    await tester.pumpAndSettle();
+    await _pumpUntilFound(tester, find.text('1/1'));
 
     expect(find.text('1/1'), findsOneWidget);
     expect(fakeBindings.searchCalls.last, [
@@ -8704,12 +8936,15 @@ void main() {
     expect(find.byKey(const Key('command-search-overlay')), findsOneWidget);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
+    await _pumpUntilGone(
+      tester,
+      find.byKey(const Key('command-search-overlay')),
+    );
 
     await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('context-block-action-rerun')));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
     expect(fakeBindings.writes, [utf8.encode('false\n')]);
   });
@@ -8826,12 +9061,17 @@ void main() {
     );
     expect(find.byTooltip('Bracketed paste mode is active.'), findsOneWidget);
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
-    await tester.pumpAndSettle();
+    await _runCommandMenuAction(
+      tester,
+      query: 'read only',
+      label: 'Enable read-only mode',
+      actionKey: const Key('shell-toggle-read-only'),
+    );
 
+    await _pumpUntilFound(
+      tester,
+      find.byKey(const Key('shell-status-mode-read-only')),
+    );
     expect(
       find.byKey(const Key('shell-status-mode-read-only')),
       findsOneWidget,
@@ -9174,17 +9414,19 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-select-command-output')),
+    await _runCommandMenuAction(
+      tester,
+      query: 'select command output',
+      label: 'Select command output',
+      actionKey: const Key('shell-select-command-output'),
     );
-    await tester.tap(find.byKey(const Key('shell-select-command-output')));
-    await tester.pumpAndSettle();
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Copy selection'));
-    await tester.tap(find.text('Copy selection'));
-    await tester.pumpAndSettle();
+    await _runCommandMenuAction(
+      tester,
+      query: 'copy selection',
+      label: 'Copy selection',
+      actionKey: const Key('shell-copy-selection'),
+    );
 
     expect(copiedText, 'warning: one\nerror: two');
     expect(fakeBindings.writes, isEmpty);

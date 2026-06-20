@@ -37,7 +37,7 @@ void main() {
         ],
       );
 
-      final block = adapter.activeCompatibleBlockFor(
+      final block = adapter.activeCommandBlockFor(
         snapshot: snapshot,
         sessionId: 'session-a',
         selectedBlockId: 'old',
@@ -73,7 +73,7 @@ void main() {
         ],
       );
 
-      final block = adapter.activeCompatibleBlockFor(
+      final block = adapter.activeCommandBlockFor(
         snapshot: snapshot,
         sessionId: 'session-a',
       );
@@ -114,7 +114,7 @@ void main() {
         ],
       );
 
-      final block = adapter.activeCompatibleBlockFor(
+      final block = adapter.activeCommandBlockFor(
         snapshot: snapshot,
         sessionId: 'session-a',
         selectedBlockId: 'missing',

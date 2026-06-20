@@ -363,26 +363,19 @@ class ShellCommandBlock {
   const ShellCommandBlock({
     required this.id,
     required this.command,
-    ShellCommandBlockRange? outputRange,
-    int startRow = -1,
-    int endRow = -1,
+    required this.outputRange,
     this.cwd,
     this.exitCode,
     this.startedAt,
     this.finishedAt,
     this.status = ShellCommandBlockStatus.unknown,
     this.failureSnapshot,
-  }) : _outputRange = outputRange,
-       _legacyStartRow = startRow,
-       _legacyEndRow = endRow,
-       _markers = const <ShellHistoryMarker>[];
+  }) : _markers = const <ShellHistoryMarker>[];
 
   ShellCommandBlock.withMarkers({
     required this.id,
     required this.command,
-    ShellCommandBlockRange? outputRange,
-    int startRow = -1,
-    int endRow = -1,
+    required this.outputRange,
     this.cwd,
     this.exitCode,
     this.startedAt,
@@ -390,10 +383,7 @@ class ShellCommandBlock {
     this.status = ShellCommandBlockStatus.unknown,
     List<ShellHistoryMarker> markers = const <ShellHistoryMarker>[],
     this.failureSnapshot,
-  }) : _outputRange = outputRange,
-       _legacyStartRow = startRow,
-       _legacyEndRow = endRow,
-       _markers = List<ShellHistoryMarker>.unmodifiable(markers);
+  }) : _markers = List<ShellHistoryMarker>.unmodifiable(markers);
 
   final String id;
   final String command;
@@ -403,19 +393,8 @@ class ShellCommandBlock {
   final DateTime? finishedAt;
   final ShellCommandBlockStatus status;
   final ShellFailureSnapshot? failureSnapshot;
-  final ShellCommandBlockRange? _outputRange;
-  final int _legacyStartRow;
-  final int _legacyEndRow;
+  final ShellCommandBlockRange outputRange;
   final List<ShellHistoryMarker> _markers;
-
-  ShellCommandBlockRange get outputRange {
-    return _outputRange ??
-        ShellCommandBlockRange(
-          commandRow: _legacyStartRow,
-          outputStartRow: _legacyStartRow,
-          outputEndRow: _legacyEndRow,
-        );
-  }
 
   int get startRow => outputRange.commandRow;
   int get endRow => outputRange.outputEndRow;

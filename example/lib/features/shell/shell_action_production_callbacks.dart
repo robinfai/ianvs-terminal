@@ -5,6 +5,7 @@ import 'shell_action_runtime_bindings.dart';
 class ShellActionProductionCallbacks {
   const ShellActionProductionCallbacks({
     this.newTab,
+    this.openActionSearch,
     this.closeTab,
     this.reopenClosedTab,
     this.duplicateCurrentCwd,
@@ -20,6 +21,8 @@ class ShellActionProductionCallbacks {
     this.advancedPaste,
     this.pasteHistory,
     this.instantReplay,
+    this.commandSearch,
+    this.replayFromCommandBlock,
     this.globalSearch,
     this.autocomplete,
     this.autoComposer,
@@ -28,6 +31,8 @@ class ShellActionProductionCallbacks {
     this.nextSearchMatch,
     this.previousSearchMatch,
     this.clearSearch,
+    this.nextCommandBlock,
+    this.previousCommandBlock,
     this.nextPrompt,
     this.previousPrompt,
     this.selectCommandOutput,
@@ -67,6 +72,7 @@ class ShellActionProductionCallbacks {
   });
 
   final ShellActionBinding? newTab;
+  final ShellActionBinding? openActionSearch;
   final ShellActionBinding? closeTab;
   final ShellActionBinding? reopenClosedTab;
   final ShellActionBinding? duplicateCurrentCwd;
@@ -82,6 +88,8 @@ class ShellActionProductionCallbacks {
   final ShellActionBinding? advancedPaste;
   final ShellActionBinding? pasteHistory;
   final ShellActionBinding? instantReplay;
+  final ShellActionBinding? commandSearch;
+  final ShellActionBinding? replayFromCommandBlock;
   final ShellActionBinding? globalSearch;
   final ShellActionBinding? autocomplete;
   final ShellActionBinding? autoComposer;
@@ -90,6 +98,8 @@ class ShellActionProductionCallbacks {
   final ShellActionBinding? nextSearchMatch;
   final ShellActionBinding? previousSearchMatch;
   final ShellActionBinding? clearSearch;
+  final ShellActionBinding? nextCommandBlock;
+  final ShellActionBinding? previousCommandBlock;
   final ShellActionBinding? nextPrompt;
   final ShellActionBinding? previousPrompt;
   final ShellActionBinding? selectCommandOutput;
@@ -137,6 +147,7 @@ class ShellActionProductionCallbacks {
     }
 
     add('newTab', newTab);
+    add('openActionSearch', openActionSearch);
     add('closeTab', closeTab);
     add('reopenClosedTab', reopenClosedTab);
     add('duplicateCurrentCwd', duplicateCurrentCwd);
@@ -152,6 +163,8 @@ class ShellActionProductionCallbacks {
     add('advancedPaste', advancedPaste);
     add('pasteHistory', pasteHistory);
     add('instantReplay', instantReplay);
+    add('commandSearch', commandSearch);
+    add('replayFromCommandBlock', replayFromCommandBlock);
     add('globalSearch', globalSearch);
     add('autocomplete', autocomplete);
     add('autoComposer', autoComposer);
@@ -160,6 +173,8 @@ class ShellActionProductionCallbacks {
     add('nextSearchMatch', nextSearchMatch);
     add('previousSearchMatch', previousSearchMatch);
     add('clearSearch', clearSearch);
+    add('nextCommandBlock', nextCommandBlock);
+    add('previousCommandBlock', previousCommandBlock);
     add('nextPrompt', nextPrompt);
     add('previousPrompt', previousPrompt);
     add('selectCommandOutput', selectCommandOutput);

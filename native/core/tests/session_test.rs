@@ -625,6 +625,22 @@ fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     panic!("timed out waiting for frame containing {needle}");
 }
 
+fn wait_for_frame_idle(session_id: u64) {
+    let mut idle_polls = 0;
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        if session::take_frame_diff(session_id).unwrap().is_some() {
+            idle_polls = 0;
+        } else {
+            idle_polls += 1;
+            if idle_polls >= 10 {
+                return;
+            }
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    panic!("timed out waiting for frame stream to settle");
+}
+
 fn wait_for_frame_where(session_id: u64, predicate: impl Fn(&str) -> bool) -> String {
     for _ in 0..SESSION_WAIT_ATTEMPTS {
         if let Some(frame) = session::take_frame_diff(session_id)
@@ -2857,6 +2873,7 @@ fn single_line_scroll_reports_viewport_row_shift_and_bottom_dirty_range() {
     session::resize_session(session_id, 40, 5, 0, 0).unwrap();
 
     let _ = wait_for_frame_containing(session_id, "line04");
+    wait_for_frame_idle(session_id);
     fs::write(&gate_path, "").unwrap();
 
     let shifted = wait_for_frame_containing(session_id, "line05");
@@ -2897,6 +2914,7 @@ fn damage_driven_delta_reports_low_rows_scanned_for_single_line_scroll() {
     session::resize_session(session_id, 40, 5, 0, 0).unwrap();
 
     let _ = wait_for_frame_containing(session_id, "line04");
+    wait_for_frame_idle(session_id);
     fs::write(&gate_path, "").unwrap();
     let _ = wait_for_frame_containing(session_id, "line05");
     let debug_stats = session::take_frame_debug_stats_json(session_id)

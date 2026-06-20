@@ -119,10 +119,7 @@ StickyCommandHeaderResolution shellCommandBlocksStickyHeaderResolution({
   final visibleStartRow = math.max(0, viewportStartRow);
   final visibleRows = math.max(1, viewportRows);
   return resolver.resolve(
-    blocks: adapter.compatibleBlocksFor(
-      snapshot: snapshot,
-      sessionId: sessionId,
-    ),
+    blocks: adapter.commandBlocksFor(snapshot: snapshot, sessionId: sessionId),
     viewport: StickyCommandHeaderViewport(
       scope: CommandBlockScope(sessionId),
       visibleRange: CommandBlockRowRange(
@@ -149,7 +146,7 @@ CommandBlockNavigationResult shellCommandBlocksNavigationResult({
 }) {
   return controller.navigate(
     CommandBlockRangeState.fromBlocks(
-      adapter.compatibleBlocksFor(snapshot: snapshot, sessionId: sessionId),
+      adapter.commandBlocksFor(snapshot: snapshot, sessionId: sessionId),
       shellIntegrationEnabled: shellIntegrationEnabled,
     ),
     state: CommandBlockNavigationState(

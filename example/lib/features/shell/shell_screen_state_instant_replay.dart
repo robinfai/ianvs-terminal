@@ -142,7 +142,8 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     _mutateState(() {
       _instantReplayWorkspaceSession = null;
     });
-    if (sourceSessionId == null || activeSessionIdAfterClose != sourceSessionId) {
+    if (sourceSessionId == null ||
+        activeSessionIdAfterClose != sourceSessionId) {
       return;
     }
     if (_commandInputVisibleForSession(sourceSessionId)) {

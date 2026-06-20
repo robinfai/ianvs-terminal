@@ -240,43 +240,46 @@ void main() {
       ]);
     });
 
-    test('global scope deduplicates session and global copies by command and cwd', () {
-      final index = CommandSearchIndex([
-        _entry(
+    test(
+      'global scope deduplicates session and global copies by command and cwd',
+      () {
+        final index = CommandSearchIndex([
+          _entry(
+            'flutter test',
+            cwd: '/repo',
+            finishedAt: baseTime.add(const Duration(seconds: 2)),
+            invocationId: 'session-a-copy',
+            sessionId: 'session-a',
+          ),
+          _entry(
+            'flutter test',
+            cwd: '/repo',
+            finishedAt: baseTime.add(const Duration(seconds: 1)),
+            invocationId: 'global-copy',
+          ),
+          _entry(
+            'flutter analyze',
+            cwd: '/repo',
+            finishedAt: baseTime,
+            invocationId: 'analyze-copy',
+          ),
+        ]);
+
+        final results = index.search(
+          parser.parse('flutter'),
+          scope: CommandSearchHistoryScope.global,
+        );
+
+        expect(results.map((result) => result.entry.command), [
           'flutter test',
-          cwd: '/repo',
-          finishedAt: baseTime.add(const Duration(seconds: 2)),
-          invocationId: 'session-a-copy',
-          sessionId: 'session-a',
-        ),
-        _entry(
-          'flutter test',
-          cwd: '/repo',
-          finishedAt: baseTime.add(const Duration(seconds: 1)),
-          invocationId: 'global-copy',
-        ),
-        _entry(
           'flutter analyze',
-          cwd: '/repo',
-          finishedAt: baseTime,
-          invocationId: 'analyze-copy',
-        ),
-      ]);
-
-      final results = index.search(
-        parser.parse('flutter'),
-        scope: CommandSearchHistoryScope.global,
-      );
-
-      expect(results.map((result) => result.entry.command), [
-        'flutter test',
-        'flutter analyze',
-      ]);
-      expect(
-        results.where((result) => result.entry.command == 'flutter test'),
-        hasLength(1),
-      );
-    });
+        ]);
+        expect(
+          results.where((result) => result.entry.command == 'flutter test'),
+          hasLength(1),
+        );
+      },
+    );
   });
 }
 

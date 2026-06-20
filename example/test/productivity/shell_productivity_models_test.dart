@@ -163,14 +163,20 @@ void main() {
       const block = ShellCommandBlock(
         id: 'b1',
         command: 'flutter test',
-        startRow: 4,
-        endRow: 9,
+        outputRange: ShellCommandBlockRange(
+          commandRow: 4,
+          outputStartRow: 4,
+          outputEndRow: 9,
+        ),
       );
       const invalid = ShellCommandBlock(
         id: 'bad',
         command: 'flutter test',
-        startRow: -4,
-        endRow: -1,
+        outputRange: ShellCommandBlockRange(
+          commandRow: -4,
+          outputStartRow: -4,
+          outputEndRow: -1,
+        ),
       );
 
       expect(block.containsRow(6), isTrue);

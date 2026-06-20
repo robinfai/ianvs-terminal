@@ -2,6 +2,7 @@ import 'command_search_query_parser.dart';
 import 'global_command_history_repository.dart';
 
 enum CommandSearchMatchKind { all, exact, prefix, substring, fuzzy }
+
 enum CommandSearchHistoryScope { currentSession, global }
 
 class CommandSearchResult {
@@ -32,7 +33,10 @@ class CommandSearchIndex {
     String? sessionId,
   }) {
     final normalizedText = query.text.toLowerCase();
-    final candidates = _deduplicatedEntriesForScope(scope, sessionId: sessionId);
+    final candidates = _deduplicatedEntriesForScope(
+      scope,
+      sessionId: sessionId,
+    );
     final frequencies = _commandFrequencies(candidates);
     final newestFinishedAt = _newest(candidates);
     final results = <CommandSearchResult>[];
@@ -67,9 +71,10 @@ class CommandSearchIndex {
     String? sessionId,
   }) {
     return switch (scope) {
-      CommandSearchHistoryScope.currentSession when sessionId != null => _entries
-          .where((entry) => entry.sessionId == sessionId),
-      CommandSearchHistoryScope.currentSession => const <GlobalCommandHistoryEntry>[],
+      CommandSearchHistoryScope.currentSession when sessionId != null =>
+        _entries.where((entry) => entry.sessionId == sessionId),
+      CommandSearchHistoryScope.currentSession =>
+        const <GlobalCommandHistoryEntry>[],
       CommandSearchHistoryScope.global => _entries,
     };
   }

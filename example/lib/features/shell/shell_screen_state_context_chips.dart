@@ -88,7 +88,7 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       _showContextChipMessage('Command block is unavailable.');
       return;
     }
-    final block = _commandBlockCommandCenterAdapter.compatibleBlockById(
+    final block = _commandBlockCommandCenterAdapter.commandBlockById(
       snapshot:
           _commandBlockSnapshotsBySession[sessionId] ??
           const ShellCommandBlockSnapshot(),
@@ -280,7 +280,7 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
     required String sessionId,
     required String? blockId,
   }) {
-    return _commandBlockCommandCenterAdapter.compatibleBlockById(
+    return _commandBlockCommandCenterAdapter.commandBlockById(
       snapshot:
           _commandBlockSnapshotsBySession[sessionId] ??
           const ShellCommandBlockSnapshot(),

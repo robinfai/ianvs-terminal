@@ -8,12 +8,12 @@ import 'context_chip_models.dart';
 class ShellCommandBlockCommandCenterAdapter {
   const ShellCommandBlockCommandCenterAdapter();
 
-  CommandBlock? activeCompatibleBlockFor({
+  CommandBlock? activeCommandBlockFor({
     required ShellCommandBlockSnapshot snapshot,
     required String sessionId,
     String? selectedBlockId,
   }) {
-    final selected = compatibleBlockById(
+    final selected = commandBlockById(
       snapshot: snapshot,
       sessionId: sessionId,
       blockId: selectedBlockId,
@@ -23,13 +23,13 @@ class ShellCommandBlockCommandCenterAdapter {
     }
     for (final block in snapshot.blocks.reversed) {
       if (block.isValid) {
-        return compatibleBlockFor(sessionId: sessionId, block: block);
+        return commandBlockFor(sessionId: sessionId, block: block);
       }
     }
     return null;
   }
 
-  CommandBlock? compatibleBlockById({
+  CommandBlock? commandBlockById({
     required ShellCommandBlockSnapshot snapshot,
     required String sessionId,
     required String? blockId,
@@ -40,34 +40,32 @@ class ShellCommandBlockCommandCenterAdapter {
     }
     for (final block in snapshot.blocks) {
       if (block.id == targetId && block.isValid) {
-        return compatibleBlockFor(sessionId: sessionId, block: block);
+        return commandBlockFor(sessionId: sessionId, block: block);
       }
     }
     return null;
   }
 
-  CommandBlock? lastFailedCompatibleBlockFor({
+  CommandBlock? lastFailedCommandBlockFor({
     required ShellCommandBlockSnapshot snapshot,
     required String sessionId,
   }) {
     for (final block in snapshot.blocks.reversed) {
       if (block.isValid && block.status == ShellCommandBlockStatus.failed) {
-        return compatibleBlockFor(sessionId: sessionId, block: block);
+        return commandBlockFor(sessionId: sessionId, block: block);
       }
     }
     return null;
   }
 
-  List<CommandBlock> compatibleBlocksFor({
+  List<CommandBlock> commandBlocksFor({
     required ShellCommandBlockSnapshot snapshot,
     required String sessionId,
   }) {
     return List<CommandBlock>.unmodifiable(
       snapshot.blocks
           .where((block) => block.isValid)
-          .map(
-            (block) => compatibleBlockFor(sessionId: sessionId, block: block),
-          )
+          .map((block) => commandBlockFor(sessionId: sessionId, block: block))
           .whereType<CommandBlock>(),
     );
   }
@@ -83,7 +81,7 @@ class ShellCommandBlockCommandCenterAdapter {
     bool shellIntegrationEnabled = true,
   }) {
     final trimmedCwd = _trimmedOrNull(cwd);
-    final selectedBlock = compatibleBlockById(
+    final selectedBlock = commandBlockById(
       snapshot: snapshot,
       sessionId: sessionId,
       blockId: selectedBlockId,
@@ -97,7 +95,7 @@ class ShellCommandBlockCommandCenterAdapter {
         shellIntegrationEnabled: shellIntegrationEnabled,
       ),
       readOnly: readOnly,
-      lastFailedBlock: lastFailedCompatibleBlockFor(
+      lastFailedBlock: lastFailedCommandBlockFor(
         snapshot: snapshot,
         sessionId: sessionId,
       ),
@@ -105,7 +103,7 @@ class ShellCommandBlockCommandCenterAdapter {
     );
   }
 
-  CommandBlock? compatibleBlockFor({
+  CommandBlock? commandBlockFor({
     required String sessionId,
     required ShellCommandBlock block,
   }) {

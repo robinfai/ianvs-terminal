@@ -159,6 +159,38 @@ void main() {
     expect(blank.cwd, isNull);
   });
 
+  test('terminal direct config caps collection inputs', () {
+    final launch = TerminalLaunchConfig.fromJson(<String, Object?>{
+      'program': '/bin/zsh',
+      'args': <Object?>[
+        for (var index = 0; index < maxTerminalLaunchArgs * 2; index += 1)
+          'arg-$index',
+      ],
+      'env': <String, Object?>{
+        for (
+          var index = 0;
+          index < maxTerminalEnvironmentEntries * 2;
+          index += 1
+        )
+          'KEY_$index': 'value-$index',
+      },
+    });
+    final font = TerminalFontConfig.fromJson(<String, Object?>{
+      'fallback': <Object?>[
+        for (
+          var index = 0;
+          index < maxTerminalFontFallbackFamilies * 2;
+          index += 1
+        )
+          'Font $index',
+      ],
+    });
+
+    expect(launch.args, hasLength(maxTerminalLaunchArgs));
+    expect(launch.env, hasLength(maxTerminalEnvironmentEntries));
+    expect(font.fallback, hasLength(maxTerminalFontFallbackFamilies));
+  });
+
   test('terminal profile JSON normalizes enum tokens', () {
     final warnings = <TerminalConfigWarning>[];
 
@@ -443,5 +475,31 @@ void main() {
     expect(fractionalWarnings.map((warning) => warning.path), <String>[
       'terminal.scrollbackLines',
     ]);
+  });
+
+  test('terminal session config clamps excessive scrollback lines', () {
+    final warnings = <TerminalConfigWarning>[];
+
+    const constructed = TerminalSessionConfig(
+      launch: TerminalLaunchConfig(program: '/bin/zsh'),
+      scrollbackLines: maxTerminalScrollbackLines + 1,
+    );
+    final parsed = TerminalSessionConfig.fromProfileJson(
+      <String, Object?>{
+        'shell': '/bin/zsh',
+        'terminal': <String, Object?>{
+          'scrollbackLines': maxTerminalScrollbackLines + 1,
+        },
+      },
+      defaultProgram: '/bin/zsh',
+      onWarning: warnings.add,
+    );
+
+    expect(constructed.scrollbackLines, maxTerminalScrollbackLines);
+    expect(parsed.scrollbackLines, maxTerminalScrollbackLines);
+    expect(warnings.map((warning) => warning.path), <String>[
+      'terminal.scrollbackLines',
+    ]);
+    expect(warnings.single.fallbackSummary, contains('clamped'));
   });
 }

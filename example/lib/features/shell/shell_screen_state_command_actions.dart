@@ -11,8 +11,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (!adapter.executor.wiringState.bindings.contains(action)) {
       return false;
     }
-    final result = await adapter.executor.execute(action);
-    return result.completed;
+    await adapter.executor.execute(action);
+    return true;
   }
 
   bool _dispatchProductionShortcutIfBound({
@@ -173,6 +173,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     final productionMenuAdapter = _buildScopedProductionActionAdapter(
       requiredActionNames: const {
         'newTab',
+        'openActionSearch',
         'closeTab',
         'reopenClosedTab',
         'duplicateCurrentCwd',
@@ -192,12 +193,16 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         'advancedPaste',
         'pasteHistory',
         'instantReplay',
+        'commandSearch',
+        'replayFromCommandBlock',
         'toggleReadOnly',
         'clearScrollback',
         'globalSearch',
         'autocomplete',
         'autoComposer',
         'searchScrollback',
+        'previousCommandBlock',
+        'nextCommandBlock',
         'previousPrompt',
         'nextPrompt',
         'selectCommandOutput',
@@ -233,6 +238,15 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             defaultProfile,
             returningToWorkspace: activeSessionIdBeforeOpen == null,
           );
+          return const ShellActionBindingResult.completed();
+        },
+        openActionSearch: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Action search requires an active session.',
+            );
+          }
+          _openCommandActionSearch(currentSessionId);
           return const ShellActionBindingResult.completed();
         },
         closeTab: (_) {
@@ -590,6 +604,34 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           await _openInstantReplay(sessionState);
           return const ShellActionBindingResult.completed();
         },
+        commandSearch: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Command search requires an active session.',
+            );
+          }
+          _openCommandSearchForActiveSession();
+          return const ShellActionBindingResult.completed();
+        },
+        replayFromCommandBlock: (_) async {
+          final opened = await executeInstantReplayCommandBlockAction(
+            actionId: TerminalActionId.replayFromCommandBlock,
+            flags: _commandBlocksHistoryFeatureFlags,
+            currentSessionId: currentSessionId,
+            commandBlocks: currentSessionId == null
+                ? const <ShellCommandBlock>[]
+                : _commandBlocksForSession(currentSessionId),
+            openReplay: (commandBlockSource) => _openInstantReplay(
+              currentState,
+              commandBlockSource: commandBlockSource,
+            ),
+          );
+          return opened
+              ? const ShellActionBindingResult.completed()
+              : const ShellActionBindingResult.skipped(
+                  'Replay requires a valid command block.',
+                );
+        },
         toggleReadOnly: (_) {
           if (currentSessionId == null) {
             return const ShellActionBindingResult.skipped(
@@ -667,6 +709,32 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             );
           }
           _openSearch();
+          return const ShellActionBindingResult.completed();
+        },
+        previousCommandBlock: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Previous command block requires an active session.',
+            );
+          }
+          _navigateCommandBlock(
+            currentSessionId,
+            CommandBlockNavigationTarget.previous,
+            showBlockedFeedback: true,
+          );
+          return const ShellActionBindingResult.completed();
+        },
+        nextCommandBlock: (_) {
+          if (currentSessionId == null) {
+            return const ShellActionBindingResult.skipped(
+              'Next command block requires an active session.',
+            );
+          }
+          _navigateCommandBlock(
+            currentSessionId,
+            CommandBlockNavigationTarget.next,
+            showBlockedFeedback: true,
+          );
           return const ShellActionBindingResult.completed();
         },
         previousPrompt: (_) {
@@ -1005,296 +1073,17 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
       ),
     );
-    if (action != null &&
-        await _executeProductionActionIfBound(
-          adapter: productionMenuAdapter,
-          action: action,
-        )) {
+    if (action == null) {
+      _restoreSessionFocus(
+        activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+        activeSessionIdAfterClose: currentSessionId,
+      );
       return;
     }
-    switch (action) {
-      case TerminalActionId.newTab:
-        if (defaultProfile == null) {
-          return;
-        }
-        _createSession(
-          sessionController,
-          defaultProfile,
-          returningToWorkspace: activeSessionIdBeforeOpen == null,
-        );
-        return;
-      case TerminalActionId.toolbelt:
-        _openToolbelt();
-        return;
-      case TerminalActionId.splitRight:
-        if (defaultProfile == null || currentSessionId == null) {
-          return;
-        }
-        _splitActiveSession(
-          sessionController,
-          defaultProfile,
-          TerminalSplitAxis.horizontal,
-        );
-        return;
-      case TerminalActionId.splitDown:
-        if (defaultProfile == null || currentSessionId == null) {
-          return;
-        }
-        _splitActiveSession(
-          sessionController,
-          defaultProfile,
-          TerminalSplitAxis.vertical,
-        );
-        return;
-      case TerminalActionId.copy:
-        if (currentSessionId == null) {
-          return;
-        }
-        final selectionController = _selectionControllers[currentSessionId];
-        if (selectionController == null) {
-          return;
-        }
-        await _copySelection(
-          sessionController,
-          currentSessionId,
-          selectionController,
-        );
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.copyMode:
-        if (currentSessionId == null) {
-          return;
-        }
-        final selectionController = _selectionControllers.putIfAbsent(
-          currentSessionId,
-          SelectionController.new,
-        );
-        _enterCopyMode(
-          sessionController,
-          currentSessionId,
-          selectionController,
-        );
-        return;
-      case TerminalActionId.paste:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _pasteToSession(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.advancedPaste:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openAdvancedPaste(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.pasteHistory:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openPasteHistory(sessionState);
-        return;
-      case TerminalActionId.shellIntegrationUtilities:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openShellIntegrationUtilities(currentState, currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.selectCommandOutput:
-        if (currentSessionId == null) {
-          return;
-        }
-        final selectionController = _selectionControllers.putIfAbsent(
-          currentSessionId,
-          SelectionController.new,
-        );
-        if (_selectLastCommandOutput(
-          sessionController,
-          currentSessionId,
-          selectionController,
-        )) {
-          return;
-        }
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.tmuxIntegration:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openTmuxIntegration(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.coprocess:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openCoprocess(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.annotations:
-        if (currentSessionId == null) {
-          return;
-        }
-        final selectionController = _selectionControllers.putIfAbsent(
-          currentSessionId,
-          SelectionController.new,
-        );
-        await _openAnnotations(
-          sessionController,
-          currentSessionId,
-          selectionController,
-        );
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.capturedOutput:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openCapturedOutput(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.passwordManager:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openPasswordManager(sessionController, currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.instantReplay:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openInstantReplay(sessionState);
-        return;
-      case TerminalActionId.commandSearch:
-        _openCommandSearchForActiveSession();
-        return;
-      case TerminalActionId.replayFromCommandBlock:
-        await executeInstantReplayCommandBlockAction(
-          actionId: action,
-          flags: _commandBlocksHistoryFeatureFlags,
-          currentSessionId: currentSessionId,
-          commandBlocks: currentSessionId == null
-              ? const <ShellCommandBlock>[]
-              : _commandBlocksForSession(currentSessionId),
-          openReplay: (commandBlockSource) => _openInstantReplay(
-            currentState,
-            commandBlockSource: commandBlockSource,
-          ),
-        );
-        return;
-      case TerminalActionId.previousCommandBlock:
-        if (currentSessionId == null) {
-          return;
-        }
-        _navigateCommandBlock(
-          currentSessionId,
-          CommandBlockNavigationTarget.previous,
-          showBlockedFeedback: true,
-        );
-        return;
-      case TerminalActionId.nextCommandBlock:
-        if (currentSessionId == null) {
-          return;
-        }
-        _navigateCommandBlock(
-          currentSessionId,
-          CommandBlockNavigationTarget.next,
-          showBlockedFeedback: true,
-        );
-        return;
-      case TerminalActionId.search:
-        if (currentSessionId == null) {
-          return;
-        }
-        _openSearch();
-        return;
-      case TerminalActionId.openActionSearch:
-        if (currentSessionId == null) {
-          return;
-        }
-        _openCommandActionSearch(currentSessionId);
-        return;
-      case TerminalActionId.globalSearch:
-        if (sessionState.tabs.isEmpty) {
-          return;
-        }
-        await _openGlobalSearch(sessionState);
-        return;
-      case TerminalActionId.autocomplete:
-        if (currentSessionId == null) {
-          return;
-        }
-        _openAutocomplete();
-        return;
-      case TerminalActionId.autoComposer:
-        if (currentSessionId == null) {
-          return;
-        }
-        _openAutoComposer();
-        return;
-      case TerminalActionId.hotkeyWindow:
-        await _toggleHotkeyWindowWithFeedback();
-        return;
-      case TerminalActionId.defaults:
-        await _openDefaultsAndAppearance(sessionController, sessionState);
-        return;
-      case TerminalActionId.profiles:
-        await _openProfilesSheet(sessionController, sessionState);
-        return;
-      case TerminalActionId.dynamicProfiles:
-        await _openDynamicProfiles(sessionController);
-        return;
-      case TerminalActionId.openDefaults:
-        await _openDefaultsAndAppearance(sessionController, sessionState);
-        return;
-      case TerminalActionId.activateTab:
-        return;
-      case TerminalActionId.openLauncher:
-      case TerminalActionId.openCommandMenu:
-      case TerminalActionId.closeActiveTab:
-        return;
-      case null:
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      default:
-        return;
-    }
+    await _executeProductionActionIfBound(
+      adapter: productionMenuAdapter,
+      action: action,
+    );
   }
 
   void _toggleReadOnlySessionWithFeedback(String sessionId) {

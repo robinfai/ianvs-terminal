@@ -1407,21 +1407,28 @@ class _ShellEmptyState extends StatelessWidget {
         color: palette.terminalSurface,
         border: Border(top: BorderSide(color: palette.terminalFrame)),
       ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: AppEmptyState(
-            title: title,
-            message: message,
-            supportingText: defaultSummary,
-            action: AppActionButton(
-              buttonKey: const Key('shell-empty-new-tab'),
-              icon: Icons.add_box_outlined,
-              label: 'New Tab',
-              onPressed: onNewTab,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: AppEmptyState(
+                  title: title,
+                  message: message,
+                  supportingText: defaultSummary,
+                  action: AppActionButton(
+                    buttonKey: const Key('shell-empty-new-tab'),
+                    icon: Icons.add_box_outlined,
+                    label: 'New Tab',
+                    onPressed: onNewTab,
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

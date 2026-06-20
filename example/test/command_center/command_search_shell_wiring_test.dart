@@ -29,10 +29,7 @@ void main() {
         ..handleIntent(CommandSearchOverlayKeyIntent.openSearch);
 
       expect(controller.state.results, hasLength(1));
-      expect(
-        controller.state.scope,
-        CommandSearchHistoryScope.currentSession,
-      );
+      expect(controller.state.scope, CommandSearchHistoryScope.currentSession);
       expect(controller.state.results.single.entry.command, 'flutter test');
       expect(controller.state.results.single.entry.cwd, '/repo');
       expect(controller.state.results.single.entry.finishedAt, finishedAt);
@@ -66,8 +63,7 @@ void main() {
             exitCode: 0,
           ),
         );
-        final sessionAInvocationId = state
-            .history
+        final sessionAInvocationId = state.history
             .entriesForSession('session-a')
             .single
             .invocationId;
@@ -89,7 +85,10 @@ void main() {
           ),
         )..handleIntent(CommandSearchOverlayKeyIntent.openSearch);
 
-        expect(controller.state.scope, CommandSearchHistoryScope.currentSession);
+        expect(
+          controller.state.scope,
+          CommandSearchHistoryScope.currentSession,
+        );
         expect(controller.state.results, hasLength(1));
         expect(controller.state.results.single.entry.sessionId, 'session-a');
         expect(
