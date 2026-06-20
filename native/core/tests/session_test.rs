@@ -315,17 +315,16 @@ fn resize_request_profile() -> TerminalProfile {
     )
 }
 
-fn shell_hook_profile() -> TerminalProfile {
+fn shell_hook_profile(home: &Path) -> TerminalProfile {
+    let mut env = BTreeMap::new();
+    env.insert("HOME".to_string(), home.to_string_lossy().into_owned());
+    env.insert("PS1".to_string(), "ianvs terminal$ ".to_string());
     local_profile(
         "shell-hook",
         "Shell Hook",
-        "/bin/sh",
-        vec![
-            "-lc".to_string(),
-            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1bPhook;7b22686f6f6b223a22707265636d64222c22707764223a222f746d702f69616e7673207465726d696e616c227d\x1b\\")'"#
-                .to_string(),
-        ],
-        BTreeMap::new(),
+        "/bin/bash",
+        vec![],
+        env,
         TerminalEmulation::Xterm256,
     )
 }
@@ -679,6 +678,23 @@ fn wait_for_shell_hook_sequence(session_id: u64, hooks: &[&str]) -> Vec<serde_js
         thread::sleep(Duration::from_millis(100));
     }
     panic!("timed out waiting for shell hooks {hooks:?}");
+}
+
+fn wait_for_shell_hook_named(session_id: u64, hook: &str) -> serde_json::Value {
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        let polled = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&polled).unwrap();
+        if let Some(entries) = parsed.as_array() {
+            for entry in entries {
+                if entry["kind"] == "shell_hook" && entry["payload"]["hook"].as_str() == Some(hook)
+                {
+                    return entry.clone();
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    panic!("timed out waiting for shell hook {hook:?}");
 }
 
 fn wait_for_readonly_command_round(
@@ -1330,11 +1346,20 @@ fn session_emits_resize_events_from_terminal_requests() {
 
 #[test]
 fn session_emits_shell_hook_events_from_dcs_hooks() {
+    let home = tempdir().unwrap();
     let session_id =
-        session::create_session(&serde_json::to_string(&shell_hook_profile()).unwrap()).unwrap();
+        session::create_session(&serde_json::to_string(&shell_hook_profile(home.path())).unwrap())
+            .unwrap();
 
-    let event = wait_for_event(session_id, "shell_hook");
-    assert_eq!(event["payload"]["hook"].as_str(), Some("precmd"));
+    let _ = wait_for_shell_hook_sequence(session_id, &["bootstrapped", "precmd", "precmd.pwd"]);
+    let command = concat!(
+        "printf '\\033Phook;%s\\033\\\\' \"$(",
+        "printf '{\"token\":\"%s\",\"hook\":\"manual_precmd\",\"pwd\":\"/tmp/ianvs terminal\"}' ",
+        "\"$__ianvs_shell_integration_token\" | od -An -tx1 -v | tr -d ' \\n')\"\n"
+    );
+    session::write_session(session_id, command.as_bytes()).unwrap();
+
+    let event = wait_for_shell_hook_named(session_id, "manual_precmd");
     assert_eq!(
         event["payload"]["pwd"].as_str(),
         Some("/tmp/ianvs terminal")

@@ -20,6 +20,24 @@ void main() {
         CommandHistoryPrivacyReason.sensitiveToken,
       );
       expect(
+        filter.evaluateCommand('AWS_ACCESS_KEY_ID=AKIA123 deploy').reason,
+        CommandHistoryPrivacyReason.sensitiveToken,
+      );
+      expect(
+        filter
+            .evaluateCommand('aws configure set aws_access_key_id AKIA123')
+            .reason,
+        CommandHistoryPrivacyReason.sensitiveToken,
+      );
+      expect(
+        filter.evaluateCommand('curl --api-key sk-secret-value').reason,
+        CommandHistoryPrivacyReason.sensitiveToken,
+      );
+      expect(
+        filter.evaluateCommand('deploy --auth-token bearer-secret').reason,
+        CommandHistoryPrivacyReason.sensitiveToken,
+      );
+      expect(
         filter.evaluateCommand('SECRET_KEY=abc deploy').reason,
         CommandHistoryPrivacyReason.sensitiveSecret,
       );

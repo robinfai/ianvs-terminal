@@ -79,12 +79,12 @@ pub struct FileTransferManager {
     max_completed: usize,
     /// Next transfer ID to assign
     next_id: TransferId,
-    /// Maximum allowed transfer size in bytes (default 50 MB)
+    /// Maximum allowed transfer size in bytes (default 4 MB)
     max_transfer_size: usize,
 }
 
-/// Default maximum transfer size: 50 MB
-const DEFAULT_MAX_TRANSFER_SIZE: usize = 50 * 1024 * 1024;
+/// Default maximum transfer size: 4 MB
+const DEFAULT_MAX_TRANSFER_SIZE: usize = 4 * 1024 * 1024;
 
 /// Default maximum number of completed transfers to retain
 const DEFAULT_MAX_COMPLETED: usize = 32;
@@ -277,7 +277,9 @@ impl FileTransferManager {
     }
 
     /// Push a transfer onto the completed ring buffer, evicting the oldest if full
-    fn push_completed(&mut self, transfer: FileTransfer) {
+    fn push_completed(&mut self, mut transfer: FileTransfer) {
+        transfer.data.clear();
+        transfer.data.shrink_to_fit();
         if self.completed_transfers.len() >= self.max_completed {
             self.completed_transfers.remove(0);
         }
@@ -422,7 +424,7 @@ mod tests {
         assert_eq!(completed.id, id);
         assert_eq!(completed.status, TransferStatus::Completed);
         assert!(completed.completed_at.is_some());
-        assert_eq!(completed.data, b"helloworld");
+        assert!(completed.data.is_empty());
     }
 
     #[test]
@@ -464,7 +466,7 @@ mod tests {
         let transfer = &mgr.completed_transfers()[0];
         assert_eq!(transfer.status, TransferStatus::Cancelled);
         assert!(transfer.completed_at.is_some());
-        assert_eq!(transfer.data, b"partial");
+        assert!(transfer.data.is_empty());
     }
 
     #[test]
@@ -528,7 +530,7 @@ mod tests {
             TransferStatus::Failed("network error".into())
         );
         assert!(transfer.completed_at.is_some());
-        assert_eq!(transfer.data, b"some data");
+        assert!(transfer.data.is_empty());
 
         // Failing a non-existent transfer should error
         let result = mgr.fail_transfer(999, "not found".into());

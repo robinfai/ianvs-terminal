@@ -63,6 +63,21 @@ void main() {
       );
     });
 
+    test('does not trust agent-supplied low risk for unsafe commands', () {
+      final proposal = _proposal(
+        command: 'rm -rf build',
+        riskLevel: AgentCommandRiskLevel.low,
+        requiresConfirmation: false,
+      );
+
+      final decision = pipeline.evaluate(
+        AgentCommandSafetyRequest(proposal: proposal),
+      );
+
+      expect(decision.requiresConfirmation, isTrue);
+      expect(decision.canExecute, isFalse);
+    });
+
     test('blocks execution in read-only mode', () {
       final decision = pipeline.evaluate(
         AgentCommandSafetyRequest(

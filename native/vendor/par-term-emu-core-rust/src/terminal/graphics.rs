@@ -7,6 +7,17 @@ use crate::debug;
 use crate::graphics::TerminalGraphic;
 use crate::terminal::Terminal;
 
+fn max_base64_len_for_decoded_limit(decoded_limit: usize) -> usize {
+    let full_groups = decoded_limit / 3;
+    let remainder = decoded_limit % 3;
+    let rounded_groups = full_groups + usize::from(remainder > 0);
+    rounded_groups.saturating_mul(4)
+}
+
+fn base64_input_exceeds_decoded_limit(encoded_len: usize, decoded_limit: usize) -> bool {
+    encoded_len > max_base64_len_for_decoded_limit(decoded_limit)
+}
+
 impl Terminal {
     /// Get graphics at a specific row
     pub fn graphics_at_row(&self, row: usize) -> Vec<&TerminalGraphic> {
@@ -265,6 +276,39 @@ impl Terminal {
             }
         };
 
+        let decoded_total_limit = if state.is_file_transfer {
+            state
+                .total_size
+                .unwrap_or_else(|| self.file_transfer_manager.max_transfer_size())
+                .min(self.file_transfer_manager.max_transfer_size())
+        } else {
+            state
+                .total_size
+                .unwrap_or_else(|| self.graphics_store.limits().max_total_memory)
+                .min(self.graphics_store.limits().max_total_memory)
+        };
+        let remaining_limit = decoded_total_limit.saturating_sub(state.accumulated_size);
+        if base64_input_exceeds_decoded_limit(base64_chunk.len(), remaining_limit) {
+            let reason = format!(
+                "FilePart base64 chunk rejected: encoded {} exceeds remaining decoded limit {}",
+                base64_chunk.len(),
+                remaining_limit
+            );
+            debug::log(debug::DebugLevel::Debug, "ITERM", &reason);
+            if state.is_file_transfer {
+                if let Some(transfer_id) = state.transfer_id {
+                    let _ = self.file_transfer_manager.fail_transfer(transfer_id, reason.clone());
+                    self.terminal_events
+                        .push(crate::terminal::TerminalEvent::FileTransferFailed {
+                            id: transfer_id,
+                            reason,
+                        });
+                }
+            }
+            self.iterm_multipart_buffer = None;
+            return;
+        }
+
         // Decode the chunk
         let decoded = match base64::Engine::decode(
             &base64::engine::general_purpose::STANDARD,
@@ -332,6 +376,18 @@ impl Terminal {
         // Check if adding this chunk would exceed size limit (inline images only)
         let new_accumulated = state.accumulated_size + decoded_size;
         if !state.is_file_transfer {
+            if new_accumulated > decoded_total_limit {
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "ITERM",
+                    &format!(
+                        "FilePart rejected: accumulated {} + chunk {} exceeds graphics limit {}",
+                        state.accumulated_size, decoded_size, decoded_total_limit
+                    ),
+                );
+                self.iterm_multipart_buffer = None;
+                return;
+            }
             if let Some(expected_size) = state.total_size {
                 if new_accumulated > expected_size {
                     debug::log(
@@ -581,6 +637,20 @@ impl Terminal {
             }
         } else {
             // ===== File download path =====
+            let max_size = self.file_transfer_manager.max_transfer_size();
+            if base64_input_exceeds_decoded_limit(image_data.len(), max_size) {
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "ITERM",
+                    &format!(
+                        "File transfer rejected before decode: encoded {} exceeds decoded limit {}",
+                        image_data.len(),
+                        max_size
+                    ),
+                );
+                return;
+            }
+
             // Decode the base64 data
             let decoded = match base64::Engine::decode(
                 &base64::engine::general_purpose::STANDARD,
@@ -691,6 +761,17 @@ mod tests {
         let term = create_test_terminal();
         let graphics = term.graphics_at_row(0);
         assert_eq!(graphics.len(), 0);
+    }
+
+    #[test]
+    fn base64_encoded_limit_rejects_inputs_that_must_decode_too_large() {
+        assert_eq!(max_base64_len_for_decoded_limit(0), 0);
+        assert_eq!(max_base64_len_for_decoded_limit(1), 4);
+        assert_eq!(max_base64_len_for_decoded_limit(2), 4);
+        assert_eq!(max_base64_len_for_decoded_limit(3), 4);
+        assert_eq!(max_base64_len_for_decoded_limit(4), 8);
+        assert!(!base64_input_exceeds_decoded_limit(8, 4));
+        assert!(base64_input_exceeds_decoded_limit(9, 4));
     }
 
     #[test]

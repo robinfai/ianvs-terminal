@@ -13,11 +13,14 @@ use crate::graphics::{
     ImagePlacement, TerminalGraphic,
 };
 
-/// Maximum allowed image dimension (width or height) in pixels
-const MAX_IMAGE_DIMENSION: usize = 16384;
+/// Maximum allowed image dimension (width or height) in pixels.
+const MAX_IMAGE_DIMENSION: usize = 4096;
 
-/// Maximum allowed base64-encoded image data size in bytes (100 MB)
-const MAX_IMAGE_DATA_SIZE: usize = 100 * 1024 * 1024;
+/// Maximum raw image or file payload decoded from terminal data.
+const MAX_IMAGE_DECODED_BYTES: usize = 4 * 1024 * 1024;
+
+/// Maximum allowed base64-encoded image data size in bytes.
+const MAX_IMAGE_DATA_SIZE: usize = MAX_IMAGE_DECODED_BYTES.div_ceil(3) * 4;
 
 /// iTerm2 inline image parser
 #[derive(Debug, Default)]
@@ -111,13 +114,19 @@ impl ITermParser {
             base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &self.data)
                 .map_err(|e| GraphicsError::Base64Error(e.to_string()))?;
 
+        if decoded.len() > MAX_IMAGE_DECODED_BYTES {
+            return Err(GraphicsError::ImageTooLarge(
+                decoded.len(),
+                MAX_IMAGE_DECODED_BYTES,
+            ));
+        }
+
         // Decode image using image crate
         let img = image::load_from_memory(&decoded)
             .map_err(|e| GraphicsError::ImageError(e.to_string()))?;
 
-        let rgba = img.to_rgba8();
-        let width = rgba.width() as usize;
-        let height = rgba.height() as usize;
+        let width = img.width() as usize;
+        let height = img.height() as usize;
 
         // Validate decoded image dimensions
         if width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION {
@@ -134,6 +143,17 @@ impl ITermParser {
                 MAX_IMAGE_DIMENSION,
             ));
         }
+        let raw_pixel_bytes = width
+            .saturating_mul(height)
+            .saturating_mul(std::mem::size_of::<[u8; 4]>());
+        if raw_pixel_bytes > MAX_IMAGE_DECODED_BYTES {
+            return Err(GraphicsError::ImageTooLarge(
+                raw_pixel_bytes,
+                MAX_IMAGE_DECODED_BYTES,
+            ));
+        }
+
+        let rgba = img.to_rgba8();
 
         let pixels = rgba.into_raw();
 

@@ -1239,6 +1239,15 @@ void main() {
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.allow,
+              ),
+            ),
+          ),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -1332,6 +1341,15 @@ void main() {
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.allow,
+              ),
+            ),
+          ),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -1356,6 +1374,58 @@ void main() {
       fakeBindings.writes.last,
       utf8.encode('\x1B]52;c;$expectedPayload\x07'),
     );
+  });
+
+  test('OSC 52 paste requests require explicit allow policy', () async {
+    final fakeBindings = FakePtyBackend();
+    final bindings = _EventfulPtyBackend(fakeBindings);
+    final coreClient = bindings;
+    var pasteReadCount = 0;
+
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionClipboardPasteProvider.overrideWithValue(() async {
+          pasteReadCount += 1;
+          return 'profile paste';
+        }),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.profile,
+              ),
+            ),
+          ),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'clipboard_paste_request',
+      'session_id': int.parse(sessionId),
+      'payload': {'selection': 'c'},
+    });
+
+    controller.resizeActiveSession(const Size(640, 480), 1.0);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(pasteReadCount, 0);
+    expect(fakeBindings.writes, isEmpty);
   });
 
   test(

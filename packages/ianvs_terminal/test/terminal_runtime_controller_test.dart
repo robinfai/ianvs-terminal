@@ -547,6 +547,18 @@ void main() {
       'scrollback_max_offset': 10,
       'viewport_start_row': 3,
     });
+    final oversizedViewport = TerminalFrameDiff.fromJson(<String, Object?>{
+      'rows': List<Map<String, Object?>>.generate(
+        600,
+        (index) => <String, Object?>{'index': index, 'text': 'row $index'},
+      ),
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 65535,
+      'viewport_cols': 65535,
+      'dirty_ranges': [],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
 
     expect(negative.viewportRows, 0);
     expect(negative.viewportCols, 0);
@@ -556,6 +568,9 @@ void main() {
     expect(negative.viewportRowShift, -1);
     expect(overflow.scrollbackOffset, 10);
     expect(overflow.scrollbackMaxOffset, 10);
+    expect(oversizedViewport.viewportRows, 512);
+    expect(oversizedViewport.viewportCols, 512);
+    expect(oversizedViewport.rows, hasLength(512));
   });
 
   test('terminal frames default fractional scalar fields', () {
@@ -2214,6 +2229,7 @@ void main() {
         backend: runtimeBackend,
         copyToClipboard: (_) async {},
         readClipboard: () => readClipboardCompleter.future,
+        allowClipboardPasteRequest: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -2327,6 +2343,47 @@ void main() {
       );
     },
   );
+
+  testWidgets('terminal runtime controller rejects oversized resize events', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    var resizeWindowCalls = 0;
+    final guardedRuntime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      resizeWindowBy: ({required widthDelta, required heightDelta}) async {
+        resizeWindowCalls += 1;
+      },
+      enableSessionPolling: false,
+    );
+    addTearDown(guardedRuntime.dispose);
+
+    final sessionId = guardedRuntime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    guardedRuntime.resizeSession(sessionId, const Size(180, 144), 1);
+    await tester.pump();
+    runtimeBackend.resizeCalls.clear();
+
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'resize',
+        sessionId: sessionId,
+        payload: const <String, Object?>{'cols': 65535, 'rows': 65535},
+      ),
+    );
+
+    guardedRuntime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    expect(runtimeBackend.resizeCalls, isEmpty);
+    expect(resizeWindowCalls, 0);
+  });
 
   testWidgets(
     'terminal runtime controller handles OSC 52 base64 copy edge cases',
@@ -2459,6 +2516,45 @@ void main() {
     expect(copiedTexts, isEmpty);
   });
 
+  testWidgets(
+    'terminal runtime controller blocks OSC 52 paste requests by default',
+    (tester) async {
+      var readClipboardCount = 0;
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async {
+          readClipboardCount += 1;
+          return 'default blocked paste';
+        },
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_paste_request',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'selection': 'c'},
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      expect(readClipboardCount, 0);
+      expect(runtimeBackend.writeCalls, hasLength(1));
+      expect(runtimeBackend.writeCalls.single, isEmpty);
+    },
+  );
+
   testWidgets('terminal runtime controller can block OSC 52 paste requests', (
     tester,
   ) async {
@@ -2510,6 +2606,7 @@ void main() {
           copiedTexts.add(text);
         },
         readClipboard: () async => 'paste me',
+        allowClipboardPasteRequest: () async => true,
         enableSessionPolling: false,
       );
       addTearDown(runtime.dispose);
@@ -2824,6 +2921,7 @@ void main() {
           copiedText = text;
         },
         readClipboard: () async => 'paste me',
+        allowClipboardPasteRequest: () async => true,
         resizeWindowBy:
             ({required double widthDelta, required double heightDelta}) async {
               resizeWidthDelta = widthDelta;

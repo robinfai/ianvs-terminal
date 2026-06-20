@@ -11,6 +11,8 @@ void main() {
           'DEEPSEEK_API_KEY=abc123456789',
           'Authorization: Bearer abcdefghijklmnopqrstuvwxyz',
           'curl --password hunter2 --token token-value',
+          'aws configure set aws_access_key_id AKIA123456789',
+          'client --auth-token auth-secret',
           'url=https://example.test?api_key=query-secret',
           '-----BEGIN PRIVATE KEY-----',
           'private-key-body',
@@ -22,12 +24,16 @@ void main() {
       expect(redacted, contains('Authorization: Bearer [REDACTED]'));
       expect(redacted, contains('--password [REDACTED]'));
       expect(redacted, contains('--token [REDACTED]'));
+      expect(redacted, contains('aws_access_key_id [REDACTED]'));
+      expect(redacted, contains('--auth-token [REDACTED]'));
       expect(redacted, contains('api_key=[REDACTED]'));
       expect(redacted, contains('[REDACTED]'));
       expect(redacted, isNot(contains('abc123456789')));
       expect(redacted, isNot(contains('abcdefghijklmnopqrstuvwxyz')));
       expect(redacted, isNot(contains('hunter2')));
       expect(redacted, isNot(contains('token-value')));
+      expect(redacted, isNot(contains('AKIA123456789')));
+      expect(redacted, isNot(contains('auth-secret')));
       expect(redacted, isNot(contains('query-secret')));
       expect(redacted, isNot(contains('private-key-body')));
     });

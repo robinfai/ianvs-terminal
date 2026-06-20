@@ -1,4 +1,5 @@
 import 'agent_command_proposal.dart';
+import '../shell/universal_input.dart';
 
 enum AgentCommandSafetyDisposition { allowed, confirmationRequired, blocked }
 
@@ -85,13 +86,19 @@ class AgentCommandSafetyPipeline {
   }
 
   bool requiresExplicitConfirmation(AgentCommandProposal proposal) {
-    return proposal.requiresConfirmation ||
-        switch (proposal.riskLevel) {
-          AgentCommandRiskLevel.low => false,
-          AgentCommandRiskLevel.medium ||
-          AgentCommandRiskLevel.high ||
-          AgentCommandRiskLevel.destructive ||
-          AgentCommandRiskLevel.unknown => true,
-        };
+    if (proposal.requiresConfirmation) {
+      return true;
+    }
+    final localRisk = universalInputRiskLevelForCommand(proposal.command);
+    if (localRisk != CommandRiskLevel.safe) {
+      return true;
+    }
+    return switch (proposal.riskLevel) {
+      AgentCommandRiskLevel.low => false,
+      AgentCommandRiskLevel.medium ||
+      AgentCommandRiskLevel.high ||
+      AgentCommandRiskLevel.destructive ||
+      AgentCommandRiskLevel.unknown => true,
+    };
   }
 }

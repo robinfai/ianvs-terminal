@@ -35,8 +35,8 @@ class CommandIntelligenceService {
   static const String defaultCommandIntelligenceBaseUrl =
       'https://api.deepseek.com';
 
-  bool remoteAvailableFor({String? apiKey}) {
-    return _apiKeyFor(apiKey) != null;
+  bool remoteAvailableFor({String? apiKey, String? apiBaseUrl}) {
+    return _apiKeyForRequest(apiKey: apiKey, apiBaseUrl: apiBaseUrl) != null;
   }
 
   void close() {
@@ -46,7 +46,10 @@ class CommandIntelligenceService {
   }
 
   Future<List<CommandDraft>> draftCommands(CommandDraftRequest request) async {
-    final apiKey = _apiKeyFor(request.apiKey);
+    final apiKey = _apiKeyForRequest(
+      apiKey: request.apiKey,
+      apiBaseUrl: request.apiBaseUrl,
+    );
     if (!request.allowRemote || apiKey == null) {
       return const <CommandDraft>[];
     }
@@ -79,7 +82,10 @@ class CommandIntelligenceService {
       preferRemote: request.preferRemote,
     );
     final localCorrection = universalInputLocalCorrectionFor(safeRequest);
-    final apiKey = _apiKeyFor(safeRequest.apiKey);
+    final apiKey = _apiKeyForRequest(
+      apiKey: safeRequest.apiKey,
+      apiBaseUrl: safeRequest.apiBaseUrl,
+    );
     final shouldUseRemote =
         safeRequest.allowRemote &&
         apiKey != null &&
@@ -289,8 +295,17 @@ class CommandIntelligenceService {
     return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 
-  String? _apiKeyFor(String? override) {
-    return _nonEmpty(override) ?? _apiKey;
+  String? _apiKeyForRequest({String? apiKey, String? apiBaseUrl}) {
+    final explicitKey = _nonEmpty(apiKey);
+    if (explicitKey != null) {
+      return explicitKey;
+    }
+    final overrideBaseUrl = _nonEmpty(apiBaseUrl);
+    if (overrideBaseUrl != null &&
+        _normalizedBaseUrl(overrideBaseUrl) != _normalizedBaseUrl(baseUrl)) {
+      return null;
+    }
+    return _apiKey;
   }
 
   String _baseUrlFor(String? override) {

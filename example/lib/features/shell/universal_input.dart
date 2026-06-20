@@ -630,7 +630,8 @@ CommandCorrection? _gitPushUpstreamCorrection(
         caseSensitive: false,
       ).firstMatch(output)?.group(1) ??
       'HEAD';
-  final corrected = 'git push --set-upstream origin $branch';
+  final corrected =
+      'git push --set-upstream origin ${_shellQuoteLiteral(branch)}';
   return CommandCorrection(
     command: corrected,
     reason: 'Adds the missing upstream branch for git push.',
@@ -705,7 +706,7 @@ CommandCorrection? _cdPathCorrection(
   if (bestPath == null || bestDistance > 3) {
     return null;
   }
-  final corrected = 'cd ${_shellQuotePath(bestPath)}';
+  final corrected = 'cd ${_shellQuoteLiteral(bestPath)}';
   return CommandCorrection(
     command: corrected,
     reason: 'Uses the closest recent directory path.',
@@ -769,11 +770,12 @@ String _pathLeaf(String path) {
       : withoutTrailingSlash.substring(slashIndex + 1);
 }
 
-String _shellQuotePath(String path) {
-  if (!RegExp(r'\s').hasMatch(path)) {
-    return path;
+String _shellQuoteLiteral(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return "''";
   }
-  return "'${path.replaceAll("'", r"'\''")}'";
+  return "'${trimmed.replaceAll("'", r"'\''")}'";
 }
 
 bool _startsLikeShellCommand(String input, List<String> tokens) {

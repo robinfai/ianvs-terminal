@@ -15,21 +15,28 @@ class AgentContextPrivacyFilter {
     );
     redacted = redacted.replaceAllMapped(
       RegExp(
-        r'''\b([A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASS)[A-Z0-9_]*\s*=\s*)([^\s'"]+)''',
+        r'''\b([A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASS|AUTH|CREDENTIAL)[A-Z0-9_]*\s*=\s*)([^\s'"]+)''',
         caseSensitive: false,
       ),
       (match) => '${match.group(1)}$redactionLabel',
     );
     redacted = redacted.replaceAllMapped(
       RegExp(
-        r'\b(token|api[_-]?key|secret|password)=([^&\s]+)',
+        r'\b(token|api[_-]?key|access[_-]?key|secret[_-]?key|secret|password|passphrase|auth[_-]?token|credential)=([^&\s]+)',
         caseSensitive: false,
       ),
       (match) => '${match.group(1)}=$redactionLabel',
     );
     redacted = redacted.replaceAllMapped(
       RegExp(
-        r'(--?(?:api[-_]?key|token|secret|password|pass)\s+)([^\s]+)',
+        r'\b((?:aws[_-]?)?access[_-]?key(?:[_-]?id)?|api[_-]?key|auth[_-]?token)\s+([^\s]+)',
+        caseSensitive: false,
+      ),
+      (match) => '${match.group(1)} $redactionLabel',
+    );
+    redacted = redacted.replaceAllMapped(
+      RegExp(
+        r'(--?(?:api[-_]?key|access[-_]?key|secret[-_]?key|auth[-_]?token|token|secret|password|passphrase|pass)\s+)([^\s]+)',
         caseSensitive: false,
       ),
       (match) => '${match.group(1)}$redactionLabel',

@@ -7,6 +7,8 @@ enum TerminalFrameKind { snapshot, delta }
 const int _maxInlineImageDecodedBytes = 4 * 1024 * 1024;
 const int _maxInlineImageEncodedLength =
     ((_maxInlineImageDecodedBytes + 2) ~/ 3) * 4;
+const int _maxFrameViewportRows = 512;
+const int _maxFrameViewportCols = 512;
 
 class TerminalStyleRun {
   const TerminalStyleRun({
@@ -536,8 +538,14 @@ class TerminalFrameDiff {
     final cursorJson = _jsonMapFromJson(json['cursor']);
     final selectionJson = _jsonMapFromJson(json['selection']);
     final modesJson = _jsonMapFromJson(json['modes']);
-    final viewportRows = _nonNegativeIntFromJson(json['viewport_rows']);
-    final viewportCols = _nonNegativeIntFromJson(json['viewport_cols']);
+    final viewportRows = _boundedNonNegativeIntFromJson(
+      json['viewport_rows'],
+      max: _maxFrameViewportRows,
+    );
+    final viewportCols = _boundedNonNegativeIntFromJson(
+      json['viewport_cols'],
+      max: _maxFrameViewportCols,
+    );
     final scrollbackMaxOffset = _nonNegativeIntFromJson(
       json['scrollback_max_offset'],
     );
@@ -548,7 +556,11 @@ class TerminalFrameDiff {
       frameKind: _terminalFrameKindFromWire(
         _stringFromJson(json['frame_kind']),
       ),
-      rows: _jsonListFromJson(json['rows'], TerminalRow.tryFromJson),
+      rows: _jsonListFromJson(
+        json['rows'],
+        TerminalRow.tryFromJson,
+        maxItems: viewportRows,
+      ),
       cursor: cursorJson == null
           ? const TerminalCursor(row: 0, col: 0, visible: false)
           : TerminalCursor.tryFromJson(cursorJson) ??
@@ -605,13 +617,18 @@ List<TerminalDirtyRange> _normalizeDirtyRanges(
 
 List<T> _jsonListFromJson<T>(
   Object? value,
-  T? Function(Map<String, Object?> json) decode,
-) {
+  T? Function(Map<String, Object?> json) decode, {
+  int? maxItems,
+}) {
   if (value is! List) {
     return <T>[];
   }
   final items = <T>[];
+  final itemLimit = maxItems?.clamp(0, value.length).toInt();
   for (final entry in value) {
+    if (itemLimit != null && items.length >= itemLimit) {
+      break;
+    }
     final json = _jsonMapFromJson(entry);
     if (json == null) {
       continue;
@@ -869,6 +886,10 @@ int? _optionalIntFromJson(Object? value, {required int fallback}) {
 int _nonNegativeIntFromJson(Object? value) {
   final parsed = _intFromJson(value, fallback: 0);
   return parsed < 0 ? 0 : parsed;
+}
+
+int _boundedNonNegativeIntFromJson(Object? value, {required int max}) {
+  return _nonNegativeIntFromJson(value).clamp(0, max).toInt();
 }
 
 int? _intOrNullFromJson(Object? value) {

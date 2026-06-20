@@ -102,6 +102,10 @@ const MAX_OSC52_CLIPBOARD_ENCODED_CHARS: usize = MAX_OSC52_CLIPBOARD_DECODED_BYT
 const MAX_OSC52_SELECTION_BYTES: usize = 32;
 const MAX_INCOMPLETE_OSC52_SEQUENCE_BYTES: usize =
     2 + 3 + MAX_OSC52_SELECTION_BYTES + 1 + MAX_OSC52_CLIPBOARD_ENCODED_CHARS;
+const MAX_HOST_REQUESTED_ROWS: u16 = 512;
+const MAX_HOST_REQUESTED_COLS: u16 = 512;
+const MAX_PENDING_TERMINAL_EVENTS: usize = 256;
+const MAX_PENDING_TERMINAL_EVENT_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
 enum CallbackEvent {
@@ -413,9 +417,17 @@ struct HostProtocolState {
     buffer: Vec<u8>,
     window_icon_name: Option<String>,
     application_keypad: bool,
+    shell_integration_token: Option<String>,
 }
 
 impl HostProtocolState {
+    fn new(shell_integration_token: Option<String>) -> Self {
+        Self {
+            shell_integration_token,
+            ..Self::default()
+        }
+    }
+
     fn observe(&mut self, bytes: &[u8], emulation: TerminalEmulation) -> Vec<CallbackEvent> {
         if self.buffer.is_empty() && !bytes.contains(&0x1b) {
             return Vec::new();
@@ -577,10 +589,17 @@ impl HostProtocolState {
         let Ok(json) = String::from_utf8(json_bytes) else {
             return;
         };
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(&json) else {
+        let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&json) else {
             return;
         };
-        if value.is_object() {
+        let Some(expected_token) = self.shell_integration_token.as_deref() else {
+            return;
+        };
+        let Some(object) = value.as_object_mut() else {
+            return;
+        };
+        if object.get("token").and_then(|token| token.as_str()) == Some(expected_token) {
+            object.remove("token");
             events.push(CallbackEvent::ShellHook { payload: value });
         }
     }
@@ -665,7 +684,12 @@ impl HostProtocolState {
 
         let rows = parts.next().and_then(|value| value.parse::<u16>().ok());
         let cols = parts.next().and_then(|value| value.parse::<u16>().ok());
-        if let (Some(rows), Some(cols)) = (rows, cols) {
+        if let (Some(rows), Some(cols)) = (rows, cols)
+            && rows > 0
+            && cols > 0
+            && rows <= MAX_HOST_REQUESTED_ROWS
+            && cols <= MAX_HOST_REQUESTED_COLS
+        {
             events.push(CallbackEvent::Resize { rows, cols });
         }
     }
@@ -717,6 +741,7 @@ impl TerminalSession {
         let child_pid = runtime.child_pid;
         let process_name = process_name_for_profile(&profile);
         let reader = runtime.reader;
+        let shell_integration_token = runtime.shell_integration_token;
         let shell_integration_proxy = runtime.shell_integration_proxy;
 
         let mut terminal = Terminal::with_scrollback(
@@ -739,7 +764,7 @@ impl TerminalSession {
                 transcript: Vec::new(),
                 transcript_truncated: false,
                 scrollback_offset: 0,
-                host_protocol: HostProtocolState::default(),
+                host_protocol: HostProtocolState::new(shell_integration_token),
                 output_recording_started_at: Instant::now(),
                 output_recording_events: VecDeque::new(),
                 output_recording_bytes: 0,
@@ -1572,11 +1597,15 @@ impl TerminalSession {
 
     fn push_event(&self, kind: &str, payload: Option<serde_json::Value>) {
         let diagnostic_payload = sanitize_diagnostic_event_payload(kind, payload.as_ref());
-        self.events.lock().push_back(TerminalEvent {
-            kind: kind.to_string(),
-            session_id: self.session_id,
-            payload,
-        });
+        {
+            let mut pending_events = self.events.lock();
+            pending_events.push_back(TerminalEvent {
+                kind: kind.to_string(),
+                session_id: self.session_id,
+                payload,
+            });
+            trim_pending_terminal_events(&mut pending_events);
+        }
         let mut events = self.diagnostic_events.lock();
         events.push_back(TerminalDiagnosticEvent {
             timestamp_micros: unix_timestamp_micros(),
@@ -1588,6 +1617,35 @@ impl TerminalSession {
             events.pop_front();
         }
     }
+}
+
+fn trim_pending_terminal_events(events: &mut VecDeque<TerminalEvent>) {
+    while events.len() > MAX_PENDING_TERMINAL_EVENTS {
+        events.pop_front();
+    }
+
+    let mut total_bytes = events
+        .iter()
+        .map(terminal_event_estimated_bytes)
+        .sum::<usize>();
+    while events.len() > 1 && total_bytes > MAX_PENDING_TERMINAL_EVENT_BYTES {
+        if let Some(event) = events.pop_front() {
+            total_bytes = total_bytes.saturating_sub(terminal_event_estimated_bytes(&event));
+        }
+    }
+}
+
+fn terminal_event_estimated_bytes(event: &TerminalEvent) -> usize {
+    event
+        .kind
+        .len()
+        .saturating_add(
+            event
+                .payload
+                .as_ref()
+                .map_or(0, |payload| payload.to_string().len()),
+        )
+        .saturating_add(32)
 }
 
 struct ExtractedRow {
@@ -3020,6 +3078,7 @@ fn process_terminal_output_with_immediate_responses<F>(
 {
     for (index, byte) in bytes.iter().enumerate() {
         terminal.process(std::slice::from_ref(byte));
+        discard_unhandled_terminal_events(terminal);
         drain_terminal_responses_at(terminal, emulation, index + 1, response_sink);
     }
 }
@@ -3049,6 +3108,7 @@ where
 
         let terminal_started_at = Instant::now();
         terminal.process(byte_slice);
+        discard_unhandled_terminal_events(terminal);
         drain_terminal_responses_at(terminal, emulation, processed_bytes, response_sink);
         stats.terminal_process_micros = stats
             .terminal_process_micros
@@ -3063,6 +3123,10 @@ where
             .saturating_add(host_started_at.elapsed().as_micros() as u64);
     }
     stats
+}
+
+fn discard_unhandled_terminal_events(terminal: &mut Terminal) {
+    let _ = terminal.poll_events();
 }
 
 fn drain_terminal_responses_at<F>(
@@ -3890,19 +3954,36 @@ mod tests {
     }
 
     #[test]
+    fn terminal_internal_events_are_drained_after_processing() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 100);
+
+        process_terminal_output_with_immediate_responses(
+            &mut terminal,
+            TerminalEmulation::Xterm256,
+            b"\x1b]0;Ianvs title\x1b\\",
+            &mut |_, _, _| {},
+        );
+
+        assert_eq!(terminal.title(), "Ianvs title");
+        assert!(terminal.poll_events().is_empty());
+    }
+
+    #[test]
     fn terminal_responses_and_host_events_follow_split_byte_order() {
         let mut terminal = Terminal::with_scrollback(80, 24, 100);
-        let mut host_protocol = HostProtocolState::default();
+        let mut host_protocol = HostProtocolState::new(Some("shell-token".to_string()));
         let osc10 = b"\x1b]10;?\x1b\\";
         let plain = b"plain";
-        let hook = b"\x1bPhook;7b22686f6f6b223a22707265636d64222c22707764223a222f746d702f69616e7673207465726d696e616c227d\x1b\\";
+        let hook = dcs_hook_sequence(
+            r#"{"token":"shell-token","hook":"precmd","pwd":"/tmp/ianvs terminal"}"#,
+        );
         let decrqm = b"\x1b[?12$p";
         let osc11 = b"\x1b]11;?\x1b\\";
         let tail = b"tail";
         let mut input = Vec::new();
         input.extend_from_slice(osc10);
         input.extend_from_slice(plain);
-        input.extend_from_slice(hook);
+        input.extend_from_slice(&hook);
         input.extend_from_slice(decrqm);
         input.extend_from_slice(osc11);
         input.extend_from_slice(tail);
@@ -4077,34 +4158,112 @@ mod tests {
         assert!(host_protocol.buffer.is_empty());
     }
 
+    fn dcs_hook_sequence(json: &str) -> Vec<u8> {
+        let mut sequence = b"\x1bPhook;".to_vec();
+        for byte in json.as_bytes() {
+            sequence.extend_from_slice(format!("{byte:02x}").as_bytes());
+        }
+        sequence.extend_from_slice(b"\x1b\\");
+        sequence
+    }
+
     #[test]
-    fn host_protocol_observe_emits_split_shell_hook_dcs() {
+    fn host_protocol_observe_rejects_shell_hook_dcs_without_token() {
         let mut state = HostProtocolState::default();
+        let sequence = dcs_hook_sequence(r#"{"hook":"precmd","pwd":"/tmp/ianvs terminal"}"#);
+
+        let events = state.observe(&sequence, TerminalEmulation::Xterm256);
+
+        assert!(events.is_empty());
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_observe_rejects_shell_hook_dcs_with_wrong_token() {
+        let mut state = HostProtocolState::new(Some("expected-token".to_string()));
+        let sequence =
+            dcs_hook_sequence(r#"{"token":"wrong-token","hook":"precmd","pwd":"/tmp/ianvs"}"#);
+
+        let events = state.observe(&sequence, TerminalEmulation::Xterm256);
+
+        assert!(events.is_empty());
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_observe_emits_split_shell_hook_dcs_with_token_removed() {
+        let mut state = HostProtocolState::new(Some("shell-token".to_string()));
+        let sequence = dcs_hook_sequence(
+            r#"{"token":"shell-token","hook":"precmd","pwd":"/tmp/ianvs terminal"}"#,
+        );
+        let split = sequence.len() / 2;
 
         assert!(
             state
-                .observe(
-                    b"\x1bPhook;7b22686f6f6b223a22707265636d64222c",
-                    TerminalEmulation::Xterm256
-                )
+                .observe(&sequence[..split], TerminalEmulation::Xterm256)
                 .is_empty()
         );
         assert!(!state.buffer.is_empty());
 
-        let events = state.observe(
-            b"22707764223a222f746d702f69616e7673207465726d696e616c227d\x1b\\",
-            TerminalEmulation::Xterm256,
-        );
+        let events = state.observe(&sequence[split..], TerminalEmulation::Xterm256);
 
         assert_eq!(events.len(), 1);
         match &events[0] {
             CallbackEvent::ShellHook { payload } => {
+                assert!(payload.get("token").is_none());
                 assert_eq!(payload["hook"].as_str(), Some("precmd"));
                 assert_eq!(payload["pwd"].as_str(), Some("/tmp/ianvs terminal"));
             }
             event => panic!("expected shell hook event, got {event:?}"),
         }
         assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_observe_rejects_oversized_csi_resize() {
+        let mut state = HostProtocolState::default();
+
+        let events = state.observe(b"\x1b[8;65535;65535t", TerminalEmulation::Xterm256);
+
+        assert!(events.is_empty());
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn host_protocol_observe_emits_bounded_csi_resize() {
+        let mut state = HostProtocolState::default();
+
+        let events = state.observe(b"\x1b[8;48;160t", TerminalEmulation::Xterm256);
+
+        assert_eq!(events.len(), 1);
+        match events[0] {
+            CallbackEvent::Resize { rows, cols } => {
+                assert_eq!(rows, 48);
+                assert_eq!(cols, 160);
+            }
+            ref event => panic!("expected resize event, got {event:?}"),
+        }
+        assert!(state.buffer.is_empty());
+    }
+
+    #[test]
+    fn pending_terminal_events_are_capped_by_count() {
+        let mut events = VecDeque::new();
+
+        for index in 0..(MAX_PENDING_TERMINAL_EVENTS + 4) {
+            events.push_back(TerminalEvent {
+                kind: format!("event-{index}"),
+                session_id: 1,
+                payload: None,
+            });
+        }
+        trim_pending_terminal_events(&mut events);
+
+        assert_eq!(events.len(), MAX_PENDING_TERMINAL_EVENTS);
+        assert_eq!(
+            events.front().map(|event| event.kind.as_str()),
+            Some("event-4")
+        );
     }
 
     #[test]

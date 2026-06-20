@@ -70,14 +70,14 @@ class CommandHistoryPrivacyFilter {
         CommandHistoryPrivacyReason.sensitivePassword,
       );
     }
-    if (_tokenPattern.hasMatch(normalized)) {
-      return const CommandHistoryPrivacyDecision.blocked(
-        CommandHistoryPrivacyReason.sensitiveToken,
-      );
-    }
     if (_secretPattern.hasMatch(normalized)) {
       return const CommandHistoryPrivacyDecision.blocked(
         CommandHistoryPrivacyReason.sensitiveSecret,
+      );
+    }
+    if (_tokenPattern.hasMatch(normalized)) {
+      return const CommandHistoryPrivacyDecision.blocked(
+        CommandHistoryPrivacyReason.sensitiveToken,
       );
     }
     return const CommandHistoryPrivacyDecision.allowed();
@@ -108,15 +108,15 @@ class CommandHistoryPrivacyFilter {
 }
 
 final _passwordPattern = RegExp(
-  r'(^|\s)(?:--?password(?:=|\s+\S)|(?:export\s+)?[a-z0-9_]*password[a-z0-9_]*\s*=)',
+  r'(^|\s)(?:--?(?:password|pass|passphrase|passwd)(?:=|\s+\S)|(?:export\s+)?[a-z0-9_]*(?:password|passphrase|passwd|pass)[a-z0-9_]*\s*=)',
 );
 
 final _tokenPattern = RegExp(
-  r'(^|\s)(?:--?token(?:=|\s+\S)|(?:export\s+)?[a-z0-9_]*token[a-z0-9_]*\s*=)',
+  r'(^|\s)(?:--?(?:token|auth-token|access-token|api[-_]?key|access[-_]?key|secret[-_]?key)(?:=|\s+\S)|(?:aws[_-]?)?access[_-]?key(?:[_-]?id)?\s+\S|api[_-]?key\s+\S|auth[_-]?token\s+\S|(?:export\s+)?[a-z0-9_]*(?:token|api_?key|apikey|access_?key|secret_?key|auth)[a-z0-9_]*\s*=)',
 );
 
 final _secretPattern = RegExp(
-  r'(^|\s)(?:--?secret(?:=|\s+\S)|(?:export\s+)?[a-z0-9_]*secret[a-z0-9_]*\s*=)',
+  r'(^|\s)(?:--?(?:secret|client-secret)(?:=|\s+\S)|(?:export\s+)?[a-z0-9_]*(?:secret|credential|credentials)[a-z0-9_]*\s*=)',
 );
 
 final _privateKeyPattern = RegExp(

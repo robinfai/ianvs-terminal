@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 static SHELL_INTEGRATION_PROXY_COUNTER: AtomicU64 = AtomicU64::new(0);
+const SHELL_INTEGRATION_TOKEN_BYTES: usize = 16;
 
 pub struct PtyRuntime {
     pub master: Box<dyn MasterPty + Send>,
@@ -17,19 +18,25 @@ pub struct PtyRuntime {
     pub child: Box<dyn portable_pty::Child + Send + Sync>,
     pub child_pid: Option<u32>,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
+    pub(crate) shell_integration_token: Option<String>,
 }
 
 pub(crate) struct ShellIntegrationProxy {
     path: PathBuf,
+    token: String,
 }
 
 impl ShellIntegrationProxy {
-    fn new(path: PathBuf) -> Self {
-        Self { path }
+    fn new(path: PathBuf, token: String) -> Self {
+        Self { path, token }
     }
 
     fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub(crate) fn token(&self) -> &str {
+        &self.token
     }
 }
 
@@ -112,6 +119,10 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
     let child_pid = child.process_id();
     let reader = pair.master.try_clone_reader()?;
     let writer = pair.master.take_writer()?;
+    let shell_integration_token = plan
+        .shell_integration_proxy
+        .as_ref()
+        .map(|proxy| proxy.token().to_string());
 
     Ok(PtyRuntime {
         master: pair.master,
@@ -120,6 +131,7 @@ pub fn spawn_pty(profile: &TerminalProfile, rows: u16, cols: u16) -> anyhow::Res
         child,
         child_pid,
         shell_integration_proxy: plan.shell_integration_proxy,
+        shell_integration_token,
     })
 }
 
@@ -210,6 +222,10 @@ fn apply_zsh_shell_integration(env: &mut BTreeMap<String, String>, proxy: &Shell
     let original_zdotdir = original_zdotdir(env);
     env.insert("IANVS_SHELL_INTEGRATION".to_string(), "1".to_string());
     env.insert(
+        "IANVS_SHELL_INTEGRATION_TOKEN".to_string(),
+        proxy.token().to_string(),
+    );
+    env.insert(
         "IANVS_ORIGINAL_ZDOTDIR_WAS_SET".to_string(),
         if original_zdotdir.is_some() { "1" } else { "0" }.to_string(),
     );
@@ -229,6 +245,10 @@ fn apply_bash_shell_integration(
     proxy: &ShellIntegrationProxy,
 ) {
     env.insert("IANVS_SHELL_INTEGRATION".to_string(), "1".to_string());
+    env.insert(
+        "IANVS_SHELL_INTEGRATION_TOKEN".to_string(),
+        proxy.token().to_string(),
+    );
     args.clear();
     args.push("--rcfile".to_string());
     args.push(proxy.path().join(".bashrc").to_string_lossy().into_owned());
@@ -240,6 +260,10 @@ fn apply_fish_shell_integration(
     proxy: &ShellIntegrationProxy,
 ) {
     env.insert("IANVS_SHELL_INTEGRATION".to_string(), "1".to_string());
+    env.insert(
+        "IANVS_SHELL_INTEGRATION_TOKEN".to_string(),
+        proxy.token().to_string(),
+    );
     env.insert(
         "IANVS_FISH_INIT".to_string(),
         proxy
@@ -316,11 +340,18 @@ fn create_shell_integration_proxy_in(
         ));
         match fs::create_dir(&path) {
             Ok(()) => {
+                if let Err(error) = restrict_shell_integration_proxy_dir(&path) {
+                    let _ = fs::remove_dir_all(&path);
+                    return Err(error);
+                }
                 if let Err(error) = write_shell_integration_proxy_files(kind, &path) {
                     let _ = fs::remove_dir_all(&path);
                     return Err(error);
                 }
-                return Ok(ShellIntegrationProxy::new(path));
+                return Ok(ShellIntegrationProxy::new(
+                    path,
+                    generate_shell_integration_token(),
+                ));
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error),
@@ -330,6 +361,53 @@ fn create_shell_integration_proxy_in(
         std::io::ErrorKind::AlreadyExists,
         "could not allocate unique ianvs terminal shell integration proxy",
     ))
+}
+
+#[cfg(unix)]
+fn restrict_shell_integration_proxy_dir(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
+}
+
+#[cfg(not(unix))]
+fn restrict_shell_integration_proxy_dir(_path: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+fn generate_shell_integration_token() -> String {
+    let mut bytes = [0_u8; SHELL_INTEGRATION_TOKEN_BYTES];
+    if fill_random_token_bytes(&mut bytes).is_ok() {
+        return hex_encode_bytes(&bytes);
+    }
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    let counter = SHELL_INTEGRATION_PROXY_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{timestamp:032x}{:016x}{counter:016x}", process::id())
+}
+
+#[cfg(unix)]
+fn fill_random_token_bytes(bytes: &mut [u8]) -> std::io::Result<()> {
+    let mut file = fs::File::open("/dev/urandom")?;
+    file.read_exact(bytes)
+}
+
+#[cfg(not(unix))]
+fn fill_random_token_bytes(_bytes: &mut [u8]) -> std::io::Result<()> {
+    Err(std::io::Error::other("secure random source unavailable"))
+}
+
+fn hex_encode_bytes(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
 }
 
 fn write_shell_integration_proxy_files(
@@ -416,12 +494,15 @@ __ianvs_restore_zdotdir() {
 const ZSH_HOOK_INSTALLER: &str = r#"
 __ianvs_install_shell_hooks() {
   emulate -L zsh
-  [[ -n "${IANVS_SHELL_INTEGRATION:-}" ]] || return 0
-  [[ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
-  (( $+commands[od] && $+commands[tr] )) || return 0
-  autoload -Uz add-zsh-hook 2>/dev/null || return 0
+	  [[ -n "${IANVS_SHELL_INTEGRATION:-}" ]] || return 0
+	  [[ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
+	  (( $+commands[od] && $+commands[tr] )) || return 0
+	  autoload -Uz add-zsh-hook 2>/dev/null || return 0
+	  typeset -g __ianvs_shell_integration_token="${IANVS_SHELL_INTEGRATION_TOKEN:-}"
+	  unset IANVS_SHELL_INTEGRATION_TOKEN
+	  [[ -n "$__ianvs_shell_integration_token" ]] || return 0
 
-  typeset -g __IANVS_SHELL_INTEGRATION_LOADED=1
+	  typeset -g __IANVS_SHELL_INTEGRATION_LOADED=1
   typeset -g __ianvs_command_active=0
   typeset -g __ianvs_last_command=""
   typeset -g __ianvs_bootstrapped_sent=0
@@ -442,11 +523,15 @@ __ianvs_install_shell_hooks() {
     builtin printf '%s' "$__ianvs_value"
   }
 
-  __ianvs_emit_shell_hook() {
-    emulate -L zsh
-    local __ianvs_json="$1"
-    local __ianvs_hex
-    __ianvs_hex=$(builtin printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
+	  __ianvs_emit_shell_hook() {
+	    emulate -L zsh
+	    local __ianvs_json="$1"
+	    [[ "$__ianvs_json" == \{* ]] || return 0
+	    local __ianvs_token="$(__ianvs_json_escape "${__ianvs_shell_integration_token:-}")"
+	    [[ -n "$__ianvs_token" ]] || return 0
+	    __ianvs_json="{\"token\":\"$__ianvs_token\",${__ianvs_json#\{}"
+	    local __ianvs_hex
+	    __ianvs_hex=$(builtin printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
     [[ -n "$__ianvs_hex" ]] || return 0
     builtin printf '\ePhook;%s\e\\' "$__ianvs_hex" 2>/dev/null || true
   }
@@ -549,10 +634,14 @@ __ianvs_json_escape() {
   printf '%s' "$__ianvs_value"
 }
 
-__ianvs_emit_shell_hook() {
-  local __ianvs_json="$1"
-  local __ianvs_hex
-  __ianvs_hex=$(printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
+	__ianvs_emit_shell_hook() {
+	  local __ianvs_json="$1"
+	  [[ "$__ianvs_json" == \{* ]] || return 0
+	  local __ianvs_token="$(__ianvs_json_escape "${__ianvs_shell_integration_token:-}")"
+	  [[ -n "$__ianvs_token" ]] || return 0
+	  __ianvs_json="{\"token\":\"$__ianvs_token\",${__ianvs_json#\{}"
+	  local __ianvs_hex
+	  __ianvs_hex=$(printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
   [[ -n "$__ianvs_hex" ]] || return 0
   printf '\ePhook;%s\e\\' "$__ianvs_hex" 2>/dev/null || true
 }
@@ -560,11 +649,14 @@ __ianvs_emit_shell_hook() {
 __ianvs_install_shell_hooks() {
   [[ -n "${IANVS_SHELL_INTEGRATION:-}" ]] || return 0
   [[ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
-  command -v od >/dev/null 2>&1 || return 0
-  command -v tr >/dev/null 2>&1 || return 0
-  [[ -z "$(trap -p DEBUG 2>/dev/null)" ]] || return 0
+	  command -v od >/dev/null 2>&1 || return 0
+	  command -v tr >/dev/null 2>&1 || return 0
+	  [[ -z "$(trap -p DEBUG 2>/dev/null)" ]] || return 0
+	  __ianvs_shell_integration_token="${IANVS_SHELL_INTEGRATION_TOKEN:-}"
+	  unset IANVS_SHELL_INTEGRATION_TOKEN
+	  [[ -n "$__ianvs_shell_integration_token" ]] || return 0
 
-  __IANVS_SHELL_INTEGRATION_LOADED=1
+	  __IANVS_SHELL_INTEGRATION_LOADED=1
   __ianvs_command_active=0
   __ianvs_last_command=""
   __ianvs_bootstrapped_sent=0
@@ -648,10 +740,13 @@ __ianvs_install_shell_hooks >/dev/null 2>&1 || true
 
 const FISH_INIT: &str = r#"
 if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_LOADED
-  command -sq od; or return 0
-  command -sq tr; or return 0
+	  command -sq od; or return 0
+	  command -sq tr; or return 0
+	  set -g __ianvs_shell_integration_token "$IANVS_SHELL_INTEGRATION_TOKEN"
+	  set -e IANVS_SHELL_INTEGRATION_TOKEN
+	  test -n "$__ianvs_shell_integration_token"; or return 0
 
-  set -g __IANVS_SHELL_INTEGRATION_LOADED 1
+	  set -g __IANVS_SHELL_INTEGRATION_LOADED 1
   set -g __ianvs_command_active 0
   set -g __ianvs_last_command ''
   set -g __ianvs_bootstrapped_sent 0
@@ -672,9 +767,13 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
     printf '%s' "$__ianvs_value"
   end
 
-  function __ianvs_emit_shell_hook
-    set -l __ianvs_json "$argv[1]"
-    set -l __ianvs_hex (printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null)
+	  function __ianvs_emit_shell_hook
+	    set -l __ianvs_json "$argv[1]"
+	    string match -q '{*' -- "$__ianvs_json"; or return 0
+	    set -l __ianvs_token (__ianvs_json_escape "$__ianvs_shell_integration_token")
+	    test -n "$__ianvs_token"; or return 0
+	    set __ianvs_json "{\"token\":\"$__ianvs_token\","(string sub -s 2 -- "$__ianvs_json")
+	    set -l __ianvs_hex (printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null)
     test -n "$__ianvs_hex"; or return 0
     printf '\ePhook;%s\e\\' "$__ianvs_hex" 2>/dev/null; or true
   end
@@ -819,6 +918,17 @@ mod tests {
         assert!(proxy_path.join(".zlogin").exists());
         assert!(proxy_path.join(".zlogout").exists());
         assert_eq!(plan.env["IANVS_SHELL_INTEGRATION"], "1");
+        let token = plan
+            .env
+            .get("IANVS_SHELL_INTEGRATION_TOKEN")
+            .expect("expected shell integration token");
+        assert!(!token.is_empty());
+        assert_eq!(
+            plan.shell_integration_proxy
+                .as_ref()
+                .map(|proxy| proxy.token()),
+            Some(token.as_str())
+        );
         assert_eq!(plan.env["IANVS_ORIGINAL_ZDOTDIR_WAS_SET"], "1");
         assert_eq!(
             plan.env["IANVS_ORIGINAL_ZDOTDIR"],
@@ -831,12 +941,23 @@ mod tests {
         assert!(zshrc.contains("add-zsh-hook preexec __ianvs_preexec"));
         assert!(zshrc.contains("add-zsh-hook precmd __ianvs_precmd"));
         assert!(zshrc.contains(r#""hook":"bootstrapped""#));
+        assert!(zshrc.contains("IANVS_SHELL_INTEGRATION_TOKEN"));
+        assert!(zshrc.contains("unset IANVS_SHELL_INTEGRATION_TOKEN"));
+        assert!(zshrc.contains(r#"\"token\":\"$__ianvs_token\""#));
         assert!(zshrc.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
         assert!(zshrc.contains("__ianvs_suspend_startup_prompt_sp"));
         assert!(zshrc.contains("unsetopt prompt_sp"));
         assert!(zshrc.contains("__ianvs_trim_startup_prompt_newline"));
         assert!(zshrc.contains("__ianvs_restore_startup_prompt_state"));
         assert!(zshrc.contains("__ianvs_source_original_zdotfile \".zshrc\""));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = fs::metadata(proxy_path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o700);
+        }
     }
 
     #[test]
@@ -864,6 +985,7 @@ mod tests {
 
         assert_eq!(plan.args, vec!["-l"]);
         assert_eq!(plan.env["IANVS_SHELL_INTEGRATION"], "1");
+        assert!(!plan.env["IANVS_SHELL_INTEGRATION_TOKEN"].is_empty());
         assert!(plan.env.contains_key("ZDOTDIR"));
         assert!(plan.shell_integration_proxy.is_some());
     }
@@ -899,6 +1021,17 @@ mod tests {
             Some(".bashrc")
         );
         assert_eq!(plan.env["IANVS_SHELL_INTEGRATION"], "1");
+        let token = plan
+            .env
+            .get("IANVS_SHELL_INTEGRATION_TOKEN")
+            .expect("expected shell integration token");
+        assert!(!token.is_empty());
+        assert_eq!(
+            plan.shell_integration_proxy
+                .as_ref()
+                .map(|proxy| proxy.token()),
+            Some(token.as_str())
+        );
         assert!(plan.shell_integration_proxy.is_some());
 
         let bashrc = fs::read_to_string(rcfile).unwrap();
@@ -906,6 +1039,9 @@ mod tests {
         assert!(bashrc.contains("trap -p DEBUG"));
         assert!(bashrc.contains("PROMPT_COMMAND"));
         assert!(bashrc.contains(r#""hook":"bootstrapped""#));
+        assert!(bashrc.contains("IANVS_SHELL_INTEGRATION_TOKEN"));
+        assert!(bashrc.contains("unset IANVS_SHELL_INTEGRATION_TOKEN"));
+        assert!(bashrc.contains(r#"\"token\":\"$__ianvs_token\""#));
         assert!(bashrc.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
         assert!(bashrc.contains("\\\"shell\\\":\\\"bash\\\""));
     }
@@ -945,6 +1081,17 @@ mod tests {
             Some("init.fish")
         );
         assert_eq!(plan.env["IANVS_SHELL_INTEGRATION"], "1");
+        let token = plan
+            .env
+            .get("IANVS_SHELL_INTEGRATION_TOKEN")
+            .expect("expected shell integration token");
+        assert!(!token.is_empty());
+        assert_eq!(
+            plan.shell_integration_proxy
+                .as_ref()
+                .map(|proxy| proxy.token()),
+            Some(token.as_str())
+        );
         assert!(plan.shell_integration_proxy.is_some());
 
         let init = fs::read_to_string(init_file).unwrap();
@@ -953,6 +1100,9 @@ mod tests {
         assert!(init.contains("--on-event fish_postexec"));
         assert!(init.contains("--on-event fish_prompt"));
         assert!(init.contains(r#""hook":"bootstrapped""#));
+        assert!(init.contains("IANVS_SHELL_INTEGRATION_TOKEN"));
+        assert!(init.contains("set -e IANVS_SHELL_INTEGRATION_TOKEN"));
+        assert!(init.contains(r#"\"token\":\"$__ianvs_token\""#));
         assert!(init.contains("\\\"hook\\\":\\\"precmd.pwd\\\""));
         assert!(init.contains("\\\"shell\\\":\\\"fish\\\""));
     }

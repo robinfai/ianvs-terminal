@@ -862,6 +862,20 @@ void main() {
       await tester.tap(find.byKey(const Key('advanced-paste-send')));
       await tester.pumpAndSettle();
 
+      expect(
+        find.byKey(const Key('paste-confirmation-dialog')),
+        findsOneWidget,
+      );
+      expect(fakeBindings.writes, isEmpty);
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('paste-confirmation-dialog')),
+          matching: find.text('Paste'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
       expect(fakeBindings.writes, hasLength(1));
       expect(fakeBindings.writes.single, utf8.encode(expectedText));
     },

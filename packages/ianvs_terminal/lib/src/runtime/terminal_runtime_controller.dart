@@ -14,6 +14,8 @@ import '../terminal/terminal_viewport.dart';
 const int _maxOsc52ClipboardDecodedBytes = 1024 * 1024;
 const int _maxOsc52ClipboardEncodedChars =
     ((_maxOsc52ClipboardDecodedBytes + 2) ~/ 3) * 4;
+const int _maxHostRequestedRows = 512;
+const int _maxHostRequestedCols = 512;
 
 typedef TerminalWindowResizeCallback =
     Future<void> Function({
@@ -268,7 +270,7 @@ class TerminalRuntimeController {
   }) : _backend = backend,
        allowClipboardCopy = allowClipboardCopy ?? _allowClipboardAccess,
        allowClipboardPasteRequest =
-           allowClipboardPasteRequest ?? _allowClipboardAccess;
+           allowClipboardPasteRequest ?? _denyClipboardPasteRequest;
 
   final PtySessionBackend _backend;
   final Future<void> Function(String text) copyToClipboard;
@@ -1006,6 +1008,8 @@ class TerminalRuntimeController {
         rows == null ||
         cols <= 0 ||
         rows <= 0 ||
+        cols > _maxHostRequestedCols ||
+        rows > _maxHostRequestedRows ||
         metric == null) {
       return;
     }
@@ -1238,6 +1242,8 @@ class TerminalRuntimeController {
 }
 
 Future<bool> _allowClipboardAccess() async => true;
+
+Future<bool> _denyClipboardPasteRequest() async => false;
 
 Map<String, Object?>? _tryDecodeJsonObject(String raw) {
   try {

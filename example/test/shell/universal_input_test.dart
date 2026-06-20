@@ -159,9 +159,41 @@ void main() {
 
       expect(
         correction?.command,
-        'git push --set-upstream origin feature/demo',
+        "git push --set-upstream origin 'feature/demo'",
       );
       expect(correction?.ruleId, 'git-push-upstream');
+    });
+
+    test('quotes branch names captured from git output', () {
+      final correction = universalInputLocalCorrectionFor(
+        const CommandCorrectionRequest(
+          command: 'git push',
+          exitCode: 128,
+          outputTail:
+              'fatal: The current branch feature/demo has no upstream branch.\n'
+              'git push --set-upstream origin feature/demo;touch/tmp/pwn',
+        ),
+      );
+
+      expect(
+        correction?.command,
+        "git push --set-upstream origin 'feature/demo;touch/tmp/pwn'",
+      );
+      expect(correction?.ruleId, 'git-push-upstream');
+    });
+
+    test('quotes recent directory corrections', () {
+      final correction = universalInputLocalCorrectionFor(
+        const CommandCorrectionRequest(
+          command: 'cd prodction',
+          exitCode: 1,
+          outputTail: 'cd: no such file or directory: prodction',
+          recentDirectories: ['/tmp/prodction;'],
+        ),
+      );
+
+      expect(correction?.command, "cd '/tmp/prodction;'");
+      expect(correction?.ruleId, 'cd-path-fuzzy');
     });
 
     test('suggests executable permission fix for local script', () {
@@ -278,6 +310,33 @@ void main() {
         await handledRequest;
 
         expect(drafts.single.command, 'ls -la');
+      },
+    );
+
+    test(
+      'does not send service fallback keys to request override base URLs',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        var handledRequests = 0;
+        final subscription = server.listen((request) async {
+          handledRequests += 1;
+          request.response.statusCode = HttpStatus.noContent;
+          await request.response.close();
+        });
+        addTearDown(subscription.cancel);
+        final service = CommandIntelligenceService(apiKey: 'env-key');
+        addTearDown(service.close);
+        final baseUrl = 'http://${server.address.address}:${server.port}';
+
+        expect(service.remoteAvailableFor(apiBaseUrl: baseUrl), isFalse);
+        final drafts = await service.draftCommands(
+          CommandDraftRequest(input: '列出文件', apiBaseUrl: baseUrl),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(drafts, isEmpty);
+        expect(handledRequests, 0);
       },
     );
 

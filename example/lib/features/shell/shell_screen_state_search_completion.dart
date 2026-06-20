@@ -1222,6 +1222,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   ) {
     if (!_commandIntelligenceService.remoteAvailableFor(
       apiKey: profile?.commandIntelligence.apiKey,
+      apiBaseUrl: profile?.commandIntelligence.baseUrl,
     )) {
       return 'Add an OpenAI-compatible API key to this profile or set DEEPSEEK_API_KEY.';
     }
@@ -1231,6 +1232,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   bool _shouldRequestRemoteCommandDraftsFor(TerminalProfile? profile) {
     return _commandIntelligenceService.remoteAvailableFor(
       apiKey: profile?.commandIntelligence.apiKey,
+      apiBaseUrl: profile?.commandIntelligence.baseUrl,
     );
   }
 

@@ -7,6 +7,8 @@ use crate::graphics::{next_graphic_id, GraphicProtocol, TerminalGraphic};
 use crate::terminal::Terminal;
 use vte::Params;
 
+const MAX_DCS_BUFFER_BYTES: usize = 4096;
+
 impl Terminal {
     /// VTE hook - start of DCS sequence
     pub(in crate::terminal) fn dcs_hook(
@@ -86,9 +88,32 @@ impl Terminal {
                 if (byte == b'#' || byte == b'"' || byte == b'!') && !self.dcs_buffer.is_empty() {
                     self.process_sixel_command();
                 }
+                if self.dcs_buffer.len() >= MAX_DCS_BUFFER_BYTES {
+                    debug::log(
+                        debug::DebugLevel::Debug,
+                        "SECURITY",
+                        "DCS command buffer exceeded maximum size; dropping sequence",
+                    );
+                    self.dcs_active = false;
+                    self.dcs_action = None;
+                    self.dcs_buffer.clear();
+                    self.sixel_parser = None;
+                    return;
+                }
                 self.dcs_buffer.push(byte);
             }
         } else {
+            if self.dcs_buffer.len() >= MAX_DCS_BUFFER_BYTES {
+                debug::log(
+                    debug::DebugLevel::Debug,
+                    "SECURITY",
+                    "DCS buffer exceeded maximum size; dropping sequence",
+                );
+                self.dcs_active = false;
+                self.dcs_action = None;
+                self.dcs_buffer.clear();
+                return;
+            }
             self.dcs_buffer.push(byte);
         }
     }

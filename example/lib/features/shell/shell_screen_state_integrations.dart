@@ -111,7 +111,23 @@ extension _ShellScreenStateIntegrations on _ShellScreenState {
   }
 
   Future<void> _openAdvancedPaste(String sessionId) async {
-    final clipboardText = await ClipboardBridge.paste();
+    String clipboardText;
+    try {
+      clipboardText = await ClipboardBridge.paste();
+    } on Object {
+      clipboardText = '';
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Clipboard could not be read. Advanced Paste opened empty.',
+              ),
+            ),
+          );
+      }
+    }
     if (!mounted) {
       return;
     }
@@ -138,8 +154,7 @@ extension _ShellScreenStateIntegrations on _ShellScreenState {
         if (text.isEmpty) {
           return;
         }
-        await _pasteTextToSession(sessionId, text);
-        await _recordPasteHistory(text, PasteHistoryKind.paste);
+        await _pasteTextToSessionWithPolicy(sessionId, text);
         return;
       case null:
         return;

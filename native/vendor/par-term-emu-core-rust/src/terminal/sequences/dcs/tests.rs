@@ -90,6 +90,37 @@ fn test_dcs_put_not_active() {
 }
 
 #[test]
+fn test_dcs_put_non_sixel_buffer_is_bounded() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[], false, 'p');
+    for _ in 0..=MAX_DCS_BUFFER_BYTES {
+        term.dcs_put(b'A');
+    }
+
+    assert!(!term.dcs_active);
+    assert_eq!(term.dcs_action, None);
+    assert!(term.dcs_buffer.is_empty());
+}
+
+#[test]
+fn test_dcs_put_sixel_command_buffer_is_bounded() {
+    let mut term = create_test_terminal();
+    let params = create_empty_params();
+
+    term.dcs_hook(&params, &[], false, 'q');
+    for _ in 0..=MAX_DCS_BUFFER_BYTES {
+        term.dcs_put(b'0');
+    }
+
+    assert!(!term.dcs_active);
+    assert_eq!(term.dcs_action, None);
+    assert!(term.dcs_buffer.is_empty());
+    assert!(term.sixel_parser.is_none());
+}
+
+#[test]
 fn test_dcs_put_color_command() {
     let mut term = create_test_terminal();
     let params = create_empty_params();
