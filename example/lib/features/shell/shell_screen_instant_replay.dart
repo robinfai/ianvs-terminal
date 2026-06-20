@@ -53,7 +53,7 @@ Future<bool> executeInstantReplayCommandBlockAction({
   required CommandBlocksHistoryFeatureFlags flags,
   required String? currentSessionId,
   required List<ShellCommandBlock> commandBlocks,
-  required Future<void> Function(InstantReplayCommandBlockSource source)
+  required Future<bool> Function(InstantReplayCommandBlockSource source)
   openReplay,
 }) async {
   final source = resolveInstantReplayCommandBlockActionSource(
@@ -65,8 +65,7 @@ Future<bool> executeInstantReplayCommandBlockAction({
   if (source == null) {
     return false;
   }
-  await openReplay(source);
-  return true;
+  return openReplay(source);
 }
 
 String _instantReplayCommandBlockStatusLabel(ShellCommandBlock block) {
@@ -681,13 +680,9 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
               border: Border.all(color: palette.border),
             ),
             child: activeFrame == null
-                ? Center(
-                    child: Text(
-                      'No replay frames captured yet.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: palette.textSubtle,
-                      ),
-                    ),
+                ? _InstantReplayEmptyState(
+                    palette: palette,
+                    onClose: widget.onExit,
                   )
                 : ClipRRect(
                     borderRadius: BorderRadius.circular(palette.radius.md),
@@ -957,6 +952,64 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
   static String _frameTimeLabel(DateTime timestamp) {
     String twoDigits(int value) => value.toString().padLeft(2, '0');
     return '${twoDigits(timestamp.hour)}:${twoDigits(timestamp.minute)}:${twoDigits(timestamp.second)}';
+  }
+}
+
+class _InstantReplayEmptyState extends StatelessWidget {
+  const _InstantReplayEmptyState({
+    required this.palette,
+    required this.onClose,
+  });
+
+  final AppThemeTokens palette;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Semantics(
+        container: true,
+        label: 'No instant replay frames available',
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: EdgeInsets.all(palette.spacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.replay_rounded, size: 34, color: palette.textMuted),
+                SizedBox(height: palette.spacing.md),
+                Text(
+                  'No instant replay frames available',
+                  key: const Key('instant-replay-empty-title'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: palette.spacing.xs),
+                Text(
+                  'Run a command or wait for terminal output, then open Instant Replay again.',
+                  key: const Key('instant-replay-empty-message'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
+                ),
+                SizedBox(height: palette.spacing.lg),
+                FilledButton.icon(
+                  key: const Key('instant-replay-empty-close'),
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  label: const Text('Close'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

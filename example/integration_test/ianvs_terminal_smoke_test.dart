@@ -97,7 +97,8 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
     await tester.pump();
 
-    expect(find.text('Top actions'), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
+    expect(find.text('Command Center'), findsOneWidget);
     expect(find.text('Defaults & appearance'), findsOneWidget);
 
     await tester.tap(find.text('Defaults & appearance'));

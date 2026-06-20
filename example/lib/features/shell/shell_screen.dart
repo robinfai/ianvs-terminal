@@ -720,8 +720,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'Instant replay requires an active session.',
               );
             }
-            await _openInstantReplay(sessionState);
-            return const ShellActionBindingResult.completed();
+            final opened = await _openInstantReplay(sessionState);
+            return opened
+                ? const ShellActionBindingResult.completed()
+                : const ShellActionBindingResult.skipped(
+                    'No instant replay frames available yet.',
+                  );
           },
           toggleCommandPalette: (_) {
             unawaited(_openCommandMenu(sessionController, sessionState));
@@ -736,8 +740,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   );
           },
           openDefaults: (_) async {
-            await _openDefaultsAndAppearance(sessionController, sessionState);
-            return const ShellActionBindingResult.completed();
+            final opened = await _openDefaultsAndAppearance(
+              sessionController,
+              sessionState,
+            );
+            return opened
+                ? const ShellActionBindingResult.completed()
+                : const ShellActionBindingResult.skipped(
+                    'Defaults & appearance could not open.',
+                  );
           },
         ),
       );
@@ -823,7 +834,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
-          unawaited(_openInstantReplay(sessionState));
+          unawaited(() async {
+            await _openInstantReplay(sessionState);
+          }());
           return KeyEventResult.handled;
         case TerminalActionId.previousPrompt:
           if (activeSessionId == null) {
@@ -864,9 +877,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           _closeSession(sessionController, sessionState, activeSessionId);
           return KeyEventResult.handled;
         case TerminalActionId.openDefaults:
-          unawaited(
-            _openDefaultsAndAppearance(sessionController, sessionState),
-          );
+          unawaited(() async {
+            await _openDefaultsAndAppearance(sessionController, sessionState);
+          }());
           return KeyEventResult.handled;
         case TerminalActionId.requestQuitConfirmation:
           return KeyEventResult.handled;
@@ -1094,9 +1107,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       ),
                                     );
                                   },
-                                  onOpenInstantReplay: () => _openToolbeltChild(
-                                    () => _openInstantReplay(sessionState),
-                                  ),
+                                  onOpenInstantReplay: () =>
+                                      _openToolbeltChild(() async {
+                                        await _openInstantReplay(sessionState);
+                                      }),
                                   onOpenPasswordManager: () =>
                                       _openToolbeltChild(
                                         () => _openPasswordManager(

@@ -612,7 +612,10 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         }
       case TerminalActionId.instantReplay:
         if (currentSessionId != null) {
-          await _openInstantReplay(sessionState);
+          final opened = await _openInstantReplay(sessionState);
+          if (!opened) {
+            _focusSession(sessionId);
+          }
         }
       case TerminalActionId.commandSearch:
         _openCommandSearchForActiveSession();
@@ -636,13 +639,29 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
         await _toggleHotkeyWindowWithFeedback();
       case TerminalActionId.defaults:
       case TerminalActionId.openDefaults:
-        await _openDefaultsAndAppearance(sessionController, sessionState);
+        final defaultsOpened = await _openDefaultsAndAppearance(
+          sessionController,
+          sessionState,
+        );
+        if (!defaultsOpened) {
+          _showCommandActionSearchBlockedIntent(
+            'Defaults & appearance could not open.',
+          );
+        }
       case TerminalActionId.profiles:
         await _openProfilesSheet(sessionController, sessionState);
       case TerminalActionId.dynamicProfiles:
         await _openDynamicProfiles(sessionController);
       case TerminalActionId.openThemePicker:
-        await _openDefaultsAndAppearance(sessionController, sessionState);
+        final themePickerOpened = await _openDefaultsAndAppearance(
+          sessionController,
+          sessionState,
+        );
+        if (!themePickerOpened) {
+          _showCommandActionSearchBlockedIntent(
+            'Defaults & appearance could not open.',
+          );
+        }
       case TerminalActionId.applyTheme:
         _showCommandActionSearchBlockedIntent(
           'Apply theme requires choosing a theme preset.',

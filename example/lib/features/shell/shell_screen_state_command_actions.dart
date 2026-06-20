@@ -1,18 +1,18 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateCommandActions on _ShellScreenState {
-  Future<bool> _executeProductionActionIfBound({
+  Future<ShellActionProductionExecutionResult?>
+  _executeProductionActionIfBound({
     required ShellActionProductionRuntimeAdapter adapter,
     required TerminalActionId action,
   }) async {
     if (!adapter.isReady) {
-      return false;
+      return null;
     }
     if (!adapter.executor.wiringState.bindings.contains(action)) {
-      return false;
+      return null;
     }
-    await adapter.executor.execute(action);
-    return true;
+    return adapter.executor.execute(action);
   }
 
   bool _dispatchProductionShortcutIfBound({
@@ -149,20 +149,44 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         );
       },
     );
-    final action = await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push<TerminalActionId>(commandMenuRoute);
-    await commandMenuRoute.completed;
+    TerminalActionId? action;
+    Object? commandMenuError;
+    try {
+      action = await Navigator.of(
+        context,
+        rootNavigator: true,
+      ).push<TerminalActionId>(commandMenuRoute);
+      await commandMenuRoute.completed;
+    } catch (error) {
+      commandMenuError = error;
+    } finally {
+      if (mounted && _isCommandMenuOpen) {
+        _mutateState(() {
+          _isCommandMenuOpen = false;
+        });
+        _publishAcceptanceSnapshot();
+      }
+    }
 
     if (!mounted) {
       return;
     }
-
-    _mutateState(() {
-      _isCommandMenuOpen = false;
-    });
-    _publishAcceptanceSnapshot();
+    if (commandMenuError != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Command Center action could not be completed.'),
+          ),
+        );
+      _restoreSessionFocus(
+        activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+        activeSessionIdAfterClose: ref
+            .read(sessionControllerProvider)
+            .activeSessionId,
+      );
+      return;
+    }
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted) {
       return;
@@ -601,8 +625,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               'Instant replay requires an active session.',
             );
           }
-          await _openInstantReplay(sessionState);
-          return const ShellActionBindingResult.completed();
+          final opened = await _openInstantReplay(sessionState);
+          return opened
+              ? const ShellActionBindingResult.completed()
+              : const ShellActionBindingResult.skipped(
+                  'No instant replay frames available yet.',
+                );
         },
         commandSearch: (_) {
           if (currentSessionId == null) {
@@ -897,12 +925,26 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
                 );
         },
         openDefaults: (_) async {
-          await _openDefaultsAndAppearance(sessionController, sessionState);
-          return const ShellActionBindingResult.completed();
+          final opened = await _openDefaultsAndAppearance(
+            sessionController,
+            sessionState,
+          );
+          return opened
+              ? const ShellActionBindingResult.completed()
+              : const ShellActionBindingResult.skipped(
+                  'Defaults & appearance could not open.',
+                );
         },
         defaults: (_) async {
-          await _openDefaultsAndAppearance(sessionController, sessionState);
-          return const ShellActionBindingResult.completed();
+          final opened = await _openDefaultsAndAppearance(
+            sessionController,
+            sessionState,
+          );
+          return opened
+              ? const ShellActionBindingResult.completed()
+              : const ShellActionBindingResult.skipped(
+                  'Defaults & appearance could not open.',
+                );
         },
         profiles: (_) async {
           await _openProfilesSheet(sessionController, sessionState);
@@ -913,8 +955,15 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           return const ShellActionBindingResult.completed();
         },
         openThemePicker: (_) async {
-          await _openDefaultsAndAppearance(sessionController, sessionState);
-          return const ShellActionBindingResult.completed();
+          final opened = await _openDefaultsAndAppearance(
+            sessionController,
+            sessionState,
+          );
+          return opened
+              ? const ShellActionBindingResult.completed()
+              : const ShellActionBindingResult.skipped(
+                  'Defaults & appearance could not open.',
+                );
         },
         applyLayoutTemplate: (_) {
           if (defaultProfile == null || currentSessionId == null) {
@@ -1080,10 +1129,23 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       );
       return;
     }
-    await _executeProductionActionIfBound(
+    final result = await _executeProductionActionIfBound(
       adapter: productionMenuAdapter,
       action: action,
     );
+    _showProductionActionFailureFeedback(result);
+  }
+
+  void _showProductionActionFailureFeedback(
+    ShellActionProductionExecutionResult? result,
+  ) {
+    if (!mounted || result == null || result.completed) {
+      return;
+    }
+    final message = result.message ?? 'Action could not be completed.';
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _toggleReadOnlySessionWithFeedback(String sessionId) {

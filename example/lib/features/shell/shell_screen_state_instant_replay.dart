@@ -82,18 +82,35 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     );
   }
 
-  Future<void> _openInstantReplay(
+  Future<bool> _openInstantReplay(
     SessionState sessionState, {
     InstantReplayCommandBlockSource? commandBlockSource,
   }) async {
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     if (activeSessionIdBeforeOpen == null) {
-      return;
+      return false;
     }
     await _seedInstantReplayFrame(activeSessionIdBeforeOpen);
     final store = ref.read(instantReplayStoreProvider);
+    final replayFrames = store.framesForReplay(activeSessionIdBeforeOpen);
     if (!mounted) {
-      return;
+      return false;
+    }
+    if (replayFrames.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No instant replay frames available yet.'),
+          ),
+        );
+      _restoreSessionFocus(
+        activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+        activeSessionIdAfterClose: ref
+            .read(sessionControllerProvider)
+            .activeSessionId,
+      );
+      return false;
     }
     _mutateState(() {
       _instantReplayWorkspaceSession = _InstantReplayWorkspaceSession(
@@ -102,10 +119,11 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
           sessionState,
           activeSessionIdBeforeOpen,
         ),
-        frames: store.framesForReplay(activeSessionIdBeforeOpen),
+        frames: replayFrames,
         commandBlockSource: commandBlockSource,
       );
     });
+    return true;
   }
 
   String _instantReplaySourceLabelFor(

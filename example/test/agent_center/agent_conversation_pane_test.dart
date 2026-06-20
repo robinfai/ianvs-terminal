@@ -142,6 +142,40 @@ void main() {
 
       expect(cancelled, isTrue);
     });
+
+    testWidgets('shows a waiting state for empty streaming conversations', (
+      tester,
+    ) async {
+      var cancelled = false;
+      final conversation = AgentConversation.empty(
+        id: 'conversation-1',
+        now: createdAt,
+      ).markStreaming(createdAt.add(const Duration(seconds: 1)));
+
+      await _pumpPane(
+        tester,
+        conversation: conversation,
+        onCancelStreaming: () => cancelled = true,
+      );
+
+      expect(find.text('Streaming'), findsOneWidget);
+      expect(find.text('Waiting for Agent response'), findsOneWidget);
+      expect(
+        find.text(
+          'The Agent is preparing a response. You can cancel if it takes too long.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('agent-conversation-cancel')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('agent-conversation-cancel')));
+      await tester.pump();
+
+      expect(cancelled, isTrue);
+    });
   });
 }
 

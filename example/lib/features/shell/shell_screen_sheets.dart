@@ -117,6 +117,16 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                       ),
                     ),
                   ),
+                  if (_textController.text.trim().isEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Clipboard is empty. Enter text to preview and paste.',
+                      key: const Key('advanced-paste-empty-helper'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: palette.textSubtle,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   _ShellSwitchTile(
                     tileKey: const Key('advanced-paste-escape'),
@@ -704,7 +714,7 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                           padding: const EdgeInsets.symmetric(vertical: 22),
                           child: Center(
                             child: Text(
-                              'No copied or pasted text yet.',
+                              'No copied or pasted text yet. Copy or paste text in a terminal session to build history here.',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: palette.textSubtle),
                             ),

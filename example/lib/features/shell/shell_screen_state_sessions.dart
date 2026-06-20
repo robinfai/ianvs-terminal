@@ -198,9 +198,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     TerminalProfile profile, {
     required bool returningToWorkspace,
   }) {
-    if (returningToWorkspace) {
-      _scheduleReturningCue();
-    }
+    _scheduleWorkspaceCue('New tab: ${profile.name}');
     sessionController.createSession(profile);
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
   }

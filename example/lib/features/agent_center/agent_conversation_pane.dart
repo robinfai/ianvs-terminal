@@ -55,7 +55,10 @@ class AgentConversationPane extends StatelessWidget {
             Divider(height: 1, color: theme.border),
             Expanded(
               child: messages.isEmpty
-                  ? _AgentConversationEmptyState(compact: compact)
+                  ? _AgentConversationEmptyState(
+                      compact: compact,
+                      status: status,
+                    )
                   : _AgentMessageList(
                       messages: messages,
                       compact: compact,
@@ -257,13 +260,24 @@ class _AgentContextChipView extends StatelessWidget {
 }
 
 class _AgentConversationEmptyState extends StatelessWidget {
-  const _AgentConversationEmptyState({required this.compact});
+  const _AgentConversationEmptyState({
+    required this.compact,
+    required this.status,
+  });
 
   final bool compact;
+  final AgentConversationStatus status;
 
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final streaming = status == AgentConversationStatus.streaming;
+    final title = streaming
+        ? 'Waiting for Agent response'
+        : 'No Agent messages yet';
+    final detail = streaming
+        ? 'The Agent is preparing a response. You can cancel if it takes too long.'
+        : 'Context is ready for the next question.';
     if (compact) {
       return Center(
         child: Padding(
@@ -271,11 +285,15 @@ class _AgentConversationEmptyState extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.forum_rounded, size: 18, color: theme.textMuted),
+              Icon(
+                streaming ? Icons.pending_rounded : Icons.forum_rounded,
+                size: 18,
+                color: streaming ? theme.accent : theme.textMuted,
+              ),
               SizedBox(width: theme.spacing.sm),
               Flexible(
                 child: Text(
-                  'No Agent messages yet',
+                  title,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: theme.textPrimary,
@@ -296,13 +314,14 @@ class _AgentConversationEmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.forum_rounded,
+              streaming ? Icons.pending_rounded : Icons.forum_rounded,
               size: compact ? 20 : 26,
-              color: theme.textMuted,
+              color: streaming ? theme.accent : theme.textMuted,
             ),
             SizedBox(height: theme.spacing.sm),
             Text(
-              'No Agent messages yet',
+              title,
+              key: const Key('agent-conversation-empty-title'),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: theme.textPrimary,
@@ -311,7 +330,8 @@ class _AgentConversationEmptyState extends StatelessWidget {
             ),
             SizedBox(height: theme.spacing.xs),
             Text(
-              'Context is ready for the next question.',
+              detail,
+              key: const Key('agent-conversation-empty-detail'),
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,

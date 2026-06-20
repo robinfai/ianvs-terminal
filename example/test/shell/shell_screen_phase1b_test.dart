@@ -250,9 +250,10 @@ void main() {
     }
 
     expect(find.byKey(const Key('shell-tab-overflow-button')), findsOneWidget);
-    expect(find.bySemanticsIdentifier('shell-tab-12'), findsNothing);
+    expect(find.bySemanticsIdentifier('shell-tab-12'), findsOneWidget);
+    expect(find.bySemanticsIdentifier('shell-tab-1'), findsNothing);
     expect(
-      tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
+      tester.getSize(find.byKey(const Key('shell-tab-12'))).width,
       greaterThanOrEqualTo(112),
     );
 
@@ -260,7 +261,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-tab-overflow-panel')), findsOneWidget);
-    expect(find.byKey(const Key('shell-tab-overflow-item-12')), findsOneWidget);
+    expect(find.byKey(const Key('shell-tab-overflow-item-1')), findsOneWidget);
   });
 
   testWidgets(
@@ -357,7 +358,9 @@ void main() {
       await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
       await tester.pumpAndSettle();
     }
-    await tester.tap(find.byKey(const Key('shell-tab-1')));
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-tab-overflow-item-1')));
     await tester.pumpAndSettle();
 
     fakeBindings.setFrame(12, _terminalFrame('hidden tab output'));

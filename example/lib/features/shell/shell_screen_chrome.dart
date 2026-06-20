@@ -426,9 +426,6 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
           final tabsAreaWidth = math.max(0.0, totalWidth - newTabWidth);
           final visibleTabCount = _visibleTabCountFor(tabsAreaWidth);
           final hasOverflow = visibleTabCount < widget.tabs.length;
-          final hiddenTabs = hasOverflow
-              ? widget.tabs.skip(visibleTabCount).toList(growable: false)
-              : const <TerminalTab>[];
           final overflowWidth = hasOverflow
               ? _overflowWidthFor(
                   tabsAreaWidth,
@@ -439,6 +436,21 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
           final tabWidth = visibleTabCount == 0
               ? 0.0
               : visibleTabsWidth / visibleTabCount;
+          final visibleTabStartIndex = _visibleTabStartIndexFor(
+            visibleTabCount,
+          );
+          final visibleTabs = visibleTabCount == 0
+              ? const <TerminalTab>[]
+              : widget.tabs
+                    .skip(visibleTabStartIndex)
+                    .take(visibleTabCount)
+                    .toList(growable: false);
+          final hiddenTabs = hasOverflow
+              ? <TerminalTab>[
+                  ...widget.tabs.take(visibleTabStartIndex),
+                  ...widget.tabs.skip(visibleTabStartIndex + visibleTabCount),
+                ]
+              : const <TerminalTab>[];
 
           return Row(
             children: [
@@ -462,7 +474,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                           }
                           unawaited(HapticFeedback.selectionClick());
                           setState(() {
-                            _draggingSessionId = widget.tabs[index].sessionId;
+                            _draggingSessionId = visibleTabs[index].sessionId;
                           });
                         },
                         onReorderEnd: (_) {
@@ -475,12 +487,16 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                         },
                         onReorderItem: (oldIndex, newIndex) =>
                             widget.onReorderTab(
-                              oldIndex: oldIndex,
-                              newIndex: newIndex,
+                              oldIndex: visibleTabStartIndex + oldIndex,
+                              newIndex: math.min(
+                                widget.tabs.length,
+                                visibleTabStartIndex + newIndex,
+                              ),
                             ),
                         itemCount: visibleTabCount,
                         itemBuilder: (context, index) {
-                          final tab = widget.tabs[index];
+                          final tab = visibleTabs[index];
+                          final actualIndex = visibleTabStartIndex + index;
                           final isActive =
                               widget.activeSessionId != null &&
                               tab.containsSession(widget.activeSessionId!);
@@ -492,7 +508,9 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                             child: _ShellTabButton(
                               palette: widget.palette,
                               tab: tab,
-                              shortcutIndex: index < 9 ? index + 1 : null,
+                              shortcutIndex: actualIndex < 9
+                                  ? actualIndex + 1
+                                  : null,
                               isActive: isActive,
                               hasNewOutput: widget.tabHasNewOutput(tab),
                               terminalBackgroundColor: widget
@@ -560,6 +578,24 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
     }
     final capacityWithOverflow = tabsWidthWithOverflow ~/ _minReadableTabWidth;
     return math.min(tabCount - 1, capacityWithOverflow);
+  }
+
+  int _visibleTabStartIndexFor(int visibleTabCount) {
+    if (visibleTabCount <= 0 || widget.tabs.length <= visibleTabCount) {
+      return 0;
+    }
+    final activeIndex = widget.activeSessionId == null
+        ? -1
+        : widget.tabs.indexWhere(
+            (tab) => tab.containsSession(widget.activeSessionId!),
+          );
+    if (activeIndex == -1 || activeIndex < visibleTabCount) {
+      return 0;
+    }
+    return math.min(
+      activeIndex - visibleTabCount + 1,
+      widget.tabs.length - visibleTabCount,
+    );
   }
 
   static double _overflowWidthFor(
@@ -791,13 +827,19 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
   @override
   void didUpdateWidget(_ShellTabOverflowMenu oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_overlayEntry != null) {
+    if (_overlayEntry == null) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _overlayEntry == null) {
+        return;
+      }
       if (widget.tabs.isEmpty) {
         _closeMenu();
       } else {
         _overlayEntry!.markNeedsBuild();
       }
-    }
+    });
   }
 
   @override

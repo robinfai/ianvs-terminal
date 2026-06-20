@@ -1,12 +1,12 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateProfileActions on _ShellScreenState {
-  Future<void> _openDefaultsAndAppearance(
+  Future<bool> _openDefaultsAndAppearance(
     SessionController sessionController,
     SessionState sessionState,
   ) async {
     if (_isDefaultsOpen) {
-      return;
+      return false;
     }
 
     _mutateState(() {
@@ -47,14 +47,20 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         return FadeTransition(opacity: curved, child: child);
       },
     );
-    final selection = await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push<DefaultsAndAppearanceSelection>(defaultsRoute);
-    await defaultsRoute.completed;
+    DefaultsAndAppearanceSelection? selection;
+    Object? openError;
+    try {
+      selection = await Navigator.of(
+        context,
+        rootNavigator: true,
+      ).push<DefaultsAndAppearanceSelection>(defaultsRoute);
+      await defaultsRoute.completed;
+    } catch (error) {
+      openError = error;
+    }
 
     if (!mounted) {
-      return;
+      return false;
     }
 
     _mutateState(() {
@@ -62,13 +68,30 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     });
     _publishAcceptanceSnapshot();
 
+    if (openError != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Defaults & appearance could not open.'),
+          ),
+        );
+      _restoreSessionFocus(
+        activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+        activeSessionIdAfterClose: ref
+            .read(sessionControllerProvider)
+            .activeSessionId,
+      );
+      return false;
+    }
+
     if (selection != null) {
       if (selection.openProfiles) {
         await _openProfilesSheet(
           sessionController,
           ref.read(sessionControllerProvider),
         );
-        return;
+        return true;
       }
       final stateBeforeSave = ref.read(sessionControllerProvider);
       if (selection.configuredDefaultProfileId !=
@@ -102,6 +125,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           .read(sessionControllerProvider)
           .activeSessionId,
     );
+    return true;
   }
 
   Future<void> _openProfilesSheet(

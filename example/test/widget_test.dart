@@ -428,6 +428,29 @@ void main() {
     _expectSelectedTab(tester, '2');
   });
 
+  testWidgets('new tab shows an active profile cue', (tester) async {
+    await _pumpShellScreen(
+      tester,
+      bindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('New tab'));
+    await _pumpUntilFound(
+      tester,
+      find.bySemanticsIdentifier('shell-tab-2'),
+      maxPumps: 40,
+    );
+    await tester.pump();
+
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+    _expectSelectedTab(tester, '2');
+    expect(find.text('New tab: Local Shell'), findsOneWidget);
+  });
+
   testWidgets('new tab keeps current terminal visible until its first frame', (
     tester,
   ) async {
@@ -881,6 +904,59 @@ void main() {
     },
   );
 
+  testWidgets('advanced paste opens with an empty clipboard', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': ''};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-advanced-paste')));
+    await tester.tap(find.byKey(const Key('shell-advanced-paste')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('advanced-paste-sheet')), findsOneWidget);
+    expect(
+      find.text('Clipboard is empty. Enter text to preview and paste.'),
+      findsOneWidget,
+    );
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('advanced-paste-text-field')),
+    );
+    expect(field.controller?.text, isEmpty);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('advanced-paste-send')))
+          .onPressed,
+      isNull,
+    );
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('middle click pastes the clipboard when mouse reporting is off', (
     tester,
   ) async {
@@ -1024,7 +1100,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('0 recent items'), findsOneWidget);
-    expect(find.text('No copied or pasted text yet.'), findsOneWidget);
+    expect(
+      find.text(
+        'No copied or pasted text yet. Copy or paste text in a terminal session to build history here.',
+      ),
+      findsOneWidget,
+    );
     expect(
       tester
           .widget<TextButton>(find.byKey(const Key('paste-history-clear')))
@@ -3451,6 +3532,69 @@ void main() {
     expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
+
+  testWidgets(
+    'command center instant replay without frames stays recoverable',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      const windowBridgeChannel = MethodChannel('app/window_bridge');
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        windowBridgeChannel,
+        (methodCall) async {
+          if (methodCall.method == 'windowMetrics') {
+            return <String, Object?>{
+              'contentWidth': 900.0,
+              'contentHeight': 600.0,
+              'frameWidth': 940.0,
+              'frameHeight': 660.0,
+              'devicePixelRatio': 2.0,
+            };
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          windowBridgeChannel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        instantReplayStore: InstantReplayStore(frameLimit: 0),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.byKey(const Key('shell-instant-replay')));
+      await tester.tap(find.byKey(const Key('shell-instant-replay')));
+      await _pumpUntilFound(
+        tester,
+        find.text('No instant replay frames available yet.'),
+        maxPumps: 40,
+      );
+
+      expect(find.byKey(const Key('instant-replay-workspace')), findsNothing);
+      expect(
+        find.text('No instant replay frames available yet.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+
+      await _openCommandMenu(tester);
+
+      expect(
+        find.byKey(const Key('shell-command-menu-overlay')),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('instant replay hides command input while workspace is open', (
     tester,
