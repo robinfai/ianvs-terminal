@@ -458,6 +458,7 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
     this.maxHeight,
     this.suggestionLimit = 5,
     this.suggestionKeyPrefix = 'terminal-auto-composer',
+    this.suggestionPresentation = _UniversalInputSuggestionPresentation.plain,
   });
 
   final Key fieldKey;
@@ -487,6 +488,7 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
   final double? maxHeight;
   final int suggestionLimit;
   final String suggestionKeyPrefix;
+  final _UniversalInputSuggestionPresentation suggestionPresentation;
 
   @override
   Widget build(BuildContext context) {
@@ -527,44 +529,74 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
             textField: true,
             child: field,
           );
+    final constrainedField = maxHeight == null
+        ? semanticField
+        : ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight!),
+            child: semanticField,
+          );
+    final fieldBody =
+        maxHeight != null &&
+            suggestionPresentation ==
+                _UniversalInputSuggestionPresentation.plain
+        ? Flexible(fit: FlexFit.loose, child: constrainedField)
+        : constrainedField;
+    final suggestionWidgets = <Widget>[
+      for (
+        var index = 0;
+        index < suggestions.length && index < suggestionLimit;
+        index++
+      )
+        _AutoComposerSuggestionTile(
+          suggestion: suggestions[index],
+          draft: suggestionDetails[suggestions[index]],
+          active: index == effectiveActiveIndex,
+          palette: palette,
+          keyPrefix: suggestionKeyPrefix,
+          presentation: suggestionPresentation,
+          onTap: () => onAcceptSuggestion(suggestions[index]),
+        ),
+    ];
+    final suggestionList = suggestions.isNotEmpty
+        ? _UniversalInputSuggestionList(
+            keyPrefix: suggestionKeyPrefix,
+            palette: palette,
+            presentation: suggestionPresentation,
+            children: suggestionWidgets,
+          )
+        : suggestionsLoading
+        ? _UniversalInputSuggestionList(
+            keyPrefix: suggestionKeyPrefix,
+            palette: palette,
+            presentation: suggestionPresentation,
+            children: [
+              _UniversalInputLoadingSuggestionTile(
+                palette: palette,
+                presentation: suggestionPresentation,
+              ),
+            ],
+          )
+        : null;
+    final suggestionRowCount = suggestions.isNotEmpty
+        ? math.min(suggestions.length, suggestionLimit)
+        : suggestionsLoading
+        ? 1
+        : 0;
+    if (suggestionPresentation ==
+        _UniversalInputSuggestionPresentation.commandInputPanel) {
+      return _CommandInputSuggestionStack(
+        controller: controller,
+        palette: palette,
+        textStyle: textStyle,
+        suggestionRowCount: suggestionRowCount,
+        panel: suggestionList,
+        child: constrainedField,
+      );
+    }
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (maxHeight == null)
-          semanticField
-        else
-          Flexible(
-            fit: FlexFit.loose,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxHeight!),
-              child: semanticField,
-            ),
-          ),
-        if (suggestions.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          const Divider(height: 1),
-          const SizedBox(height: 4),
-          for (
-            var index = 0;
-            index < suggestions.length && index < suggestionLimit;
-            index++
-          )
-            _AutoComposerSuggestionTile(
-              suggestion: suggestions[index],
-              draft: suggestionDetails[suggestions[index]],
-              active: index == effectiveActiveIndex,
-              palette: palette,
-              keyPrefix: suggestionKeyPrefix,
-              onTap: () => onAcceptSuggestion(suggestions[index]),
-            ),
-        ] else if (suggestionsLoading) ...[
-          const SizedBox(height: 6),
-          const Divider(height: 1),
-          const SizedBox(height: 4),
-          _UniversalInputLoadingSuggestionTile(palette: palette),
-        ],
-      ],
+      children: [fieldBody, ?suggestionList],
     );
     return content;
   }
@@ -645,6 +677,282 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
         break;
     }
   }
+}
+
+enum _UniversalInputSuggestionPresentation { plain, commandInputPanel }
+
+class _UniversalInputSuggestionList extends StatelessWidget {
+  const _UniversalInputSuggestionList({
+    required this.keyPrefix,
+    required this.palette,
+    required this.presentation,
+    required this.children,
+  });
+
+  final String keyPrefix;
+  final AppThemeTokens palette;
+  final _UniversalInputSuggestionPresentation presentation;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (presentation) {
+      case _UniversalInputSuggestionPresentation.plain:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 6),
+            const Divider(height: 1),
+            const SizedBox(height: 4),
+            ...children,
+          ],
+        );
+      case _UniversalInputSuggestionPresentation.commandInputPanel:
+        return DecoratedBox(
+          key: Key('$keyPrefix-suggestions-panel'),
+          decoration: BoxDecoration(
+            color: palette.overlay.withValues(alpha: 0.96),
+            borderRadius: BorderRadius.circular(palette.radius.lg),
+            border: Border.all(color: palette.borderStrong),
+            boxShadow: palette.elevation.floating,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(palette.radius.lg),
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: palette.spacing.xs),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
+        );
+    }
+  }
+}
+
+class _CommandInputSuggestionStack extends StatefulWidget {
+  const _CommandInputSuggestionStack({
+    required this.controller,
+    required this.palette,
+    required this.textStyle,
+    required this.suggestionRowCount,
+    required this.panel,
+    required this.child,
+  });
+
+  final TextEditingController controller;
+  final AppThemeTokens palette;
+  final TextStyle? textStyle;
+  final int suggestionRowCount;
+  final Widget? panel;
+  final Widget child;
+
+  @override
+  State<_CommandInputSuggestionStack> createState() =>
+      _CommandInputSuggestionStackState();
+}
+
+class _CommandInputSuggestionStackState
+    extends State<_CommandInputSuggestionStack> {
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _overlayEntry;
+  double _availableWidth = 660;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.panel != null && widget.suggestionRowCount > 0) {
+      _scheduleOverlaySync();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _CommandInputSuggestionStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.panel != oldWidget.panel ||
+        widget.suggestionRowCount != oldWidget.suggestionRowCount ||
+        _overlayEntry != null) {
+      _scheduleOverlaySync();
+    }
+  }
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final nextAvailableWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 660.0;
+        final widthChanged = nextAvailableWidth != _availableWidth;
+        _availableWidth = nextAvailableWidth;
+        if (widthChanged && _overlayEntry != null) {
+          _scheduleOverlaySync();
+        }
+
+        return CompositedTransformTarget(link: _layerLink, child: widget.child);
+      },
+    );
+  }
+
+  void _scheduleOverlaySync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _syncOverlay();
+    });
+  }
+
+  void _syncOverlay() {
+    if (widget.panel == null || widget.suggestionRowCount == 0) {
+      _removeOverlay();
+      return;
+    }
+
+    final overlay = Overlay.of(context);
+    if (_overlayEntry == null) {
+      _overlayEntry = OverlayEntry(builder: _buildOverlay);
+      overlay.insert(_overlayEntry!);
+      return;
+    }
+
+    _overlayEntry!.markNeedsBuild();
+  }
+
+  Widget _buildOverlay(BuildContext overlayContext) {
+    final panel = widget.panel;
+    if (panel == null || widget.suggestionRowCount == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final panelWidth = math.min(_availableWidth, 660.0);
+    final panelHeight = _commandInputSuggestionPanelHeight(
+      widget.palette,
+      widget.suggestionRowCount,
+    );
+    final gap = widget.palette.spacing.sm;
+    final caret = _commandInputCaretGeometry(
+      context,
+      maxWidth: _availableWidth,
+      controller: widget.controller,
+      textStyle: widget.textStyle,
+    );
+    final maxLeft = math.max(0.0, _availableWidth - panelWidth);
+    final preferredLeft = caret.offset.dx + widget.palette.spacing.lg;
+    final left = preferredLeft.clamp(0.0, maxLeft).toDouble();
+    final top = _commandInputSuggestionPanelTop(
+      targetContext: context,
+      overlayContext: overlayContext,
+      caret: caret,
+      panelHeight: panelHeight,
+      gap: gap,
+    );
+
+    return Positioned.fill(
+      child: CompositedTransformFollower(
+        link: _layerLink,
+        showWhenUnlinked: false,
+        offset: Offset(left, top),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: panelWidth,
+            child: Focus(
+              canRequestFocus: false,
+              descendantsAreFocusable: false,
+              child: Material(type: MaterialType.transparency, child: panel),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _removeOverlay() {
+    final entry = _overlayEntry;
+    if (entry == null) {
+      return;
+    }
+    _overlayEntry = null;
+    entry.remove();
+  }
+}
+
+double _commandInputSuggestionPanelTop({
+  required BuildContext targetContext,
+  required BuildContext overlayContext,
+  required _CommandInputCaretGeometry caret,
+  required double panelHeight,
+  required double gap,
+}) {
+  final preferredTop = caret.offset.dy - panelHeight - gap;
+  final targetBox = targetContext.findRenderObject() as RenderBox?;
+  final overlayBox = overlayContext.findRenderObject() as RenderBox?;
+  if (targetBox == null || overlayBox == null || !targetBox.hasSize) {
+    return preferredTop;
+  }
+
+  final targetOrigin = overlayBox.globalToLocal(
+    targetBox.localToGlobal(Offset.zero),
+  );
+  if (targetOrigin.dy + preferredTop >= 0) {
+    return preferredTop;
+  }
+
+  return -targetOrigin.dy;
+}
+
+double _commandInputSuggestionPanelHeight(
+  AppThemeTokens palette,
+  int rowCount,
+) {
+  final rowHeight = palette.controls.regular + palette.spacing.lg;
+  return rowCount * rowHeight + palette.spacing.xs * 2;
+}
+
+class _CommandInputCaretGeometry {
+  const _CommandInputCaretGeometry({required this.offset});
+
+  final Offset offset;
+}
+
+_CommandInputCaretGeometry _commandInputCaretGeometry(
+  BuildContext context, {
+  required double maxWidth,
+  required TextEditingController controller,
+  required TextStyle? textStyle,
+}) {
+  final value = controller.value;
+  final text = value.text;
+  final selectionOffset = value.selection.extentOffset < 0
+      ? text.length
+      : value.selection.extentOffset.clamp(0, text.length);
+  final effectiveStyle = DefaultTextStyle.of(context).style.merge(textStyle);
+  final painter = TextPainter(
+    text: TextSpan(text: text.isEmpty ? ' ' : text, style: effectiveStyle),
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+  )..layout(maxWidth: math.max(0.0, maxWidth));
+  final caretOffset = painter.getOffsetForCaret(
+    TextPosition(offset: text.isEmpty ? 0 : selectionOffset),
+    Rect.fromLTWH(0, 0, 1, painter.preferredLineHeight),
+  );
+
+  return _CommandInputCaretGeometry(
+    offset: Offset(
+      caretOffset.dx.isFinite ? caretOffset.dx : 0,
+      caretOffset.dy.isFinite ? caretOffset.dy : 0,
+    ),
+  );
 }
 
 class _UniversalInputStatusPill extends StatelessWidget {
@@ -1189,6 +1497,7 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
     required this.palette,
     required this.onTap,
     this.keyPrefix = 'terminal-auto-composer',
+    this.presentation = _UniversalInputSuggestionPresentation.plain,
   });
 
   final String suggestion;
@@ -1197,9 +1506,22 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
   final AppThemeTokens palette;
   final VoidCallback onTap;
   final String keyPrefix;
+  final _UniversalInputSuggestionPresentation presentation;
 
   @override
   Widget build(BuildContext context) {
+    switch (presentation) {
+      case _UniversalInputSuggestionPresentation.commandInputPanel:
+        return _CommandInputSuggestionTile(
+          suggestion: suggestion,
+          active: active,
+          palette: palette,
+          keyPrefix: keyPrefix,
+          onTap: onTap,
+        );
+      case _UniversalInputSuggestionPresentation.plain:
+        break;
+    }
     return Semantics(
       key: Key('$keyPrefix-suggestion-$suggestion'),
       label: suggestion,
@@ -1270,20 +1592,120 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
   }
 }
 
-class _UniversalInputLoadingSuggestionTile extends StatelessWidget {
-  const _UniversalInputLoadingSuggestionTile({required this.palette});
+class _CommandInputSuggestionTile extends StatelessWidget {
+  const _CommandInputSuggestionTile({
+    required this.suggestion,
+    required this.active,
+    required this.palette,
+    required this.keyPrefix,
+    required this.onTap,
+  });
 
+  final String suggestion;
+  final bool active;
   final AppThemeTokens palette;
+  final String keyPrefix;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final rowHeight = palette.controls.regular + palette.spacing.lg;
+    final iconBoxSize = palette.controls.dense - palette.spacing.xs;
+    final textStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: active ? palette.textPrimary : palette.textMuted,
+      fontFamily: 'monospace',
+      fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+    );
+    return Semantics(
+      key: Key('$keyPrefix-suggestion-$suggestion'),
+      label: suggestion,
+      button: true,
+      selected: active,
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          canRequestFocus: false,
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOutCubic,
+            height: rowHeight,
+            margin: EdgeInsets.symmetric(horizontal: palette.spacing.xs),
+            padding: EdgeInsets.symmetric(horizontal: palette.spacing.md),
+            decoration: BoxDecoration(
+              color: active
+                  ? palette.selected.withValues(alpha: 0.46)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(palette.radius.md),
+            ),
+            child: Row(
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: active
+                        ? palette.accent.withValues(alpha: 0.16)
+                        : palette.chrome.withValues(alpha: 0.72),
+                    borderRadius: BorderRadius.circular(palette.radius.sm),
+                    border: Border.all(
+                      color: active
+                          ? palette.accent.withValues(alpha: 0.42)
+                          : palette.borderStrong.withValues(alpha: 0.66),
+                    ),
+                  ),
+                  child: SizedBox.square(
+                    dimension: iconBoxSize,
+                    child: Icon(
+                      active
+                          ? Icons.keyboard_return_rounded
+                          : Icons.terminal_rounded,
+                      size: 16,
+                      color: active ? palette.accent : palette.textSubtle,
+                    ),
+                  ),
+                ),
+                SizedBox(width: palette.spacing.sm),
+                Expanded(
+                  child: Text(
+                    suggestion,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                    style: textStyle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UniversalInputLoadingSuggestionTile extends StatelessWidget {
+  const _UniversalInputLoadingSuggestionTile({
+    required this.palette,
+    this.presentation = _UniversalInputSuggestionPresentation.plain,
+  });
+
+  final AppThemeTokens palette;
+  final _UniversalInputSuggestionPresentation presentation;
+
+  @override
+  Widget build(BuildContext context) {
+    final height = presentation == _UniversalInputSuggestionPresentation.plain
+        ? 34.0
+        : palette.controls.regular + palette.spacing.lg;
     return SizedBox(
       key: const Key('universal-input-suggestions-loading'),
-      height: 34,
+      height: height,
       child: Row(
         children: [
           SizedBox(
-            width: 26,
+            width: presentation == _UniversalInputSuggestionPresentation.plain
+                ? 26
+                : palette.controls.regular + palette.spacing.lg,
             child: Center(
               child: SizedBox(
                 width: 13,

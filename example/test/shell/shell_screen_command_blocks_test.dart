@@ -2033,6 +2033,214 @@ void main() {
       expect(find.text('Agent natural language'), findsOneWidget);
     });
 
+    testWidgets('command input suggestions render as an embedded panel', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.light),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 900,
+                child: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  inputMode: UniversalInputMode.terminal,
+                  suggestionsForInput: (_, _) => const [
+                    'checkout',
+                    'cherry-pick',
+                  ],
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.pump();
+      final bar = find.byKey(const Key('shell-command-input-bar'));
+      final initialBarHeight = tester.getSize(bar).height;
+      expect(focusNode.hasFocus, isTrue);
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'git che',
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final panel = find.byKey(
+        const Key('shell-command-input-suggestions-panel'),
+      );
+      final selectedSuggestion = find.byKey(
+        const Key('shell-command-input-suggestion-checkout'),
+      );
+
+      expect(panel, findsOneWidget);
+      expect(find.byKey(const Key('terminal-autocomplete-menu')), findsNothing);
+      expect(selectedSuggestion, findsOneWidget);
+      expect(tester.getSize(bar).height, initialBarHeight);
+      expect(focusNode.hasFocus, isTrue);
+      expect(
+        tester.getSemantics(selectedSuggestion),
+        matchesSemantics(
+          label: 'checkout',
+          isButton: true,
+          hasTapAction: true,
+          hasSelectedState: true,
+          isSelected: true,
+        ),
+      );
+
+      final barRect = tester.getRect(bar);
+      final fieldRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-field')),
+      );
+      final panelRect = tester.getRect(panel);
+      expect(panelRect.bottom, lessThanOrEqualTo(fieldRect.top));
+      expect(fieldRect.top - panelRect.bottom, lessThanOrEqualTo(12));
+      expect(panelRect.left, greaterThanOrEqualTo(barRect.left));
+      expect(panelRect.left, greaterThan(fieldRect.left));
+      expect(panelRect.right, lessThanOrEqualTo(barRect.right));
+      expect(panelRect.width, lessThanOrEqualTo(660));
+      final panelDecoration =
+          tester.widget<DecoratedBox>(panel).decoration as BoxDecoration;
+      expect(
+        panelDecoration.color,
+        AppThemeTokens.light.overlay.withValues(alpha: 0.96),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'git cher',
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(tester.getSize(bar).height, initialBarHeight);
+      expect(focusNode.hasFocus, isTrue);
+    });
+
+    testWidgets('tab and click accept command input suggestions', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.terminal,
+              suggestionsForInput: (_, _) => const ['checkout', 'cherry-pick'],
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('shell-command-input-field')));
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'git che',
+      );
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(controller.text, 'git checkout');
+      expect(focusNode.hasFocus, isTrue);
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'git che',
+      );
+      await tester.pump();
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const Key('shell-command-input-suggestion-cherry-pick')),
+      );
+      await tester.pump();
+
+      expect(controller.text, 'git cherry-pick');
+      expect(focusNode.hasFocus, isTrue);
+    });
+
+    testWidgets('command input suggestions stay inside a narrow bar', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(
+                width: 360,
+                child: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  inputMode: UniversalInputMode.terminal,
+                  suggestionsForInput: (_, _) => const [
+                    'very-long-command-suggestion-that-must-ellipsis',
+                  ],
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'very',
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final barRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-bar')),
+      );
+      final panelRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-suggestions-panel')),
+      );
+      final suggestionRect = tester.getRect(
+        find.byKey(
+          const Key(
+            'shell-command-input-suggestion-'
+            'very-long-command-suggestion-that-must-ellipsis',
+          ),
+        ),
+      );
+
+      expect(panelRect.left, greaterThanOrEqualTo(barRect.left));
+      expect(panelRect.right, lessThanOrEqualTo(barRect.right));
+      expect(suggestionRect.right, lessThanOrEqualTo(panelRect.right));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('typing slash opens slash commands and removes trigger', (
       tester,
     ) async {

@@ -1512,15 +1512,17 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                 final classification = _classificationFor(text);
                 final isAgentMode =
                     widget.inputMode == UniversalInputMode.agent;
-                final suggestions = isAgentMode
-                    ? const <String>[]
-                    : _suggestionsFor(text, classification);
-                final suggestionDetails = isAgentMode
-                    ? const <String, CommandDraft>{}
-                    : _suggestionDetailsFor(text, classification);
-                final suggestionsLoading = isAgentMode
-                    ? false
-                    : _suggestionsLoadingFor(text, classification);
+                final showInputSuggestions =
+                    !isAgentMode && text.trimRight().isNotEmpty;
+                final suggestions = showInputSuggestions
+                    ? _suggestionsFor(text, classification)
+                    : const <String>[];
+                final suggestionDetails = showInputSuggestions
+                    ? _suggestionDetailsFor(text, classification)
+                    : const <String, CommandDraft>{};
+                final suggestionsLoading = showInputSuggestions
+                    ? _suggestionsLoadingFor(text, classification)
+                    : false;
                 final accent = _universalInputAccentColor(
                   palette,
                   classification,
@@ -1609,6 +1611,9 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                         maxHeight: 168,
                         suggestionLimit: 4,
                         suggestionKeyPrefix: 'shell-command-input',
+                        suggestionPresentation:
+                            _UniversalInputSuggestionPresentation
+                                .commandInputPanel,
                         textStyle: Theme.of(context).textTheme.bodyLarge
                             ?.copyWith(
                               color: palette.textPrimary,
