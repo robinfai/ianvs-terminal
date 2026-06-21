@@ -118,6 +118,43 @@ struct KubectlExecutionContext {
     environment: Vec<(String, String)>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct KubectlLineSuggestionStyle {
+    description: &'static str,
+    kind: &'static str,
+    source: &'static str,
+    priority: i32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct KubectlJsonSuggestionStyle<'a> {
+    kind: &'a str,
+    priority: i32,
+    insert_prefix: Option<&'a str>,
+}
+
+#[derive(Debug, Clone)]
+struct KubectlQuery<'a> {
+    args: Vec<String>,
+    timeout: Duration,
+    ttl: Duration,
+    context: &'a KubectlExecutionContext,
+}
+
+fn kubectl_query<'a>(
+    args: Vec<String>,
+    timeout: Duration,
+    ttl: Duration,
+    context: &'a KubectlExecutionContext,
+) -> KubectlQuery<'a> {
+    KubectlQuery {
+        args,
+        timeout,
+        ttl,
+        context,
+    }
+}
+
 fn collect_host_templates(request: &Value) -> Value {
     let text = request
         .get("text")
@@ -158,27 +195,35 @@ fn collect_host_templates(request: &Value) -> Value {
         let needs = kubectl_template_needs(&parsed);
         if needs.contexts {
             host_templates["kubeContexts"] = kubectl_line_suggestions(
-                kubectl_args(&needs, &["config", "get-contexts", "-o", "name"], false),
+                kubectl_query(
+                    kubectl_args(&needs, &["config", "get-contexts", "-o", "name"], false),
+                    KUBECTL_FAST_TIMEOUT,
+                    KUBECTL_CONTEXT_TTL,
+                    &kubectl_context,
+                ),
                 prefix,
-                "Kubernetes context",
-                "context",
-                "fig:kubectl",
-                66,
-                KUBECTL_FAST_TIMEOUT,
-                KUBECTL_CONTEXT_TTL,
-                &kubectl_context,
+                KubectlLineSuggestionStyle {
+                    description: "Kubernetes context",
+                    kind: "context",
+                    source: "fig:kubectl",
+                    priority: 66,
+                },
             );
         }
         if needs.namespaces {
             host_templates["kubeNamespaces"] = kubectl_json_item_suggestions(
-                kubectl_args(&needs, &["get", "namespaces", "-o", "json"], false),
+                kubectl_query(
+                    kubectl_args(&needs, &["get", "namespaces", "-o", "json"], false),
+                    KUBECTL_SLOW_TIMEOUT,
+                    KUBECTL_NAMESPACE_TTL,
+                    &kubectl_context,
+                ),
                 prefix,
-                "namespace",
-                66,
-                KUBECTL_SLOW_TIMEOUT,
-                KUBECTL_NAMESPACE_TTL,
-                None,
-                &kubectl_context,
+                KubectlJsonSuggestionStyle {
+                    kind: "namespace",
+                    priority: 66,
+                    insert_prefix: None,
+                },
                 |_, _| "Kubernetes namespace".to_owned(),
             );
         }
@@ -188,14 +233,18 @@ fn collect_host_templates(request: &Value) -> Value {
             {
                 let args = kubectl_args(&needs, &["get", resource, "-o", "json"], true);
                 Some(kubectl_json_item_suggestions(
-                    args,
+                    kubectl_query(
+                        args,
+                        KUBECTL_SLOW_TIMEOUT,
+                        KUBECTL_RESOURCE_NAME_TTL,
+                        &kubectl_context,
+                    ),
                     prefix,
-                    "resource",
-                    58,
-                    KUBECTL_SLOW_TIMEOUT,
-                    KUBECTL_RESOURCE_NAME_TTL,
-                    Some(inline_prefix),
-                    &kubectl_context,
+                    KubectlJsonSuggestionStyle {
+                        kind: "resource",
+                        priority: 58,
+                        insert_prefix: Some(inline_prefix),
+                    },
                     |item, kind| {
                         item.get("metadata")
                             .and_then(|metadata| metadata.get("namespace"))
@@ -209,19 +258,23 @@ fn collect_host_templates(request: &Value) -> Value {
             };
             let mut resource_types = inline_resource_names.unwrap_or_else(|| {
                 kubectl_line_suggestions(
-                    kubectl_args(
-                        &needs,
-                        &["api-resources", "--verbs=list", "-o", "name"],
-                        false,
+                    kubectl_query(
+                        kubectl_args(
+                            &needs,
+                            &["api-resources", "--verbs=list", "-o", "name"],
+                            false,
+                        ),
+                        KUBECTL_FAST_TIMEOUT,
+                        KUBECTL_RESOURCE_TYPE_TTL,
+                        &kubectl_context,
                     ),
                     prefix,
-                    "Kubernetes resource type",
-                    "resource",
-                    "fig:kubectl",
-                    64,
-                    KUBECTL_FAST_TIMEOUT,
-                    KUBECTL_RESOURCE_TYPE_TTL,
-                    &kubectl_context,
+                    KubectlLineSuggestionStyle {
+                        description: "Kubernetes resource type",
+                        kind: "resource",
+                        source: "fig:kubectl",
+                        priority: 64,
+                    },
                 )
             });
             if resource_types.as_array().is_none_or(Vec::is_empty)
@@ -248,14 +301,18 @@ fn collect_host_templates(request: &Value) -> Value {
         if let Some(resource) = needs.resource_names_for.as_deref() {
             let args = kubectl_args(&needs, &["get", resource, "-o", "json"], true);
             host_templates["kubeResourceNames"] = kubectl_json_item_suggestions(
-                args,
+                kubectl_query(
+                    args,
+                    KUBECTL_SLOW_TIMEOUT,
+                    KUBECTL_RESOURCE_NAME_TTL,
+                    &kubectl_context,
+                ),
                 prefix,
-                "resource",
-                58,
-                KUBECTL_SLOW_TIMEOUT,
-                KUBECTL_RESOURCE_NAME_TTL,
-                None,
-                &kubectl_context,
+                KubectlJsonSuggestionStyle {
+                    kind: "resource",
+                    priority: 58,
+                    insert_prefix: None,
+                },
                 |item, kind| {
                     item.get("metadata")
                         .and_then(|metadata| metadata.get("namespace"))
@@ -267,14 +324,18 @@ fn collect_host_templates(request: &Value) -> Value {
         }
         if needs.pod_names {
             host_templates["kubePodNames"] = kubectl_json_item_suggestions(
-                kubectl_args(&needs, &["get", "pods", "-o", "json"], true),
+                kubectl_query(
+                    kubectl_args(&needs, &["get", "pods", "-o", "json"], true),
+                    KUBECTL_SLOW_TIMEOUT,
+                    KUBECTL_RESOURCE_NAME_TTL,
+                    &kubectl_context,
+                ),
                 prefix,
-                "pod",
-                62,
-                KUBECTL_SLOW_TIMEOUT,
-                KUBECTL_RESOURCE_NAME_TTL,
-                None,
-                &kubectl_context,
+                KubectlJsonSuggestionStyle {
+                    kind: "pod",
+                    priority: 62,
+                    insert_prefix: None,
+                },
                 |item, _| {
                     item.get("metadata")
                         .and_then(|metadata| metadata.get("namespace"))
@@ -721,19 +782,13 @@ fn kubectl_option_takes_value(value: &str) -> bool {
 }
 
 fn kubectl_line_suggestions(
-    args: Vec<String>,
+    query: KubectlQuery<'_>,
     prefix: &str,
-    description: &str,
-    kind: &str,
-    source: &str,
-    priority: i32,
-    timeout: Duration,
-    ttl: Duration,
-    context: &KubectlExecutionContext,
+    style: KubectlLineSuggestionStyle,
 ) -> Value {
     let normalized_prefix = prefix.to_lowercase();
     json!(
-        exec_kubectl(&args, timeout, ttl, context)
+        exec_kubectl(&query.args, query.timeout, query.ttl, query.context)
             .map(|output| {
                 output
                     .lines()
@@ -744,10 +799,10 @@ fn kubectl_line_suggestions(
                     .map(|name| HostSuggestion {
                         name: name.to_owned(),
                         insert_text: None,
-                        description: Some(description.to_owned()),
-                        kind: Some(kind.to_owned()),
-                        source: Some(source.to_owned()),
-                        priority,
+                        description: Some(style.description.to_owned()),
+                        kind: Some(style.kind.to_owned()),
+                        source: Some(style.source.to_owned()),
+                        priority: style.priority,
                     })
                     .collect::<Vec<_>>()
             })
@@ -756,21 +811,16 @@ fn kubectl_line_suggestions(
 }
 
 fn kubectl_json_item_suggestions<F>(
-    args: Vec<String>,
+    query: KubectlQuery<'_>,
     prefix: &str,
-    kind: &str,
-    priority: i32,
-    timeout: Duration,
-    ttl: Duration,
-    insert_prefix: Option<&str>,
-    context: &KubectlExecutionContext,
+    style: KubectlJsonSuggestionStyle<'_>,
     description_for: F,
 ) -> Value
 where
     F: Fn(&Value, &str) -> String,
 {
     let normalized_prefix = prefix.to_lowercase();
-    let items = exec_kubectl(&args, timeout, ttl, context)
+    let items = exec_kubectl(&query.args, query.timeout, query.ttl, query.context)
         .ok()
         .and_then(|output| serde_json::from_str::<Value>(&output).ok())
         .and_then(|payload| payload.get("items").and_then(Value::as_array).cloned())
@@ -784,7 +834,8 @@ where
                     .get("metadata")
                     .and_then(|metadata| metadata.get("name"))
                     .and_then(Value::as_str)?;
-                let insert_name = insert_prefix
+                let insert_name = style
+                    .insert_prefix
                     .map(|prefix| format!("{prefix} {name}"))
                     .unwrap_or_else(|| name.to_owned());
                 if !matches_prefix(&insert_name, &normalized_prefix) {
@@ -793,10 +844,10 @@ where
                 Some(HostSuggestion {
                     name: insert_name,
                     insert_text: None,
-                    description: Some(description_for(item, kind)),
-                    kind: Some(kind.to_owned()),
+                    description: Some(description_for(item, style.kind)),
+                    kind: Some(style.kind.to_owned()),
                     source: Some("fig:kubectl".to_owned()),
-                    priority,
+                    priority: style.priority,
                 })
             })
             .take(24)
@@ -884,7 +935,7 @@ fn kubectl_command_args(args: &[String], timeout: Duration) -> Vec<String> {
     #[cfg(test)]
     {
         let _ = timeout;
-        return args.to_vec();
+        args.to_vec()
     }
 
     #[cfg(not(test))]

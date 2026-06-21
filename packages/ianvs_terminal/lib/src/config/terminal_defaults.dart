@@ -1,6 +1,7 @@
 const int defaultTerminalColumns = 80;
 const int defaultTerminalRows = 24;
 const int maxTerminalDimension = 0xffff;
+const int maxTerminalViewportDimension = 512;
 const int defaultTerminalScrollbackLines = 8000;
 const int maxTerminalScrollbackLines = 100000;
 

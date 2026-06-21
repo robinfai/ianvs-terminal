@@ -572,7 +572,9 @@ TerminalDisposable _listen<T>(
 }
 
 int _boundedTerminalDimension(int value) {
-  return value > maxTerminalDimension ? maxTerminalDimension : value;
+  return value > maxTerminalViewportDimension
+      ? maxTerminalViewportDimension
+      : value;
 }
 
 TerminalCursorShape _cursorShapeFor(TerminalCursorStyle style) {

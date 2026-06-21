@@ -278,10 +278,10 @@ Future<void> _sendMetaShortcut(
 ) async {
   await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
   await tester.sendKeyDownEvent(key, platform: 'macos');
-  await tester.pumpAndSettle();
+  await tester.pump();
   await tester.sendKeyUpEvent(key, platform: 'macos');
   await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
-  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
 }
 
 Future<void> _sendMetaShiftShortcut(
@@ -294,11 +294,11 @@ Future<void> _sendMetaShiftShortcut(
     platform: 'macos',
   );
   await tester.sendKeyDownEvent(key, platform: 'macos');
-  await tester.pumpAndSettle();
+  await tester.pump();
   await tester.sendKeyUpEvent(key, platform: 'macos');
   await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft, platform: 'macos');
   await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
-  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
 }
 
 Future<void> _sendMetaAltShortcut(
@@ -308,11 +308,11 @@ Future<void> _sendMetaAltShortcut(
   await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
   await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft, platform: 'macos');
   await tester.sendKeyDownEvent(key, platform: 'macos');
-  await tester.pumpAndSettle();
+  await tester.pump();
   await tester.sendKeyUpEvent(key, platform: 'macos');
   await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft, platform: 'macos');
   await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
-  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
 }
 
 Future<void> _sendControlShortcut(
@@ -325,13 +325,13 @@ Future<void> _sendControlShortcut(
     platform: platform,
   );
   await tester.sendKeyDownEvent(key, platform: platform);
-  await tester.pumpAndSettle();
+  await tester.pump();
   await tester.sendKeyUpEvent(key, platform: platform);
   await tester.sendKeyUpEvent(
     LogicalKeyboardKey.controlLeft,
     platform: platform,
   );
-  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
 }
 
 Future<void> _selectSearchMode(WidgetTester tester, String modeWireName) async {
@@ -9959,6 +9959,7 @@ void main() {
       await tester.pump();
 
       await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+      await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
       expect(find.byType(TerminalViewport), findsNothing);

@@ -312,17 +312,20 @@ void main() {
     addTearDown(terminal.dispose);
     terminal.open();
 
-    terminal.resize(maxTerminalDimension + 10, maxTerminalDimension + 20);
+    terminal.resize(
+      maxTerminalViewportDimension + 10,
+      maxTerminalViewportDimension + 20,
+    );
     await tester.pump();
 
-    expect(terminal.cols, maxTerminalDimension);
-    expect(terminal.rows, maxTerminalDimension);
+    expect(terminal.cols, maxTerminalViewportDimension);
+    expect(terminal.rows, maxTerminalViewportDimension);
     expect(backend.resizeCalls.last, <Object?>[
       '1',
-      maxTerminalDimension,
-      maxTerminalDimension,
-      589815,
-      1179630,
+      maxTerminalViewportDimension,
+      maxTerminalViewportDimension,
+      4608,
+      9216,
     ]);
   });
 }

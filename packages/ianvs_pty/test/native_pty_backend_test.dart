@@ -237,7 +237,7 @@ void main() {
         jsonEncode({
           'text': 'ls ./',
           'cursorOffset': 5,
-          'cwd': Directory.current.path,
+          'cwd': _workspaceRoot.path,
         }),
       );
       final kubectlResponse = bindings.completeJson(
@@ -285,7 +285,28 @@ String? _resolveWorkspaceCoreLibraryPath() {
   return null;
 }
 
+Directory _resolveWorkspaceRoot() {
+  var directory = Directory.current.absolute;
+  while (true) {
+    final pubspec = File.fromUri(directory.uri.resolve('pubspec.yaml'));
+    if (pubspec.existsSync() &&
+        RegExp(
+          r'^workspace:\s*$',
+          multiLine: true,
+        ).hasMatch(pubspec.readAsStringSync())) {
+      return directory;
+    }
+
+    final parent = directory.parent;
+    if (parent.path == directory.path) {
+      return Directory.current.absolute;
+    }
+    directory = parent;
+  }
+}
+
 final String? _workspaceCoreLibraryPath = _resolveWorkspaceCoreLibraryPath();
+final Directory _workspaceRoot = _resolveWorkspaceRoot();
 
 class _NoopPtyBindings implements PtyBindings {
   @override
