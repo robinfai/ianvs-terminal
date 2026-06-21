@@ -75,7 +75,7 @@ void main() {
       expect(viewModel.blocks.single.bookmarked, isTrue);
     });
 
-    test('marks running blocks as live terminal output', () {
+    test('routes running blocks through native terminal output', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [
           _commandBlock(
@@ -95,30 +95,43 @@ void main() {
       expect(viewModel.blocks.single.outputUsesLiveTerminal, isTrue);
       expect(viewModel.blocks.single.liveTerminalViewportRowOffset, 3);
       expect(viewModel.blocks.single.liveTerminalRows, 2);
+      final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
+        viewModel: viewModel,
+        modes: terminal.TerminalFrameModes.empty,
+      );
+      expect(nativeTerminalBlockId, viewModel.blocks.single.id);
       expect(
         shellCommandBlocksShouldRenderOverlay(
           viewModel: viewModel,
           modes: terminal.TerminalFrameModes.empty,
-          nativeTerminalBlockId: null,
+          nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isTrue,
+        isFalse,
       );
       expect(
         shellCommandBlocksShouldEmbedLiveTerminal(
           viewModel: viewModel,
           modes: terminal.TerminalFrameModes.empty,
-          nativeTerminalBlockId: null,
+          nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isTrue,
+        isFalse,
       );
       expect(
         shellCommandBlocksShouldHideDefaultTerminal(
           hideWhenVisible: true,
           viewModel: viewModel,
           modes: terminal.TerminalFrameModes.empty,
-          nativeTerminalBlockId: null,
+          nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isTrue,
+        isFalse,
+      );
+      expect(
+        shellCommandInputVisibleForCommandBlocks(
+          flags: _enabledFlags(),
+          modes: terminal.TerminalFrameModes.empty,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
       );
     });
 
@@ -156,6 +169,49 @@ void main() {
             nativeTerminalBlockId: null,
           ),
           isTrue,
+        );
+      },
+    );
+
+    test(
+      'empty command-block sessions show the launch hero until dismissed',
+      () {
+        final viewModel = ShellCommandBlockViewModelBuilder.build(
+          blocks: const <ShellCommandBlock>[],
+          viewportStartRow: 0,
+          viewportEndRow: 24,
+          flags: _enabledFlags(),
+        );
+
+        expect(
+          shellCommandBlocksShouldShowLaunchHero(
+            flags: _enabledFlags(),
+            viewModel: viewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: null,
+            launchHeroDismissed: false,
+          ),
+          isTrue,
+        );
+        expect(
+          shellCommandBlocksShouldShowLaunchHero(
+            flags: _enabledFlags(),
+            viewModel: viewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: null,
+            launchHeroDismissed: true,
+          ),
+          isFalse,
+        );
+        expect(
+          shellCommandBlocksShouldShowLaunchHero(
+            flags: CommandBlocksHistoryFeatureFlags.disabled,
+            viewModel: viewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: null,
+            launchHeroDismissed: false,
+          ),
+          isFalse,
         );
       },
     );
@@ -224,68 +280,71 @@ void main() {
       );
     });
 
-    test('leaving alternate screen restores running command block chrome', () {
-      final runningViewModel = ShellCommandBlockViewModelBuilder.build(
-        blocks: [
-          _commandBlock(
-            startRow: 10,
-            endRow: 12,
-            command: 'vi README.md',
-            status: ShellCommandBlockStatus.running,
-          ),
-        ],
-        viewportStartRow: 8,
-        viewportEndRow: 24,
-        visibleRows: const [terminal.TerminalRow(index: 3, text: ':q')],
-        flags: _enabledFlags(),
-      );
-      final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
-        viewModel: runningViewModel,
-        modes: terminal.TerminalFrameModes.empty,
-      );
-
-      expect(nativeTerminalBlockId, isNull);
-      expect(
-        shellCommandBlocksShouldUseNativeTerminal(
-          modes: terminal.TerminalFrameModes.empty,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        ),
-        isFalse,
-      );
-      expect(
-        shellCommandBlocksShouldRenderOverlay(
-          viewModel: runningViewModel,
-          modes: terminal.TerminalFrameModes.empty,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        ),
-        isTrue,
-      );
-      expect(
-        shellCommandBlocksShouldEmbedLiveTerminal(
-          viewModel: runningViewModel,
-          modes: terminal.TerminalFrameModes.empty,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        ),
-        isTrue,
-      );
-      expect(
-        shellCommandBlocksShouldHideDefaultTerminal(
-          hideWhenVisible: true,
-          viewModel: runningViewModel,
-          modes: terminal.TerminalFrameModes.empty,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        ),
-        isTrue,
-      );
-      expect(
-        shellCommandInputVisibleForCommandBlocks(
+    test(
+      'leaving alternate screen keeps a running command in native terminal',
+      () {
+        final runningViewModel = ShellCommandBlockViewModelBuilder.build(
+          blocks: [
+            _commandBlock(
+              startRow: 10,
+              endRow: 12,
+              command: 'vi README.md',
+              status: ShellCommandBlockStatus.running,
+            ),
+          ],
+          viewportStartRow: 8,
+          viewportEndRow: 24,
+          visibleRows: const [terminal.TerminalRow(index: 3, text: ':q')],
           flags: _enabledFlags(),
+        );
+        final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
+          viewModel: runningViewModel,
           modes: terminal.TerminalFrameModes.empty,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        ),
-        isTrue,
-      );
-    });
+        );
+
+        expect(nativeTerminalBlockId, runningViewModel.blocks.single.id);
+        expect(
+          shellCommandBlocksShouldUseNativeTerminal(
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+          ),
+          isTrue,
+        );
+        expect(
+          shellCommandBlocksShouldRenderOverlay(
+            viewModel: runningViewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+          ),
+          isFalse,
+        );
+        expect(
+          shellCommandBlocksShouldEmbedLiveTerminal(
+            viewModel: runningViewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+          ),
+          isFalse,
+        );
+        expect(
+          shellCommandBlocksShouldHideDefaultTerminal(
+            hideWhenVisible: true,
+            viewModel: runningViewModel,
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+          ),
+          isFalse,
+        );
+        expect(
+          shellCommandInputVisibleForCommandBlocks(
+            flags: _enabledFlags(),
+            modes: terminal.TerminalFrameModes.empty,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+          ),
+          isFalse,
+        );
+      },
+    );
 
     test('finished alternate screen command restores command block chrome', () {
       final finishedViewModel = ShellCommandBlockViewModelBuilder.build(

@@ -605,6 +605,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _scheduledViewportSizes.remove(pane.sessionId);
       _committedViewportSizes.remove(pane.sessionId);
       _terminalViewportDevicePixelRatios.remove(pane.sessionId);
+      _dismissedLaunchHeroSessionIds.remove(pane.sessionId);
     }
     _clearNewOutputForSessions(
       closingTab.effectivePanes.map((pane) => pane.sessionId),

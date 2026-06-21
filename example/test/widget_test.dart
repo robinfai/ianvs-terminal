@@ -7683,7 +7683,7 @@ void main() {
   });
 
   testWidgets(
-    'alternate screen viewport update hides a running command block overlay',
+    'running command block uses native terminal and disables command input',
     (tester) async {
       final fakeBindings = FakePtyBackend();
 
@@ -7712,10 +7712,21 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 40));
 
-      expect(find.text('vi public.key'), findsWidgets);
+      expect(find.byKey(const Key('shell-launch-hero')), findsNothing);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(find.byKey(const Key('shell-command-input-bar')), findsNothing);
+      expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+      expect(find.text('vi public.key'), findsNothing);
       expect(find.text('running'), findsNothing);
       expect(find.text('Live terminal'), findsNothing);
-      expect(find.byTooltip('Block info'), findsOneWidget);
+      expect(find.byTooltip('Block info'), findsNothing);
+      expect(
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .focusNode
+            ?.hasFocus,
+        isTrue,
+      );
 
       fakeBindings.setFrame(
         1,
@@ -7732,6 +7743,8 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 40));
 
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(find.byKey(const Key('shell-command-input-bar')), findsNothing);
       expect(find.text('vi public.key'), findsNothing);
       expect(find.text('running'), findsNothing);
       expect(find.text('Live terminal'), findsNothing);
@@ -9590,7 +9603,13 @@ void main() {
     expect(find.byKey(const Key('shell-status-viewport')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-encoding')), findsOneWidget);
     expect(find.byKey(const Key('terminal-session-badge-1')), findsNothing);
-    expect(find.text('/tmp/project'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-status-directory')),
+        matching: find.text('/tmp/project'),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('zsh'), findsNothing);
     expect(find.text('Connected'), findsNothing);
     expect(find.text('UTF-8'), findsOneWidget);

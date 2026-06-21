@@ -229,6 +229,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, String> _nativeTerminalCommandBlockIdsBySession = {};
   final Map<String, Set<String>> _nativeTerminalCommandBlockIdsSeenBySession =
       {};
+  final Set<String> _dismissedLaunchHeroSessionIds = <String>{};
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;

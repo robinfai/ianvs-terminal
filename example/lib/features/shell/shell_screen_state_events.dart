@@ -1698,6 +1698,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _finishedCommandBlockPreviewTargetsBySession.remove(event.sessionId);
         _nativeTerminalCommandBlockIdsBySession.remove(event.sessionId);
         _nativeTerminalCommandBlockIdsSeenBySession.remove(event.sessionId);
+        _dismissedLaunchHeroSessionIds.remove(event.sessionId);
         _commandInputDraftsBySession.remove(event.sessionId);
         _commandInputDraftTextBySession.remove(event.sessionId);
         _commandInputDraftLoadingSessionIds.remove(event.sessionId);
@@ -1881,6 +1882,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     _mutateState(() {
       _commandBlockSnapshotsBySession[event.sessionId] = snapshot;
+      if (_runningCommandBlockIdForSnapshot(snapshot) != null) {
+        _dismissedLaunchHeroSessionIds.add(event.sessionId);
+      }
       _mergeCommandBlockPreviewRows(
         sessionId: event.sessionId,
         snapshot: snapshot,
@@ -1900,6 +1904,15 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       }
       _removeMatchedPendingCommandBlockPreviewRows(event.sessionId, snapshot);
     });
+    final hasRunningCommandBlock =
+        _runningCommandBlockIdForSnapshot(snapshot) != null;
+    if (hasRunningCommandBlock) {
+      _commandInputFocusNodeFor(event.sessionId).unfocus();
+      _focusSession(event.sessionId);
+    } else if (normalizedHook == 'command_finished' &&
+        _commandInputVisibleForSession(event.sessionId)) {
+      _restoreCommandInputFocus(event.sessionId);
+    }
     if (normalizedHook == 'command_finished') {
       _maybeRequestCommandCorrectionForFinishedHook(
         event: event,
