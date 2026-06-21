@@ -120,10 +120,15 @@ bool shellCommandInputVisibleForCommandBlocks({
 }
 
 class _ShellLaunchHero extends StatelessWidget {
-  const _ShellLaunchHero({required this.palette, required this.directory});
+  const _ShellLaunchHero({
+    required this.palette,
+    required this.directory,
+    required this.onTap,
+  });
 
   final AppThemeTokens palette;
   final String? directory;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -134,86 +139,93 @@ class _ShellLaunchHero extends StatelessWidget {
     return Semantics(
       container: true,
       label: 'Shell launch surface',
-      child: DecoratedBox(
-        key: const Key('shell-launch-hero'),
-        decoration: BoxDecoration(
-          color: palette.terminalSurface,
-          border: Border(top: BorderSide(color: palette.terminalFrame)),
-        ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: palette.spacing.xl,
-                vertical: palette.spacing.xxl,
-              ),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 460),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: palette.panel.withValues(alpha: 0.78),
-                        borderRadius: BorderRadius.circular(palette.radius.lg),
-                        border: Border.all(color: palette.border),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(palette.spacing.xl),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: palette.chrome.withValues(alpha: 0.74),
-                                borderRadius: BorderRadius.circular(
-                                  palette.radius.md,
-                                ),
-                                border: Border.all(color: palette.border),
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.all(palette.spacing.md),
-                                child: Icon(
-                                  Icons.terminal_rounded,
-                                  size: 24,
-                                  color: palette.accent,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: palette.spacing.lg),
-                            Text(
-                              'Local shell',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    color: palette.textPrimary,
-                                    fontWeight: FontWeight.w800,
+      button: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: DecoratedBox(
+          key: const Key('shell-launch-hero'),
+          decoration: BoxDecoration(
+            color: palette.terminalSurface,
+            border: Border(top: BorderSide(color: palette.terminalFrame)),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: palette.spacing.xl,
+                  vertical: palette.spacing.xxl,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 460),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: palette.panel.withValues(alpha: 0.78),
+                          borderRadius: BorderRadius.circular(
+                            palette.radius.lg,
+                          ),
+                          border: Border.all(color: palette.border),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(palette.spacing.xl),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: palette.chrome.withValues(alpha: 0.74),
+                                  borderRadius: BorderRadius.circular(
+                                    palette.radius.md,
                                   ),
-                            ),
-                            if (directoryLabel != null) ...[
-                              SizedBox(height: palette.spacing.sm),
+                                  border: Border.all(color: palette.border),
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsets.all(palette.spacing.md),
+                                  child: Icon(
+                                    Icons.terminal_rounded,
+                                    size: 24,
+                                    color: palette.accent,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: palette.spacing.lg),
                               Text(
-                                directoryLabel,
+                                'Local shell',
                                 textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
+                                style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(
-                                      color: palette.textSubtle,
-                                      fontWeight: FontWeight.w700,
-                                      fontFamily: 'monospace',
+                                      color: palette.textPrimary,
+                                      fontWeight: FontWeight.w800,
                                     ),
                               ),
+                              if (directoryLabel != null) ...[
+                                SizedBox(height: palette.spacing.sm),
+                                Text(
+                                  directoryLabel,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: palette.textSubtle,
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: 'monospace',
+                                      ),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -968,10 +980,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
             );
             return Listener(
               onPointerDown: (event) {
-                if (showLaunchHero &&
-                    (event.buttons & kPrimaryMouseButton) != 0) {
-                  _dismissLaunchHeroForSession(sessionId);
-                }
                 if (!isActive && (event.buttons & kPrimaryMouseButton) != 0) {
                   _activateSession(sessionController, sessionId);
                 }
@@ -1062,13 +1070,13 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                             ),
                           if (showLaunchHero)
                             Positioned.fill(
-                              child: IgnorePointer(
-                                child: _ShellLaunchHero(
-                                  palette: palette,
-                                  directory:
-                                      pane.shellIntegration.currentDirectory ??
-                                      profile?.cwd,
-                                ),
+                              child: _ShellLaunchHero(
+                                palette: palette,
+                                directory:
+                                    pane.shellIntegration.currentDirectory ??
+                                    profile?.cwd,
+                                onTap: () =>
+                                    _restoreCommandInputFocus(sessionId),
                               ),
                             ),
                         ],

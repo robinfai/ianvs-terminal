@@ -81,6 +81,18 @@ void main() {
     expect(find.text('Session tabs'), findsNothing);
     expect(find.text('Copy'), findsNothing);
     expect(find.text('Paste'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('shell-launch-hero')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-launch-hero')), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('shell-command-input-field')))
+          .focusNode
+          ?.hasFocus,
+      isTrue,
+    );
   });
 
   testWidgets(

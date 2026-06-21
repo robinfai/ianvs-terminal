@@ -2627,7 +2627,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byType(TerminalViewport));
+    await tester.tap(find.byKey(const Key('shell-command-input-field')));
     await tester.pump();
     await tester.sendKeyEvent(LogicalKeyboardKey.slash);
     await tester.pumpAndSettle();
