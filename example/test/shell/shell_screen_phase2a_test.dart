@@ -74,6 +74,10 @@ void main() {
 
     expect(find.text('Command Center'), findsOneWidget);
     expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('shell-command-menu-overlay'))).width,
+      greaterThanOrEqualTo(400),
+    );
     expect(find.text('New tab'), findsOneWidget);
     expect(find.text('Search terminal output'), findsWidgets);
     expect(find.text('Search scrollback'), findsNothing);

@@ -102,9 +102,15 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
-    final maxMenuHeight = (MediaQuery.sizeOf(context).height - 24)
-        .clamp(360.0, 560.0)
-        .toDouble();
+    final viewportSize = MediaQuery.sizeOf(context);
+    final maxMenuWidth = math.min(
+      432.0,
+      math.max(0.0, viewportSize.width - 28),
+    );
+    final maxMenuHeight = math.min(
+      760.0,
+      math.max(0.0, viewportSize.height - 24),
+    );
     final launcherShortcutLabel = widget.launcherShortcutLabel;
     final newTabShortcutLabel = widget.newTabShortcutLabel;
     final hotkeyWindowShortcutLabel = widget.hotkeyWindowShortcutLabel;
@@ -250,7 +256,10 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       key: const Key('shell-command-menu-overlay'),
       color: Colors.transparent,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 340, maxHeight: maxMenuHeight),
+        constraints: BoxConstraints(
+          maxWidth: maxMenuWidth,
+          maxHeight: maxMenuHeight,
+        ),
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: palette.overlay,
@@ -262,12 +271,12 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
             type: MaterialType.transparency,
             child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 2, 2, 2),
+                      padding: const EdgeInsets.fromLTRB(8, 2, 2, 4),
                       child: Row(
                         children: [
                           Expanded(
@@ -288,7 +297,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
                       child: MergeSemantics(
                         child: Semantics(
                           label: 'Search actions',
@@ -304,8 +313,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                               prefixIcon: const Icon(Icons.search_rounded),
                               labelText: 'Search actions',
                               hintText: 'Type an action and press Enter',
-                              helperText:
-                                  'Examples: profile, paste history, read-only',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(
                                   palette.radius.lg,
@@ -1208,8 +1215,10 @@ class _ShellCommandTile extends StatelessWidget {
         : 'Unavailable: ${disabledReason ?? 'Unavailable in the current context.'}';
     final tile = ListTile(
       dense: true,
-      visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
+      visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      minLeadingWidth: 28,
+      horizontalTitleGap: 12,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(palette.radius.lg),
       ),

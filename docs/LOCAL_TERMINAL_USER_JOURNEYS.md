@@ -59,6 +59,16 @@ Date: 2026-06-21
 | 09 | Journey 7: 打开 Command Search | <img src="assets/local-terminal-user-journeys/captures/09-command-search.png" width="320" alt="Command Search screenshot"> |
 | 10 | Journey 9: 打开 Toolbelt | <img src="assets/local-terminal-user-journeys/captures/10-toolbelt.png" width="320" alt="Toolbelt screenshot"> |
 
+## 视觉布局优化参考
+
+本轮使用 ImageGen 生成了一个小范围 layout polish 参考图，并将可安全落地的部分应用到现有 Flutter UI：Command Center 在宽屏上更接近右侧控制面，动作行留白更清晰，搜索区移除了说明性 helper 文本。相关 QA 记录见根目录 [../design-qa.md](../design-qa.md)。
+
+| Artifact | 用途 | 预览 |
+| --- | --- | --- |
+| ImageGen reference | 小范围 UI 布局优化方向 | <img src="assets/local-terminal-user-journeys/generated-reference/ianvs-layout-polish-reference.png" width="320" alt="Ianvs layout polish reference"> |
+| Full comparison | 参考图与实现截图的全局对比 | <img src="assets/local-terminal-user-journeys/qa/command-center-full-comparison.png" width="320" alt="Command Center full comparison"> |
+| Focused comparison | 右侧 Command Center 面板局部对比 | <img src="assets/local-terminal-user-journeys/qa/command-center-panel-comparison.png" width="320" alt="Command Center panel comparison"> |
+
 ## Journey 1: 首次启动进入 Shell Workspace
 
 触发入口：
