@@ -1000,7 +1000,7 @@ class _UniversalInputStatusPill extends StatelessWidget {
           border: Border.all(color: accent.withValues(alpha: 0.26)),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           child: Text(
             label,
             overflow: TextOverflow.ellipsis,
@@ -1230,7 +1230,7 @@ class _UniversalInputModeButton extends StatelessWidget {
             duration: const Duration(milliseconds: 140),
             curve: Curves.easeOutCubic,
             width: 30,
-            height: 26,
+            height: 24,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: selected

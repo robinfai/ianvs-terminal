@@ -1510,7 +1510,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
             child: ValueListenableBuilder<TextEditingValue>(
               valueListenable: widget.controller,
               builder: (context, value, _) {
@@ -1618,7 +1618,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                         activeIndex: effectiveActiveIndex,
                         palette: palette,
                         maxLines: null,
-                        maxHeight: 168,
+                        maxHeight: 128,
                         suggestionLimit: 6,
                         suggestionKeyPrefix: 'shell-command-input',
                         suggestionPresentation:
@@ -1671,7 +1671,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                             : widget.onDismissCommandCorrection,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         _UniversalInputModeSwitcher(
@@ -1777,15 +1777,15 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                                 )
                               : null,
                           splashRadius: 18,
-                          iconSize: 19,
+                          iconSize: 18,
                           icon: Icon(
                             classification.isNaturalLanguage
                                 ? Icons.auto_fix_high_rounded
                                 : Icons.keyboard_return_rounded,
                           ),
-                          constraints: const BoxConstraints(
-                            minWidth: 44,
-                            minHeight: 44,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 44,
+                            height: 44,
                           ),
                         ),
                       ],
@@ -2429,12 +2429,12 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
 
   double _agentConversationPaneHeight() {
     if (_agentConversation.messages.isEmpty) {
-      return 118;
+      return 96;
     }
     final hasCommandProposal = _agentConversation.messages.any(
       (message) => message.parts.any((part) => part.commandProposal != null),
     );
-    return hasCommandProposal ? 292 : 196;
+    return hasCommandProposal ? 292 : 176;
   }
 
   String _explainSelectedBlockPrompt(AgentCommandBlockSnapshot block) {

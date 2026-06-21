@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../ui/app_ui.dart';
 import 'command_search_index.dart';
 import 'command_search_overlay_controller.dart';
+import 'command_overlay_chrome.dart';
 
 class CommandSearchOverlayHost extends StatefulWidget {
   const CommandSearchOverlayHost({
@@ -173,19 +175,14 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
       return const SizedBox.shrink();
     }
 
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
-      child: Material(
-        key: const Key('command-search-overlay'),
-        elevation: 6,
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.antiAlias,
+      child: CommandOverlayFrame(
+        frameKey: const Key('command-search-overlay'),
+        maxHeight: 480,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
+          constraints: const BoxConstraints(maxWidth: 560),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -199,11 +196,10 @@ class _CommandSearchOverlayState extends State<CommandSearchOverlay> {
                       controller: _queryController,
                       focusNode: _queryFocusNode,
                       autofocus: true,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
+                      decoration: commandOverlaySearchDecoration(
+                        context,
+                        icon: Icons.search,
                         hintText: 'Search command blocks',
-                        border: OutlineInputBorder(),
-                        isDense: true,
                       ),
                       textInputAction: TextInputAction.search,
                       onChanged: (value) {
@@ -420,19 +416,21 @@ class _CommandSearchResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final palette = AppThemeTokens.of(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(palette.radius.lg),
         onTap: onTap,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: selected ? colorScheme.primaryContainer : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            color: selected
+                ? commandOverlaySelectedColor(context)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(palette.radius.lg),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             child: Row(
               children: [
                 Expanded(
@@ -444,9 +442,8 @@ class _CommandSearchResultTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleSmall?.copyWith(
-                          color: selected
-                              ? colorScheme.onPrimaryContainer
-                              : colorScheme.onSurface,
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -455,9 +452,24 @@ class _CommandSearchResultTile extends StatelessWidget {
                         runSpacing: 4,
                         children: [
                           if (cwd != null && cwd!.isNotEmpty)
-                            Text(cwd!, style: theme.textTheme.bodySmall),
-                          Text(statusLabel, style: theme.textTheme.bodySmall),
-                          Text(lastRunLabel, style: theme.textTheme.bodySmall),
+                            Text(
+                              cwd!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: palette.textSubtle,
+                              ),
+                            ),
+                          Text(
+                            statusLabel,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: palette.textSubtle,
+                            ),
+                          ),
+                          Text(
+                            lastRunLabel,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: palette.textSubtle,
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -514,7 +526,9 @@ class _OverlayMessage extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodyMedium,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppThemeTokens.of(context).textSubtle,
+        ),
       ),
     );
   }

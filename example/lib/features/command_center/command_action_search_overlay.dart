@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../ui/app_ui.dart';
 import 'command_action_search_controller.dart';
 import 'command_action_search_index.dart';
+import 'command_overlay_chrome.dart';
 
 class CommandActionSearchOverlay extends StatefulWidget {
   const CommandActionSearchOverlay({
@@ -78,19 +80,14 @@ class _CommandActionSearchOverlayState
       return const SizedBox.shrink();
     }
 
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
-      child: Material(
-        key: const Key('command-action-search-overlay'),
-        elevation: 6,
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.antiAlias,
+      child: CommandOverlayFrame(
+        frameKey: const Key('command-action-search-overlay'),
+        maxHeight: 480,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560, maxHeight: 420),
+          constraints: const BoxConstraints(maxWidth: 560),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -101,11 +98,10 @@ class _CommandActionSearchOverlayState
                   controller: _queryController,
                   focusNode: _queryFocusNode,
                   autofocus: true,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.manage_search),
+                  decoration: commandOverlaySearchDecoration(
+                    context,
+                    icon: Icons.manage_search,
                     hintText: 'Search actions and saved commands',
-                    border: OutlineInputBorder(),
-                    isDense: true,
                   ),
                   textInputAction: TextInputAction.search,
                   onChanged: (value) {
@@ -228,28 +224,25 @@ class _CommandActionSearchResultTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final selectedTextColor = selected
-        ? colorScheme.onPrimaryContainer
-        : colorScheme.onSurface;
+    final palette = AppThemeTokens.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: selected ? colorScheme.primaryContainer : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        color: selected
+            ? commandOverlaySelectedColor(context)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(palette.radius.lg),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
               _iconForKind(item.kind),
               size: 20,
-              color: selected
-                  ? colorScheme.onPrimaryContainer
-                  : colorScheme.onSurfaceVariant,
+              color: selected ? palette.accent : palette.textMuted,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,7 +252,8 @@ class _CommandActionSearchResultTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleSmall?.copyWith(
-                      color: selectedTextColor,
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   if (_supportingText(item) case final supporting?
@@ -270,9 +264,7 @@ class _CommandActionSearchResultTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: selected
-                            ? colorScheme.onPrimaryContainer
-                            : colorScheme.onSurfaceVariant,
+                        color: palette.textSubtle,
                       ),
                     ),
                   ],
@@ -308,12 +300,12 @@ class _MetaPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final palette = AppThemeTokens.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
         color: selected
-            ? colorScheme.primary.withValues(alpha: 0.16)
-            : colorScheme.surfaceContainerHighest,
+            ? palette.accent.withValues(alpha: 0.16)
+            : palette.chrome.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Padding(
@@ -321,9 +313,7 @@ class _MetaPill extends StatelessWidget {
         child: Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: selected
-                ? colorScheme.onPrimaryContainer
-                : colorScheme.onSurfaceVariant,
+            color: selected ? palette.accent : palette.textSubtle,
           ),
         ),
       ),
@@ -343,7 +333,9 @@ class _OverlayMessage extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.bodyMedium,
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppThemeTokens.of(context).textSubtle,
+        ),
       ),
     );
   }
