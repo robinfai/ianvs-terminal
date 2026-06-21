@@ -42,6 +42,23 @@ Date: 2026-06-21
 - 多行或大段文本发送走 paste decision；需要确认时必须先弹确认。
 - 打开 Command Center、Profiles、Defaults、Command Search、Action Search 等 overlay 前会清理相互冲突的 transient UI，并在关闭后恢复 terminal 或 command input focus。
 
+## 截图索引
+
+以下截图基于当前 Flutter UI 代码生成，用作用户旅程梳理和后续视觉/布局审阅参考；它们不是最终验收 evidence，也不替代真实设备上的人工走查。
+
+| Step | 用户旅程 / 关键状态 | 截图 |
+| --- | --- | --- |
+| 01 | Journey 1: 首次启动进入 Shell Workspace | <img src="assets/local-terminal-user-journeys/captures/01-workspace.png" width="320" alt="Shell workspace screenshot"> |
+| 02 | Journey 2: 在 Universal Input 中输入普通 shell 命令 | <img src="assets/local-terminal-user-journeys/captures/02-command-input.png" width="320" alt="Command input screenshot"> |
+| 03 | Journey 3: 使用 `* ` 前缀进入 Agent 输入状态 | <img src="assets/local-terminal-user-journeys/captures/03-agent-input.png" width="320" alt="Agent input screenshot"> |
+| 04 | Journey 4: 打开 Command Center | <img src="assets/local-terminal-user-journeys/captures/04-command-center.png" width="320" alt="Command Center screenshot"> |
+| 05 | Journey 7: 从 Command Center 进入 Action Search | <img src="assets/local-terminal-user-journeys/captures/05-action-search.png" width="320" alt="Action Search screenshot"> |
+| 06 | Journey 5: 通过 Split right 创建双 pane 工作区 | <img src="assets/local-terminal-user-journeys/captures/06-split-workspace.png" width="320" alt="Split workspace screenshot"> |
+| 07 | Journey 6: 打开 Defaults & appearance | <img src="assets/local-terminal-user-journeys/captures/07-defaults-appearance.png" width="320" alt="Defaults and appearance screenshot"> |
+| 08 | Journey 6: 打开 Profiles 管理面板 | <img src="assets/local-terminal-user-journeys/captures/08-profiles.png" width="320" alt="Profiles screenshot"> |
+| 09 | Journey 7: 打开 Command Search | <img src="assets/local-terminal-user-journeys/captures/09-command-search.png" width="320" alt="Command Search screenshot"> |
+| 10 | Journey 9: 打开 Toolbelt | <img src="assets/local-terminal-user-journeys/captures/10-toolbelt.png" width="320" alt="Toolbelt screenshot"> |
+
 ## Journey 1: 首次启动进入 Shell Workspace
 
 触发入口：
