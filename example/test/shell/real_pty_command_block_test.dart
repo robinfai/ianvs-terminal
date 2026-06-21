@@ -557,7 +557,7 @@ ianvs_readline_probe() {
   );
 
   test(
-    'real PTY vi after ls enters alternate screen instead of command block live output',
+    'real PTY vi after ls stays in command block live terminal output',
     () async {
       final libraryPath = _workspaceCoreLibraryPath!;
       final backend = NativePtyBackend.fromBindings(
@@ -635,9 +635,10 @@ ianvs_readline_probe() {
       expect(
         shellCommandBlocksShouldUseNativeTerminal(
           modes: harness.frameModes,
-          nativeTerminalBlockId: running.id,
+          nativeTerminalBlockId: null,
+          runningBlockId: running.id,
         ),
-        isTrue,
+        isFalse,
       );
 
       harness.writeInput('ZQ');

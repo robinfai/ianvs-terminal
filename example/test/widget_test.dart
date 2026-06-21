@@ -7683,9 +7683,17 @@ void main() {
   });
 
   testWidgets(
-    'running command block uses native terminal and disables command input',
+    'running command block embeds live terminal and disables command input',
     (tester) async {
       final fakeBindings = FakePtyBackend();
+      final liveTerminalViewport = find.byWidgetPredicate(
+        (widget) =>
+            widget is TerminalViewport &&
+            widget.key is ValueKey<String> &&
+            ((widget.key! as ValueKey<String>).value).startsWith(
+              'shell-command-block-live-terminal-viewport-',
+            ),
+      );
 
       await _pumpShellScreen(
         tester,
@@ -7713,20 +7721,44 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
 
       expect(find.byKey(const Key('shell-launch-hero')), findsNothing);
-      expect(find.byType(TerminalViewport), findsOneWidget);
-      expect(find.byKey(const Key('shell-command-input-bar')), findsNothing);
-      expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
-      expect(find.text('vi public.key'), findsNothing);
-      expect(find.text('running'), findsNothing);
-      expect(find.text('Live terminal'), findsNothing);
-      expect(find.byTooltip('Block info'), findsNothing);
+      expect(find.byType(TerminalViewport), findsNWidgets(2));
+      expect(
+        find.byKey(const Key('shell-default-terminal-viewport-1')),
+        findsOneWidget,
+      );
+      expect(liveTerminalViewport, findsOneWidget);
       expect(
         tester
-            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .widget<Opacity>(
+              find.byKey(const Key('shell-default-terminal-opacity-1')),
+            )
+            .opacity,
+        0,
+      );
+      expect(find.byKey(const Key('shell-command-input-bar')), findsNothing);
+      expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+      expect(find.text('vi public.key'), findsOneWidget);
+      expect(find.byTooltip('Block info'), findsOneWidget);
+      expect(
+        tester
+            .widget<TerminalViewport>(liveTerminalViewport)
             .focusNode
             ?.hasFocus,
         isTrue,
       );
+      expect(
+        tester
+            .widget<TerminalViewport>(
+              find.byKey(const Key('shell-default-terminal-viewport-1')),
+            )
+            .focusNode,
+        isNull,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, equals(const [0x0d]));
 
       fakeBindings.setFrame(
         1,
@@ -7743,12 +7775,18 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 40));
 
-      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(find.byType(TerminalViewport), findsNWidgets(2));
+      expect(liveTerminalViewport, findsOneWidget);
       expect(find.byKey(const Key('shell-command-input-bar')), findsNothing);
-      expect(find.text('vi public.key'), findsNothing);
-      expect(find.text('running'), findsNothing);
-      expect(find.text('Live terminal'), findsNothing);
-      expect(find.byTooltip('Block info'), findsNothing);
+      expect(find.text('vi public.key'), findsOneWidget);
+      expect(find.byTooltip('Block info'), findsOneWidget);
+      expect(
+        tester
+            .widget<TerminalViewport>(liveTerminalViewport)
+            .focusNode
+            ?.hasFocus,
+        isTrue,
+      );
     },
   );
 

@@ -75,7 +75,7 @@ void main() {
       expect(viewModel.blocks.single.bookmarked, isTrue);
     });
 
-    test('routes running blocks through native terminal output', () {
+    test('keeps running blocks in command block live terminal output', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [
           _commandBlock(
@@ -99,14 +99,14 @@ void main() {
         viewModel: viewModel,
         modes: terminal.TerminalFrameModes.empty,
       );
-      expect(nativeTerminalBlockId, viewModel.blocks.single.id);
+      expect(nativeTerminalBlockId, isNull);
       expect(
         shellCommandBlocksShouldRenderOverlay(
           viewModel: viewModel,
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         shellCommandBlocksShouldEmbedLiveTerminal(
@@ -114,7 +114,7 @@ void main() {
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         shellCommandBlocksShouldHideDefaultTerminal(
@@ -123,13 +123,14 @@ void main() {
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         shellCommandInputVisibleForCommandBlocks(
           flags: _enabledFlags(),
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
+          runningBlockId: viewModel.blocks.single.id,
         ),
         isFalse,
       );
@@ -213,10 +214,20 @@ void main() {
           ),
           isFalse,
         );
+        expect(
+          shellCommandBlocksShouldShowLaunchHero(
+            flags: _enabledFlags(),
+            viewModel: viewModel,
+            modes: const terminal.TerminalFrameModes(alternateScreen: true),
+            nativeTerminalBlockId: null,
+            launchHeroDismissed: false,
+          ),
+          isFalse,
+        );
       },
     );
 
-    test('alternate screen switches back to native terminal chrome', () {
+    test('alternate screen stays embedded in command block live terminal', () {
       final viewModel = ShellCommandBlockViewModelBuilder.build(
         blocks: [
           _commandBlock(
@@ -237,13 +248,14 @@ void main() {
         modes: alternateModes,
       );
 
-      expect(nativeTerminalBlockId, viewModel.blocks.single.id);
+      expect(nativeTerminalBlockId, isNull);
       expect(
         shellCommandBlocksShouldUseNativeTerminal(
           modes: alternateModes,
           nativeTerminalBlockId: nativeTerminalBlockId,
+          runningBlockId: viewModel.blocks.single.id,
         ),
-        isTrue,
+        isFalse,
       );
       expect(
         shellCommandBlocksShouldRenderOverlay(
@@ -251,7 +263,7 @@ void main() {
           modes: alternateModes,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         shellCommandBlocksShouldEmbedLiveTerminal(
@@ -259,7 +271,7 @@ void main() {
           modes: alternateModes,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         shellCommandBlocksShouldHideDefaultTerminal(
@@ -268,20 +280,21 @@ void main() {
           modes: alternateModes,
           nativeTerminalBlockId: nativeTerminalBlockId,
         ),
-        isFalse,
+        isTrue,
       );
       expect(
         shellCommandInputVisibleForCommandBlocks(
           flags: _enabledFlags(),
           modes: alternateModes,
           nativeTerminalBlockId: nativeTerminalBlockId,
+          runningBlockId: viewModel.blocks.single.id,
         ),
         isFalse,
       );
     });
 
     test(
-      'leaving alternate screen keeps a running command in native terminal',
+      'leaving alternate screen keeps a running command embedded in its block',
       () {
         final runningViewModel = ShellCommandBlockViewModelBuilder.build(
           blocks: [
@@ -302,13 +315,14 @@ void main() {
           modes: terminal.TerminalFrameModes.empty,
         );
 
-        expect(nativeTerminalBlockId, runningViewModel.blocks.single.id);
+        expect(nativeTerminalBlockId, isNull);
         expect(
           shellCommandBlocksShouldUseNativeTerminal(
             modes: terminal.TerminalFrameModes.empty,
             nativeTerminalBlockId: nativeTerminalBlockId,
+            runningBlockId: runningViewModel.blocks.single.id,
           ),
-          isTrue,
+          isFalse,
         );
         expect(
           shellCommandBlocksShouldRenderOverlay(
@@ -316,7 +330,7 @@ void main() {
             modes: terminal.TerminalFrameModes.empty,
             nativeTerminalBlockId: nativeTerminalBlockId,
           ),
-          isFalse,
+          isTrue,
         );
         expect(
           shellCommandBlocksShouldEmbedLiveTerminal(
@@ -324,7 +338,7 @@ void main() {
             modes: terminal.TerminalFrameModes.empty,
             nativeTerminalBlockId: nativeTerminalBlockId,
           ),
-          isFalse,
+          isTrue,
         );
         expect(
           shellCommandBlocksShouldHideDefaultTerminal(
@@ -333,13 +347,14 @@ void main() {
             modes: terminal.TerminalFrameModes.empty,
             nativeTerminalBlockId: nativeTerminalBlockId,
           ),
-          isFalse,
+          isTrue,
         );
         expect(
           shellCommandInputVisibleForCommandBlocks(
             flags: _enabledFlags(),
             modes: terminal.TerminalFrameModes.empty,
             nativeTerminalBlockId: nativeTerminalBlockId,
+            runningBlockId: runningViewModel.blocks.single.id,
           ),
           isFalse,
         );
@@ -366,6 +381,7 @@ void main() {
         shellCommandBlocksShouldUseNativeTerminal(
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
+          runningBlockId: null,
         ),
         isFalse,
       );
@@ -382,6 +398,7 @@ void main() {
           flags: _enabledFlags(),
           modes: terminal.TerminalFrameModes.empty,
           nativeTerminalBlockId: nativeTerminalBlockId,
+          runningBlockId: null,
         ),
         isTrue,
       );

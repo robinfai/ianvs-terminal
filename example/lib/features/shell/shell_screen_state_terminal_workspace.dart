@@ -30,18 +30,18 @@ String? shellCommandBlocksNativeTerminalBlockIdForRunningBlock({
   required String? runningBlockId,
   required terminal.TerminalFrameModes modes,
 }) {
-  if (runningBlockId == null) {
-    return null;
-  }
-  return runningBlockId;
+  // Running commands stay in the command block's clipped live terminal.
+  return null;
 }
 
 @visibleForTesting
 bool shellCommandBlocksShouldUseNativeTerminal({
   required terminal.TerminalFrameModes modes,
   required String? nativeTerminalBlockId,
+  required String? runningBlockId,
 }) {
-  return modes.alternateScreen || nativeTerminalBlockId != null;
+  return nativeTerminalBlockId != null ||
+      (modes.alternateScreen && runningBlockId == null);
 }
 
 @visibleForTesting
@@ -50,10 +50,12 @@ bool shellCommandBlocksShouldRenderOverlay({
   required terminal.TerminalFrameModes modes,
   required String? nativeTerminalBlockId,
 }) {
+  final runningBlockId = shellCommandBlocksRunningBlockId(viewModel);
   return !viewModel.isEmpty &&
       !shellCommandBlocksShouldUseNativeTerminal(
         modes: modes,
         nativeTerminalBlockId: nativeTerminalBlockId,
+        runningBlockId: runningBlockId,
       );
 }
 
@@ -66,6 +68,7 @@ bool shellCommandBlocksShouldEmbedLiveTerminal({
   if (shellCommandBlocksShouldUseNativeTerminal(
     modes: modes,
     nativeTerminalBlockId: nativeTerminalBlockId,
+    runningBlockId: shellCommandBlocksRunningBlockId(viewModel),
   )) {
     return false;
   }
@@ -79,11 +82,13 @@ bool shellCommandBlocksShouldHideDefaultTerminal({
   required terminal.TerminalFrameModes modes,
   required String? nativeTerminalBlockId,
 }) {
+  final runningBlockId = shellCommandBlocksRunningBlockId(viewModel);
   return hideWhenVisible &&
       !viewModel.isEmpty &&
       !shellCommandBlocksShouldUseNativeTerminal(
         modes: modes,
         nativeTerminalBlockId: nativeTerminalBlockId,
+        runningBlockId: runningBlockId,
       );
 }
 
@@ -102,6 +107,7 @@ bool shellCommandBlocksShouldShowLaunchHero({
       !shellCommandBlocksShouldUseNativeTerminal(
         modes: modes,
         nativeTerminalBlockId: nativeTerminalBlockId,
+        runningBlockId: null,
       );
 }
 
@@ -110,12 +116,15 @@ bool shellCommandInputVisibleForCommandBlocks({
   required CommandBlocksHistoryFeatureFlags flags,
   required terminal.TerminalFrameModes modes,
   required String? nativeTerminalBlockId,
+  required String? runningBlockId,
 }) {
   return flags.enabled &&
       flags.commandBlocks &&
+      runningBlockId == null &&
       !shellCommandBlocksShouldUseNativeTerminal(
         modes: modes,
         nativeTerminalBlockId: nativeTerminalBlockId,
+        runningBlockId: runningBlockId,
       );
 }
 
@@ -510,14 +519,17 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         .read(sessionControllerProvider.notifier)
         .viewportFor(sessionId)
         .frame;
+    final runningBlockId = _runningCommandBlockIdForSession(sessionId);
     final nativeTerminalBlockId = _syncNativeTerminalCommandBlockIdForSession(
       sessionId,
       frame.modes,
+      runningBlockId: runningBlockId,
     );
     return shellCommandInputVisibleForCommandBlocks(
       flags: _commandBlocksHistoryFeatureFlags,
       modes: frame.modes,
       nativeTerminalBlockId: nativeTerminalBlockId,
+      runningBlockId: runningBlockId,
     );
   }
 
@@ -943,13 +955,14 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                   viewportCols: frame.viewportCols,
                   activeBlockId: _activeCommandBlockIdForSession(sessionId),
                 );
+            final runningBlockId = shellCommandBlocksRunningBlockId(
+              commandBlocksViewModel,
+            );
             final nativeTerminalBlockId =
                 _syncNativeTerminalCommandBlockIdForSession(
                   sessionId,
                   frame.modes,
-                  runningBlockId: shellCommandBlocksRunningBlockId(
-                    commandBlocksViewModel,
-                  ),
+                  runningBlockId: runningBlockId,
                 );
             final renderCommandBlocksOverlay =
                 shellCommandBlocksShouldRenderOverlay(
@@ -1004,21 +1017,33 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                     Positioned.fill(
                       child: Stack(
                         children: [
-                          if (hideDefaultTerminal)
-                            Positioned.fill(
-                              child: ColoredBox(
-                                color: terminalColors.canvasBackground,
-                              ),
-                            )
-                          else
-                            Positioned.fill(
-                              child: buildSessionTerminalViewport(
-                                terminalFocusNode: focusNode,
-                                contentPadding: terminalViewportPadding,
-                                onMeasuredCellSizeChanged:
-                                    handleMeasuredCellSizeChanged,
+                          Positioned.fill(
+                            child: ColoredBox(
+                              color: terminalColors.canvasBackground,
+                            ),
+                          ),
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              ignoring: hideDefaultTerminal,
+                              child: Opacity(
+                                key: Key(
+                                  'shell-default-terminal-opacity-$sessionId',
+                                ),
+                                opacity: hideDefaultTerminal ? 0 : 1,
+                                child: buildSessionTerminalViewport(
+                                  key: Key(
+                                    'shell-default-terminal-viewport-$sessionId',
+                                  ),
+                                  terminalFocusNode: hideDefaultTerminal
+                                      ? null
+                                      : focusNode,
+                                  contentPadding: terminalViewportPadding,
+                                  onMeasuredCellSizeChanged:
+                                      handleMeasuredCellSizeChanged,
+                                ),
                               ),
                             ),
+                          ),
                           if (renderCommandBlocksOverlay)
                             Positioned.fill(
                               child: ShellCommandBlocksOverlay(
@@ -1041,11 +1066,11 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                           'shell-command-block-live-terminal-'
                                           'viewport-${block.id}',
                                         ),
-                                        contentPadding: EdgeInsets.zero,
-                                        onMeasuredCellSizeChanged:
-                                            hideDefaultTerminal
-                                            ? handleMeasuredCellSizeChanged
+                                        terminalFocusNode:
+                                            block.id == runningBlockId
+                                            ? focusNode
                                             : null,
+                                        contentPadding: EdgeInsets.zero,
                                       )
                                     : null,
                                 onOpenBlockActions: (block, anchorRect) =>
