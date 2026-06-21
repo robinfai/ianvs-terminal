@@ -18,6 +18,15 @@ void main() {
       expect(result.isCommand, isTrue);
     });
 
+    test('classifies shell builtins with plain arguments as command input', () {
+      const classifier = UniversalInputClassifier();
+
+      final result = classifier.classify('printf RETEST_LOCAL2');
+
+      expect(result.kind, UniversalInputKind.command);
+      expect(result.source, UniversalInputDecisionSource.commandVocabulary);
+    });
+
     test('classifies English task text as natural language', () {
       const classifier = UniversalInputClassifier();
 

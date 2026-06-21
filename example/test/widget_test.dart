@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Tristate;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -252,13 +253,26 @@ Future<void> _invokeNativeWindowBridge(
   WidgetTester tester,
   MethodCall call,
 ) async {
+  await _invokeNativeWindowBridgeResult<Object?>(tester, call);
+}
+
+Future<T?> _invokeNativeWindowBridgeResult<T>(
+  WidgetTester tester,
+  MethodCall call,
+) async {
   final codec = const StandardMethodCodec();
+  final completer = Completer<T?>();
   await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
     'app/window_bridge',
     codec.encodeMethodCall(call),
-    (_) {},
+    (data) {
+      completer.complete(
+        data == null ? null : codec.decodeEnvelope(data) as T?,
+      );
+    },
   );
   await tester.pumpAndSettle();
+  return completer.future;
 }
 
 Future<void> _openTabContextMenu(
@@ -356,6 +370,24 @@ void _expectSelectedTab(WidgetTester tester, String sessionId) {
   expect(
     tester.getSemantics(find.bySemanticsIdentifier('shell-tab-$sessionId')),
     matchesSemantics(hasSelectedState: true, isSelected: true, isButton: true),
+  );
+}
+
+void _expectPaneSelection(
+  WidgetTester tester,
+  String sessionId, {
+  required bool selected,
+}) {
+  final node = tester.getSemantics(find.byKey(Key('shell-pane-$sessionId')));
+  expect(
+    node.label,
+    selected
+        ? 'Active terminal pane $sessionId'
+        : 'Inactive terminal pane $sessionId',
+  );
+  expect(
+    node.flagsCollection.isSelected,
+    selected ? Tristate.isTrue : Tristate.isFalse,
   );
 }
 
@@ -545,6 +577,8 @@ void main() {
       expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
       expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
       expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+      _expectPaneSelection(tester, '1', selected: false);
+      _expectPaneSelection(tester, '2', selected: true);
       expect(fakeBindings.writes, isEmpty);
     },
   );
@@ -5212,6 +5246,310 @@ void main() {
     );
   });
 
+  testWidgets('command input submits detected shell commands from auto mode', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    final commandInput = find.byKey(const Key('shell-command-input-field'));
+    await tester.tap(commandInput);
+    await tester.pumpAndSettle();
+    await tester.enterText(commandInput, 'printf RETEST_LOCAL2');
+    await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shell-command-input-bar')),
+        matching: find.text('Auto detected command'),
+      ),
+      findsOneWidget,
+    );
+
+    await _sendEnterAndPump(tester);
+
+    expect(fakeBindings.writes, [utf8.encode('printf RETEST_LOCAL2\n')]);
+    expect(tester.widget<TextField>(commandInput).controller!.text, isEmpty);
+
+    await tester.tap(commandInput);
+    await tester.pumpAndSettle();
+    await tester.enterText(commandInput, 'printf RETEST_BUTTON');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('shell-command-run-button')));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(fakeBindings.writes, [
+      utf8.encode('printf RETEST_LOCAL2\n'),
+      utf8.encode('printf RETEST_BUTTON\n'),
+    ]);
+    expect(tester.widget<TextField>(commandInput).controller!.text, isEmpty);
+  });
+
+  testWidgets('command input slash token opens help slash command', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    final commandInput = find.byKey(const Key('shell-command-input-field'));
+    await tester.tap(commandInput);
+    await tester.pumpAndSettle();
+    await tester.enterText(commandInput, '/help');
+    final helpOption = find.text('/help').last;
+    await _pumpUntilFound(tester, helpOption);
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(helpOption, findsOneWidget);
+
+    await tester.tap(helpOption);
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(
+      tester.widget<TextField>(commandInput).controller!.text,
+      'man zshbuiltins',
+    );
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command input slash selection removes token when cursor moved', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    final commandInput = find.byKey(const Key('shell-command-input-field'));
+    await tester.tap(commandInput);
+    await tester.pumpAndSettle();
+    await tester.enterText(commandInput, '/help');
+    final controller = tester.widget<TextField>(commandInput).controller!;
+    controller.selection = const TextSelection.collapsed(offset: 0);
+    final helpOption = find.text('/help').last;
+    await _pumpUntilFound(tester, helpOption);
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(helpOption, findsOneWidget);
+
+    await tester.tap(helpOption);
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(controller.text, 'man zshbuiltins');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command input slash selection collapses repeated residue', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    final commandInput = find.byKey(const Key('shell-command-input-field'));
+    await tester.tap(commandInput);
+    await tester.pumpAndSettle();
+    final controller = tester.widget<TextField>(commandInput).controller!;
+    controller.value = const TextEditingValue(
+      text: 'man zshbuiltins/help man zshbuiltins',
+      selection: TextSelection.collapsed(offset: 18),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('shell-command-input-slash')));
+    await tester.pumpAndSettle();
+    final helpOption = find.text('/help').last;
+    expect(helpOption, findsOneWidget);
+
+    await tester.tap(helpOption);
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(controller.text, 'man zshbuiltins');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command input slash selection cleans repeated slash suffixes', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 800);
+    addTearDown(tester.view.resetPhysicalSize);
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+    );
+
+    final commandInput = find.byKey(const Key('shell-command-input-field'));
+    await tester.tap(commandInput);
+    await tester.pumpAndSettle();
+    final controller = tester.widget<TextField>(commandInput).controller!;
+    controller.value = const TextEditingValue(
+      text: 'man zshbuiltins/help/help',
+      selection: TextSelection.collapsed(offset: 25),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('shell-command-input-slash')));
+    await tester.pumpAndSettle();
+    final helpOption = find.text('/help').last;
+    expect(helpOption, findsOneWidget);
+
+    await tester.tap(helpOption);
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(controller.text, 'man zshbuiltins');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command center theme picker search opens defaults dialog', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'theme picker',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command center defaults search opens defaults dialog', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'defaults',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command center default query opens defaults, not new tab', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'default',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
+    expect(find.textContaining('Command 2'), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('command center profile query opens profiles sheet', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'profile',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('profiles-sheet')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
+    expect(find.textContaining('Command 2'), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets('command search view block selects the matching command block', (
     tester,
   ) async {
@@ -6752,6 +7090,104 @@ void main() {
         windowBridgeCalls.map((call) => call.method),
         contains('requestQuitConfirmation'),
       );
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'command-q is swallowed while the command center is open',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final windowBridgeCalls = <MethodCall>[];
+      const channel = MethodChannel('app/window_bridge');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        windowBridgeCalls.add(call);
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyQ);
+
+      expect(find.text('Command Center'), findsOneWidget);
+      expect(
+        windowBridgeCalls.map((call) => call.method),
+        isNot(contains('requestQuitConfirmation')),
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'native window close dismisses the command center first',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      expect(find.text('Command Center'), findsOneWidget);
+
+      final consumed = await _invokeNativeWindowBridgeResult<bool>(
+        tester,
+        const MethodCall('nativeWindowCloseRequested'),
+      );
+
+      expect(consumed, isTrue);
+      expect(find.text('Command Center'), findsNothing);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'native quit request dismisses the command center first',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      expect(find.text('Command Center'), findsOneWidget);
+
+      final consumed = await _invokeNativeWindowBridgeResult<bool>(
+        tester,
+        const MethodCall('nativeQuitRequested'),
+      );
+
+      expect(consumed, isTrue);
+      expect(find.text('Command Center'), findsNothing);
+      expect(find.byType(TerminalViewport), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),

@@ -221,6 +221,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       String? shortcutLabel,
       VoidCallback? onTap,
     }) {
+      if (_commandMenuActionSuppressedForQuery(actionId, _query)) {
+        return const SizedBox.shrink();
+      }
       if (!_commandMenuActionMatchesQuery(
         actionId,
         _query,
@@ -941,10 +944,33 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry('hotkey window summon hide shell', TerminalActionId.hotkeyWindow),
 ];
 
+const _commandMenuExactQueryActions = <MapEntry<String, TerminalActionId>>[
+  MapEntry('default', TerminalActionId.defaults),
+  MapEntry('defaults', TerminalActionId.defaults),
+  MapEntry('default profile', TerminalActionId.defaults),
+  MapEntry('defaults appearance', TerminalActionId.defaults),
+  MapEntry('appearance', TerminalActionId.defaults),
+  MapEntry('theme', TerminalActionId.openThemePicker),
+  MapEntry('theme picker', TerminalActionId.openThemePicker),
+  MapEntry('terminal color presets', TerminalActionId.openThemePicker),
+  MapEntry('color presets', TerminalActionId.openThemePicker),
+  MapEntry('colors', TerminalActionId.openThemePicker),
+  MapEntry('presets', TerminalActionId.openThemePicker),
+  MapEntry('profile', TerminalActionId.profiles),
+  MapEntry('profiles', TerminalActionId.profiles),
+  MapEntry('profile settings', TerminalActionId.profiles),
+  MapEntry('new tab', TerminalActionId.newTab),
+];
+
 TerminalActionId? _commandMenuActionForQuery(String query) {
   final normalized = _normalizeCommandMenuQuery(query);
   if (normalized.isEmpty) {
     return null;
+  }
+  for (final entry in _commandMenuExactQueryActions) {
+    if (normalized == entry.key) {
+      return entry.value;
+    }
   }
   for (final entry in _commandMenuActionSearchEntries) {
     if (_commandMenuQueryMatches(entry.key, normalized)) {
@@ -978,6 +1004,46 @@ bool _commandMenuActionMatchesQuery(
       .any((entry) => _commandMenuQueryMatches(entry, normalized));
 }
 
+bool _commandMenuActionSuppressedForQuery(
+  TerminalActionId actionId,
+  String query,
+) {
+  final normalized = _normalizeCommandMenuQuery(query);
+  if (normalized.isEmpty) {
+    return false;
+  }
+  final tokens = normalized.split(' ').toSet();
+  final newTabRequested = tokens.contains('new') || tokens.contains('tab');
+  final profilesRequested =
+      tokens.contains('profile') || tokens.contains('profiles');
+  final defaultsRequested =
+      tokens.contains('default') ||
+      tokens.contains('defaults') ||
+      tokens.contains('appearance');
+  final themeRequested =
+      tokens.contains('theme') ||
+      tokens.contains('color') ||
+      tokens.contains('colors') ||
+      tokens.contains('preset') ||
+      tokens.contains('presets');
+
+  if (!newTabRequested &&
+      actionId == TerminalActionId.newTab &&
+      (defaultsRequested || profilesRequested || themeRequested)) {
+    return true;
+  }
+  if (profilesRequested &&
+      !defaultsRequested &&
+      !themeRequested &&
+      actionId == TerminalActionId.defaults) {
+    return true;
+  }
+  if (themeRequested && actionId == TerminalActionId.defaults) {
+    return true;
+  }
+  return false;
+}
+
 bool _commandMenuQueryMatches(String candidate, String query) {
   final normalizedCandidate = _normalizeCommandMenuQuery(candidate);
   final normalizedQuery = _normalizeCommandMenuQuery(query);
@@ -987,8 +1053,7 @@ bool _commandMenuQueryMatches(String candidate, String query) {
   if (normalizedCandidate.isEmpty) {
     return false;
   }
-  if (normalizedCandidate.contains(normalizedQuery) ||
-      normalizedQuery.contains(normalizedCandidate)) {
+  if (normalizedCandidate.contains(normalizedQuery)) {
     return true;
   }
 
@@ -997,9 +1062,7 @@ bool _commandMenuQueryMatches(String candidate, String query) {
       .split(' ')
       .every(
         (queryToken) => candidateTokens.any(
-          (candidateToken) =>
-              candidateToken.contains(queryToken) ||
-              queryToken.contains(candidateToken),
+          (candidateToken) => candidateToken.contains(queryToken),
         ),
       );
 }
@@ -1143,7 +1206,7 @@ class _ShellCommandTile extends StatelessWidget {
     final effectiveSubtitle = enabled
         ? subtitle
         : 'Unavailable: ${disabledReason ?? 'Unavailable in the current context.'}';
-    return ListTile(
+    final tile = ListTile(
       dense: true,
       visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1),
@@ -1179,6 +1242,14 @@ class _ShellCommandTile extends StatelessWidget {
             ),
       enabled: enabled,
       onTap: enabled ? onTap : null,
+    );
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        enabled: enabled,
+        onTap: enabled ? onTap : null,
+        child: tile,
+      ),
     );
   }
 }

@@ -87,6 +87,60 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     return 'none';
   }
 
+  bool get _shellOverlayOpenForQuitShortcutGuard {
+    return _isCommandMenuOpen ||
+        _isDefaultsOpen ||
+        _isProfilesOpen ||
+        _isCommandSearchOpen ||
+        _isCommandActionSearchOpen ||
+        _isAutocompleteOpen ||
+        _isAutoComposerOpen;
+  }
+
+  Future<bool> _handleNativeWindowCloseRequest() async {
+    if (!mounted) {
+      return false;
+    }
+    if (_isCommandMenuOpen || _isDefaultsOpen || _isProfilesOpen) {
+      final didPop = await Navigator.of(
+        context,
+        rootNavigator: true,
+      ).maybePop();
+      if (didPop) {
+        return true;
+      }
+    }
+    if (_isCommandSearchOpen) {
+      _closeCommandSearch(preferCommandInput: true);
+      return true;
+    }
+    if (_isCommandActionSearchOpen) {
+      _closeCommandActionSearch();
+      return true;
+    }
+    if (_isSearchOpen) {
+      _closeSearch();
+      return true;
+    }
+    if (_isAutocompleteOpen) {
+      _closeAutocomplete();
+      return true;
+    }
+    if (_isAutoComposerOpen) {
+      _closeAutoComposer();
+      return true;
+    }
+    if (_isToolbeltOpen) {
+      _closeToolbelt();
+      return true;
+    }
+    if (_instantReplayWorkspaceSession != null) {
+      _closeInstantReplayWorkspace();
+      return true;
+    }
+    return false;
+  }
+
   void _publishAcceptanceSnapshot([SessionState? state]) {
     final SessionState snapshotState =
         state ?? ref.read(sessionControllerProvider);

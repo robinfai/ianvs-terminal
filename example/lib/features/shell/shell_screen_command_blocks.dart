@@ -1698,6 +1698,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                           icon: Icons.alternate_email_rounded,
                           options: widget.contextOptions,
                           palette: palette,
+                          menuOffset: const Offset(180, 0),
                           onSelected: _handleContextSelected,
                         ),
                         _UniversalInputToolMenuButton(
@@ -1707,6 +1708,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                           icon: Icons.bolt_rounded,
                           options: _universalInputSlashCommandOptions,
                           palette: palette,
+                          menuOffset: const Offset(180, 0),
                           onSelected: _handleSlashCommandSelected,
                         ),
                         _buildCompactActionButton(
@@ -1958,7 +1960,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
     if (_removeUniversalInputInlineTrigger(widget.controller, '/')) {
       widget.onChanged?.call(widget.controller.text);
     }
-    _insertSnippet(value);
+    _insertSlashSnippet(value);
   }
 
   void _handleModelSelected(String value) {
@@ -1985,6 +1987,70 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
       _activeSuggestionIndex = 0;
     });
     _restoreTextInputFocus();
+  }
+
+  void _insertSlashSnippet(String snippet) {
+    final currentText = _withoutSlashCommandResidue(
+      widget.controller.text,
+    ).trimRight();
+    if (currentText.isEmpty || _isRepeatedSnippet(currentText, snippet)) {
+      widget.controller.value = TextEditingValue(
+        text: snippet,
+        selection: TextSelection.collapsed(offset: snippet.length),
+        composing: TextRange.empty,
+      );
+      widget.onChanged?.call(snippet);
+      setState(() {
+        _activeSuggestionIndex = 0;
+      });
+      _restoreTextInputFocus();
+      return;
+    }
+    if (currentText != widget.controller.text.trimRight()) {
+      widget.controller.value = TextEditingValue(
+        text: currentText,
+        selection: TextSelection.collapsed(offset: currentText.length),
+        composing: TextRange.empty,
+      );
+    }
+    _insertSnippet(snippet);
+  }
+
+  String _withoutSlashCommandResidue(String text) {
+    final cleanedTokens = <String>[];
+    for (final token in text.trim().split(RegExp(r'\s+'))) {
+      var cleaned = token;
+      while (cleaned.isNotEmpty) {
+        final range = _universalInputSlashCommandRangeInToken(cleaned, 0);
+        if (range == null) {
+          break;
+        }
+        cleaned = cleaned.replaceRange(range.start, range.end, '');
+      }
+      if (cleaned.isNotEmpty) {
+        cleanedTokens.add(cleaned);
+      }
+    }
+    return cleanedTokens.join(' ');
+  }
+
+  bool _isRepeatedSnippet(String text, String snippet) {
+    final normalizedText = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    final normalizedSnippet = snippet.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalizedSnippet.isEmpty) {
+      return false;
+    }
+    var remaining = normalizedText;
+    var matched = false;
+    while (remaining == normalizedSnippet ||
+        remaining.startsWith('$normalizedSnippet ')) {
+      matched = true;
+      if (remaining == normalizedSnippet) {
+        return true;
+      }
+      remaining = remaining.substring(normalizedSnippet.length).trimLeft();
+    }
+    return matched && remaining.isEmpty;
   }
 
   void _sendAgentMessage(String value) {

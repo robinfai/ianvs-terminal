@@ -10,8 +10,12 @@ class WindowBridge {
     Future<void> Function()? onPaste,
     Future<void> Function(NativeFindAction action)? onFind,
     Future<void> Function()? onCommandSearch,
+    Future<bool> Function()? onWindowCloseRequested,
   }) {
-    if (onPaste == null && onFind == null && onCommandSearch == null) {
+    if (onPaste == null &&
+        onFind == null &&
+        onCommandSearch == null &&
+        onWindowCloseRequested == null) {
       _channel.setMethodCallHandler(null);
       return;
     }
@@ -35,6 +39,13 @@ class WindowBridge {
             throw MissingPluginException('No handler for ${call.method}');
           }
           await handler();
+        case 'nativeWindowCloseRequested':
+        case 'nativeQuitRequested':
+          final handler = onWindowCloseRequested;
+          if (handler == null) {
+            return false;
+          }
+          return handler();
         default:
           throw MissingPluginException('No handler for ${call.method}');
       }

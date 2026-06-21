@@ -8,6 +8,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     if (_isDefaultsOpen) {
       return false;
     }
+    _dismissTransientCommandInputUi(includeSearchOverlays: true);
 
     _mutateState(() {
       _isDefaultsOpen = true;
@@ -135,6 +136,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     if (_isProfilesOpen) {
       return;
     }
+    _dismissTransientCommandInputUi(includeSearchOverlays: true);
 
     _mutateState(() {
       _isProfilesOpen = true;

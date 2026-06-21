@@ -30,6 +30,25 @@ extension _ShellScreenStateCommandSearch on _ShellScreenState {
   void _openCommandSearch(String sessionId) {
     _mutateState(() {
       _isToolbeltOpen = false;
+      _isAutocompleteOpen = false;
+      _autocompletePrefix = '';
+      _autocompleteSuggestions = const [];
+      _activeAutocompleteIndex = 0;
+      _isAutoComposerOpen = false;
+      _autoComposerSuggestions = const [];
+      _autoComposerCommandDrafts = const [];
+      _autoComposerCommandDraftText = '';
+      _autoComposerCommandDraftsLoading = false;
+      _activeAutoComposerIndex = 0;
+      _universalInputPinnedContextChips = const [];
+      _autoComposerClassification = UniversalInputClassification.empty(
+        mode: _universalInputMode,
+      );
+      _activeCommandCorrection = null;
+      _activeCommandCorrectionSessionId = null;
+      _isCommandActionSearchOpen = false;
+      _commandActionSearchSessionId = null;
+      _commandActionSearchController = null;
       _isCommandSearchOpen = true;
       _commandSearchSessionId = sessionId;
       _commandSearchOverlayController = _commandSearchShellWiring.controllerFor(

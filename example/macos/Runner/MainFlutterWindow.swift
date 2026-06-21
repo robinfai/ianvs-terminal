@@ -160,6 +160,7 @@ class MainFlutterWindow: NSWindow {
   private var hotkeyWindowController: HotkeyWindowController?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var nativeWindowDragState: NativeWindowDragState?
+  private var pendingNativeWindowCloseRequest = false
 
   static func shouldStartNativeWindowDrag(
     at point: NSPoint,
@@ -389,6 +390,44 @@ class MainFlutterWindow: NSWindow {
         self.makeKeyAndOrderFront(nil)
       }
     }
+  }
+
+  override func close() {
+    guard !pendingNativeWindowCloseRequest, let windowBridgeChannel else {
+      performDefaultClose()
+      return
+    }
+
+    pendingNativeWindowCloseRequest = true
+    windowBridgeChannel.invokeMethod("nativeWindowCloseRequested", arguments: nil) { [weak self] response in
+      DispatchQueue.main.async {
+        guard let self else {
+          return
+        }
+        self.pendingNativeWindowCloseRequest = false
+        if let consumed = response as? Bool, consumed {
+          return
+        }
+        self.performDefaultClose()
+      }
+    }
+  }
+
+  func requestNativeQuitInterception(completion: @escaping (Bool) -> Void) -> Bool {
+    guard let windowBridgeChannel else {
+      return false
+    }
+
+    windowBridgeChannel.invokeMethod("nativeQuitRequested", arguments: nil) { response in
+      DispatchQueue.main.async {
+        completion((response as? Bool) == true)
+      }
+    }
+    return true
+  }
+
+  private func performDefaultClose() {
+    super.close()
   }
 
   private func launchFrameForCurrentEnvironment(_ frame: NSRect) -> NSRect {

@@ -558,6 +558,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       ).showSnackBar(SnackBar(content: Text(conflictReason)));
       return;
     }
+    _dismissTransientCommandInputUi(includeSearchOverlays: true);
     sessionController.splitActiveSession(profile, axis);
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
   }

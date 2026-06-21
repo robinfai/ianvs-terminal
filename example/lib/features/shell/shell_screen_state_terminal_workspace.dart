@@ -691,8 +691,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
       profile: profile,
     );
 
-    return LayoutBuilder(
-      key: Key('shell-pane-$sessionId'),
+    final paneBody = LayoutBuilder(
       builder: (context, constraints) {
         final viewportSize = _terminalContentSizeFor(
           constraints,
@@ -1197,6 +1196,16 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           },
         );
       },
+    );
+    return Semantics(
+      key: Key('shell-pane-$sessionId'),
+      container: true,
+      explicitChildNodes: true,
+      label: isActive
+          ? 'Active terminal pane $sessionId'
+          : 'Inactive terminal pane $sessionId',
+      selected: isActive,
+      child: paneBody,
     );
   }
 }

@@ -41,6 +41,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (_isCommandMenuOpen) {
       return;
     }
+    _dismissTransientCommandInputUi(includeSearchOverlays: true);
 
     _mutateState(() {
       _isCommandMenuOpen = true;
@@ -191,6 +192,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (!mounted) {
       return;
     }
+    _dismissTransientCommandInputUi(includeSearchOverlays: true);
 
     final currentState = ref.read(sessionControllerProvider);
     final currentSessionId = currentState.activeSessionId;
@@ -1127,6 +1129,32 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
         activeSessionIdAfterClose: currentSessionId,
       );
+      return;
+    }
+    if (action == TerminalActionId.defaults ||
+        action == TerminalActionId.openDefaults ||
+        action == TerminalActionId.openThemePicker) {
+      final opened = await _openDefaultsAndAppearance(
+        sessionController,
+        currentState,
+      );
+      if (!opened && mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Defaults & appearance could not open.'),
+            ),
+          );
+      }
+      return;
+    }
+    if (action == TerminalActionId.profiles) {
+      await _openProfilesSheet(sessionController, currentState);
+      return;
+    }
+    if (action == TerminalActionId.dynamicProfiles) {
+      await _openDynamicProfiles(sessionController);
       return;
     }
     final result = await _executeProductionActionIfBound(

@@ -972,6 +972,7 @@ const _knownShellCommands = <String>{
   'node',
   'npm',
   'pnpm',
+  'printf',
   'pwd',
   'python',
   'python3',

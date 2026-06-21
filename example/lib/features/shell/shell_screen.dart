@@ -302,6 +302,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       onPaste: _handleNativePasteMenu,
       onFind: _handleNativeFindMenu,
       onCommandSearch: _handleNativeCommandSearchMenu,
+      onWindowCloseRequested: _handleNativeWindowCloseRequest,
     );
     _completionDiagnosticsSnapshot =
         const LocalTerminalPendingCompletionSnapshotFactory(
@@ -487,6 +488,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           (_commandInputFocusNodes[activeSessionId]?.hasFocus ?? false);
       if (commandInputHasFocus && shortcut.action == TerminalActionId.paste) {
         return KeyEventResult.ignored;
+      }
+
+      if (shortcut.action == TerminalActionId.requestQuitConfirmation &&
+          _shellOverlayOpenForQuitShortcutGuard) {
+        if (event is! KeyRepeatEvent) {
+          _dismissTransientCommandInputUi(includeSearchOverlays: true);
+        }
+        return KeyEventResult.handled;
       }
 
       if (shortcut.action == TerminalActionId.requestQuitConfirmation) {

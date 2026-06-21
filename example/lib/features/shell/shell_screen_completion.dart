@@ -1051,6 +1051,7 @@ class _UniversalInputToolMenuButton extends StatelessWidget {
     required this.options,
     required this.palette,
     required this.onSelected,
+    this.menuOffset = Offset.zero,
   });
 
   final GlobalKey<PopupMenuButtonState<String>>? menuButtonKey;
@@ -1059,6 +1060,7 @@ class _UniversalInputToolMenuButton extends StatelessWidget {
   final List<UniversalInputToolOption> options;
   final AppThemeTokens palette;
   final ValueChanged<String> onSelected;
+  final Offset menuOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -1073,6 +1075,7 @@ class _UniversalInputToolMenuButton extends StatelessWidget {
           key: menuButtonKey,
           tooltip: tooltip,
           padding: EdgeInsets.zero,
+          offset: menuOffset,
           splashRadius: 16,
           iconSize: 17,
           color: palette.overlay,
@@ -1365,11 +1368,13 @@ _UniversalInputInlineTrigger? _universalInputInlineTriggerFor(
     return null;
   }
   final token = text.substring(tokenRange.start, tokenRange.end);
-  return switch (token) {
-    '@' => _UniversalInputInlineTrigger.context,
-    '/' => _UniversalInputInlineTrigger.slash,
-    _ => null,
-  };
+  if (token == '@') {
+    return _UniversalInputInlineTrigger.context;
+  }
+  if (_isUniversalInputSlashCommandToken(token)) {
+    return _UniversalInputInlineTrigger.slash;
+  }
+  return null;
 }
 
 TextRange? _universalInputCurrentTokenRange(String text, int cursor) {
@@ -1403,15 +1408,30 @@ bool _removeUniversalInputInlineTrigger(
   if (!selection.isValid || !selection.isCollapsed) {
     return false;
   }
-  final tokenRange = _universalInputCurrentTokenRange(
+  var tokenRange = _universalInputCurrentTokenRange(
     controller.text,
     selection.baseOffset,
   );
   if (tokenRange == null) {
-    return false;
+    tokenRange = trigger == '/'
+        ? _lastUniversalInputSlashCommandTokenRange(controller.text)
+        : null;
+    if (tokenRange == null) {
+      return false;
+    }
   }
-  final token = controller.text.substring(tokenRange.start, tokenRange.end);
-  if (token != trigger) {
+  var token = controller.text.substring(tokenRange.start, tokenRange.end);
+  if (trigger == '/') {
+    if (!_isUniversalInputSlashCommandToken(token)) {
+      tokenRange =
+          _universalInputSlashCommandRangeInToken(token, tokenRange.start) ??
+          _lastUniversalInputSlashCommandTokenRange(controller.text);
+      if (tokenRange == null) {
+        return false;
+      }
+      token = controller.text.substring(tokenRange.start, tokenRange.end);
+    }
+  } else if (token != trigger) {
     return false;
   }
   final nextText = controller.text.replaceRange(
@@ -1425,6 +1445,60 @@ bool _removeUniversalInputInlineTrigger(
     composing: TextRange.empty,
   );
   return true;
+}
+
+TextRange? _lastUniversalInputSlashCommandTokenRange(String text) {
+  TextRange? match;
+  var index = 0;
+  while (index < text.length) {
+    while (index < text.length && _universalInputTokenBoundary(text[index])) {
+      index += 1;
+    }
+    final start = index;
+    while (index < text.length && !_universalInputTokenBoundary(text[index])) {
+      index += 1;
+    }
+    if (start == index) {
+      continue;
+    }
+    final token = text.substring(start, index);
+    match = _universalInputSlashCommandRangeInToken(token, start) ?? match;
+  }
+  return match;
+}
+
+TextRange? _universalInputSlashCommandRangeInToken(
+  String token,
+  int tokenStart,
+) {
+  if (_isUniversalInputSlashCommandToken(token)) {
+    return TextRange(start: tokenStart, end: tokenStart + token.length);
+  }
+  final slashIndex = token.lastIndexOf('/');
+  if (slashIndex <= 0) {
+    return null;
+  }
+  final slashToken = token.substring(slashIndex);
+  if (!_isUniversalInputSlashCommandToken(slashToken)) {
+    return null;
+  }
+  return TextRange(
+    start: tokenStart + slashIndex,
+    end: tokenStart + token.length,
+  );
+}
+
+bool _isUniversalInputSlashCommandToken(String token) {
+  if (!token.startsWith('/')) {
+    return false;
+  }
+  if (token.substring(1).contains('/')) {
+    return false;
+  }
+  final normalizedToken = token.toLowerCase();
+  return _universalInputSlashCommandOptions.any(
+    (option) => option.label.toLowerCase().startsWith(normalizedToken),
+  );
 }
 
 void _insertTextAtSelection(

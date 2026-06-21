@@ -72,6 +72,13 @@ class UniversalInputToolOption {
 
 const List<UniversalInputToolOption> _universalInputSlashCommandOptions = [
   UniversalInputToolOption(
+    id: 'help',
+    label: '/help',
+    value: 'man zshbuiltins',
+    icon: Icons.help_outline_rounded,
+    detail: 'Shell builtins manual',
+  ),
+  UniversalInputToolOption(
     id: 'git-status',
     label: '/git-status',
     value: 'git status --short --branch',

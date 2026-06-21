@@ -68,6 +68,24 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    if let window = Self.windowToShowForActivation(
+      from: sender.windows,
+      fallback: mainFlutterWindow
+    ) as? MainFlutterWindow,
+      window.requestNativeQuitInterception(completion: { consumed in
+        if consumed {
+          sender.reply(toApplicationShouldTerminate: false)
+          return
+        }
+        sender.reply(toApplicationShouldTerminate: Self.confirmQuitFromUser())
+      }) {
+      return .terminateLater
+    }
+
+    return Self.confirmQuitFromUser() ? .terminateNow : .terminateCancel
+  }
+
+  private static func confirmQuitFromUser() -> Bool {
     let alert = NSAlert()
     alert.messageText = "Quit Ianvs Terminal?"
     alert.informativeText = "Active shell sessions will be closed."
@@ -76,7 +94,7 @@ class AppDelegate: FlutterAppDelegate {
     _ = alert.addButton(withTitle: "Quit")
     cancelButton.keyEquivalent = "\u{1b}"
 
-    return alert.runModal() == .alertSecondButtonReturn ? .terminateNow : .terminateCancel
+    return alert.runModal() == .alertSecondButtonReturn
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

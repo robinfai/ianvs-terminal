@@ -630,6 +630,50 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     _focusSession(activeSessionId);
   }
 
+  void _dismissTransientCommandInputUi({bool includeSearchOverlays = false}) {
+    final hasTransientState =
+        _isAutocompleteOpen ||
+        _isAutoComposerOpen ||
+        _activeCommandCorrection != null ||
+        _activeCommandCorrectionSessionId != null ||
+        (includeSearchOverlays &&
+            (_isCommandSearchOpen || _isCommandActionSearchOpen));
+    if (!hasTransientState) {
+      return;
+    }
+
+    _figCompletionDebounceTimer?.cancel();
+    _mutateState(() {
+      _isAutocompleteOpen = false;
+      _autocompletePrefix = '';
+      _autocompleteSuggestions = const [];
+      _activeAutocompleteIndex = 0;
+
+      _isAutoComposerOpen = false;
+      _autoComposerSuggestions = const [];
+      _autoComposerCommandDrafts = const [];
+      _autoComposerCommandDraftText = '';
+      _autoComposerCommandDraftsLoading = false;
+      _activeAutoComposerIndex = 0;
+      _universalInputPinnedContextChips = const [];
+      _autoComposerClassification = UniversalInputClassification.empty(
+        mode: _universalInputMode,
+      );
+
+      _activeCommandCorrection = null;
+      _activeCommandCorrectionSessionId = null;
+
+      if (includeSearchOverlays) {
+        _isCommandSearchOpen = false;
+        _commandSearchSessionId = null;
+        _commandSearchOverlayController = null;
+        _isCommandActionSearchOpen = false;
+        _commandActionSearchSessionId = null;
+        _commandActionSearchController = null;
+      }
+    });
+  }
+
   void _updateAutoComposerSuggestions(String text) {
     if (_handleUniversalInputModePrefix(text)) {
       return;

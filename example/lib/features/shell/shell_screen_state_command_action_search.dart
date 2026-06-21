@@ -20,13 +20,21 @@ extension _ShellScreenStateCommandActionSearch on _ShellScreenState {
       _commandSearchSessionId = null;
       _commandSearchOverlayController = null;
       _isAutocompleteOpen = false;
+      _autocompletePrefix = '';
+      _autocompleteSuggestions = const [];
+      _activeAutocompleteIndex = 0;
       _isAutoComposerOpen = false;
       _autoComposerSuggestions = const [];
+      _autoComposerCommandDrafts = const [];
+      _autoComposerCommandDraftText = '';
+      _autoComposerCommandDraftsLoading = false;
       _activeAutoComposerIndex = 0;
       _universalInputPinnedContextChips = const [];
       _autoComposerClassification = UniversalInputClassification.empty(
         mode: _universalInputMode,
       );
+      _activeCommandCorrection = null;
+      _activeCommandCorrectionSessionId = null;
       _commandActionSearchController = _buildCommandActionSearchController(
         sessionId,
       );
