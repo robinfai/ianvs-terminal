@@ -1,83 +1,6 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateContextChips on _ShellScreenState {
-  ContextChipState _contextChipsForPane({
-    required SessionState sessionState,
-    required TerminalPane pane,
-    required TerminalProfile? profile,
-  }) {
-    final cwd =
-        _commandCenterRuntime.cwdForSession(pane.sessionId) ??
-        pane.shellIntegration.currentDirectory;
-    final chipState = _commandBlockCommandCenterAdapter.contextChipsForSession(
-      snapshot:
-          _commandBlockSnapshotsBySession[pane.sessionId] ??
-          const ShellCommandBlockSnapshot(),
-      sessionId: pane.sessionId,
-      cwd: cwd,
-      profileId: profile?.id ?? pane.profileId,
-      profileName: profile?.name,
-      readOnly: _isSessionReadOnly(pane.sessionId),
-      selectedBlockId: _selectedCommandBlockIdsBySession[pane.sessionId],
-    );
-    return ContextChipState(
-      chips: List<ContextChipModel>.unmodifiable(
-        chipState.chips.where(_showWorkspaceContextChip),
-      ),
-    );
-  }
-
-  bool _showWorkspaceContextChip(ContextChipModel chip) {
-    switch (chip.kind) {
-      case ContextChipKind.lastExit:
-      case ContextChipKind.selectedBlock:
-      case ContextChipKind.readOnly:
-        return true;
-      case ContextChipKind.cwd:
-      case ContextChipKind.profile:
-      case ContextChipKind.shellHook:
-        return false;
-    }
-  }
-
-  void _handleContextChipIntent({
-    required SessionController sessionController,
-    required SessionState sessionState,
-    required String sessionId,
-    required ContextChipClickIntent intent,
-    required Rect anchorRect,
-  }) {
-    switch (intent.kind) {
-      case ContextChipIntentKind.none:
-        return;
-      case ContextChipIntentKind.revealCwd:
-        _showContextChipMessage('CWD: ${intent.cwd ?? 'Unavailable'}');
-      case ContextChipIntentKind.openProfile:
-        unawaited(_openProfilesSheet(sessionController, sessionState));
-      case ContextChipIntentKind.showShellHookDiagnostics:
-        _showContextChipMessage(_shellHookDiagnosticsMessage(intent));
-      case ContextChipIntentKind.navigateToBlock:
-        _navigateToContextChipBlock(
-          sessionController: sessionController,
-          sessionState: sessionState,
-          sessionId: sessionId,
-          blockId: intent.blockId,
-        );
-      case ContextChipIntentKind.openBlockActions:
-        unawaited(
-          _openContextChipBlockActions(
-            sessionController: sessionController,
-            sessionState: sessionState,
-            sessionId: sessionId,
-            blockId: intent.blockId,
-            anchorRect: anchorRect,
-          ),
-        );
-      case ContextChipIntentKind.toggleReadOnly:
-        _toggleReadOnlySession(sessionId);
-    }
-  }
-
   void _navigateToContextChipBlock({
     required SessionController sessionController,
     required SessionState sessionState,
@@ -331,25 +254,6 @@ extension _ShellScreenStateContextChips on _ShellScreenState {
       CommandBlockActionDisabledReason.requiresPastePolicy =>
         'Command block paste requires confirmation.',
       null => 'Command block action is unavailable.',
-    };
-  }
-
-  String _shellHookDiagnosticsMessage(ContextChipClickIntent intent) {
-    return switch (intent.unavailableReason) {
-      null => 'Shell integration is active.',
-      CommandCenterUnavailableReason.shellIntegrationDisabled =>
-        'Shell integration is disabled.',
-      CommandCenterUnavailableReason.unknownHook =>
-        'Shell hook payload is unknown.',
-      CommandCenterUnavailableReason.missingCommand =>
-        'Shell hook command is missing.',
-      CommandCenterUnavailableReason.missingCwd => 'CWD is unavailable.',
-      CommandCenterUnavailableReason.missingLifecycle =>
-        'Command lifecycle is unavailable.',
-      CommandCenterUnavailableReason.missingOutputRange =>
-        'Command output range is unavailable.',
-      CommandCenterUnavailableReason.outOfOrderLifecycle =>
-        'Command lifecycle event order is incomplete.',
     };
   }
 

@@ -521,19 +521,19 @@ void main() {
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
 
     await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
 
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
 
     await _tapCommandMenuAction(tester, const Key('shell-zoom-pane'));
 
     expect(find.byType(TerminalViewport), findsNWidgets(2));
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
   });
 
   testWidgets('hotkey window failure is visible when registration is missing', (

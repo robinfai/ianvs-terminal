@@ -173,6 +173,8 @@ class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
       GlobalKey<PopupMenuButtonState<String>>();
   final GlobalKey<PopupMenuButtonState<String>> _slashMenuKey =
       GlobalKey<PopupMenuButtonState<String>>();
+  String? _dismissedSlashCommandToken;
+  int _activeSlashSuggestionIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -191,13 +193,49 @@ class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
     final modelOptions = widget.modelOptions;
     final palette = widget.palette;
     final onModeChanged = widget.onModeChanged;
-    final onChanged = widget.onChanged;
     final onModelSelected = widget.onModelSelected;
     final onPrevious = widget.onPrevious;
     final onNext = widget.onNext;
     final onAcceptSuggestion = widget.onAcceptSuggestion;
     final onSend = widget.onSend;
     final onClose = widget.onClose;
+    final slashCommandToken = _universalInputLeadingSlashCommandToken(
+      controller.text,
+      controller.selection,
+    );
+    final hasSlashCommandToken = slashCommandToken != null;
+    final slashCommandsVisible =
+        slashCommandToken != null &&
+        slashCommandToken != _dismissedSlashCommandToken;
+    final slashCommandOptions = slashCommandsVisible
+        ? _universalInputSlashCommandOptionsForToken(slashCommandToken)
+        : const <UniversalInputToolOption>[];
+    final effectiveSuggestions = hasSlashCommandToken
+        ? slashCommandOptions
+              .map((option) => option.label)
+              .toList(growable: false)
+        : suggestions;
+    final effectiveSuggestionDetails = hasSlashCommandToken
+        ? const <String, CommandDraft>{}
+        : suggestionDetails;
+    final toolSuggestionDetails = {
+      for (final option in slashCommandOptions) option.label: option,
+    };
+    final effectiveSuggestionsLoading = hasSlashCommandToken
+        ? false
+        : suggestionsLoading;
+    final effectiveActiveIndex = slashCommandsVisible
+        ? _activeSlashSuggestionIndex
+        : activeIndex;
+    final onEffectivePrevious = slashCommandsVisible
+        ? () => _moveSlashSuggestion(-1, slashCommandOptions.length)
+        : onPrevious;
+    final onEffectiveNext = slashCommandsVisible
+        ? () => _moveSlashSuggestion(1, slashCommandOptions.length)
+        : onNext;
+    final exactSlashCommandActive =
+        slashCommandsVisible &&
+        _isExactUniversalInputSlashCommandToken(slashCommandToken);
     final canSend = controller.text.trimRight().isNotEmpty;
     final accent = _universalInputAccentColor(palette, classification);
     final statusLabel = _universalInputStatusLabel(inputMode, classification);
@@ -326,10 +364,11 @@ class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
                                 inputMode,
                                 classification,
                               ),
-                              suggestions: suggestions,
-                              suggestionDetails: suggestionDetails,
-                              suggestionsLoading: suggestionsLoading,
-                              activeIndex: activeIndex,
+                              suggestions: effectiveSuggestions,
+                              suggestionDetails: effectiveSuggestionDetails,
+                              toolSuggestionDetails: toolSuggestionDetails,
+                              suggestionsLoading: effectiveSuggestionsLoading,
+                              activeIndex: effectiveActiveIndex,
                               palette: palette,
                               textStyle: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
@@ -344,24 +383,28 @@ class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
                                 border: InputBorder.none,
                                 isDense: true,
                               ),
-                              onChanged: onChanged,
-                              onPrevious: onPrevious,
-                              onNext: onNext,
-                              onAcceptSuggestion: onAcceptSuggestion,
+                              onChanged: _handleTextChanged,
+                              onPrevious: onEffectivePrevious,
+                              onNext: onEffectiveNext,
+                              onAcceptSuggestion: slashCommandsVisible
+                                  ? _handleSlashSuggestionAccepted
+                                  : onAcceptSuggestion,
                               onSend: onSend,
                               onContextTrigger: () => _contextMenuKey
                                   .currentState
                                   ?.showButtonMenu(),
-                              onSlashTrigger: () =>
-                                  _slashMenuKey.currentState?.showButtonMenu(),
+                              acceptSuggestionOnEnter: exactSlashCommandActive,
+                              onDismissSuggestions: slashCommandsVisible
+                                  ? _dismissSlashSuggestions
+                                  : null,
                             ),
                           ),
                           _buildCompactActionButton(
                             key: const Key('terminal-auto-composer-previous'),
                             tooltip: 'Previous completion',
-                            onPressed: suggestions.length < 2
+                            onPressed: effectiveSuggestions.length < 2
                                 ? null
-                                : onPrevious,
+                                : onEffectivePrevious,
                             splashRadius: 16,
                             iconSize: 18,
                             icon: const Icon(Icons.keyboard_arrow_up_rounded),
@@ -369,7 +412,9 @@ class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
                           _buildCompactActionButton(
                             key: const Key('terminal-auto-composer-next'),
                             tooltip: 'Next completion',
-                            onPressed: suggestions.length < 2 ? null : onNext,
+                            onPressed: effectiveSuggestions.length < 2
+                                ? null
+                                : onEffectiveNext,
                             splashRadius: 16,
                             iconSize: 18,
                             icon: const Icon(Icons.keyboard_arrow_down_rounded),
@@ -422,10 +467,64 @@ class _TerminalAutoComposerState extends State<_TerminalAutoComposer> {
       widget.onChanged(widget.controller.text);
     }
     widget.onSlashCommandSelected(value);
+    _resetSlashDismissal();
   }
 
   bool _removeInlineTrigger(String trigger) {
     return _removeUniversalInputInlineTrigger(widget.controller, trigger);
+  }
+
+  void _handleTextChanged(String text) {
+    final slashToken = _universalInputLeadingSlashCommandToken(
+      text,
+      widget.controller.selection,
+    );
+    if (_dismissedSlashCommandToken != null &&
+        slashToken != _dismissedSlashCommandToken) {
+      _resetSlashDismissal();
+    }
+    widget.onChanged(text);
+  }
+
+  void _handleSlashSuggestionAccepted(String label) {
+    final option = _universalInputSlashCommandOptionForLabel(label);
+    if (option == null) {
+      return;
+    }
+    _handleSlashCommandSelected(option.value);
+  }
+
+  void _moveSlashSuggestion(int delta, int length) {
+    if (length < 2) {
+      return;
+    }
+    final nextIndex = (_activeSlashSuggestionIndex + delta) % length;
+    setState(() {
+      _activeSlashSuggestionIndex = nextIndex < 0
+          ? nextIndex + length
+          : nextIndex;
+    });
+  }
+
+  void _dismissSlashSuggestions() {
+    final token = _universalInputLeadingSlashCommandToken(
+      widget.controller.text,
+      widget.controller.selection,
+    );
+    if (token == null) {
+      return;
+    }
+    setState(() {
+      _dismissedSlashCommandToken = token;
+      _activeSlashSuggestionIndex = 0;
+    });
+  }
+
+  void _resetSlashDismissal() {
+    setState(() {
+      _dismissedSlashCommandToken = null;
+      _activeSlashSuggestionIndex = 0;
+    });
   }
 }
 
@@ -438,6 +537,7 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
     required this.suggestions,
     this.suggestionDetails = const <String, CommandDraft>{},
     this.figSuggestionDetails = const <String, FigCompletionSuggestion>{},
+    this.toolSuggestionDetails = const <String, UniversalInputToolOption>{},
     this.suggestionsLoading = false,
     required this.activeIndex,
     required this.palette,
@@ -447,9 +547,10 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
     required this.onAcceptSuggestion,
     required this.onSend,
     required this.onContextTrigger,
-    required this.onSlashTrigger,
+    this.acceptSuggestionOnEnter = false,
     this.onAcceptCorrection,
     this.onDismissCorrection,
+    this.onDismissSuggestions,
     this.enabled = true,
     this.autofocus = false,
     this.semanticLabel,
@@ -469,6 +570,7 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
   final List<String> suggestions;
   final Map<String, CommandDraft> suggestionDetails;
   final Map<String, FigCompletionSuggestion> figSuggestionDetails;
+  final Map<String, UniversalInputToolOption> toolSuggestionDetails;
   final bool suggestionsLoading;
   final int activeIndex;
   final AppThemeTokens palette;
@@ -478,9 +580,10 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
   final ValueChanged<String> onAcceptSuggestion;
   final VoidCallback onSend;
   final VoidCallback onContextTrigger;
-  final VoidCallback onSlashTrigger;
+  final bool acceptSuggestionOnEnter;
   final VoidCallback? onAcceptCorrection;
   final VoidCallback? onDismissCorrection;
+  final VoidCallback? onDismissSuggestions;
   final bool enabled;
   final bool autofocus;
   final String? semanticLabel;
@@ -568,6 +671,7 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
           suggestion: suggestions[index],
           draft: suggestionDetails[suggestions[index]],
           figSuggestion: figSuggestionDetails[suggestions[index]],
+          toolSuggestion: toolSuggestionDetails[suggestions[index]],
           active: index == effectiveActiveIndex,
           palette: palette,
           keyPrefix: suggestionKeyPrefix,
@@ -642,6 +746,11 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
         return KeyEventResult.handled;
       }
       if (event is! KeyRepeatEvent && controller.text.trimRight().isNotEmpty) {
+        if (acceptSuggestionOnEnter && suggestions.isNotEmpty) {
+          final suggestionIndex = activeIndex.clamp(0, suggestions.length - 1);
+          onAcceptSuggestion(suggestions[suggestionIndex]);
+          return KeyEventResult.handled;
+        }
         onSend();
       }
       return KeyEventResult.handled;
@@ -669,6 +778,12 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
       }
       return KeyEventResult.handled;
     }
+    if (key == LogicalKeyboardKey.escape && onDismissSuggestions != null) {
+      if (event is! KeyRepeatEvent) {
+        onDismissSuggestions!();
+      }
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.escape && onDismissCorrection != null) {
       if (event is! KeyRepeatEvent) {
         onDismissCorrection!();
@@ -689,8 +804,6 @@ class _UniversalInputAutocompleteField extends StatelessWidget {
     switch (trigger) {
       case _UniversalInputInlineTrigger.context:
         onContextTrigger();
-      case _UniversalInputInlineTrigger.slash:
-        onSlashTrigger();
       case null:
         break;
     }
@@ -1351,7 +1464,7 @@ String _universalInputSendTooltip(
   return classification.isNaturalLanguage ? 'Suggest command' : 'Send command';
 }
 
-enum _UniversalInputInlineTrigger { context, slash }
+enum _UniversalInputInlineTrigger { context }
 
 _UniversalInputInlineTrigger? _universalInputInlineTriggerFor(
   String text,
@@ -1371,8 +1484,59 @@ _UniversalInputInlineTrigger? _universalInputInlineTriggerFor(
   if (token == '@') {
     return _UniversalInputInlineTrigger.context;
   }
-  if (_isUniversalInputSlashCommandToken(token)) {
-    return _UniversalInputInlineTrigger.slash;
+  return null;
+}
+
+String? _universalInputLeadingSlashCommandToken(
+  String text,
+  TextSelection selection,
+) {
+  if (!selection.isValid || !selection.isCollapsed) {
+    return null;
+  }
+  final tokenRange = _universalInputCurrentTokenRange(
+    text,
+    selection.baseOffset,
+  );
+  if (tokenRange == null ||
+      text.substring(0, tokenRange.start).trim().isNotEmpty) {
+    return null;
+  }
+  final token = text.substring(tokenRange.start, tokenRange.end);
+  if (!token.startsWith('/') || token.substring(1).contains('/')) {
+    return null;
+  }
+  return token;
+}
+
+List<UniversalInputToolOption> _universalInputSlashCommandOptionsForToken(
+  String token,
+) {
+  final normalizedToken = token.toLowerCase();
+  return [
+    for (final option in _universalInputSlashCommandOptions)
+      if (option.label.toLowerCase().startsWith(normalizedToken)) option,
+  ];
+}
+
+bool _isExactUniversalInputSlashCommandToken(String? token) {
+  if (token == null) {
+    return false;
+  }
+  final normalizedToken = token.toLowerCase();
+  return _universalInputSlashCommandOptions.any(
+    (option) => option.label.toLowerCase() == normalizedToken,
+  );
+}
+
+UniversalInputToolOption? _universalInputSlashCommandOptionForLabel(
+  String label,
+) {
+  final normalizedLabel = label.toLowerCase();
+  for (final option in _universalInputSlashCommandOptions) {
+    if (option.label.toLowerCase() == normalizedLabel) {
+      return option;
+    }
   }
   return null;
 }
@@ -1586,6 +1750,7 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
     required this.suggestion,
     this.draft,
     this.figSuggestion,
+    this.toolSuggestion,
     required this.active,
     required this.palette,
     required this.onTap,
@@ -1596,6 +1761,7 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
   final String suggestion;
   final CommandDraft? draft;
   final FigCompletionSuggestion? figSuggestion;
+  final UniversalInputToolOption? toolSuggestion;
   final bool active;
   final AppThemeTokens palette;
   final VoidCallback onTap;
@@ -1605,15 +1771,20 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDangerous = figSuggestion?.isDangerous == true;
+    final toolDetail = toolSuggestion?.detail ?? toolSuggestion?.value;
     final semanticsLabel = isDangerous
         ? '$suggestion, dangerous command'
-        : suggestion;
+        : toolSuggestion == null
+        ? suggestion
+        : '${toolSuggestion!.label}, $toolDetail';
+    final hasSecondaryText = draft != null || toolSuggestion?.detail != null;
     switch (presentation) {
       case _UniversalInputSuggestionPresentation.commandInputPanel:
         return _CommandInputSuggestionTile(
           suggestion: suggestion,
           isDangerous: isDangerous,
           semanticsLabel: semanticsLabel,
+          toolSuggestion: toolSuggestion,
           active: active,
           palette: palette,
           keyPrefix: keyPrefix,
@@ -1637,17 +1808,20 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
                 ? palette.accent.withValues(alpha: 0.14)
                 : Colors.transparent,
             child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: draft == null ? 30 : 46),
+              constraints: BoxConstraints(
+                minHeight: hasSecondaryText ? 46 : 30,
+              ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 child: Row(
                   children: [
                     Icon(
-                      isDangerous
-                          ? Icons.warning_amber_rounded
-                          : active
-                          ? Icons.keyboard_return_rounded
-                          : Icons.subdirectory_arrow_right_rounded,
+                      toolSuggestion?.icon ??
+                          (isDangerous
+                              ? Icons.warning_amber_rounded
+                              : active
+                              ? Icons.keyboard_return_rounded
+                              : Icons.subdirectory_arrow_right_rounded),
                       size: 15,
                       color: isDangerous
                           ? palette.danger
@@ -1683,6 +1857,14 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
                               style: Theme.of(context).textTheme.labelSmall
                                   ?.copyWith(color: palette.textMuted),
                             ),
+                          ] else if (toolSuggestion?.detail != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              toolSuggestion!.detail!,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: palette.textMuted),
+                            ),
                           ],
                         ],
                       ),
@@ -1703,6 +1885,7 @@ class _CommandInputSuggestionTile extends StatelessWidget {
     required this.suggestion,
     required this.isDangerous,
     required this.semanticsLabel,
+    this.toolSuggestion,
     required this.active,
     required this.palette,
     required this.keyPrefix,
@@ -1712,6 +1895,7 @@ class _CommandInputSuggestionTile extends StatelessWidget {
   final String suggestion;
   final bool isDangerous;
   final String semanticsLabel;
+  final UniversalInputToolOption? toolSuggestion;
   final bool active;
   final AppThemeTokens palette;
   final String keyPrefix;
@@ -1730,6 +1914,9 @@ class _CommandInputSuggestionTile extends StatelessWidget {
       fontFamily: 'monospace',
       fontWeight: active ? FontWeight.w700 : FontWeight.w600,
     );
+    final detailStyle = Theme.of(
+      context,
+    ).textTheme.labelSmall?.copyWith(color: palette.textMuted);
     return Semantics(
       key: Key('$keyPrefix-suggestion-$suggestion'),
       label: semanticsLabel,
@@ -1770,11 +1957,12 @@ class _CommandInputSuggestionTile extends StatelessWidget {
                   child: SizedBox.square(
                     dimension: iconBoxSize,
                     child: Icon(
-                      isDangerous
-                          ? Icons.warning_amber_rounded
-                          : active
-                          ? Icons.keyboard_return_rounded
-                          : Icons.terminal_rounded,
+                      toolSuggestion?.icon ??
+                          (isDangerous
+                              ? Icons.warning_amber_rounded
+                              : active
+                              ? Icons.keyboard_return_rounded
+                              : Icons.terminal_rounded),
                       size: 16,
                       color: isDangerous
                           ? palette.danger
@@ -1786,12 +1974,26 @@ class _CommandInputSuggestionTile extends StatelessWidget {
                 ),
                 SizedBox(width: palette.spacing.sm),
                 Expanded(
-                  child: Text(
-                    suggestion,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: textStyle,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        suggestion,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        softWrap: false,
+                        style: textStyle,
+                      ),
+                      if (toolSuggestion?.detail != null)
+                        Text(
+                          toolSuggestion!.detail!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                          style: detailStyle,
+                        ),
+                    ],
                   ),
                 ),
               ],

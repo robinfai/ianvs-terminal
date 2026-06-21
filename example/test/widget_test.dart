@@ -208,6 +208,20 @@ Future<void> _runCommandMenuAction(
   await tester.pump(const Duration(milliseconds: 100));
 }
 
+Future<void> _openCommandBlockActions(
+  WidgetTester tester, {
+  String? blockId,
+}) async {
+  final actionButton = blockId == null
+      ? find.byTooltip('Block actions').first
+      : find.byKey(Key('shell-command-block-actions-$blockId'));
+  await _pumpUntilFound(tester, actionButton);
+  await tester.ensureVisible(actionButton);
+  await tester.pump();
+  await tester.tap(actionButton);
+  await tester.pumpAndSettle();
+}
+
 Future<void> _pumpUntilFound(
   WidgetTester tester,
   Finder finder, {
@@ -4276,7 +4290,7 @@ void main() {
   );
 
   testWidgets(
-    'action search prefers selected block over newest block without shell write',
+    'command block actions can target an older failed block without shell write',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       String? copiedText;
@@ -4312,20 +4326,20 @@ void main() {
 
       fakeBindings.setFrame(1, {
         'rows': [
-          {'index': 10, 'text': r'$ false', 'style_runs': const []},
-          {'index': 11, 'text': 'failed output', 'style_runs': const []},
-          {'index': 12, 'text': r'$ echo ok', 'style_runs': const []},
-          {'index': 13, 'text': 'newest output', 'style_runs': const []},
-          {'index': 14, 'text': r'$ ', 'style_runs': const []},
+          {'index': 0, 'text': r'$ false', 'style_runs': const []},
+          {'index': 1, 'text': 'failed output', 'style_runs': const []},
+          {'index': 2, 'text': r'$ echo ok', 'style_runs': const []},
+          {'index': 3, 'text': 'newest output', 'style_runs': const []},
+          {'index': 4, 'text': r'$ ', 'style_runs': const []},
         ],
-        'cursor': {'row': 14, 'col': 2, 'visible': true},
+        'cursor': {'row': 4, 'col': 2, 'visible': true},
         'selection': null,
         'viewport_rows': 24,
         'viewport_cols': 80,
         'dirty_ranges': [
-          {'start': 10, 'end': 15},
+          {'start': 0, 'end': 5},
         ],
-        'viewport_start_row': 10,
+        'viewport_start_row': 0,
         'scrollback_offset': 0,
         'scrollback_max_offset': 20,
       });
@@ -4337,7 +4351,7 @@ void main() {
           payload: const <String, Object?>{
             'hook': 'preexec',
             'command': 'false',
-            'prompt_scrollback_offset': 10,
+            'prompt_scrollback_offset': 0,
             'pwd': '/tmp/project',
           },
         ),
@@ -4362,7 +4376,7 @@ void main() {
           sessionId: '1',
           payload: const <String, Object?>{
             'hook': 'prompt_started',
-            'prompt_scrollback_offset': 12,
+            'prompt_scrollback_offset': 2,
             'pwd': '/tmp/project',
           },
         ),
@@ -4375,7 +4389,7 @@ void main() {
           payload: const <String, Object?>{
             'hook': 'preexec',
             'command': 'echo ok',
-            'prompt_scrollback_offset': 12,
+            'prompt_scrollback_offset': 2,
             'pwd': '/tmp/project',
           },
         ),
@@ -4400,37 +4414,21 @@ void main() {
           sessionId: '1',
           payload: const <String, Object?>{
             'hook': 'prompt_started',
-            'prompt_scrollback_offset': 14,
+            'prompt_scrollback_offset': 4,
             'pwd': '/tmp/project',
           },
         ),
       );
       await tester.pump(const Duration(milliseconds: 40));
 
-      await tester.tap(find.byKey(const Key('context-chip-lastExit')));
+      expect(find.byKey(const Key('context-chip-lastExit')), findsNothing);
+      expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
+
+      await _openCommandBlockActions(tester, blockId: '1:command:0');
+      await tester.tap(
+        find.byKey(const Key('context-block-action-copy-output')),
+      );
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const Key('context-chip-selectedBlock')),
-        findsOneWidget,
-      );
-
-      await _openCommandMenu(tester);
-      await tester.enterText(
-        find.byKey(const Key('shell-command-search-field')),
-        'action search',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.search);
-      await _pumpUntilFound(
-        tester,
-        find.byKey(const Key('command-action-search-overlay-field')),
-      );
-
-      await tester.enterText(
-        find.byKey(const Key('command-action-search-overlay-field')),
-        'copy block output',
-      );
-      await tester.pump();
-      await _sendEnterAndPump(tester);
 
       expect(copiedText, 'failed output');
       expect(fakeBindings.writes, isEmpty);
@@ -5293,7 +5291,7 @@ void main() {
     expect(tester.widget<TextField>(commandInput).controller!.text, isEmpty);
   });
 
-  testWidgets('command input slash token opens help slash command', (
+  testWidgets('command input exact slash token accepts help inline', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1.0;
@@ -5319,8 +5317,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(helpOption, findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-command-input-suggestions-panel')),
+      findsOneWidget,
+    );
 
-    await tester.tap(helpOption);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(
@@ -5635,7 +5637,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('command-search-overlay')), findsNothing);
-    expect(find.byKey(const Key('context-chip-selectedBlock')), findsOneWidget);
+    expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
     expect(find.text('Command block range is unavailable.'), findsNothing);
     expect(fakeBindings.scrollToCalls.last, [1, 10]);
     expect(fakeBindings.writes, isEmpty);
@@ -8245,6 +8247,42 @@ void main() {
     expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
   });
 
+  testWidgets('auto composer slash token shows inline slash commands', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-auto-composer')));
+    await tester.tap(find.byKey(const Key('shell-auto-composer')));
+    await tester.pumpAndSettle();
+
+    final composerField = find.byKey(const Key('terminal-auto-composer-field'));
+    await tester.enterText(composerField, '/git');
+    await tester.pumpAndSettle();
+
+    expect(find.text('/git-status'), findsOneWidget);
+    expect(find.text('Repository state'), findsOneWidget);
+    expect(find.byType(PopupMenuItem<String>), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<TextField>(composerField).controller?.text,
+      'git status --short --branch',
+    );
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'auto composer requires DeepSeek for natural-language command generation',
     (tester) async {
@@ -8600,7 +8638,7 @@ void main() {
     },
   );
 
-  testWidgets('context chip navigates to the last failed command block', (
+  testWidgets('workspace context chips stay hidden after a failed command', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -8674,17 +8712,15 @@ void main() {
     expect(find.byKey(const Key('context-chip-cwd')), findsNothing);
     expect(find.byKey(const Key('context-chip-profile')), findsNothing);
     expect(find.byKey(const Key('context-chip-shellHook')), findsNothing);
-    expect(find.byKey(const Key('context-chip-lastExit')), findsOneWidget);
-    expect(find.text('Last exit Exit 2'), findsOneWidget);
+    expect(find.byKey(const Key('context-chip-lastExit')), findsNothing);
+    expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
+    expect(find.text('Last exit Exit 2'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
-    await tester.pumpAndSettle();
-
-    expect(fakeBindings.scrollToCalls.last, [1, 10]);
+    expect(fakeBindings.scrollToCalls, isEmpty);
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('selected block chip opens block actions without shell write', (
+  testWidgets('command block actions menu copies output without shell write', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -8779,14 +8815,10 @@ void main() {
     expect(find.byKey(const Key('context-chip-cwd')), findsNothing);
     expect(find.byKey(const Key('context-chip-profile')), findsNothing);
     expect(find.byKey(const Key('context-chip-shellHook')), findsNothing);
+    expect(find.byKey(const Key('context-chip-lastExit')), findsNothing);
+    expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('context-chip-selectedBlock')), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
-    await tester.pumpAndSettle();
+    await _openCommandBlockActions(tester);
 
     expect(find.byType(BottomSheet), findsNothing);
     expect(
@@ -8889,109 +8921,9 @@ void main() {
     expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
   });
 
-  testWidgets(
-    'clicking a command block selects it for command center context',
-    (tester) async {
-      final fakeBindings = FakePtyBackend();
-
-      await _pumpShellScreen(
-        tester,
-        bindings: fakeBindings,
-        repository: MemoryProfileRepository(
-          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-        ),
-        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
-      );
-
-      fakeBindings.setFrame(1, {
-        'rows': [
-          {'index': 10, 'text': r'$ false', 'style_runs': const []},
-          {'index': 11, 'text': 'failed output', 'style_runs': const []},
-          {'index': 12, 'text': r'$ ', 'style_runs': const []},
-        ],
-        'cursor': {'row': 12, 'col': 2, 'visible': true},
-        'selection': null,
-        'viewport_rows': 24,
-        'viewport_cols': 80,
-        'dirty_ranges': [
-          {'start': 10, 'end': 13},
-        ],
-        'viewport_start_row': 10,
-        'scrollback_offset': 0,
-        'scrollback_max_offset': 20,
-      });
-      fakeBindings.enqueueEvent(
-        1,
-        PtyEvent(
-          kind: 'shell_hook',
-          sessionId: '1',
-          payload: const <String, Object?>{
-            'hook': 'preexec',
-            'command': 'false',
-            'prompt_scrollback_offset': 10,
-            'pwd': '/tmp/project',
-          },
-        ),
-      );
-      fakeBindings.enqueueEvent(
-        1,
-        PtyEvent(
-          kind: 'shell_hook',
-          sessionId: '1',
-          payload: const <String, Object?>{
-            'hook': 'command_finished',
-            'command': 'false',
-            'pwd': '/tmp/project',
-            'exit_code': 2,
-          },
-        ),
-      );
-      fakeBindings.enqueueEvent(
-        1,
-        PtyEvent(
-          kind: 'shell_hook',
-          sessionId: '1',
-          payload: const <String, Object?>{
-            'hook': 'prompt_started',
-            'prompt_scrollback_offset': 12,
-            'pwd': '/tmp/project',
-          },
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-
-      expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
-
-      await tester.tap(
-        find.byKey(const Key('shell-command-block-1:command:10')),
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        find.byKey(const Key('context-chip-selectedBlock')),
-        findsOneWidget,
-      );
-      expect(fakeBindings.writes, isEmpty);
-    },
-  );
-
-  testWidgets('selected block chip can save block output without shell write', (
+  testWidgets('clicking a command block keeps workspace context chips hidden', (
     tester,
   ) async {
-    final previousPathProvider = PathProviderPlatform.instance;
-    final supportDirectory = Directory.systemTemp.createTempSync(
-      'ianvs-selected-block-output-widget-test-',
-    );
-    PathProviderPlatform.instance = _FakePathProviderPlatform(
-      supportDirectory.path,
-    );
-    addTearDown(() {
-      PathProviderPlatform.instance = previousPathProvider;
-      if (supportDirectory.existsSync()) {
-        supportDirectory.deleteSync(recursive: true);
-      }
-    });
-
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -9060,45 +8992,139 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
-    expect(find.byKey(const Key('context-chip-cwd')), findsNothing);
-    expect(find.byKey(const Key('context-chip-profile')), findsNothing);
-    expect(find.byKey(const Key('context-chip-shellHook')), findsNothing);
+    expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
+    await tester.tap(find.byKey(const Key('shell-command-block-1:command:10')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
-    await tester.pumpAndSettle();
-    final saveAction = find.byKey(
-      const Key('context-block-action-save-output'),
-    );
-    await tester.ensureVisible(saveAction);
-    await tester.pump();
-    await tester.runAsync(() async {
-      await tester.tap(find.text('Save block output'));
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-    });
-    await tester.pumpAndSettle();
-
-    final exportDirectory = Directory(
-      '${supportDirectory.path}/scrollback_exports',
-    );
-    final exportFiles = exportDirectory
-        .listSync()
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.txt'))
-        .toList();
-    expect(exportFiles, hasLength(1));
-    expect(exportFiles.single.readAsStringSync(), 'failed output');
-    expect(
-      find.textContaining('Command block output saved to '),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('context-chip-lastExit')), findsNothing);
+    expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
     expect(fakeBindings.writes, isEmpty);
   });
 
   testWidgets(
-    'selected block chip can open block output in review without shell write',
+    'command block action menu can save block output without shell write',
+    (tester) async {
+      final previousPathProvider = PathProviderPlatform.instance;
+      final supportDirectory = Directory.systemTemp.createTempSync(
+        'ianvs-selected-block-output-widget-test-',
+      );
+      PathProviderPlatform.instance = _FakePathProviderPlatform(
+        supportDirectory.path,
+      );
+      addTearDown(() {
+        PathProviderPlatform.instance = previousPathProvider;
+        if (supportDirectory.existsSync()) {
+          supportDirectory.deleteSync(recursive: true);
+        }
+      });
+
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ false', 'style_runs': const []},
+          {'index': 11, 'text': 'failed output', 'style_runs': const []},
+          {'index': 12, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 12, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 13},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'false',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'false',
+            'pwd': '/tmp/project',
+            'exit_code': 2,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 12,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('context-chip-cwd')), findsNothing);
+      expect(find.byKey(const Key('context-chip-profile')), findsNothing);
+      expect(find.byKey(const Key('context-chip-shellHook')), findsNothing);
+      expect(find.byKey(const Key('context-chip-lastExit')), findsNothing);
+      expect(find.byKey(const Key('context-chip-selectedBlock')), findsNothing);
+
+      await _openCommandBlockActions(tester);
+      final saveAction = find.byKey(
+        const Key('context-block-action-save-output'),
+      );
+      await tester.ensureVisible(saveAction);
+      await tester.pump();
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Save block output'));
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      });
+      await tester.pumpAndSettle();
+
+      final exportDirectory = Directory(
+        '${supportDirectory.path}/scrollback_exports',
+      );
+      final exportFiles = exportDirectory
+          .listSync()
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.txt'))
+          .toList();
+      expect(exportFiles, hasLength(1));
+      expect(exportFiles.single.readAsStringSync(), 'failed output');
+      expect(
+        find.textContaining('Command block output saved to '),
+        findsOneWidget,
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'command block action menu can open block output in review without shell write',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       var replayNow = DateTime(2026, 1, 1, 12);
@@ -9180,11 +9206,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 40));
 
-      await tester.tap(find.byKey(const Key('context-chip-lastExit')));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
-      await tester.pumpAndSettle();
+      await _openCommandBlockActions(tester);
       final reviewAction = find.byKey(
         const Key('context-block-action-open-review'),
       );
@@ -9203,234 +9225,227 @@ void main() {
     },
   );
 
-  testWidgets('selected block chip can copy command and output together', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    String? copiedText;
+  testWidgets(
+    'command block action menu can copy command and output together',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      String? copiedText;
 
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (methodCall) async {
-        if (methodCall.method == 'Clipboard.getData') {
-          return <String, dynamic>{'text': copiedText};
-        }
-        if (methodCall.method == 'Clipboard.setData') {
-          copiedText = (methodCall.arguments as Map)['text'] as String?;
-          return null;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
-        null,
-      ),
-    );
-
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
-    );
-
-    fakeBindings.setFrame(1, {
-      'rows': [
-        {'index': 10, 'text': r'$ false', 'style_runs': const []},
-        {'index': 11, 'text': 'failed output', 'style_runs': const []},
-        {'index': 12, 'text': r'$ ', 'style_runs': const []},
-      ],
-      'cursor': {'row': 12, 'col': 2, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 10, 'end': 13},
-      ],
-      'viewport_start_row': 10,
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 20,
-    });
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'preexec',
-          'command': 'false',
-          'prompt_scrollback_offset': 10,
-          'pwd': '/tmp/project',
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': copiedText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            copiedText = (methodCall.arguments as Map)['text'] as String?;
+            return null;
+          }
+          return null;
         },
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'command_finished',
-          'command': 'false',
-          'pwd': '/tmp/project',
-          'exit_code': 2,
-        },
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'prompt_started',
-          'prompt_scrollback_offset': 12,
-          'pwd': '/tmp/project',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
 
-    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
-    await tester.pumpAndSettle();
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
 
-    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('context-block-action-copy-command')),
-    );
-    await tester.pumpAndSettle();
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ false', 'style_runs': const []},
+          {'index': 11, 'text': 'failed output', 'style_runs': const []},
+          {'index': 12, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 12, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 13},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'false',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'false',
+            'pwd': '/tmp/project',
+            'exit_code': 2,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 12,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(copiedText, 'false');
+      await _openCommandBlockActions(tester);
+      await tester.tap(
+        find.byKey(const Key('context-block-action-copy-command')),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('context-block-action-copy-both')));
-    await tester.pumpAndSettle();
+      expect(copiedText, 'false');
 
-    expect(copiedText, 'false\nfailed output');
-    expect(fakeBindings.writes, isEmpty);
-  });
+      await _openCommandBlockActions(tester);
+      await tester.tap(find.byKey(const Key('context-block-action-copy-both')));
+      await tester.pumpAndSettle();
 
-  testWidgets('selected block chip opens scoped search within block output', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+      expect(copiedText, 'false\nfailed output');
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-      localTerminalConfigDocument: _commandBlocksHistoryConfig(),
-    );
+  testWidgets(
+    'command block action menu opens scoped search within block output',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    fakeBindings.setFrame(1, {
-      'rows': [
-        {'index': 10, 'text': r'$ false', 'style_runs': const []},
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        localTerminalConfigDocument: _commandBlocksHistoryConfig(),
+      );
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 10, 'text': r'$ false', 'style_runs': const []},
+          {
+            'index': 11,
+            'text': 'needle in failed output',
+            'style_runs': const [],
+          },
+          {'index': 12, 'text': r'$ ', 'style_runs': const []},
+        ],
+        'cursor': {'row': 12, 'col': 2, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 10, 'end': 13},
+        ],
+        'viewport_start_row': 10,
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 20,
+      });
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {'row': 5, 'start_col': 0, 'end_col': 6, 'text': 'older needle'},
         {
-          'index': 11,
-          'text': 'needle in failed output',
-          'style_runs': const [],
+          'row': 11,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'needle in block',
+          'scrollback_offset': 42,
         },
-        {'index': 12, 'text': r'$ ', 'style_runs': const []},
-      ],
-      'cursor': {'row': 12, 'col': 2, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 10, 'end': 13},
-      ],
-      'viewport_start_row': 10,
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 20,
-    });
-    fakeBindings.setSearchMatches(1, 'needle', [
-      {'row': 5, 'start_col': 0, 'end_col': 6, 'text': 'older needle'},
-      {
-        'row': 11,
-        'start_col': 0,
-        'end_col': 6,
-        'text': 'needle in block',
-        'scrollback_offset': 42,
-      },
-      {'row': 18, 'start_col': 0, 'end_col': 6, 'text': 'newer needle'},
-    ]);
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'preexec',
-          'command': 'false',
-          'prompt_scrollback_offset': 10,
-          'pwd': '/tmp/project',
-        },
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'command_finished',
-          'command': 'false',
-          'pwd': '/tmp/project',
-          'exit_code': 2,
-        },
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      1,
-      PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: const <String, Object?>{
-          'hook': 'prompt_started',
-          'prompt_scrollback_offset': 12,
-          'pwd': '/tmp/project',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
+        {'row': 18, 'start_col': 0, 'end_col': 6, 'text': 'newer needle'},
+      ]);
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'preexec',
+            'command': 'false',
+            'prompt_scrollback_offset': 10,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'false',
+            'pwd': '/tmp/project',
+            'exit_code': 2,
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'prompt_started',
+            'prompt_scrollback_offset': 12,
+            'pwd': '/tmp/project',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
 
-    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
-    await tester.pumpAndSettle();
+      await _openCommandBlockActions(tester);
+      await tester.tap(
+        find.byKey(const Key('context-block-action-search-within')),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('context-block-action-search-within')),
-    );
-    await tester.pumpAndSettle();
+      expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
 
-    expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await _pumpUntilFound(tester, find.text('1/1'));
 
-    await tester.enterText(
-      find.byKey(const Key('terminal-search-field')),
-      'needle',
-    );
-    await _pumpUntilFound(tester, find.text('1/1'));
+      expect(find.text('1/1'), findsOneWidget);
+      expect(fakeBindings.searchCalls.last, [
+        1,
+        'needle',
+        'smart_case_substring',
+      ]);
+      expect(fakeBindings.scrollToCalls.last, [1, 42]);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
-    expect(find.text('1/1'), findsOneWidget);
-    expect(fakeBindings.searchCalls.last, [
-      1,
-      'needle',
-      'smart_case_substring',
-    ]);
-    expect(fakeBindings.scrollToCalls.last, [1, 42]);
-    expect(fakeBindings.writes, isEmpty);
-  });
-
-  testWidgets('selected block chip can reinput and rerun block command', (
+  testWidgets('command block action menu can reinput and rerun block command', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -9501,11 +9516,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
-    await tester.tap(find.byKey(const Key('context-chip-lastExit')));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
-    await tester.pumpAndSettle();
+    await _openCommandBlockActions(tester);
     await tester.tap(find.byKey(const Key('context-block-action-reinput')));
     await tester.pumpAndSettle();
 
@@ -9535,15 +9546,14 @@ void main() {
       find.byKey(const Key('command-search-overlay')),
     );
 
-    await tester.tap(find.byKey(const Key('context-chip-selectedBlock')));
-    await tester.pumpAndSettle();
+    await _openCommandBlockActions(tester);
     await tester.tap(find.byKey(const Key('context-block-action-rerun')));
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(fakeBindings.writes, [utf8.encode('false\n')]);
   });
 
-  testWidgets('shell status bar shows current session context', (tester) async {
+  testWidgets('command dock shows current session context', (tester) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -9572,7 +9582,8 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 40));
 
-    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsNothing);
     expect(find.byKey(const Key('shell-status-directory')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-shell')), findsNothing);
     expect(find.byKey(const Key('shell-status-connection')), findsNothing);
@@ -9599,7 +9610,7 @@ void main() {
     expect(find.text('Copy full path'), findsOneWidget);
   });
 
-  testWidgets('shell status bar shows important active mode tokens', (
+  testWidgets('command dock shows important active mode tokens', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -9626,7 +9637,7 @@ void main() {
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
       'modes': {
-        'alternate_screen': true,
+        'alternate_screen': false,
         'bracketed_paste': true,
         'mouse_mode': 'button_event',
         'mouse_encoding': 'sgr',
@@ -9635,18 +9646,16 @@ void main() {
     });
     await tester.pump(const Duration(milliseconds: 40));
 
-    expect(find.byKey(const Key('shell-status-mode-alt')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsNothing);
+    expect(find.byKey(const Key('shell-status-mode-alt')), findsNothing);
     expect(find.byKey(const Key('shell-status-mode-mouse')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-mode-paste')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-mode-read-only')), findsNothing);
-    expect(find.text('ALT'), findsOneWidget);
+    expect(find.text('ALT'), findsNothing);
     expect(find.text('MOUSE'), findsOneWidget);
     expect(find.text('PASTE'), findsOneWidget);
     expect(find.text('APP CURSOR'), findsNothing);
-    expect(
-      find.byTooltip('Alternate screen buffer is active.'),
-      findsOneWidget,
-    );
     expect(
       find.byTooltip(
         'Mouse reporting is active: button-event tracking, SGR encoding.',
@@ -9680,7 +9689,7 @@ void main() {
   });
 
   testWidgets(
-    'shell status bar keeps the directory item visible in a narrow window',
+    'command dock keeps the directory item visible in a narrow window',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(560, 420);
@@ -9717,15 +9726,15 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 40));
 
-      final statusBarRect = tester.getRect(
-        find.byKey(const Key('shell-status-bar')),
+      final dockRect = tester.getRect(
+        find.byKey(const Key('shell-command-input-bar')),
       );
       final directoryRect = tester.getRect(
         find.byKey(const Key('shell-status-directory')),
       );
 
-      expect(directoryRect.left >= statusBarRect.left, isTrue);
-      expect(directoryRect.right <= statusBarRect.right, isTrue);
+      expect(directoryRect.left >= dockRect.left, isTrue);
+      expect(directoryRect.right <= dockRect.right, isTrue);
     },
   );
 
@@ -10496,7 +10505,7 @@ void main() {
     expect(find.byKey(const Key('shell-empty-state')), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
   });
 
   testWidgets('terminal exit returns the shell to the empty state', (

@@ -1022,6 +1022,8 @@ void main() {
               focusNode: focusNode,
               enabled: true,
               inputMode: UniversalInputMode.auto,
+              executionDirectory: '/repo',
+              viewportLabel: '80x24',
               contextChips: const ['cwd app'],
               contextOptions: const [
                 UniversalInputToolOption(
@@ -1051,6 +1053,21 @@ void main() {
         find.byKey(const Key('shell-command-input-mode-agent')),
         findsOneWidget,
       );
+      expect(
+        find.byKey(const Key('shell-command-input-detection-label')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('shell-status-directory')), findsOneWidget);
+      expect(find.byKey(const Key('shell-status-viewport')), findsOneWidget);
+      expect(find.byKey(const Key('shell-status-encoding')), findsOneWidget);
+      expect(find.text('/repo'), findsOneWidget);
+      expect(find.text('80x24'), findsOneWidget);
+      expect(find.text('UTF-8'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'show files',
+      );
+      await tester.pump();
       expect(
         find.byKey(const Key('shell-command-input-detection-label')),
         findsOneWidget,
@@ -1099,7 +1116,7 @@ void main() {
     testWidgets('hides Agent controls when rollout excludes Agent mode', (
       tester,
     ) async {
-      final controller = TextEditingController();
+      final controller = TextEditingController(text: 'show files');
       final focusNode = FocusNode();
       final requestedModes = <UniversalInputMode>[];
       addTearDown(controller.dispose);
@@ -1943,6 +1960,12 @@ void main() {
         ),
       );
 
+      await tester.enterText(
+        find.byKey(const Key('shell-command-input-field')),
+        'show files',
+      );
+      await tester.pump();
+
       final barDecoration =
           tester
                   .widget<DecoratedBox>(
@@ -1974,11 +1997,12 @@ void main() {
       );
 
       expect(chipRect.bottom, lessThan(fieldRect.top));
-      expect(fieldRect.bottom, lessThan(modeRect.top));
-      expect(contextRect.center.dy, closeTo(modeRect.center.dy, 4));
-      expect(detectionRect.center.dy, closeTo(modeRect.center.dy, 4));
-      expect(modelLabelRect.center.dy, closeTo(runRect.center.dy, 4));
-      expect(runRect.left, greaterThan(modelLabelRect.left));
+      expect(modeRect.center.dy, closeTo(fieldRect.center.dy, 16));
+      expect(runRect.center.dy, closeTo(fieldRect.center.dy, 16));
+      expect(fieldRect.bottom, lessThan(contextRect.top));
+      expect(detectionRect.center.dy, closeTo(contextRect.center.dy, 6));
+      expect(modelLabelRect.center.dy, closeTo(contextRect.center.dy, 6));
+      expect(runRect.left, greaterThan(fieldRect.right));
     });
 
     testWidgets('mode prefix keeps remaining text in the command bar', (
@@ -2022,7 +2046,11 @@ void main() {
 
       expect(mode, UniversalInputMode.terminal);
       expect(controller.text, 'git status');
-      expect(find.text('Terminal command'), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-command-input-detection-label')),
+        findsNothing,
+      );
+      expect(find.text('Terminal command'), findsNothing);
 
       await tester.enterText(
         find.byKey(const Key('shell-command-input-field')),
@@ -2032,7 +2060,7 @@ void main() {
 
       expect(mode, UniversalInputMode.agent);
       expect(controller.text, 'explain the last failure');
-      expect(find.text('Agent natural language'), findsOneWidget);
+      expect(find.text('Agent natural language'), findsNothing);
     });
 
     testWidgets('command input suggestions render as an embedded panel', (
@@ -2111,7 +2139,7 @@ void main() {
       expect(panelRect.bottom, lessThanOrEqualTo(fieldRect.top));
       expect(fieldRect.top - panelRect.bottom, lessThanOrEqualTo(12));
       expect(panelRect.left, greaterThanOrEqualTo(barRect.left));
-      expect(panelRect.left, greaterThan(fieldRect.left));
+      expect(panelRect.left, greaterThanOrEqualTo(fieldRect.left));
       expect(panelRect.right, lessThanOrEqualTo(barRect.right));
       expect(panelRect.width, lessThanOrEqualTo(660));
       final panelDecoration =
@@ -2497,7 +2525,55 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('typing slash opens slash commands and removes trigger', (
+    testWidgets(
+      'typing slash shows inline commands without popup interruption',
+      (tester) async {
+        final controller = TextEditingController();
+        final focusNode = FocusNode();
+        addTearDown(controller.dispose);
+        addTearDown(focusNode.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildIanvsTerminalTheme(Brightness.dark),
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.bottomCenter,
+                child: ShellCommandInputBar(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: true,
+                  inputMode: UniversalInputMode.auto,
+                  onSubmitted: (_) async => false,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.byKey(const Key('shell-command-input-field')));
+        await tester.enterText(
+          find.byKey(const Key('shell-command-input-field')),
+          '/',
+        );
+        await tester.pumpAndSettle();
+
+        expect(focusNode.hasFocus, isTrue);
+        expect(
+          find.byKey(const Key('shell-command-input-suggestions-panel')),
+          findsOneWidget,
+        );
+        expect(find.byType(PopupMenuItem<String>), findsNothing);
+        expect(find.text('/git-status'), findsOneWidget);
+        await tester.tap(find.text('/git-status'));
+        await tester.pumpAndSettle();
+
+        expect(controller.text, 'git status --short --branch');
+        expect(find.text('/git-status'), findsNothing);
+      },
+    );
+
+    testWidgets('path slashes do not show inline slash commands', (
       tester,
     ) async {
       final controller = TextEditingController();
@@ -2520,18 +2596,110 @@ void main() {
         ),
       );
 
-      await tester.enterText(
-        find.byKey(const Key('shell-command-input-field')),
-        '/',
-      );
+      final input = find.byKey(const Key('shell-command-input-field'));
+      await tester.tap(input);
+      await tester.enterText(input, 'cd /');
       await tester.pumpAndSettle();
 
-      expect(find.text('/git-status'), findsOneWidget);
-      await tester.tap(find.text('/git-status'));
+      expect(
+        find.byKey(const Key('shell-command-input-suggestions-panel')),
+        findsNothing,
+      );
+      expect(find.text('/help'), findsNothing);
+
+      await tester.enterText(input, 'git checkout feature/');
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('shell-command-input-suggestions-panel')),
+        findsNothing,
+      );
+      expect(find.text('/git-status'), findsNothing);
+    });
+
+    testWidgets('slash commands accept with tab and exact enter', (
+      tester,
+    ) async {
+      final submitted = <String>[];
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.auto,
+              onSubmitted: (command) async {
+                submitted.add(command);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+
+      final input = find.byKey(const Key('shell-command-input-field'));
+      await tester.tap(input);
+      await tester.enterText(input, '/git');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pumpAndSettle();
 
       expect(controller.text, 'git status --short --branch');
+      expect(submitted, isEmpty);
+
+      controller.clear();
+      await tester.enterText(input, '/help');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(controller.text, 'man zshbuiltins');
+      expect(submitted, isEmpty);
+    });
+
+    testWidgets('escape hides slash commands until slash token changes', (
+      tester,
+    ) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      addTearDown(controller.dispose);
+      addTearDown(focusNode.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: Scaffold(
+            body: ShellCommandInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: true,
+              inputMode: UniversalInputMode.auto,
+              onSubmitted: (_) async => false,
+            ),
+          ),
+        ),
+      );
+
+      final input = find.byKey(const Key('shell-command-input-field'));
+      await tester.tap(input);
+      await tester.enterText(input, '/');
+      await tester.pumpAndSettle();
+      expect(find.text('/git-status'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
       expect(find.text('/git-status'), findsNothing);
+
+      await tester.enterText(input, '/g');
+      await tester.pumpAndSettle();
+      expect(find.text('/git-status'), findsOneWidget);
     });
 
     testWidgets('typing at-sign opens context menu and removes trigger', (

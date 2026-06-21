@@ -199,10 +199,8 @@ void main() {
       _decoratedBoxColor(tester, const Key('shell-chrome-bar')),
       const Color(0xFF11141A),
     );
-    expect(
-      _decoratedBoxColor(tester, const Key('shell-status-bar-surface')),
-      const Color(0xFF11141A),
-    );
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar-surface')), findsNothing);
 
     await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
     await tester.pumpAndSettle();

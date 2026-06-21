@@ -1325,6 +1325,287 @@ Color _correctionRiskColor(AppThemeTokens palette, CommandRiskLevel riskLevel) {
   };
 }
 
+class _ShellCommandDockHeader extends StatelessWidget {
+  const _ShellCommandDockHeader({
+    required this.directory,
+    required this.viewportLabel,
+    required this.encodingLabel,
+    required this.palette,
+  });
+
+  final String? directory;
+  final String? viewportLabel;
+  final String encodingLabel;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmedDirectory = directory?.trim();
+    final hasDirectory =
+        trimmedDirectory != null && trimmedDirectory.isNotEmpty;
+    final trimmedViewportLabel = viewportLabel?.trim();
+    final envItems = <Widget>[
+      if (trimmedViewportLabel != null && trimmedViewportLabel.isNotEmpty)
+        _ShellCommandDockStatusToken(
+          key: const Key('shell-status-viewport'),
+          label: trimmedViewportLabel,
+          tooltip: 'Terminal viewport size',
+          semanticsLabel: 'Terminal viewport size $trimmedViewportLabel',
+          palette: palette,
+          monospace: true,
+        ),
+      _ShellCommandDockStatusToken(
+        key: const Key('shell-status-encoding'),
+        label: encodingLabel,
+        tooltip: 'Terminal encoding',
+        semanticsLabel: 'Terminal encoding $encodingLabel',
+        palette: palette,
+        monospace: true,
+      ),
+    ];
+
+    if (!hasDirectory && envItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        children: [
+          if (hasDirectory)
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _ShellCommandDockDirectoryItem(
+                  key: const Key('shell-status-directory'),
+                  directory: trimmedDirectory,
+                  palette: palette,
+                ),
+              ),
+            )
+          else
+            const Spacer(),
+          const SizedBox(width: 8),
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var index = 0; index < envItems.length; index++) ...[
+                    if (index > 0) const SizedBox(width: 5),
+                    envItems[index],
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ShellCommandDockDirectoryItem extends StatefulWidget {
+  const _ShellCommandDockDirectoryItem({
+    super.key,
+    required this.directory,
+    required this.palette,
+  });
+
+  final String directory;
+  final AppThemeTokens palette;
+
+  @override
+  State<_ShellCommandDockDirectoryItem> createState() =>
+      _ShellCommandDockDirectoryItemState();
+}
+
+class _ShellCommandDockDirectoryItemState
+    extends State<_ShellCommandDockDirectoryItem> {
+  bool _hovered = false;
+  bool _menuOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _hovered || _menuOpen;
+    final itemBackground = active
+        ? widget.palette.chrome.withValues(alpha: 0.76)
+        : widget.palette.chrome.withValues(alpha: 0.42);
+    final menuTextStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
+      color: widget.palette.textPrimary,
+      fontWeight: FontWeight.w600,
+    );
+    final menuShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(widget.palette.radius.md),
+      side: BorderSide(color: widget.palette.border),
+    );
+    final themedMenu = Theme.of(context).copyWith(
+      hoverColor: widget.palette.chromeElevated.withValues(alpha: 0.72),
+      highlightColor: widget.palette.chromeElevated.withValues(alpha: 0.72),
+      focusColor: widget.palette.chromeElevated.withValues(alpha: 0.72),
+      splashColor: Colors.transparent,
+      popupMenuTheme: PopupMenuThemeData(
+        color: widget.palette.overlay,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: menuShape,
+        textStyle: menuTextStyle,
+      ),
+    );
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Theme(
+        data: themedMenu,
+        child: PopupMenuButton<String>(
+          tooltip: widget.directory,
+          padding: EdgeInsets.zero,
+          position: PopupMenuPosition.under,
+          offset: Offset(0, widget.palette.spacing.xs),
+          color: widget.palette.overlay,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shape: menuShape,
+          onOpened: () => setState(() => _menuOpen = true),
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'copyPath',
+              height: 34,
+              child: Text('Copy full path', style: menuTextStyle),
+            ),
+          ],
+          onCanceled: () => setState(() => _menuOpen = false),
+          onSelected: (value) {
+            setState(() => _menuOpen = false);
+            if (value == 'copyPath') {
+              unawaited(ClipboardBridge.copy(widget.directory));
+            }
+          },
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: itemBackground,
+                borderRadius: BorderRadius.circular(widget.palette.radius.sm),
+                border: Border.all(color: widget.palette.border),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.folder_rounded,
+                      size: 14,
+                      color: widget.palette.textSubtle,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        _commandDockPathLabel(widget.directory),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: widget.palette.textSubtle,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: 'monospace',
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellCommandDockStatusToken extends StatelessWidget {
+  const _ShellCommandDockStatusToken({
+    super.key,
+    required this.label,
+    required this.palette,
+    this.tooltip,
+    this.semanticsLabel,
+    this.monospace = false,
+    this.highlighted = false,
+  });
+
+  final String label;
+  final AppThemeTokens palette;
+  final String? tooltip;
+  final String? semanticsLabel;
+  final bool monospace;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = highlighted
+        ? palette.selected.withValues(alpha: 0.24)
+        : palette.chrome.withValues(alpha: 0.42);
+    final border = highlighted
+        ? palette.accent.withValues(alpha: 0.32)
+        : palette.border;
+    final foreground = highlighted ? palette.textPrimary : palette.textSubtle;
+    Widget item = DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(palette.radius.sm),
+        border: Border.all(color: border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: foreground,
+            fontWeight: FontWeight.w800,
+            fontFamily: monospace ? 'monospace' : null,
+          ),
+        ),
+      ),
+    );
+    if (semanticsLabel != null) {
+      item = Semantics(container: true, label: semanticsLabel, child: item);
+    }
+    if (tooltip != null) {
+      item = Tooltip(message: tooltip!, child: item);
+    }
+    return item;
+  }
+}
+
+String _commandDockPathLabel(String path) {
+  final normalized = path.trim();
+  if (normalized.length <= 34) {
+    return normalized;
+  }
+  final parts = normalized.split('/').where((part) => part.isNotEmpty).toList();
+  if (parts.length >= 2) {
+    return '.../${parts[parts.length - 2]}/${parts.last}';
+  }
+  return '...${normalized.substring(normalized.length - 31)}';
+}
+
+bool _shouldShowShellCommandDetectionPill(
+  UniversalInputMode mode,
+  UniversalInputClassification classification,
+) {
+  return mode == UniversalInputMode.auto &&
+      classification.kind != UniversalInputKind.empty;
+}
+
 class ShellCommandInputBar extends StatefulWidget {
   const ShellCommandInputBar({
     super.key,
@@ -1342,6 +1623,10 @@ class ShellCommandInputBar extends StatefulWidget {
     this.commandCorrection,
     this.naturalLanguageUnavailableMessage =
         'Set DEEPSEEK_API_KEY to generate commands from natural language.',
+    this.executionDirectory,
+    this.viewportLabel,
+    this.encodingLabel = 'UTF-8',
+    this.modeItems = const <_ShellStatusModeItem>[],
     this.contextChips = const <String>[],
     this.contextOptions = const <UniversalInputToolOption>[],
     this.modelLabel = 'Local heuristic',
@@ -1394,6 +1679,10 @@ class ShellCommandInputBar extends StatefulWidget {
   onGenerateCommandDrafts;
   final CommandCorrection? commandCorrection;
   final String naturalLanguageUnavailableMessage;
+  final String? executionDirectory;
+  final String? viewportLabel;
+  final String encodingLabel;
+  final List<_ShellStatusModeItem> modeItems;
   final List<String> contextChips;
   final List<UniversalInputToolOption> contextOptions;
   final String modelLabel;
@@ -1426,6 +1715,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
   static const _agentConversationId = 'shell-command-agent-conversation';
 
   int _activeSuggestionIndex = 0;
+  String? _dismissedSlashCommandToken;
   final GlobalKey<PopupMenuButtonState<String>> _contextMenuKey =
       GlobalKey<PopupMenuButtonState<String>>();
   final GlobalKey<PopupMenuButtonState<String>> _slashMenuKey =
@@ -1518,20 +1808,48 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                 final classification = _classificationFor(text);
                 final isAgentMode =
                     widget.inputMode == UniversalInputMode.agent;
+                final slashCommandToken =
+                    _universalInputLeadingSlashCommandToken(
+                      text,
+                      value.selection,
+                    );
+                final hasSlashCommandToken = slashCommandToken != null;
+                final slashCommandsVisible =
+                    slashCommandToken != null &&
+                    slashCommandToken != _dismissedSlashCommandToken;
+                final slashCommandOptions = slashCommandsVisible
+                    ? _universalInputSlashCommandOptionsForToken(
+                        slashCommandToken,
+                      )
+                    : const <UniversalInputToolOption>[];
                 final showInputSuggestions =
-                    !isAgentMode && text.trimRight().isNotEmpty;
-                final suggestions = showInputSuggestions
+                    !isAgentMode &&
+                    !hasSlashCommandToken &&
+                    text.trimRight().isNotEmpty;
+                final regularSuggestions = showInputSuggestions
                     ? _suggestionsFor(text, classification)
                     : const <String>[];
+                final suggestions = hasSlashCommandToken
+                    ? slashCommandOptions
+                          .map((option) => option.label)
+                          .toList(growable: false)
+                    : regularSuggestions;
                 final figSuggestions = showInputSuggestions
                     ? _figSuggestionsFor(text, classification)
                     : const <String, FigCompletionSuggestion>{};
                 final suggestionDetails = showInputSuggestions
                     ? _suggestionDetailsFor(text, classification)
                     : const <String, CommandDraft>{};
+                final toolSuggestionDetails = {
+                  for (final option in slashCommandOptions)
+                    option.label: option,
+                };
                 final suggestionsLoading = showInputSuggestions
                     ? _suggestionsLoadingFor(text, classification)
                     : false;
+                final exactSlashCommandActive =
+                    slashCommandsVisible &&
+                    _isExactUniversalInputSlashCommandToken(slashCommandToken);
                 final accent = _universalInputAccentColor(
                   palette,
                   classification,
@@ -1544,14 +1862,25 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                 final effectiveActiveIndex = suggestions.isEmpty
                     ? -1
                     : _activeSuggestionIndex.clamp(0, suggestions.length - 1);
+                final showDetectionPill = _shouldShowShellCommandDetectionPill(
+                  widget.inputMode,
+                  classification,
+                );
 
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    _ShellCommandDockHeader(
+                      directory: widget.executionDirectory,
+                      viewportLabel: widget.viewportLabel,
+                      encodingLabel: widget.encodingLabel,
+                      palette: palette,
+                    ),
                     if (widget.contextChips.isNotEmpty) ...[
+                      const SizedBox(height: 6),
                       SizedBox(
-                        height: 30,
+                        height: 24,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
@@ -1590,107 +1919,155 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                       ],
                       const SizedBox(height: 8),
                     ],
-                    CallbackShortcuts(
-                      bindings: {
-                        const SingleActivator(
-                          LogicalKeyboardKey.keyR,
-                          meta: true,
-                        ): _openCommandSearch,
-                        const SingleActivator(
-                          LogicalKeyboardKey.keyR,
-                          control: true,
-                        ): _openCommandSearch,
-                      },
-                      child: _UniversalInputAutocompleteField(
-                        fieldKey: const Key('shell-command-input-field'),
-                        controller: widget.controller,
-                        focusNode: widget.focusNode,
-                        enabled: widget.enabled,
-                        autofocus: widget.enabled,
-                        semanticLabel: isAgentMode
-                            ? 'Agent message composer'
-                            : 'Command input',
-                        hintText: fieldHint,
-                        suggestions: suggestions,
-                        suggestionDetails: suggestionDetails,
-                        figSuggestionDetails: figSuggestions,
-                        suggestionsLoading: suggestionsLoading,
-                        activeIndex: effectiveActiveIndex,
-                        palette: palette,
-                        maxLines: null,
-                        maxHeight: 128,
-                        suggestionLimit: 6,
-                        suggestionKeyPrefix: 'shell-command-input',
-                        suggestionPresentation:
-                            _UniversalInputSuggestionPresentation
-                                .commandInputPanel,
-                        textStyle: Theme.of(context).textTheme.bodyLarge
-                            ?.copyWith(
-                              color: palette.textPrimary,
-                              fontFamily: 'monospace',
-                              fontWeight: FontWeight.w500,
-                            ),
-                        decoration: InputDecoration(
-                          hintText: fieldHint,
-                          isDense: true,
-                          filled: false,
-                          contentPadding: EdgeInsets.zero,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                        ),
-                        onChanged: _handleTextChanged,
-                        onPrevious: () =>
-                            _moveSuggestion(-1, suggestions.length),
-                        onNext: () => _moveSuggestion(1, suggestions.length),
-                        onAcceptSuggestion: (suggestion) => _acceptSuggestion(
-                          suggestion,
-                          classification,
-                          figSuggestions[suggestion],
-                        ),
-                        onSend: () => unawaited(
-                          _submit(
-                            context,
-                            widget.controller.text,
-                            classification,
-                            _prioritizedSuggestions(
-                              suggestions,
-                              effectiveActiveIndex,
-                            ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: _UniversalInputModeSwitcher(
+                            keyPrefix: 'shell-command-input',
+                            mode: widget.inputMode,
+                            availableModes: widget.availableModes,
+                            palette: palette,
+                            onModeChanged: _handleModeChanged,
                           ),
                         ),
-                        onContextTrigger: () =>
-                            _contextMenuKey.currentState?.showButtonMenu(),
-                        onSlashTrigger: () =>
-                            _slashMenuKey.currentState?.showButtonMenu(),
-                        onAcceptCorrection: widget.commandCorrection == null
-                            ? null
-                            : _acceptCommandCorrection,
-                        onDismissCorrection: widget.commandCorrection == null
-                            ? null
-                            : widget.onDismissCommandCorrection,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        _UniversalInputModeSwitcher(
-                          keyPrefix: 'shell-command-input',
-                          mode: widget.inputMode,
-                          availableModes: widget.availableModes,
-                          palette: palette,
-                          onModeChanged: _handleModeChanged,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: CallbackShortcuts(
+                              bindings: {
+                                const SingleActivator(
+                                  LogicalKeyboardKey.keyR,
+                                  meta: true,
+                                ): _openCommandSearch,
+                                const SingleActivator(
+                                  LogicalKeyboardKey.keyR,
+                                  control: true,
+                                ): _openCommandSearch,
+                              },
+                              child: _UniversalInputAutocompleteField(
+                                fieldKey: const Key(
+                                  'shell-command-input-field',
+                                ),
+                                controller: widget.controller,
+                                focusNode: widget.focusNode,
+                                enabled: widget.enabled,
+                                autofocus: widget.enabled,
+                                semanticLabel: isAgentMode
+                                    ? 'Agent message composer'
+                                    : 'Command input',
+                                hintText: fieldHint,
+                                suggestions: suggestions,
+                                suggestionDetails: suggestionDetails,
+                                figSuggestionDetails: figSuggestions,
+                                toolSuggestionDetails: toolSuggestionDetails,
+                                suggestionsLoading: suggestionsLoading,
+                                activeIndex: effectiveActiveIndex,
+                                palette: palette,
+                                maxLines: null,
+                                maxHeight: 128,
+                                suggestionLimit: 6,
+                                suggestionKeyPrefix: 'shell-command-input',
+                                suggestionPresentation:
+                                    _UniversalInputSuggestionPresentation
+                                        .commandInputPanel,
+                                textStyle: Theme.of(context).textTheme.bodyLarge
+                                    ?.copyWith(
+                                      color: palette.textPrimary,
+                                      fontFamily: 'monospace',
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                decoration: InputDecoration(
+                                  hintText: fieldHint,
+                                  isDense: true,
+                                  filled: false,
+                                  contentPadding: EdgeInsets.zero,
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                ),
+                                onChanged: _handleTextChanged,
+                                onPrevious: () =>
+                                    _moveSuggestion(-1, suggestions.length),
+                                onNext: () =>
+                                    _moveSuggestion(1, suggestions.length),
+                                onAcceptSuggestion: (suggestion) =>
+                                    _acceptSuggestion(
+                                      suggestion,
+                                      classification,
+                                      figSuggestion: figSuggestions[suggestion],
+                                      slashCommandOptions: slashCommandOptions,
+                                    ),
+                                onSend: () => unawaited(
+                                  _submit(
+                                    context,
+                                    widget.controller.text,
+                                    classification,
+                                    _prioritizedSuggestions(
+                                      suggestions,
+                                      effectiveActiveIndex,
+                                    ),
+                                  ),
+                                ),
+                                onContextTrigger: () => _contextMenuKey
+                                    .currentState
+                                    ?.showButtonMenu(),
+                                acceptSuggestionOnEnter:
+                                    exactSlashCommandActive,
+                                onDismissSuggestions: slashCommandsVisible
+                                    ? _dismissSlashSuggestions
+                                    : null,
+                                onAcceptCorrection:
+                                    widget.commandCorrection == null
+                                    ? null
+                                    : _acceptCommandCorrection,
+                                onDismissCorrection:
+                                    widget.commandCorrection == null
+                                    ? null
+                                    : widget.onDismissCommandCorrection,
+                              ),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 8),
-                        SizedBox(
-                          height: 24,
-                          child: VerticalDivider(
-                            color: palette.border,
-                            width: 1,
-                            thickness: 1,
+                        _buildCompactActionButton(
+                          key: const Key('shell-command-run-button'),
+                          tooltip: _universalInputSendTooltip(
+                            widget.inputMode,
+                            classification,
+                          ),
+                          onPressed: canSend
+                              ? () => unawaited(
+                                  _submit(
+                                    context,
+                                    text,
+                                    classification,
+                                    _prioritizedSuggestions(
+                                      suggestions,
+                                      effectiveActiveIndex,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          splashRadius: 18,
+                          iconSize: 18,
+                          icon: Icon(
+                            classification.isNaturalLanguage
+                                ? Icons.auto_fix_high_rounded
+                                : Icons.keyboard_return_rounded,
+                          ),
+                          constraints: const BoxConstraints.tightFor(
+                            width: 44,
+                            height: 44,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    Row(
+                      children: [
                         _UniversalInputToolMenuButton(
                           key: const Key('shell-command-input-context'),
                           menuButtonKey: _contextMenuKey,
@@ -1731,61 +2108,52 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
                           iconSize: 18,
                           icon: const Icon(Icons.keyboard_arrow_down_rounded),
                         ),
-                        const Spacer(),
-                        Flexible(
-                          child: _UniversalInputStatusPill(
-                            key: const Key(
-                              'shell-command-input-detection-label',
-                            ),
-                            label: _universalInputStatusLabel(
-                              widget.inputMode,
-                              classification,
-                            ),
-                            accent: accent,
-                            palette: palette,
-                          ),
-                        ),
                         const SizedBox(width: 8),
-                        Flexible(
-                          child: _UniversalInputModelMenuChip(
-                            key: const Key('shell-command-input-model'),
-                            keyPrefix: 'shell-command-input',
-                            label: widget.modelLabel,
-                            options: widget.modelOptions,
-                            palette: palette,
-                            onSelected: _handleModelSelected,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        _buildCompactActionButton(
-                          key: const Key('shell-command-run-button'),
-                          tooltip: _universalInputSendTooltip(
-                            widget.inputMode,
-                            classification,
-                          ),
-                          onPressed: canSend
-                              ? () => unawaited(
-                                  _submit(
-                                    context,
-                                    text,
-                                    classification,
-                                    _prioritizedSuggestions(
-                                      suggestions,
-                                      effectiveActiveIndex,
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              reverse: true,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  for (final modeItem in widget.modeItems) ...[
+                                    _ShellCommandDockStatusToken(
+                                      key: modeItem.key,
+                                      label: modeItem.label,
+                                      tooltip: modeItem.tooltip,
+                                      semanticsLabel: modeItem.semanticsLabel,
+                                      palette: palette,
+                                      highlighted: true,
                                     ),
+                                    const SizedBox(width: 5),
+                                  ],
+                                  if (showDetectionPill) ...[
+                                    _UniversalInputStatusPill(
+                                      key: const Key(
+                                        'shell-command-input-detection-label',
+                                      ),
+                                      label: _universalInputStatusLabel(
+                                        widget.inputMode,
+                                        classification,
+                                      ),
+                                      accent: accent,
+                                      palette: palette,
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  _UniversalInputModelMenuChip(
+                                    key: const Key('shell-command-input-model'),
+                                    keyPrefix: 'shell-command-input',
+                                    label: widget.modelLabel,
+                                    options: widget.modelOptions,
+                                    palette: palette,
+                                    onSelected: _handleModelSelected,
                                   ),
-                                )
-                              : null,
-                          splashRadius: 18,
-                          iconSize: 18,
-                          icon: Icon(
-                            classification.isNaturalLanguage
-                                ? Icons.auto_fix_high_rounded
-                                : Icons.keyboard_return_rounded,
-                          ),
-                          constraints: const BoxConstraints.tightFor(
-                            width: 44,
-                            height: 44,
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -1906,8 +2274,16 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
   }
 
   void _handleTextChanged(String text) {
+    final slashToken = _universalInputLeadingSlashCommandToken(
+      text,
+      widget.controller.selection,
+    );
     if (text.trim().isNotEmpty && widget.commandCorrection != null) {
       widget.onDismissCommandCorrection?.call();
+    }
+    if (_dismissedSlashCommandToken != null &&
+        slashToken != _dismissedSlashCommandToken) {
+      _dismissedSlashCommandToken = null;
     }
     final prefix = _universalInputModePrefixForText(text);
     if (prefix != null &&
@@ -1960,6 +2336,7 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
     if (_removeUniversalInputInlineTrigger(widget.controller, '/')) {
       widget.onChanged?.call(widget.controller.text);
     }
+    _dismissedSlashCommandToken = null;
     _insertSlashSnippet(value);
   }
 
@@ -2491,9 +2868,19 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
 
   void _acceptSuggestion(
     String suggestion,
-    UniversalInputClassification classification, [
+    UniversalInputClassification classification, {
     FigCompletionSuggestion? figSuggestion,
-  ]) {
+    List<UniversalInputToolOption> slashCommandOptions =
+        const <UniversalInputToolOption>[],
+  }) {
+    final slashOption = _slashCommandOptionForSuggestion(
+      suggestion,
+      slashCommandOptions,
+    );
+    if (slashOption != null) {
+      _handleSlashCommandSelected(slashOption.value);
+      return;
+    }
     if (!classification.isNaturalLanguage && figSuggestion != null) {
       _acceptFigSuggestion(figSuggestion);
       return;
@@ -2516,6 +2903,34 @@ class _ShellCommandInputBarState extends State<ShellCommandInputBar> {
     }
     widget.onChanged?.call(nextText);
     setState(() {
+      _activeSuggestionIndex = 0;
+    });
+    _restoreTextInputFocus();
+  }
+
+  UniversalInputToolOption? _slashCommandOptionForSuggestion(
+    String suggestion,
+    List<UniversalInputToolOption> options,
+  ) {
+    final normalizedSuggestion = suggestion.toLowerCase();
+    for (final option in options) {
+      if (option.label.toLowerCase() == normalizedSuggestion) {
+        return option;
+      }
+    }
+    return null;
+  }
+
+  void _dismissSlashSuggestions() {
+    final token = _universalInputLeadingSlashCommandToken(
+      widget.controller.text,
+      widget.controller.selection,
+    );
+    if (token == null) {
+      return;
+    }
+    setState(() {
+      _dismissedSlashCommandToken = token;
       _activeSuggestionIndex = 0;
     });
     _restoreTextInputFocus();

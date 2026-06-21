@@ -339,10 +339,16 @@ class ShellCommandBlockShellHookReducer {
       ),
       flags: flags,
     );
+    final commandId = _commandBlockIdForStart(
+      snapshot: promptSnapshot,
+      sessionId: sessionId,
+      commandRow: startRow,
+      commandText: commandText,
+    );
     return ShellCommandBlockController.reduce(
       promptSnapshot,
       ShellCommandStartedEvent(
-        commandId: _commandBlockId(sessionId, startRow),
+        commandId: commandId,
         command: commandText,
         commandRow: startRow,
         cwd: commandCwd,
@@ -378,7 +384,9 @@ class ShellCommandBlockShellHookReducer {
       outputStartRow: lastBlock.outputRange.outputStartRow,
       outputEndRow: outputEndRow,
     );
-    final commandBlockId = _commandBlockId(sessionId, outputRange.commandRow);
+    final commandBlockId = lastBlock.id.trim().isEmpty
+        ? _commandBlockId(sessionId, outputRange.commandRow)
+        : lastBlock.id;
     final failureSnapshot = lastBlock.failureSnapshot == null
         ? null
         : ShellFailureSnapshot.withKeyErrorLines(
@@ -433,7 +441,18 @@ class ShellCommandBlockShellHookReducer {
       return snapshot;
     }
 
-    final commandId = _commandBlockId(sessionId, plan.startRow);
+    final commandId =
+        _runningCommandBlockIdForStart(
+          snapshot: snapshot,
+          commandRow: plan.startRow,
+          commandText: commandText,
+        ) ??
+        _commandBlockIdForStart(
+          snapshot: snapshot,
+          sessionId: sessionId,
+          commandRow: plan.startRow,
+          commandText: commandText,
+        );
     var next = _resizeLastFinishedBlockBeforePrompt(
       snapshot: snapshot,
       sessionId: sessionId,
@@ -651,6 +670,57 @@ class ShellCommandBlockShellHookReducer {
       return null;
     }
     return value;
+  }
+
+  static String _commandBlockIdForStart({
+    required ShellCommandBlockSnapshot snapshot,
+    required String sessionId,
+    required int commandRow,
+    required String commandText,
+  }) {
+    final runningId = _runningCommandBlockIdForStart(
+      snapshot: snapshot,
+      commandRow: commandRow,
+      commandText: commandText,
+    );
+    if (runningId != null) {
+      return runningId;
+    }
+
+    final baseId = _commandBlockId(sessionId, commandRow);
+    if (!_commandBlockIdExists(snapshot, baseId)) {
+      return baseId;
+    }
+    for (var suffix = 2; suffix < 1000000; suffix += 1) {
+      final candidateId = '$baseId#$suffix';
+      if (!_commandBlockIdExists(snapshot, candidateId)) {
+        return candidateId;
+      }
+    }
+    return '$baseId#${DateTime.now().microsecondsSinceEpoch}';
+  }
+
+  static String? _runningCommandBlockIdForStart({
+    required ShellCommandBlockSnapshot snapshot,
+    required int commandRow,
+    required String commandText,
+  }) {
+    for (final block in snapshot.blocks.reversed) {
+      if (block.status == ShellCommandBlockStatus.running &&
+          block.outputRange.commandRow == commandRow &&
+          block.command == commandText &&
+          block.id.trim().isNotEmpty) {
+        return block.id;
+      }
+    }
+    return null;
+  }
+
+  static bool _commandBlockIdExists(
+    ShellCommandBlockSnapshot snapshot,
+    String commandBlockId,
+  ) {
+    return snapshot.blocks.any((block) => block.id == commandBlockId);
   }
 
   static String _commandBlockId(String sessionId, int commandRow) {

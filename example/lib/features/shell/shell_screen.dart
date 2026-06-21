@@ -25,15 +25,12 @@ import '../command_center/command_center_feature_flags.dart';
 import '../command_center/command_center_runtime.dart';
 import '../command_center/command_center_shell_event_wiring.dart';
 import '../command_center/fig_completion_service.dart';
-import '../command_center/command_lifecycle_degraded_state.dart';
 import '../command_center/command_history_persistence_wiring.dart';
 import '../command_center/command_search_intents.dart';
 import '../command_center/command_search_overlay.dart';
 import '../command_center/command_search_overlay_controller.dart';
 import '../command_center/command_search_shell_wiring.dart';
 import '../command_center/command_review_entrypoints.dart';
-import '../command_center/context_chip_models.dart';
-import '../command_center/context_chips.dart';
 import '../command_center/global_command_history_repository.dart';
 import '../command_center/saved_command_repository.dart';
 import '../command_center/shell_command_block_command_center_adapter.dart';
@@ -1169,6 +1166,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             commandInputPane,
                             sessionState.profiles,
                           );
+                    final commandInputDirectory =
+                        commandInputPane?.shellIntegration.currentDirectory;
+                    final commandInputViewport = sessionController.viewportFor(
+                      commandInputSessionId,
+                    );
                     return ShellCommandInputBar(
                       key: ValueKey(
                         'shell-command-input-$commandInputSessionId',
@@ -1236,11 +1238,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           _naturalLanguageCommandUnavailableMessageFor(
                             commandInputProfile,
                           ),
+                      executionDirectory:
+                          commandInputDirectory?.trim().isNotEmpty == true
+                          ? commandInputDirectory!.trim()
+                          : commandInputProfile?.cwd,
+                      viewportLabel: _viewportStatusLabelFor(
+                        commandInputSessionId,
+                      ),
+                      modeItems: _statusModeItemsFor(
+                        commandInputSessionId,
+                        commandInputViewport.frame.modes,
+                      ),
                       contextChips: commandInputPane == null
                           ? const <String>[]
                           : _universalInputContextChipsFor(
                               commandInputPane,
                               commandInputProfile,
+                              includeSessionHints: false,
                             ),
                       contextOptions: commandInputPane == null
                           ? const <UniversalInputToolOption>[]
@@ -1292,7 +1306,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     );
                   },
                 ),
-              if (statusPane != null)
+              if (statusPane != null &&
+                  (instantReplaySession != null ||
+                      commandInputSessionId == null ||
+                      !_commandInputVisibleForSession(commandInputSessionId)))
                 if (statusViewportController == null ||
                     displayedSessionId == null)
                   _ShellStatusBar(

@@ -685,12 +685,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     final annotations = _annotationsForSession(sessionId);
     final activeCoprocess = _coprocesses[sessionId];
     final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
-    final contextChips = _contextChipsForPane(
-      sessionState: sessionState,
-      pane: pane,
-      profile: profile,
-    );
-
     final paneBody = LayoutBuilder(
       builder: (context, constraints) {
         final viewportSize = _terminalContentSizeFor(
@@ -834,22 +828,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                   modes: frame.modes,
                   nativeTerminalBlockId: nativeTerminalBlockId,
                 );
-            final stickyHeaderResolution =
-                shellCommandBlocksStickyHeaderResolution(
-                  snapshot:
-                      _commandBlockSnapshotsBySession[sessionId] ??
-                      const ShellCommandBlockSnapshot(),
-                  sessionId: sessionId,
-                  viewportStartRow: frame.viewportStartRow,
-                  viewportRows: frame.viewportRows,
-                  modes: frame.modes,
-                  shellIntegrationEnabled:
-                      _commandBlocksHistoryFeatureFlags.enabled &&
-                      _commandBlocksHistoryFeatureFlags.commandBlocks,
-                );
-            final stickyHeaderEndRowExclusive =
-                stickyHeaderResolution.header?.blockEndRowExclusive;
-
             return Listener(
               onPointerDown: (event) {
                 if (!isActive && (event.buttons & kPrimaryMouseButton) != 0) {
@@ -874,88 +852,73 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: StickyCommandHeaderOverlay(
-                        resolution: stickyHeaderResolution,
-                        onJumpToBlockEnd: stickyHeaderEndRowExclusive == null
-                            ? null
-                            : () {
-                                final targetOffset = math.max(
-                                  0,
-                                  stickyHeaderEndRowExclusive -
-                                      frame.viewportRows,
-                                );
-                                ref
-                                    .read(terminalRuntimeControllerProvider)
-                                    .scrollViewportTo(sessionId, targetOffset);
-                              },
-                        child: Stack(
-                          children: [
-                            if (hideDefaultTerminal)
-                              Positioned.fill(
-                                child: ColoredBox(
-                                  color: terminalColors.canvasBackground,
-                                ),
-                              )
-                            else
-                              Positioned.fill(
-                                child: buildSessionTerminalViewport(
-                                  terminalFocusNode: focusNode,
-                                  contentPadding: terminalViewportPadding,
-                                  onMeasuredCellSizeChanged:
-                                      handleMeasuredCellSizeChanged,
-                                ),
+                      child: Stack(
+                        children: [
+                          if (hideDefaultTerminal)
+                            Positioned.fill(
+                              child: ColoredBox(
+                                color: terminalColors.canvasBackground,
                               ),
-                            if (renderCommandBlocksOverlay)
-                              Positioned.fill(
-                                child: ShellCommandBlocksOverlay(
-                                  viewModel: commandBlocksViewModel,
-                                  rowHeight:
-                                      _measuredTerminalCellSizes[sessionId]
-                                          ?.height ??
-                                      terminal.terminalFallbackCellSize.height,
-                                  colors: terminalColors,
-                                  font: terminalFont,
-                                  cursor: terminalCursor,
-                                  contentPadding: terminalViewportPadding,
-                                  liveTerminalRows: frame.viewportRows,
-                                  liveTerminalBuilder: embedLiveTerminal
-                                      ? (
-                                          context,
-                                          block,
-                                        ) => buildSessionTerminalViewport(
-                                          key: Key(
-                                            'shell-command-block-live-terminal-'
-                                            'viewport-${block.id}',
-                                          ),
-                                          contentPadding: EdgeInsets.zero,
-                                          onMeasuredCellSizeChanged:
-                                              hideDefaultTerminal
-                                              ? handleMeasuredCellSizeChanged
-                                              : null,
-                                        )
-                                      : null,
-                                  onOpenBlockActions: (block, anchorRect) =>
-                                      unawaited(
-                                        _openContextChipBlockActions(
-                                          sessionController: sessionController,
-                                          sessionState: sessionState,
-                                          sessionId: sessionId,
-                                          blockId: block.id,
-                                          anchorRect: anchorRect,
-                                          showSelectedBlockChip: false,
+                            )
+                          else
+                            Positioned.fill(
+                              child: buildSessionTerminalViewport(
+                                terminalFocusNode: focusNode,
+                                contentPadding: terminalViewportPadding,
+                                onMeasuredCellSizeChanged:
+                                    handleMeasuredCellSizeChanged,
+                              ),
+                            ),
+                          if (renderCommandBlocksOverlay)
+                            Positioned.fill(
+                              child: ShellCommandBlocksOverlay(
+                                viewModel: commandBlocksViewModel,
+                                rowHeight:
+                                    _measuredTerminalCellSizes[sessionId]
+                                        ?.height ??
+                                    terminal.terminalFallbackCellSize.height,
+                                colors: terminalColors,
+                                font: terminalFont,
+                                cursor: terminalCursor,
+                                contentPadding: terminalViewportPadding,
+                                liveTerminalRows: frame.viewportRows,
+                                liveTerminalBuilder: embedLiveTerminal
+                                    ? (
+                                        context,
+                                        block,
+                                      ) => buildSessionTerminalViewport(
+                                        key: Key(
+                                          'shell-command-block-live-terminal-'
+                                          'viewport-${block.id}',
                                         ),
+                                        contentPadding: EdgeInsets.zero,
+                                        onMeasuredCellSizeChanged:
+                                            hideDefaultTerminal
+                                            ? handleMeasuredCellSizeChanged
+                                            : null,
+                                      )
+                                    : null,
+                                onOpenBlockActions: (block, anchorRect) =>
+                                    unawaited(
+                                      _openContextChipBlockActions(
+                                        sessionController: sessionController,
+                                        sessionState: sessionState,
+                                        sessionId: sessionId,
+                                        blockId: block.id,
+                                        anchorRect: anchorRect,
+                                        showSelectedBlockChip: false,
                                       ),
-                                  onSelectBlock: (block) =>
-                                      _selectCommandBlock(sessionId, block.id),
-                                  onToggleBlockBookmark: (block) =>
-                                      _toggleCommandBlockBookmark(
-                                        sessionId,
-                                        block.id,
-                                      ),
-                                ),
+                                    ),
+                                onSelectBlock: (block) =>
+                                    _selectCommandBlock(sessionId, block.id),
+                                onToggleBlockBookmark: (block) =>
+                                    _toggleCommandBlockBookmark(
+                                      sessionId,
+                                      block.id,
+                                    ),
                               ),
-                          ],
-                        ),
+                            ),
+                        ],
                       ),
                     ),
                     if (!isActive)
@@ -989,33 +952,6 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                             onPrevious: () => _moveSearchMatch(1),
                             onNext: () => _moveSearchMatch(-1),
                             onClose: _closeSearch,
-                          ),
-                        ),
-                      ),
-                    if (isActive &&
-                        !_isSearchOpen &&
-                        !_isCommandSearchOpen &&
-                        !_isCommandActionSearchOpen &&
-                        !_isAutocompleteOpen &&
-                        !_isAutoComposerOpen &&
-                        !_isCopyModeOpen &&
-                        contextChips.chips.isNotEmpty)
-                      Positioned(
-                        top: _ShellScreenState._terminalOverlayPadding.top,
-                        left: _ShellScreenState._terminalOverlayPadding.left,
-                        right: _ShellScreenState._terminalOverlayPadding.right,
-                        child: Align(
-                          alignment: Alignment.topLeft,
-                          child: ContextChips(
-                            chips: contextChips.chips,
-                            onIntent: (intent, anchorRect) =>
-                                _handleContextChipIntent(
-                                  sessionController: sessionController,
-                                  sessionState: sessionState,
-                                  sessionId: sessionId,
-                                  intent: intent,
-                                  anchorRect: anchorRect,
-                                ),
                           ),
                         ),
                       ),

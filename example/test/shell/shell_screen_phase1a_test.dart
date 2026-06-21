@@ -67,7 +67,8 @@ void main() {
     expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
     expect(find.byKey(const Key('shell-chrome-new-tab')), findsOneWidget);
     expect(find.byKey(const Key('shell-terminal-surface')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-input-bar')), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-bar')), findsNothing);
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
       44,

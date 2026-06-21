@@ -893,8 +893,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
 
   List<String> _universalInputContextChipsFor(
     TerminalPane pane,
-    TerminalProfile? profile,
-  ) {
+    TerminalProfile? profile, {
+    bool includeSessionHints = true,
+  }) {
+    if (!includeSessionHints) {
+      return _universalInputPinnedContextChips.take(7).toList(growable: false);
+    }
     final integration = pane.shellIntegration;
     final chips = <String>[];
     final cwd = integration.currentDirectory;
