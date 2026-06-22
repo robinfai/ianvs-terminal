@@ -30,7 +30,11 @@ String? shellCommandBlocksNativeTerminalBlockIdForRunningBlock({
   required String? runningBlockId,
   required terminal.TerminalFrameModes modes,
 }) {
-  // Running commands stay in the command block's clipped live terminal.
+  if (modes.alternateScreen) {
+    return runningBlockId;
+  }
+  // Primary-screen running commands stay in the command block's clipped live
+  // terminal so long-running output can keep command block chrome visible.
   return null;
 }
 
@@ -50,13 +54,18 @@ bool shellCommandBlocksShouldRenderOverlay({
   required terminal.TerminalFrameModes modes,
   required String? nativeTerminalBlockId,
 }) {
+  if (viewModel.isEmpty) {
+    return false;
+  }
+  if (nativeTerminalBlockId != null) {
+    return false;
+  }
   final runningBlockId = shellCommandBlocksRunningBlockId(viewModel);
-  return !viewModel.isEmpty &&
-      !shellCommandBlocksShouldUseNativeTerminal(
-        modes: modes,
-        nativeTerminalBlockId: nativeTerminalBlockId,
-        runningBlockId: runningBlockId,
-      );
+  return !shellCommandBlocksShouldUseNativeTerminal(
+    modes: modes,
+    nativeTerminalBlockId: nativeTerminalBlockId,
+    runningBlockId: runningBlockId,
+  );
 }
 
 @visibleForTesting

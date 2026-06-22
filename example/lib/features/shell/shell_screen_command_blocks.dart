@@ -1626,7 +1626,7 @@ class ShellCommandInputBar extends StatefulWidget {
     this.executionDirectory,
     this.viewportLabel,
     this.encodingLabel = 'UTF-8',
-    this.modeItems = const <_ShellStatusModeItem>[],
+    this.modeItems = const <ShellStatusModeItem>[],
     this.contextChips = const <String>[],
     this.contextOptions = const <UniversalInputToolOption>[],
     this.modelLabel = 'Local heuristic',
@@ -1682,7 +1682,7 @@ class ShellCommandInputBar extends StatefulWidget {
   final String? executionDirectory;
   final String? viewportLabel;
   final String encodingLabel;
-  final List<_ShellStatusModeItem> modeItems;
+  final List<ShellStatusModeItem> modeItems;
   final List<String> contextChips;
   final List<UniversalInputToolOption> contextOptions;
   final String modelLabel;

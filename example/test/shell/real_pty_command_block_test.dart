@@ -557,7 +557,7 @@ ianvs_readline_probe() {
   );
 
   test(
-    'real PTY vi after ls stays in command block live terminal output',
+    'real PTY vi after ls uses native terminal while alternate screen runs',
     () async {
       final libraryPath = _workspaceCoreLibraryPath!;
       final backend = NativePtyBackend.fromBindings(
@@ -632,11 +632,42 @@ ianvs_readline_probe() {
       expect(running, isNotNull);
       expect(running!.status, ShellCommandBlockStatus.running);
       expect(harness.frameModes.alternateScreen, isTrue);
+      final viewModel = harness._viewModel();
+      final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
+        viewModel: viewModel,
+        modes: harness.frameModes,
+      );
+      expect(nativeTerminalBlockId, running.id);
       expect(
         shellCommandBlocksShouldUseNativeTerminal(
           modes: harness.frameModes,
-          nativeTerminalBlockId: null,
+          nativeTerminalBlockId: nativeTerminalBlockId,
           runningBlockId: running.id,
+        ),
+        isTrue,
+      );
+      expect(
+        shellCommandBlocksShouldRenderOverlay(
+          viewModel: viewModel,
+          modes: harness.frameModes,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandBlocksShouldEmbedLiveTerminal(
+          viewModel: viewModel,
+          modes: harness.frameModes,
+          nativeTerminalBlockId: nativeTerminalBlockId,
+        ),
+        isFalse,
+      );
+      expect(
+        shellCommandBlocksShouldHideDefaultTerminal(
+          hideWhenVisible: true,
+          viewModel: viewModel,
+          modes: harness.frameModes,
+          nativeTerminalBlockId: nativeTerminalBlockId,
         ),
         isFalse,
       );

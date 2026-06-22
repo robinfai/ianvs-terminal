@@ -227,71 +227,76 @@ void main() {
       },
     );
 
-    test('alternate screen stays embedded in command block live terminal', () {
-      final viewModel = ShellCommandBlockViewModelBuilder.build(
-        blocks: [
-          _commandBlock(
-            startRow: 10,
-            endRow: 12,
-            command: 'vi README.md',
-            status: ShellCommandBlockStatus.running,
-          ),
-        ],
-        viewportStartRow: 8,
-        viewportEndRow: 24,
-        visibleRows: const [terminal.TerminalRow(index: 3, text: '~')],
-        flags: _enabledFlags(),
-      );
-      const alternateModes = terminal.TerminalFrameModes(alternateScreen: true);
-      final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
-        viewModel: viewModel,
-        modes: alternateModes,
-      );
-
-      expect(nativeTerminalBlockId, isNull);
-      expect(
-        shellCommandBlocksShouldUseNativeTerminal(
-          modes: alternateModes,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-          runningBlockId: viewModel.blocks.single.id,
-        ),
-        isFalse,
-      );
-      expect(
-        shellCommandBlocksShouldRenderOverlay(
-          viewModel: viewModel,
-          modes: alternateModes,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        ),
-        isTrue,
-      );
-      expect(
-        shellCommandBlocksShouldEmbedLiveTerminal(
-          viewModel: viewModel,
-          modes: alternateModes,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        ),
-        isTrue,
-      );
-      expect(
-        shellCommandBlocksShouldHideDefaultTerminal(
-          hideWhenVisible: true,
-          viewModel: viewModel,
-          modes: alternateModes,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-        ),
-        isTrue,
-      );
-      expect(
-        shellCommandInputVisibleForCommandBlocks(
+    test(
+      'alternate screen running block hides overlay over native terminal',
+      () {
+        final viewModel = ShellCommandBlockViewModelBuilder.build(
+          blocks: [
+            _commandBlock(
+              startRow: 10,
+              endRow: 12,
+              command: 'vi README.md',
+              status: ShellCommandBlockStatus.running,
+            ),
+          ],
+          viewportStartRow: 8,
+          viewportEndRow: 24,
+          visibleRows: const [terminal.TerminalRow(index: 3, text: '~')],
           flags: _enabledFlags(),
+        );
+        const alternateModes = terminal.TerminalFrameModes(
+          alternateScreen: true,
+        );
+        final nativeTerminalBlockId = shellCommandBlocksNativeTerminalBlockId(
+          viewModel: viewModel,
           modes: alternateModes,
-          nativeTerminalBlockId: nativeTerminalBlockId,
-          runningBlockId: viewModel.blocks.single.id,
-        ),
-        isFalse,
-      );
-    });
+        );
+
+        expect(nativeTerminalBlockId, viewModel.blocks.single.id);
+        expect(
+          shellCommandBlocksShouldUseNativeTerminal(
+            modes: alternateModes,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+            runningBlockId: viewModel.blocks.single.id,
+          ),
+          isTrue,
+        );
+        expect(
+          shellCommandBlocksShouldRenderOverlay(
+            viewModel: viewModel,
+            modes: alternateModes,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+          ),
+          isFalse,
+        );
+        expect(
+          shellCommandBlocksShouldEmbedLiveTerminal(
+            viewModel: viewModel,
+            modes: alternateModes,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+          ),
+          isFalse,
+        );
+        expect(
+          shellCommandBlocksShouldHideDefaultTerminal(
+            hideWhenVisible: true,
+            viewModel: viewModel,
+            modes: alternateModes,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+          ),
+          isFalse,
+        );
+        expect(
+          shellCommandInputVisibleForCommandBlocks(
+            flags: _enabledFlags(),
+            modes: alternateModes,
+            nativeTerminalBlockId: nativeTerminalBlockId,
+            runningBlockId: viewModel.blocks.single.id,
+          ),
+          isFalse,
+        );
+      },
+    );
 
     test(
       'leaving alternate screen keeps a running command embedded in its block',

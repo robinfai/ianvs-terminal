@@ -335,14 +335,14 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     return '$cols×$rows';
   }
 
-  List<_ShellStatusModeItem> _statusModeItemsFor(
+  List<ShellStatusModeItem> _statusModeItemsFor(
     String sessionId,
     terminal.TerminalFrameModes modes,
   ) {
-    final items = <_ShellStatusModeItem>[];
+    final items = <ShellStatusModeItem>[];
     if (modes.alternateScreen) {
       items.add(
-        const _ShellStatusModeItem(
+        const ShellStatusModeItem(
           key: Key('shell-status-mode-alt'),
           label: 'ALT',
           tooltip: 'Alternate screen buffer is active.',
@@ -354,7 +354,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       final mouseMode = _mouseModeStatusLabel(modes.mouseMode);
       final mouseEncoding = _mouseEncodingStatusLabel(modes.mouseEncoding);
       items.add(
-        _ShellStatusModeItem(
+        ShellStatusModeItem(
           key: const Key('shell-status-mode-mouse'),
           label: 'MOUSE',
           tooltip: 'Mouse reporting is active: $mouseMode, $mouseEncoding.',
@@ -364,7 +364,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     }
     if (modes.bracketedPaste) {
       items.add(
-        const _ShellStatusModeItem(
+        const ShellStatusModeItem(
           key: Key('shell-status-mode-paste'),
           label: 'PASTE',
           tooltip: 'Bracketed paste mode is active.',
@@ -374,7 +374,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     }
     if (_isSessionReadOnly(sessionId)) {
       items.add(
-        const _ShellStatusModeItem(
+        const ShellStatusModeItem(
           key: Key('shell-status-mode-read-only'),
           label: 'READ ONLY',
           tooltip:

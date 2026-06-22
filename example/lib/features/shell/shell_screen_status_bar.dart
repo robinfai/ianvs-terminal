@@ -15,7 +15,7 @@ class _ShellStatusBar extends StatelessWidget {
   final Color terminalBackgroundColor;
   final String? directory;
   final String? viewportLabel;
-  final List<_ShellStatusModeItem> modeItems;
+  final List<ShellStatusModeItem> modeItems;
   final String encodingLabel;
 
   @override
@@ -116,8 +116,8 @@ class _ShellStatusBar extends StatelessWidget {
   }
 }
 
-class _ShellStatusModeItem {
-  const _ShellStatusModeItem({
+class ShellStatusModeItem {
+  const ShellStatusModeItem({
     required this.key,
     required this.label,
     required this.tooltip,

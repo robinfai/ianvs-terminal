@@ -1321,7 +1321,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         ? statusDirectory!.trim()
                         : statusProfile?.cwd,
                     viewportLabel: statusViewportLabel,
-                    modeItems: const <_ShellStatusModeItem>[],
+                    modeItems: const <ShellStatusModeItem>[],
                     encodingLabel: 'UTF-8',
                   )
                 else
