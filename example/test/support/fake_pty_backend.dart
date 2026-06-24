@@ -112,6 +112,8 @@ class FakePtyBackend
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {
     resizeCalls.add([
       _numericSessionId(sessionId),

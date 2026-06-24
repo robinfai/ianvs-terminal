@@ -67,6 +67,17 @@ Future<void> sendMetaShortcut(
   await tester.pump();
 }
 
+Future<void> openNewShellTab(WidgetTester tester) async {
+  final newTabButton = find.byKey(const Key('shell-chrome-new-tab'));
+  if (newTabButton.evaluate().isNotEmpty) {
+    await tester.tap(newTabButton);
+    await tester.pumpAndSettle();
+    return;
+  }
+
+  await sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+}
+
 void main() {
   testWidgets('shell screen exposes a selected tab in the hyper-style strip', (
     tester,
@@ -142,7 +153,7 @@ void main() {
     final singleTabWidth = tester
         .getSize(find.byKey(const Key('shell-tab-1')))
         .width;
-    expect(singleTabWidth, closeTo(stripWidth - 30, 1));
+    expect(singleTabWidth, closeTo(stripWidth - 46, 1));
 
     await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
     await tester.pumpAndSettle();
@@ -154,7 +165,26 @@ void main() {
         .getSize(find.byKey(const Key('shell-tab-2')))
         .width;
     expect(firstTabWidth, closeTo(secondTabWidth, 1));
-    expect(firstTabWidth, greaterThan(112));
+    expect(firstTabWidth, closeTo((stripWidth - 46) / 2, 1));
+    expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+    await tester.pumpAndSettle();
+
+    final threeTabWidths = [
+      tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
+      tester.getSize(find.byKey(const Key('shell-tab-2'))).width,
+      tester.getSize(find.byKey(const Key('shell-tab-3'))).width,
+    ];
+    expect(threeTabWidths[0], closeTo(threeTabWidths[1], 1));
+    expect(threeTabWidths[1], closeTo(threeTabWidths[2], 1));
+    expect(threeTabWidths[0], closeTo((stripWidth - 46) / 3, 1));
+    expect(
+      tester.getRect(find.byKey(const Key('shell-chrome-new-tab'))).right,
+      lessThanOrEqualTo(
+        tester.getRect(find.byKey(const Key('shell-tab-strip'))).right + 0.1,
+      ),
+    );
     expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
   });
 
@@ -176,7 +206,12 @@ void main() {
       const Key('shell-tab-1'),
       const <WidgetState>{},
     );
-    expect(activeBackground, const Color(0xFF11141A));
+    expect(activeBackground, isNot(const Color(0xFF11141A)));
+    expect(_channelSpread(activeBackground), lessThanOrEqualTo(18));
+    expect(
+      activeBackground.computeLuminance(),
+      greaterThan(const Color(0xFF11141A).computeLuminance()),
+    );
     expect(
       _tabButtonOverlay(tester, const Key('shell-tab-1'), {
         WidgetState.hovered,
@@ -194,7 +229,7 @@ void main() {
       const Key('shell-chrome-new-tab'),
       const <WidgetState>{WidgetState.hovered},
     )!;
-    expect(_channelSpread(newTabHoverBackground), lessThanOrEqualTo(2));
+    expect(_channelSpread(newTabHoverBackground), lessThanOrEqualTo(18));
     expect(
       _decoratedBoxColor(tester, const Key('shell-chrome-bar')),
       const Color(0xFF11141A),
@@ -217,16 +252,13 @@ void main() {
       tester,
       const Key('shell-tab-border-1'),
     );
-    expect(inactiveBorder.top, BorderSide.none);
-    expect(inactiveBorder.left.width, 1);
-    expect(inactiveBorder.right.width, 1);
-    expect(inactiveBorder.bottom.width, 1);
+    expect(inactiveBorder, isNull);
     final hoverBackground = _tabButtonBackground(
       tester,
       const Key('shell-tab-1'),
       const <WidgetState>{WidgetState.hovered},
     );
-    expect(_channelSpread(hoverBackground), lessThanOrEqualTo(2));
+    expect(_channelSpread(hoverBackground), lessThanOrEqualTo(18));
     expect(
       hoverBackground.computeLuminance(),
       greaterThan(inactiveBackground.computeLuminance()),
@@ -245,15 +277,19 @@ void main() {
     );
 
     for (var index = 0; index < 11; index += 1) {
-      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-      await tester.pumpAndSettle();
+      await openNewShellTab(tester);
     }
 
     expect(find.byKey(const Key('shell-tab-overflow-button')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-tab-overflow-ellipsis')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-chrome-new-tab')), findsNothing);
     expect(find.bySemanticsIdentifier('shell-tab-12'), findsNothing);
     expect(
       tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
-      greaterThanOrEqualTo(112),
+      greaterThanOrEqualTo(200),
     );
 
     await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
@@ -279,8 +315,9 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-      await tester.pumpAndSettle();
+      for (var index = 0; index < 7; index += 1) {
+        await openNewShellTab(tester);
+      }
 
       expect(tester.takeException(), isNull);
       final stripRect = tester.getRect(
@@ -289,26 +326,17 @@ void main() {
       final overflowRect = tester.getRect(
         find.byKey(const Key('shell-tab-overflow-button')),
       );
-      final newTabRect = tester.getRect(
-        find.byKey(const Key('shell-chrome-new-tab')),
-      );
 
       expect(overflowRect.left, greaterThanOrEqualTo(stripRect.left - 0.1));
-      expect(newTabRect.right, lessThanOrEqualTo(stripRect.right + 0.1));
-      expect(
-        overflowRect.width + newTabRect.width,
-        lessThanOrEqualTo(stripRect.width + 1),
-      );
+      expect(overflowRect.right, lessThanOrEqualTo(stripRect.right + 0.1));
+      expect(overflowRect.width, lessThanOrEqualTo(46));
+      expect(find.byKey(const Key('shell-chrome-new-tab')), findsNothing);
 
       await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
       await tester.pumpAndSettle();
 
       expect(
-        find.byKey(const Key('shell-tab-overflow-item-1')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('shell-tab-overflow-item-2')),
+        find.byKey(const Key('shell-tab-overflow-item-8')),
         findsOneWidget,
       );
     },
@@ -329,6 +357,8 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
     await tester.pumpAndSettle();
+
+    expect(find.byTooltip('New output'), findsNothing);
 
     fakeBindings.setFrame(1, _terminalFrame('background build done'));
     await tester.pump(const Duration(milliseconds: 40));
@@ -354,8 +384,7 @@ void main() {
     );
 
     for (var index = 0; index < 11; index += 1) {
-      await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
-      await tester.pumpAndSettle();
+      await openNewShellTab(tester);
     }
     await tester.tap(find.byKey(const Key('shell-tab-1')));
     await tester.pumpAndSettle();
@@ -487,9 +516,12 @@ void main() {
         lessThan(tester.getCenter(tabThree).dx),
       );
 
+      final stripRect = tester.getRect(
+        find.byKey(const Key('shell-tab-strip')),
+      );
       final gesture = await tester.startGesture(tester.getCenter(tabOne));
       await tester.pump(const Duration(milliseconds: 80));
-      await gesture.moveBy(const Offset(360, 0));
+      await gesture.moveBy(Offset(stripRect.width * 1.18, 0));
       await tester.pump(const Duration(milliseconds: 360));
       await gesture.up();
       await tester.pumpAndSettle();
@@ -515,7 +547,7 @@ void main() {
   );
 
   testWidgets(
-    'shell tab full-width body is draggable while close stays right',
+    'shell tab full-width body is draggable while hover close stays left',
     (tester) async {
       await pumpShellScreen(
         tester,
@@ -540,11 +572,15 @@ void main() {
       expect(tabOneClose, findsOneWidget);
 
       final tabOneRect = tester.getRect(tabOne);
+      final stripRect = tester.getRect(
+        find.byKey(const Key('shell-tab-strip')),
+      );
       final titleRect = tester.getRect(tabOneTitle);
+      await _hoverShellTab(tester, '1');
       final closeRect = tester.getRect(tabOneClose);
       expect(titleRect.center.dx, closeTo(tabOneRect.center.dx, 1));
-      expect(closeRect.right, greaterThan(tabOneRect.right - 28));
-      expect(closeRect.right, lessThan(tabOneRect.right - 4));
+      expect(closeRect.left, greaterThan(tabOneRect.left + 4));
+      expect(closeRect.right, lessThan(tabOneRect.left + 32));
 
       final tabOneBodyDragStart = Offset(
         tabOneRect.left + tabOneRect.width * 0.18,
@@ -552,7 +588,7 @@ void main() {
       );
       final gesture = await tester.startGesture(tabOneBodyDragStart);
       await tester.pump(const Duration(milliseconds: 80));
-      await gesture.moveBy(const Offset(360, 0));
+      await gesture.moveBy(Offset(stripRect.width * 1.18, 0));
       await tester.pump(const Duration(milliseconds: 360));
       await gesture.up();
       await tester.pumpAndSettle();
@@ -580,6 +616,7 @@ void main() {
       ),
     );
 
+    await _hoverShellTab(tester, '1');
     await tester.tap(find.byTooltip('Close Local Shell'));
     await tester.pumpAndSettle();
 
@@ -605,9 +642,19 @@ void main() {
       referenceDemoMode: true,
     );
 
-    expect(find.text('⌘1'), findsOneWidget);
-    expect(find.text('⌘2'), findsOneWidget);
-    expect(find.text('⌘3'), findsOneWidget);
+    final tabStrip = find.byKey(const Key('shell-tab-strip'));
+    expect(
+      find.descendant(of: tabStrip, matching: find.text('⌘1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: tabStrip, matching: find.text('⌘2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: tabStrip, matching: find.text('⌘3')),
+      findsOneWidget,
+    );
     expect(
       tester.getSemantics(find.bySemanticsIdentifier('shell-tab-demo-2')),
       matchesSemantics(
@@ -648,6 +695,14 @@ void main() {
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
+}
+
+Future<void> _hoverShellTab(WidgetTester tester, String sessionId) async {
+  final pointer = TestPointer(98, PointerDeviceKind.mouse);
+  await tester.sendEventToBinding(
+    pointer.hover(tester.getCenter(find.byKey(Key('shell-tab-$sessionId')))),
+  );
+  await tester.pump();
 }
 
 Color _tabButtonBackground(
@@ -691,9 +746,9 @@ Color? _decoratedBoxColor(WidgetTester tester, Key key) {
   return (decoratedBox.decoration as BoxDecoration).color;
 }
 
-Border _decoratedBoxBorder(WidgetTester tester, Key key) {
+Border? _decoratedBoxBorder(WidgetTester tester, Key key) {
   final decoratedBox = tester.widget<DecoratedBox>(find.byKey(key));
-  return (decoratedBox.decoration as BoxDecoration).border! as Border;
+  return (decoratedBox.decoration as BoxDecoration).border as Border?;
 }
 
 int _channelSpread(Color color) {

@@ -182,9 +182,10 @@ impl Terminal {
             }
         }
         // Second pass: erase the collected cells
+        let blank_cell = self.active_grid().blank_cell();
         for (col, row) in to_erase {
             if let Some(cells) = self.active_grid_mut().row_mut(row) {
-                cells[col] = crate::cell::Cell::default();
+                cells[col] = blank_cell.clone();
             }
         }
 

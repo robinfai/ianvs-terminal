@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,8 +72,10 @@ void main() {
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
-      44,
+      88,
     );
+    expect(find.byKey(const Key('shell-chrome-window-title')), findsOneWidget);
+    expect(find.byKey(const Key('shell-chrome-window-shortcut')), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byType(InputChip), findsNothing);
@@ -94,6 +98,7 @@ void main() {
 
       expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
 
+      await _hoverShellTab(tester, '1');
       await tester.tap(find.byTooltip('Close Local Shell'));
       await tester.pumpAndSettle();
 
@@ -131,11 +136,29 @@ void main() {
       );
 
       expect(find.byKey(const Key('shell-chrome-menu')), findsNothing);
-      expect(find.text('Shell'), findsNWidgets(3));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-strip')),
+          matching: find.text('Shell'),
+        ),
+        findsNWidgets(3),
+      );
+      expect(
+        find.byKey(const Key('shell-chrome-window-title')),
+        findsOneWidget,
+      );
       expect(find.bySemanticsIdentifier('shell-tab-demo-1'), findsOneWidget);
       expect(find.bySemanticsIdentifier('shell-tab-demo-2'), findsOneWidget);
       expect(find.bySemanticsIdentifier('shell-tab-demo-3'), findsOneWidget);
       expect(find.byType(TerminalViewport), findsOneWidget);
     },
   );
+}
+
+Future<void> _hoverShellTab(WidgetTester tester, String sessionId) async {
+  final pointer = TestPointer(97, PointerDeviceKind.mouse);
+  await tester.sendEventToBinding(
+    pointer.hover(tester.getCenter(find.byKey(Key('shell-tab-$sessionId')))),
+  );
+  await tester.pump();
 }

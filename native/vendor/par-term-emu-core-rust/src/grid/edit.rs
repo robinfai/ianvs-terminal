@@ -59,13 +59,14 @@ impl Grid {
         }
         let n = n.min(self.cols - col);
         let cols = self.cols;
+        let blank_cell = self.blank_cell();
 
         if let Some(row_cells) = self.row_mut(row) {
             for i in ((col + n)..cols).rev() {
                 row_cells[i] = row_cells[i - n].clone();
             }
             for cell in row_cells.iter_mut().skip(col).take(n) {
-                cell.reset();
+                *cell = blank_cell.clone();
             }
         }
     }
@@ -77,13 +78,14 @@ impl Grid {
         }
         let n = n.min(self.cols - col);
         let cols = self.cols;
+        let blank_cell = self.blank_cell();
 
         if let Some(row_cells) = self.row_mut(row) {
             for i in col..(cols - n) {
                 row_cells[i] = row_cells[i + n].clone();
             }
             for cell in row_cells.iter_mut().skip(cols - n).take(n) {
-                cell.reset();
+                *cell = blank_cell.clone();
             }
         }
     }

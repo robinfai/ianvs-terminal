@@ -266,7 +266,8 @@ impl Grid {
             // This implicitly handles growing (padding with default) and shrinking (truncating)
             // for the main grid, without touching scrollback.
 
-            self.cells.resize(cols * rows, Cell::default());
+            let blank_cell = self.blank_cell();
+            self.cells.resize(cols * rows, blank_cell);
             self.wrapped.resize(rows, false);
             self.rows = rows;
 
@@ -298,7 +299,7 @@ impl Grid {
 
             if cells.is_empty() {
                 for _ in 0..new_cols {
-                    new_sb_cells.push(Cell::default());
+                    new_sb_cells.push(self.blank_cell());
                 }
                 new_sb_wrapped.push(false);
                 continue;
@@ -307,7 +308,7 @@ impl Grid {
             for (i, row_cells) in cells.chunks(new_cols).enumerate() {
                 new_sb_cells.extend(row_cells.iter().cloned());
                 while new_sb_cells.len() % new_cols != 0 {
-                    new_sb_cells.push(Cell::default());
+                    new_sb_cells.push(self.blank_cell());
                 }
                 new_sb_wrapped.push(wrapped_flags.get(i).copied().unwrap_or(false));
             }
@@ -342,7 +343,7 @@ impl Grid {
 
             if cells.is_empty() {
                 for _ in 0..new_cols {
-                    all_cells.push(Cell::default());
+                    all_cells.push(self.blank_cell());
                 }
                 all_wrapped.push(false);
                 continue;
@@ -351,7 +352,7 @@ impl Grid {
             for (i, row_cells) in cells.chunks(new_cols).enumerate() {
                 all_cells.extend(row_cells.iter().cloned());
                 while all_cells.len() % new_cols != 0 {
-                    all_cells.push(Cell::default());
+                    all_cells.push(self.blank_cell());
                 }
                 all_wrapped.push(wrapped_flags.get(i).copied().unwrap_or(false));
             }
@@ -398,7 +399,7 @@ impl Grid {
             all_wrapped = all_wrapped[excess_lines..].to_vec();
         }
 
-        let mut new_cells = vec![Cell::default(); new_cols * new_rows];
+        let mut new_cells = vec![self.blank_cell(); new_cols * new_rows];
         let mut new_wrapped = vec![false; new_rows];
         let lines_to_copy = all_wrapped.len().min(new_rows);
         for row in 0..lines_to_copy {
@@ -481,7 +482,7 @@ impl Grid {
             let char_width = cell.width as usize;
             if current_col + char_width > width {
                 while current_col < width {
-                    new_cells.push(Cell::default());
+                    new_cells.push(self.blank_cell());
                     current_col += 1;
                 }
                 wrapped_flags.push(true);
@@ -490,7 +491,7 @@ impl Grid {
             new_cells.push(cell.clone());
             current_col += char_width;
             for _ in 1..char_width {
-                let mut spacer = Cell::default();
+                let mut spacer = self.blank_cell();
                 spacer.flags.set_wide_char_spacer(true);
                 new_cells.push(spacer);
             }

@@ -128,12 +128,16 @@ class _EventfulPtyBackend
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) => _delegate.resizeSession(
     sessionId,
     cols: cols,
     rows: rows,
     pixelWidth: pixelWidth,
     pixelHeight: pixelHeight,
+    cellWidth: cellWidth,
+    cellHeight: cellHeight,
   );
 
   @override
@@ -1559,6 +1563,12 @@ void main() {
       expect(coreBindings.lastCreatedSessionPayload!['terminal'], {
         'emulation': 'xterm256',
         'scrollbackLines': 8000,
+        'graphics': {
+          'enabled': true,
+          'advertise': 'kitty',
+          'maxImageBytes': terminal.defaultTerminalGraphicMaxImageBytes,
+          'maxTotalBytes': terminal.defaultTerminalGraphicMaxTotalBytes,
+        },
       });
     },
   );

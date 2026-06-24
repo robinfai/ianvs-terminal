@@ -37,6 +37,12 @@ impl Terminal {
         ]
     }
 
+    fn sync_grid_blank_style(&mut self) {
+        self.grid.set_blank_style(self.default_fg, self.default_bg);
+        self.alt_grid
+            .set_blank_style(self.default_fg, self.default_bg);
+    }
+
     /// Get default foreground color (OSC 10)
     pub fn default_fg(&self) -> Color {
         self.default_fg
@@ -53,6 +59,7 @@ impl Terminal {
             self.saved_fg = color;
         }
         self.replace_default_fg_in_cells(previous, color);
+        self.sync_grid_blank_style();
     }
 
     /// Get default background color (OSC 11)
@@ -71,6 +78,7 @@ impl Terminal {
             self.saved_bg = color;
         }
         self.replace_default_bg_in_cells(previous, color);
+        self.sync_grid_blank_style();
     }
 
     fn replace_default_fg_in_cells(&mut self, previous: Color, color: Color) {

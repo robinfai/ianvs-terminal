@@ -1,13 +1,13 @@
 //! Erase and clear operations for the terminal grid
 
-use crate::cell::Cell;
 use crate::color::Color;
 use crate::grid::Grid;
 
 impl Grid {
     /// Clear the entire grid
     pub fn clear(&mut self) {
-        self.cells.fill(Cell::default());
+        let blank_cell = self.blank_cell();
+        self.cells.fill(blank_cell);
         self.screen_row_start = 0;
         self.wrapped.fill(false);
         self.zones.clear();
@@ -16,8 +16,9 @@ impl Grid {
 
     /// Clear a specific row
     pub fn clear_row(&mut self, row: usize) {
+        let blank_cell = self.blank_cell();
         if let Some(row_cells) = self.row_mut(row) {
-            row_cells.fill(Cell::default());
+            row_cells.fill(blank_cell);
         }
     }
 
@@ -32,10 +33,11 @@ impl Grid {
 
     /// Clear from cursor to end of line
     pub fn clear_line_right(&mut self, col: usize, row: usize) {
+        let blank_cell = self.blank_cell();
         if row < self.rows {
             for c in col..self.cols {
                 if let Some(cell) = self.get_mut(c, row) {
-                    cell.reset();
+                    *cell = blank_cell.clone();
                 }
             }
         }
@@ -54,10 +56,11 @@ impl Grid {
 
     /// Clear from beginning of line to cursor
     pub fn clear_line_left(&mut self, col: usize, row: usize) {
+        let blank_cell = self.blank_cell();
         if row < self.rows {
             for c in 0..=col.min(self.cols - 1) {
                 if let Some(cell) = self.get_mut(c, row) {
-                    cell.reset();
+                    *cell = blank_cell.clone();
                 }
             }
         }
@@ -108,11 +111,12 @@ impl Grid {
 
     /// Erase characters at (col, row)
     pub fn erase_characters(&mut self, col: usize, row: usize, n: usize) {
+        let blank_cell = self.blank_cell();
         if row < self.rows {
             let end = (col + n).min(self.cols);
             for c in col..end {
                 if let Some(cell) = self.get_mut(c, row) {
-                    cell.reset();
+                    *cell = blank_cell.clone();
                 }
             }
         }

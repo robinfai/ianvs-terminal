@@ -137,6 +137,14 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _hoverShellTab(WidgetTester tester, String sessionId) async {
+  final pointer = TestPointer(99, PointerDeviceKind.mouse);
+  await tester.sendEventToBinding(
+    pointer.hover(tester.getCenter(find.byKey(Key('shell-tab-$sessionId')))),
+  );
+  await tester.pump();
+}
+
 Future<void> _openShellSearch(WidgetTester tester) async {
   await tester.tap(find.byType(TerminalViewport));
   await tester.pump();
@@ -4293,6 +4301,7 @@ void main() {
       ),
     );
 
+    await _hoverShellTab(tester, '1');
     await tester.tap(find.byTooltip('Close Local Shell'));
     await tester.pumpAndSettle();
 
@@ -4325,6 +4334,7 @@ void main() {
       ),
     );
 
+    await _hoverShellTab(tester, '1');
     await tester.tap(find.byTooltip('Close Local Shell'));
     await tester.pumpAndSettle();
 

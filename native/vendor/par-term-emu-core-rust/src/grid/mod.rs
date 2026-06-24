@@ -4,6 +4,7 @@
 //! and semantic zone tracking.
 
 use crate::cell::Cell;
+use crate::color::Color;
 use crate::zone::Zone;
 use std::ops::Range;
 
@@ -38,6 +39,8 @@ pub struct Grid {
     pub(crate) rows: usize,
     /// The actual grid data (row-major order)
     pub(crate) cells: Vec<Cell>,
+    /// Cell template used for implementation-created blank cells.
+    pub(crate) blank_cell: Cell,
     /// Physical row backing logical row 0 in `cells`.
     pub(crate) screen_row_start: usize,
     /// Scrollback buffer (flat Vec, row-major order like main grid)
@@ -67,11 +70,13 @@ pub struct Grid {
 impl Grid {
     /// Create a new grid with the specified dimensions
     pub fn new(cols: usize, rows: usize, max_scrollback: usize) -> Self {
-        let cells = vec![Cell::default(); cols * rows];
+        let blank_cell = Cell::default();
+        let cells = vec![blank_cell.clone(); cols * rows];
         Self {
             cols,
             rows,
             cells,
+            blank_cell,
             screen_row_start: 0,
             scrollback_cells: Vec::new(),
             scrollback_start: 0,
@@ -85,6 +90,14 @@ impl Grid {
             damage: GridDamage::default(),
             scroll_debug_stats: GridScrollDebugStats::default(),
         }
+    }
+
+    pub fn set_blank_style(&mut self, fg: Color, bg: Color) {
+        self.blank_cell = Cell::with_colors(' ', fg, bg);
+    }
+
+    pub(crate) fn blank_cell(&self) -> Cell {
+        self.blank_cell.clone()
     }
 
     /// Get the number of columns

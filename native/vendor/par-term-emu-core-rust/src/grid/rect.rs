@@ -97,12 +97,13 @@ impl Grid {
         }
 
         self.damage.mark_full_repaint("rectangle_operation");
+        let blank_cell = self.blank_cell();
 
         for row in top..=bottom {
             for col in left..=right {
                 if let Some(cell) = self.get_mut(col, row) {
                     if !cell.flags.guarded() {
-                        cell.reset();
+                        *cell = blank_cell.clone();
                     }
                 }
             }
@@ -127,11 +128,12 @@ impl Grid {
         }
 
         self.damage.mark_full_repaint("rectangle_operation");
+        let blank_cell = self.blank_cell();
 
         for row in top..=bottom {
             for col in left..=right {
                 if let Some(cell) = self.get_mut(col, row) {
-                    cell.reset();
+                    *cell = blank_cell.clone();
                 }
             }
         }
