@@ -8,6 +8,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../config/terminal_config.dart';
 import '../terminal/selection_controller.dart';
+import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 
@@ -231,6 +232,8 @@ class TerminalRuntimeController {
 
   final Map<String, TerminalViewportController> _viewportControllers =
       <String, TerminalViewportController>{};
+  final Map<String, TerminalGraphicsCache> _graphicsCaches =
+      <String, TerminalGraphicsCache>{};
   final Map<String, _SessionResizeMetric> _lastResizeMetrics =
       <String, _SessionResizeMetric>{};
   final Map<String, List<Timer>> _warmUpTimers = <String, List<Timer>>{};
@@ -255,6 +258,15 @@ class TerminalRuntimeController {
     return _viewportControllers.putIfAbsent(
       sessionId,
       TerminalViewportController.new,
+    );
+  }
+
+  TerminalGraphicsCache graphicsCacheFor(String sessionId) {
+    return _graphicsCaches.putIfAbsent(
+      sessionId,
+      () => TerminalGraphicsCache(
+        loadAsset: (key) => loadGraphicAsset(sessionId, key),
+      ),
     );
   }
 
@@ -319,6 +331,36 @@ class TerminalRuntimeController {
         .toInt();
     _backend.scrollViewportTo(sessionId, scrollbackOffset);
     _requestRefreshSession(sessionId, immediate: true);
+  }
+
+  Future<TerminalGraphicAsset?> loadGraphicAsset(
+    String sessionId,
+    TerminalGraphicAssetKey key,
+  ) async {
+    if (!hasSession(sessionId)) {
+      return null;
+    }
+    final backend = _backend;
+    final graphicBackend = backend is PtySessionGraphicAssetBackend
+        ? backend as PtySessionGraphicAssetBackend
+        : null;
+    if (graphicBackend == null) {
+      return null;
+    }
+    final nativeAsset = graphicBackend.loadGraphicAsset(
+      sessionId,
+      assetId: key.id,
+      assetVersion: key.version,
+    );
+    if (nativeAsset == null) {
+      return null;
+    }
+    return TerminalGraphicAsset(
+      key: key,
+      width: nativeAsset.width,
+      height: nativeAsset.height,
+      rgba: nativeAsset.rgba,
+    );
   }
 
   String? selectionText(
@@ -1076,6 +1118,7 @@ class TerminalRuntimeController {
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
     }
+    _graphicsCaches.remove(sessionId)?.dispose();
     _viewportControllers.remove(sessionId)?.dispose();
     _lastResizeMetrics.remove(sessionId);
     if (_activeSessionIds.isEmpty) {

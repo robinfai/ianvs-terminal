@@ -1,4 +1,6 @@
 const int defaultTerminalScrollbackLines = 8000;
+const int defaultTerminalGraphicMaxImageBytes = 100 * 1024 * 1024;
+const int defaultTerminalGraphicMaxTotalBytes = 256 * 1024 * 1024;
 
 const String terminalPrimaryFontFamily = 'JetBrainsMono Nerd Font Mono';
 const double terminalFontSize = 14;

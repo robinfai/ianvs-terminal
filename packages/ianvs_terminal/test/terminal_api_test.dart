@@ -55,6 +55,12 @@ void main() {
     expect(payload['terminal'], <String, Object?>{
       'emulation': 'xterm256',
       'scrollbackLines': 5000,
+      'graphics': <String, Object?>{
+        'enabled': true,
+        'advertise': 'kitty',
+        'maxImageBytes': defaultTerminalGraphicMaxImageBytes,
+        'maxTotalBytes': defaultTerminalGraphicMaxTotalBytes,
+      },
     });
     expect(payload['appearance'], <String, Object?>{
       'font': <String, Object?>{

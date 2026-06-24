@@ -113,7 +113,6 @@ final TerminalRowTextMetrics terminalFallbackRowTextMetrics =
     );
 
 const double _smartCursorContrastRatio = 4.5;
-const double _defaultBackgroundContrastThreshold = 1.2;
 
 class RenderTerminalViewport extends RenderBox {
   RenderTerminalViewport({
@@ -969,11 +968,7 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   bool _isDefaultLikeBackground(Color background) {
-    if (background.toARGB32() == _colors.canvasBackground.toARGB32()) {
-      return true;
-    }
-    return _contrastRatio(background, _colors.canvasBackground) <
-        _defaultBackgroundContrastThreshold;
+    return background.toARGB32() == _colors.canvasBackground.toARGB32();
   }
 
   Color _foregroundWithMinimumContrast(Color foreground, Color background) {

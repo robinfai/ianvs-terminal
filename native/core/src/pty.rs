@@ -158,6 +158,7 @@ where
             shell_integration_proxy = Some(proxy);
         }
     }
+    apply_graphics_advertisement(profile, &mut env);
 
     CommandPlan {
         program,
@@ -166,6 +167,26 @@ where
         cwd: profile.launch.cwd.clone(),
         shell_integration_proxy,
     }
+}
+
+fn apply_graphics_advertisement(profile: &TerminalProfile, env: &mut BTreeMap<String, String>) {
+    if profile.terminal.emulation != TerminalEmulation::Xterm256
+        || !profile.terminal.graphics.enabled
+    {
+        return;
+    }
+    if should_advertise_kitty_graphics(&profile.terminal.graphics.advertise) {
+        env.insert("TERM_PROGRAM".to_string(), "kitty".to_string());
+        env.insert("KITTY_WINDOW_ID".to_string(), "ianvs".to_string());
+        env.insert("KITTY_PID".to_string(), process::id().to_string());
+    }
+}
+
+fn should_advertise_kitty_graphics(advertise: &str) -> bool {
+    matches!(
+        advertise.trim().to_ascii_lowercase().as_str(),
+        "auto" | "kitty"
+    )
 }
 
 fn shell_integration_kind(
@@ -694,8 +715,8 @@ end
 mod tests {
     use super::*;
     use crate::model::{
-        TerminalProfileAppearance, TerminalProfileInteraction, TerminalProfileLaunch,
-        TerminalProfileTerminal, TerminalShellIntegration,
+        TerminalGraphicsConfig, TerminalProfileAppearance, TerminalProfileInteraction,
+        TerminalProfileLaunch, TerminalProfileTerminal, TerminalShellIntegration,
     };
     use tempfile::tempdir;
 
@@ -718,6 +739,7 @@ mod tests {
             terminal: TerminalProfileTerminal {
                 emulation,
                 scrollback_lines: 8_000,
+                ..TerminalProfileTerminal::default()
             },
             shell_integration: TerminalShellIntegration {
                 enabled: shell_integration_enabled,
@@ -731,6 +753,86 @@ mod tests {
         build_command_plan_with_proxy_factory(profile, |_kind, _profile, _program| {
             panic!("proxy factory should not be called")
         })
+    }
+
+    #[test]
+    fn command_plan_advertises_kitty_graphics_when_requested() {
+        let mut profile = profile(
+            "/bin/sh",
+            vec![],
+            BTreeMap::new(),
+            TerminalEmulation::Xterm256,
+            false,
+        );
+        profile.terminal.graphics = TerminalGraphicsConfig {
+            advertise: "kitty".to_string(),
+            ..TerminalGraphicsConfig::default()
+        };
+
+        let plan = build_plan_without_proxy(&profile);
+
+        assert_eq!(plan.env["TERM_PROGRAM"], "kitty");
+        assert_eq!(plan.env["KITTY_WINDOW_ID"], "ianvs");
+        assert_eq!(plan.env["KITTY_PID"], process::id().to_string());
+    }
+
+    #[test]
+    fn command_plan_advertises_kitty_graphics_by_default_and_for_auto() {
+        let xterm_profile = profile(
+            "/bin/sh",
+            vec![],
+            BTreeMap::new(),
+            TerminalEmulation::Xterm256,
+            false,
+        );
+        let mut auto_profile = xterm_profile.clone();
+        auto_profile.terminal.graphics.advertise = "auto".to_string();
+
+        assert_eq!(
+            build_plan_without_proxy(&xterm_profile).env["TERM_PROGRAM"],
+            "kitty"
+        );
+        assert_eq!(
+            build_plan_without_proxy(&auto_profile).env["TERM_PROGRAM"],
+            "kitty"
+        );
+    }
+
+    #[test]
+    fn command_plan_skips_graphics_advertisement_when_unsupported_or_disabled() {
+        let mut none_profile = profile(
+            "/bin/sh",
+            vec![],
+            BTreeMap::new(),
+            TerminalEmulation::Xterm256,
+            false,
+        );
+        none_profile.terminal.graphics.advertise = "none".to_string();
+        let mut disabled_profile = none_profile.clone();
+        disabled_profile.terminal.graphics.enabled = false;
+        let vt220_profile = profile(
+            "/bin/sh",
+            vec![],
+            BTreeMap::new(),
+            TerminalEmulation::Vt220,
+            false,
+        );
+
+        assert!(
+            !build_plan_without_proxy(&none_profile)
+                .env
+                .contains_key("TERM_PROGRAM")
+        );
+        assert!(
+            !build_plan_without_proxy(&disabled_profile)
+                .env
+                .contains_key("TERM_PROGRAM")
+        );
+        assert!(
+            !build_plan_without_proxy(&vt220_profile)
+                .env
+                .contains_key("TERM_PROGRAM")
+        );
     }
 
     fn helper_path_env() -> (tempfile::TempDir, String) {
@@ -749,6 +851,12 @@ mod tests {
         }
         let path = helper_dir.path().to_string_lossy().into_owned();
         (helper_dir, path)
+    }
+
+    fn expected_launch_env_with_graphics(profile: &TerminalProfile) -> BTreeMap<String, String> {
+        let mut env = profile.launch.env.clone();
+        apply_graphics_advertisement(profile, &mut env);
+        env
     }
 
     #[test]
@@ -932,7 +1040,7 @@ mod tests {
 
             assert_eq!(plan.program, program);
             assert!(plan.args.is_empty());
-            assert_eq!(plan.env, profile.launch.env);
+            assert_eq!(plan.env, expected_launch_env_with_graphics(&profile));
             assert!(plan.shell_integration_proxy.is_none());
         }
     }
@@ -988,7 +1096,7 @@ mod tests {
             let plan = build_plan_without_proxy(&profile);
             assert_eq!(plan.program, profile.launch.program);
             assert_eq!(plan.args, profile.launch.args);
-            assert_eq!(plan.env, profile.launch.env);
+            assert_eq!(plan.env, expected_launch_env_with_graphics(&profile));
             assert!(plan.shell_integration_proxy.is_none());
         }
     }
@@ -1008,7 +1116,7 @@ mod tests {
 
             assert_eq!(plan.program, program);
             assert!(plan.args.is_empty());
-            assert_eq!(plan.env, profile.launch.env);
+            assert_eq!(plan.env, expected_launch_env_with_graphics(&profile));
             assert!(plan.shell_integration_proxy.is_none());
         }
     }
@@ -1028,7 +1136,7 @@ mod tests {
 
             assert_eq!(plan.program, program);
             assert!(plan.args.is_empty());
-            assert_eq!(plan.env, profile.launch.env);
+            assert_eq!(plan.env, expected_launch_env_with_graphics(&profile));
             assert!(plan.shell_integration_proxy.is_none());
         }
     }

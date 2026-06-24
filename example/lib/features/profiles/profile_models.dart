@@ -794,24 +794,45 @@ bool _validRegex(String pattern) {
 }
 
 TerminalProfile _normalizeBuiltInShellProfile(TerminalProfile profile) {
-  if (profile.args.isNotEmpty) {
-    return profile;
-  }
-
   final defaultProfile = defaultTerminalProfile();
   if (profile.id == defaultProfile.id &&
       profile.shell == defaultProfile.shell) {
-    return profile.copyWith(args: defaultProfile.args);
+    final normalized = profile.args.isEmpty
+        ? profile.copyWith(args: defaultProfile.args)
+        : profile;
+    return _migrateLegacyDefaultProfileBackground(normalized);
   }
 
   final vt220Profile = vt220TerminalProfile();
   if (profile.id == vt220Profile.id &&
       profile.shell == vt220Profile.shell &&
       profile.terminalEmulation == vt220Profile.terminalEmulation) {
-    return profile.copyWith(args: vt220Profile.args);
+    return profile.args.isEmpty
+        ? profile.copyWith(args: vt220Profile.args)
+        : profile;
   }
 
   return profile;
+}
+
+TerminalProfile _migrateLegacyDefaultProfileBackground(
+  TerminalProfile profile,
+) {
+  const legacyDefaultBackgrounds = {'#000000', '#14191E', '#203A4F'};
+  final background = profile.appearance.colors.special.background
+      ?.toUpperCase();
+  if (!legacyDefaultBackgrounds.contains(background)) {
+    return profile;
+  }
+  return profile.copyWith(
+    appearance: profile.appearance.copyWith(
+      colors: profile.appearance.colors.copyWith(
+        special: profile.appearance.colors.special.copyWith(
+          background: terminal_pkg.defaultTerminalSpecialColors.background,
+        ),
+      ),
+    ),
+  );
 }
 
 String _rawValueSummary(Object? value) {

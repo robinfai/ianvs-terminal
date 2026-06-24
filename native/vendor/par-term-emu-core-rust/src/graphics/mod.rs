@@ -200,6 +200,7 @@ pub struct GraphicsLimits {
     pub max_width: u32,
     pub max_height: u32,
     pub max_pixels: usize,
+    pub max_image_bytes: usize,
     pub max_total_memory: usize,
     pub max_graphics_count: usize,
     pub max_scrollback_graphics: usize,
@@ -211,6 +212,7 @@ impl Default for GraphicsLimits {
             max_width: 10000,
             max_height: 10000,
             max_pixels: 25_000_000,              // 25MP
+            max_image_bytes: 100 * 1024 * 1024,  // 100MB
             max_total_memory: 256 * 1024 * 1024, // 256MB
             max_graphics_count: 1000,
             max_scrollback_graphics: 500,
@@ -237,6 +239,8 @@ pub struct TerminalGraphic {
     pub original_height: usize,
     /// RGBA pixel data (Arc for Kitty sharing)
     pub pixels: Arc<Vec<u8>>,
+    /// Stable content version derived from dimensions and RGBA data
+    pub asset_version: u64,
     /// Cell dimensions (cell_width, cell_height) for rendering
     pub cell_dimensions: Option<(u32, u32)>,
     /// Rows scrolled off visible area (for partial rendering)
@@ -283,6 +287,7 @@ impl TerminalGraphic {
             height,
             original_width: width,
             original_height: height,
+            asset_version: graphic_content_version(width, height, &pixels),
             pixels: Arc::new(pixels),
             cell_dimensions: None,
             scroll_offset_rows: 0,
@@ -316,6 +321,7 @@ impl TerminalGraphic {
             height,
             original_width: width,
             original_height: height,
+            asset_version: graphic_content_version(width, height, pixels.as_ref()),
             pixels,
             cell_dimensions: None,
             scroll_offset_rows: 0,
@@ -419,6 +425,99 @@ pub fn next_graphic_id() -> u64 {
     GRAPHIC_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
+const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
+const FNV_PRIME: u64 = 0x00000100000001b3;
+const GRAPHIC_CONTENT_VERSION_MASK: u64 = (1_u64 << 53) - 1;
+
+fn fnv_mix_bytes(mut hash: u64, bytes: &[u8]) -> u64 {
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
+
+fn fnv_mix_u64(hash: u64, value: u64) -> u64 {
+    fnv_mix_bytes(hash, &value.to_le_bytes())
+}
+
+/// Stable non-zero content version for decoded image data.
+pub fn graphic_content_version(width: usize, height: usize, pixels: &[u8]) -> u64 {
+    let hash = fnv_mix_bytes(
+        fnv_mix_u64(fnv_mix_u64(FNV_OFFSET_BASIS, width as u64), height as u64),
+        pixels,
+    );
+    (hash & GRAPHIC_CONTENT_VERSION_MASK).max(1)
+}
+
+fn graphic_cell_span(graphic: &TerminalGraphic) -> (usize, usize) {
+    let cell_width = graphic.cell_dimensions.map(|(w, _)| w as usize).unwrap_or(1);
+    let cell_height = graphic.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
+    let cell_width = cell_width.max(1);
+    let cell_height = cell_height.max(1);
+    (
+        graphic.width.div_ceil(cell_width).max(1),
+        graphic.height.div_ceil(cell_height).max(1),
+    )
+}
+
+fn graphic_intersects_column(graphic: &TerminalGraphic, col: usize) -> bool {
+    let (width_cells, _) = graphic_cell_span(graphic);
+    let start_col = graphic.position.0;
+    let end_col = start_col.saturating_add(width_cells);
+    col >= start_col && col < end_col
+}
+
+fn graphic_intersects_row(graphic: &TerminalGraphic, row: usize) -> bool {
+    let (_, height_cells) = graphic_cell_span(graphic);
+    let start_row = graphic.position.1;
+    let end_row = start_row.saturating_add(height_cells);
+    row >= start_row && row < end_row
+}
+
+fn graphic_intersects_cell(graphic: &TerminalGraphic, col: usize, row: usize) -> bool {
+    graphic_intersects_column(graphic, col) && graphic_intersects_row(graphic, row)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct KittyDeferredDelete {
+    image_id: Option<u32>,
+    placement_id: Option<u32>,
+}
+
+impl KittyDeferredDelete {
+    fn matches(&self, graphic: &TerminalGraphic) -> bool {
+        if graphic.protocol != GraphicProtocol::Kitty {
+            return false;
+        }
+        if let Some(image_id) = self.image_id {
+            if graphic.kitty_image_id != Some(image_id) {
+                return false;
+            }
+        }
+        if let Some(placement_id) = self.placement_id {
+            if graphic.kitty_placement_id != Some(placement_id) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn matches_criteria(&self, image_id: Option<u32>, placement_id: Option<u32>) -> bool {
+        if let Some(image_id) = image_id {
+            if self.image_id != Some(image_id) {
+                return false;
+            }
+        }
+        if let Some(placement_id) = placement_id {
+            if self.placement_id != Some(placement_id) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
 /// Centralized graphics storage supporting image reuse
 #[derive(Debug, Default)]
 pub struct GraphicsStore {
@@ -427,6 +526,11 @@ pub struct GraphicsStore {
 
     /// All active placements (visible area)
     placements: Vec<TerminalGraphic>,
+
+    /// Recently cleared Kitty placements. These are no longer visible, but a
+    /// redraw that immediately follows ED 2/3 can reuse their render identity
+    /// so frontends keep double-buffered image state across clear/redraw cycles.
+    cleared_kitty_placements: Vec<TerminalGraphic>,
 
     /// Virtual placements - prototypes for Unicode placeholder images
     /// Key is (image_id, placement_id)
@@ -446,6 +550,13 @@ pub struct GraphicsStore {
 
     /// Count of graphics dropped due to limits
     dropped_count: usize,
+
+    /// Kitty deletes waiting for a replacement transfer to settle.
+    deferred_kitty_deletes: Vec<KittyDeferredDelete>,
+
+    /// Kitty placements removed from active protocol state but retained briefly
+    /// so an immediate replacement can reuse the same render identity.
+    deleted_kitty_placements: Vec<TerminalGraphic>,
 }
 
 impl GraphicsStore {
@@ -463,7 +574,45 @@ impl GraphicsStore {
     }
 
     /// Add a graphic placement
-    pub fn add_graphic(&mut self, graphic: TerminalGraphic) {
+    pub fn add_graphic(&mut self, mut graphic: TerminalGraphic) -> bool {
+        if !self.image_fits_limits(graphic.width, graphic.height, graphic.pixels.len())
+            || !self.evict_until_fits(graphic.pixels.len())
+        {
+            self.dropped_count += 1;
+            return false;
+        }
+
+        if graphic.protocol == GraphicProtocol::Kitty {
+            let existing_placement_id = self.matching_kitty_graphic_id(&graphic);
+            let deferred_placement_id = self.resolve_deferred_kitty_deletes_for_graphic(&graphic);
+            let cleared_placement_id = self.matching_cleared_kitty_graphic_id(&graphic);
+            if let Some(placement_id) = existing_placement_id
+                .or(deferred_placement_id)
+                .or(cleared_placement_id)
+            {
+                graphic.id = placement_id;
+                self.clear_deleted_kitty_placement_id(placement_id);
+                self.clear_cleared_kitty_placement_id(placement_id);
+            }
+        }
+
+        if let (GraphicProtocol::Kitty, Some(image_id), Some(placement_id)) = (
+            graphic.protocol,
+            graphic.kitty_image_id,
+            graphic.kitty_placement_id,
+        ) {
+            self.placements.retain(|existing| {
+                existing.protocol != GraphicProtocol::Kitty
+                    || existing.kitty_image_id != Some(image_id)
+                    || existing.kitty_placement_id != Some(placement_id)
+            });
+        }
+
+        self.deferred_kitty_deletes
+            .retain(|pending| !pending.matches(&graphic));
+        self.deleted_kitty_placements
+            .retain(|deleted| deleted.id != graphic.id);
+
         // Enforce placement limit
         if self.placements.len() >= self.limits.max_graphics_count {
             // Remove oldest placement
@@ -471,11 +620,14 @@ impl GraphicsStore {
             self.dropped_count += 1;
         }
         self.placements.push(graphic);
+        true
     }
 
     /// Remove a graphic by ID
     pub fn remove_graphic(&mut self, id: u64) {
         self.placements.retain(|g| g.id != id);
+        self.clear_deleted_kitty_placement_id(id);
+        self.clear_cleared_kitty_placement_id(id);
     }
 
     /// Get graphics at a specific row
@@ -497,6 +649,11 @@ impl GraphicsStore {
         &self.placements
     }
 
+    /// Get Kitty placements that were cleared by ED 2/3 but may be redrawn shortly.
+    pub fn pending_cleared_kitty_graphics(&self) -> &[TerminalGraphic] {
+        &self.cleared_kitty_placements
+    }
+
     /// Get mutable access to all graphics
     pub fn all_graphics_mut(&mut self) -> &mut Vec<TerminalGraphic> {
         &mut self.placements
@@ -505,6 +662,11 @@ impl GraphicsStore {
     /// Get total graphics count
     pub fn graphics_count(&self) -> usize {
         self.placements.len()
+    }
+
+    /// Get pending cleared Kitty placement count for diagnostics and frame coalescing.
+    pub fn pending_cleared_kitty_graphics_count(&self) -> usize {
+        self.cleared_kitty_placements.len()
     }
 
     /// Get count of graphics dropped due to limits
@@ -526,9 +688,26 @@ impl GraphicsStore {
         }
     }
 
+    /// Replace graphics limits and evict existing data until the store fits.
+    pub fn set_limits(&mut self, limits: GraphicsLimits) {
+        self.limits = limits;
+        self.enforce_limits();
+    }
+
     /// Clear all graphics
     pub fn clear(&mut self) {
+        let cleared_kitty_placements = self
+            .placements
+            .iter()
+            .filter(|graphic| graphic.protocol == GraphicProtocol::Kitty)
+            .cloned()
+            .collect::<Vec<_>>();
+        if !cleared_kitty_placements.is_empty() {
+            self.cleared_kitty_placements = cleared_kitty_placements;
+        }
         self.placements.clear();
+        self.deferred_kitty_deletes.clear();
+        self.deleted_kitty_placements.clear();
     }
 
     // --- Kitty image management ---
@@ -541,6 +720,13 @@ impl GraphicsStore {
         height: usize,
         pixels: Vec<u8>,
     ) {
+        if !self.image_fits_limits(width, height, pixels.len())
+            || !self.evict_until_fits(pixels.len())
+        {
+            self.dropped_count += 1;
+            return;
+        }
+
         self.shared_images
             .insert(image_id, (width, height, Arc::new(pixels)));
     }
@@ -553,10 +739,383 @@ impl GraphicsStore {
     /// Remove a Kitty image
     pub fn remove_kitty_image(&mut self, image_id: u32) {
         self.shared_images.remove(&image_id);
+        self.cleared_kitty_placements
+            .retain(|graphic| graphic.kitty_image_id != Some(image_id));
+        self.deleted_kitty_placements
+            .retain(|graphic| graphic.kitty_image_id != Some(image_id));
+    }
+
+    /// Delete Kitty graphics that intersect a terminal cell.
+    pub fn delete_kitty_graphics_intersecting_cell(
+        &mut self,
+        col: usize,
+        row: usize,
+        z_index: Option<i32>,
+    ) {
+        self.delete_kitty_graphics_where(|graphic| {
+            if let Some(z) = z_index {
+                if graphic.placement.z_index != z {
+                    return false;
+                }
+            }
+            graphic_intersects_cell(graphic, col, row)
+        });
+    }
+
+    /// Delete all currently visible Kitty graphics while preserving other protocols.
+    pub fn delete_all_kitty_graphics(&mut self) {
+        self.delete_kitty_graphics_where(|_| true);
+        self.deferred_kitty_deletes.clear();
+    }
+
+    /// Delete Kitty graphics at an exact terminal position.
+    pub fn delete_kitty_graphics_at_position(&mut self, position: (usize, usize)) {
+        self.delete_kitty_graphics_where(|graphic| graphic.position == position);
+    }
+
+    /// Delete Kitty graphics intersecting a terminal column.
+    pub fn delete_kitty_graphics_in_column(&mut self, col: usize) {
+        self.delete_kitty_graphics_where(|graphic| graphic_intersects_column(graphic, col));
+    }
+
+    /// Delete Kitty graphics intersecting a terminal row.
+    pub fn delete_kitty_graphics_in_row(&mut self, row: usize) {
+        self.delete_kitty_graphics_where(|graphic| graphic_intersects_row(graphic, row));
+    }
+
+    /// Delete Kitty graphics with a matching z-index.
+    pub fn delete_kitty_graphics_by_z_index(&mut self, z_index: i32) {
+        self.delete_kitty_graphics_where(|graphic| graphic.placement.z_index == z_index);
+    }
+
+    fn delete_kitty_graphics_where(
+        &mut self,
+        mut should_delete: impl FnMut(&TerminalGraphic) -> bool,
+    ) {
+        self.placements.retain(|graphic| {
+            graphic.protocol != GraphicProtocol::Kitty || !should_delete(graphic)
+        });
+        self.cleared_kitty_placements.retain(|graphic| {
+            graphic.protocol != GraphicProtocol::Kitty || !should_delete(graphic)
+        });
+        self.deleted_kitty_placements.retain(|graphic| {
+            graphic.protocol != GraphicProtocol::Kitty || !should_delete(graphic)
+        });
+        self.virtual_placements.retain(|_, graphic| {
+            graphic.protocol != GraphicProtocol::Kitty || !should_delete(graphic)
+        });
+        self.prune_deferred_kitty_deletes_without_tombstones();
     }
 
     /// Delete graphics by Kitty criteria
     pub fn delete_kitty_graphics(&mut self, image_id: Option<u32>, placement_id: Option<u32>) {
+        let retained_count = self.retain_deleted_kitty_placements(image_id, placement_id);
+        if retained_count > 0 {
+            self.defer_kitty_delete(image_id, placement_id);
+        } else {
+            self.deferred_kitty_deletes
+                .retain(|delete| !delete.matches_criteria(image_id, placement_id));
+            self.clear_deleted_kitty_graphics_matching(image_id, placement_id);
+        }
+        self.cleared_kitty_placements.retain(|graphic| {
+            if graphic.protocol != GraphicProtocol::Kitty {
+                return true;
+            }
+            if let Some(image_id) = image_id {
+                if graphic.kitty_image_id != Some(image_id) {
+                    return true;
+                }
+            }
+            if let Some(placement_id) = placement_id {
+                if graphic.kitty_placement_id != Some(placement_id) {
+                    return true;
+                }
+            }
+            false
+        });
+        self.delete_kitty_graphics_now(image_id, placement_id);
+    }
+
+    /// Defer a Kitty image/placement delete until no replacement transfer is active.
+    pub fn defer_kitty_delete(&mut self, image_id: Option<u32>, placement_id: Option<u32>) {
+        if !self
+            .deferred_kitty_deletes
+            .iter()
+            .any(|delete| delete.image_id == image_id && delete.placement_id == placement_id)
+        {
+            self.deferred_kitty_deletes.push(KittyDeferredDelete {
+                image_id,
+                placement_id,
+            });
+        }
+    }
+
+    /// Commit deferred Kitty deletes.
+    pub fn commit_deferred_kitty_deletes(&mut self) {
+        let pending = std::mem::take(&mut self.deferred_kitty_deletes);
+        for delete in pending {
+            self.clear_deleted_kitty_graphics_matching(delete.image_id, delete.placement_id);
+            self.delete_kitty_graphics_now(delete.image_id, delete.placement_id);
+        }
+    }
+
+    /// Commit deferred Kitty deletes that are not part of the in-flight replacement.
+    pub fn commit_deferred_kitty_deletes_preserving_replacement(
+        &mut self,
+        replacement_image_id: Option<u32>,
+        replacement_placement_id: u32,
+        replacement_position: (usize, usize),
+    ) {
+        let pending = std::mem::take(&mut self.deferred_kitty_deletes);
+        for delete in pending {
+            if self.delete_waits_for_replacement(
+                &delete,
+                replacement_image_id,
+                replacement_placement_id,
+                replacement_position,
+            ) {
+                self.deferred_kitty_deletes.push(delete);
+            } else {
+                self.clear_deleted_kitty_graphics_matching(delete.image_id, delete.placement_id);
+                self.delete_kitty_graphics_now(delete.image_id, delete.placement_id);
+            }
+        }
+    }
+
+    fn resolve_deferred_kitty_deletes_for_graphic(
+        &mut self,
+        graphic: &TerminalGraphic,
+    ) -> Option<u64> {
+        let pending = std::mem::take(&mut self.deferred_kitty_deletes);
+        let replacement_placement_id =
+            self.replacement_kitty_graphic_id_for_pending_deletes(&pending, graphic);
+        for delete in pending {
+            if delete.matches(graphic) || self.delete_waits_for_replacement_graphic(&delete, graphic)
+            {
+                continue;
+            }
+            self.clear_deleted_kitty_graphics_matching(delete.image_id, delete.placement_id);
+            self.delete_kitty_graphics_now(delete.image_id, delete.placement_id);
+        }
+        replacement_placement_id
+    }
+
+    fn matching_kitty_graphic_id(&self, graphic: &TerminalGraphic) -> Option<u64> {
+        if graphic.protocol != GraphicProtocol::Kitty {
+            return None;
+        }
+        let image_id = graphic.kitty_image_id?;
+        let placement_id = graphic.kitty_placement_id?;
+        self.placements
+            .iter()
+            .find(|existing| {
+                existing.protocol == GraphicProtocol::Kitty
+                    && existing.kitty_image_id == Some(image_id)
+                    && existing.kitty_placement_id == Some(placement_id)
+            })
+            .map(|existing| existing.id)
+    }
+
+    fn matching_cleared_kitty_graphic_id(&self, graphic: &TerminalGraphic) -> Option<u64> {
+        if graphic.protocol != GraphicProtocol::Kitty {
+            return None;
+        }
+        let placement_id = graphic.kitty_placement_id?;
+        let mut single_candidate = None;
+        let mut candidate_count = 0usize;
+        let mut same_image_candidate = None;
+        let mut same_image_count = 0usize;
+
+        for cleared in &self.cleared_kitty_placements {
+            if cleared.protocol != GraphicProtocol::Kitty
+                || cleared.kitty_placement_id != Some(placement_id)
+            {
+                continue;
+            }
+            if cleared.position == graphic.position {
+                return Some(cleared.id);
+            }
+
+            candidate_count += 1;
+            single_candidate = Some(cleared.id);
+
+            if cleared.kitty_image_id == graphic.kitty_image_id {
+                same_image_count += 1;
+                same_image_candidate = Some(cleared.id);
+            }
+        }
+
+        if same_image_count == 1 {
+            same_image_candidate
+        } else if candidate_count == 1 {
+            single_candidate
+        } else {
+            None
+        }
+    }
+
+    fn clear_cleared_kitty_placement_id(&mut self, id: u64) {
+        self.cleared_kitty_placements
+            .retain(|cleared| cleared.id != id);
+    }
+
+    fn clear_deleted_kitty_placement_id(&mut self, id: u64) {
+        self.deleted_kitty_placements
+            .retain(|deleted| deleted.id != id);
+    }
+
+    fn replacement_kitty_graphic_id_for_pending_deletes(
+        &self,
+        pending: &[KittyDeferredDelete],
+        replacement: &TerminalGraphic,
+    ) -> Option<u64> {
+        let replacement_placement_id = replacement.kitty_placement_id?;
+        let mut single_candidate = None;
+        let mut candidate_count = 0usize;
+
+        for graphic in &self.deleted_kitty_placements {
+            if graphic.protocol != GraphicProtocol::Kitty
+                || graphic.kitty_placement_id != Some(replacement_placement_id)
+            {
+                continue;
+            }
+            if !pending.iter().any(|delete| delete.matches(graphic)) {
+                continue;
+            }
+            if graphic.position == replacement.position {
+                return Some(graphic.id);
+            }
+            candidate_count += 1;
+            single_candidate = Some(graphic.id);
+        }
+
+        if candidate_count == 1 {
+            single_candidate
+        } else {
+            None
+        }
+    }
+
+    fn delete_waits_for_replacement(
+        &self,
+        delete: &KittyDeferredDelete,
+        replacement_image_id: Option<u32>,
+        replacement_placement_id: u32,
+        replacement_position: (usize, usize),
+    ) -> bool {
+        if delete.image_id == replacement_image_id
+            && delete
+                .placement_id
+                .map(|placement_id| placement_id == replacement_placement_id)
+                .unwrap_or(true)
+        {
+            return true;
+        }
+
+        self.deleted_kitty_placements.iter().any(|graphic| {
+            delete.matches(graphic)
+                && graphic.kitty_placement_id == Some(replacement_placement_id)
+                && graphic.position == replacement_position
+        })
+    }
+
+    fn delete_waits_for_replacement_graphic(
+        &self,
+        delete: &KittyDeferredDelete,
+        replacement: &TerminalGraphic,
+    ) -> bool {
+        if delete.matches(replacement) {
+            return true;
+        }
+        let Some(replacement_placement_id) = replacement.kitty_placement_id else {
+            return false;
+        };
+        self.deleted_kitty_placements.iter().any(|deleted| {
+            delete.matches(deleted)
+                && deleted.kitty_placement_id == Some(replacement_placement_id)
+                && deleted.position == replacement.position
+        })
+    }
+
+    /// Count deferred Kitty deletes for diagnostics and tests.
+    pub fn deferred_kitty_delete_count(&self) -> usize {
+        self.deferred_kitty_deletes.len()
+    }
+
+    fn prune_deferred_kitty_deletes_without_tombstones(&mut self) {
+        self.deferred_kitty_deletes.retain(|delete| {
+            self.deleted_kitty_placements
+                .iter()
+                .any(|graphic| delete.matches(graphic))
+        });
+    }
+
+    fn retain_deleted_kitty_placements(
+        &mut self,
+        image_id: Option<u32>,
+        placement_id: Option<u32>,
+    ) -> usize {
+        let mut retained = self
+            .placements
+            .iter()
+            .chain(self.cleared_kitty_placements.iter())
+            .filter(|graphic| {
+                if graphic.protocol != GraphicProtocol::Kitty {
+                    return false;
+                }
+                if let Some(image_id) = image_id {
+                    if graphic.kitty_image_id != Some(image_id) {
+                        return false;
+                    }
+                }
+                if let Some(placement_id) = placement_id {
+                    if graphic.kitty_placement_id != Some(placement_id) {
+                        return false;
+                    }
+                }
+                true
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        retained.sort_by_key(|graphic| graphic.id);
+        retained.dedup_by_key(|graphic| graphic.id);
+
+        let count = retained.len();
+        for graphic in retained {
+            self.deleted_kitty_placements
+                .retain(|deleted| deleted.id != graphic.id);
+            self.deleted_kitty_placements.push(graphic);
+        }
+        while self.deleted_kitty_placements.len() > self.limits.max_graphics_count {
+            self.deleted_kitty_placements.remove(0);
+        }
+        count
+    }
+
+    fn clear_deleted_kitty_graphics_matching(
+        &mut self,
+        image_id: Option<u32>,
+        placement_id: Option<u32>,
+    ) {
+        self.deleted_kitty_placements.retain(|graphic| {
+            if graphic.protocol != GraphicProtocol::Kitty {
+                return true;
+            }
+            if let Some(image_id) = image_id {
+                if graphic.kitty_image_id != Some(image_id) {
+                    return true;
+                }
+            }
+            if let Some(placement_id) = placement_id {
+                if graphic.kitty_placement_id != Some(placement_id) {
+                    return true;
+                }
+            }
+            false
+        });
+    }
+
+    fn delete_kitty_graphics_now(&mut self, image_id: Option<u32>, placement_id: Option<u32>) {
         self.placements.retain(|g| {
             if g.protocol != GraphicProtocol::Kitty {
                 return true;
@@ -572,6 +1131,22 @@ impl GraphicsStore {
                 }
             }
             // Matches criteria, remove it
+            false
+        });
+        self.cleared_kitty_placements.retain(|g| {
+            if g.protocol != GraphicProtocol::Kitty {
+                return true;
+            }
+            if let Some(iid) = image_id {
+                if g.kitty_image_id != Some(iid) {
+                    return true;
+                }
+            }
+            if let Some(pid) = placement_id {
+                if g.kitty_placement_id != Some(pid) {
+                    return true;
+                }
+            }
             false
         });
 
@@ -590,6 +1165,9 @@ impl GraphicsStore {
     /// Add or update a virtual placement
     pub fn add_virtual_placement(&mut self, mut graphic: TerminalGraphic) {
         graphic.is_virtual = true;
+        if let Some(placement_id) = self.resolve_deferred_kitty_deletes_for_graphic(&graphic) {
+            graphic.id = placement_id;
+        }
         let image_id = graphic.kitty_image_id.unwrap_or(0);
         let placement_id = graphic.kitty_placement_id.unwrap_or(0);
         self.virtual_placements
@@ -720,6 +1298,11 @@ impl GraphicsStore {
                             placement.pixels = frame_pixels.clone();
                             placement.width = current_frame.width;
                             placement.height = current_frame.height;
+                            placement.asset_version = graphic_content_version(
+                                current_frame.width,
+                                current_frame.height,
+                                frame_pixels.as_ref(),
+                            );
                         }
                     }
                 }
@@ -736,6 +1319,67 @@ impl GraphicsStore {
     /// Get all animations
     pub fn all_animations(&self) -> &HashMap<u32, Animation> {
         &self.animations
+    }
+
+    fn image_fits_limits(&self, width: usize, height: usize, bytes: usize) -> bool {
+        image_values_fit_limits(self.limits, width, height, bytes)
+    }
+
+    fn current_memory_bytes(&self) -> usize {
+        let placement_bytes = self
+            .placements
+            .iter()
+            .map(|graphic| graphic.pixels.len())
+            .sum::<usize>();
+        let shared_image_bytes = self
+            .shared_images
+            .values()
+            .map(|(_, _, pixels)| pixels.len())
+            .sum::<usize>();
+        placement_bytes.saturating_add(shared_image_bytes)
+    }
+
+    fn evict_until_fits(&mut self, incoming_bytes: usize) -> bool {
+        if incoming_bytes > self.limits.max_total_memory {
+            return false;
+        }
+        while self.current_memory_bytes().saturating_add(incoming_bytes)
+            > self.limits.max_total_memory
+        {
+            if !self.placements.is_empty() {
+                self.placements.remove(0);
+                self.dropped_count += 1;
+                continue;
+            }
+            let Some(image_id) = self.shared_images.keys().next().copied() else {
+                return false;
+            };
+            self.shared_images.remove(&image_id);
+            self.dropped_count += 1;
+        }
+        true
+    }
+
+    fn enforce_limits(&mut self) {
+        let limits = self.limits;
+        self.placements.retain(|graphic| {
+            image_values_fit_limits(limits, graphic.width, graphic.height, graphic.pixels.len())
+        });
+        self.shared_images.retain(|_, (width, height, pixels)| {
+            image_values_fit_limits(limits, *width, *height, pixels.len())
+        });
+        while self.current_memory_bytes() > self.limits.max_total_memory {
+            if !self.placements.is_empty() {
+                self.placements.remove(0);
+                self.dropped_count += 1;
+                continue;
+            }
+            let Some(image_id) = self.shared_images.keys().next().copied() else {
+                break;
+            };
+            self.shared_images.remove(&image_id);
+            self.dropped_count += 1;
+        }
     }
 
     // --- Scrolling ---
@@ -863,6 +1507,22 @@ impl GraphicsStore {
     }
 }
 
+fn image_values_fit_limits(
+    limits: GraphicsLimits,
+    width: usize,
+    height: usize,
+    bytes: usize,
+) -> bool {
+    if bytes == 0 {
+        return true;
+    }
+    width <= limits.max_width as usize
+        && height <= limits.max_height as usize
+        && width.saturating_mul(height) <= limits.max_pixels
+        && bytes <= limits.max_image_bytes
+        && bytes <= limits.max_total_memory
+}
+
 /// Graphics error types
 #[derive(Debug, Clone)]
 pub enum GraphicsError {
@@ -918,6 +1578,14 @@ mod tests {
         assert_eq!(graphic.height, 1);
         assert_eq!(graphic.original_width, 10);
         assert_eq!(graphic.original_height, 1);
+    }
+
+    #[test]
+    fn test_graphic_content_version_is_json_safe() {
+        let pixels = vec![255u8; 40];
+        let version = graphic_content_version(10, 1, &pixels);
+        assert!(version > 0);
+        assert!(version <= 9_007_199_254_740_991);
     }
 
     #[test]
@@ -995,6 +1663,49 @@ mod tests {
 
         store.remove_kitty_image(42);
         assert!(store.get_kitty_image(42).is_none());
+    }
+
+    #[test]
+    fn kitty_deferred_delete_survives_rejected_replacement() {
+        let limits = GraphicsLimits {
+            max_total_memory: 4,
+            max_image_bytes: 1024,
+            ..GraphicsLimits::default()
+        };
+        let mut store = GraphicsStore::with_limits(limits);
+        let mut old_graphic = TerminalGraphic::new(
+            1,
+            GraphicProtocol::Kitty,
+            (0, 0),
+            1,
+            1,
+            vec![255, 0, 0, 255],
+        );
+        old_graphic.kitty_image_id = Some(49374);
+        old_graphic.kitty_placement_id = Some(0);
+        assert!(store.add_graphic(old_graphic));
+
+        store.defer_kitty_delete(Some(49374), Some(0));
+        assert_eq!(store.graphics_count(), 1);
+        assert_eq!(store.deferred_kitty_delete_count(), 1);
+
+        let mut oversized_graphic = TerminalGraphic::new(
+            2,
+            GraphicProtocol::Kitty,
+            (0, 0),
+            2,
+            1,
+            vec![0, 255, 0, 255, 0, 255, 0, 255],
+        );
+        oversized_graphic.kitty_image_id = Some(49374);
+        oversized_graphic.kitty_placement_id = Some(0);
+        assert!(!store.add_graphic(oversized_graphic));
+        assert_eq!(store.graphics_count(), 1);
+        assert_eq!(store.deferred_kitty_delete_count(), 1);
+
+        store.commit_deferred_kitty_deletes();
+        assert_eq!(store.deferred_kitty_delete_count(), 0);
+        assert_eq!(store.graphics_count(), 0);
     }
 
     #[test]

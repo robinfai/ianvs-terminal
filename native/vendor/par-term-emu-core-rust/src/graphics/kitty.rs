@@ -115,10 +115,15 @@ pub enum KittyDeleteTarget {
     ById(u32),                     // i - by image id
     ByPlacement(u32, Option<u32>), // (image_id, placement_id)
     AtCursor,                      // c - at cursor position
-    InCell,                        // p - at specific cell
+    InCell {
+        col: usize,
+        row: usize,
+        z_index: Option<i32>,
+    }, // p/q - at specific cell, optional z
     OnScreen,                      // z - visible on screen
     ByColumn(u32),                 // x - in column
     ByRow(u32),                    // y - in row
+    ByZIndex(i32),                 // z - by z-index
 }
 
 /// Result of building a Kitty graphic
@@ -167,6 +172,8 @@ pub struct KittyParser {
     pub compression: KittyCompression,
     /// More chunks expected
     pub more_chunks: bool,
+    /// Response suppression level (q=1 suppresses OK, q=2 suppresses OK and errors)
+    pub response_suppression: u8,
     /// Accumulated data chunks
     data_chunks: Vec<Vec<u8>>,
     /// Delete target
@@ -194,6 +201,8 @@ pub struct KittyParser {
     pub num_plays: Option<u32>,
     /// Z-index for layering (z= for placement commands)
     pub z_index: Option<i32>,
+    /// Cursor position captured when a multi-part placement transfer begins.
+    pub placement_position: Option<(usize, usize)>,
     /// Raw parameters for debugging
     params: HashMap<String, String>,
 }
@@ -298,10 +307,10 @@ impl KittyParser {
                     "m" => {
                         self.more_chunks = value == "1";
                     }
-                    "d" => {
-                        // Delete specification
-                        self.parse_delete_target(value);
+                    "q" => {
+                        self.response_suppression = value.parse().unwrap_or(0);
                     }
+                    "d" => {}
                     "U" => {
                         // Virtual placement
                         self.is_virtual = value == "1";
@@ -346,6 +355,10 @@ impl KittyParser {
             }
         }
 
+        if self.action == KittyAction::Delete {
+            self.resolve_delete_target();
+        }
+
         // Decode and accumulate base64 data
         if !data_str.is_empty() {
             // Try STANDARD first (with padding), then NO_PAD if that fails
@@ -371,10 +384,34 @@ impl KittyParser {
         if let Some(c) = value.chars().next() {
             self.delete_target = match c {
                 'a' | 'A' => Some(KittyDeleteTarget::All),
+                'i' | 'I' | 'n' | 'N' => self
+                    .image_id
+                    .map(|id| KittyDeleteTarget::ByPlacement(id, self.placement_id)),
                 'c' | 'C' => Some(KittyDeleteTarget::AtCursor),
-                'z' | 'Z' => Some(KittyDeleteTarget::OnScreen),
+                'p' | 'P' => Some(KittyDeleteTarget::InCell {
+                    col: self.x_offset.unwrap_or(1).saturating_sub(1) as usize,
+                    row: self.y_offset.unwrap_or(1).saturating_sub(1) as usize,
+                    z_index: None,
+                }),
+                'q' | 'Q' => Some(KittyDeleteTarget::InCell {
+                    col: self.x_offset.unwrap_or(1).saturating_sub(1) as usize,
+                    row: self.y_offset.unwrap_or(1).saturating_sub(1) as usize,
+                    z_index: self.z_index,
+                }),
+                'x' | 'X' => self.x_offset.map(KittyDeleteTarget::ByColumn),
+                'y' | 'Y' => self.y_offset.map(KittyDeleteTarget::ByRow),
+                'z' | 'Z' => self.z_index.map(KittyDeleteTarget::ByZIndex),
                 _ => None,
             };
+        }
+    }
+
+    fn resolve_delete_target(&mut self) {
+        let target = self.params.get("d").cloned();
+        if let Some(value) = target {
+            self.parse_delete_target(&value);
+        } else {
+            self.delete_target = Some(KittyDeleteTarget::OnScreen);
         }
     }
 
@@ -404,6 +441,16 @@ impl KittyParser {
     /// Check if data was compressed
     pub fn is_compressed(&self) -> bool {
         self.compression != KittyCompression::None
+    }
+
+    /// Whether an OK response should be sent for this command.
+    pub fn should_send_success_response(&self) -> bool {
+        self.response_suppression == 0
+    }
+
+    /// Whether an error response should be sent for this command.
+    pub fn should_send_error_response(&self) -> bool {
+        self.response_suppression < 2
     }
 
     /// Build an ImagePlacement from the parsed Kitty parameters
@@ -446,49 +493,27 @@ impl KittyParser {
                 // Handle delete
                 if let Some(target) = &self.delete_target {
                     match target {
-                        KittyDeleteTarget::All => store.clear(),
-                        KittyDeleteTarget::ById(id) => {
-                            store.delete_kitty_graphics(Some(*id), None);
-                        }
+                        KittyDeleteTarget::All => store.delete_all_kitty_graphics(),
+                        KittyDeleteTarget::ById(id) => store.delete_kitty_graphics(Some(*id), None),
                         KittyDeleteTarget::ByPlacement(iid, pid) => {
-                            store.delete_kitty_graphics(Some(*iid), *pid);
+                            store.delete_kitty_graphics(Some(*iid), *pid)
                         }
                         KittyDeleteTarget::AtCursor => {
                             let (cursor_col, cursor_row) = position;
-                            store
-                                .placements
-                                .retain(|g| g.position != (cursor_col, cursor_row));
+                            store.delete_kitty_graphics_at_position((cursor_col, cursor_row));
                         }
-                        KittyDeleteTarget::InCell => {
-                            // Same as AtCursor in our context since we use the cursor position
-                            let (cursor_col, cursor_row) = position;
-                            store
-                                .placements
-                                .retain(|g| g.position != (cursor_col, cursor_row));
+                        KittyDeleteTarget::InCell { col, row, z_index } => {
+                            store.delete_kitty_graphics_intersecting_cell(*col, *row, *z_index);
                         }
                         KittyDeleteTarget::OnScreen => {
-                            // Remove all visible placements but preserve shared images
-                            store.placements.clear();
+                            store.delete_all_kitty_graphics();
                         }
                         KittyDeleteTarget::ByColumn(col) => {
-                            let target_col = *col as usize;
-                            store.placements.retain(|g| {
-                                let start_col = g.position.0;
-                                let cell_width =
-                                    g.cell_dimensions.map(|(w, _)| w as usize).unwrap_or(1);
-                                let end_col = start_col + g.width.div_ceil(cell_width);
-                                target_col < start_col || target_col >= end_col
-                            });
+                            store.delete_kitty_graphics_in_column(*col as usize)
                         }
-                        KittyDeleteTarget::ByRow(row) => {
-                            let target_row = *row as usize;
-                            store.placements.retain(|g| {
-                                let start_row = g.position.1;
-                                let cell_height =
-                                    g.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
-                                let end_row = start_row + g.height.div_ceil(cell_height);
-                                target_row < start_row || target_row >= end_row
-                            });
+                        KittyDeleteTarget::ByRow(row) => store.delete_kitty_graphics_in_row(*row as usize),
+                        KittyDeleteTarget::ByZIndex(z_index) => {
+                            store.delete_kitty_graphics_by_z_index(*z_index);
                         }
                     }
                 }
@@ -496,7 +521,21 @@ impl KittyParser {
             }
 
             KittyAction::Query => {
-                // Query doesn't create a graphic
+                let raw_data = self.get_data();
+                if raw_data.is_empty() {
+                    return Ok(KittyGraphicResult::None);
+                }
+
+                let image_data = match self.medium {
+                    KittyMedium::File | KittyMedium::TempFile => self.load_file_data(&raw_data)?,
+                    KittyMedium::Direct => raw_data,
+                    KittyMedium::SharedMem => {
+                        return Err(GraphicsError::KittyError(
+                            "Shared memory not yet supported".to_string(),
+                        ))
+                    }
+                };
+                let _ = self.decode_pixels(&image_data)?;
                 Ok(KittyGraphicResult::None)
             }
 
@@ -545,7 +584,7 @@ impl KittyParser {
                         pixels,
                     );
                     graphic.kitty_image_id = Some(image_id);
-                    graphic.kitty_placement_id = self.placement_id;
+                    graphic.kitty_placement_id = Some(self.placement_id.unwrap_or(0));
                     graphic.placement = self.build_placement();
 
                     // Handle relative positioning
@@ -634,7 +673,7 @@ impl KittyParser {
                             pixels,
                         );
                         graphic.kitty_image_id = self.image_id;
-                        graphic.kitty_placement_id = self.placement_id;
+                        graphic.kitty_placement_id = Some(self.placement_id.unwrap_or(0));
                         graphic.was_compressed = compressed;
                         graphic.placement = self.build_placement();
 
@@ -716,7 +755,7 @@ impl KittyParser {
                         pixels,
                     );
                     graphic.kitty_image_id = Some(image_id);
-                    graphic.kitty_placement_id = self.placement_id;
+                    graphic.kitty_placement_id = Some(self.placement_id.unwrap_or(0));
                     graphic.was_compressed = compressed;
                     graphic.placement = self.build_placement();
 

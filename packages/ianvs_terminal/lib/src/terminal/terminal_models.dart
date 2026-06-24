@@ -406,6 +406,144 @@ class TerminalInlineImage {
   }
 }
 
+class TerminalGraphicAssetKey {
+  const TerminalGraphicAssetKey({required this.id, required this.version});
+
+  final int id;
+  final int version;
+
+  factory TerminalGraphicAssetKey.fromJson(Map<String, Object?> json) {
+    final key = TerminalGraphicAssetKey.tryFromJson(json);
+    if (key == null) {
+      throw const FormatException('Invalid terminal graphic asset key payload');
+    }
+    return key;
+  }
+
+  static TerminalGraphicAssetKey? tryFromJson(Map<String, Object?> json) {
+    final id = _intOrNullFromJson(json['asset_id'] ?? json['id']);
+    final version = _intOrNullFromJson(
+      json['asset_version'] ?? json['version'],
+    );
+    if (id == null || id <= 0 || version == null || version <= 0) {
+      return null;
+    }
+    return TerminalGraphicAssetKey(id: id, version: version);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is TerminalGraphicAssetKey &&
+        other.id == id &&
+        other.version == version;
+  }
+
+  @override
+  int get hashCode => Object.hash(id, version);
+}
+
+class TerminalGraphicPlacement {
+  const TerminalGraphicPlacement({
+    int? renderId,
+    required this.placementId,
+    required this.assetKey,
+    required this.protocol,
+    required this.row,
+    required this.col,
+    required this.widthPx,
+    required this.heightPx,
+    required this.widthCells,
+    required this.heightCells,
+    this.zIndex = 0,
+    this.xOffsetPx = 0,
+    this.yOffsetPx = 0,
+    this.preserveAspectRatio = true,
+  }) : renderId = renderId ?? placementId;
+
+  final int renderId;
+  final int placementId;
+  final TerminalGraphicAssetKey assetKey;
+  final String protocol;
+  final int row;
+  final int col;
+  final int widthPx;
+  final int heightPx;
+  final int widthCells;
+  final int heightCells;
+  final int zIndex;
+  final int xOffsetPx;
+  final int yOffsetPx;
+  final bool preserveAspectRatio;
+
+  factory TerminalGraphicPlacement.fromJson(Map<String, Object?> json) {
+    final placement = TerminalGraphicPlacement.tryFromJson(json);
+    if (placement == null) {
+      throw const FormatException('Invalid terminal graphic placement payload');
+    }
+    return placement;
+  }
+
+  static TerminalGraphicPlacement? tryFromJson(Map<String, Object?> json) {
+    final placementId = _intOrNullFromJson(
+      json['placement_id'] ?? json['placementId'],
+    );
+    final renderId = _intOrNullFromJson(json['render_id'] ?? json['renderId']);
+    final assetKey = TerminalGraphicAssetKey.tryFromJson(json);
+    final protocol = _nonEmptyTrimmedStringFromJson(json['protocol']);
+    final row = _intOrNullFromJson(json['row']);
+    final col = _intOrNullFromJson(json['col'] ?? json['column']);
+    final widthPx = _intOrNullFromJson(json['width_px'] ?? json['widthPx']);
+    final heightPx = _intOrNullFromJson(json['height_px'] ?? json['heightPx']);
+    final widthCells = _intOrNullFromJson(
+      json['width_cells'] ?? json['widthCells'],
+    );
+    final heightCells = _intOrNullFromJson(
+      json['height_cells'] ?? json['heightCells'],
+    );
+    if (placementId == null ||
+        placementId < 0 ||
+        assetKey == null ||
+        protocol == null ||
+        row == null ||
+        row < 0 ||
+        col == null ||
+        col < 0 ||
+        widthPx == null ||
+        widthPx <= 0 ||
+        heightPx == null ||
+        heightPx <= 0 ||
+        widthCells == null ||
+        widthCells <= 0 ||
+        heightCells == null ||
+        heightCells <= 0) {
+      return null;
+    }
+    return TerminalGraphicPlacement(
+      renderId: renderId == null || renderId <= 0 ? placementId : renderId,
+      placementId: placementId,
+      assetKey: assetKey,
+      protocol: protocol,
+      row: row,
+      col: col,
+      widthPx: widthPx,
+      heightPx: heightPx,
+      widthCells: widthCells,
+      heightCells: heightCells,
+      zIndex: _intFromJson(json['z_index'] ?? json['zIndex'], fallback: 0),
+      xOffsetPx: _nonNegativeIntFromJson(
+        json['x_offset_px'] ?? json['xOffsetPx'],
+      ),
+      yOffsetPx: _nonNegativeIntFromJson(
+        json['y_offset_px'] ?? json['yOffsetPx'],
+      ),
+      preserveAspectRatio: _boolFromJson(
+        json['preserve_aspect_ratio'] ?? json['preserveAspectRatio'],
+        fallback: true,
+      ),
+    );
+  }
+}
+
 enum TerminalSearchMode {
   smartCaseSubstring,
   caseSensitiveSubstring,
@@ -500,6 +638,7 @@ class TerminalFrameDiff {
     this.windowIconName,
     this.hyperlinks = const [],
     this.inlineImages = const [],
+    this.graphics = const [],
   });
 
   final TerminalFrameKind frameKind;
@@ -518,6 +657,7 @@ class TerminalFrameDiff {
   final String? windowIconName;
   final List<TerminalHyperlinkRange> hyperlinks;
   final List<TerminalInlineImage> inlineImages;
+  final List<TerminalGraphicPlacement> graphics;
 
   static const empty = TerminalFrameDiff(
     frameKind: TerminalFrameKind.snapshot,
@@ -576,12 +716,17 @@ class TerminalFrameDiff {
         TerminalHyperlinkRange.tryFromJson,
       ),
       inlineImages: _inlineImagesFromJson(json['inline_images']),
+      graphics: _graphicsFromJson(json['graphics']),
     );
   }
 }
 
 List<TerminalInlineImage> _inlineImagesFromJson(Object? value) {
   return _jsonListFromJson(value, TerminalInlineImage.tryFromJson);
+}
+
+List<TerminalGraphicPlacement> _graphicsFromJson(Object? value) {
+  return _jsonListFromJson(value, TerminalGraphicPlacement.tryFromJson);
 }
 
 List<TerminalDirtyRange> _normalizeDirtyRanges(
@@ -713,6 +858,10 @@ class TerminalViewportState {
       dirtyRanges: dirtyRanges,
       viewportRows: nextFrame.viewportRows,
     );
+    final mergedGraphics = _normalizeGraphics(
+      graphics: nextFrame.graphics,
+      viewportRows: nextFrame.viewportRows,
+    );
 
     return TerminalViewportState(
       frame: TerminalFrameDiff(
@@ -732,6 +881,7 @@ class TerminalViewportState {
         windowIconName: nextFrame.windowIconName,
         hyperlinks: mergedHyperlinks,
         inlineImages: mergedInlineImages,
+        graphics: mergedGraphics,
       ),
     );
   }
@@ -992,6 +1142,10 @@ TerminalFrameDiff _normalizeSnapshotFrame(
               image.bytes.isNotEmpty;
         })
         .toList(growable: false),
+    graphics: _normalizeGraphics(
+      graphics: frame.graphics,
+      viewportRows: frame.viewportRows,
+    ),
   );
 }
 
@@ -1274,6 +1428,40 @@ bool _inlineImageInvalid(TerminalInlineImage image, int viewportRows) {
       image.widthCells <= 0 ||
       image.heightCells <= 0 ||
       image.bytes.isEmpty;
+}
+
+List<TerminalGraphicPlacement> _normalizeGraphics({
+  required List<TerminalGraphicPlacement> graphics,
+  required int viewportRows,
+}) {
+  final normalized = <TerminalGraphicPlacement>[
+    for (final graphic in graphics)
+      if (!_graphicInvalid(graphic, viewportRows)) graphic,
+  ];
+  normalized.sort((left, right) {
+    final byZ = left.zIndex.compareTo(right.zIndex);
+    if (byZ != 0) {
+      return byZ;
+    }
+    final byRow = left.row.compareTo(right.row);
+    if (byRow != 0) {
+      return byRow;
+    }
+    return left.col.compareTo(right.col);
+  });
+  return normalized;
+}
+
+bool _graphicInvalid(TerminalGraphicPlacement graphic, int viewportRows) {
+  return graphic.row < 0 ||
+      graphic.row >= viewportRows ||
+      graphic.col < 0 ||
+      graphic.widthPx <= 0 ||
+      graphic.heightPx <= 0 ||
+      graphic.widthCells <= 0 ||
+      graphic.heightCells <= 0 ||
+      graphic.assetKey.id <= 0 ||
+      graphic.assetKey.version <= 0;
 }
 
 int _terminalDisplayWidthForGrapheme(String grapheme) {

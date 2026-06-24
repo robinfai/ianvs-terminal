@@ -228,6 +228,86 @@ pub(crate) fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
         .any(|window| window == needle)
 }
 
+fn synchronized_update_enable_end(data: &[u8]) -> Option<usize> {
+    let mut index = 0;
+    while index + 3 < data.len() {
+        if data[index] != b'\x1b' || data[index + 1] != b'[' || data[index + 2] != b'?' {
+            index += 1;
+            continue;
+        }
+
+        let params_start = index + 3;
+        let mut end = params_start;
+        while end < data.len() {
+            let byte = data[end];
+            if (0x40..=0x7e).contains(&byte) {
+                if byte == b'h' && private_params_contain_2026(&data[params_start..end]) {
+                    return Some(end + 1);
+                }
+                break;
+            }
+            end += 1;
+        }
+        index += 1;
+    }
+    None
+}
+
+fn private_params_contain_2026(params: &[u8]) -> bool {
+    params
+        .split(|byte| *byte == b';' || *byte == b':')
+        .any(|part| part == b"2026")
+}
+
+fn synchronized_update_enable_end_with_tail(tail: &[u8], data: &[u8]) -> Option<usize> {
+    if tail.is_empty() {
+        return synchronized_update_enable_end(data);
+    }
+
+    let mut combined = Vec::with_capacity(tail.len() + data.len());
+    combined.extend_from_slice(tail);
+    combined.extend_from_slice(data);
+    let combined_end = synchronized_update_enable_end(&combined)?;
+    if combined_end <= tail.len() {
+        return None;
+    }
+    Some(combined_end - tail.len())
+}
+
+fn synchronized_update_pending_tail(data: &[u8]) -> Vec<u8> {
+    for start in (0..data.len()).rev() {
+        if data[start] != b'\x1b' {
+            continue;
+        }
+        let suffix = &data[start..];
+        if is_potential_synchronized_update_prefix(suffix) {
+            return suffix.to_vec();
+        }
+    }
+    Vec::new()
+}
+
+fn is_potential_synchronized_update_prefix(data: &[u8]) -> bool {
+    if data.is_empty() || data[0] != b'\x1b' {
+        return false;
+    }
+    if data.len() == 1 {
+        return true;
+    }
+    if data[1] != b'[' {
+        return false;
+    }
+    if data.len() == 2 {
+        return true;
+    }
+    if data[2] != b'?' {
+        return false;
+    }
+    data[3..]
+        .iter()
+        .all(|byte| byte.is_ascii_digit() || *byte == b';' || *byte == b':')
+}
+
 pub mod damage;
 pub use damage::TerminalDamage;
 
@@ -364,6 +444,8 @@ pub struct Terminal {
     pub(crate) synchronized_updates: bool,
     /// Buffer for batched updates (when synchronized mode is active)
     pub(crate) update_buffer: Vec<u8>,
+    /// Possible split DEC 2026 enable sequence prefix from the previous chunk
+    pub(crate) sync_update_scan_tail: Vec<u8>,
     /// Flag to track if synchronized updates were explicitly disabled during a flush
     pub(crate) sync_update_explicitly_disabled: bool,
     /// Shell integration state
@@ -419,6 +501,12 @@ pub struct Terminal {
     pub(crate) dcs_active: bool,
     /// DCS action character ('q' for Sixel)
     pub(crate) dcs_action: Option<char>,
+    /// Buffer for incomplete APC graphics sequences (Kitty protocol)
+    pub(crate) kitty_apc_buffer: Vec<u8>,
+    /// Buffer for incomplete tmux/screen DCS passthrough wrappers around graphics sequences
+    pub(crate) graphics_passthrough_buffer: Vec<u8>,
+    /// Current Kitty parser for chunked transfers
+    pub(crate) kitty_parser: Option<crate::graphics::kitty::KittyParser>,
     /// iTerm2 multi-part image transfer state (MultipartFile/FilePart protocol)
     pub(crate) iterm_multipart_buffer: Option<ITermMultipartState>,
     /// File transfer manager for tracking file downloads and uploads
@@ -726,6 +814,7 @@ impl Terminal {
             bracketed_paste: false,
             synchronized_updates: false,
             update_buffer: Vec::new(),
+            sync_update_scan_tail: Vec::new(),
             sync_update_explicitly_disabled: false,
             shell_integration: ShellIntegration::new(),
             scroll_region_top: 0,
@@ -752,6 +841,9 @@ impl Terminal {
             dcs_buffer: Vec::new(),
             dcs_active: false,
             dcs_action: None,
+            kitty_apc_buffer: Vec::new(),
+            graphics_passthrough_buffer: Vec::new(),
+            kitty_parser: None,
             iterm_multipart_buffer: None,
             file_transfer_manager: FileTransferManager::default(),
             clipboard_content: None,
@@ -1748,6 +1840,14 @@ impl Terminal {
         self.cell_dimensions = (width.max(1), height.max(1));
     }
 
+    /// Set graphics memory limits for all supported image protocols.
+    pub fn set_graphics_memory_limits(&mut self, max_image_bytes: usize, max_total_bytes: usize) {
+        let mut limits = *self.graphics_store.limits();
+        limits.max_image_bytes = max_image_bytes.max(1);
+        limits.max_total_memory = max_total_bytes.max(1);
+        self.graphics_store.set_limits(limits);
+    }
+
     /// Get the maximum number of graphics retained for this terminal
     pub fn max_sixel_graphics(&self) -> usize {
         self.graphics_store.limits().max_graphics_count
@@ -2385,18 +2485,65 @@ impl Terminal {
         }
 
         if self.synchronized_updates {
-            // Buffer data instead of processing it immediately
-            self.update_buffer.extend_from_slice(data);
+            self.buffer_synchronized_update(data);
+            return;
+        }
 
-            // Peek at the end of the buffer to see if it contains the disable sequence
-            // We check the last 32 bytes to account for sequences split across chunks
-            let peek_len = 32.min(self.update_buffer.len());
-            let peek_start = self.update_buffer.len() - peek_len;
-            if contains_bytes(&self.update_buffer[peek_start..], b"\x1b[?2026l") {
-                self.flush_synchronized_updates();
+        if let Some(sync_enable_end) =
+            synchronized_update_enable_end_with_tail(&self.sync_update_scan_tail, data)
+        {
+            self.sync_update_scan_tail.clear();
+            let (prefix, suffix) = data.split_at(sync_enable_end);
+            self.process_unsynchronized(prefix);
+            if self.synchronized_updates {
+                self.buffer_synchronized_update(suffix);
+            } else if !suffix.is_empty() {
+                self.process_unsynchronized(suffix);
             }
             return;
         }
+
+        if self.sync_update_scan_tail.is_empty() {
+            self.sync_update_scan_tail = synchronized_update_pending_tail(data);
+        } else {
+            let mut scan_data = Vec::with_capacity(self.sync_update_scan_tail.len() + data.len());
+            scan_data.extend_from_slice(&self.sync_update_scan_tail);
+            scan_data.extend_from_slice(data);
+            self.sync_update_scan_tail = synchronized_update_pending_tail(&scan_data);
+        }
+        self.process_unsynchronized(data);
+    }
+
+    fn buffer_synchronized_update(&mut self, data: &[u8]) {
+        // Buffer data instead of processing it immediately.
+        self.update_buffer.extend_from_slice(data);
+
+        // Peek at the end of the buffer to see if it contains the disable sequence.
+        // We check the last 32 bytes to account for sequences split across chunks.
+        let peek_len = 32.min(self.update_buffer.len());
+        let peek_start = self.update_buffer.len() - peek_len;
+        if contains_bytes(&self.update_buffer[peek_start..], b"\x1b[?2026l") {
+            self.flush_synchronized_updates();
+        }
+    }
+
+    fn process_unsynchronized(&mut self, data: &[u8]) {
+        if data.is_empty() {
+            return;
+        }
+
+        let mut processed_data = None;
+        let has_wrapped_graphics = !self.graphics_passthrough_buffer.is_empty()
+            || contains_bytes(data, b"\x1bPtmux;")
+            || contains_bytes(data, b"\x1bP\x1b");
+        if has_wrapped_graphics {
+            processed_data = Some(self.handle_graphics_passthrough_sequences(data));
+        }
+        let current_data = processed_data.as_deref().unwrap_or(data);
+        if !self.kitty_apc_buffer.is_empty() || contains_bytes(current_data, b"\x1b_") {
+            processed_data = Some(self.handle_kitty_apc_sequences(current_data));
+        }
+        let data = processed_data.as_deref().unwrap_or(data);
 
         if self.can_process_plain_ascii_fast_path(data) {
             let fast_path_started_at = Instant::now();

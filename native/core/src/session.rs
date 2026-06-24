@@ -1,12 +1,15 @@
 use crate::model::{
     TerminalCursor, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
-    TerminalFrameKind, TerminalFrameModes, TerminalHyperlinkRange, TerminalProfile,
-    TerminalProfileAnsiColors, TerminalProfileColors, TerminalRow, TerminalSearchMatch,
-    TerminalSelectionRequest, TerminalStyleRun,
+    TerminalFrameKind, TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange,
+    TerminalProfile, TerminalProfileAnsiColors, TerminalProfileColors, TerminalRow,
+    TerminalSearchMatch, TerminalSelectionRequest, TerminalStyleRun,
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::{Color, NamedColor};
+use par_term_emu_core_rust::graphics::{
+    ImageDimension, ImageSizeUnit, PLACEHOLDER_CHAR, TerminalGraphic,
+};
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::{
@@ -30,6 +33,7 @@ const MAX_TRANSCRIPT_BYTES: usize = 256 * 1024;
 const RESOURCE_SAMPLE_CAPACITY: usize = 60;
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
+const MAX_GRAPHIC_ASSET_SNAPSHOTS: usize = 128;
 const VT220_PRIMARY_DA_RESPONSE: &str = "\x1b[?62;1;2;6;7;8;9c";
 const VT220_SECONDARY_DA_RESPONSE: &str = "\x1b[>1;10;0c";
 
@@ -219,6 +223,9 @@ struct FrameDebugStats {
     snapshot_fallback_reason: Option<String>,
     viewport_row_shift: i32,
     damage_generation: u64,
+    active_graphics_count: usize,
+    scrollback_graphics_count: usize,
+    graphic_placements_count: usize,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
@@ -357,6 +364,24 @@ pub enum SessionError {
     Io(String),
     #[error("serialization error: {0}")]
     Serialize(String),
+    #[error("graphic asset error: {0}")]
+    GraphicAsset(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GraphicAssetMeta {
+    pub width: u32,
+    pub height: u32,
+    pub rgba_len: usize,
+    pub version: u64,
+}
+
+struct GraphicAssetSnapshot {
+    asset_id: u64,
+    asset_version: u64,
+    width: usize,
+    height: usize,
+    pixels: Arc<Vec<u8>>,
 }
 
 struct TerminalState {
@@ -365,6 +390,9 @@ struct TerminalState {
     transcript_truncated: bool,
     scrollback_offset: usize,
     host_protocol: HostProtocolState,
+    graphic_assets: VecDeque<GraphicAssetSnapshot>,
+    graphic_asset_bytes: usize,
+    graphic_asset_cache_max_bytes: usize,
 }
 
 #[derive(Clone, Default)]
@@ -610,6 +638,7 @@ pub struct TerminalSession {
     session_id: u64,
     emulation: TerminalEmulation,
     scrollback_lines: usize,
+    graphics_enabled: bool,
     profile_colors: TerminalProfileColors,
     state: Mutex<TerminalState>,
     writer: Mutex<Box<dyn Write + Send>>,
@@ -627,6 +656,9 @@ pub struct TerminalSession {
     last_rows: Mutex<Vec<CachedRowState>>,
     last_frame_meta: Mutex<Option<CachedFrameMeta>>,
     last_frame_debug_stats: Mutex<Option<FrameDebugStats>>,
+    last_frame_had_graphics: Mutex<bool>,
+    deferred_clear_graphics_generation: Mutex<Option<u64>>,
+    deferred_kitty_delete_graphics_generation: Mutex<Option<u64>>,
     exited: AtomicBool,
 }
 
@@ -634,6 +666,8 @@ impl TerminalSession {
     pub fn spawn(session_id: u64, profile: TerminalProfile) -> Result<Arc<Self>, SessionError> {
         let emulation = profile.terminal.emulation;
         let scrollback_lines = profile.terminal.scrollback_lines.max(1);
+        let graphics_enabled =
+            emulation == TerminalEmulation::Xterm256 && profile.terminal.graphics.enabled;
         let profile_colors = profile.appearance.colors.clone();
         let runtime = spawn_pty(&profile, DEFAULT_ROWS, DEFAULT_COLS)
             .map_err(|error: anyhow::Error| SessionError::Pty(error.to_string()))?;
@@ -647,6 +681,12 @@ impl TerminalSession {
             DEFAULT_ROWS as usize,
             scrollback_lines,
         );
+        if graphics_enabled {
+            terminal.set_graphics_memory_limits(
+                profile.terminal.graphics.max_image_bytes,
+                profile.terminal.graphics.max_total_bytes,
+            );
+        }
         apply_profile_colors(&mut terminal, &profile_colors);
         if emulation == TerminalEmulation::Vt220 {
             terminal.process(b"\x1b[62;1\"p");
@@ -656,6 +696,7 @@ impl TerminalSession {
             session_id,
             emulation,
             scrollback_lines,
+            graphics_enabled,
             profile_colors,
             state: Mutex::new(TerminalState {
                 terminal,
@@ -663,6 +704,9 @@ impl TerminalSession {
                 transcript_truncated: false,
                 scrollback_offset: 0,
                 host_protocol: HostProtocolState::default(),
+                graphic_assets: VecDeque::new(),
+                graphic_asset_bytes: 0,
+                graphic_asset_cache_max_bytes: profile.terminal.graphics.max_total_bytes,
             }),
             writer: Mutex::new(runtime.writer),
             master: Mutex::new(runtime.master),
@@ -688,6 +732,9 @@ impl TerminalSession {
             last_rows: Mutex::new(Vec::new()),
             last_frame_meta: Mutex::new(None),
             last_frame_debug_stats: Mutex::new(None),
+            last_frame_had_graphics: Mutex::new(false),
+            deferred_clear_graphics_generation: Mutex::new(None),
+            deferred_kitty_delete_graphics_generation: Mutex::new(None),
             exited: AtomicBool::new(false),
         });
 
@@ -1047,6 +1094,12 @@ impl TerminalSession {
         let frame_extract_started_at = Instant::now();
         let alt_screen_active = state.terminal.is_alt_screen_active();
         let scrollback_max_offset = current_scrollback_max(&state);
+        if state.terminal.synchronized_updates()
+            || state.terminal.kitty_graphics_transfer_in_progress()
+        {
+            self.dirty.store(true, Ordering::SeqCst);
+            return Ok(None);
+        }
         if alt_screen_active {
             state.scrollback_offset = 0;
         } else {
@@ -1160,6 +1213,44 @@ impl TerminalSession {
                     viewport_row_shift,
                 )
             };
+        let (graphics, active_graphics_count, scrollback_graphics_count, asset_snapshots) =
+            if self.graphics_enabled {
+                let active_graphics_count = terminal.graphics_count();
+                let scrollback_graphics_count = terminal.scrollback_graphics_count();
+                let asset_snapshots = graphic_asset_snapshots(terminal);
+                let placements = build_graphic_placements(
+                    terminal,
+                    viewport_start_row,
+                    viewport_rows,
+                    scrollback_len,
+                    alt_screen_active,
+                );
+                (
+                    placements,
+                    active_graphics_count,
+                    scrollback_graphics_count,
+                    asset_snapshots,
+                )
+            } else {
+                (Vec::new(), 0, 0, Vec::new())
+            };
+        let graphic_placements_count = graphics.len();
+        if self.should_defer_kitty_delete_graphics_frame(
+            terminal,
+            &pending_frame_work,
+            graphic_placements_count,
+        ) {
+            *self.pending_frame_work.lock() = pending_frame_work;
+            self.dirty.store(true, Ordering::SeqCst);
+            return Ok(None);
+        }
+        if self.should_defer_clear_graphics_frame(&pending_frame_work, graphic_placements_count) {
+            *self.pending_frame_work.lock() = pending_frame_work;
+            self.dirty.store(true, Ordering::SeqCst);
+            return Ok(None);
+        }
+        let deferred_kitty_delete_count = terminal.deferred_kitty_delete_count();
+        cache_graphic_asset_snapshots(&mut state, asset_snapshots);
         *last_rows = current_rows;
         *last_frame_meta = Some(frame_meta);
         *self.last_frame_debug_stats.lock() = Some(FrameDebugStats {
@@ -1173,7 +1264,18 @@ impl TerminalSession {
             snapshot_fallback_reason,
             viewport_row_shift,
             damage_generation: pending_frame_work.damage_generation,
+            active_graphics_count,
+            scrollback_graphics_count,
+            graphic_placements_count,
         });
+        *self.last_frame_had_graphics.lock() = graphic_placements_count > 0;
+        if graphic_placements_count > 0 {
+            *self.deferred_clear_graphics_generation.lock() = None;
+            *self.deferred_kitty_delete_graphics_generation.lock() = None;
+        }
+        if deferred_kitty_delete_count == 0 {
+            *self.deferred_kitty_delete_graphics_generation.lock() = None;
+        }
 
         Ok(Some(TerminalFrameDiff {
             frame_kind,
@@ -1191,7 +1293,94 @@ impl TerminalSession {
             window_title,
             window_icon_name,
             hyperlinks,
+            graphics,
         }))
+    }
+
+    fn should_defer_clear_graphics_frame(
+        &self,
+        pending_frame_work: &PendingFrameWork,
+        graphic_placements_count: usize,
+    ) -> bool {
+        if !self.graphics_enabled || graphic_placements_count != 0 {
+            return false;
+        }
+        if pending_frame_work.snapshot_fallback_reason.as_deref() != Some("clear_screen") {
+            return false;
+        }
+        if !*self.last_frame_had_graphics.lock() {
+            return false;
+        }
+
+        let mut deferred_generation = self.deferred_clear_graphics_generation.lock();
+        if *deferred_generation == Some(pending_frame_work.damage_generation) {
+            return false;
+        }
+        *deferred_generation = Some(pending_frame_work.damage_generation);
+        true
+    }
+
+    fn should_defer_kitty_delete_graphics_frame(
+        &self,
+        terminal: &Terminal,
+        pending_frame_work: &PendingFrameWork,
+        graphic_placements_count: usize,
+    ) -> bool {
+        if !self.graphics_enabled || graphic_placements_count != 0 {
+            return false;
+        }
+        if terminal.deferred_kitty_delete_count() == 0 {
+            return false;
+        }
+        if !*self.last_frame_had_graphics.lock() {
+            return false;
+        }
+
+        let mut deferred_generation = self.deferred_kitty_delete_graphics_generation.lock();
+        if *deferred_generation == Some(pending_frame_work.damage_generation) {
+            return false;
+        }
+        *deferred_generation = Some(pending_frame_work.damage_generation);
+        true
+    }
+
+    pub fn graphic_asset_meta(
+        &self,
+        asset_id: u64,
+        asset_version: u64,
+    ) -> Result<GraphicAssetMeta, SessionError> {
+        if !self.graphics_enabled {
+            return Err(SessionError::GraphicAsset("graphics disabled".to_string()));
+        }
+        let state = self.state.lock();
+        let graphic = find_cached_graphic_asset(&state, asset_id, asset_version)?;
+        Ok(GraphicAssetMeta {
+            width: graphic.width as u32,
+            height: graphic.height as u32,
+            rgba_len: graphic.pixels.len(),
+            version: graphic.asset_version,
+        })
+    }
+
+    pub fn copy_graphic_asset_rgba(
+        &self,
+        asset_id: u64,
+        asset_version: u64,
+        dst: &mut [u8],
+    ) -> Result<usize, SessionError> {
+        if !self.graphics_enabled {
+            return Err(SessionError::GraphicAsset("graphics disabled".to_string()));
+        }
+        let state = self.state.lock();
+        let graphic = find_cached_graphic_asset(&state, asset_id, asset_version)?;
+        let pixels = graphic.pixels.as_ref();
+        if dst.len() < pixels.len() {
+            return Err(SessionError::GraphicAsset(
+                "destination too small".to_string(),
+            ));
+        }
+        dst[..pixels.len()].copy_from_slice(pixels);
+        Ok(pixels.len())
     }
 
     fn search(
@@ -2051,6 +2240,253 @@ fn build_delta_frame(
     )
 }
 
+fn build_graphic_placements(
+    terminal: &Terminal,
+    viewport_start_row: usize,
+    viewport_rows: usize,
+    scrollback_len: usize,
+    alt_screen_active: bool,
+) -> Vec<TerminalGraphicPlacement> {
+    if viewport_rows == 0 {
+        return Vec::new();
+    }
+    let (viewport_cols, total_viewport_rows) = terminal.size();
+    let viewport_end_row = viewport_start_row.saturating_add(viewport_rows);
+    let active_row_base = if alt_screen_active { 0 } else { scrollback_len };
+    let mut placements = Vec::new();
+
+    for graphic in terminal.all_graphics() {
+        if let Some(placement) = graphic_placement_for_viewport(
+            graphic,
+            active_row_base.saturating_add(graphic.position.1),
+            viewport_start_row,
+            viewport_end_row,
+            viewport_cols,
+            total_viewport_rows,
+        ) {
+            placements.push(placement);
+        }
+    }
+
+    for graphic in terminal.pending_cleared_kitty_graphics() {
+        if let Some(placement) = graphic_placement_for_viewport(
+            graphic,
+            active_row_base.saturating_add(graphic.position.1),
+            viewport_start_row,
+            viewport_end_row,
+            viewport_cols,
+            total_viewport_rows,
+        ) {
+            placements.push(placement);
+        }
+    }
+
+    if !alt_screen_active {
+        for graphic in terminal.all_scrollback_graphics() {
+            let Some(scrollback_row) = graphic.scrollback_row else {
+                continue;
+            };
+            if let Some(placement) = graphic_placement_for_viewport(
+                graphic,
+                scrollback_row,
+                viewport_start_row,
+                viewport_end_row,
+                viewport_cols,
+                total_viewport_rows,
+            ) {
+                placements.push(placement);
+            }
+        }
+    }
+
+    placements
+}
+
+fn graphic_placement_for_viewport(
+    graphic: &TerminalGraphic,
+    absolute_start_row: usize,
+    viewport_start_row: usize,
+    viewport_end_row: usize,
+    viewport_cols: usize,
+    total_viewport_rows: usize,
+) -> Option<TerminalGraphicPlacement> {
+    let (width_px, height_px, width_cells, height_cells) =
+        graphic_display_geometry(graphic, viewport_cols, total_viewport_rows);
+    let absolute_end_row = absolute_start_row.saturating_add(height_cells.max(1));
+    if absolute_end_row <= viewport_start_row || absolute_start_row >= viewport_end_row {
+        return None;
+    }
+    let row = absolute_start_row.saturating_sub(viewport_start_row);
+    let placement_id = graphic_placement_id(graphic);
+    Some(TerminalGraphicPlacement {
+        render_id: placement_id,
+        placement_id,
+        asset_id: graphic_asset_id(graphic),
+        asset_version: graphic_asset_version(graphic),
+        protocol: graphic.protocol.as_str().to_string(),
+        row,
+        col: graphic.position.0,
+        width_px,
+        height_px,
+        width_cells: width_cells.max(1),
+        height_cells: height_cells.max(1),
+        z_index: graphic.placement.z_index,
+        x_offset_px: graphic.placement.x_offset,
+        y_offset_px: graphic.placement.y_offset,
+        preserve_aspect_ratio: graphic.placement.preserve_aspect_ratio,
+    })
+}
+
+fn graphic_placement_id(graphic: &TerminalGraphic) -> u64 {
+    graphic.id
+}
+
+fn graphic_asset_id(graphic: &TerminalGraphic) -> u64 {
+    graphic.kitty_image_id.map(u64::from).unwrap_or(graphic.id)
+}
+
+fn graphic_asset_version(graphic: &TerminalGraphic) -> u64 {
+    graphic.asset_version
+}
+
+fn graphic_asset_snapshots(terminal: &Terminal) -> Vec<GraphicAssetSnapshot> {
+    terminal
+        .all_graphics()
+        .iter()
+        .chain(terminal.pending_cleared_kitty_graphics().iter())
+        .chain(terminal.all_scrollback_graphics().iter())
+        .map(|graphic| GraphicAssetSnapshot {
+            asset_id: graphic_asset_id(graphic),
+            asset_version: graphic_asset_version(graphic),
+            width: graphic.width,
+            height: graphic.height,
+            pixels: Arc::clone(&graphic.pixels),
+        })
+        .collect()
+}
+
+fn cache_graphic_asset_snapshots(state: &mut TerminalState, snapshots: Vec<GraphicAssetSnapshot>) {
+    for snapshot in snapshots {
+        if state.graphic_assets.iter().any(|cached| {
+            cached.asset_id == snapshot.asset_id
+                && cached.asset_version == snapshot.asset_version
+                && cached.width == snapshot.width
+                && cached.height == snapshot.height
+                && cached.pixels.as_ref() == snapshot.pixels.as_ref()
+        }) {
+            continue;
+        }
+        state.graphic_asset_bytes = state
+            .graphic_asset_bytes
+            .saturating_add(snapshot.pixels.len());
+        state.graphic_assets.push_back(snapshot);
+    }
+
+    while state.graphic_assets.len() > 1
+        && (state.graphic_assets.len() > MAX_GRAPHIC_ASSET_SNAPSHOTS
+            || state.graphic_asset_bytes > state.graphic_asset_cache_max_bytes)
+    {
+        if let Some(removed) = state.graphic_assets.pop_front() {
+            state.graphic_asset_bytes = state
+                .graphic_asset_bytes
+                .saturating_sub(removed.pixels.len());
+        }
+    }
+}
+
+fn find_cached_graphic_asset(
+    state: &TerminalState,
+    asset_id: u64,
+    asset_version: u64,
+) -> Result<&GraphicAssetSnapshot, SessionError> {
+    let mut saw_asset_id = false;
+    for asset in state.graphic_assets.iter().rev() {
+        if asset.asset_id != asset_id {
+            continue;
+        }
+        saw_asset_id = true;
+        if asset.asset_version == asset_version {
+            return Ok(asset);
+        }
+    }
+    if saw_asset_id {
+        Err(SessionError::GraphicAsset(
+            "stale asset version".to_string(),
+        ))
+    } else {
+        Err(SessionError::GraphicAsset("missing asset".to_string()))
+    }
+}
+
+fn graphic_display_geometry(
+    graphic: &TerminalGraphic,
+    viewport_cols: usize,
+    viewport_rows: usize,
+) -> (usize, usize, usize, usize) {
+    let (cell_width_px, cell_height_px) = graphic.cell_dimensions.unwrap_or((1, 1));
+    let cell_width_px = cell_width_px.max(1) as usize;
+    let cell_height_px = cell_height_px.max(1) as usize;
+    let terminal_width_px = viewport_cols
+        .saturating_mul(cell_width_px)
+        .max(cell_width_px);
+    let terminal_height_px = viewport_rows
+        .saturating_mul(cell_height_px)
+        .max(cell_height_px);
+
+    let requested_width = graphic_dimension_px(
+        graphic.placement.requested_width,
+        graphic.width,
+        cell_width_px,
+        terminal_width_px,
+    );
+    let requested_height = graphic_dimension_px(
+        graphic.placement.requested_height,
+        graphic.height,
+        cell_height_px,
+        terminal_height_px,
+    );
+
+    let (width_px, height_px) = match (requested_width, requested_height) {
+        (Some(width), Some(height)) => (width, height),
+        (Some(width), None) if graphic.placement.preserve_aspect_ratio && graphic.width > 0 => {
+            let height = ((width as f64 * graphic.height as f64) / graphic.width as f64)
+                .round()
+                .max(1.0) as usize;
+            (width, height)
+        }
+        (None, Some(height)) if graphic.placement.preserve_aspect_ratio && graphic.height > 0 => {
+            let width = ((height as f64 * graphic.width as f64) / graphic.height as f64)
+                .round()
+                .max(1.0) as usize;
+            (width, height)
+        }
+        _ => (graphic.width.max(1), graphic.height.max(1)),
+    };
+
+    let width_cells = width_px.div_ceil(cell_width_px).max(1);
+    let height_cells = height_px.div_ceil(cell_height_px).max(1);
+    (width_px, height_px, width_cells, height_cells)
+}
+
+fn graphic_dimension_px(
+    dimension: ImageDimension,
+    fallback_px: usize,
+    cell_px: usize,
+    terminal_px: usize,
+) -> Option<usize> {
+    if dimension.is_auto() {
+        return None;
+    }
+    let value = dimension.value.max(0.0);
+    let px = match dimension.unit {
+        ImageSizeUnit::Auto => fallback_px,
+        ImageSizeUnit::Cells => (value * cell_px as f64).round() as usize,
+        ImageSizeUnit::Pixels => value.round() as usize,
+        ImageSizeUnit::Percent => ((value / 100.0) * terminal_px as f64).round() as usize,
+    };
+    Some(px.max(1))
+}
+
 fn delta_candidate_row_indexes(
     pending_frame_work: &PendingFrameWork,
     viewport_rows: usize,
@@ -2318,21 +2754,34 @@ fn extract_row(
         }
 
         let grapheme = cell.get_grapheme();
-        text.push_str(if grapheme.is_empty() { " " } else { &grapheme });
+        let is_kitty_placeholder = grapheme.starts_with(PLACEHOLDER_CHAR);
+        text.push_str(if grapheme.is_empty() || is_kitty_placeholder {
+            " "
+        } else {
+            &grapheme
+        });
         let column_start = column_offset;
         column_offset += cell.width();
         let column_end = column_offset;
         let style = TerminalStyleRun {
             start: column_start,
             end: column_end,
-            foreground: color_to_hex_delta(cell.fg, theme.default_fg, &theme.ansi_palette),
-            background: color_to_hex_delta(cell.bg, theme.default_bg, &theme.ansi_palette),
-            bold: cell.flags.bold(),
-            dim: cell.flags.dim(),
-            italic: cell.flags.italic(),
-            underline: cell.flags.underline(),
-            blink: cell.flags.blink(),
-            inverse: cell.flags.reverse(),
+            foreground: if is_kitty_placeholder {
+                None
+            } else {
+                color_to_hex_delta(cell.fg, theme.default_fg, &theme.ansi_palette)
+            },
+            background: if is_kitty_placeholder {
+                None
+            } else {
+                color_to_hex_delta(cell.bg, theme.default_bg, &theme.ansi_palette)
+            },
+            bold: !is_kitty_placeholder && cell.flags.bold(),
+            dim: !is_kitty_placeholder && cell.flags.dim(),
+            italic: !is_kitty_placeholder && cell.flags.italic(),
+            underline: !is_kitty_placeholder && cell.flags.underline(),
+            blink: !is_kitty_placeholder && cell.flags.blink(),
+            inverse: !is_kitty_placeholder && cell.flags.reverse(),
         };
 
         match &run_style {
@@ -3168,6 +3617,27 @@ pub fn take_events(session_id: u64) -> Result<Vec<TerminalEvent>, SessionError> 
     STORE.get(session_id)?.poll_events()
 }
 
+pub fn graphic_asset_meta(
+    session_id: u64,
+    asset_id: u64,
+    asset_version: u64,
+) -> Result<GraphicAssetMeta, SessionError> {
+    STORE
+        .get(session_id)?
+        .graphic_asset_meta(asset_id, asset_version)
+}
+
+pub fn copy_graphic_asset_rgba(
+    session_id: u64,
+    asset_id: u64,
+    asset_version: u64,
+    dst: &mut [u8],
+) -> Result<usize, SessionError> {
+    STORE
+        .get(session_id)?
+        .copy_graphic_asset_rgba(asset_id, asset_version, dst)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3272,6 +3742,195 @@ mod tests {
         assert_eq!(extracted.style_runs[0].end, 1);
         assert_eq!(extracted.style_runs[0].foreground, None);
         assert_eq!(extracted.style_runs[0].background, None);
+    }
+
+    #[test]
+    fn kitty_retransmit_keeps_stable_render_id_and_content_version() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+
+        let first = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].asset_id, 49374);
+
+        terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+
+        let second = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].render_id, first[0].render_id);
+        assert_eq!(second[0].placement_id, first[0].placement_id);
+        assert_eq!(second[0].asset_id, 49374);
+        assert_eq!(second[0].asset_version, first[0].asset_version);
+
+        terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;AP8A/w==\x1b\\");
+
+        let third = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(third.len(), 1);
+        assert_eq!(third[0].render_id, first[0].render_id);
+        assert_eq!(third[0].asset_id, 49374);
+        assert_ne!(third[0].asset_version, first[0].asset_version);
+    }
+
+    #[test]
+    fn kitty_replacement_across_image_ids_keeps_stable_placement_identity() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+
+        let first = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].asset_id, 49374);
+
+        terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375;AP8A/w==\x1b\\");
+
+        let second = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].placement_id, first[0].placement_id);
+        assert_eq!(second[0].render_id, first[0].render_id);
+        assert_eq!(second[0].asset_id, 49375);
+        assert_ne!(second[0].asset_version, first[0].asset_version);
+    }
+
+    #[test]
+    fn kitty_replacement_across_image_ids_can_move_with_stable_placement_identity() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        terminal.process(b"\x1b[1;1H\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+
+        let first = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].row, 0);
+        assert_eq!(first[0].col, 0);
+        assert_eq!(first[0].asset_id, 49374);
+
+        terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+        terminal.process(b"\x1b[5;5H\x1b_Ga=T,f=32,s=1,v=1,i=49375;AP8A/w==\x1b\\");
+
+        let second = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].placement_id, first[0].placement_id);
+        assert_eq!(second[0].render_id, first[0].render_id);
+        assert_eq!(second[0].row, 4);
+        assert_eq!(second[0].col, 4);
+        assert_eq!(second[0].asset_id, 49375);
+        assert_ne!(second[0].asset_version, first[0].asset_version);
+    }
+
+    #[test]
+    fn kitty_replacement_across_image_ids_requires_matching_placement_id() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374,p=1;/wAA/w==\x1b\\");
+
+        let first = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].asset_id, 49374);
+
+        terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375,p=2;AP8A/w==\x1b\\");
+
+        let second = build_graphic_placements(&terminal, 0, 24, 0, false);
+        assert_eq!(second.len(), 1);
+        assert_ne!(second[0].placement_id, first[0].placement_id);
+        assert_ne!(second[0].render_id, first[0].render_id);
+        assert_eq!(second[0].asset_id, 49375);
+    }
+
+    #[test]
+    fn kitty_default_placement_uses_stable_frame_identity() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+
+        let placements = build_graphic_placements(&terminal, 0, 24, 0, false);
+
+        assert_eq!(placements.len(), 1);
+        assert_eq!(placements[0].render_id, placements[0].placement_id);
+        assert!(placements[0].placement_id > 0);
+        assert_eq!(placements[0].placement_id, terminal.all_graphics()[0].id);
+    }
+
+    #[test]
+    fn active_graphic_rows_are_relative_to_visible_scrollback_base() {
+        let mut terminal = Terminal::with_scrollback(80, 3, 16);
+        terminal.process(b"line0\nline1\nline2\nline3\n");
+        let scrollback_len = terminal.grid().scrollback_len();
+        assert!(scrollback_len > 0);
+
+        terminal.process(b"\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+
+        let placements =
+            build_graphic_placements(&terminal, scrollback_len, 3, scrollback_len, false);
+
+        assert_eq!(placements.len(), 1);
+        assert_eq!(placements[0].row, 1);
+    }
+
+    #[test]
+    fn cached_graphic_assets_survive_kitty_placement_retransmit() {
+        let mut state = TerminalState {
+            terminal: Terminal::with_scrollback(80, 24, 16),
+            transcript: Vec::new(),
+            transcript_truncated: false,
+            scrollback_offset: 0,
+            host_protocol: HostProtocolState::default(),
+            graphic_assets: VecDeque::new(),
+            graphic_asset_bytes: 0,
+            graphic_asset_cache_max_bytes: 256 * 1024 * 1024,
+        };
+        state
+            .terminal
+            .process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\");
+
+        let first = build_graphic_placements(&state.terminal, 0, 24, 0, false);
+        assert_eq!(first.len(), 1);
+        let snapshots = graphic_asset_snapshots(&state.terminal);
+        cache_graphic_asset_snapshots(&mut state, snapshots);
+
+        state.terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+        state
+            .terminal
+            .process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374;AP8A/w==\x1b\\");
+
+        let second = build_graphic_placements(&state.terminal, 0, 24, 0, false);
+        assert_eq!(second.len(), 1);
+        assert_ne!(second[0].asset_version, first[0].asset_version);
+        let old_asset =
+            find_cached_graphic_asset(&state, first[0].asset_id, first[0].asset_version)
+                .expect("previous asset version should remain readable briefly");
+        assert_eq!(old_asset.pixels.as_ref(), &[255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn extract_row_hides_kitty_placeholder_cells() {
+        let terminal = Terminal::with_scrollback(4, 4, 16);
+        let ansi_palette = *terminal.get_ansi_palette();
+        let theme = TerminalThemeSnapshot {
+            default_fg: Color::Named(NamedColor::White),
+            default_bg: Color::Named(NamedColor::Black),
+            ansi_palette,
+        };
+        let mut placeholder = Cell::with_colors(
+            PLACEHOLDER_CHAR,
+            Color::Named(NamedColor::Red),
+            Color::Rgb(0xff, 0xff, 0xff),
+        );
+        placeholder.flags.set_bold(true);
+        placeholder.flags.set_underline(true);
+        placeholder.flags.set_reverse(true);
+        let row = vec![placeholder];
+
+        let extracted = extract_row(Some(&row), false, &theme);
+
+        assert_eq!(extracted.text, " ");
+        assert_eq!(extracted.style_runs.len(), 1);
+        let style = &extracted.style_runs[0];
+        assert_eq!(style.start, 0);
+        assert_eq!(style.end, 1);
+        assert_eq!(style.foreground, None);
+        assert_eq!(style.background, None);
+        assert!(!style.bold);
+        assert!(!style.underline);
+        assert!(!style.inverse);
     }
 
     #[test]

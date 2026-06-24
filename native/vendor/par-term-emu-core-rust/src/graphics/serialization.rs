@@ -21,7 +21,9 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 
 use super::animation::{AnimationFrame, AnimationState, CompositionMode};
-use super::{GraphicProtocol, GraphicsStore, ImagePlacement, TerminalGraphic};
+use super::{
+    graphic_content_version, GraphicProtocol, GraphicsStore, ImagePlacement, TerminalGraphic,
+};
 
 /// Reference to image data - either inline base64 or an external file path
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,6 +161,7 @@ impl SerializableGraphic {
     /// Returns an error if the data cannot be resolved.
     pub fn to_terminal_graphic(&self) -> Result<TerminalGraphic, GraphicsSerializationError> {
         let pixels = self.resolve_data()?;
+        let asset_version = graphic_content_version(self.width, self.height, &pixels);
         Ok(TerminalGraphic {
             id: self.id,
             protocol: self.protocol,
@@ -167,6 +170,7 @@ impl SerializableGraphic {
             height: self.height,
             original_width: self.original_width,
             original_height: self.original_height,
+            asset_version,
             pixels: Arc::new(pixels),
             cell_dimensions: self.cell_dimensions,
             scroll_offset_rows: self.scroll_offset_rows,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
@@ -34,6 +35,39 @@ typedef _StringReturningNative = ffi.Pointer<Utf8> Function(ffi.Uint64);
 typedef _StringReturningDart = ffi.Pointer<Utf8> Function(int);
 typedef _FreeStringNative = ffi.Void Function(ffi.Pointer<Utf8>);
 typedef _FreeStringDart = void Function(ffi.Pointer<Utf8>);
+typedef _GraphicAssetMetaNative =
+    ffi.Int32 Function(
+      ffi.Uint64,
+      ffi.Uint64,
+      ffi.Uint64,
+      ffi.Pointer<_NativeGraphicAssetMeta>,
+    );
+typedef _GraphicAssetMetaDart =
+    int Function(int, int, int, ffi.Pointer<_NativeGraphicAssetMeta>);
+typedef _GraphicAssetRgbaCopyNative =
+    ffi.IntPtr Function(
+      ffi.Uint64,
+      ffi.Uint64,
+      ffi.Uint64,
+      ffi.Pointer<ffi.Uint8>,
+      ffi.Size,
+    );
+typedef _GraphicAssetRgbaCopyDart =
+    int Function(int, int, int, ffi.Pointer<ffi.Uint8>, int);
+
+final class _NativeGraphicAssetMeta extends ffi.Struct {
+  @ffi.Uint32()
+  external int width;
+
+  @ffi.Uint32()
+  external int height;
+
+  @ffi.Size()
+  external int rgbaLen;
+
+  @ffi.Uint64()
+  external int version;
+}
 
 _StringReturningDart? _lookupOptionalStringReturning(
   ffi.DynamicLibrary library,
@@ -59,6 +93,48 @@ _RequestSessionDart? _lookupOptionalRequestSession(
   } on ArgumentError {
     return null;
   }
+}
+
+_GraphicAssetMetaDart? _lookupOptionalGraphicAssetMeta(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library
+        .lookupFunction<_GraphicAssetMetaNative, _GraphicAssetMetaDart>(
+          'ianvs_session_graphic_asset_meta',
+        );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_GraphicAssetRgbaCopyDart? _lookupOptionalGraphicAssetRgbaCopy(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library
+        .lookupFunction<_GraphicAssetRgbaCopyNative, _GraphicAssetRgbaCopyDart>(
+          'ianvs_session_graphic_asset_rgba_copy',
+        );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+class PtyGraphicAsset {
+  const PtyGraphicAsset({
+    required this.assetId,
+    required this.assetVersion,
+    required this.width,
+    required this.height,
+    required this.rgba,
+  });
+
+  final int assetId;
+  final int assetVersion;
+  final int width;
+  final int height;
+  final Uint8List rgba;
 }
 
 class PtyEvent {
@@ -155,6 +231,11 @@ abstract class PtyBindings {
   String? sessionDiagnosticsJson(int sessionId, String kind);
   String? sessionTakeFrameDiffJson(int sessionId);
   List<PtyEvent> sessionPollEvents(int sessionId);
+  PtyGraphicAsset? sessionGraphicAsset(
+    int sessionId,
+    int assetId,
+    int assetVersion,
+  );
 }
 
 class NativePtyBindings implements PtyBindings {
@@ -204,6 +285,8 @@ class NativePtyBindings implements PtyBindings {
           .lookupFunction<_StringReturningNative, _StringReturningDart>(
             'ianvs_session_poll_events_json',
           ),
+      _graphicAssetMeta = _lookupOptionalGraphicAssetMeta(library),
+      _graphicAssetRgbaCopy = _lookupOptionalGraphicAssetRgbaCopy(library),
       _stringFree = library.lookupFunction<_FreeStringNative, _FreeStringDart>(
         'ianvs_string_free',
       );
@@ -220,6 +303,8 @@ class NativePtyBindings implements PtyBindings {
   final _StringReturningDart? _takeFrameDebugStatsJson;
   final _StringReturningDart? _takeSessionDebugStatsJson;
   final _StringReturningDart _pollEventsJson;
+  final _GraphicAssetMetaDart? _graphicAssetMeta;
+  final _GraphicAssetRgbaCopyDart? _graphicAssetRgbaCopy;
   final _FreeStringDart _stringFree;
 
   factory NativePtyBindings.load() {
@@ -339,6 +424,61 @@ class NativePtyBindings implements PtyBindings {
       _stringFree(resultPointer);
     }
   }
+
+  @override
+  PtyGraphicAsset? sessionGraphicAsset(
+    int sessionId,
+    int assetId,
+    int assetVersion,
+  ) {
+    final metaBinding = _graphicAssetMeta;
+    final copyBinding = _graphicAssetRgbaCopy;
+    if (metaBinding == null || copyBinding == null) {
+      return null;
+    }
+
+    final metaPointer = calloc<_NativeGraphicAssetMeta>();
+    try {
+      final metaStatus = metaBinding(
+        sessionId,
+        assetId,
+        assetVersion,
+        metaPointer,
+      );
+      if (metaStatus != 0) {
+        return null;
+      }
+      final meta = metaPointer.ref;
+      final rgbaLen = meta.rgbaLen;
+      if (meta.width <= 0 || meta.height <= 0 || rgbaLen <= 0) {
+        return null;
+      }
+      final rgbaPointer = malloc<ffi.Uint8>(rgbaLen);
+      try {
+        final copied = copyBinding(
+          sessionId,
+          assetId,
+          assetVersion,
+          rgbaPointer,
+          rgbaLen,
+        );
+        if (copied != rgbaLen) {
+          return null;
+        }
+        return PtyGraphicAsset(
+          assetId: assetId,
+          assetVersion: meta.version,
+          width: meta.width,
+          height: meta.height,
+          rgba: Uint8List.fromList(rgbaPointer.asTypedList(rgbaLen)),
+        );
+      } finally {
+        malloc.free(rgbaPointer);
+      }
+    } finally {
+      calloc.free(metaPointer);
+    }
+  }
 }
 
 abstract class PtySessionBackend {
@@ -367,11 +507,20 @@ abstract class PtySessionDiagnosticsBackend {
   String? takeDiagnosticsJson(String sessionId, String kind);
 }
 
+abstract class PtySessionGraphicAssetBackend {
+  PtyGraphicAsset? loadGraphicAsset(
+    String sessionId, {
+    required int assetId,
+    required int assetVersion,
+  });
+}
+
 class NativePtyBackend
     implements
         PtySessionBackend,
         PtySessionJsonRequestBackend,
-        PtySessionDiagnosticsBackend {
+        PtySessionDiagnosticsBackend,
+        PtySessionGraphicAssetBackend {
   NativePtyBackend(this._bindings);
 
   final PtyBindings _bindings;
@@ -451,6 +600,29 @@ class NativePtyBackend
   @override
   List<PtyEvent> pollEvents(String sessionId) {
     return _bindings.sessionPollEvents(_nativeSessionId(sessionId));
+  }
+
+  @override
+  PtyGraphicAsset? loadGraphicAsset(
+    String sessionId, {
+    required int assetId,
+    required int assetVersion,
+  }) {
+    if (assetId <= 0) {
+      throw ArgumentError.value(assetId, 'assetId', 'must be positive');
+    }
+    if (assetVersion <= 0) {
+      throw ArgumentError.value(
+        assetVersion,
+        'assetVersion',
+        'must be positive',
+      );
+    }
+    return _bindings.sessionGraphicAsset(
+      _nativeSessionId(sessionId),
+      assetId,
+      assetVersion,
+    );
   }
 }
 

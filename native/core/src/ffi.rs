@@ -2,6 +2,15 @@ use crate::session;
 use libc::{c_char, c_int};
 use std::ffi::{CStr, CString};
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct IanvsGraphicAssetMeta {
+    pub width: u32,
+    pub height: u32,
+    pub rgba_len: usize,
+    pub version: u64,
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn ianvs_ping() -> c_int {
     session::ping()
@@ -201,6 +210,55 @@ pub extern "C" fn ianvs_session_poll_events_json(session_id: u64) -> *mut c_char
             .unwrap_or(std::ptr::null_mut()),
         Err(_) => std::ptr::null_mut(),
     }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+///
+/// `out_meta` must point to writable memory for an `IanvsGraphicAssetMeta`.
+pub unsafe extern "C" fn ianvs_session_graphic_asset_meta(
+    session_id: u64,
+    asset_id: u64,
+    asset_version: u64,
+    out_meta: *mut IanvsGraphicAssetMeta,
+) -> c_int {
+    if out_meta.is_null() {
+        return -1;
+    }
+    match session::graphic_asset_meta(session_id, asset_id, asset_version) {
+        Ok(meta) => {
+            unsafe {
+                *out_meta = IanvsGraphicAssetMeta {
+                    width: meta.width,
+                    height: meta.height,
+                    rgba_len: meta.rgba_len,
+                    version: meta.version,
+                };
+            }
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+///
+/// `dst` must point to `len` writable bytes for the duration of this call.
+pub unsafe extern "C" fn ianvs_session_graphic_asset_rgba_copy(
+    session_id: u64,
+    asset_id: u64,
+    asset_version: u64,
+    dst: *mut u8,
+    len: usize,
+) -> isize {
+    if dst.is_null() {
+        return -1;
+    }
+    let dst = unsafe { std::slice::from_raw_parts_mut(dst, len) };
+    session::copy_graphic_asset_rgba(session_id, asset_id, asset_version, dst)
+        .map(|copied| copied as isize)
+        .unwrap_or(-1)
 }
 
 #[unsafe(no_mangle)]

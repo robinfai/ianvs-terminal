@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:flutter/services.dart';
 import '../config/terminal_config.dart';
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
+import 'terminal_graphics_cache.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_models.dart';
 import 'terminal_viewport_colors.dart';
@@ -95,6 +97,7 @@ class TerminalViewport extends StatefulWidget {
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
+    this.graphicsCache,
   });
 
   final TerminalViewportController controller;
@@ -118,6 +121,7 @@ class TerminalViewport extends StatefulWidget {
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle? searchHighlightStyle;
+  final TerminalGraphicsCache? graphicsCache;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -164,7 +168,6 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _awaitingSystemTextCommit = false;
   String _deferredImeRawText = '';
   bool _textInputGeometrySyncScheduled = false;
-
   FocusNode get _focusNode =>
       widget.focusNode ??
       (_ownedFocusNode ??= FocusNode(debugLabel: 'terminal-viewport'));
@@ -223,6 +226,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
     _scheduleMeasuredCellSizeReport();
+    _syncGraphicsCache();
     if (_isLocalSelectionActive &&
         !_terminalMouseEnabled &&
         _selectionPointerGlobalPosition != null) {
@@ -236,6 +240,18 @@ class _TerminalViewportState extends State<TerminalViewport>
       _localSelectionMode = _LocalSelectionMode.cell;
       _stopSelectionAutoScroll();
     }
+  }
+
+  void _syncGraphicsCache() {
+    final graphicsCache = widget.graphicsCache;
+    if (graphicsCache == null) {
+      return;
+    }
+    graphicsCache.evictExcept(
+      widget.controller.frame.graphics
+          .map((graphic) => graphic.assetKey)
+          .toSet(),
+    );
   }
 
   void _handleFocusChange() {
@@ -1368,6 +1384,7 @@ class _TerminalViewportState extends State<TerminalViewport>
             animation: widget.controller,
             builder: (context, _) {
               final frame = widget.controller.frame;
+              final graphics = frame.graphics;
               return LayoutBuilder(
                 builder: (context, constraints) {
                   final contentPadding = widget.contentPadding;
@@ -1376,6 +1393,12 @@ class _TerminalViewportState extends State<TerminalViewport>
                     decoration: BoxDecoration(color: colors.canvasBackground),
                     child: Stack(
                       children: [
+                        ..._buildGraphicOverlays(
+                          frame,
+                          graphics,
+                          contentPadding,
+                          belowText: true,
+                        ),
                         Positioned.fill(
                           child: Padding(
                             padding: contentPadding,
@@ -1401,6 +1424,12 @@ class _TerminalViewportState extends State<TerminalViewport>
                           frame,
                           contentPadding,
                           colors,
+                        ),
+                        ..._buildGraphicOverlays(
+                          frame,
+                          graphics,
+                          contentPadding,
+                          belowText: false,
                         ),
                         if (widget.showLineTimestamps)
                           ..._buildTimestampOverlays(
@@ -1478,6 +1507,61 @@ class _TerminalViewportState extends State<TerminalViewport>
                 },
               ),
             ),
+          ),
+    ];
+  }
+
+  List<Widget> _buildGraphicOverlays(
+    TerminalFrameDiff frame,
+    List<TerminalGraphicPlacement> graphics,
+    EdgeInsets contentPadding, {
+    required bool belowText,
+  }) {
+    final graphicsCache = widget.graphicsCache;
+    if (graphicsCache == null || graphics.isEmpty) {
+      return const <Widget>[];
+    }
+    final cellSize =
+        widget.controller.measuredCellSize ?? terminalFallbackCellSize;
+    if (cellSize.width <= 0 || cellSize.height <= 0) {
+      return const <Widget>[];
+    }
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(
+      context,
+    ).clamp(1.0, double.infinity).toDouble();
+    final placements = graphics
+        .where((graphic) {
+          return belowText ? graphic.zIndex < 0 : graphic.zIndex >= 0;
+        })
+        .toList(growable: false);
+    if (placements.isEmpty) {
+      return const <Widget>[];
+    }
+    return [
+      for (final graphic in placements)
+        if (graphic.row >= 0 &&
+            graphic.row < frame.viewportRows &&
+            graphic.col >= 0 &&
+            graphic.widthCells > 0 &&
+            graphic.heightCells > 0)
+          Positioned(
+            left:
+                contentPadding.left +
+                graphic.col * cellSize.width +
+                graphic.xOffsetPx / devicePixelRatio,
+            top:
+                contentPadding.top +
+                graphic.row * cellSize.height +
+                graphic.yOffsetPx / devicePixelRatio,
+              width: graphic.widthCells * cellSize.width,
+              height: graphic.heightCells * cellSize.height,
+              child: IgnorePointer(
+                child: _TerminalGraphicOverlay(
+                  key: Key('terminal-graphic-${graphic.renderId}'),
+                  cache: graphicsCache,
+                  placement: graphic,
+                ),
+              ),
           ),
     ];
   }
@@ -2083,6 +2167,95 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..activeSearchMatchIndex = activeSearchMatchIndex
       ..searchHighlightStyle = searchHighlightStyle
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+  }
+}
+
+class _TerminalGraphicOverlay extends StatefulWidget {
+  const _TerminalGraphicOverlay({
+    super.key,
+    required this.cache,
+    required this.placement,
+  });
+
+  final TerminalGraphicsCache cache;
+  final TerminalGraphicPlacement placement;
+
+  @override
+  State<_TerminalGraphicOverlay> createState() =>
+      _TerminalGraphicOverlayState();
+}
+
+class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
+  Future<ui.Image?>? _imageFuture;
+  TerminalGraphicAssetKey? _assetKey;
+  ui.Image? _visibleImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncImageFuture();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TerminalGraphicOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cache != widget.cache) {
+      _clearVisibleImage();
+    }
+    if (oldWidget.cache != widget.cache ||
+        oldWidget.placement.assetKey != widget.placement.assetKey) {
+      _syncImageFuture();
+    }
+  }
+
+  @override
+  void dispose() {
+    _clearVisibleImage();
+    super.dispose();
+  }
+
+  void _syncImageFuture() {
+    final assetKey = widget.placement.assetKey;
+    _assetKey = assetKey;
+    final future = widget.cache.imageFor(assetKey);
+    _imageFuture = future;
+    future.then(
+      (image) {
+        if (!mounted || _assetKey != assetKey || image == null) {
+          return;
+        }
+        setState(() {
+          _replaceVisibleImage(image.clone());
+        });
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        // Keep the previous frame visible if a replacement image fails to load.
+      },
+    );
+  }
+
+  void _replaceVisibleImage(ui.Image image) {
+    final previous = _visibleImage;
+    _visibleImage = image;
+    previous?.dispose();
+  }
+
+  void _clearVisibleImage() {
+    _visibleImage?.dispose();
+    _visibleImage = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final image = _visibleImage;
+    if (image == null || _imageFuture == null) {
+      return const SizedBox.shrink();
+    }
+    return RawImage(
+      image: image,
+      fit: widget.placement.preserveAspectRatio ? BoxFit.contain : BoxFit.fill,
+      filterQuality: FilterQuality.medium,
+    );
   }
 }
 

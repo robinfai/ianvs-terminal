@@ -158,6 +158,14 @@ class SessionController extends Notifier<SessionState> {
     return _runtime.viewportFor(sessionId);
   }
 
+  TerminalGraphicsCache? graphicsCacheFor(String sessionId) {
+    final demoFixture = ref.read(sessionDemoFixtureProvider);
+    if (demoFixture != null) {
+      return null;
+    }
+    return _runtime.graphicsCacheFor(sessionId);
+  }
+
   TerminalViewportController _demoViewportFor(
     String sessionId,
     SessionDemoFixture fixture,

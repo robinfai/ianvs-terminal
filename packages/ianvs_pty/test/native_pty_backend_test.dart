@@ -1,5 +1,6 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:test/test.dart';
@@ -69,6 +70,25 @@ void main() {
       );
     },
   );
+
+  test('native pty backend loads graphic assets through bindings', () {
+    final bindings = _GraphicAssetRecordingPtyBindings();
+    final backend =
+        NativePtyBackend.fromBindings(bindings)
+            as PtySessionGraphicAssetBackend;
+
+    final asset = backend.loadGraphicAsset('9', assetId: 42, assetVersion: 3);
+
+    expect(asset, isNotNull);
+    expect(asset!.assetId, 42);
+    expect(asset.assetVersion, 3);
+    expect(asset.width, 1);
+    expect(asset.height, 1);
+    expect(asset.rgba, <int>[255, 0, 0, 255]);
+    expect(bindings.lastSessionId, 9);
+    expect(bindings.lastAssetId, 42);
+    expect(bindings.lastAssetVersion, 3);
+  });
 
   test(
     'native pty backend leaves generic JSON response validation to callers',
@@ -229,6 +249,13 @@ class _NoopPtyBindings implements PtyBindings {
 
   @override
   List<PtyEvent> sessionPollEvents(int sessionId) => const [];
+
+  @override
+  PtyGraphicAsset? sessionGraphicAsset(
+    int sessionId,
+    int assetId,
+    int assetVersion,
+  ) => null;
 }
 
 class _NoopDebugPtyBindings extends _NoopPtyBindings {
@@ -252,5 +279,29 @@ class _RequestRecordingPtyBindings extends _NoopPtyBindings {
     lastSessionId = sessionId;
     lastRequestJson = requestJson;
     return response;
+  }
+}
+
+class _GraphicAssetRecordingPtyBindings extends _NoopPtyBindings {
+  int? lastSessionId;
+  int? lastAssetId;
+  int? lastAssetVersion;
+
+  @override
+  PtyGraphicAsset? sessionGraphicAsset(
+    int sessionId,
+    int assetId,
+    int assetVersion,
+  ) {
+    lastSessionId = sessionId;
+    lastAssetId = assetId;
+    lastAssetVersion = assetVersion;
+    return PtyGraphicAsset(
+      assetId: assetId,
+      assetVersion: assetVersion,
+      width: 1,
+      height: 1,
+      rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+    );
   }
 }

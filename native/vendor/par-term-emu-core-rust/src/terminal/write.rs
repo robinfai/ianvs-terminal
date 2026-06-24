@@ -40,6 +40,7 @@ impl Terminal {
     }
 
     fn write_plain_ascii_printable_run(&mut self, bytes: &[u8]) {
+        self.commit_deferred_kitty_deletes_for_visual_output();
         let mut index = 0;
         while index < bytes.len() {
             if self.pending_wrap {
@@ -125,6 +126,10 @@ impl Terminal {
         } else {
             c
         };
+
+        if !c.is_control() {
+            self.commit_deferred_kitty_deletes_for_visual_output();
+        }
 
         let (cols, _rows) = self.size();
 
