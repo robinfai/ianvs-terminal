@@ -99,6 +99,55 @@ void main() {
     },
   );
 
+  test(
+    'terminal viewport controller treats graphics as frame-authoritative',
+    () {
+      final controller = TerminalViewportController();
+
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'image')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          graphics: [
+            TerminalGraphicPlacement(
+              renderId: 101,
+              placementId: 101,
+              assetKey: TerminalGraphicAssetKey(id: 7, version: 3),
+              protocol: 'kitty',
+              row: 0,
+              col: 2,
+              widthPx: 8,
+              heightPx: 4,
+              widthCells: 4,
+              heightCells: 2,
+            ),
+          ],
+        ),
+      );
+      controller.updateFrame(
+        const TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [TerminalRow(index: 0, text: 'image')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 2,
+          viewportCols: 80,
+          dirtyRanges: [],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          viewportRowShift: -1,
+          graphics: [],
+        ),
+      );
+
+      expect(controller.frame.graphics, isEmpty);
+    },
+  );
+
   test('terminal viewport controller timestamps changed rows', () {
     final firstModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 3);
     final secondModifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 9);
@@ -655,6 +704,343 @@ void main() {
     expect(frame.inlineImages.last.bytes, imageBytes);
   });
 
+  test('terminal frames parse graphics placement payloads', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'graphics': [
+        {
+          'render_id': 101,
+          'placement_id': 11,
+          'asset_id': 7,
+          'asset_version': 3,
+          'protocol': 'kitty',
+          'row': 0,
+          'col': 2,
+          'width_px': 8,
+          'height_px': 4,
+          'width_cells': 4,
+          'height_cells': 2,
+          'source_y_offset_px': 1,
+          'visible_height_px': 3,
+          'z_index': 1,
+          'x_offset_px': 2,
+          'y_offset_px': 1,
+          'preserve_aspect_ratio': false,
+        },
+      ],
+    });
+
+    expect(frame.graphics, hasLength(1));
+    final graphic = frame.graphics.single;
+    expect(graphic.renderId, 101);
+    expect(graphic.placementId, 11);
+    expect(graphic.assetKey, const TerminalGraphicAssetKey(id: 7, version: 3));
+    expect(graphic.protocol, 'kitty');
+    expect(graphic.row, 0);
+    expect(graphic.col, 2);
+    expect(graphic.widthPx, 8);
+    expect(graphic.heightPx, 4);
+    expect(graphic.widthCells, 4);
+    expect(graphic.heightCells, 2);
+    expect(graphic.sourceYOffsetPx, 1);
+    expect(graphic.visibleHeightPx, 3);
+    expect(graphic.zIndex, 1);
+    expect(graphic.xOffsetPx, 2);
+    expect(graphic.yOffsetPx, 1);
+    expect(graphic.preserveAspectRatio, isFalse);
+  });
+
+  test('terminal frames keep legacy graphics payloads readable', () {
+    final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [
+        {'index': 0, 'text': 'image', 'style_runs': []},
+      ],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 2,
+      'viewport_cols': 80,
+      'dirty_ranges': [
+        {'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'graphics': [
+        {
+          'placement_id': 0,
+          'asset_id': 7,
+          'asset_version': 3,
+          'protocol': 'kitty',
+          'row': 0,
+          'col': 2,
+          'width_px': 8,
+          'height_px': 4,
+          'width_cells': 4,
+          'height_cells': 2,
+        },
+      ],
+    });
+
+    expect(frame.graphics, hasLength(1));
+    expect(frame.graphics.single.renderId, 0);
+    expect(frame.graphics.single.placementId, 0);
+    expect(frame.graphics.single.sourceYOffsetPx, 0);
+    expect(frame.graphics.single.visibleHeightPx, 4);
+  });
+
+  test('terminal graphics cache retries after a missing asset', () async {
+    var loadCount = 0;
+    final cache = TerminalGraphicsCache(
+      loadAsset: (key) async {
+        loadCount += 1;
+        if (loadCount == 1) {
+          return null;
+        }
+        return TerminalGraphicAsset(
+          key: key,
+          width: 1,
+          height: 1,
+          rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+        );
+      },
+      decodeImage: (rgba, width, height) {
+        final completer = Completer<Image>();
+        decodeImageFromPixels(
+          rgba,
+          width,
+          height,
+          PixelFormat.rgba8888,
+          completer.complete,
+        );
+        return completer.future;
+      },
+    );
+    addTearDown(cache.dispose);
+
+    const key = TerminalGraphicAssetKey(id: 42, version: 2);
+    final first = await cache.imageFor(key);
+    final second = await cache.imageFor(key);
+    final third = await cache.imageFor(key);
+
+    expect(first, isNull);
+    expect(second, isNotNull);
+    expect(third, same(second));
+    expect(loadCount, 2);
+  });
+
+  test('terminal graphics cache premultiplies alpha before decoding', () async {
+    late Uint8List decodedRgba;
+    final cache = TerminalGraphicsCache(
+      loadAsset: (key) async => TerminalGraphicAsset(
+        key: key,
+        width: 3,
+        height: 1,
+        rgba: Uint8List.fromList(const <int>[
+          100,
+          50,
+          200,
+          0,
+          100,
+          50,
+          200,
+          128,
+          10,
+          20,
+          30,
+          255,
+        ]),
+      ),
+      decodeImage: (rgba, width, height) {
+        decodedRgba = Uint8List.fromList(rgba);
+        final completer = Completer<Image>();
+        decodeImageFromPixels(
+          rgba,
+          width,
+          height,
+          PixelFormat.rgba8888,
+          completer.complete,
+        );
+        return completer.future;
+      },
+    );
+    addTearDown(cache.dispose);
+
+    final image = await cache.imageFor(
+      const TerminalGraphicAssetKey(id: 9, version: 1),
+    );
+
+    expect(image, isNotNull);
+    expect(decodedRgba, <int>[0, 0, 0, 0, 50, 25, 100, 128, 10, 20, 30, 255]);
+  });
+
+  test(
+    'terminal graphics cache evicts assets omitted by Rust frames',
+    () async {
+      var loadCount = 0;
+      final cache = TerminalGraphicsCache(
+        loadAsset: (key) async {
+          loadCount += 1;
+          return TerminalGraphicAsset(
+            key: key,
+            width: 1,
+            height: 1,
+            rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+          );
+        },
+        decodeImage: (rgba, width, height) {
+          final completer = Completer<Image>();
+          decodeImageFromPixels(
+            rgba,
+            width,
+            height,
+            PixelFormat.rgba8888,
+            completer.complete,
+          );
+          return completer.future;
+        },
+      );
+      addTearDown(cache.dispose);
+
+      const key = TerminalGraphicAssetKey(id: 42, version: 1);
+      final first = await cache.imageFor(key);
+      cache.evictExcept(const <TerminalGraphicAssetKey>{});
+      final second = await cache.imageFor(key);
+
+      expect(second, isNot(same(first)));
+      expect(loadCount, 2);
+    },
+  );
+
+  test('terminal graphics cache drops pending image after eviction', () async {
+    final loadAsset = Completer<TerminalGraphicAsset?>();
+    final decodeImage = Completer<Image>();
+    Image? decodedImage;
+    final cache = TerminalGraphicsCache(
+      loadAsset: (_) => loadAsset.future,
+      decodeImage: (_, _, _) => decodeImage.future,
+    );
+    addTearDown(() {
+      final image = decodedImage;
+      if (image != null && !image.debugDisposed) {
+        image.dispose();
+      }
+      cache.dispose();
+    });
+
+    const key = TerminalGraphicAssetKey(id: 77, version: 1);
+    final pending = cache.imageFor(key);
+    cache.evictExcept(const <TerminalGraphicAssetKey>{});
+    loadAsset.complete(
+      TerminalGraphicAsset(
+        key: key,
+        width: 1,
+        height: 1,
+        rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      ),
+    );
+    final imageCompleter = Completer<Image>();
+    decodeImageFromPixels(
+      Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      1,
+      1,
+      PixelFormat.rgba8888,
+      imageCompleter.complete,
+    );
+    decodedImage = await imageCompleter.future;
+    decodeImage.complete(decodedImage);
+
+    expect(await pending, isNull);
+    expect(decodedImage.debugDisposed, isTrue);
+  });
+
+  test('terminal graphics cache drops pending image after dispose', () async {
+    final loadAsset = Completer<TerminalGraphicAsset?>();
+    final decodeImage = Completer<Image>();
+    Image? decodedImage;
+    final cache = TerminalGraphicsCache(
+      loadAsset: (_) => loadAsset.future,
+      decodeImage: (_, _, _) => decodeImage.future,
+    );
+    addTearDown(() {
+      final image = decodedImage;
+      if (image != null && !image.debugDisposed) {
+        image.dispose();
+      }
+      cache.dispose();
+    });
+
+    const key = TerminalGraphicAssetKey(id: 78, version: 1);
+    final pending = cache.imageFor(key);
+    cache.dispose();
+    loadAsset.complete(
+      TerminalGraphicAsset(
+        key: key,
+        width: 1,
+        height: 1,
+        rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      ),
+    );
+    final imageCompleter = Completer<Image>();
+    decodeImageFromPixels(
+      Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      1,
+      1,
+      PixelFormat.rgba8888,
+      imageCompleter.complete,
+    );
+    decodedImage = await imageCompleter.future;
+    decodeImage.complete(decodedImage);
+
+    expect(await pending, isNull);
+    expect(decodedImage.debugDisposed, isTrue);
+  });
+
+  test('terminal runtime loads graphic assets from the backend', () async {
+    final runtimeBackend = _FakePtyBackend();
+    runtimeBackend.graphicAssets[(7, 3)] = PtyGraphicAsset(
+      assetId: 7,
+      assetVersion: 3,
+      width: 1,
+      height: 1,
+      rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+    );
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    final asset = await runtime.loadGraphicAsset(
+      sessionId,
+      const TerminalGraphicAssetKey(id: 7, version: 3),
+    );
+
+    expect(asset, isNotNull);
+    expect(asset!.key, const TerminalGraphicAssetKey(id: 7, version: 3));
+    expect(asset.width, 1);
+    expect(asset.height, 1);
+    expect(asset.rgba, <int>[255, 0, 0, 255]);
+    expect(runtimeBackend.graphicAssetRequests, <(String, int, int)>[
+      (sessionId, 7, 3),
+    ]);
+  });
+
   test('terminal frames ignore malformed inline image payloads', () {
     const encodedImage = 'ZmFrZS1wbmc=';
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
@@ -817,6 +1203,12 @@ void main() {
         runtimeBackend.lastCreateSessionPayload!['shellIntegration'],
         <String, Object?>{'enabled': true},
       );
+      final appearance =
+          runtimeBackend.lastCreateSessionPayload!['appearance']
+              as Map<String, Object?>;
+      final colors = appearance['colors'] as Map<String, Object?>;
+      final special = colors['special'] as Map<String, Object?>;
+      expect(special['background'], '#000000');
     },
   );
 
@@ -2225,7 +2617,15 @@ void main() {
       await tester.pump();
 
       expect(utf8.decode(runtimeBackend.writeCalls.last), 'A');
-      expect(runtimeBackend.resizeCalls.last, <Object?>['1', 21, 9, 189, 162]);
+      expect(runtimeBackend.resizeCalls.last, <Object?>[
+        '1',
+        21,
+        9,
+        189,
+        162,
+        9,
+        18,
+      ]);
       expect(timeline, <String>['resize:21x9', 'frame:21x9:resize settled']);
       expect(
         runtime.viewportFor(sessionId).frame.rows.first.text,
@@ -2462,7 +2862,7 @@ void main() {
         '\x1B]52;c;cGFzdGUgbWU=\x07',
       );
       expect(runtimeBackend.resizeCalls, <List<Object?>>[
-        <Object?>[sessionId, 21, 9, 189, 162],
+        <Object?>[sessionId, 21, 9, 189, 162, 9, 18],
       ]);
       expect(
         seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode,
@@ -2711,13 +3111,24 @@ void main() {
       expect(pasteWrite, '\x1B]52;c;cGFzdGUgbWU=\x07');
       expect(resizeWidthDelta, 9);
       expect(resizeHeightDelta, 18);
-      expect(runtimeBackend.resizeCalls.last, <Object?>['1', 21, 9, 189, 162]);
+      expect(runtimeBackend.resizeCalls.last, <Object?>[
+        '1',
+        21,
+        9,
+        189,
+        162,
+        9,
+        18,
+      ]);
     },
   );
 }
 
 class _FakePtyBackend
-    implements PtySessionBackend, PtySessionJsonRequestBackend {
+    implements
+        PtySessionBackend,
+        PtySessionJsonRequestBackend,
+        PtySessionGraphicAssetBackend {
   String? lastCreateSessionJson;
   int takeFrameDiffCalls = 0;
   int pollEventsCalls = 0;
@@ -2726,7 +3137,10 @@ class _FakePtyBackend
   final List<List<Object?>> resizeCalls = <List<Object?>>[];
   final List<(String, int)> scrollCalls = <(String, int)>[];
   final List<(String, int)> scrollToCalls = <(String, int)>[];
+  final List<(String, int, int)> graphicAssetRequests = <(String, int, int)>[];
   final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
+  final Map<(int, int), PtyGraphicAsset> graphicAssets =
+      <(int, int), PtyGraphicAsset>{};
   List<Map<String, Object?>> searchResponse = const <Map<String, Object?>>[];
   String? searchRawResponse;
   String? searchErrorText;
@@ -2814,8 +3228,18 @@ class _FakePtyBackend
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {
-    resizeCalls.add(<Object?>[sessionId, cols, rows, pixelWidth, pixelHeight]);
+    resizeCalls.add(<Object?>[
+      sessionId,
+      cols,
+      rows,
+      pixelWidth,
+      pixelHeight,
+      cellWidth,
+      cellHeight,
+    ]);
     final frame = _frames[sessionId];
     if (frame != null) {
       frame['viewport_cols'] = cols;
@@ -2887,6 +3311,16 @@ class _FakePtyBackend
     pollEventsCalls += 1;
     return _queuedEvents.remove(sessionId) ?? const <PtyEvent>[];
   }
+
+  @override
+  PtyGraphicAsset? loadGraphicAsset(
+    String sessionId, {
+    required int assetId,
+    required int assetVersion,
+  }) {
+    graphicAssetRequests.add((sessionId, assetId, assetVersion));
+    return graphicAssets[(assetId, assetVersion)];
+  }
 }
 
 class _FrameOnlyPtyBackend implements PtySessionBackend {
@@ -2916,6 +3350,8 @@ class _FrameOnlyPtyBackend implements PtySessionBackend {
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {}
 
   @override

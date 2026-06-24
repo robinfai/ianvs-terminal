@@ -28,6 +28,8 @@ fn test_parse_color_spec_hex_format() {
     assert_eq!(Terminal::parse_color_spec("#FF00AA"), Some((255, 0, 170)));
     assert_eq!(Terminal::parse_color_spec("#ff00aa"), Some((255, 0, 170)));
     assert_eq!(Terminal::parse_color_spec("#123456"), Some((18, 52, 86)));
+    assert_eq!(Terminal::parse_color_spec("#FFF"), Some((240, 240, 240)));
+    assert_eq!(Terminal::parse_color_spec("#FF00AA00"), Some((255, 0, 170)));
 }
 
 #[test]
@@ -37,8 +39,6 @@ fn test_parse_color_spec_invalid() {
     assert_eq!(Terminal::parse_color_spec("  "), None);
     assert_eq!(Terminal::parse_color_spec("rgb:FF/00"), None); // Missing component
     assert_eq!(Terminal::parse_color_spec("rgb:GG/00/00"), None); // Invalid hex
-    assert_eq!(Terminal::parse_color_spec("#FFF"), None); // Too short
-    assert_eq!(Terminal::parse_color_spec("#FF00AA00"), None); // Too long
     assert_eq!(Terminal::parse_color_spec("invalid"), None);
 }
 

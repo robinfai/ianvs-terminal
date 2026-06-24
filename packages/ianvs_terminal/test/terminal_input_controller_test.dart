@@ -374,6 +374,8 @@ class _FakePtyBackend implements PtySessionBackend {
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {}
 
   @override

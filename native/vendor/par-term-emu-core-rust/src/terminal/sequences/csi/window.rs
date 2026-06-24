@@ -4,6 +4,60 @@ use crate::terminal::Terminal;
 use vte::Params;
 
 impl Terminal {
+    pub(crate) fn handle_xtsmgraphics(&mut self, params: &Params) {
+        let values = params
+            .iter()
+            .flat_map(|subparams| subparams.iter().copied())
+            .collect::<Vec<u16>>();
+        let item = values.first().copied().unwrap_or(0);
+        let action = values.get(1).copied().unwrap_or(0);
+
+        let known_item = matches!(item, 1..=3);
+        if !known_item {
+            self.push_response(xtsmgraphics_response(item, 1, &[0]).as_bytes());
+            return;
+        }
+        let known_action = matches!(action, 1..=4);
+        if !known_action {
+            self.push_response(xtsmgraphics_response(item, 2, &[0]).as_bytes());
+            return;
+        }
+        if matches!(action, 2 | 3) {
+            self.push_response(xtsmgraphics_response(item, 3, &[0]).as_bytes());
+            return;
+        }
+
+        match item {
+            1 => {
+                self.push_response(xtsmgraphics_response(item, 0, &[256]).as_bytes());
+            }
+            2 => {
+                let limits = self.sixel_limits();
+                let max_width = limits.max_width.min(u16::MAX as usize) as u16;
+                let max_height = limits.max_height.min(u16::MAX as usize) as u16;
+                if action == 4 || self.pixel_width == 0 || self.pixel_height == 0 {
+                    self.push_response(
+                        xtsmgraphics_response(item, 0, &[max_width, max_height]).as_bytes(),
+                    );
+                } else {
+                    let width = self
+                        .pixel_width
+                        .min(limits.max_width)
+                        .min(u16::MAX as usize) as u16;
+                    let height = self
+                        .pixel_height
+                        .min(limits.max_height)
+                        .min(u16::MAX as usize) as u16;
+                    self.push_response(xtsmgraphics_response(item, 0, &[width, height]).as_bytes());
+                }
+            }
+            3 => {
+                self.push_response(xtsmgraphics_response(item, 3, &[0]).as_bytes());
+            }
+            _ => unreachable!(),
+        }
+    }
+
     pub(crate) fn handle_csi_window(
         &mut self,
         action: char,
@@ -267,4 +321,17 @@ impl Terminal {
             _ => {}
         }
     }
+}
+
+fn xtsmgraphics_response(item: u16, status: u16, payload: &[u16]) -> String {
+    let mut parts = vec![item, status];
+    parts.extend_from_slice(payload);
+    format!(
+        "\x1b[?{}S",
+        parts
+            .iter()
+            .map(u16::to_string)
+            .collect::<Vec<String>>()
+            .join(";")
+    )
 }

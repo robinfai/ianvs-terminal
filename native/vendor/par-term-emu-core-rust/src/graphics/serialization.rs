@@ -21,7 +21,9 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 
 use super::animation::{AnimationFrame, AnimationState, CompositionMode};
-use super::{GraphicProtocol, GraphicsStore, ImagePlacement, TerminalGraphic};
+use super::{
+    graphic_content_version, GraphicProtocol, GraphicsStore, ImagePlacement, TerminalGraphic,
+};
 
 /// Reference to image data - either inline base64 or an external file path
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,6 +82,9 @@ pub struct SerializableGraphic {
     pub original_height: usize,
     /// Cell dimensions (cell_width, cell_height) for rendering
     pub cell_dimensions: Option<(u32, u32)>,
+    /// Resolved display span in terminal cells
+    #[serde(default)]
+    pub display_cell_span: Option<(usize, usize)>,
     /// Rows scrolled off visible area
     pub scroll_offset_rows: usize,
     /// Row in scrollback buffer
@@ -134,6 +139,7 @@ impl From<&TerminalGraphic> for SerializableGraphic {
             original_width: g.original_width,
             original_height: g.original_height,
             cell_dimensions: g.cell_dimensions,
+            display_cell_span: g.display_cell_span,
             scroll_offset_rows: g.scroll_offset_rows,
             scrollback_row: g.scrollback_row,
             kitty_image_id: g.kitty_image_id,
@@ -159,6 +165,7 @@ impl SerializableGraphic {
     /// Returns an error if the data cannot be resolved.
     pub fn to_terminal_graphic(&self) -> Result<TerminalGraphic, GraphicsSerializationError> {
         let pixels = self.resolve_data()?;
+        let asset_version = graphic_content_version(self.width, self.height, &pixels);
         Ok(TerminalGraphic {
             id: self.id,
             protocol: self.protocol,
@@ -167,8 +174,10 @@ impl SerializableGraphic {
             height: self.height,
             original_width: self.original_width,
             original_height: self.original_height,
+            asset_version,
             pixels: Arc::new(pixels),
             cell_dimensions: self.cell_dimensions,
+            display_cell_span: self.display_cell_span,
             scroll_offset_rows: self.scroll_offset_rows,
             scrollback_row: self.scrollback_row,
             kitty_image_id: self.kitty_image_id,
@@ -312,17 +321,12 @@ impl GraphicsStore {
             ));
         }
 
-        // Clear existing state
-        self.clear();
-        self.clear_scrollback_graphics();
-
-        let mut restored = 0;
+        self.clear_snapshot_import_state();
 
         // Restore active placements
         for sg in &snapshot.placements {
             let graphic = sg.to_terminal_graphic()?;
             self.add_graphic(graphic);
-            restored += 1;
         }
 
         // Restore scrollback
@@ -330,7 +334,6 @@ impl GraphicsStore {
             let graphic = sg.to_terminal_graphic()?;
             // Add directly to scrollback via the internal method
             self.add_scrollback_graphic(graphic);
-            restored += 1;
         }
 
         // Restore animations
@@ -343,7 +346,7 @@ impl GraphicsStore {
             self.restore_animation(sa, frames);
         }
 
-        Ok(restored)
+        Ok(self.graphics_count() + self.scrollback_count())
     }
 
     /// Serialize the graphics snapshot to JSON
@@ -368,12 +371,36 @@ impl GraphicsStore {
     }
 
     /// Add a graphic directly to scrollback storage
-    fn add_scrollback_graphic(&mut self, graphic: TerminalGraphic) {
+    fn add_scrollback_graphic(&mut self, graphic: TerminalGraphic) -> bool {
+        if !self.image_fits_limits(graphic.width, graphic.height, graphic.pixels.len())
+            || !self.evict_until_fits(graphic.pixels.len())
+        {
+            self.dropped_count += 1;
+            return false;
+        }
         let max = self.limits().max_scrollback_graphics;
+        if max == 0 {
+            self.dropped_count += 1;
+            return false;
+        }
         if self.scrollback.len() >= max {
             self.scrollback.remove(0);
+            self.dropped_count += 1;
         }
         self.scrollback.push(graphic);
+        true
+    }
+
+    fn clear_snapshot_import_state(&mut self) {
+        self.placements.clear();
+        self.cleared_kitty_placements.clear();
+        self.deleted_kitty_placements.clear();
+        self.deferred_kitty_deletes.clear();
+        self.shared_images.clear();
+        self.virtual_placements.clear();
+        self.animations.clear();
+        self.scrollback.clear();
+        self.scrollback_position = 0;
     }
 
     /// Restore a complete animation from serialized state
@@ -382,18 +409,21 @@ impl GraphicsStore {
         sa: &SerializableAnimation,
         frames: HashMap<u32, AnimationFrame>,
     ) {
-        use super::animation::Animation;
-
-        let mut anim = Animation::new(sa.image_id, sa.default_delay_ms);
         for (_, frame) in frames {
-            anim.add_frame(frame);
+            self.add_animation_frame(sa.image_id, frame);
         }
-        anim.state = sa.state;
-        anim.current_frame = sa.current_frame;
-        anim.loop_count = sa.loop_count;
-        anim.loops_completed = sa.loops_completed;
 
-        self.animations.insert(sa.image_id, anim);
+        if let Some(anim) = self.animations.get_mut(&sa.image_id) {
+            anim.default_delay_ms = sa.default_delay_ms;
+            anim.state = sa.state;
+            anim.current_frame = if anim.frames.contains_key(&sa.current_frame) {
+                sa.current_frame
+            } else {
+                anim.frames.keys().min().copied().unwrap_or(1)
+            };
+            anim.loop_count = sa.loop_count;
+            anim.loops_completed = sa.loops_completed;
+        }
     }
 }
 
@@ -439,7 +469,9 @@ impl std::error::Error for GraphicsSerializationError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graphics::{next_graphic_id, GraphicProtocol, ImagePlacement};
+    use crate::graphics::{
+        animation::AnimationFrame, next_graphic_id, GraphicProtocol, GraphicsLimits, ImagePlacement,
+    };
 
     fn create_test_graphic() -> TerminalGraphic {
         // 2x2 RGBA image
@@ -599,6 +631,68 @@ mod tests {
     }
 
     #[test]
+    fn test_import_snapshot_counts_only_restored_limited_graphics() {
+        let small_active = TerminalGraphic::new(
+            next_graphic_id(),
+            GraphicProtocol::Sixel,
+            (0, 0),
+            1,
+            1,
+            vec![1; 4],
+        );
+        let large_active = TerminalGraphic::new(
+            next_graphic_id(),
+            GraphicProtocol::Sixel,
+            (1, 0),
+            2,
+            1,
+            vec![2; 8],
+        );
+        let mut small_scrollback = TerminalGraphic::new(
+            next_graphic_id(),
+            GraphicProtocol::Sixel,
+            (0, 0),
+            1,
+            1,
+            vec![3; 4],
+        );
+        small_scrollback.scrollback_row = Some(0);
+        let mut large_scrollback = TerminalGraphic::new(
+            next_graphic_id(),
+            GraphicProtocol::Sixel,
+            (1, 0),
+            2,
+            1,
+            vec![4; 8],
+        );
+        large_scrollback.scrollback_row = Some(1);
+        let snapshot = GraphicsSnapshot {
+            version: GraphicsSnapshot::CURRENT_VERSION,
+            placements: vec![
+                SerializableGraphic::from(&small_active),
+                SerializableGraphic::from(&large_active),
+            ],
+            scrollback: vec![
+                SerializableGraphic::from(&small_scrollback),
+                SerializableGraphic::from(&large_scrollback),
+            ],
+            animations: vec![],
+        };
+        let mut store = GraphicsStore::with_limits(GraphicsLimits {
+            max_total_memory: 4,
+            max_image_bytes: 1024,
+            ..GraphicsLimits::default()
+        });
+
+        let count = store.import_snapshot(&snapshot).unwrap();
+
+        assert_eq!(count, 1);
+        assert_eq!(store.graphics_count(), 0);
+        assert_eq!(store.scrollback_count(), 1);
+        assert_eq!(store.dropped_count(), 3);
+    }
+
+    #[test]
     fn test_graphics_store_export_with_animations() {
         use crate::graphics::animation::AnimationFrame;
 
@@ -652,8 +746,29 @@ mod tests {
     #[test]
     fn test_empty_snapshot() {
         let mut store = GraphicsStore::new();
+        let mut virtual_graphic = create_test_graphic();
+        virtual_graphic.kitty_image_id = Some(77);
+        virtual_graphic.kitty_placement_id = Some(2);
+
         store.add_graphic(create_test_graphic());
+        store.store_kitty_image(77, 1, 1, vec![7; 4]);
+        store.add_virtual_placement(virtual_graphic);
+        store.add_animation_frame(77, AnimationFrame::new(1, vec![8; 4], 1, 1));
+        store.clear();
+        store.add_graphic(TerminalGraphic::new(
+            next_graphic_id(),
+            GraphicProtocol::Sixel,
+            (0, 0),
+            1,
+            1,
+            vec![9; 4],
+        ));
+
         assert_eq!(store.graphics_count(), 1);
+        assert_eq!(store.pending_cleared_kitty_graphics_count(), 1);
+        assert!(store.get_kitty_image(77).is_some());
+        assert!(!store.all_virtual_placements().is_empty());
+        assert!(store.get_animation(77).is_some());
 
         // Import empty snapshot should clear existing
         let empty = GraphicsSnapshot {
@@ -665,6 +780,48 @@ mod tests {
         let count = store.import_snapshot(&empty).unwrap();
         assert_eq!(count, 0);
         assert_eq!(store.graphics_count(), 0);
+        assert_eq!(store.pending_cleared_kitty_graphics_count(), 0);
+        assert!(store.get_kitty_image(77).is_none());
+        assert!(store.all_virtual_placements().is_empty());
+        assert!(store.get_animation(77).is_none());
+    }
+
+    #[test]
+    fn test_import_snapshot_limits_animation_frames() {
+        let frame1 = AnimationFrame::new(1, vec![1; 4], 1, 1);
+        let frame2 = AnimationFrame::new(2, vec![2; 4], 1, 1);
+        let snapshot = GraphicsSnapshot {
+            version: GraphicsSnapshot::CURRENT_VERSION,
+            placements: vec![],
+            scrollback: vec![],
+            animations: vec![SerializableAnimation {
+                image_id: 99,
+                frames: vec![
+                    SerializableAnimationFrame::from(&frame1),
+                    SerializableAnimationFrame::from(&frame2),
+                ],
+                default_delay_ms: 100,
+                state: crate::graphics::AnimationState::Playing,
+                current_frame: 2,
+                loop_count: 3,
+                loops_completed: 1,
+            }],
+        };
+        let mut store = GraphicsStore::with_limits(GraphicsLimits {
+            max_total_memory: 4,
+            max_image_bytes: 1024,
+            ..GraphicsLimits::default()
+        });
+
+        let count = store.import_snapshot(&snapshot).unwrap();
+
+        assert_eq!(count, 0);
+        let animation = store.get_animation(99).unwrap();
+        assert_eq!(animation.frame_count(), 1);
+        assert!(animation.current_frame().is_some());
+        assert_eq!(animation.loop_count, 3);
+        assert_eq!(animation.loops_completed, 1);
+        assert_eq!(store.dropped_count(), 1);
     }
 
     #[test]

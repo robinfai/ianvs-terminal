@@ -59,6 +59,7 @@ class TerminalViewport extends StatelessWidget {
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
+    this.graphicsCache,
   });
 
   final TerminalViewportController controller;
@@ -82,6 +83,7 @@ class TerminalViewport extends StatelessWidget {
   final List<terminal.TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
   final terminal.TerminalSearchHighlightStyle? searchHighlightStyle;
+  final terminal.TerminalGraphicsCache? graphicsCache;
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +109,7 @@ class TerminalViewport extends StatelessWidget {
       searchMatches: searchMatches,
       activeSearchMatchIndex: activeSearchMatchIndex,
       searchHighlightStyle: searchHighlightStyle,
+      graphicsCache: graphicsCache,
     );
   }
 }

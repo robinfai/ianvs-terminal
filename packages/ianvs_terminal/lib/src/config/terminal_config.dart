@@ -89,6 +89,59 @@ class TerminalShellIntegrationConfig {
   }
 }
 
+class TerminalGraphicsConfig {
+  const TerminalGraphicsConfig({
+    this.enabled = true,
+    this.advertise = 'kitty',
+    this.maxImageBytes = defaultTerminalGraphicMaxImageBytes,
+    this.maxTotalBytes = defaultTerminalGraphicMaxTotalBytes,
+  });
+
+  final bool enabled;
+  final String advertise;
+  final int maxImageBytes;
+  final int maxTotalBytes;
+
+  TerminalGraphicsConfig copyWith({
+    bool? enabled,
+    String? advertise,
+    int? maxImageBytes,
+    int? maxTotalBytes,
+  }) {
+    return TerminalGraphicsConfig(
+      enabled: enabled ?? this.enabled,
+      advertise: advertise ?? this.advertise,
+      maxImageBytes: maxImageBytes ?? this.maxImageBytes,
+      maxTotalBytes: maxTotalBytes ?? this.maxTotalBytes,
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'enabled': enabled,
+      'advertise': advertise,
+      'maxImageBytes': maxImageBytes,
+      'maxTotalBytes': maxTotalBytes,
+    };
+  }
+
+  factory TerminalGraphicsConfig.fromJson(Object? json) {
+    final map = _asObjectMap(json);
+    return TerminalGraphicsConfig(
+      enabled: _boolOr(map?['enabled'], true),
+      advertise: _graphicsAdvertiseOr(map?['advertise'], 'kitty'),
+      maxImageBytes: _positiveIntOr(
+        map?['maxImageBytes'],
+        defaultTerminalGraphicMaxImageBytes,
+      ),
+      maxTotalBytes: _positiveIntOr(
+        map?['maxTotalBytes'],
+        defaultTerminalGraphicMaxTotalBytes,
+      ),
+    );
+  }
+}
+
 class TerminalFontConfig {
   const TerminalFontConfig({
     this.family = terminalPrimaryFontFamily,
@@ -508,6 +561,7 @@ class TerminalSessionConfig {
     required this.launch,
     this.emulation = TerminalEmulation.xterm256,
     this.scrollbackLines = defaultTerminalScrollbackLines,
+    this.graphics = const TerminalGraphicsConfig(),
     this.shellIntegration = const TerminalShellIntegrationConfig(),
     this.display = const TerminalDisplayConfig(),
     this.interaction = const TerminalInteractionConfig(),
@@ -516,6 +570,7 @@ class TerminalSessionConfig {
   final TerminalLaunchConfig launch;
   final TerminalEmulation emulation;
   final int scrollbackLines;
+  final TerminalGraphicsConfig graphics;
   final TerminalShellIntegrationConfig shellIntegration;
   final TerminalDisplayConfig display;
   final TerminalInteractionConfig interaction;
@@ -524,6 +579,7 @@ class TerminalSessionConfig {
     TerminalLaunchConfig? launch,
     TerminalEmulation? emulation,
     int? scrollbackLines,
+    TerminalGraphicsConfig? graphics,
     TerminalShellIntegrationConfig? shellIntegration,
     TerminalDisplayConfig? display,
     TerminalInteractionConfig? interaction,
@@ -532,6 +588,7 @@ class TerminalSessionConfig {
       launch: launch ?? this.launch,
       emulation: emulation ?? this.emulation,
       scrollbackLines: scrollbackLines ?? this.scrollbackLines,
+      graphics: graphics ?? this.graphics,
       shellIntegration: shellIntegration ?? this.shellIntegration,
       display: display ?? this.display,
       interaction: interaction ?? this.interaction,
@@ -544,6 +601,7 @@ class TerminalSessionConfig {
       'terminal': <String, Object?>{
         'emulation': emulation.name,
         'scrollbackLines': scrollbackLines,
+        'graphics': graphics.toJson(),
       },
       'shellIntegration': shellIntegration.toJson(),
       'appearance': display.toJson(),
@@ -560,6 +618,7 @@ class TerminalSessionConfig {
         terminal?['scrollbackLines'],
         defaultTerminalScrollbackLines,
       ),
+      graphics: TerminalGraphicsConfig.fromJson(terminal?['graphics']),
       display: TerminalDisplayConfig.fromJson(json['appearance']),
       interaction: TerminalInteractionConfig.fromJson(json['interaction']),
       shellIntegration: TerminalShellIntegrationConfig.fromJson(
@@ -590,6 +649,10 @@ class TerminalSessionConfig {
         terminal?['scrollbackLines'],
         fallback: defaultTerminalScrollbackLines,
         path: 'terminal.scrollbackLines',
+        onWarning: onWarning,
+      ),
+      graphics: _graphicsConfigFromProfileJson(
+        terminal?['graphics'],
         onWarning: onWarning,
       ),
       display: _displayConfigFromProfileJson(
@@ -795,6 +858,39 @@ TerminalShellIntegrationConfig _shellIntegrationConfigFromProfileJson(
   );
 }
 
+TerminalGraphicsConfig _graphicsConfigFromProfileJson(
+  Object? json, {
+  required TerminalConfigWarningCallback? onWarning,
+}) {
+  final graphics = _asObjectMap(json);
+  return TerminalGraphicsConfig(
+    enabled: _boolField(
+      graphics?['enabled'],
+      fallback: true,
+      path: 'terminal.graphics.enabled',
+      onWarning: onWarning,
+    ),
+    advertise: _graphicsAdvertiseField(
+      graphics?['advertise'],
+      fallback: 'kitty',
+      path: 'terminal.graphics.advertise',
+      onWarning: onWarning,
+    ),
+    maxImageBytes: _positiveIntField(
+      graphics?['maxImageBytes'],
+      fallback: defaultTerminalGraphicMaxImageBytes,
+      path: 'terminal.graphics.maxImageBytes',
+      onWarning: onWarning,
+    ),
+    maxTotalBytes: _positiveIntField(
+      graphics?['maxTotalBytes'],
+      fallback: defaultTerminalGraphicMaxTotalBytes,
+      path: 'terminal.graphics.maxTotalBytes',
+      onWarning: onWarning,
+    ),
+  );
+}
+
 void _warnLegacyFlatColorFields(
   Map<String, Object?>? colors, {
   required TerminalConfigWarningCallback? onWarning,
@@ -915,6 +1011,33 @@ int _positiveIntOr(Object? value, int fallback) {
 bool _boolOr(Object? value, bool fallback) {
   if (value is bool) {
     return value;
+  }
+  return fallback;
+}
+
+String _graphicsAdvertiseOr(Object? value, String fallback) {
+  final parsed = _trimmedStringOrNull(value);
+  return parsed == null || parsed.isEmpty ? fallback : parsed;
+}
+
+String _graphicsAdvertiseField(
+  Object? rawValue, {
+  required String fallback,
+  required String path,
+  required TerminalConfigWarningCallback? onWarning,
+}) {
+  final value = _trimmedStringOrNull(rawValue);
+  if (value != null && value.isNotEmpty) {
+    return value;
+  }
+  if (rawValue != null) {
+    onWarning?.call(
+      TerminalConfigWarning(
+        path: path,
+        rawValue: rawValue,
+        fallbackSummary: 'used default value $fallback',
+      ),
+    );
   }
   return fallback;
 }

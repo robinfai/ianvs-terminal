@@ -8,6 +8,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../config/terminal_config.dart';
 import '../terminal/selection_controller.dart';
+import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
 
@@ -87,6 +88,8 @@ final class TerminalSessionResizeEvent {
     required this.rows,
     required this.pixelWidth,
     required this.pixelHeight,
+    this.cellWidth = 0,
+    this.cellHeight = 0,
     required this.viewportSize,
     required this.devicePixelRatio,
   });
@@ -96,6 +99,8 @@ final class TerminalSessionResizeEvent {
   final int rows;
   final int pixelWidth;
   final int pixelHeight;
+  final int cellWidth;
+  final int cellHeight;
   final Size viewportSize;
   final double devicePixelRatio;
 }
@@ -231,6 +236,8 @@ class TerminalRuntimeController {
 
   final Map<String, TerminalViewportController> _viewportControllers =
       <String, TerminalViewportController>{};
+  final Map<String, TerminalGraphicsCache> _graphicsCaches =
+      <String, TerminalGraphicsCache>{};
   final Map<String, _SessionResizeMetric> _lastResizeMetrics =
       <String, _SessionResizeMetric>{};
   final Map<String, List<Timer>> _warmUpTimers = <String, List<Timer>>{};
@@ -255,6 +262,15 @@ class TerminalRuntimeController {
     return _viewportControllers.putIfAbsent(
       sessionId,
       TerminalViewportController.new,
+    );
+  }
+
+  TerminalGraphicsCache graphicsCacheFor(String sessionId) {
+    return _graphicsCaches.putIfAbsent(
+      sessionId,
+      () => TerminalGraphicsCache(
+        loadAsset: (key) => loadGraphicAsset(sessionId, key),
+      ),
     );
   }
 
@@ -319,6 +335,36 @@ class TerminalRuntimeController {
         .toInt();
     _backend.scrollViewportTo(sessionId, scrollbackOffset);
     _requestRefreshSession(sessionId, immediate: true);
+  }
+
+  Future<TerminalGraphicAsset?> loadGraphicAsset(
+    String sessionId,
+    TerminalGraphicAssetKey key,
+  ) async {
+    if (!hasSession(sessionId)) {
+      return null;
+    }
+    final backend = _backend;
+    final graphicBackend = backend is PtySessionGraphicAssetBackend
+        ? backend as PtySessionGraphicAssetBackend
+        : null;
+    if (graphicBackend == null) {
+      return null;
+    }
+    final nativeAsset = graphicBackend.loadGraphicAsset(
+      sessionId,
+      assetId: key.id,
+      assetVersion: key.version,
+    );
+    if (nativeAsset == null) {
+      return null;
+    }
+    return TerminalGraphicAsset(
+      key: key,
+      width: nativeAsset.width,
+      height: nativeAsset.height,
+      rgba: nativeAsset.rgba,
+    );
   }
 
   String? selectionText(
@@ -576,11 +622,18 @@ class TerminalRuntimeController {
       1,
       (viewportSize.height * devicePixelRatio).round(),
     );
+    final cellPixelWidth = math.max(1, (cellWidth * devicePixelRatio).round());
+    final cellPixelHeight = math.max(
+      1,
+      (cellHeight * devicePixelRatio).round(),
+    );
     final nextMetric = _SessionResizeMetric(
       cols: cols,
       rows: rows,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
+      cellWidth: cellPixelWidth,
+      cellHeight: cellPixelHeight,
       logicalWidth: viewportSize.width,
       logicalHeight: viewportSize.height,
       devicePixelRatio: devicePixelRatio,
@@ -590,7 +643,9 @@ class TerminalRuntimeController {
         previous.cols == cols &&
         previous.rows == rows &&
         previous.pixelWidth == pixelWidth &&
-        previous.pixelHeight == pixelHeight) {
+        previous.pixelHeight == pixelHeight &&
+        previous.cellWidth == cellPixelWidth &&
+        previous.cellHeight == cellPixelHeight) {
       return;
     }
     _backend.resizeSession(
@@ -599,6 +654,8 @@ class TerminalRuntimeController {
       rows: rows,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
+      cellWidth: cellPixelWidth,
+      cellHeight: cellPixelHeight,
     );
     _lastResizeMetrics[sessionId] = nextMetric;
     _resizeEvents.add(
@@ -608,6 +665,8 @@ class TerminalRuntimeController {
         rows: rows,
         pixelWidth: pixelWidth,
         pixelHeight: pixelHeight,
+        cellWidth: cellPixelWidth,
+        cellHeight: cellPixelHeight,
         viewportSize: viewportSize,
         devicePixelRatio: devicePixelRatio,
       ),
@@ -640,11 +699,21 @@ class TerminalRuntimeController {
     final logicalHeight = rows * measuredCellSize.height;
     final pixelWidth = math.max(1, (logicalWidth * devicePixelRatio).round());
     final pixelHeight = math.max(1, (logicalHeight * devicePixelRatio).round());
+    final cellPixelWidth = math.max(
+      1,
+      (measuredCellSize.width * devicePixelRatio).round(),
+    );
+    final cellPixelHeight = math.max(
+      1,
+      (measuredCellSize.height * devicePixelRatio).round(),
+    );
     final nextMetric = _SessionResizeMetric(
       cols: cols,
       rows: rows,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
+      cellWidth: cellPixelWidth,
+      cellHeight: cellPixelHeight,
       logicalWidth: logicalWidth,
       logicalHeight: logicalHeight,
       devicePixelRatio: devicePixelRatio,
@@ -654,7 +723,9 @@ class TerminalRuntimeController {
         previous.cols == cols &&
         previous.rows == rows &&
         previous.pixelWidth == pixelWidth &&
-        previous.pixelHeight == pixelHeight) {
+        previous.pixelHeight == pixelHeight &&
+        previous.cellWidth == cellPixelWidth &&
+        previous.cellHeight == cellPixelHeight) {
       return;
     }
     _backend.resizeSession(
@@ -663,6 +734,8 @@ class TerminalRuntimeController {
       rows: rows,
       pixelWidth: pixelWidth,
       pixelHeight: pixelHeight,
+      cellWidth: cellPixelWidth,
+      cellHeight: cellPixelHeight,
     );
     _lastResizeMetrics[sessionId] = nextMetric;
     _resizeEvents.add(
@@ -672,6 +745,8 @@ class TerminalRuntimeController {
         rows: rows,
         pixelWidth: pixelWidth,
         pixelHeight: pixelHeight,
+        cellWidth: cellPixelWidth,
+        cellHeight: cellPixelHeight,
         viewportSize: Size(logicalWidth, logicalHeight),
         devicePixelRatio: devicePixelRatio,
       ),
@@ -933,6 +1008,14 @@ class TerminalRuntimeController {
       1,
       (targetHeight * metric.devicePixelRatio).round(),
     );
+    final targetCellPixelWidth = math.max(
+      1,
+      (measuredCellSize.width * metric.devicePixelRatio).round(),
+    );
+    final targetCellPixelHeight = math.max(
+      1,
+      (measuredCellSize.height * metric.devicePixelRatio).round(),
+    );
 
     _backend.resizeSession(
       sessionId,
@@ -940,12 +1023,16 @@ class TerminalRuntimeController {
       rows: rows,
       pixelWidth: targetPixelWidth,
       pixelHeight: targetPixelHeight,
+      cellWidth: targetCellPixelWidth,
+      cellHeight: targetCellPixelHeight,
     );
     _lastResizeMetrics[sessionId] = _SessionResizeMetric(
       cols: cols,
       rows: rows,
       pixelWidth: targetPixelWidth,
       pixelHeight: targetPixelHeight,
+      cellWidth: targetCellPixelWidth,
+      cellHeight: targetCellPixelHeight,
       logicalWidth: targetWidth,
       logicalHeight: targetHeight,
       devicePixelRatio: metric.devicePixelRatio,
@@ -957,6 +1044,8 @@ class TerminalRuntimeController {
         rows: rows,
         pixelWidth: targetPixelWidth,
         pixelHeight: targetPixelHeight,
+        cellWidth: targetCellPixelWidth,
+        cellHeight: targetCellPixelHeight,
         viewportSize: Size(targetWidth, targetHeight),
         devicePixelRatio: metric.devicePixelRatio,
       ),
@@ -1076,6 +1165,7 @@ class TerminalRuntimeController {
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
     }
+    _graphicsCaches.remove(sessionId)?.dispose();
     _viewportControllers.remove(sessionId)?.dispose();
     _lastResizeMetrics.remove(sessionId);
     if (_activeSessionIds.isEmpty) {
@@ -1186,6 +1276,8 @@ class _SessionResizeMetric {
     required this.rows,
     required this.pixelWidth,
     required this.pixelHeight,
+    required this.cellWidth,
+    required this.cellHeight,
     required this.logicalWidth,
     required this.logicalHeight,
     required this.devicePixelRatio,
@@ -1195,6 +1287,8 @@ class _SessionResizeMetric {
   final int rows;
   final int pixelWidth;
   final int pixelHeight;
+  final int cellWidth;
+  final int cellHeight;
   final double logicalWidth;
   final double logicalHeight;
   final double devicePixelRatio;

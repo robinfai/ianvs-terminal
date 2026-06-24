@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:flutter/services.dart';
 import '../config/terminal_config.dart';
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
+import 'terminal_graphics_cache.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_models.dart';
 import 'terminal_viewport_colors.dart';
@@ -95,6 +97,7 @@ class TerminalViewport extends StatefulWidget {
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
+    this.graphicsCache,
   });
 
   final TerminalViewportController controller;
@@ -118,6 +121,7 @@ class TerminalViewport extends StatefulWidget {
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle? searchHighlightStyle;
+  final TerminalGraphicsCache? graphicsCache;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -164,7 +168,6 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _awaitingSystemTextCommit = false;
   String _deferredImeRawText = '';
   bool _textInputGeometrySyncScheduled = false;
-
   FocusNode get _focusNode =>
       widget.focusNode ??
       (_ownedFocusNode ??= FocusNode(debugLabel: 'terminal-viewport'));
@@ -175,6 +178,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     widget.controller.addListener(_handleFrameUpdate);
     _bindFocusNodeListener();
     _syncCursorBlinkTimer();
+    _syncGraphicsCache();
   }
 
   @override
@@ -183,6 +187,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (!identical(oldWidget.controller, widget.controller)) {
       oldWidget.controller.removeListener(_handleFrameUpdate);
       widget.controller.addListener(_handleFrameUpdate);
+    }
+    if (!identical(oldWidget.controller, widget.controller) ||
+        !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
+      _syncGraphicsCache();
     }
     if (!identical(oldWidget.focusNode, widget.focusNode)) {
       _unbindFocusNodeListener();
@@ -223,6 +231,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
     _scheduleMeasuredCellSizeReport();
+    _syncGraphicsCache();
     if (_isLocalSelectionActive &&
         !_terminalMouseEnabled &&
         _selectionPointerGlobalPosition != null) {
@@ -236,6 +245,18 @@ class _TerminalViewportState extends State<TerminalViewport>
       _localSelectionMode = _LocalSelectionMode.cell;
       _stopSelectionAutoScroll();
     }
+  }
+
+  void _syncGraphicsCache() {
+    final graphicsCache = widget.graphicsCache;
+    if (graphicsCache == null) {
+      return;
+    }
+    graphicsCache.evictExcept(
+      widget.controller.frame.graphics
+          .map((graphic) => graphic.assetKey)
+          .toSet(),
+    );
   }
 
   void _handleFocusChange() {
@@ -1187,6 +1208,16 @@ class _TerminalViewportState extends State<TerminalViewport>
     );
   }
 
+  TerminalViewportColors _effectiveColorsForFrame(
+    TerminalViewportColors base,
+    TerminalFrameDiff frame,
+  ) {
+    return base.copyWith(
+      canvasBackground: frame.defaultBackground,
+      foreground: frame.defaultForeground,
+    );
+  }
+
   KeyEventResult _handleTerminalKeyEvent(KeyEvent event) {
     if (!_isTerminalKeyPressEvent(event)) {
       return KeyEventResult.ignored;
@@ -1368,14 +1399,24 @@ class _TerminalViewportState extends State<TerminalViewport>
             animation: widget.controller,
             builder: (context, _) {
               final frame = widget.controller.frame;
+              final graphics = frame.graphics;
+              final effectiveColors = _effectiveColorsForFrame(colors, frame);
               return LayoutBuilder(
                 builder: (context, constraints) {
                   final contentPadding = widget.contentPadding;
                   final trackHeight = math.max(0.0, constraints.maxHeight - 16);
                   return DecoratedBox(
-                    decoration: BoxDecoration(color: colors.canvasBackground),
+                    decoration: BoxDecoration(
+                      color: effectiveColors.canvasBackground,
+                    ),
                     child: Stack(
                       children: [
+                        ..._buildGraphicOverlays(
+                          frame,
+                          graphics,
+                          contentPadding,
+                          belowText: true,
+                        ),
                         Positioned.fill(
                           child: Padding(
                             padding: contentPadding,
@@ -1387,7 +1428,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                                   _canDisplayFrameCursor && _cursorVisible,
                               font: widget.font,
                               cursor: widget.cursor,
-                              colors: colors,
+                              colors: effectiveColors,
                               searchMatches: widget.searchMatches,
                               activeSearchMatchIndex:
                                   widget.activeSearchMatchIndex,
@@ -1400,13 +1441,19 @@ class _TerminalViewportState extends State<TerminalViewport>
                         ..._buildInlineImageOverlays(
                           frame,
                           contentPadding,
-                          colors,
+                          effectiveColors,
+                        ),
+                        ..._buildGraphicOverlays(
+                          frame,
+                          graphics,
+                          contentPadding,
+                          belowText: false,
                         ),
                         if (widget.showLineTimestamps)
                           ..._buildTimestampOverlays(
                             frame,
                             contentPadding,
-                            colors,
+                            effectiveColors,
                           ),
                         if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
                           Positioned(
@@ -1418,12 +1465,12 @@ class _TerminalViewportState extends State<TerminalViewport>
                               scrollbackOffset: frame.scrollbackOffset,
                               scrollbackMaxOffset: frame.scrollbackMaxOffset,
                               trackHeight: trackHeight,
-                              colors: colors,
+                              colors: effectiveColors,
                               onScrollToOffset: widget.onScrollToOffset,
                             ),
                           ),
                         ?_buildComposingOverlay(
-                          colors,
+                          effectiveColors,
                           viewportWidth: constraints.maxWidth,
                         ),
                       ],
@@ -1476,6 +1523,64 @@ class _TerminalViewportState extends State<TerminalViewport>
                     color: colors.foreground.withValues(alpha: 0.18),
                   );
                 },
+              ),
+            ),
+          ),
+    ];
+  }
+
+  List<Widget> _buildGraphicOverlays(
+    TerminalFrameDiff frame,
+    List<TerminalGraphicPlacement> graphics,
+    EdgeInsets contentPadding, {
+    required bool belowText,
+  }) {
+    final graphicsCache = widget.graphicsCache;
+    if (graphicsCache == null || graphics.isEmpty) {
+      return const <Widget>[];
+    }
+    final cellSize =
+        widget.controller.measuredCellSize ?? terminalFallbackCellSize;
+    if (cellSize.width <= 0 || cellSize.height <= 0) {
+      return const <Widget>[];
+    }
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(
+      context,
+    ).clamp(1.0, double.infinity).toDouble();
+    final placements = graphics
+        .where((graphic) {
+          return belowText ? graphic.zIndex < 0 : graphic.zIndex >= 0;
+        })
+        .toList(growable: false);
+    if (placements.isEmpty) {
+      return const <Widget>[];
+    }
+    return [
+      for (final graphic in placements)
+        if (graphic.row >= 0 &&
+            graphic.row < frame.viewportRows &&
+            graphic.col >= 0 &&
+            graphic.widthCells > 0 &&
+            graphic.heightCells > 0)
+          Positioned(
+            left:
+                contentPadding.left +
+                graphic.col * cellSize.width +
+                graphic.xOffsetPx / devicePixelRatio,
+            top:
+                contentPadding.top +
+                graphic.row * cellSize.height +
+                graphic.yOffsetPx / devicePixelRatio,
+            width: graphic.widthPx / devicePixelRatio,
+            height: graphic.visibleHeightPx / devicePixelRatio,
+            child: IgnorePointer(
+              child: _TerminalGraphicOverlay(
+                key: Key('terminal-graphic-${graphic.renderId}'),
+                cache: graphicsCache,
+                placement: graphic,
+                displayWidth: graphic.widthPx / devicePixelRatio,
+                displayHeight: graphic.heightPx / devicePixelRatio,
+                sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio,
               ),
             ),
           ),
@@ -2083,6 +2188,112 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..activeSearchMatchIndex = activeSearchMatchIndex
       ..searchHighlightStyle = searchHighlightStyle
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+  }
+}
+
+class _TerminalGraphicOverlay extends StatefulWidget {
+  const _TerminalGraphicOverlay({
+    super.key,
+    required this.cache,
+    required this.placement,
+    required this.displayWidth,
+    required this.displayHeight,
+    required this.sourceYOffset,
+  });
+
+  final TerminalGraphicsCache cache;
+  final TerminalGraphicPlacement placement;
+  final double displayWidth;
+  final double displayHeight;
+  final double sourceYOffset;
+
+  @override
+  State<_TerminalGraphicOverlay> createState() =>
+      _TerminalGraphicOverlayState();
+}
+
+class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
+  Future<ui.Image?>? _imageFuture;
+  TerminalGraphicAssetKey? _assetKey;
+  ui.Image? _visibleImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncImageFuture();
+  }
+
+  @override
+  void didUpdateWidget(covariant _TerminalGraphicOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cache != widget.cache) {
+      _clearVisibleImage();
+    }
+    if (oldWidget.cache != widget.cache ||
+        oldWidget.placement.assetKey != widget.placement.assetKey) {
+      _syncImageFuture();
+    }
+  }
+
+  @override
+  void dispose() {
+    _clearVisibleImage();
+    super.dispose();
+  }
+
+  void _syncImageFuture() {
+    final assetKey = widget.placement.assetKey;
+    _assetKey = assetKey;
+    final future = widget.cache.imageFor(assetKey);
+    _imageFuture = future;
+    future.then(
+      (image) {
+        if (!mounted || _assetKey != assetKey || image == null) {
+          return;
+        }
+        setState(() {
+          _replaceVisibleImage(image.clone());
+        });
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        // Keep the previous frame visible if a replacement image fails to load.
+      },
+    );
+  }
+
+  void _replaceVisibleImage(ui.Image image) {
+    final previous = _visibleImage;
+    _visibleImage = image;
+    previous?.dispose();
+  }
+
+  void _clearVisibleImage() {
+    _visibleImage?.dispose();
+    _visibleImage = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final image = _visibleImage;
+    if (image == null || _imageFuture == null) {
+      return const SizedBox.shrink();
+    }
+    return ClipRect(
+      child: Transform.translate(
+        offset: Offset(0, -widget.sourceYOffset),
+        child: SizedBox(
+          width: widget.displayWidth,
+          height: widget.displayHeight,
+          child: RawImage(
+            image: image,
+            fit: widget.placement.preserveAspectRatio
+                ? BoxFit.contain
+                : BoxFit.fill,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      ),
+    );
   }
 }
 

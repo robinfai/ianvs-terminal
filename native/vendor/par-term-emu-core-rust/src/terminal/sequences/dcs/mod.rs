@@ -133,9 +133,10 @@ impl Terminal {
                 graphic.set_cell_dimensions(cell_w, cell_h);
 
                 let row = self.cursor.row;
-                self.graphics_store.add_graphic(graphic);
-                self.terminal_events
-                    .push(crate::terminal::TerminalEvent::GraphicsAdded(row));
+                if self.graphics_store.add_graphic(graphic) {
+                    self.terminal_events
+                        .push(crate::terminal::TerminalEvent::GraphicsAdded(row));
+                }
 
                 // Advance cursor to next line(s) as per test expectation
                 if cell_h > 0 {

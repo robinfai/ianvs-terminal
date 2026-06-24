@@ -43,6 +43,22 @@ fn default_shell_integration_enabled() -> bool {
     true
 }
 
+fn default_graphics_enabled() -> bool {
+    true
+}
+
+fn default_graphics_advertise() -> String {
+    "kitty".to_string()
+}
+
+fn default_graphics_max_image_bytes() -> usize {
+    100 * 1024 * 1024
+}
+
+fn default_graphics_max_total_bytes() -> usize {
+    256 * 1024 * 1024
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalShellIntegration {
     #[serde(default = "default_shell_integration_enabled")]
@@ -56,11 +72,36 @@ impl Default for TerminalShellIntegration {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalGraphicsConfig {
+    #[serde(default = "default_graphics_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_graphics_advertise")]
+    pub advertise: String,
+    #[serde(rename = "maxImageBytes", default = "default_graphics_max_image_bytes")]
+    pub max_image_bytes: usize,
+    #[serde(rename = "maxTotalBytes", default = "default_graphics_max_total_bytes")]
+    pub max_total_bytes: usize,
+}
+
+impl Default for TerminalGraphicsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            advertise: default_graphics_advertise(),
+            max_image_bytes: default_graphics_max_image_bytes(),
+            max_total_bytes: default_graphics_max_total_bytes(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalProfileTerminal {
     #[serde(default)]
     pub emulation: TerminalEmulation,
     #[serde(rename = "scrollbackLines", default = "default_scrollback_lines")]
     pub scrollback_lines: usize,
+    #[serde(default)]
+    pub graphics: TerminalGraphicsConfig,
 }
 
 impl Default for TerminalProfileTerminal {
@@ -68,6 +109,7 @@ impl Default for TerminalProfileTerminal {
         Self {
             emulation: TerminalEmulation::Xterm256,
             scrollback_lines: default_scrollback_lines(),
+            graphics: TerminalGraphicsConfig::default(),
         }
     }
 }
@@ -323,6 +365,34 @@ pub struct TerminalHyperlinkRange {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalGraphicPlacement {
+    #[serde(default)]
+    pub render_id: u64,
+    pub placement_id: u64,
+    pub asset_id: u64,
+    pub asset_version: u64,
+    pub protocol: String,
+    pub row: usize,
+    pub col: usize,
+    pub width_px: usize,
+    pub height_px: usize,
+    pub width_cells: usize,
+    pub height_cells: usize,
+    #[serde(default)]
+    pub source_y_offset_px: usize,
+    #[serde(default)]
+    pub visible_height_px: usize,
+    #[serde(default)]
+    pub z_index: i32,
+    #[serde(default)]
+    pub x_offset_px: u32,
+    #[serde(default)]
+    pub y_offset_px: u32,
+    #[serde(default = "default_preserve_aspect_ratio")]
+    pub preserve_aspect_ratio: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalSearchMatch {
     pub row: usize,
     pub start_col: usize,
@@ -389,6 +459,10 @@ pub struct TerminalFrameDiff {
     #[serde(default)]
     pub viewport_row_shift: i32,
     #[serde(default)]
+    pub default_foreground: Option<String>,
+    #[serde(default)]
+    pub default_background: Option<String>,
+    #[serde(default)]
     pub modes: TerminalFrameModes,
     #[serde(default)]
     pub window_title: Option<String>,
@@ -396,6 +470,8 @@ pub struct TerminalFrameDiff {
     pub window_icon_name: Option<String>,
     #[serde(default)]
     pub hyperlinks: Vec<TerminalHyperlinkRange>,
+    #[serde(default)]
+    pub graphics: Vec<TerminalGraphicPlacement>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -411,6 +487,10 @@ fn default_mouse_mode() -> String {
 
 fn default_mouse_encoding() -> String {
     "default".to_string()
+}
+
+fn default_preserve_aspect_ratio() -> bool {
+    true
 }
 
 fn default_scrollback_lines() -> usize {

@@ -353,6 +353,138 @@ void main() {
   });
 
   test(
+    'profile document migrates only the built-in default pure black background',
+    () {
+      final document = TerminalProfilesDocument.fromJson({
+        'schemaVersion': 4,
+        'profiles': [
+          {
+            'id': 'default',
+            'name': 'Local Shell',
+            'launch': {
+              'program': defaultTerminalProfile().shell,
+              'args': const ['-l'],
+            },
+            'appearance': {
+              'colors': {
+                'special': {'background': '#000000'},
+              },
+            },
+          },
+          {
+            'id': 'custom-black',
+            'name': 'Custom Black',
+            'launch': {'program': '/bin/zsh'},
+            'appearance': {
+              'colors': {
+                'special': {'background': '#000000'},
+              },
+            },
+          },
+        ],
+      });
+
+      final defaultProfile = document.profiles.firstWhere(
+        (profile) => profile.id == 'default',
+      );
+      final customProfile = document.profiles.firstWhere(
+        (profile) => profile.id == 'custom-black',
+      );
+
+      expect(defaultProfile.appearance.colors.background, '#000000');
+      expect(customProfile.appearance.colors.background, '#000000');
+    },
+  );
+
+  test(
+    'profile document migrates the previous built-in default background',
+    () {
+      final document = TerminalProfilesDocument.fromJson({
+        'schemaVersion': 4,
+        'profiles': [
+          {
+            'id': 'default',
+            'name': 'Local Shell',
+            'launch': {
+              'program': defaultTerminalProfile().shell,
+              'args': const ['-l'],
+            },
+            'appearance': {
+              'colors': {
+                'special': {'background': '#14191E'},
+              },
+            },
+          },
+          {
+            'id': 'custom-previous-default',
+            'name': 'Custom Previous Default',
+            'launch': {'program': '/bin/zsh'},
+            'appearance': {
+              'colors': {
+                'special': {'background': '#14191E'},
+              },
+            },
+          },
+        ],
+      });
+
+      final defaultProfile = document.profiles.firstWhere(
+        (profile) => profile.id == 'default',
+      );
+      final customProfile = document.profiles.firstWhere(
+        (profile) => profile.id == 'custom-previous-default',
+      );
+
+      expect(defaultProfile.appearance.colors.background, '#000000');
+      expect(customProfile.appearance.colors.background, '#14191E');
+    },
+  );
+
+  test(
+    'profile document migrates the temporary blue built-in default background',
+    () {
+      final document = TerminalProfilesDocument.fromJson({
+        'schemaVersion': 4,
+        'profiles': [
+          {
+            'id': 'default',
+            'name': 'Local Shell',
+            'launch': {
+              'program': defaultTerminalProfile().shell,
+              'args': const ['-l'],
+            },
+            'appearance': {
+              'colors': {
+                'special': {'background': '#203A4F'},
+              },
+            },
+          },
+          {
+            'id': 'custom-temporary-blue',
+            'name': 'Custom Temporary Blue',
+            'launch': {'program': '/bin/zsh'},
+            'appearance': {
+              'colors': {
+                'special': {'background': '#203A4F'},
+              },
+            },
+          },
+        ],
+      });
+
+      final defaultProfile = document.profiles.firstWhere(
+        (profile) => profile.id == 'default',
+      );
+      final customProfile = document.profiles.firstWhere(
+        (profile) => profile.id == 'custom-temporary-blue',
+      );
+
+      expect(defaultProfile.appearance.colors.background, '#000000');
+      expect(customProfile.appearance.colors.background, '#203A4F');
+    },
+  );
+
+  test(
     'profile repository tolerates invalid nested fields and reports warnings',
     () async {
       final directory = await Directory.systemTemp.createTemp(

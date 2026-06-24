@@ -44,7 +44,15 @@ impl Terminal {
 
     /// Set default foreground color (OSC 10)
     pub fn set_default_fg(&mut self, color: Color) {
+        let previous = self.default_fg;
         self.default_fg = color;
+        if self.fg == previous {
+            self.fg = color;
+        }
+        if self.saved_fg == previous {
+            self.saved_fg = color;
+        }
+        self.replace_default_fg_in_cells(previous, color);
     }
 
     /// Get default background color (OSC 11)
@@ -54,7 +62,57 @@ impl Terminal {
 
     /// Set default background color (OSC 11)
     pub fn set_default_bg(&mut self, color: Color) {
+        let previous = self.default_bg;
         self.default_bg = color;
+        if self.bg == previous {
+            self.bg = color;
+        }
+        if self.saved_bg == previous {
+            self.saved_bg = color;
+        }
+        self.replace_default_bg_in_cells(previous, color);
+    }
+
+    fn replace_default_fg_in_cells(&mut self, previous: Color, color: Color) {
+        for row in 0..self.grid.rows() {
+            if let Some(cells) = self.grid.row_mut(row) {
+                for cell in cells {
+                    if cell.is_empty() && cell.fg == previous && cell.bg == self.default_bg {
+                        cell.fg = color;
+                    }
+                }
+            }
+        }
+        for row in 0..self.alt_grid.rows() {
+            if let Some(cells) = self.alt_grid.row_mut(row) {
+                for cell in cells {
+                    if cell.is_empty() && cell.fg == previous && cell.bg == self.default_bg {
+                        cell.fg = color;
+                    }
+                }
+            }
+        }
+    }
+
+    fn replace_default_bg_in_cells(&mut self, previous: Color, color: Color) {
+        for row in 0..self.grid.rows() {
+            if let Some(cells) = self.grid.row_mut(row) {
+                for cell in cells {
+                    if cell.is_empty() && cell.bg == previous && cell.fg == self.default_fg {
+                        cell.bg = color;
+                    }
+                }
+            }
+        }
+        for row in 0..self.alt_grid.rows() {
+            if let Some(cells) = self.alt_grid.row_mut(row) {
+                for cell in cells {
+                    if cell.is_empty() && cell.bg == previous && cell.fg == self.default_fg {
+                        cell.bg = color;
+                    }
+                }
+            }
+        }
     }
 
     /// Get cursor color (OSC 12)
@@ -425,6 +483,34 @@ mod tests {
 
         assert_eq!(term.default_bg(), new_color);
         assert_ne!(term.default_bg(), original);
+    }
+
+    #[test]
+    fn test_default_fg_update_preserves_explicit_same_color_cells() {
+        let mut term = create_test_terminal();
+        let original = term.default_fg();
+
+        term.process(b"\x1b[37mX\x1b[0m");
+        let new_color = Color::Rgb(10, 20, 30);
+        term.set_default_fg(new_color);
+
+        let row = term.active_grid().row(0).unwrap();
+        assert_eq!(row[0].fg, original);
+        assert_eq!(row[1].fg, new_color);
+    }
+
+    #[test]
+    fn test_default_bg_update_preserves_explicit_same_color_cells() {
+        let mut term = create_test_terminal();
+        let original = term.default_bg();
+
+        term.process(b"\x1b[40mX\x1b[0m");
+        let new_color = Color::Rgb(10, 20, 30);
+        term.set_default_bg(new_color);
+
+        let row = term.active_grid().row(0).unwrap();
+        assert_eq!(row[0].bg, original);
+        assert_eq!(row[1].bg, new_color);
     }
 
     #[test]

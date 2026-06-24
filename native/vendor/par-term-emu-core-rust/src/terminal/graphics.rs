@@ -4,10 +4,314 @@
 //! Supports Sixel, iTerm2, and Kitty graphics protocols via unified GraphicsStore.
 
 use crate::debug;
+use crate::graphics::kitty::{KittyAction, KittyGraphicResult, KittyMedium, KittyParser};
 use crate::graphics::TerminalGraphic;
 use crate::terminal::Terminal;
+use std::time::Instant;
+
+const GRAPHICS_SEQUENCE_OVERHEAD_BYTES: usize = 4096;
 
 impl Terminal {
+    /// Unwrap tmux/screen DCS passthrough wrappers before the normal graphics parsers run.
+    pub(crate) fn handle_graphics_passthrough_sequences(&mut self, data: &[u8]) -> Vec<u8> {
+        let input = if self.graphics_passthrough_buffer.is_empty() {
+            data.to_vec()
+        } else {
+            let mut buffered = std::mem::take(&mut self.graphics_passthrough_buffer);
+            buffered.extend_from_slice(data);
+            buffered
+        };
+
+        let mut output = Vec::with_capacity(input.len());
+        let mut index = 0usize;
+        while index < input.len() {
+            let Some(relative_start) = find_bytes(&input[index..], b"\x1bP") else {
+                output.extend_from_slice(&input[index..]);
+                break;
+            };
+            let start = index + relative_start;
+            let is_tmux = input[start..].starts_with(b"\x1bPtmux;");
+            let is_screen = !is_tmux && input.get(start + 2) == Some(&b'\x1b');
+            if !is_tmux && !is_screen {
+                output.extend_from_slice(&input[index..start + 2]);
+                index = start + 2;
+                continue;
+            }
+
+            output.extend_from_slice(&input[index..start]);
+            let payload_start = if is_tmux {
+                start + b"\x1bPtmux;".len()
+            } else {
+                start + 2
+            };
+            let Some((terminator_start, terminator_end)) =
+                find_dcs_passthrough_terminator(&input, payload_start, is_tmux)
+            else {
+                if !self.retain_incomplete_graphics_passthrough(&input[start..]) {
+                    self.push_kitty_response(
+                        None,
+                        "EINVAL: graphics passthrough sequence exceeds configured byte limit",
+                    );
+                }
+                break;
+            };
+
+            let payload = &input[payload_start..terminator_start];
+            if self.graphics_sequence_exceeds_limit(payload.len()) {
+                self.push_kitty_response(
+                    None,
+                    "EINVAL: graphics passthrough sequence exceeds configured byte limit",
+                );
+                index = terminator_end;
+                continue;
+            }
+            if is_tmux {
+                output.extend_from_slice(&decode_tmux_passthrough_payload(payload));
+            } else {
+                output.extend_from_slice(payload);
+            }
+            index = terminator_end;
+        }
+
+        output
+    }
+
+    /// Strip Kitty APC graphics sequences from incoming bytes and process them.
+    pub(crate) fn handle_kitty_apc_sequences(&mut self, data: &[u8]) -> Vec<u8> {
+        let mut input = if self.kitty_apc_buffer.is_empty() {
+            data.to_vec()
+        } else {
+            let mut buffered = std::mem::take(&mut self.kitty_apc_buffer);
+            buffered.extend_from_slice(data);
+            buffered
+        };
+
+        let mut output = Vec::with_capacity(input.len());
+        let mut index = 0usize;
+        while index < input.len() {
+            let Some(relative_start) = find_bytes(&input[index..], b"\x1b_") else {
+                output.extend_from_slice(&input[index..]);
+                break;
+            };
+            let start = index + relative_start;
+            self.advance_parser_before_kitty_apc(&input[index..start]);
+
+            let payload_start = start + 2;
+            let Some((terminator_start, terminator_end)) =
+                find_apc_terminator(&input, payload_start)
+            else {
+                if !self.retain_incomplete_kitty_apc(&input[start..]) {
+                    self.push_kitty_response(
+                        None,
+                        "EINVAL: graphics sequence exceeds configured byte limit",
+                    );
+                }
+                break;
+            };
+
+            let payload = &input[payload_start..terminator_start];
+            if let Some(kitty_payload) = payload.strip_prefix(b"G") {
+                self.handle_kitty_apc_payload(kitty_payload);
+            }
+            index = terminator_end;
+        }
+
+        input.clear();
+        output
+    }
+
+    fn advance_parser_before_kitty_apc(&mut self, data: &[u8]) {
+        if data.is_empty() {
+            return;
+        }
+        let mut parser = std::mem::replace(&mut self.parser, vte::Parser::new());
+        let parser_started_at = Instant::now();
+        parser.advance(self, data);
+        self.record_parser_advance_debug_micros(parser_started_at.elapsed().as_micros() as u64);
+        self.observe_plain_text_parser_state(data);
+        let _ = std::mem::replace(&mut self.parser, parser);
+    }
+
+    fn handle_kitty_apc_payload(&mut self, payload: &[u8]) {
+        if self.graphics_sequence_exceeds_limit(payload.len()) {
+            self.push_kitty_response(
+                None,
+                "EINVAL: graphics sequence exceeds configured byte limit",
+            );
+            return;
+        }
+        let Ok(payload) = std::str::from_utf8(payload) else {
+            self.push_kitty_response(None, "EINVAL: invalid UTF-8");
+            return;
+        };
+        let mut parser = self.kitty_parser.take().unwrap_or_else(KittyParser::new);
+        parser.set_max_data_bytes(self.graphics_store.max_decoded_image_bytes());
+        let more_chunks = match parser.parse_chunk(payload) {
+            Ok(more_chunks) => more_chunks,
+            Err(error) => {
+                let image_id = parser.image_id;
+                let should_send_error = parser.should_send_error_response();
+                self.kitty_parser = None;
+                if should_send_error {
+                    self.push_kitty_response(image_id, &format!("EINVAL: {error}"));
+                }
+                return;
+            }
+        };
+        if parser.placement_position.is_none()
+            && matches!(
+                parser.action,
+                KittyAction::TransmitDisplay | KittyAction::Put
+            )
+        {
+            parser.placement_position = Some((self.cursor.col, self.cursor.row));
+        }
+        if more_chunks {
+            self.kitty_parser = Some(parser);
+            return;
+        }
+
+        let image_id = parser.image_id;
+        let action = parser.action;
+        let should_send_ok = parser.should_send_success_response();
+        let should_send_error = parser.should_send_error_response();
+        if parser.medium != KittyMedium::Direct {
+            if should_send_error {
+                self.push_kitty_response(image_id, "ENOTSUP: only direct inline data is enabled");
+            }
+            self.kitty_parser = None;
+            return;
+        }
+
+        let position = parser
+            .placement_position
+            .unwrap_or((self.cursor.col, self.cursor.row));
+        match parser.build_graphic(position, &mut self.graphics_store) {
+            Ok(KittyGraphicResult::Graphic(mut graphic)) => {
+                let (cell_w, cell_h) = self.cell_dimensions;
+                graphic.set_cell_dimensions(cell_w, cell_h);
+                let (cols, rows) = self.size();
+                let (span_cols, span_rows) = graphic.resolved_cell_span(Some(cols), Some(rows));
+                graphic.set_display_cell_span(span_cols, span_rows);
+                let row = graphic.position.1;
+                if self.graphics_store.add_graphic(graphic) {
+                    self.terminal_events
+                        .push(crate::terminal::TerminalEvent::GraphicsAdded(row));
+                }
+                if should_send_ok {
+                    self.push_kitty_response(image_id, "OK");
+                }
+            }
+            Ok(KittyGraphicResult::VirtualPlacement { position, .. }) => {
+                self.terminal_events
+                    .push(crate::terminal::TerminalEvent::GraphicsAdded(position.1));
+                if should_send_ok {
+                    self.push_kitty_response(image_id, "OK");
+                }
+            }
+            Ok(KittyGraphicResult::None) => {
+                if should_send_ok && (action == KittyAction::Query || image_id.is_some()) {
+                    self.push_kitty_response(image_id, "OK");
+                }
+            }
+            Err(error) => {
+                let code = if error.to_string().contains("Image not found") {
+                    "ENOENT"
+                } else {
+                    "EINVAL"
+                };
+                if should_send_error {
+                    self.push_kitty_response(image_id, &format!("{code}: {error}"));
+                }
+            }
+        }
+        self.kitty_parser = None;
+    }
+
+    fn push_kitty_response(&mut self, image_id: Option<u32>, message: &str) {
+        let params = image_id.map(|id| format!("i={id}")).unwrap_or_default();
+        self.response_buffer
+            .extend_from_slice(format!("\x1b_G{params};{message}\x1b\\").as_bytes());
+    }
+
+    fn graphics_sequence_byte_limit(&self) -> usize {
+        self.graphics_store
+            .max_decoded_image_bytes()
+            .saturating_mul(2)
+            .saturating_add(GRAPHICS_SEQUENCE_OVERHEAD_BYTES)
+            .max(GRAPHICS_SEQUENCE_OVERHEAD_BYTES)
+    }
+
+    fn graphics_sequence_exceeds_limit(&self, len: usize) -> bool {
+        len > self.graphics_sequence_byte_limit()
+    }
+
+    fn retain_incomplete_kitty_apc(&mut self, pending: &[u8]) -> bool {
+        if self.graphics_sequence_exceeds_limit(pending.len()) {
+            self.kitty_apc_buffer.clear();
+            return false;
+        }
+        self.kitty_apc_buffer.clear();
+        self.kitty_apc_buffer.extend_from_slice(pending);
+        true
+    }
+
+    fn retain_incomplete_graphics_passthrough(&mut self, pending: &[u8]) -> bool {
+        if self.graphics_sequence_exceeds_limit(pending.len()) {
+            self.graphics_passthrough_buffer.clear();
+            return false;
+        }
+        self.graphics_passthrough_buffer.clear();
+        self.graphics_passthrough_buffer.extend_from_slice(pending);
+        true
+    }
+
+    /// Whether a Kitty graphics sequence or transfer is still incomplete.
+    pub fn kitty_graphics_transfer_in_progress(&self) -> bool {
+        self.kitty_parser.is_some() || !self.kitty_apc_buffer.is_empty()
+    }
+
+    /// Frame extraction must not advance Kitty delete state. Deferred deletes are
+    /// resolved by later input events such as a replacement graphic or visible text.
+    pub fn settle_graphics_transactions(&mut self) {}
+
+    pub(crate) fn commit_deferred_kitty_deletes_for_visual_output(&mut self) {
+        if let Some((image_id, placement_id, position)) = self.pending_kitty_replacement_target() {
+            self.graphics_store
+                .commit_deferred_kitty_deletes_preserving_replacement(
+                    image_id,
+                    placement_id,
+                    position,
+                );
+            return;
+        }
+        if self.kitty_transmission_in_progress() {
+            return;
+        }
+        self.graphics_store.commit_deferred_kitty_deletes();
+    }
+
+    fn pending_kitty_replacement_target(&self) -> Option<(Option<u32>, u32, (usize, usize))> {
+        let parser = self.kitty_parser.as_ref()?;
+        match parser.action {
+            KittyAction::TransmitDisplay | KittyAction::Put => Some((
+                parser.image_id,
+                parser.placement_id.unwrap_or(0),
+                parser
+                    .placement_position
+                    .unwrap_or((self.cursor.col, self.cursor.row)),
+            )),
+            _ => None,
+        }
+    }
+
+    fn kitty_transmission_in_progress(&self) -> bool {
+        let Some(parser) = self.kitty_parser.as_ref() else {
+            return false;
+        };
+        parser.action == KittyAction::Transmit
+    }
+
     /// Get graphics at a specific row
     pub fn graphics_at_row(&self, row: usize) -> Vec<&TerminalGraphic> {
         self.graphics_store.graphics_at_row(row)
@@ -18,9 +322,24 @@ impl Terminal {
         self.graphics_store.all_graphics()
     }
 
+    /// Get Kitty placements retained while a clear-screen redraw is being coalesced.
+    pub fn pending_cleared_kitty_graphics(&self) -> &[TerminalGraphic] {
+        self.graphics_store.pending_cleared_kitty_graphics()
+    }
+
     /// Get total graphics count
     pub fn graphics_count(&self) -> usize {
         self.graphics_store.graphics_count()
+    }
+
+    /// Get pending cleared Kitty placement count.
+    pub fn pending_cleared_kitty_graphics_count(&self) -> usize {
+        self.graphics_store.pending_cleared_kitty_graphics_count()
+    }
+
+    /// Count deferred Kitty deletes for diagnostics and tests.
+    pub fn deferred_kitty_delete_count(&self) -> usize {
+        self.graphics_store.deferred_kitty_delete_count()
     }
 
     /// Get graphics in scrollback for a range of rows
@@ -556,6 +875,8 @@ impl Terminal {
 
                     // Add to graphics store (limit enforced internally)
                     self.graphics_store.add_graphic(graphic.clone());
+                    self.terminal_events
+                        .push(crate::terminal::TerminalEvent::GraphicsAdded(position.1));
 
                     debug::log(
                         debug::DebugLevel::Debug,
@@ -666,6 +987,65 @@ impl Terminal {
     }
 }
 
+fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.is_empty() || haystack.len() < needle.len() {
+        return None;
+    }
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
+fn find_apc_terminator(input: &[u8], start: usize) -> Option<(usize, usize)> {
+    let mut index = start;
+    while index < input.len() {
+        if input[index] == b'\x07' {
+            return Some((index, index + 1));
+        }
+        if input[index] == b'\x1b' && input.get(index + 1) == Some(&b'\\') {
+            return Some((index, index + 2));
+        }
+        index += 1;
+    }
+    None
+}
+
+fn find_dcs_passthrough_terminator(
+    input: &[u8],
+    start: usize,
+    collapse_doubled_esc: bool,
+) -> Option<(usize, usize)> {
+    let mut index = start;
+    while index < input.len() {
+        if input[index] == b'\x1b' {
+            if collapse_doubled_esc && input.get(index + 1) == Some(&b'\x1b') {
+                index += 2;
+                continue;
+            }
+            if input.get(index + 1) == Some(&b'\\') {
+                return Some((index, index + 2));
+            }
+        }
+        index += 1;
+    }
+    None
+}
+
+fn decode_tmux_passthrough_payload(payload: &[u8]) -> Vec<u8> {
+    let mut output = Vec::with_capacity(payload.len());
+    let mut index = 0usize;
+    while index < payload.len() {
+        if payload[index] == b'\x1b' && payload.get(index + 1) == Some(&b'\x1b') {
+            output.push(b'\x1b');
+            index += 2;
+            continue;
+        }
+        output.push(payload[index]);
+        index += 1;
+    }
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -684,6 +1064,31 @@ mod tests {
             height,
             vec![], // Empty pixels for tests
         )
+    }
+
+    #[test]
+    fn incomplete_kitty_apc_over_limit_is_dropped() {
+        let mut term = create_test_terminal();
+        term.set_graphics_memory_limits(8, 8);
+        let mut payload = b"\x1b_Ga=T,f=32,s=1,v=1;".to_vec();
+        payload.extend(std::iter::repeat_n(b'A', 5000));
+
+        term.process(&payload);
+
+        assert!(term.kitty_apc_buffer.is_empty());
+        assert!(!term.kitty_graphics_transfer_in_progress());
+    }
+
+    #[test]
+    fn incomplete_tmux_graphics_passthrough_over_limit_is_dropped() {
+        let mut term = create_test_terminal();
+        term.set_graphics_memory_limits(8, 8);
+        let mut payload = b"\x1bPtmux;".to_vec();
+        payload.extend(std::iter::repeat_n(b'A', 5000));
+
+        term.process(&payload);
+
+        assert!(term.graphics_passthrough_buffer.is_empty());
     }
 
     #[test]

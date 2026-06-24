@@ -264,6 +264,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                       activeBorder: palette.accent.withValues(alpha: 0.82),
                       radius: 3,
                     ),
+                    graphicsCache: sessionController.graphicsCacheFor(
+                      sessionId,
+                    ),
                     onHostKeyEvent: onHostKeyEvent,
                     onScrollLines: (delta) {
                       ref

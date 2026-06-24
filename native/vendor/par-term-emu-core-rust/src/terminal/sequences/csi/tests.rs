@@ -972,3 +972,114 @@ fn test_synchronized_updates_mode_toggle() {
         "synchronized_updates should be false after disable"
     );
 }
+
+#[test]
+fn test_synchronized_updates_buffers_remainder_after_enable_in_same_chunk() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden");
+
+    assert!(term.synchronized_updates);
+    assert_eq!(term.update_buffer, b"hidden");
+    assert_eq!(term.active_grid().get(0, 0).unwrap().c, 'b');
+    assert_eq!(term.active_grid().get(5, 0).unwrap().c, 'e');
+    assert_eq!(term.active_grid().get(6, 0).unwrap().c, ' ');
+
+    term.process(b"-shown\x1b[?2026l");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn test_synchronized_updates_buffers_remainder_after_split_enable() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2");
+    term.process(b"026hhidden");
+
+    assert!(term.synchronized_updates);
+    assert_eq!(term.update_buffer, b"hidden");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+
+    term.process(b"-shown\x1b[?2026l");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn test_synchronized_updates_buffers_remainder_after_multi_split_enable() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b");
+    term.process(b"[?202");
+    term.process(b"6hhidden");
+
+    assert!(term.synchronized_updates);
+    assert_eq!(term.update_buffer, b"hidden");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+
+    term.process(b"-shown\x1b[?2026l");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn test_synchronized_updates_buffers_remainder_when_2026_is_not_first_mode() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?25;2026hhidden");
+
+    assert!(term.synchronized_updates);
+    assert_eq!(term.update_buffer, b"hidden");
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "before");
+
+    term.process(b"-shown\x1b[?2026l");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn test_synchronized_updates_flushes_start_and_end_in_same_chunk() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2026hhidden\x1b[?2026l-after");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(
+        term.active_grid().row_text(0).trim_end(),
+        "beforehidden-after"
+    );
+}
+
+#[test]
+fn test_synchronized_updates_does_not_buffer_split_non_sync_private_mode() {
+    let mut term = Terminal::new(80, 24);
+
+    term.process(b"before\x1b[?2");
+    term.process(b"5hshown");
+
+    assert!(!term.synchronized_updates);
+    assert!(term.update_buffer.is_empty());
+    assert_eq!(term.active_grid().row_text(0).trim_end(), "beforeshown");
+}

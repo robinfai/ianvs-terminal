@@ -93,6 +93,10 @@ void main() {
     expect(palette.bright.white, '#ABCDEF');
   });
 
+  test('default terminal background uses the dark canvas base color', () {
+    expect(defaultTerminalSpecialColors.background, '#000000');
+  });
+
   test('terminal font config trims direct json strings', () {
     final font = TerminalFontConfig.fromJson(const <String, Object?>{
       'family': '  JetBrains Mono  ',
@@ -129,6 +133,61 @@ void main() {
       config.interaction.optionDragMode,
       TerminalOptionDragMode.normalSelection,
     );
+  });
+
+  test('terminal session config roundtrips graphics settings', () {
+    final config = TerminalSessionConfig.fromJson(const <String, Object?>{
+      'launch': <String, Object?>{'program': '/bin/zsh'},
+      'terminal': <String, Object?>{
+        'graphics': <String, Object?>{
+          'enabled': false,
+          'advertise': 'kitty',
+          'maxImageBytes': 4096,
+          'maxTotalBytes': 8192,
+        },
+      },
+    });
+
+    expect(config.graphics.enabled, isFalse);
+    expect(config.graphics.advertise, 'kitty');
+    expect(config.graphics.maxImageBytes, 4096);
+    expect(config.graphics.maxTotalBytes, 8192);
+    expect(
+      config.toJson()['terminal'],
+      containsPair('graphics', <String, Object?>{
+        'enabled': false,
+        'advertise': 'kitty',
+        'maxImageBytes': 4096,
+        'maxTotalBytes': 8192,
+      }),
+    );
+
+    final profile = TerminalSessionConfig.fromProfileJson(
+      const <String, Object?>{
+        'shell': '/bin/zsh',
+        'terminal': <String, Object?>{
+          'graphics': <String, Object?>{
+            'enabled': true,
+            'advertise': 'auto',
+            'maxImageBytes': 1024,
+            'maxTotalBytes': 2048,
+          },
+        },
+      },
+      defaultProgram: '/bin/sh',
+    );
+
+    expect(profile.graphics.enabled, isTrue);
+    expect(profile.graphics.advertise, 'auto');
+    expect(profile.graphics.maxImageBytes, 1024);
+    expect(profile.graphics.maxTotalBytes, 2048);
+
+    final defaultGraphics = TerminalSessionConfig.fromProfileJson(
+      const <String, Object?>{'shell': '/bin/zsh'},
+      defaultProgram: '/bin/sh',
+    );
+    expect(defaultGraphics.graphics.enabled, isTrue);
+    expect(defaultGraphics.graphics.advertise, 'kitty');
   });
 
   test('terminal launch config trims direct json string fields', () {

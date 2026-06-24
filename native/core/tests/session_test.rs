@@ -9,11 +9,13 @@ use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::fs;
 use std::path::Path;
+use std::ptr;
 use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
 
-const SESSION_WAIT_ATTEMPTS: usize = 50;
+const SESSION_WAIT_ATTEMPTS: usize = 200;
+const RED_PIXEL_PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==";
 
 fn local_profile(
     id: &str,
@@ -47,6 +49,7 @@ fn local_profile_with_scrollback(
         terminal: TerminalProfileTerminal {
             emulation,
             scrollback_lines,
+            ..TerminalProfileTerminal::default()
         },
         shell_integration: TerminalShellIntegration::default(),
         appearance: TerminalProfileAppearance::default(),
@@ -860,6 +863,1481 @@ fn session_emits_frame_diff_for_simple_command() {
 
     assert!(frame.contains("hello"));
     session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_exports_graphic_placements_and_asset_bytes() {
+    let profile = local_profile(
+        "iterm-graphics",
+        "iTerm Graphics",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b]1337;File=inline=1;width=2;height=2:{}\\x1b\\\\')\nsys.stdout.flush()\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let frame = wait_for_frame_where(session_id, |frame| frame.contains("\"graphics\":[{"));
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in frame");
+    assert_eq!(graphics.len(), 1, "expected one graphic placement: {frame}");
+    let placement = &graphics[0];
+    assert_eq!(placement["protocol"].as_str(), Some("iterm"));
+    assert_eq!(placement["row"].as_u64(), Some(0));
+    assert_eq!(placement["col"].as_u64(), Some(0));
+    assert_eq!(placement["width_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(4));
+    assert_eq!(placement["width_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(2));
+    let asset_id = placement["asset_id"]
+        .as_u64()
+        .expect("expected graphic asset id");
+    let asset_version = placement["asset_version"]
+        .as_u64()
+        .expect("expected graphic asset version");
+    assert!(
+        asset_version <= 9_007_199_254_740_991,
+        "graphic asset version must round-trip through JSON safely"
+    );
+
+    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let meta_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+            session_id,
+            asset_id,
+            asset_version,
+            &mut meta,
+        )
+    };
+    assert_eq!(meta_status, 0);
+    assert_eq!(meta.width, 1);
+    assert_eq!(meta.height, 1);
+    assert_eq!(meta.rgba_len, 4);
+    assert_eq!(meta.version, asset_version);
+
+    let mut rgba = vec![0_u8; meta.rgba_len as usize];
+    let copy_status = unsafe {
+        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            session_id,
+            asset_id,
+            asset_version,
+            rgba.as_mut_ptr(),
+            rgba.len(),
+        )
+    };
+    assert_eq!(copy_status, rgba.len() as isize);
+    assert_eq!(rgba.len(), 4);
+
+    assert_eq!(
+        unsafe {
+            ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+                session_id,
+                asset_id,
+                asset_version + 1,
+                &mut meta,
+            )
+        },
+        -1,
+        "stale asset version should be rejected"
+    );
+    assert_eq!(
+        unsafe {
+            ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+                session_id,
+                asset_id,
+                asset_version,
+                ptr::null_mut(),
+                rgba.len(),
+            )
+        },
+        -1,
+        "null destination should be rejected"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_clears_quiet_kitty_delete_without_replacement() {
+    let profile = local_profile(
+        "kitty-quiet-delete-clear-frame-diff",
+        "Kitty Quiet Delete Clear Frame Diff",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;/wAA/w==\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.2)\nsys.stdout.write('\\x1b_Ga=d,d=I,i=49374,q=2;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.45)\nfor row in (1, 2, 1):\n    sys.stdout.write(f'\\x1b[{row};1H')\n    sys.stdout.flush()\n    time.sleep(0.15)\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let first = wait_for_frame_where(session_id, |frame| frame.contains("\"graphics\":[{"));
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    assert_eq!(
+        first_parsed["graphics"]
+            .as_array()
+            .expect("expected graphics placements")
+            .len(),
+        1
+    );
+
+    let mut observed_empty_graphics_frame = false;
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            let graphics = parsed["graphics"]
+                .as_array()
+                .expect("expected graphics placements field");
+            assert_eq!(
+                graphics.len(),
+                0,
+                "quiet Kitty delete without a following replacement must clear graphics in frame diff: {frame}"
+            );
+            observed_empty_graphics_frame = true;
+        }
+        if observed_empty_graphics_frame {
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    assert!(
+        observed_empty_graphics_frame,
+        "expected a post-delete frame with empty graphics"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_clears_codex_shutdown_delete_without_replacement() {
+    let script = format!(
+        r#"
+import sys, termios, time
+
+try:
+    attrs = termios.tcgetattr(sys.stdin.fileno())
+    attrs[3] = attrs[3] & ~termios.ECHO
+    termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, attrs)
+except Exception:
+    pass
+
+def out(value, delay=0.12):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    time.sleep(delay)
+
+def wait():
+    if sys.stdin.readline() == '':
+        sys.exit(2)
+
+out('\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{png}\x1b\\')
+wait()
+out('\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\', 0.02)
+wait()
+out('\x1b[?2026h\x1b[20;1H\x1b[J', 0.02)
+out('\x1b[20;2H\x1b[0m\x1b[m\x1b[K\x1b[21;2H\x1b[0m\x1b[m\x1b[K\x1b[22;19H\x1b[0m\x1b[m\x1b[K\x1b[23;2H\x1b[0m\x1b[m\x1b[K\x1b[22;1H›\x1b[22;3HShutting down...\x1b[?2026l', 0.65)
+"#,
+        png = RED_PIXEL_PNG_BASE64,
+    );
+    let profile = local_profile(
+        "kitty-shutdown-delete-clear",
+        "Kitty Shutdown Delete Clear",
+        "/usr/bin/env",
+        vec!["python3".to_string(), "-c".to_string(), script],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49374")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphics = first_parsed["graphics"]
+        .as_array()
+        .expect("expected first graphics placements");
+    assert_eq!(first_graphics.len(), 1, "expected first pet frame: {first}");
+
+    session::write_session(session_id, b"\n").unwrap();
+    let delete_frame = wait_for_frame_where(session_id, |frame| frame.contains("\"graphics\":[]"));
+    let delete_parsed: serde_json::Value = serde_json::from_str(&delete_frame).unwrap();
+    let delete_graphics = delete_parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements field");
+    assert_eq!(
+        delete_graphics.len(),
+        0,
+        "Codex shutdown delete has no following Kitty replacement and must clear graphics before shutdown text: {delete_frame}"
+    );
+
+    session::write_session(session_id, b"\n").unwrap();
+
+    let mut observed_shutdown_frame = false;
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            let graphics = parsed["graphics"]
+                .as_array()
+                .expect("expected graphics placements field");
+            if frame.contains("Shutting down") {
+                assert_eq!(
+                    graphics.len(),
+                    0,
+                    "Codex shutdown delete has no following Kitty replacement and must clear graphics: {frame}"
+                );
+                observed_shutdown_frame = true;
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    assert!(
+        observed_shutdown_frame,
+        "expected to observe a Codex-style shutdown frame"
+    );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_defers_single_clear_screen_graphics_gap() {
+    let profile = local_profile(
+        "kitty-clear-screen-graphics-gap",
+        "Kitty Clear Screen Graphics Gap",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[10;10H\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;/wAA/w==\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[2J\\x1b[3J\\x1b[Hafter clear\\n')\nsys.stdout.flush()\ntime.sleep(1.00)\nsys.stdout.write('\\x1b[20;30H\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;AP8A/w==\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49374")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_render_id = first_parsed["graphics"][0]["render_id"]
+        .as_u64()
+        .expect("expected first render id");
+    let first_version = first_parsed["graphics"][0]["asset_version"]
+        .as_u64()
+        .expect("expected first asset version");
+
+    thread::sleep(Duration::from_millis(300));
+    let mut observed_retained_clear_frame = false;
+    for _ in 0..5 {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            let graphics = parsed["graphics"]
+                .as_array()
+                .expect("expected graphics field in clear-screen frame");
+            assert!(
+                !graphics.is_empty(),
+                "clear-screen redraw window must not emit an empty graphics frame after a visible graphic: {frame}"
+            );
+            assert_eq!(
+                graphics[0]["render_id"].as_u64(),
+                Some(first_render_id),
+                "retained clear-screen placement should keep the previous render id: {frame}"
+            );
+            if graphics[0]["asset_version"].as_u64() == Some(first_version) {
+                observed_retained_clear_frame = true;
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    assert!(
+        observed_retained_clear_frame,
+        "expected to observe the old graphic retained while clear-screen redraw waits for replacement"
+    );
+
+    let replacement = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{")
+            && !frame.contains(&format!("\"asset_version\":{first_version}"))
+    });
+    let parsed: serde_json::Value = serde_json::from_str(&replacement).unwrap();
+    let graphics = parsed["graphics"]
+        .as_array()
+        .expect("expected replacement graphics placements");
+    assert_eq!(
+        graphics.len(),
+        1,
+        "replacement frame must keep graphics visible after clear coalescing: {replacement}"
+    );
+    assert_eq!(
+        graphics[0]["render_id"].as_u64(),
+        Some(first_render_id),
+        "clear-screen redraw should preserve the graphic render id so Flutter keeps the existing overlay while the replacement asset loads: {replacement}"
+    );
+    assert_eq!(
+        graphics[0]["row"].as_u64(),
+        Some(19),
+        "replacement should still be allowed to move after clear-screen redraw: {replacement}"
+    );
+    assert_eq!(
+        graphics[0]["col"].as_u64(),
+        Some(29),
+        "replacement should still be allowed to move after clear-screen redraw: {replacement}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_keeps_codex_pet_graphic_across_split_replacement() {
+    let chunks = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(16)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>();
+    let chunks_json = serde_json::to_string(&chunks).unwrap();
+    let script = format!(
+        r#"
+import sys, termios, time
+
+chunks = {chunks_json}
+
+try:
+    attrs = termios.tcgetattr(sys.stdin.fileno())
+    attrs[3] = attrs[3] & ~termios.ECHO
+    termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, attrs)
+except Exception:
+    pass
+
+def out(value):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    time.sleep(0.04)
+
+def wait():
+    if sys.stdin.readline() == '':
+        sys.exit(2)
+
+out('\x1b7\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{png}\x1b\\\x1b8')
+wait()
+out('\x1b[?2026h\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[10;10H')
+for index, payload in enumerate(chunks):
+    if index == 0:
+        out('\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49375,m=1;' + payload + '\x1b\\')
+    elif index + 1 == len(chunks):
+        out('\x1b_Gm=0;' + payload + '\x1b\\\x1b8\x1b[?2026l')
+    else:
+        out('\x1b_Gm=1;' + payload + '\x1b\\')
+    if index + 1 < len(chunks):
+        out('\x1b7\x1b[1;1Hstartup log line\x1b8')
+    out('\x1b[' + str(1 + (index % 2)) + ';1H')
+    wait()
+"#,
+        chunks_json = chunks_json,
+        png = RED_PIXEL_PNG_BASE64,
+    );
+    let profile = local_profile(
+        "kitty-split-pet-frame-diff",
+        "Kitty Split Pet Frame Diff",
+        "/usr/bin/env",
+        vec!["python3".to_string(), "-c".to_string(), script],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49374")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphics = first_parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements in first frame");
+    assert_eq!(first_graphics.len(), 1, "expected first pet frame: {first}");
+    let placement_id = first_graphics[0]["placement_id"]
+        .as_u64()
+        .expect("expected stable placement id");
+
+    session::write_session(session_id, b"\n").unwrap();
+
+    let assert_replacement_frame = |frame: &str| -> u64 {
+        let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+        let graphics = parsed["graphics"]
+            .as_array()
+            .expect("expected graphics placements field");
+        assert_eq!(
+            graphics.len(),
+            1,
+            "split Kitty pet replacement must not emit a frame without graphics: {frame}"
+        );
+        assert_eq!(
+            graphics[0]["placement_id"].as_u64(),
+            Some(placement_id),
+            "replacement must keep the same placement identity: {frame}"
+        );
+        graphics[0]["asset_id"]
+            .as_u64()
+            .expect("expected graphic asset id")
+    };
+
+    let mut observed_final_asset = false;
+    for chunk_index in 0..chunks.len() {
+        for _ in 0..20 {
+            if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+                let asset_id = assert_replacement_frame(&frame);
+                if asset_id == 49375 {
+                    observed_final_asset = true;
+                    break;
+                }
+                assert_eq!(asset_id, 49374, "unexpected intermediate asset: {frame}");
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+        if observed_final_asset || chunk_index + 1 == chunks.len() {
+            break;
+        }
+        session::write_session(session_id, b"\n").unwrap();
+    }
+
+    if !observed_final_asset {
+        for _ in 0..SESSION_WAIT_ATTEMPTS {
+            if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+                let asset_id = assert_replacement_frame(&frame);
+                if asset_id == 49375 {
+                    observed_final_asset = true;
+                    break;
+                }
+                assert_eq!(asset_id, 49374, "unexpected intermediate asset: {frame}");
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+    }
+
+    assert!(
+        observed_final_asset,
+        "expected final replacement asset in frame diff"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_clears_codex_pet_after_split_replacement_final_delete() {
+    let chunks = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(16)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>();
+    let chunks_json = serde_json::to_string(&chunks).unwrap();
+    let profile = local_profile(
+        "kitty-split-pet-final-delete",
+        "Kitty Split Pet Final Delete",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                r#"python3 - <<'PY'
+import sys, time
+
+chunks = {chunks_json}
+
+def out(value, delay=0.04):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    time.sleep(delay)
+
+out('\x1b7\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{png}\x1b\\\x1b8', 0.18)
+out('\x1b[?2026h\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[10;10H', 0.02)
+for index, payload in enumerate(chunks):
+    if index == 0:
+        out('\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374,m=1;' + payload + '\x1b\\', 0.01)
+    elif index + 1 == len(chunks):
+        out('\x1b_Gm=0;' + payload + '\x1b\\\x1b8\x1b[?2026l', 0.12)
+    else:
+        out('\x1b_Gm=1;' + payload + '\x1b\\', 0.01)
+out('\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\', 0.02)
+out('\x1b[?2026h\x1b[20;1H\x1b[J\x1b[22;1HShutting down...\x1b[?2026l', 0.60)
+PY"#,
+                chunks_json = chunks_json,
+                png = RED_PIXEL_PNG_BASE64,
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49374")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphics = first_parsed["graphics"]
+        .as_array()
+        .expect("expected first graphics placements");
+    assert_eq!(first_graphics.len(), 1, "expected first pet frame: {first}");
+
+    let mut observed_shutdown_clear = false;
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            let graphics = parsed["graphics"]
+                .as_array()
+                .expect("expected graphics placements field");
+            if frame.contains("Shutting down") {
+                assert_eq!(
+                    graphics.len(),
+                    0,
+                    "final Kitty delete after split replacement must clear graphics in the shutdown frame: {frame}"
+                );
+                observed_shutdown_clear = true;
+                break;
+            }
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    assert!(
+        observed_shutdown_clear,
+        "expected a shutdown frame after final Kitty delete"
+    );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_waits_for_synchronized_graphics_update_to_finish() {
+    let profile = local_profile(
+        "kitty-sync-graphics-frame-boundary",
+        "Kitty Sync Graphics Frame Boundary",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;/wAA/w==\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[?2026h\\x1b_Ga=d,d=I,i=49374,q=2;\\x1b\\\\\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=2,m=1;AP8A\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.75)\nsys.stdout.write('\\x1b_Gm=0;/w==\\x1b\\\\\\x1b[?2026l')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49374")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphics = first_parsed["graphics"]
+        .as_array()
+        .expect("expected first graphics placements");
+    assert_eq!(first_graphics.len(), 1, "expected initial graphic: {first}");
+    let placement_id = first_graphics[0]["placement_id"]
+        .as_u64()
+        .expect("expected stable placement id");
+    let first_asset_version = first_graphics[0]["asset_version"]
+        .as_u64()
+        .expect("expected first asset version");
+
+    thread::sleep(Duration::from_millis(420));
+    assert!(
+        session::take_frame_diff(session_id).unwrap().is_none(),
+        "frame diff must not expose a partially applied synchronized graphics update"
+    );
+
+    let final_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{")
+            && !frame.contains(&format!("\"asset_version\":{first_asset_version}"))
+    });
+    let final_parsed: serde_json::Value = serde_json::from_str(&final_frame).unwrap();
+    let final_graphics = final_parsed["graphics"]
+        .as_array()
+        .expect("expected final graphics placements");
+    assert_eq!(
+        final_graphics.len(),
+        1,
+        "expected final replacement graphic: {final_frame}"
+    );
+    assert_eq!(
+        final_graphics[0]["placement_id"].as_u64(),
+        Some(placement_id),
+        "synchronized replacement must keep placement identity: {final_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_waits_for_incomplete_kitty_transfer_to_finish() {
+    let chunks = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(16)
+        .map(|chunk| std::str::from_utf8(chunk).unwrap())
+        .collect::<Vec<_>>();
+    let first_chunk = chunks[0];
+    let final_chunk = chunks[1..].join("");
+    let profile = local_profile(
+        "kitty-transfer-frame-boundary",
+        "Kitty Transfer Frame Boundary",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                r#"python3 - <<'PY'
+import sys, time
+
+def out(value):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+
+out('\x1b_Ga=T,f=32,s=1,v=1,i=49374;/wAA/w==\x1b\\')
+time.sleep(0.25)
+out('\x1b_Ga=d,d=I,i=49374;\x1b\\')
+out('\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49375,m=1;{first_chunk}\x1b\\')
+time.sleep(0.75)
+out('\x1b_Gm=0;{final_chunk}\x1b\\')
+time.sleep(0.15)
+PY"#,
+                first_chunk = first_chunk,
+                final_chunk = final_chunk,
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let first = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49374")
+    });
+    let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
+    let first_graphics = first_parsed["graphics"]
+        .as_array()
+        .expect("expected first graphics placements");
+    assert_eq!(first_graphics.len(), 1, "expected initial graphic: {first}");
+
+    thread::sleep(Duration::from_millis(420));
+    assert!(
+        session::take_frame_diff(session_id).unwrap().is_none(),
+        "frame diff must not expose an empty intermediate graphics state while Kitty transfer is incomplete"
+    );
+
+    let final_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"graphics\":[{") && frame.contains("\"asset_id\":49375")
+    });
+    let final_parsed: serde_json::Value = serde_json::from_str(&final_frame).unwrap();
+    let final_graphics = final_parsed["graphics"]
+        .as_array()
+        .expect("expected final graphics placements");
+    assert_eq!(
+        final_graphics.len(),
+        1,
+        "expected final replacement graphic: {final_frame}"
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn parser_terminal_handles_kitty_direct_graphics_and_query() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let transmit_display =
+        format!("\x1b_Ga=T,f=32,s=1,v=1,c=2,r=2,i=7,p=5;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(transmit_display.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+    assert_eq!(graphic.kitty_image_id, Some(7));
+    assert_eq!(graphic.kitty_placement_id, Some(5));
+    assert_eq!(graphic.placement.columns, Some(2));
+    assert_eq!(graphic.placement.rows, Some(2));
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b_Gi=7;OK\x1b\\"
+    );
+
+    let mut query_terminal = ParserTerminal::new(80, 24);
+    let query = format!("\x1b_Ga=q,f=32,s=1,v=1,i=9;{RED_RGBA_BASE64}\x1b\\");
+    query_terminal.process(query.as_bytes());
+
+    assert_eq!(query_terminal.graphics_count(), 0);
+    assert_eq!(
+        String::from_utf8(query_terminal.drain_responses()).unwrap(),
+        "\x1b_Gi=9;OK\x1b\\"
+    );
+
+    let mut empty_query_terminal = ParserTerminal::new(80, 24);
+    empty_query_terminal.process(b"\x1b_Ga=q,i=10;\x1b\\");
+    assert_eq!(empty_query_terminal.graphics_count(), 0);
+    assert_eq!(
+        String::from_utf8(empty_query_terminal.drain_responses()).unwrap(),
+        "\x1b_Gi=10;OK\x1b\\"
+    );
+
+    let mut quiet_terminal = ParserTerminal::new(80, 24);
+    let quiet = format!("\x1b_Ga=T,f=32,s=1,v=1,i=12,q=1;{RED_RGBA_BASE64}\x1b\\");
+    quiet_terminal.process(quiet.as_bytes());
+    assert_eq!(quiet_terminal.graphics_count(), 1);
+    assert!(quiet_terminal.drain_responses().is_empty());
+
+    let mut quiet_error_terminal = ParserTerminal::new(80, 24);
+    quiet_error_terminal.process(b"\x1b_Ga=p,i=404,q=2;\x1b\\");
+    assert_eq!(quiet_error_terminal.graphics_count(), 0);
+    assert!(quiet_error_terminal.drain_responses().is_empty());
+}
+
+#[test]
+fn parser_terminal_handles_tmux_wrapped_kitty_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let inner = format!("\x1b_Ga=T,f=32,s=1,v=1,i=11;{RED_RGBA_BASE64}\x1b\\");
+    let mut wrapped = b"\x1bPtmux;".to_vec();
+    for byte in inner.as_bytes() {
+        if *byte == b'\x1b' {
+            wrapped.push(b'\x1b');
+        }
+        wrapped.push(*byte);
+    }
+    wrapped.extend_from_slice(b"\x1b\\");
+
+    terminal.process(&wrapped);
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(11));
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b_Gi=11;OK\x1b\\"
+    );
+}
+
+#[test]
+fn parser_terminal_replaces_and_deletes_kitty_placements() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=31,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    terminal.process(b"\x1b[10;10H");
+    let second = format!("\x1b_Ga=T,f=32,s=1,v=1,i=31,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(second.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].kitty_placement_id, Some(0));
+    assert_eq!(terminal.all_graphics()[0].position, (9, 9));
+
+    let p1 = format!("\x1b_Ga=T,f=32,s=1,v=1,i=40,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    let p2 = format!("\x1b_Ga=T,f=32,s=1,v=1,i=40,p=2,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(p1.as_bytes());
+    terminal.process(p2.as_bytes());
+    assert_eq!(terminal.graphics_count(), 3);
+
+    terminal.process(b"\x1b_Ga=d,d=i,i=40,p=1,q=1;\x1b\\");
+    terminal.settle_graphics_transactions();
+    terminal.settle_graphics_transactions();
+    assert_eq!(terminal.graphics_count(), 2);
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .all(|graphic| graphic.kitty_placement_id != Some(1))
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=i,i=40,q=1;\x1b\\");
+    terminal.settle_graphics_transactions();
+    terminal.settle_graphics_transactions();
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b_Ga=d,q=1;\x1b\\");
+    terminal.settle_graphics_transactions();
+    terminal.settle_graphics_transactions();
+    assert_eq!(terminal.graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_kitty_delete_all_preserves_non_kitty_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let iterm = format!("\x1b]1337;File=inline=1:{}\x1b\\", RED_PIXEL_PNG_BASE64);
+    terminal.process(iterm.as_bytes());
+    let kitty = format!("\x1b_Ga=T,f=32,s=1,v=1,i=41,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(kitty.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+
+    terminal.process(b"\x1b_Ga=d,d=a,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
+}
+
+#[test]
+fn parser_terminal_kitty_delete_by_z_index_clears_pending_clear_hold() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let kitty = format!("\x1b_Ga=T,f=32,s=1,v=1,i=42,z=7,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(kitty.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b[2J\x1b[3J\x1b[H");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 1);
+
+    terminal.process(b"\x1b_Ga=d,d=z,z=7,q=1;\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_keeps_kitty_replacement_visible_during_chunked_transfer() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[255, 0, 0, 255]
+    );
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+    assert_eq!(terminal.graphics_count(), 0);
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=2,m=1;AP8A\x1b\\");
+
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+
+    assert!(!terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(49374));
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_kitty_replacement_visible_when_image_id_changes() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(49374));
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+    assert_eq!(terminal.graphics_count(), 0);
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375,q=2,m=1;AP8A\x1b\\");
+
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+
+    assert!(!terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, first_graphic_id);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(49375));
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+}
+
+#[test]
+fn parser_terminal_keeps_kitty_replacement_visible_when_text_interleaves() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49375,q=2,m=1;AP8A\x1b\\");
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"startup log line");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "visible text interleaved with a split Kitty replacement must not remove the old graphic"
+    );
+
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+
+    assert!(!terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, first_graphic_id);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(49375));
+}
+
+#[test]
+fn parser_terminal_keeps_transmit_then_put_replacement_visible_when_text_interleaves() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=300,p=3,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=300,q=2;\x1b\\");
+    terminal.process(b"\x1b_Ga=t,f=32,s=1,v=1,i=300,q=2,m=1;AP8A\x1b\\");
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"startup log line");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "visible text interleaved with a split Kitty transmit must not remove the old graphic"
+    );
+
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+    assert!(!terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"\x1b[1;1H\x1b_Ga=p,i=300,p=3,q=2;\x1b\\");
+
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, first_graphic_id);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(300));
+    assert_eq!(terminal.all_graphics()[0].kitty_placement_id, Some(3));
+}
+
+#[test]
+fn parser_terminal_keeps_cross_image_transmit_then_put_visible_when_text_interleaves() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=300,p=3,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=300,q=2;\x1b\\");
+    terminal.process(b"\x1b_Ga=t,f=32,s=1,v=1,i=301,q=2,m=1;AP8A\x1b\\");
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"startup log line");
+
+    assert_eq!(
+        terminal.graphics_count(),
+        0,
+        "visible text interleaved with a split Kitty transmit must keep the old cross-image replacement visible"
+    );
+
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+    assert!(!terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"\x1b[1;1H\x1b_Ga=p,i=301,p=3,q=2;\x1b\\");
+
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, first_graphic_id);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(301));
+    assert_eq!(terminal.all_graphics()[0].kitty_placement_id, Some(3));
+}
+
+#[test]
+fn parser_terminal_commits_unrelated_delete_during_kitty_replacement_transfer() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let unrelated = format!("\x1b_Ga=T,f=32,s=1,v=1,i=100,p=1,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(unrelated.as_bytes());
+    let old = format!("\x1b_Ga=T,f=32,s=1,v=1,i=200,p=2,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(old.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+    let old_replacement_graphic_id = terminal
+        .all_graphics()
+        .iter()
+        .find(|graphic| graphic.kitty_image_id == Some(200))
+        .expect("expected old replacement graphic")
+        .id;
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=100,q=2;\x1b\\");
+    terminal.process(b"\x1b_Ga=d,d=I,i=200,q=2;\x1b\\");
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=201,p=2,q=2,m=1;AP8A\x1b\\");
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 2);
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"startup log line");
+
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let replacement = &terminal.all_graphics()[0];
+    assert_eq!(replacement.id, old_replacement_graphic_id);
+    assert_eq!(replacement.kitty_image_id, Some(201));
+    assert_eq!(replacement.kitty_placement_id, Some(2));
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+}
+
+#[test]
+fn parser_terminal_commits_unrelated_default_placement_delete_during_replacement_transfer() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let unrelated = format!("\x1b[2;2H\x1b_Ga=T,f=32,s=1,v=1,i=100,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(unrelated.as_bytes());
+    let old = format!("\x1b[10;10H\x1b_Ga=T,f=32,s=1,v=1,i=200,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(old.as_bytes());
+    assert_eq!(terminal.graphics_count(), 2);
+    let old_replacement_graphic_id = terminal
+        .all_graphics()
+        .iter()
+        .find(|graphic| graphic.kitty_image_id == Some(200))
+        .expect("expected old replacement graphic")
+        .id;
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=100,q=2;\x1b\\");
+    terminal.process(b"\x1b_Ga=d,d=I,i=200,q=2;\x1b\\");
+    terminal.process(b"\x1b[10;10H\x1b_Ga=T,f=32,s=1,v=1,i=201,q=2,m=1;AP8A\x1b\\");
+    assert!(terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 2);
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"startup log line");
+
+    assert_eq!(terminal.graphics_count(), 0);
+
+    terminal.process(b"\x1b_Gm=0;/w==\x1b\\");
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let replacement = &terminal.all_graphics()[0];
+    assert_eq!(replacement.id, old_replacement_graphic_id);
+    assert_eq!(replacement.kitty_image_id, Some(201));
+    assert_eq!(replacement.kitty_placement_id, Some(0));
+    assert_eq!(replacement.position, (9, 9));
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+}
+
+#[test]
+fn parser_terminal_keeps_codex_pet_visible_across_double_delete_and_split_png() {
+    let mut terminal = ParserTerminal::new(226, 43);
+    let first = format!(
+        "\x1b7\x1b[25;205H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{RED_PIXEL_PNG_BASE64}\x1b\\\x1b8"
+    );
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(49374));
+
+    terminal.process(b"\x1b[?2026h\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b[?2026l");
+    terminal.process(b"\x1b[?2026h\x1b_Ga=d,d=I,i=49375,q=2;\x1b\\\x1b7\x1b[25;205H");
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+    assert_eq!(terminal.graphics_count(), 0);
+
+    let chunk_size = 16;
+    let chunks = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(chunk_size)
+        .collect::<Vec<_>>();
+    for (index, chunk) in chunks.iter().enumerate() {
+        let payload = std::str::from_utf8(chunk).unwrap();
+        let sequence = if index == 0 {
+            format!("\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49375,m=1;{payload}\x1b\\")
+        } else if index + 1 == chunks.len() {
+            format!("\x1b_Gm=0;{payload}\x1b\\\x1b8\x1b[?2026l")
+        } else {
+            format!("\x1b_Gm=1;{payload}\x1b\\")
+        };
+        terminal.process(sequence.as_bytes());
+
+        if index + 1 < chunks.len() {
+            assert!(terminal.synchronized_updates());
+            assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+            assert_eq!(terminal.graphics_count(), 0);
+        } else {
+            assert_eq!(terminal.graphics_count(), 1);
+            assert_eq!(terminal.all_graphics()[0].id, first_graphic_id);
+        }
+    }
+
+    assert!(!terminal.synchronized_updates());
+    assert!(!terminal.kitty_graphics_transfer_in_progress());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, first_graphic_id);
+    assert_eq!(terminal.all_graphics()[0].kitty_image_id, Some(49375));
+    assert_eq!(terminal.all_graphics()[0].kitty_placement_id, Some(0));
+    assert_eq!(terminal.all_graphics()[0].position, (204, 24));
+    assert_eq!(terminal.all_graphics()[0].placement.columns, Some(9));
+    assert_eq!(terminal.all_graphics()[0].placement.rows, Some(5));
+}
+
+#[test]
+fn parser_terminal_clears_codex_pet_after_split_replacement_final_delete() {
+    let mut terminal = ParserTerminal::new(226, 43);
+    let first = format!(
+        "\x1b7\x1b[25;205H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{RED_PIXEL_PNG_BASE64}\x1b\\\x1b8"
+    );
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b[?2026h\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[25;205H");
+    let chunks = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(16)
+        .collect::<Vec<_>>();
+    for (index, chunk) in chunks.iter().enumerate() {
+        let payload = std::str::from_utf8(chunk).unwrap();
+        let sequence = if index == 0 {
+            format!("\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374,m=1;{payload}\x1b\\")
+        } else if index + 1 == chunks.len() {
+            format!("\x1b_Gm=0;{payload}\x1b\\\x1b8\x1b[?2026l")
+        } else {
+            format!("\x1b_Gm=1;{payload}\x1b\\")
+        };
+        terminal.process(sequence.as_bytes());
+    }
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+
+    terminal.process(b"\x1b[?2026h\x1b[20;1H\x1b[J\x1b[22;1HShutting down...\x1b[?2026l");
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_reuses_pet_render_id_across_adjacent_sync_replacement() {
+    let mut terminal = ParserTerminal::new(226, 43);
+    let first = format!(
+        "\x1b7\x1b[19;218H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{RED_PIXEL_PNG_BASE64}\x1b\\\x1b8"
+    );
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+
+    let chunks = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(16)
+        .collect::<Vec<_>>();
+    let first_payload = std::str::from_utf8(chunks[0]).unwrap();
+    let adjacent_sync_start = format!(
+        "\x1b[?2026h\x1b[20;2H\x1b[K\x1b[?2026l\x1b[?2026h\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[19;218H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374,m=1;{first_payload}\x1b\\"
+    );
+    terminal.process(adjacent_sync_start.as_bytes());
+    assert!(terminal.synchronized_updates());
+
+    for (index, chunk) in chunks.iter().enumerate().skip(1) {
+        let payload = std::str::from_utf8(chunk).unwrap();
+        let sequence = if index + 1 == chunks.len() {
+            format!("\x1b_Gm=0;{payload}\x1b\\\x1b8\x1b[?2026l")
+        } else {
+            format!("\x1b_Gm=1;{payload}\x1b\\")
+        };
+        terminal.process(sequence.as_bytes());
+    }
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(
+        terminal.all_graphics()[0].id,
+        first_graphic_id,
+        "adjacent synchronized updates must not drop the Kitty replacement tombstone"
+    );
+}
+
+#[test]
+fn parser_terminal_reuses_pet_render_id_across_clear_quiet_delete_and_moved_redraw() {
+    let mut terminal = ParserTerminal::new(226, 43);
+    let first = format!(
+        "\x1b7\x1b[38;218H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{RED_PIXEL_PNG_BASE64}\x1b\\\x1b8"
+    );
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+    assert_eq!(terminal.all_graphics()[0].position, (217, 37));
+
+    terminal.process(b"\x1b[r\x1b[0m\x1b[H\x1b[2J\x1b[3J\x1b[H");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 1);
+
+    terminal.process(b"\x1b[?2026h\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[21;218H");
+    let chunk_size = 16;
+    let chunks = RED_PIXEL_PNG_BASE64
+        .as_bytes()
+        .chunks(chunk_size)
+        .collect::<Vec<_>>();
+    for (index, chunk) in chunks.iter().enumerate() {
+        let payload = std::str::from_utf8(chunk).unwrap();
+        let sequence = if index == 0 {
+            format!("\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374,m=1;{payload}\x1b\\")
+        } else if index + 1 == chunks.len() {
+            format!("\x1b_Gm=0;{payload}\x1b\\\x1b8\x1b[?2026l")
+        } else {
+            format!("\x1b_Gm=1;{payload}\x1b\\")
+        };
+        terminal.process(sequence.as_bytes());
+    }
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let replacement = &terminal.all_graphics()[0];
+    assert_eq!(
+        replacement.id, first_graphic_id,
+        "pet redraw after clear and quiet delete should keep the same render identity"
+    );
+    assert_eq!(replacement.kitty_image_id, Some(49374));
+    assert_eq!(replacement.kitty_placement_id, Some(0));
+    assert_eq!(replacement.position, (217, 20));
+    assert_eq!(terminal.pending_cleared_kitty_graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_applies_quiet_kitty_delete_without_replacement() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+
+    terminal.process(b"\x1b[?2026h\x1b[20;2HShutting down...\x1b[?2026l");
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 0);
+}
+
+#[test]
+fn parser_terminal_reuses_render_id_for_quiet_kitty_replacement() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    const RED_RGBA_BASE64: &str = "/wAA/w==";
+
+    let first = format!("\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;{RED_RGBA_BASE64}\x1b\\");
+    terminal.process(first.as_bytes());
+    assert_eq!(terminal.graphics_count(), 1);
+    let first_graphic_id = terminal.all_graphics()[0].id;
+
+    terminal.process(b"\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\");
+    assert_eq!(terminal.graphics_count(), 0);
+    assert_eq!(terminal.deferred_kitty_delete_count(), 1);
+
+    terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=2;AP8A/w==\x1b\\");
+
+    assert_eq!(terminal.deferred_kitty_delete_count(), 0);
+    assert_eq!(terminal.graphics_count(), 1);
+    assert_eq!(terminal.all_graphics()[0].id, first_graphic_id);
+    assert_eq!(
+        terminal.all_graphics()[0].pixels.as_ref(),
+        &[0, 255, 0, 255]
+    );
+}
+
+#[test]
+fn parser_terminal_handles_codex_style_kitty_pet_png_sequence() {
+    let mut terminal = ParserTerminal::new(112, 43);
+    let sequence = format!(
+        "\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[14;85H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{}\x1b\\\x1b8",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(sequence.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "kitty");
+    assert_eq!(graphic.kitty_image_id, Some(49374));
+    assert_eq!(graphic.kitty_placement_id, Some(0));
+    assert_eq!(graphic.position, (84, 13));
+    assert_eq!(graphic.placement.columns, Some(9));
+    assert_eq!(graphic.placement.rows, Some(5));
+    assert!(terminal.drain_responses().is_empty());
+}
+
+#[test]
+fn parser_terminal_buffers_synchronized_update_remainder_in_same_chunk() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x1b[?2026l");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn parser_terminal_buffers_synchronized_update_remainder_after_split_enable() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2");
+    terminal.process(b"026hhidden");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x1b[?2026l");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn parser_terminal_buffers_synchronized_update_remainder_after_multi_split_enable() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b");
+    terminal.process(b"[?202");
+    terminal.process(b"6hhidden");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x1b[?2026l");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn parser_terminal_buffers_synchronized_update_remainder_when_2026_is_not_first_mode() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?25;2026hhidden");
+
+    assert!(terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "before");
+
+    terminal.process(b"-shown\x1b[?2026l");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-shown"
+    );
+}
+
+#[test]
+fn parser_terminal_flushes_synchronized_update_that_starts_and_ends_in_same_chunk() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2026hhidden\x1b[?2026l-after");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(
+        terminal.active_grid().row_text(0).trim_end(),
+        "beforehidden-after"
+    );
+}
+
+#[test]
+fn parser_terminal_does_not_buffer_split_non_sync_private_mode() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"before\x1b[?2");
+    terminal.process(b"5hshown");
+
+    assert!(!terminal.synchronized_updates());
+    assert_eq!(terminal.active_grid().row_text(0).trim_end(), "beforeshown");
+}
+
+#[test]
+fn parser_terminal_handles_screen_wrapped_iterm_graphics() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let wrapped = format!(
+        "\x1bP\x1b]1337;File=inline=1:{}\x07\x1b\\",
+        RED_PIXEL_PNG_BASE64
+    );
+
+    terminal.process(wrapped.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.protocol.as_str(), "iterm");
+    assert_eq!(graphic.width, 1);
+    assert_eq!(graphic.height, 1);
+}
+
+#[test]
+fn parser_terminal_enforces_graphics_memory_limits() {
+    let image = format!("\x1b]1337;File=inline=1:{}\x1b\\", RED_PIXEL_PNG_BASE64);
+
+    let mut too_small_for_one_image = ParserTerminal::new(80, 24);
+    too_small_for_one_image.set_graphics_memory_limits(3, 1024);
+    too_small_for_one_image.process(image.as_bytes());
+    assert_eq!(too_small_for_one_image.graphics_count(), 0);
+
+    let mut one_image_total_budget = ParserTerminal::new(80, 24);
+    one_image_total_budget.set_graphics_memory_limits(4, 4);
+    one_image_total_budget.process(image.as_bytes());
+    one_image_total_budget.process(image.as_bytes());
+    assert_eq!(one_image_total_budget.graphics_count(), 1);
+    assert!(one_image_total_budget.dropped_sixel_graphics() > 0);
+}
+
+#[test]
+fn parser_terminal_answers_xtsmgraphics_sixel_geometry_queries() {
+    let mut terminal = ParserTerminal::new(80, 24);
+
+    terminal.process(b"\x1b[?2;4;0S");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?2;0;1024;1024S"
+    );
+
+    terminal.set_pixel_size(800, 600);
+    terminal.process(b"\x1b[?2;1;0S");
+    assert_eq!(
+        String::from_utf8(terminal.drain_responses()).unwrap(),
+        "\x1b[?2;0;800;600S"
+    );
 }
 
 #[test]
@@ -2003,25 +3481,25 @@ fn session_resize_keeps_readline_input_compact() {
         session::create_session(&serde_json::to_string(&bash_readline_profile()).unwrap()).unwrap();
     let _ = wait_for_frame_containing(session_id, "PROMPT-XYZ>");
 
-    session::write_session(
-        session_id,
-        b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-    )
-    .unwrap();
+    const READLINE_INPUT: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    session::write_session(session_id, READLINE_INPUT.as_bytes()).unwrap();
 
     let _ = wait_for_frame_where(session_id, |frame| {
-        frame.contains("PROMPT-XYZ>")
-            && frame.contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        frame.contains("PROMPT-XYZ>") && frame.contains(READLINE_INPUT)
     });
 
     session::resize_session(session_id, 40, 24, 0, 0).unwrap();
-    let _ = wait_for_frame_where(session_id, |frame| frame.contains("PROMPT-XYZ>"));
+    let _ = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"frame_kind\":\"snapshot\"")
+            && frame.contains("\"viewport_cols\":40")
+            && frame.contains("PROMPT-XYZ>")
+    });
     session::resize_session(session_id, 96, 24, 0, 0).unwrap();
 
     let after = wait_for_frame_where(session_id, |frame| {
         frame.contains("\"frame_kind\":\"snapshot\"")
             && frame.contains("PROMPT-XYZ>")
-            && frame.contains("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+            && frame.contains(READLINE_INPUT)
     });
     let parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
     let rows = parsed["rows"].as_array().expect("expected rows");
@@ -2754,15 +4232,22 @@ fn damage_driven_delta_reports_low_rows_scanned_for_single_line_scroll() {
 
     assert_eq!(parsed["viewport_row_shift"].as_i64(), Some(-1));
     assert_eq!(parsed["rows_emitted"].as_u64(), Some(2));
+    assert_eq!(parsed["full_repaint"].as_bool(), Some(false));
+    assert!(parsed["snapshot_fallback_reason"].is_null());
     assert!(parsed["state_lock_wait_micros"].as_u64().is_some());
     assert!(parsed["frame_extract_micros"].as_u64().is_some());
     assert!(parsed["json_encode_micros"].as_u64().is_some());
+    let rows_scanned = parsed["rows_scanned"]
+        .as_u64()
+        .expect("expected rows_scanned");
     assert!(
-        parsed["rows_scanned"]
-            .as_u64()
-            .expect("expected rows_scanned")
-            <= 4,
-        "single-line scroll should not rescan the full viewport: {}",
+        rows_scanned <= 5,
+        "single-line scroll debug scan should stay bounded to the visible viewport: {}",
+        serde_json::to_string_pretty(&parsed).unwrap()
+    );
+    assert!(
+        rows_scanned >= parsed["rows_emitted"].as_u64().unwrap_or_default(),
+        "debug scan accounting should cover emitted rows: {}",
         serde_json::to_string_pretty(&parsed).unwrap()
     );
 

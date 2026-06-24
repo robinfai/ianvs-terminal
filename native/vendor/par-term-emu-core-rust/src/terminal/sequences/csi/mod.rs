@@ -38,6 +38,9 @@ impl Terminal {
             'J' | 'K' | 'X' => {
                 self.handle_csi_erase(action, params, intermediates);
             }
+            'S' if intermediates.contains(&b'?') => {
+                self.handle_xtsmgraphics(params);
+            }
             'S' | 'T' => {
                 self.handle_csi_scroll(action, params, intermediates);
             }

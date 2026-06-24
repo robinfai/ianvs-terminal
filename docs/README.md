@@ -103,6 +103,13 @@
 
 这些日志只保留可复用判断和验证摘要，不作为产品需求、验收证据或当前任务状态来源。
 
+## 工程复盘
+
+- [retros/](retros/)：跨多轮实现、调试、验证形成的复盘记录。
+- [retros/2026-06-terminal-graphics-pets/SUMMARY.md](retros/2026-06-terminal-graphics-pets/SUMMARY.md)：terminal graphics 和 Codex pets 闪烁修复复盘。
+
+复盘文档记录历史过程、证据和改进点；它不替代任务文档、架构权威文档或当前验证状态。
+
 ## 维护规则
 
 - 一个概念只保留一个权威文档，避免重复定义。
