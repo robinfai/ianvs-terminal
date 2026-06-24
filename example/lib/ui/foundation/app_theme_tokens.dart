@@ -138,6 +138,86 @@ class AppThemeControls {
 }
 
 @immutable
+class AppShellChromeColors {
+  const AppShellChromeColors({
+    required this.base,
+    required this.surface,
+    required this.rail,
+    required this.tabActiveBackground,
+    required this.tabTrackBackground,
+    required this.tabHoverBackground,
+    required this.tabBorder,
+    required this.tabTextPrimary,
+    required this.tabTextMuted,
+    required this.tabTextSubtle,
+  });
+
+  final Color base;
+  final Color surface;
+  final Color rail;
+  final Color tabActiveBackground;
+  final Color tabTrackBackground;
+  final Color tabHoverBackground;
+  final Color tabBorder;
+  final Color tabTextPrimary;
+  final Color tabTextMuted;
+  final Color tabTextSubtle;
+
+  AppShellChromeColors copyWith({
+    Color? base,
+    Color? surface,
+    Color? rail,
+    Color? tabActiveBackground,
+    Color? tabTrackBackground,
+    Color? tabHoverBackground,
+    Color? tabBorder,
+    Color? tabTextPrimary,
+    Color? tabTextMuted,
+    Color? tabTextSubtle,
+  }) {
+    return AppShellChromeColors(
+      base: base ?? this.base,
+      surface: surface ?? this.surface,
+      rail: rail ?? this.rail,
+      tabActiveBackground: tabActiveBackground ?? this.tabActiveBackground,
+      tabTrackBackground: tabTrackBackground ?? this.tabTrackBackground,
+      tabHoverBackground: tabHoverBackground ?? this.tabHoverBackground,
+      tabBorder: tabBorder ?? this.tabBorder,
+      tabTextPrimary: tabTextPrimary ?? this.tabTextPrimary,
+      tabTextMuted: tabTextMuted ?? this.tabTextMuted,
+      tabTextSubtle: tabTextSubtle ?? this.tabTextSubtle,
+    );
+  }
+
+  AppShellChromeColors lerp(AppShellChromeColors other, double t) {
+    return AppShellChromeColors(
+      base: Color.lerp(base, other.base, t)!,
+      surface: Color.lerp(surface, other.surface, t)!,
+      rail: Color.lerp(rail, other.rail, t)!,
+      tabActiveBackground: Color.lerp(
+        tabActiveBackground,
+        other.tabActiveBackground,
+        t,
+      )!,
+      tabTrackBackground: Color.lerp(
+        tabTrackBackground,
+        other.tabTrackBackground,
+        t,
+      )!,
+      tabHoverBackground: Color.lerp(
+        tabHoverBackground,
+        other.tabHoverBackground,
+        t,
+      )!,
+      tabBorder: Color.lerp(tabBorder, other.tabBorder, t)!,
+      tabTextPrimary: Color.lerp(tabTextPrimary, other.tabTextPrimary, t)!,
+      tabTextMuted: Color.lerp(tabTextMuted, other.tabTextMuted, t)!,
+      tabTextSubtle: Color.lerp(tabTextSubtle, other.tabTextSubtle, t)!,
+    );
+  }
+}
+
+@immutable
 class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
   const AppThemeTokens({
     required this.canvas,
@@ -168,7 +248,21 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     required this.radius,
     required this.elevation,
     required this.controls,
+    required this.shellChrome,
   });
+
+  static const _defaultShellChrome = AppShellChromeColors(
+    base: Color(0xFF151A1E),
+    surface: Color(0xFF202528),
+    rail: Color(0xFF171C20),
+    tabActiveBackground: Color(0xFF4A5356),
+    tabTrackBackground: Color(0xD12A2D2F),
+    tabHoverBackground: Color(0xFF2F3032),
+    tabBorder: Color(0xFF778286),
+    tabTextPrimary: Color(0xFFF3F5F6),
+    tabTextMuted: Color(0xFF8D9699),
+    tabTextSubtle: Color(0xFF7F888B),
+  );
 
   static const light = AppThemeTokens(
     canvas: Color(0xFFF5F5F7),
@@ -195,9 +289,10 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     dangerContainer: Color(0xFFFFE5E8),
     warningContainer: Color(0xFFFFF2D8),
     successContainer: Color(0xFFE1F8E8),
-    spacing: AppThemeSpacing(xs: 4, sm: 6, md: 8, lg: 12, xl: 16, xxl: 22),
-    radius: AppThemeRadius(sm: 5, md: 7, lg: 10, xl: 12),
-    controls: AppThemeControls(dense: 32, compact: 36, regular: 40),
+    spacing: AppThemeSpacing(xs: 3, sm: 5, md: 7, lg: 10, xl: 14, xxl: 20),
+    radius: AppThemeRadius(sm: 4, md: 6, lg: 8, xl: 10),
+    controls: AppThemeControls(dense: 28, compact: 32, regular: 36),
+    shellChrome: _defaultShellChrome,
     elevation: AppThemeElevation(
       floating: [
         BoxShadow(
@@ -241,9 +336,10 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     dangerContainer: Color(0xFF4A171A),
     warningContainer: Color(0xFF3F2E08),
     successContainer: Color(0xFF10361A),
-    spacing: AppThemeSpacing(xs: 4, sm: 6, md: 8, lg: 12, xl: 16, xxl: 22),
-    radius: AppThemeRadius(sm: 5, md: 7, lg: 10, xl: 12),
-    controls: AppThemeControls(dense: 32, compact: 36, regular: 40),
+    spacing: AppThemeSpacing(xs: 3, sm: 5, md: 7, lg: 10, xl: 14, xxl: 20),
+    radius: AppThemeRadius(sm: 4, md: 6, lg: 8, xl: 10),
+    controls: AppThemeControls(dense: 28, compact: 32, regular: 36),
+    shellChrome: _defaultShellChrome,
     elevation: AppThemeElevation(
       floating: [
         BoxShadow(
@@ -290,6 +386,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
   final AppThemeRadius radius;
   final AppThemeElevation elevation;
   final AppThemeControls controls;
+  final AppShellChromeColors shellChrome;
 
   static AppThemeTokens fallbackFor(Brightness brightness) {
     return brightness == Brightness.dark ? dark : light;
@@ -333,6 +430,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     AppThemeRadius? radius,
     AppThemeElevation? elevation,
     AppThemeControls? controls,
+    AppShellChromeColors? shellChrome,
   }) {
     return AppThemeTokens(
       canvas: canvas ?? this.canvas,
@@ -363,6 +461,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
       radius: radius ?? this.radius,
       elevation: elevation ?? this.elevation,
       controls: controls ?? this.controls,
+      shellChrome: shellChrome ?? this.shellChrome,
     );
   }
 
@@ -411,6 +510,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
       radius: radius.lerp(other.radius, t),
       elevation: elevation.lerp(other.elevation, t),
       controls: controls.lerp(other.controls, t),
+      shellChrome: shellChrome.lerp(other.shellChrome, t),
     );
   }
 }

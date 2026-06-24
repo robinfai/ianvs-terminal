@@ -317,11 +317,11 @@ void main() {
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-menu'))),
-      const Size(28, 22),
+      const Size(26, 20),
     );
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-new-tab'))),
-      const Size(30, 22),
+      const Size(26, 20),
     );
     await _openCommandMenu(tester);
     await tester.tap(find.text('New tab'));
@@ -729,7 +729,7 @@ void main() {
       expect(field.controller?.text, clipboardText);
       expect(
         tester.getSize(find.byTooltip('Close advanced paste')),
-        const Size.square(32),
+        const Size.square(28),
       );
       final escapeToggle = tester.widget<SwitchListTile>(
         find.byKey(const Key('advanced-paste-escape')),
@@ -3388,7 +3388,7 @@ void main() {
     expect(composerField.controller?.text, 'git checkout feature/login');
     expect(
       tester.getSize(find.byKey(const Key('terminal-auto-composer-close'))),
-      const Size(30, 24),
+      const Size(28, 20),
     );
 
     await tester.tap(find.byKey(const Key('terminal-auto-composer-send')));
@@ -4457,7 +4457,7 @@ void main() {
       expect(fakeBindings.scrollToCalls.last, [1, 3]);
       expect(
         tester.getSize(find.byKey(const Key('terminal-search-close'))),
-        const Size(34, 40),
+        const Size(26, 30),
       );
       final inputRect = tester.getRect(
         find.byKey(const Key('terminal-search-input')),
@@ -4533,12 +4533,12 @@ void main() {
         find.byKey(const Key('terminal-search-mode')),
       );
 
-      expect(barRect.height, 56);
-      expect(modeRect.size, const Size(40, 40));
-      expect(inputRect.height, 40);
-      expect(fieldRect.height, 24);
-      expect(inputRect.top - barRect.top, moreOrLessEquals(8));
-      expect(barRect.bottom - inputRect.bottom, moreOrLessEquals(8));
+      expect(barRect.height, 38);
+      expect(modeRect.size, const Size(32, 30));
+      expect(inputRect.height, 30);
+      expect(fieldRect.height, 20);
+      expect(inputRect.top - barRect.top, moreOrLessEquals(4));
+      expect(barRect.bottom - inputRect.bottom, moreOrLessEquals(4));
       expect(fieldRect.center.dy, moreOrLessEquals(inputRect.center.dy));
 
       await tester.tap(find.byKey(const Key('terminal-search-mode')));
@@ -4601,7 +4601,7 @@ void main() {
 
       expect(barRect.left, greaterThanOrEqualTo(12));
       expect(barRect.right, lessThanOrEqualTo(346));
-      expect(barRect.height, 56);
+      expect(barRect.height, 38);
       expect(fieldRect.width, greaterThan(110));
       expect(statusRect.left, greaterThanOrEqualTo(barRect.left));
       expect(statusRect.right, lessThanOrEqualTo(barRect.right));
@@ -5287,7 +5287,7 @@ void main() {
     expect(find.byTooltip('Close global search'), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('terminal-global-search-close'))),
-      const Size.square(32),
+      const Size.square(28),
     );
 
     await tester.enterText(

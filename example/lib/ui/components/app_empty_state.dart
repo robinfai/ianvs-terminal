@@ -21,7 +21,7 @@ class AppEmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 360),
+      constraints: const BoxConstraints(maxWidth: 340),
       child: AppPanel(
         tone: AppPanelTone.elevated,
         padding: EdgeInsets.all(theme.spacing.xl),
@@ -29,11 +29,11 @@ class AppEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.terminal_rounded, size: 26, color: theme.accent),
+            Icon(Icons.terminal_rounded, size: 24, color: theme.accent),
             SizedBox(height: theme.spacing.md),
             Text(
               title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: theme.textPrimary,
                 fontWeight: FontWeight.w800,
               ),

@@ -21,6 +21,7 @@ class _ShellStatusBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tone = _ShellTabTone.fromTerminalBackground(
+      palette: palette,
       terminalBackground: terminalBackgroundColor,
     );
     final statusItems = <Widget>[

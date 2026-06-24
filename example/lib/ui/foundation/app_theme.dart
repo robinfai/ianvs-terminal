@@ -47,39 +47,39 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
           fontWeight: FontWeight.w700,
         ),
         titleMedium: baseTextTheme.titleMedium?.copyWith(
-          fontSize: 14.5,
+          fontSize: 14,
           height: 1.14,
           fontWeight: FontWeight.w700,
         ),
         titleSmall: baseTextTheme.titleSmall?.copyWith(
-          fontSize: 13,
+          fontSize: 12.5,
           height: 1.16,
           fontWeight: FontWeight.w700,
         ),
         bodyLarge: baseTextTheme.bodyLarge?.copyWith(
-          fontSize: 13.5,
+          fontSize: 13,
           height: 1.32,
         ),
         bodyMedium: baseTextTheme.bodyMedium?.copyWith(
-          fontSize: 13,
+          fontSize: 12.5,
           height: 1.3,
         ),
         bodySmall: baseTextTheme.bodySmall?.copyWith(
-          fontSize: 11.5,
+          fontSize: 11,
           height: 1.28,
         ),
         labelLarge: baseTextTheme.labelLarge?.copyWith(
-          fontSize: 12,
+          fontSize: 11.5,
           height: 1.12,
           fontWeight: FontWeight.w600,
         ),
         labelMedium: baseTextTheme.labelMedium?.copyWith(
-          fontSize: 11,
+          fontSize: 10.5,
           height: 1.1,
           fontWeight: FontWeight.w600,
         ),
         labelSmall: baseTextTheme.labelSmall?.copyWith(
-          fontSize: 10,
+          fontSize: 9.5,
           height: 1.08,
           fontWeight: FontWeight.w600,
         ),
@@ -137,7 +137,7 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
         foregroundColor: tokens.textMuted,
         hoverColor: tokens.accent.withValues(alpha: 0.12),
         focusColor: tokens.focusRing.withValues(alpha: 0.22),
-        iconSize: 16,
+        iconSize: 15,
         padding: EdgeInsets.all(tokens.spacing.sm),
         minimumSize: Size.square(controls.dense),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -158,20 +158,24 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
       focusedErrorBorder: outline.copyWith(
         borderSide: BorderSide(color: tokens.danger, width: 1.4),
       ),
-      constraints: const BoxConstraints(minHeight: 42),
+      constraints: const BoxConstraints(minHeight: 36),
       contentPadding: EdgeInsets.symmetric(
         horizontal: tokens.spacing.md,
-        vertical: tokens.spacing.md,
+        vertical: tokens.spacing.sm,
       ),
-      labelStyle: TextStyle(color: tokens.textMuted, fontSize: 12, height: 1.1),
+      labelStyle: TextStyle(
+        color: tokens.textMuted,
+        fontSize: 11.5,
+        height: 1.1,
+      ),
       helperStyle: TextStyle(
         color: tokens.textSubtle,
-        fontSize: 11.5,
+        fontSize: 11,
         height: 1.25,
       ),
       hintStyle: TextStyle(
         color: tokens.textSubtle,
-        fontSize: 12,
+        fontSize: 11.5,
         height: 1.18,
       ),
     ),
@@ -183,7 +187,7 @@ ThemeData buildIanvsTerminalTheme(Brightness brightness) {
     listTileTheme: ListTileThemeData(
       contentPadding: EdgeInsets.symmetric(
         horizontal: tokens.spacing.md,
-        vertical: tokens.spacing.xs,
+        vertical: 2,
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(tokens.radius.md),
@@ -277,7 +281,7 @@ ButtonStyle _buttonStyle({
     padding: WidgetStatePropertyAll(
       EdgeInsets.symmetric(
         horizontal: horizontalPadding,
-        vertical: tokens.spacing.sm + 1,
+        vertical: tokens.spacing.xs + 1,
       ),
     ),
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,

@@ -105,8 +105,8 @@ Widget _buildChromeIconButton({
       tooltip: tooltip,
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,
-      splashRadius: 16,
-      constraints: const BoxConstraints.tightFor(width: 30, height: 30),
+      splashRadius: 14,
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
       style: ButtonStyle(
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         backgroundColor: WidgetStateProperty.resolveWith((states) {

@@ -109,9 +109,9 @@ void main() {
       final themedTile = ListTileTheme.of(tileContext);
       final shape = themedTile.shape! as RoundedRectangleBorder;
       final contentPadding = themedTile.contentPadding! as EdgeInsets;
-      expect(contentPadding.left, 8);
-      expect(contentPadding.top, 4);
-      expect(shape.borderRadius, BorderRadius.circular(7));
+      expect(contentPadding.left, 7);
+      expect(contentPadding.top, 2);
+      expect(shape.borderRadius, BorderRadius.circular(6));
 
       await tester.tap(find.byTooltip('Close profiles'));
       await tester.pumpAndSettle();

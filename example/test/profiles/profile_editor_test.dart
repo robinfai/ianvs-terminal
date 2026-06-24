@@ -101,15 +101,15 @@ void main() {
       }
       expect(
         tester.getSize(find.byKey(const Key('profile-editor-save'))).height,
-        40,
+        36,
       );
       final shellFieldHeight = tester
           .getSize(find.byKey(const Key('profile-editor-shell')))
           .height;
-      expect(shellFieldHeight, greaterThanOrEqualTo(42));
+      expect(shellFieldHeight, greaterThanOrEqualTo(36));
       expect(
         tester.getSize(find.byKey(const Key('profile-editor-add-arg'))).height,
-        36,
+        32,
       );
 
       await tester.enterText(
@@ -217,7 +217,7 @@ void main() {
         tester
             .getSize(find.byKey(const Key('profile-editor-fallback-1-remove')))
             .height,
-        32,
+        28,
       );
       await tester.tap(
         find.byKey(const Key('profile-editor-fallback-1-remove')),

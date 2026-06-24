@@ -138,9 +138,9 @@ class AppActionButton extends StatelessWidget {
   }
 
   double get _iconSize => switch (size) {
-    AppActionSize.dense => 16,
-    AppActionSize.compact => 16,
-    AppActionSize.regular => 18,
+    AppActionSize.dense => 14,
+    AppActionSize.compact => 15,
+    AppActionSize.regular => 16,
   };
 
   double _height(AppThemeTokens theme) => switch (size) {
@@ -214,14 +214,14 @@ class AppActionButton extends StatelessWidget {
       padding: WidgetStatePropertyAll(
         EdgeInsets.symmetric(
           horizontal: switch (size) {
-            AppActionSize.dense => theme.spacing.sm + 1,
+            AppActionSize.dense => theme.spacing.sm,
             AppActionSize.compact => theme.spacing.md,
             AppActionSize.regular => theme.spacing.lg,
           },
           vertical: switch (size) {
-            AppActionSize.dense => theme.spacing.xs + 1,
-            AppActionSize.compact => theme.spacing.sm,
-            AppActionSize.regular => theme.spacing.sm + 1,
+            AppActionSize.dense => theme.spacing.xs,
+            AppActionSize.compact => theme.spacing.xs + 1,
+            AppActionSize.regular => theme.spacing.sm,
           },
         ),
       ),
@@ -252,9 +252,9 @@ class AppActionButton extends StatelessWidget {
       minimumSize: Size.square(buttonSize),
       fixedSize: Size.square(buttonSize),
       padding: EdgeInsets.all(switch (size) {
-        AppActionSize.dense => theme.spacing.sm - 1,
-        AppActionSize.compact => theme.spacing.sm,
-        AppActionSize.regular => theme.spacing.md,
+        AppActionSize.dense => theme.spacing.xs,
+        AppActionSize.compact => theme.spacing.sm - 1,
+        AppActionSize.regular => theme.spacing.sm,
       }),
       side: tone == AppActionTone.secondary
           ? BorderSide(color: theme.borderStrong)

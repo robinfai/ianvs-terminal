@@ -1,10 +1,10 @@
 part of 'shell_screen.dart';
 
-const double _shellChromeTitleHeight = 44;
-const double _shellChromeTabRailHeight = 44;
+const double _shellChromeTitleHeight = 38;
+const double _shellChromeTabRailHeight = 38;
 const double _shellChromeHeight =
     _shellChromeTitleHeight + _shellChromeTabRailHeight;
-const double _shellChromeHorizontalInset = 14;
+const double _shellChromeHorizontalInset = 12;
 
 class _ShellChromeBar extends StatelessWidget {
   const _ShellChromeBar({
@@ -40,12 +40,16 @@ class _ShellChromeBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chromeBase = _ShellTabTone.chromeBaseFor(terminalBackgroundColor);
+    final chromeBase = _ShellTabTone.chromeBaseFor(
+      palette,
+      terminalBackgroundColor,
+    );
     final chromeTone = _ShellTabTone.fromTerminalBackground(
+      palette: palette,
       terminalBackground: chromeBase,
     );
-    final chromeSurface = _ShellTabTone.chromeSurfaceFor(chromeBase);
-    final railSurface = _ShellTabTone.railSurfaceFor(chromeBase);
+    final chromeSurface = _ShellTabTone.chromeSurfaceFor(palette, chromeBase);
+    final railSurface = _ShellTabTone.railSurfaceFor(palette, chromeBase);
     return DecoratedBox(
       key: const Key('shell-chrome-bar'),
       decoration: BoxDecoration(
@@ -88,14 +92,14 @@ class _ShellChromeBar extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
                       _shellChromeHorizontalInset,
-                      4,
+                      3,
                       _shellChromeHorizontalInset,
-                      6,
+                      5,
                     ),
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: chromeTone.trackBackground,
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(15),
                       ),
                       child: referenceDemoMode
                           ? _ReferenceDemoTabStrip(
@@ -146,9 +150,9 @@ class _ShellWindowTitleBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final titleLeadingInset = defaultTargetPlatform == TargetPlatform.macOS
-        ? 168.0
+        ? 158.0
         : palette.spacing.xl;
-    final trailingInset = onShowCommandMenu == null ? 18.0 : 54.0;
+    final trailingInset = onShowCommandMenu == null ? 16.0 : 48.0;
 
     return SizedBox(
       height: _shellChromeTitleHeight,
@@ -180,7 +184,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: tone.mutedText,
-                                fontSize: 15,
+                                fontSize: 13.5,
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
@@ -192,8 +196,8 @@ class _ShellWindowTitleBar extends StatelessWidget {
             ),
             if (onShowCommandMenu != null)
               Positioned(
-                top: 7,
-                right: 14,
+                top: 5,
+                right: 12,
                 child: _buildChromeIconButton(
                   key: const Key('shell-chrome-menu'),
                   tooltip: 'Open command menu',
@@ -235,9 +239,9 @@ class _MacWindowDragHandle extends StatefulWidget {
 
 class _MacWindowDragHandleState extends State<_MacWindowDragHandle> {
   static const double _trafficLightCursorShieldLeft = 8;
-  static const double _trafficLightCursorShieldTop = 8;
+  static const double _trafficLightCursorShieldTop = 7;
   static const double _trafficLightCursorShieldWidth = 70;
-  static const double _trafficLightCursorShieldHeight = 28;
+  static const double _trafficLightCursorShieldHeight = 24;
 
   bool _dragging = false;
 
@@ -500,8 +504,8 @@ class _ShellTabStrip extends StatefulWidget {
 }
 
 class _ShellTabStripState extends State<_ShellTabStrip> {
-  static const double _minTabWidth = 200;
-  static const double _tabActionButtonWidth = 46;
+  static const double _minTabWidth = 180;
+  static const double _tabActionButtonWidth = 40;
 
   String? _draggingSessionId;
 
@@ -518,9 +522,11 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
   @override
   Widget build(BuildContext context) {
     final chromeBackground = _ShellTabTone.chromeBaseFor(
+      widget.palette,
       widget.chromeBackgroundColor,
     );
     final chromeTone = _ShellTabTone.fromTerminalBackground(
+      palette: widget.palette,
       terminalBackground: chromeBackground,
     );
     return SizedBox(
@@ -749,7 +755,7 @@ class _ShellNewTabButton extends StatelessWidget {
           key: const Key('shell-chrome-new-tab'),
           tooltip: 'New tab',
           onPressed: onPressed,
-          iconSize: 18,
+          iconSize: 16,
           hoverBackgroundColor: tone.hoverBackground,
           icon: Icon(Icons.add_rounded, color: tone.subtleText),
         ),
@@ -759,10 +765,6 @@ class _ShellNewTabButton extends StatelessWidget {
 }
 
 class _ShellTabTone {
-  static const Color _chromeBase = Color(0xFF151A1E);
-  static const Color _chromeSurface = Color(0xFF202528);
-  static const Color _railSurface = Color(0xFF171C20);
-
   const _ShellTabTone({
     required this.activeBackground,
     required this.trackBackground,
@@ -782,29 +784,31 @@ class _ShellTabTone {
   final Color subtleText;
 
   factory _ShellTabTone.fromTerminalBackground({
+    required AppThemeTokens palette,
     required Color terminalBackground,
   }) {
+    final chrome = palette.shellChrome;
     return _ShellTabTone(
-      activeBackground: const Color(0xFF4A5356),
-      trackBackground: const Color(0xFF2A2D2F).withValues(alpha: 0.82),
-      hoverBackground: const Color(0xFF2F3032),
-      border: const Color(0xFF778286),
-      primaryText: const Color(0xFFF3F5F6),
-      mutedText: const Color(0xFF8D9699),
-      subtleText: const Color(0xFF7F888B),
+      activeBackground: chrome.tabActiveBackground,
+      trackBackground: chrome.tabTrackBackground,
+      hoverBackground: chrome.tabHoverBackground,
+      border: chrome.tabBorder,
+      primaryText: chrome.tabTextPrimary,
+      mutedText: chrome.tabTextMuted,
+      subtleText: chrome.tabTextSubtle,
     );
   }
 
-  static Color chromeBaseFor(Color background) {
-    return _chromeBase;
+  static Color chromeBaseFor(AppThemeTokens palette, Color background) {
+    return palette.shellChrome.base;
   }
 
-  static Color chromeSurfaceFor(Color background) {
-    return _chromeSurface;
+  static Color chromeSurfaceFor(AppThemeTokens palette, Color background) {
+    return palette.shellChrome.surface;
   }
 
-  static Color railSurfaceFor(Color background) {
-    return _railSurface;
+  static Color railSurfaceFor(AppThemeTokens palette, Color background) {
+    return palette.shellChrome.rail;
   }
 }
 
@@ -834,8 +838,8 @@ class _ShellTabOverflowMenu extends StatefulWidget {
 }
 
 class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
-  static const double _menuWidth = 176;
-  static const double _menuMaxHeight = 360;
+  static const double _menuWidth = 168;
+  static const double _menuMaxHeight = 332;
 
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
@@ -881,7 +885,7 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
           CompositedTransformFollower(
             link: _layerLink,
             showWhenUnlinked: false,
-            offset: Offset(widget.width - _menuWidth, 38),
+            offset: Offset(widget.width - _menuWidth, 34),
             child: _ShellTabOverflowPanel(
               palette: widget.palette,
               width: _menuWidth,
@@ -933,9 +937,11 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
     final activeTone = activeHiddenTab == null
         ? null
         : _ShellTabTone.fromTerminalBackground(
+            palette: widget.palette,
             terminalBackground: widget.tabBackgroundColor(activeHiddenTab),
           );
     final chromeTone = _ShellTabTone.fromTerminalBackground(
+      palette: widget.palette,
       terminalBackground: widget.chromeBackgroundColor,
     );
     final background = isActive
@@ -967,11 +973,11 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
                 child: Center(
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 120),
-                    width: 34,
-                    height: 34,
+                    width: 30,
+                    height: 30,
                     decoration: BoxDecoration(
                       color: background,
-                      borderRadius: BorderRadius.circular(17),
+                      borderRadius: BorderRadius.circular(15),
                       border: Border.all(
                         color: isActive || _hovered || isOpen
                             ? (activeTone?.border ?? chromeTone.border)
@@ -986,15 +992,15 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
                         Icon(
                           key: const Key('shell-tab-overflow-ellipsis'),
                           Icons.more_horiz_rounded,
-                          size: 20,
+                          size: 18,
                           color: isActive
                               ? activeTone!.primaryText
                               : chromeTone.subtleText,
                         ),
                         if (hasHiddenNewOutput)
                           Positioned(
-                            top: 6,
-                            right: 5,
+                            top: 5,
+                            right: 4,
                             child: _ShellTabNewOutputDot(
                               key: const Key('shell-tab-overflow-new-output'),
                               palette: widget.palette,
@@ -1123,6 +1129,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
   @override
   Widget build(BuildContext context) {
     final tone = _ShellTabTone.fromTerminalBackground(
+      palette: widget.palette,
       terminalBackground: widget.terminalBackgroundColor,
     );
     final background = widget.isActive
@@ -1141,9 +1148,9 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
         onTap: widget.onSelected,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 90),
-          height: 26,
+          height: 24,
           margin: const EdgeInsets.symmetric(horizontal: 3),
-          padding: const EdgeInsets.symmetric(horizontal: 9),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: background,
             borderRadius: BorderRadius.circular(3),
@@ -1172,14 +1179,14 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 7),
               Expanded(
                 child: Text(
                   widget.tab.title,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: textColor,
-                    fontSize: 13,
+                    fontSize: 12,
                     height: 1,
                     fontWeight: widget.isActive
                         ? FontWeight.w700
@@ -1212,7 +1219,7 @@ class _ShellTabNewOutputDot extends StatelessWidget {
             color: palette.textPrimary.withValues(alpha: 0.36),
           ),
         ),
-        child: const SizedBox.square(dimension: 8),
+        child: const SizedBox.square(dimension: 7),
       ),
     );
   }
@@ -1253,11 +1260,12 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
   @override
   Widget build(BuildContext context) {
     final tone = _ShellTabTone.fromTerminalBackground(
+      palette: widget.palette,
       terminalBackground: widget.chromeBackgroundColor,
     );
     final tabTextStyle = Theme.of(context).textTheme.titleSmall!.copyWith(
       color: widget.isActive ? tone.primaryText : tone.mutedText,
-      fontSize: 13.5,
+      fontSize: 12.5,
       fontWeight: widget.isActive ? FontWeight.w700 : FontWeight.w600,
     );
 
@@ -1289,15 +1297,15 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                         key: Key('shell-tab-${widget.tab.sessionId}'),
                         style: ButtonStyle(
                           minimumSize: const WidgetStatePropertyAll(
-                            Size(0, 34),
+                            Size(0, 30),
                           ),
                           padding: const WidgetStatePropertyAll(
-                            EdgeInsets.symmetric(horizontal: 16),
+                            EdgeInsets.symmetric(horizontal: 12),
                           ),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: const VisualDensity(
                             horizontal: -1,
-                            vertical: -2,
+                            vertical: -3,
                           ),
                           foregroundColor: WidgetStatePropertyAll(
                             widget.isActive ? tone.primaryText : tone.mutedText,
@@ -1326,7 +1334,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                           ),
                           shape: WidgetStatePropertyAll(
                             RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(17),
+                              borderRadius: BorderRadius.circular(15),
                             ),
                           ),
                         ),
@@ -1349,7 +1357,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                 ),
                                 if (widget.hasNewOutput &&
                                     !widget.isActive) ...[
-                                  const SizedBox(width: 7),
+                                  const SizedBox(width: 6),
                                   _ShellTabNewOutputDot(
                                     key: Key(
                                       'shell-tab-new-output-${widget.tab.sessionId}',
@@ -1358,7 +1366,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                   ),
                                 ],
                                 if (widget.shortcutIndex != null) ...[
-                                  const SizedBox(width: 7),
+                                  const SizedBox(width: 6),
                                   Text(
                                     '⌘${widget.shortcutIndex}',
                                     style: Theme.of(context)
@@ -1366,7 +1374,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                         .labelSmall
                                         ?.copyWith(
                                           color: tone.subtleText,
-                                          fontSize: 12,
+                                          fontSize: 11,
                                           fontWeight: FontWeight.w700,
                                         ),
                                   ),
@@ -1380,7 +1388,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                   ),
                   Positioned(
                     top: 0,
-                    left: widget.palette.spacing.lg,
+                    left: widget.palette.spacing.md,
                     bottom: 0,
                     child: IgnorePointer(
                       ignoring: !_hovered,
@@ -1395,7 +1403,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                             onTap: widget.onClose,
                             child: Icon(
                               Icons.close_rounded,
-                              size: 13,
+                              size: 12,
                               color: tone.subtleText.withValues(alpha: 0.9),
                             ),
                           ),

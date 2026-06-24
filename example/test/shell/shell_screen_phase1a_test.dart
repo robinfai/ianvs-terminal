@@ -72,7 +72,7 @@ void main() {
     expect(find.byKey(const Key('shell-status-bar')), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
-      88,
+      76,
     );
     expect(find.byKey(const Key('shell-chrome-window-title')), findsOneWidget);
     expect(find.byKey(const Key('shell-chrome-window-shortcut')), findsNothing);

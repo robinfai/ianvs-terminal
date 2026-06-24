@@ -51,27 +51,27 @@ void main() {
         lightTokens.inactiveScrim.toARGB32(),
         const Color(0x66000000).toARGB32(),
       );
-      expect(lightTokens.spacing.xs, 4);
-      expect(lightTokens.spacing.sm, 6);
-      expect(lightTokens.spacing.md, 8);
-      expect(lightTokens.spacing.lg, 12);
-      expect(lightTokens.spacing.xl, 16);
-      expect(lightTokens.spacing.xxl, 22);
-      expect(lightTokens.radius.sm, 5);
-      expect(lightTokens.radius.md, 7);
-      expect(lightTokens.radius.lg, 10);
-      expect(lightTokens.radius.xl, 12);
-      expect(lightTokens.controls.dense, 32);
-      expect(lightTokens.controls.compact, 36);
-      expect(lightTokens.controls.regular, 40);
-      expect(lightTheme.textTheme.bodyMedium?.fontSize, 13);
-      expect(lightTheme.textTheme.bodySmall?.fontSize, 11.5);
-      expect(lightTheme.textTheme.titleMedium?.fontSize, 14.5);
+      expect(lightTokens.spacing.xs, 3);
+      expect(lightTokens.spacing.sm, 5);
+      expect(lightTokens.spacing.md, 7);
+      expect(lightTokens.spacing.lg, 10);
+      expect(lightTokens.spacing.xl, 14);
+      expect(lightTokens.spacing.xxl, 20);
+      expect(lightTokens.radius.sm, 4);
+      expect(lightTokens.radius.md, 6);
+      expect(lightTokens.radius.lg, 8);
+      expect(lightTokens.radius.xl, 10);
+      expect(lightTokens.controls.dense, 28);
+      expect(lightTokens.controls.compact, 32);
+      expect(lightTokens.controls.regular, 36);
+      expect(lightTheme.textTheme.bodyMedium?.fontSize, 12.5);
+      expect(lightTheme.textTheme.bodySmall?.fontSize, 11);
+      expect(lightTheme.textTheme.titleMedium?.fontSize, 14);
       final lightInputPadding =
           lightTheme.inputDecorationTheme.contentPadding! as EdgeInsets;
-      expect(lightInputPadding.top, 8);
-      expect(lightInputPadding.bottom, 8);
-      expect(lightTheme.inputDecorationTheme.constraints?.minHeight, 42);
+      expect(lightInputPadding.top, 5);
+      expect(lightInputPadding.bottom, 5);
+      expect(lightTheme.inputDecorationTheme.constraints?.minHeight, 36);
       expect(lightTheme.inputDecorationTheme.filled, isTrue);
       expect(
         lightTheme.inputDecorationTheme.fillColor?.toARGB32(),
@@ -87,19 +87,19 @@ void main() {
       );
       expect(
         lightTheme.iconButtonTheme.style?.minimumSize?.resolve({}),
-        const Size.square(32),
+        const Size.square(28),
       );
       expect(
         lightTheme.filledButtonTheme.style?.minimumSize?.resolve({}),
-        const Size(0, 40),
+        const Size(0, 36),
       );
       expect(
         lightTheme.outlinedButtonTheme.style?.minimumSize?.resolve({}),
-        const Size(0, 40),
+        const Size(0, 36),
       );
       expect(
         lightTheme.textButtonTheme.style?.minimumSize?.resolve({}),
-        const Size(0, 36),
+        const Size(0, 32),
       );
       expect(
         lightTheme.dividerTheme.color?.toARGB32(),
@@ -108,11 +108,11 @@ void main() {
       expect(lightTheme.dividerTheme.thickness, 1);
       final lightListTilePadding = lightTheme.listTileTheme.contentPadding!;
       final lightListTileInsets = lightListTilePadding as EdgeInsets;
-      expect(lightListTileInsets.left, 8);
-      expect(lightListTileInsets.top, 4);
+      expect(lightListTileInsets.left, 7);
+      expect(lightListTileInsets.top, 2);
       final lightListTileShape =
           lightTheme.listTileTheme.shape! as RoundedRectangleBorder;
-      expect(lightListTileShape.borderRadius, BorderRadius.circular(7));
+      expect(lightListTileShape.borderRadius, BorderRadius.circular(6));
       expect(
         contrastRatio(lightTokens.textPrimary, lightTokens.panel),
         greaterThanOrEqualTo(4.5),
@@ -143,8 +143,8 @@ void main() {
         darkTheme.dialogTheme.backgroundColor!.toARGB32(),
         darkTokens.panel.toARGB32(),
       );
-      expect(darkTheme.textTheme.bodyMedium?.fontSize, 13);
-      expect(darkTheme.textTheme.bodySmall?.fontSize, 11.5);
+      expect(darkTheme.textTheme.bodyMedium?.fontSize, 12.5);
+      expect(darkTheme.textTheme.bodySmall?.fontSize, 11);
       expect(
         contrastRatio(darkTokens.textPrimary, darkTokens.panel),
         greaterThanOrEqualTo(4.5),

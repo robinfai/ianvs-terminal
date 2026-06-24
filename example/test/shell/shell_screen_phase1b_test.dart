@@ -153,7 +153,7 @@ void main() {
     final singleTabWidth = tester
         .getSize(find.byKey(const Key('shell-tab-1')))
         .width;
-    expect(singleTabWidth, closeTo(stripWidth - 46, 1));
+    expect(singleTabWidth, closeTo(stripWidth - 40, 1));
 
     await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
     await tester.pumpAndSettle();
@@ -165,7 +165,7 @@ void main() {
         .getSize(find.byKey(const Key('shell-tab-2')))
         .width;
     expect(firstTabWidth, closeTo(secondTabWidth, 1));
-    expect(firstTabWidth, closeTo((stripWidth - 46) / 2, 1));
+    expect(firstTabWidth, closeTo((stripWidth - 40) / 2, 1));
     expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
 
     await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
@@ -178,7 +178,7 @@ void main() {
     ];
     expect(threeTabWidths[0], closeTo(threeTabWidths[1], 1));
     expect(threeTabWidths[1], closeTo(threeTabWidths[2], 1));
-    expect(threeTabWidths[0], closeTo((stripWidth - 46) / 3, 1));
+    expect(threeTabWidths[0], closeTo((stripWidth - 40) / 3, 1));
     expect(
       tester.getRect(find.byKey(const Key('shell-chrome-new-tab'))).right,
       lessThanOrEqualTo(
@@ -289,7 +289,7 @@ void main() {
     expect(find.bySemanticsIdentifier('shell-tab-12'), findsNothing);
     expect(
       tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
-      greaterThanOrEqualTo(200),
+      greaterThanOrEqualTo(180),
     );
 
     await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
@@ -329,7 +329,7 @@ void main() {
 
       expect(overflowRect.left, greaterThanOrEqualTo(stripRect.left - 0.1));
       expect(overflowRect.right, lessThanOrEqualTo(stripRect.right + 0.1));
-      expect(overflowRect.width, lessThanOrEqualTo(46));
+      expect(overflowRect.width, lessThanOrEqualTo(40));
       expect(find.byKey(const Key('shell-chrome-new-tab')), findsNothing);
 
       await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));

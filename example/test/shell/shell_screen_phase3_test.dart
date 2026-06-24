@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -262,7 +263,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
-      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 40);
+      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 36);
 
       await tester.ensureVisible(
         find.byKey(const Key('default-profile-option-ssh')),
@@ -577,6 +578,12 @@ void main() {
     expect(fakeBindings.lastCreatedSessionPayload!['terminal'], {
       'emulation': 'xterm256',
       'scrollbackLines': 4096,
+      'graphics': {
+        'enabled': true,
+        'advertise': 'kitty',
+        'maxImageBytes': terminal.defaultTerminalGraphicMaxImageBytes,
+        'maxTotalBytes': terminal.defaultTerminalGraphicMaxTotalBytes,
+      },
     });
     expect(fakeBindings.lastCreatedSessionPayload!['appearance'], {
       'font': {

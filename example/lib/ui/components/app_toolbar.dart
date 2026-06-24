@@ -12,7 +12,7 @@ class AppToolbar extends StatelessWidget {
     this.subtitle,
     this.actions = const <Widget>[],
     this.padding,
-    this.height = 40,
+    this.height = 36,
   });
 
   final AppPanelTone tone;
@@ -30,8 +30,7 @@ class AppToolbar extends StatelessWidget {
       tone: tone,
       borderRadius: BorderRadius.zero,
       border: Border(bottom: BorderSide(color: theme.borderStrong)),
-      padding:
-          padding ?? EdgeInsets.symmetric(horizontal: theme.spacing.lg + 2),
+      padding: padding ?? EdgeInsets.symmetric(horizontal: theme.spacing.lg),
       child: SizedBox(
         height: height,
         child: Row(

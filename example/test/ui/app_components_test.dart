@@ -121,12 +121,12 @@ void main() {
     expect(find.text('Create'), findsOneWidget);
     expect(find.text('Disabled'), findsOneWidget);
     expect(tapCount, 1);
-    expect(enabledButton.height, 40);
-    expect(denseIconButton.height, 32);
-    expect(denseIconButton.width, 32);
-    expect(iconOnlyButton.height, 36);
-    expect(iconOnlyButton.width, 36);
-    expect(disabledButton.height, 40);
+    expect(enabledButton.height, 36);
+    expect(denseIconButton.height, 28);
+    expect(denseIconButton.width, 28);
+    expect(iconOnlyButton.height, 32);
+    expect(iconOnlyButton.width, 32);
+    expect(disabledButton.height, 36);
     expect(
       tester.widget<IconButton>(find.byKey(const Key('dense-action'))).tooltip,
       isNull,
@@ -150,7 +150,7 @@ void main() {
     expect(find.text('Used by new sessions'), findsOneWidget);
     expect(find.text('Leave empty to inherit'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
-    expect(tester.widget<Text>(find.text('Font family')).style?.fontSize, 12);
+    expect(tester.widget<Text>(find.text('Font family')).style?.fontSize, 11.5);
     expect(
       tester
           .widget<Text>(find.text('Used by new sessions'))
@@ -186,7 +186,7 @@ void main() {
     expect(find.text('Open a shell tab to get started.'), findsOneWidget);
     expect(find.text('Default profile: Local Shell'), findsOneWidget);
     expect(tapCount, 1);
-    expect(emptyStateSize.width, lessThanOrEqualTo(360));
+    expect(emptyStateSize.width, lessThanOrEqualTo(340));
   });
 
   testWidgets('app dialog scaffold uses compact shell-style geometry', (
@@ -217,9 +217,9 @@ void main() {
     final footerButtonSize = tester.getSize(
       find.byKey(const Key('dialog-cancel')),
     );
-    expect(closeButtonSize.height, 32);
-    expect(closeButtonSize.width, 32);
-    expect(footerButtonSize.height, 36);
+    expect(closeButtonSize.height, 28);
+    expect(closeButtonSize.width, 28);
+    expect(footerButtonSize.height, 32);
   });
 
   testWidgets('app panel selected tone exposes workstation selection surface', (

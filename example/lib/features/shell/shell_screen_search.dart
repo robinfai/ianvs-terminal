@@ -38,13 +38,13 @@ class _TerminalSearchBar extends StatefulWidget {
 }
 
 class _TerminalSearchBarState extends State<_TerminalSearchBar> {
-  static const _searchBarMaxWidth = 544.0;
-  static const _searchBarIdleWidth = 544.0;
-  static const _searchBarCompactBreakpoint = 430.0;
-  static const _searchBarControlHeight = 40.0;
-  static const _searchFieldEditHeight = 24.0;
-  static const _searchBarHorizontalInset = 8.0;
-  static const _searchBarVerticalInset = 8.0;
+  static const _searchBarMaxWidth = 420.0;
+  static const _searchBarIdleWidth = 420.0;
+  static const _searchBarCompactBreakpoint = 340.0;
+  static const _searchBarControlHeight = 30.0;
+  static const _searchFieldEditHeight = 20.0;
+  static const _searchBarHorizontalInset = 5.0;
+  static const _searchBarVerticalInset = 4.0;
 
   late final TextEditingController _controller;
 
@@ -130,7 +130,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     return switch (mode) {
       terminal.TerminalSearchMode.smartCaseSubstring => Icon(
         Icons.manage_search_rounded,
-        size: 17,
+        size: 15,
         color: palette.textPrimary,
       ),
       terminal.TerminalSearchMode.caseSensitiveSubstring => Text(
@@ -178,18 +178,18 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
               borderRadius: BorderRadius.circular(palette.radius.sm),
             ),
             child: SizedBox(
-              width: 40,
+              width: 32,
               height: _searchBarControlHeight,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SizedBox(
-                    width: 22,
+                    width: 18,
                     child: Center(child: _searchModeMark(widget.searchMode)),
                   ),
                   Icon(
                     Icons.keyboard_arrow_down_rounded,
-                    size: 16,
+                    size: 14,
                     color: palette.textSubtle,
                   ),
                 ],
@@ -214,9 +214,9 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           widget.onModeChanged(mode);
         },
         style: ButtonStyle(
-          minimumSize: WidgetStateProperty.all(const Size(336, 34)),
+          minimumSize: WidgetStateProperty.all(const Size(288, 30)),
           padding: WidgetStateProperty.all(
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
           ),
           backgroundColor: WidgetStateProperty.all(
             selected ? palette.selected : Colors.transparent,
@@ -227,8 +227,8 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           ),
         ),
         leadingIcon: selected
-            ? Icon(Icons.check_rounded, size: 18, color: palette.textPrimary)
-            : const SizedBox(width: 18, height: 18),
+            ? Icon(Icons.check_rounded, size: 16, color: palette.textPrimary)
+            : const SizedBox(width: 16, height: 16),
         child: Text(
           _searchModeLabel(mode),
           style: textTheme.bodyMedium?.copyWith(
@@ -241,7 +241,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
 
     return [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
         child: Text(
           'Filter',
           style: textTheme.titleSmall?.copyWith(
@@ -268,7 +268,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
         backgroundColor: WidgetStateProperty.all(palette.overlay),
         elevation: WidgetStateProperty.all(8.0),
         padding: WidgetStateProperty.all(
-          const EdgeInsets.symmetric(vertical: 6),
+          const EdgeInsets.symmetric(vertical: 4),
         ),
         shape: WidgetStateProperty.all(
           RoundedRectangleBorder(
@@ -319,10 +319,10 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       key: const Key('terminal-search-clear'),
       tooltip: 'Clear search text',
       onPressed: widget.onClear,
-      splashRadius: 14,
-      iconSize: 18,
+      splashRadius: 12,
+      iconSize: 15,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 22, height: 22),
+      constraints: const BoxConstraints.tightFor(width: 18, height: 18),
       icon: Icon(Icons.cancel_rounded, color: widget.palette.textSubtle),
     );
   }
@@ -336,17 +336,17 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       liveRegion: true,
       label: 'Search result: $_counterText',
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 78),
+        constraints: const BoxConstraints(maxWidth: 68),
         child: Padding(
           key: const Key('terminal-search-status'),
-          padding: const EdgeInsets.symmetric(horizontal: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 5),
           child: Text(
             _counterText,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: foreground.withValues(alpha: 0.92),
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               height: 1,
             ),
           ),
@@ -372,65 +372,54 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     return AnimatedBuilder(
       animation: widget.focusNode,
       builder: (context, _) {
-        final focused = widget.focusNode.hasFocus;
         return SizedBox(
           key: const Key('terminal-search-input'),
           height: _searchBarControlHeight,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: palette.chrome.withValues(alpha: 0.78),
-              borderRadius: BorderRadius.circular(palette.radius.sm),
-              border: Border.all(
-                color: focused ? palette.focusRing : palette.border,
-                width: focused ? 1.4 : 1,
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.only(left: 2, right: 8),
-              child: Row(
-                children: [
-                  _buildSearchModeMenu(context),
-                  Expanded(
-                    child: Focus(
-                      onKeyEvent: _handleSearchKeyEvent,
-                      child: Semantics(
-                        label: 'Search terminal output',
-                        textField: true,
-                        child: SizedBox(
-                          height: _searchBarControlHeight,
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: SizedBox(
-                              height: _searchFieldEditHeight,
-                              child: TextField(
-                                key: const Key('terminal-search-field'),
-                                focusNode: widget.focusNode,
-                                controller: _controller,
-                                autofocus: true,
-                                textInputAction: TextInputAction.search,
-                                textAlignVertical: TextAlignVertical.center,
-                                minLines: 1,
-                                maxLines: 1,
-                                cursorColor: palette.focusRing,
-                                strutStyle: StrutStyle.fromTextStyle(
-                                  inputTextStyle,
-                                  forceStrutHeight: true,
-                                ),
-                                onChanged: widget.onChanged,
-                                onSubmitted: (_) => widget.onNext(),
-                                style: inputTextStyle,
-                                decoration: InputDecoration(
-                                  isCollapsed: true,
-                                  filled: false,
-                                  fillColor: Colors.transparent,
-                                  contentPadding: EdgeInsets.zero,
-                                  hintText: 'Search',
-                                  hintStyle: hintTextStyle,
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  disabledBorder: InputBorder.none,
-                                ),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 1, right: 4),
+            child: Row(
+              children: [
+                _buildSearchModeMenu(context),
+                Expanded(
+                  child: Focus(
+                    onKeyEvent: _handleSearchKeyEvent,
+                    child: Semantics(
+                      label: 'Search terminal output',
+                      textField: true,
+                      child: SizedBox(
+                        height: _searchBarControlHeight,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: SizedBox(
+                            height: _searchFieldEditHeight,
+                            child: TextField(
+                              key: const Key('terminal-search-field'),
+                              focusNode: widget.focusNode,
+                              controller: _controller,
+                              autofocus: true,
+                              textInputAction: TextInputAction.search,
+                              textAlignVertical: TextAlignVertical.center,
+                              minLines: 1,
+                              maxLines: 1,
+                              cursorColor: palette.focusRing,
+                              strutStyle: StrutStyle.fromTextStyle(
+                                inputTextStyle,
+                                forceStrutHeight: true,
+                              ),
+                              onChanged: widget.onChanged,
+                              onSubmitted: (_) => widget.onNext(),
+                              style: inputTextStyle,
+                              decoration: InputDecoration(
+                                isCollapsed: true,
+                                filled: false,
+                                fillColor: Colors.transparent,
+                                contentPadding: EdgeInsets.zero,
+                                hintText: 'Search',
+                                hintStyle: hintTextStyle,
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                disabledBorder: InputBorder.none,
                               ),
                             ),
                           ),
@@ -438,12 +427,11 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                       ),
                     ),
                   ),
-                  if (_counterText.isNotEmpty)
-                    _buildInlineSearchStatus(context),
-                  if (widget.query.isNotEmpty) const SizedBox(width: 2),
-                  if (widget.query.isNotEmpty) _buildInlineSearchClearButton(),
-                ],
-              ),
+                ),
+                if (_counterText.isNotEmpty) _buildInlineSearchStatus(context),
+                if (widget.query.isNotEmpty) const SizedBox(width: 2),
+                if (widget.query.isNotEmpty) _buildInlineSearchClearButton(),
+              ],
             ),
           ),
         );
@@ -467,8 +455,8 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
         key: const Key('terminal-search-previous'),
         tooltip: 'Previous match',
         onPressed: widget.matches == 0 ? null : widget.onPrevious,
-        splashRadius: 18,
-        iconSize: 24,
+        splashRadius: 13,
+        iconSize: 18,
         padding: EdgeInsets.zero,
         constraints: constraints,
         icon: const Icon(Icons.chevron_left_rounded),
@@ -477,8 +465,8 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
         key: const Key('terminal-search-next'),
         tooltip: 'Next match',
         onPressed: widget.matches == 0 ? null : widget.onNext,
-        splashRadius: 18,
-        iconSize: 24,
+        splashRadius: 13,
+        iconSize: 18,
         padding: EdgeInsets.zero,
         constraints: constraints,
         icon: const Icon(Icons.chevron_right_rounded),
@@ -491,8 +479,8 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       key: const Key('terminal-search-close'),
       tooltip: 'Close search',
       onPressed: widget.onClose,
-      splashRadius: 16,
-      iconSize: 22,
+      splashRadius: 13,
+      iconSize: 17,
       padding: EdgeInsets.zero,
       constraints: constraints,
       icon: const Icon(Icons.close_rounded),
@@ -507,9 +495,11 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(child: _buildSearchField(context)),
-        const SizedBox(width: 12),
+        const SizedBox(width: 3),
+        _searchToolbarDivider(context),
+        const SizedBox(width: 3),
         ..._buildSearchNavigationButtons(actionButtonConstraints),
-        const SizedBox(width: 4),
+        const SizedBox(width: 1),
         _buildSearchCloseButton(actionButtonConstraints),
       ],
     );
@@ -523,44 +513,63 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(child: _buildSearchField(context)),
-        const SizedBox(width: 8),
+        const SizedBox(width: 3),
+        _searchToolbarDivider(context),
+        const SizedBox(width: 3),
         _buildSearchCloseButton(actionButtonConstraints),
       ],
+    );
+  }
+
+  Widget _searchToolbarDivider(BuildContext context) {
+    return SizedBox(
+      width: 1,
+      height: 18,
+      child: ColoredBox(color: widget.palette.border.withValues(alpha: 0.72)),
     );
   }
 
   Widget _buildSearchPanel(BuildContext context, {required bool compact}) {
     final palette = widget.palette;
     const actionButtonConstraints = BoxConstraints.tightFor(
-      width: 34,
-      height: 40,
+      width: 26,
+      height: 30,
     );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.overlay.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(palette.radius.lg),
-        border: Border.all(
-          color: widget.errorText == null
-              ? palette.borderStrong.withValues(alpha: 0.72)
-              : Theme.of(context).colorScheme.error.withValues(alpha: 0.55),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.24),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+    return AnimatedBuilder(
+      animation: widget.focusNode,
+      builder: (context, _) {
+        final focused = widget.focusNode.hasFocus;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.overlay.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(palette.radius.md),
+            border: Border.all(
+              color: widget.errorText != null
+                  ? Theme.of(context).colorScheme.error.withValues(alpha: 0.55)
+                  : focused
+                  ? palette.focusRing.withValues(alpha: 0.88)
+                  : palette.borderStrong.withValues(alpha: 0.68),
+              width: focused ? 1.2 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.20),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: _searchBarHorizontalInset,
-          vertical: _searchBarVerticalInset,
-        ),
-        child: compact
-            ? _buildCompactSearchRows(context, actionButtonConstraints)
-            : _buildRegularSearchRow(context, actionButtonConstraints),
-      ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: _searchBarHorizontalInset,
+              vertical: _searchBarVerticalInset,
+            ),
+            child: compact
+                ? _buildCompactSearchRows(context, actionButtonConstraints)
+                : _buildRegularSearchRow(context, actionButtonConstraints),
+          ),
+        );
+      },
     );
   }
 
