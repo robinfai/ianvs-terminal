@@ -178,6 +178,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     widget.controller.addListener(_handleFrameUpdate);
     _bindFocusNodeListener();
     _syncCursorBlinkTimer();
+    _syncGraphicsCache();
   }
 
   @override
@@ -186,6 +187,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (!identical(oldWidget.controller, widget.controller)) {
       oldWidget.controller.removeListener(_handleFrameUpdate);
       widget.controller.addListener(_handleFrameUpdate);
+    }
+    if (!identical(oldWidget.controller, widget.controller) ||
+        !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
+      _syncGraphicsCache();
     }
     if (!identical(oldWidget.focusNode, widget.focusNode)) {
       _unbindFocusNodeListener();
@@ -1203,6 +1208,16 @@ class _TerminalViewportState extends State<TerminalViewport>
     );
   }
 
+  TerminalViewportColors _effectiveColorsForFrame(
+    TerminalViewportColors base,
+    TerminalFrameDiff frame,
+  ) {
+    return base.copyWith(
+      canvasBackground: frame.defaultBackground,
+      foreground: frame.defaultForeground,
+    );
+  }
+
   KeyEventResult _handleTerminalKeyEvent(KeyEvent event) {
     if (!_isTerminalKeyPressEvent(event)) {
       return KeyEventResult.ignored;
@@ -1385,12 +1400,15 @@ class _TerminalViewportState extends State<TerminalViewport>
             builder: (context, _) {
               final frame = widget.controller.frame;
               final graphics = frame.graphics;
+              final effectiveColors = _effectiveColorsForFrame(colors, frame);
               return LayoutBuilder(
                 builder: (context, constraints) {
                   final contentPadding = widget.contentPadding;
                   final trackHeight = math.max(0.0, constraints.maxHeight - 16);
                   return DecoratedBox(
-                    decoration: BoxDecoration(color: colors.canvasBackground),
+                    decoration: BoxDecoration(
+                      color: effectiveColors.canvasBackground,
+                    ),
                     child: Stack(
                       children: [
                         ..._buildGraphicOverlays(
@@ -1410,7 +1428,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                                   _canDisplayFrameCursor && _cursorVisible,
                               font: widget.font,
                               cursor: widget.cursor,
-                              colors: colors,
+                              colors: effectiveColors,
                               searchMatches: widget.searchMatches,
                               activeSearchMatchIndex:
                                   widget.activeSearchMatchIndex,
@@ -1423,7 +1441,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                         ..._buildInlineImageOverlays(
                           frame,
                           contentPadding,
-                          colors,
+                          effectiveColors,
                         ),
                         ..._buildGraphicOverlays(
                           frame,
@@ -1435,7 +1453,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                           ..._buildTimestampOverlays(
                             frame,
                             contentPadding,
-                            colors,
+                            effectiveColors,
                           ),
                         if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
                           Positioned(
@@ -1447,12 +1465,12 @@ class _TerminalViewportState extends State<TerminalViewport>
                               scrollbackOffset: frame.scrollbackOffset,
                               scrollbackMaxOffset: frame.scrollbackMaxOffset,
                               trackHeight: trackHeight,
-                              colors: colors,
+                              colors: effectiveColors,
                               onScrollToOffset: widget.onScrollToOffset,
                             ),
                           ),
                         ?_buildComposingOverlay(
-                          colors,
+                          effectiveColors,
                           viewportWidth: constraints.maxWidth,
                         ),
                       ],

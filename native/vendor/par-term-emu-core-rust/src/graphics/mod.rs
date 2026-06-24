@@ -17,7 +17,7 @@ pub mod kitty;
 pub mod placeholder;
 pub mod serialization;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -708,9 +708,8 @@ impl GraphicsStore {
             .iter()
             .filter(|g| {
                 let start_row = g.position.1;
-                // Default cell height of 2 for half-block rendering
-                let cell_height = g.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
-                let end_row = start_row + g.height.div_ceil(cell_height);
+                let (_, height_cells) = graphic_cell_span(g);
+                let end_row = start_row.saturating_add(height_cells);
                 row >= start_row && row < end_row
             })
             .collect()
@@ -776,6 +775,13 @@ impl GraphicsStore {
     /// Get current limits
     pub fn limits(&self) -> &GraphicsLimits {
         &self.limits
+    }
+
+    /// Maximum decoded image payload bytes accepted by parsers before storage.
+    pub fn max_decoded_image_bytes(&self) -> usize {
+        self.limits
+            .max_image_bytes
+            .min(self.limits.max_total_memory)
     }
 
     /// Set maximum graphics count
@@ -1351,6 +1357,15 @@ impl GraphicsStore {
     /// Add a frame to an animation
     pub fn add_animation_frame(&mut self, image_id: u32, frame: AnimationFrame) {
         let frame_num = frame.frame_number;
+        if let Some(anim) = self.animations.get_mut(&image_id) {
+            anim.frames.remove(&frame_num);
+        }
+        if !self.image_fits_limits(frame.width, frame.height, frame.pixels.len())
+            || !self.evict_until_fits(frame.pixels.len())
+        {
+            self.dropped_count += 1;
+            return;
+        }
         let default_delay = frame.delay_ms.max(100); // Default to 100ms if not specified
         let anim = self.get_or_create_animation(image_id, default_delay);
         anim.add_frame(frame);
@@ -1426,17 +1441,32 @@ impl GraphicsStore {
     }
 
     fn current_memory_bytes(&self) -> usize {
-        let placement_bytes = self
-            .placements
-            .iter()
-            .map(|graphic| graphic.pixels.len())
-            .sum::<usize>();
-        let shared_image_bytes = self
-            .shared_images
-            .values()
-            .map(|(_, _, pixels)| pixels.len())
-            .sum::<usize>();
-        placement_bytes.saturating_add(shared_image_bytes)
+        let mut seen = HashSet::new();
+        let mut total = 0usize;
+        for graphic in &self.placements {
+            add_unique_pixel_bytes(&mut seen, &mut total, &graphic.pixels);
+        }
+        for graphic in &self.cleared_kitty_placements {
+            add_unique_pixel_bytes(&mut seen, &mut total, &graphic.pixels);
+        }
+        for graphic in &self.deleted_kitty_placements {
+            add_unique_pixel_bytes(&mut seen, &mut total, &graphic.pixels);
+        }
+        for graphic in &self.scrollback {
+            add_unique_pixel_bytes(&mut seen, &mut total, &graphic.pixels);
+        }
+        for graphic in self.virtual_placements.values() {
+            add_unique_pixel_bytes(&mut seen, &mut total, &graphic.pixels);
+        }
+        for (_, _, pixels) in self.shared_images.values() {
+            add_unique_pixel_bytes(&mut seen, &mut total, pixels);
+        }
+        for animation in self.animations.values() {
+            for frame in animation.frames.values() {
+                add_unique_pixel_bytes(&mut seen, &mut total, &frame.pixels);
+            }
+        }
+        total
     }
 
     fn evict_until_fits(&mut self, incoming_bytes: usize) -> bool {
@@ -1446,16 +1476,9 @@ impl GraphicsStore {
         while self.current_memory_bytes().saturating_add(incoming_bytes)
             > self.limits.max_total_memory
         {
-            if !self.placements.is_empty() {
-                self.placements.remove(0);
-                self.dropped_count += 1;
-                continue;
-            }
-            let Some(image_id) = self.shared_images.keys().next().copied() else {
+            if !self.evict_one_memory_holder() {
                 return false;
-            };
-            self.shared_images.remove(&image_id);
-            self.dropped_count += 1;
+            }
         }
         true
     }
@@ -1465,21 +1488,71 @@ impl GraphicsStore {
         self.placements.retain(|graphic| {
             image_values_fit_limits(limits, graphic.width, graphic.height, graphic.pixels.len())
         });
+        self.cleared_kitty_placements.retain(|graphic| {
+            image_values_fit_limits(limits, graphic.width, graphic.height, graphic.pixels.len())
+        });
+        self.deleted_kitty_placements.retain(|graphic| {
+            image_values_fit_limits(limits, graphic.width, graphic.height, graphic.pixels.len())
+        });
+        self.scrollback.retain(|graphic| {
+            image_values_fit_limits(limits, graphic.width, graphic.height, graphic.pixels.len())
+        });
+        self.virtual_placements.retain(|_, graphic| {
+            image_values_fit_limits(limits, graphic.width, graphic.height, graphic.pixels.len())
+        });
         self.shared_images.retain(|_, (width, height, pixels)| {
             image_values_fit_limits(limits, *width, *height, pixels.len())
         });
+        self.animations.retain(|_, animation| {
+            animation.frames.retain(|_, frame| {
+                image_values_fit_limits(limits, frame.width, frame.height, frame.pixels.len())
+            });
+            !animation.frames.is_empty()
+        });
         while self.current_memory_bytes() > self.limits.max_total_memory {
-            if !self.placements.is_empty() {
-                self.placements.remove(0);
-                self.dropped_count += 1;
-                continue;
-            }
-            let Some(image_id) = self.shared_images.keys().next().copied() else {
+            if !self.evict_one_memory_holder() {
                 break;
-            };
+            }
+        }
+    }
+
+    fn evict_one_memory_holder(&mut self) -> bool {
+        if !self.cleared_kitty_placements.is_empty() {
+            self.cleared_kitty_placements.remove(0);
+            self.dropped_count += 1;
+            return true;
+        }
+        if !self.deleted_kitty_placements.is_empty() {
+            self.deleted_kitty_placements.remove(0);
+            self.dropped_count += 1;
+            return true;
+        }
+        if !self.scrollback.is_empty() {
+            self.scrollback.remove(0);
+            self.dropped_count += 1;
+            return true;
+        }
+        if let Some(image_id) = self.shared_images.keys().next().copied() {
             self.shared_images.remove(&image_id);
             self.dropped_count += 1;
+            return true;
         }
+        if let Some(key) = self.virtual_placements.keys().next().copied() {
+            self.virtual_placements.remove(&key);
+            self.dropped_count += 1;
+            return true;
+        }
+        if let Some(image_id) = self.animations.keys().next().copied() {
+            self.animations.remove(&image_id);
+            self.dropped_count += 1;
+            return true;
+        }
+        if !self.placements.is_empty() {
+            self.placements.remove(0);
+            self.dropped_count += 1;
+            return true;
+        }
+        false
     }
 
     // --- Scrolling ---
@@ -1525,6 +1598,7 @@ impl GraphicsStore {
             if graphic_bottom > top && graphic_row <= bottom && graphic_row >= top {
                 // Adjust position
                 let new_position = graphic_row.saturating_sub(lines);
+                let previous_scroll_offset = g.scroll_offset_rows;
                 let additional_scroll = lines.saturating_sub(graphic_row);
                 g.scroll_offset_rows = g.scroll_offset_rows.saturating_add(additional_scroll);
                 g.position.1 = new_position;
@@ -1534,7 +1608,11 @@ impl GraphicsStore {
                     // Move to scrollback - set scrollback_row to match text scrollback position
                     // The graphic was originally at graphic_row, which is now at scrollback position
                     let mut scrollback_graphic = g.clone();
-                    scrollback_graphic.scrollback_row = Some(grid_scrollback_len);
+                    scrollback_graphic.scrollback_row = Some(
+                        grid_scrollback_len
+                            .saturating_add(graphic_row.saturating_sub(top))
+                            .saturating_sub(previous_scroll_offset),
+                    );
 
                     to_scrollback.push(scrollback_graphic);
                     return false;
@@ -1545,8 +1623,19 @@ impl GraphicsStore {
 
         // Add to scrollback (with limit)
         for g in to_scrollback {
+            if !self.image_fits_limits(g.width, g.height, g.pixels.len())
+                || !self.evict_until_fits(g.pixels.len())
+            {
+                self.dropped_count += 1;
+                continue;
+            }
+            if self.limits.max_scrollback_graphics == 0 {
+                self.dropped_count += 1;
+                continue;
+            }
             if self.scrollback.len() >= self.limits.max_scrollback_graphics {
                 self.scrollback.remove(0);
+                self.dropped_count += 1;
             }
             self.scrollback.push(g);
         }
@@ -1619,6 +1708,13 @@ fn image_values_fit_limits(
         && width.saturating_mul(height) <= limits.max_pixels
         && bytes <= limits.max_image_bytes
         && bytes <= limits.max_total_memory
+}
+
+fn add_unique_pixel_bytes(seen: &mut HashSet<usize>, total: &mut usize, pixels: &Arc<Vec<u8>>) {
+    let key = Arc::as_ptr(pixels) as usize;
+    if seen.insert(key) {
+        *total = total.saturating_add(pixels.len());
+    }
 }
 
 fn refresh_graphic_cell_dimensions(
@@ -2054,6 +2150,97 @@ mod tests {
     }
 
     #[test]
+    fn scrollback_graphics_count_toward_total_memory_budget() {
+        let mut store = GraphicsStore::with_limits(GraphicsLimits {
+            max_total_memory: 4,
+            max_image_bytes: 1024,
+            ..GraphicsLimits::default()
+        });
+        let graphic = TerminalGraphic::new(1, GraphicProtocol::Sixel, (0, 0), 1, 1, vec![255u8; 4]);
+        assert!(store.add_graphic(graphic));
+
+        store.adjust_for_scroll_up_with_scrollback(1, 0, 23, 0);
+        assert_eq!(store.graphics_count(), 0);
+        assert_eq!(store.scrollback_count(), 1);
+
+        let replacement =
+            TerminalGraphic::new(2, GraphicProtocol::Sixel, (0, 0), 1, 1, vec![128u8; 4]);
+        assert!(store.add_graphic(replacement));
+
+        assert_eq!(store.graphics_count(), 1);
+        assert_eq!(
+            store.scrollback_count(),
+            0,
+            "scrollback pixels must be evicted when they exceed max_total_memory"
+        );
+    }
+
+    #[test]
+    fn animation_frames_count_toward_total_memory_budget() {
+        let mut store = GraphicsStore::with_limits(GraphicsLimits {
+            max_total_memory: 4,
+            max_image_bytes: 1024,
+            ..GraphicsLimits::default()
+        });
+
+        store.add_animation_frame(42, AnimationFrame::new(1, vec![255u8; 4], 1, 1));
+        assert_eq!(store.get_animation(42).unwrap().frame_count(), 1);
+
+        store.add_animation_frame(42, AnimationFrame::new(2, vec![128u8; 4], 1, 1));
+
+        let animation = store.get_animation(42).unwrap();
+        assert_eq!(animation.frame_count(), 1);
+        assert!(animation.get_frame(1).is_none());
+        assert!(animation.get_frame(2).is_some());
+        assert_eq!(store.dropped_count(), 1);
+    }
+
+    #[test]
+    fn memory_eviction_prefers_non_visible_graphics() {
+        let mut store = GraphicsStore::with_limits(GraphicsLimits {
+            max_total_memory: 8,
+            max_image_bytes: 1024,
+            ..GraphicsLimits::default()
+        });
+        let mut cleared =
+            TerminalGraphic::new(1, GraphicProtocol::Kitty, (0, 0), 1, 1, vec![255u8; 4]);
+        cleared.kitty_image_id = Some(7);
+        cleared.kitty_placement_id = Some(1);
+        assert!(store.add_graphic(cleared));
+        store.clear();
+        assert_eq!(store.pending_cleared_kitty_graphics_count(), 1);
+
+        let visible = TerminalGraphic::new(2, GraphicProtocol::Sixel, (0, 0), 1, 1, vec![128u8; 4]);
+        assert!(store.add_graphic(visible));
+
+        let replacement =
+            TerminalGraphic::new(3, GraphicProtocol::Sixel, (1, 0), 1, 1, vec![64u8; 4]);
+        assert!(store.add_graphic(replacement));
+
+        assert_eq!(
+            store.pending_cleared_kitty_graphics_count(),
+            0,
+            "non-visible cleared placements should be evicted before visible graphics"
+        );
+        assert_eq!(store.graphics_count(), 2);
+        assert!(store.all_graphics().iter().any(|graphic| graphic.id == 2));
+        assert!(store.all_graphics().iter().any(|graphic| graphic.id == 3));
+    }
+
+    #[test]
+    fn scrollback_row_tracks_graphic_original_row() {
+        let mut store = GraphicsStore::new();
+        let graphic = TerminalGraphic::new(1, GraphicProtocol::Sixel, (0, 5), 1, 1, vec![255u8; 4]);
+        assert!(store.add_graphic(graphic));
+
+        store.adjust_for_scroll_up_with_scrollback(6, 0, 23, 10);
+
+        assert_eq!(store.graphics_count(), 0);
+        assert_eq!(store.scrollback_count(), 1);
+        assert_eq!(store.all_scrollback_graphics()[0].scrollback_row, Some(15));
+    }
+
+    #[test]
     fn test_graphics_at_row_includes_graphic() {
         let mut store = GraphicsStore::new();
         let graphic = make_graphics_test_graphic(80, 20, 0, 2);
@@ -2080,6 +2267,32 @@ mod tests {
         assert!(
             !store.graphics_at_row(5).is_empty(),
             "row 5 should find the graphic"
+        );
+    }
+
+    #[test]
+    fn graphics_at_row_uses_resolved_display_span() {
+        let mut store = GraphicsStore::new();
+        let mut graphic = TerminalGraphic::new(
+            1,
+            GraphicProtocol::Kitty,
+            (10, 8),
+            200,
+            160,
+            vec![255u8; 200 * 160 * 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::cells(9.0);
+        graphic.placement.requested_height = ImageDimension::cells(5.0);
+        let (cols, rows) = graphic.resolved_cell_span(Some(80), Some(24));
+        assert_eq!((cols, rows), (9, 5));
+        graphic.set_display_cell_span(cols, rows);
+        assert!(store.add_graphic(graphic));
+
+        assert_eq!(store.graphics_at_row(12).len(), 1);
+        assert!(
+            store.graphics_at_row(13).is_empty(),
+            "row outside resolved r=5 display span must not be reported"
         );
     }
 

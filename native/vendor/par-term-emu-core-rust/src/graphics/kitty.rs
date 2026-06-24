@@ -203,6 +203,8 @@ pub struct KittyParser {
     pub z_index: Option<i32>,
     /// Cursor position captured when a multi-part placement transfer begins.
     pub placement_position: Option<(usize, usize)>,
+    /// Maximum accumulated and decompressed payload bytes accepted for this transfer.
+    max_data_bytes: Option<usize>,
     /// Raw parameters for debugging
     params: HashMap<String, String>,
 }
@@ -211,6 +213,11 @@ impl KittyParser {
     /// Create a new parser
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the maximum decoded bytes accepted for subsequent chunks.
+    pub fn set_max_data_bytes(&mut self, max_data_bytes: usize) {
+        self.max_data_bytes = Some(max_data_bytes);
     }
 
     /// Reset parser state for new transmission
@@ -225,133 +232,137 @@ impl KittyParser {
         // Split into params and data
         let (params_str, data_str) = payload.split_once(';').unwrap_or((payload, ""));
 
-        // Parse key=value pairs
-        for pair in params_str.split(',') {
-            if let Some((key, value)) = pair.split_once('=') {
-                self.params.insert(key.to_string(), value.to_string());
+        let pairs = params_str
+            .split(',')
+            .filter_map(|pair| pair.split_once('='))
+            .collect::<Vec<_>>();
 
-                match key {
-                    "a" => {
-                        if let Some(c) = value.chars().next() {
-                            self.action = KittyAction::from_char(c).unwrap_or_default();
-                        }
-                    }
-                    "f" => {
-                        if let Ok(code) = value.parse::<u32>() {
-                            self.format = KittyFormat::from_code(code).unwrap_or_default();
-                        }
-                    }
-                    "t" => {
-                        if let Some(c) = value.chars().next() {
-                            self.medium = KittyMedium::from_char(c).unwrap_or_default();
-                        }
-                    }
-                    "i" => {
-                        self.image_id = value.parse().ok();
-                    }
-                    "p" => {
-                        self.placement_id = value.parse().ok();
-                    }
-                    "s" => {
-                        // Animation control state (for AnimationControl action) takes priority
-                        if self.action == KittyAction::AnimationControl {
-                            self.animation_control = AnimationControl::from_value(value);
-                            debug_log!(
-                                "KITTY",
-                                "Parsed animation control: s={} -> {:?}",
-                                value,
-                                self.animation_control
-                            );
-                        } else {
-                            // Otherwise it's width
-                            self.width = value.parse().ok();
-                        }
-                    }
-                    "v" => {
-                        // v= is overloaded: height for images, num_plays for animation control
-                        if self.action == KittyAction::AnimationControl {
-                            // Number of times to play animation (v= for animation control)
-                            // Per Kitty spec: v=0 ignored, v=1 infinite, v=N means play N times total
-                            self.num_plays = value.parse().ok();
-                        } else {
-                            // Height for image transmission/display
-                            self.height = value.parse().ok();
-                        }
-                    }
-                    "c" => {
-                        // Frame composition mode (for Frame action) takes priority
-                        if self.action == KittyAction::Frame {
-                            if let Some(first_char) = value.chars().next() {
-                                self.frame_composition = CompositionMode::from_char(first_char);
-                            }
-                        } else {
-                            // Otherwise it's columns
-                            self.columns = value.parse().ok();
-                        }
-                    }
-                    "r" => {
-                        // Frame number (for Frame action) takes priority
-                        if self.action == KittyAction::Frame {
-                            self.frame_number = value.parse().ok();
-                        } else {
-                            // Otherwise it's rows
-                            self.rows = value.parse().ok();
-                        }
-                    }
-                    "x" => {
-                        self.x_offset = value.parse().ok();
-                    }
-                    "y" => {
-                        self.y_offset = value.parse().ok();
-                    }
-                    "m" => {
-                        self.more_chunks = value == "1";
-                    }
-                    "q" => {
-                        self.response_suppression = value.parse().unwrap_or(0);
-                    }
-                    "d" => {}
-                    "U" => {
-                        // Virtual placement
-                        self.is_virtual = value == "1";
-                    }
-                    "P" => {
-                        // Parent image ID for relative positioning
-                        self.parent_image_id = value.parse().ok();
-                    }
-                    "Q" => {
-                        // Parent placement ID for relative positioning
-                        self.parent_placement_id = value.parse().ok();
-                    }
-                    "H" => {
-                        // Relative X offset in pixels
-                        self.relative_x_offset = value.parse().ok();
-                    }
-                    "V" => {
-                        // Relative Y offset in pixels (note: different from v=height)
-                        // Only parse as relative offset if we have parent placement
-                        if self.parent_image_id.is_some() {
-                            self.relative_y_offset = value.parse().ok();
-                        }
-                    }
-                    "o" => {
-                        // Compression format
-                        if let Some(c) = value.chars().next() {
-                            if let Some(comp) = KittyCompression::from_char(c) {
-                                self.compression = comp;
-                            }
-                        }
-                    }
-                    "z" => {
-                        // z= is overloaded: frame delay for animations, z-index for placements
-                        if self.action == KittyAction::Frame {
-                            self.frame_delay_ms = value.parse().ok();
-                        } else {
-                            self.z_index = value.parse().ok();
-                        }
-                    }
-                    _ => {}
+        for (key, value) in &pairs {
+            self.params.insert((*key).to_string(), (*value).to_string());
+            if *key == "a" {
+                if let Some(c) = value.chars().next() {
+                    self.action = KittyAction::from_char(c).unwrap_or_default();
                 }
+            }
+        }
+
+        // Parse key=value pairs after action is known. Kitty parameters are unordered,
+        // and several keys have action-dependent meanings.
+        for (key, value) in pairs {
+            match key {
+                "a" => {}
+                "f" => {
+                    if let Ok(code) = value.parse::<u32>() {
+                        self.format = KittyFormat::from_code(code).unwrap_or_default();
+                    }
+                }
+                "t" => {
+                    if let Some(c) = value.chars().next() {
+                        self.medium = KittyMedium::from_char(c).unwrap_or_default();
+                    }
+                }
+                "i" => {
+                    self.image_id = value.parse().ok();
+                }
+                "p" => {
+                    self.placement_id = value.parse().ok();
+                }
+                "s" => {
+                    // Animation control state (for AnimationControl action) takes priority
+                    if self.action == KittyAction::AnimationControl {
+                        self.animation_control = AnimationControl::from_value(value);
+                        debug_log!(
+                            "KITTY",
+                            "Parsed animation control: s={} -> {:?}",
+                            value,
+                            self.animation_control
+                        );
+                    } else {
+                        // Otherwise it's width
+                        self.width = value.parse().ok();
+                    }
+                }
+                "v" => {
+                    // v= is overloaded: height for images, num_plays for animation control
+                    if self.action == KittyAction::AnimationControl {
+                        // Number of times to play animation (v= for animation control)
+                        // Per Kitty spec: v=0 ignored, v=1 infinite, v=N means play N times total
+                        self.num_plays = value.parse().ok();
+                    } else {
+                        // Height for image transmission/display
+                        self.height = value.parse().ok();
+                    }
+                }
+                "c" => {
+                    // Frame composition mode (for Frame action) takes priority
+                    if self.action == KittyAction::Frame {
+                        if let Some(first_char) = value.chars().next() {
+                            self.frame_composition = CompositionMode::from_char(first_char);
+                        }
+                    } else {
+                        // Otherwise it's columns
+                        self.columns = value.parse().ok();
+                    }
+                }
+                "r" => {
+                    // Frame number (for Frame action) takes priority
+                    if self.action == KittyAction::Frame {
+                        self.frame_number = value.parse().ok();
+                    } else {
+                        // Otherwise it's rows
+                        self.rows = value.parse().ok();
+                    }
+                }
+                "x" => {
+                    self.x_offset = value.parse().ok();
+                }
+                "y" => {
+                    self.y_offset = value.parse().ok();
+                }
+                "m" => {
+                    self.more_chunks = value == "1";
+                }
+                "q" => {
+                    self.response_suppression = value.parse().unwrap_or(0);
+                }
+                "d" => {}
+                "U" => {
+                    // Virtual placement
+                    self.is_virtual = value == "1";
+                }
+                "P" => {
+                    // Parent image ID for relative positioning
+                    self.parent_image_id = value.parse().ok();
+                }
+                "Q" => {
+                    // Parent placement ID for relative positioning
+                    self.parent_placement_id = value.parse().ok();
+                }
+                "H" => {
+                    // Relative X offset in pixels
+                    self.relative_x_offset = value.parse().ok();
+                }
+                "V" => {
+                    // Relative Y offset in pixels (note: different from v=height)
+                    self.relative_y_offset = value.parse().ok();
+                }
+                "o" => {
+                    // Compression format
+                    if let Some(c) = value.chars().next() {
+                        if let Some(comp) = KittyCompression::from_char(c) {
+                            self.compression = comp;
+                        }
+                    }
+                }
+                "z" => {
+                    // z= is overloaded: frame delay for animations, z-index for placements
+                    if self.action == KittyAction::Frame {
+                        self.frame_delay_ms = value.parse().ok();
+                    } else {
+                        self.z_index = value.parse().ok();
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -372,6 +383,18 @@ impl KittyParser {
                         )
                     })
                     .map_err(|e| GraphicsError::Base64Error(e.to_string()))?;
+            if self
+                .data_chunks
+                .iter()
+                .map(Vec::len)
+                .sum::<usize>()
+                .saturating_add(decoded.len())
+                > self.max_data_bytes.unwrap_or(usize::MAX)
+            {
+                return Err(GraphicsError::KittyError(
+                    "image data exceeds configured byte limit".to_string(),
+                ));
+            }
             self.data_chunks.push(decoded);
         }
 
@@ -432,6 +455,30 @@ impl KittyParser {
         }
     }
 
+    /// Get accumulated data with input and decompressed output byte limits.
+    pub fn get_data_limited(&self, max_bytes: usize) -> Result<Vec<u8>, GraphicsError> {
+        let raw = self.raw_data_limited(max_bytes)?;
+        if self.compression == KittyCompression::Zlib {
+            Self::decompress_zlib_limited(&raw, max_bytes)
+        } else {
+            Ok(raw)
+        }
+    }
+
+    fn raw_data_limited(&self, max_bytes: usize) -> Result<Vec<u8>, GraphicsError> {
+        let total = self.data_chunks.iter().map(Vec::len).sum::<usize>();
+        if total > max_bytes {
+            return Err(GraphicsError::KittyError(
+                "image data exceeds configured byte limit".to_string(),
+            ));
+        }
+        let mut raw = Vec::with_capacity(total);
+        for chunk in &self.data_chunks {
+            raw.extend_from_slice(chunk);
+        }
+        Ok(raw)
+    }
+
     /// Decompress zlib-compressed data
     fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>, GraphicsError> {
         let mut decoder = ZlibDecoder::new(data);
@@ -439,6 +486,21 @@ impl KittyParser {
         decoder
             .read_to_end(&mut decompressed)
             .map_err(|e| GraphicsError::KittyError(format!("Zlib decompression failed: {}", e)))?;
+        Ok(decompressed)
+    }
+
+    fn decompress_zlib_limited(data: &[u8], max_bytes: usize) -> Result<Vec<u8>, GraphicsError> {
+        let decoder = ZlibDecoder::new(data);
+        let mut limited = decoder.take(max_bytes.saturating_add(1) as u64);
+        let mut decompressed = Vec::new();
+        limited
+            .read_to_end(&mut decompressed)
+            .map_err(|e| GraphicsError::KittyError(format!("Zlib decompression failed: {}", e)))?;
+        if decompressed.len() > max_bytes {
+            return Err(GraphicsError::KittyError(
+                "decompressed image data exceeds configured byte limit".to_string(),
+            ));
+        }
         Ok(decompressed)
     }
 
@@ -492,6 +554,7 @@ impl KittyParser {
         position: (usize, usize),
         store: &mut GraphicsStore,
     ) -> Result<KittyGraphicResult, GraphicsError> {
+        let data_limit = store.max_decoded_image_bytes();
         match self.action {
             KittyAction::Delete => {
                 // Handle delete
@@ -527,7 +590,7 @@ impl KittyParser {
             }
 
             KittyAction::Query => {
-                let raw_data = self.get_data();
+                let raw_data = self.get_data_limited(data_limit)?;
                 if raw_data.is_empty() {
                     return Ok(KittyGraphicResult::None);
                 }
@@ -607,7 +670,7 @@ impl KittyParser {
             }
 
             KittyAction::Transmit | KittyAction::TransmitDisplay => {
-                let raw_data = self.get_data();
+                let raw_data = self.get_data_limited(data_limit)?;
                 if raw_data.is_empty() {
                     return Err(GraphicsError::KittyError("No image data".to_string()));
                 }
@@ -701,7 +764,7 @@ impl KittyParser {
 
             KittyAction::Frame => {
                 // Add animation frame
-                let raw_data = self.get_data();
+                let raw_data = self.get_data_limited(data_limit)?;
                 if raw_data.is_empty() {
                     return Err(GraphicsError::KittyError("No frame data".to_string()));
                 }
@@ -952,6 +1015,7 @@ impl KittyParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::graphics::GraphicsLimits;
 
     #[test]
     fn test_kitty_action_from_char() {
@@ -1156,6 +1220,73 @@ mod tests {
         // get_data() should return decompressed data
         let data = parser.get_data();
         assert_eq!(data, pixel_data);
+    }
+
+    #[test]
+    fn test_kitty_parse_chunk_rejects_data_over_limit() {
+        let pixel_data = vec![255u8; 8];
+        let b64_data =
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &pixel_data);
+        let mut parser = KittyParser::new();
+        parser.set_max_data_bytes(4);
+
+        let result = parser.parse_chunk(&format!("a=T,f=32,s=2,v=1;{b64_data}"));
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("byte limit"));
+    }
+
+    #[test]
+    fn test_kitty_action_dependent_params_are_order_independent() {
+        let mut control = KittyParser::new();
+        control.parse_chunk("s=2,v=3,i=42,a=a;").unwrap();
+
+        assert_eq!(control.action, KittyAction::AnimationControl);
+        assert_eq!(
+            control.animation_control,
+            Some(AnimationControl::LoadingMode)
+        );
+        assert_eq!(control.num_plays, Some(3));
+        assert_eq!(control.width, None);
+        assert_eq!(control.height, None);
+
+        let mut frame = KittyParser::new();
+        frame.parse_chunk("r=7,c=1,z=50,a=f;").unwrap();
+
+        assert_eq!(frame.action, KittyAction::Frame);
+        assert_eq!(frame.frame_number, Some(7));
+        assert_eq!(frame.frame_composition, Some(CompositionMode::Overwrite));
+        assert_eq!(frame.frame_delay_ms, Some(50));
+        assert_eq!(frame.columns, None);
+        assert_eq!(frame.rows, None);
+        assert_eq!(frame.z_index, None);
+    }
+
+    #[test]
+    fn test_kitty_zlib_decompression_rejects_output_over_limit() {
+        use flate2::write::ZlibEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+
+        let pixel_data = vec![255u8; 16];
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&pixel_data).unwrap();
+        let compressed = encoder.finish().unwrap();
+        let b64_compressed =
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &compressed);
+        let mut parser = KittyParser::new();
+        let payload = format!("a=T,f=32,o=z,s=2,v=2;{b64_compressed}");
+        parser.parse_chunk(&payload).unwrap();
+
+        let mut store = GraphicsStore::with_limits(GraphicsLimits {
+            max_image_bytes: 8,
+            max_total_memory: 8,
+            ..GraphicsLimits::default()
+        });
+        let result = parser.build_graphic((0, 0), &mut store);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("byte limit"));
     }
 
     #[test]

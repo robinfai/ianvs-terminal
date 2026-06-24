@@ -8,12 +8,12 @@ use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::Color;
 use par_term_emu_core_rust::graphics::{
-    ImageDimension, ImageSizeUnit, PLACEHOLDER_CHAR, TerminalGraphic,
+    ImageDimension, ImageSizeUnit, TerminalGraphic, PLACEHOLDER_CHAR,
 };
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::{
-    Terminal, TerminalDamage, TerminalProcessDebugStats, snapshot::ExportFormat,
+    snapshot::ExportFormat, Terminal, TerminalDamage, TerminalProcessDebugStats,
 };
 use parking_lot::Mutex;
 use regex::RegexBuilder;
@@ -21,8 +21,8 @@ use std::collections::{BTreeSet, HashMap, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
-    Arc, LazyLock,
     atomic::{AtomicBool, Ordering},
+    Arc, LazyLock,
 };
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -840,21 +840,19 @@ impl TerminalSession {
 
     fn start_resource_sampler(session: &Arc<Self>) {
         let resource_session = Arc::clone(session);
-        thread::spawn(move || {
-            loop {
-                if resource_session.exited.load(Ordering::SeqCst) {
-                    break;
-                }
-                let keep_sampling = resource_session.record_resource_sample();
-                let failures = resource_session
-                    .resource_sampler_state
-                    .lock()
-                    .consecutive_failures;
-                if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
-                    break;
-                }
-                thread::sleep(RESOURCE_SAMPLE_INTERVAL);
+        thread::spawn(move || loop {
+            if resource_session.exited.load(Ordering::SeqCst) {
+                break;
             }
+            let keep_sampling = resource_session.record_resource_sample();
+            let failures = resource_session
+                .resource_sampler_state
+                .lock()
+                .consecutive_failures;
+            if !keep_sampling && failures >= RESOURCE_SAMPLER_MAX_FAILURES {
+                break;
+            }
+            thread::sleep(RESOURCE_SAMPLE_INTERVAL);
         });
     }
 
@@ -3775,6 +3773,7 @@ pub fn copy_graphic_asset_rgba(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::TerminalProfileSpecialColors;
     use par_term_emu_core_rust::cell::Cell;
     use par_term_emu_core_rust::color::NamedColor;
     use par_term_emu_core_rust::terminal::Terminal;
@@ -3877,6 +3876,34 @@ mod tests {
         assert_eq!(extracted.style_runs[0].end, 1);
         assert_eq!(extracted.style_runs[0].foreground, None);
         assert_eq!(extracted.style_runs[0].background, None);
+    }
+
+    #[test]
+    fn profile_default_colors_update_current_sgr_defaults() {
+        let mut terminal = Terminal::with_scrollback(4, 4, 16);
+        let colors = TerminalProfileColors {
+            special: TerminalProfileSpecialColors {
+                foreground: Some("#112233".to_string()),
+                background: Some("#445566".to_string()),
+                ..TerminalProfileSpecialColors::default()
+            },
+            ..TerminalProfileColors::default()
+        };
+        apply_profile_colors(&mut terminal, &colors);
+
+        terminal.process(b"a");
+        let theme = terminal_theme_snapshot(&terminal);
+        let extracted = extract_row(terminal.active_grid().row(0), false, &theme);
+
+        assert_eq!(extracted.text.trim_end(), "a");
+        assert!(
+            extracted
+                .style_runs
+                .iter()
+                .all(|run| run.foreground.is_none() && run.background.is_none()),
+            "profile default colors must not serialize as explicit style runs: {:?}",
+            extracted.style_runs
+        );
     }
 
     #[test]
@@ -4188,11 +4215,9 @@ mod tests {
     fn host_protocol_observe_keeps_split_osc_sequences_working() {
         let mut state = HostProtocolState::default();
 
-        assert!(
-            state
-                .observe(b"\x1b]1;build", TerminalEmulation::Xterm256)
-                .is_empty()
-        );
+        assert!(state
+            .observe(b"\x1b]1;build", TerminalEmulation::Xterm256)
+            .is_empty());
         assert!(!state.buffer.is_empty());
 
         let events = state.observe(b" icon\x07", TerminalEmulation::Xterm256);
@@ -4206,14 +4231,12 @@ mod tests {
     fn host_protocol_observe_emits_split_shell_hook_dcs() {
         let mut state = HostProtocolState::default();
 
-        assert!(
-            state
-                .observe(
-                    b"\x1bPhook;7b22686f6f6b223a22707265636d64222c",
-                    TerminalEmulation::Xterm256
-                )
-                .is_empty()
-        );
+        assert!(state
+            .observe(
+                b"\x1bPhook;7b22686f6f6b223a22707265636d64222c",
+                TerminalEmulation::Xterm256
+            )
+            .is_empty());
         assert!(!state.buffer.is_empty());
 
         let events = state.observe(

@@ -62,6 +62,7 @@ void main() {
     );
 
     expect(renderObject.debugBackgroundSpansForRow(0), isEmpty);
+    expect(renderObject.debugCanvasBackground, const Color(0xFFF8F7F2));
   });
 
   testWidgets('subtle Codex panel backgrounds still render', (tester) async {
@@ -842,6 +843,89 @@ void main() {
     await tester.pump();
 
     expect(find.byType(RawImage), findsNothing);
+
+    runtime.dispose();
+    controller.dispose();
+  });
+
+  testWidgets('terminal viewport evicts stale graphics on initial mount', (
+    tester,
+  ) async {
+    final staleImages = [
+      (await tester.runAsync(() => createTestImage(cache: false)))!,
+      (await tester.runAsync(() => createTestImage(cache: false)))!,
+    ];
+    final liveImage = (await tester.runAsync(
+      () => createTestImage(cache: false),
+    ))!;
+    var staleDecodeIndex = 0;
+    final loadCounts = <TerminalGraphicAssetKey, int>{};
+    final cache = TerminalGraphicsCache(
+      loadAsset: (key) async {
+        loadCounts.update(key, (value) => value + 1, ifAbsent: () => 1);
+        final red = key.id == 99 ? 99 : 255;
+        return TerminalGraphicAsset(
+          key: key,
+          width: 1,
+          height: 1,
+          rgba: Uint8List.fromList(<int>[red, 0, 0, 255]),
+        );
+      },
+      decodeImage: (rgba, width, height) async {
+        if (rgba[0] == 99) {
+          return staleImages[staleDecodeIndex++];
+        }
+        return liveImage;
+      },
+    );
+    addTearDown(cache.dispose);
+
+    const staleKey = TerminalGraphicAssetKey(id: 99, version: 1);
+    await cache.imageFor(staleKey);
+    expect(loadCounts[staleKey], 1);
+
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        _graphicFrame(const TerminalGraphicAssetKey(id: 7, version: 1)),
+      );
+    final selectionController = SelectionController();
+    final runtime = TerminalRuntimeController(
+      backend: _NoopPtyBackend(),
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: runtime,
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 160,
+          height: 48,
+          child: TerminalViewport(
+            controller: controller,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+            graphicsCache: cache,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await cache.imageFor(staleKey);
+    expect(loadCounts[staleKey], 2);
 
     runtime.dispose();
     controller.dispose();

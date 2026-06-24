@@ -8,16 +8,22 @@
 //! ```rust
 //! use par_term_emu_core_rust::macros::{Macro, MacroEvent};
 //!
+//! # fn main() -> std::io::Result<()> {
 //! let mut macro_seq = Macro::new("Test Macro");
 //! macro_seq.add_key("ctrl+c");
 //! macro_seq.add_delay(100);
 //! macro_seq.add_screenshot();
 //!
+//! let path = std::env::temp_dir().join("macro.yaml");
+//!
 //! // Save to YAML
-//! macro_seq.save_yaml("/path/to/macro.yaml")?;
+//! macro_seq.save_yaml(&path)?;
 //!
 //! // Load from YAML
-//! let loaded = Macro::load_yaml("/path/to/macro.yaml")?;
+//! let loaded = Macro::load_yaml(&path)?;
+//! # let _ = std::fs::remove_file(path);
+//! # Ok(())
+//! # }
 //! ```
 
 use serde::{Deserialize, Serialize};

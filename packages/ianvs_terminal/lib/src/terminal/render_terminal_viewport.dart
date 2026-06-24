@@ -281,12 +281,10 @@ class RenderTerminalViewport extends RenderBox {
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
     canvas.clipRect(Offset.zero & size);
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = _colors.canvasBackground,
-    );
-
     final frame = _controller.frame;
+    final canvasBackground = _canvasBackgroundFor(frame);
+    canvas.drawRect(Offset.zero & size, Paint()..color = canvasBackground);
+
     _syncTextMetrics();
     _controller.updateMeasuredCellSize(_cellSize);
     final selection = _selectionController.selectionForFrame(frame);
@@ -422,6 +420,7 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   Color? get debugCursorColor => _debugCursorColor;
+  Color get debugCanvasBackground => _canvasBackgroundFor(_controller.frame);
 
   int debugRowPictureBuildsForRow(int row) => _rowPictureBuildCounts[row] ?? 0;
 
@@ -592,7 +591,7 @@ class RenderTerminalViewport extends RenderBox {
     final signature = Object.hashAll([
       row.text,
       _colors.foreground.toARGB32(),
-      _colors.canvasBackground.toARGB32(),
+      _canvasBackgroundFor(frame).toARGB32(),
       _colors.minimumContrastRatio,
       frame.defaultForeground?.toARGB32(),
       frame.defaultBackground?.toARGB32(),
@@ -616,10 +615,11 @@ class RenderTerminalViewport extends RenderBox {
     }
 
     final textCells = TerminalTextCells.fromText(row.text);
+    final canvasBackground = _canvasBackgroundFor(frame);
     final defaultRawForeground = frame.defaultForeground ?? _colors.foreground;
     final defaultForeground = _foregroundWithMinimumContrast(
       defaultRawForeground,
-      _colors.canvasBackground,
+      canvasBackground,
     );
     final cellStyles = List<_ResolvedCellStyle>.filled(
       textCells.cellCount,
@@ -643,6 +643,7 @@ class RenderTerminalViewport extends RenderBox {
         run,
         defaultForeground: defaultRawForeground,
         defaultBackground: frame.defaultBackground,
+        canvasBackground: canvasBackground,
       );
       resolvedStyles.add(
         TerminalResolvedStyle(
@@ -938,14 +939,18 @@ class RenderTerminalViewport extends RenderBox {
     TerminalStyleRun run, {
     required Color defaultForeground,
     required Color? defaultBackground,
+    required Color canvasBackground,
   }) {
     var rawForeground = run.foreground ?? defaultForeground;
-    var background =
-        run.background ?? defaultBackground ?? _colors.canvasBackground;
+    var background = run.background ?? defaultBackground ?? canvasBackground;
     var paintBackground =
         run.inverse ||
         (run.background != null &&
-            !_isDefaultLikeBackground(background, defaultBackground));
+            !_isDefaultLikeBackground(
+              background,
+              defaultBackground,
+              canvasBackground,
+            ));
 
     if (run.inverse) {
       final swapped = background;
@@ -953,9 +958,7 @@ class RenderTerminalViewport extends RenderBox {
       rawForeground = swapped;
       paintBackground = true;
     }
-    final contrastBackground = paintBackground
-        ? background
-        : _colors.canvasBackground;
+    final contrastBackground = paintBackground ? background : canvasBackground;
     if (run.dim) {
       rawForeground = Color.alphaBlend(
         rawForeground.withValues(alpha: rawForeground.a * 0.65),
@@ -982,10 +985,15 @@ class RenderTerminalViewport extends RenderBox {
   bool _isDefaultLikeBackground(
     Color background,
     Color? backendDefaultBackground,
+    Color canvasBackground,
   ) {
     final backgroundValue = background.toARGB32();
-    return backgroundValue == _colors.canvasBackground.toARGB32() ||
+    return backgroundValue == canvasBackground.toARGB32() ||
         backgroundValue == backendDefaultBackground?.toARGB32();
+  }
+
+  Color _canvasBackgroundFor(TerminalFrameDiff frame) {
+    return frame.defaultBackground ?? _colors.canvasBackground;
   }
 
   Color _foregroundWithMinimumContrast(Color foreground, Color background) {
@@ -1012,15 +1020,15 @@ class RenderTerminalViewport extends RenderBox {
     final cursor = frame.cursor;
     final rowLayout = _rowLayoutCache[cursor.row];
     if (rowLayout == null) {
-      return _colors.canvasBackground;
+      return _canvasBackgroundFor(frame);
     }
     for (final cell in rowLayout.cells) {
       if (cursor.col >= cell.column &&
           cursor.col < cell.column + cell.columnSpan) {
-        return cell.background ?? _colors.canvasBackground;
+        return cell.background ?? _canvasBackgroundFor(frame);
       }
     }
-    return _colors.canvasBackground;
+    return _canvasBackgroundFor(frame);
   }
 
   double get _minimumContrastRatio =>

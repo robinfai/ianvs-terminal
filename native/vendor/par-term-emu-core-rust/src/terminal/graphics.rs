@@ -9,6 +9,8 @@ use crate::graphics::TerminalGraphic;
 use crate::terminal::Terminal;
 use std::time::Instant;
 
+const GRAPHICS_SEQUENCE_OVERHEAD_BYTES: usize = 4096;
+
 impl Terminal {
     /// Unwrap tmux/screen DCS passthrough wrappers before the normal graphics parsers run.
     pub(crate) fn handle_graphics_passthrough_sequences(&mut self, data: &[u8]) -> Vec<u8> {
@@ -45,12 +47,24 @@ impl Terminal {
             let Some((terminator_start, terminator_end)) =
                 find_dcs_passthrough_terminator(&input, payload_start, is_tmux)
             else {
-                self.graphics_passthrough_buffer
-                    .extend_from_slice(&input[start..]);
+                if !self.retain_incomplete_graphics_passthrough(&input[start..]) {
+                    self.push_kitty_response(
+                        None,
+                        "EINVAL: graphics passthrough sequence exceeds configured byte limit",
+                    );
+                }
                 break;
             };
 
             let payload = &input[payload_start..terminator_start];
+            if self.graphics_sequence_exceeds_limit(payload.len()) {
+                self.push_kitty_response(
+                    None,
+                    "EINVAL: graphics passthrough sequence exceeds configured byte limit",
+                );
+                index = terminator_end;
+                continue;
+            }
             if is_tmux {
                 output.extend_from_slice(&decode_tmux_passthrough_payload(payload));
             } else {
@@ -86,7 +100,12 @@ impl Terminal {
             let Some((terminator_start, terminator_end)) =
                 find_apc_terminator(&input, payload_start)
             else {
-                self.kitty_apc_buffer.extend_from_slice(&input[start..]);
+                if !self.retain_incomplete_kitty_apc(&input[start..]) {
+                    self.push_kitty_response(
+                        None,
+                        "EINVAL: graphics sequence exceeds configured byte limit",
+                    );
+                }
                 break;
             };
 
@@ -114,11 +133,19 @@ impl Terminal {
     }
 
     fn handle_kitty_apc_payload(&mut self, payload: &[u8]) {
+        if self.graphics_sequence_exceeds_limit(payload.len()) {
+            self.push_kitty_response(
+                None,
+                "EINVAL: graphics sequence exceeds configured byte limit",
+            );
+            return;
+        }
         let Ok(payload) = std::str::from_utf8(payload) else {
             self.push_kitty_response(None, "EINVAL: invalid UTF-8");
             return;
         };
         let mut parser = self.kitty_parser.take().unwrap_or_else(KittyParser::new);
+        parser.set_max_data_bytes(self.graphics_store.max_decoded_image_bytes());
         let more_chunks = match parser.parse_chunk(payload) {
             Ok(more_chunks) => more_chunks,
             Err(error) => {
@@ -205,6 +232,38 @@ impl Terminal {
         let params = image_id.map(|id| format!("i={id}")).unwrap_or_default();
         self.response_buffer
             .extend_from_slice(format!("\x1b_G{params};{message}\x1b\\").as_bytes());
+    }
+
+    fn graphics_sequence_byte_limit(&self) -> usize {
+        self.graphics_store
+            .max_decoded_image_bytes()
+            .saturating_mul(2)
+            .saturating_add(GRAPHICS_SEQUENCE_OVERHEAD_BYTES)
+            .max(GRAPHICS_SEQUENCE_OVERHEAD_BYTES)
+    }
+
+    fn graphics_sequence_exceeds_limit(&self, len: usize) -> bool {
+        len > self.graphics_sequence_byte_limit()
+    }
+
+    fn retain_incomplete_kitty_apc(&mut self, pending: &[u8]) -> bool {
+        if self.graphics_sequence_exceeds_limit(pending.len()) {
+            self.kitty_apc_buffer.clear();
+            return false;
+        }
+        self.kitty_apc_buffer.clear();
+        self.kitty_apc_buffer.extend_from_slice(pending);
+        true
+    }
+
+    fn retain_incomplete_graphics_passthrough(&mut self, pending: &[u8]) -> bool {
+        if self.graphics_sequence_exceeds_limit(pending.len()) {
+            self.graphics_passthrough_buffer.clear();
+            return false;
+        }
+        self.graphics_passthrough_buffer.clear();
+        self.graphics_passthrough_buffer.extend_from_slice(pending);
+        true
     }
 
     /// Whether a Kitty graphics sequence or transfer is still incomplete.
@@ -1005,6 +1064,31 @@ mod tests {
             height,
             vec![], // Empty pixels for tests
         )
+    }
+
+    #[test]
+    fn incomplete_kitty_apc_over_limit_is_dropped() {
+        let mut term = create_test_terminal();
+        term.set_graphics_memory_limits(8, 8);
+        let mut payload = b"\x1b_Ga=T,f=32,s=1,v=1;".to_vec();
+        payload.extend(std::iter::repeat_n(b'A', 5000));
+
+        term.process(&payload);
+
+        assert!(term.kitty_apc_buffer.is_empty());
+        assert!(!term.kitty_graphics_transfer_in_progress());
+    }
+
+    #[test]
+    fn incomplete_tmux_graphics_passthrough_over_limit_is_dropped() {
+        let mut term = create_test_terminal();
+        term.set_graphics_memory_limits(8, 8);
+        let mut payload = b"\x1bPtmux;".to_vec();
+        payload.extend(std::iter::repeat_n(b'A', 5000));
+
+        term.process(&payload);
+
+        assert!(term.graphics_passthrough_buffer.is_empty());
     }
 
     #[test]
