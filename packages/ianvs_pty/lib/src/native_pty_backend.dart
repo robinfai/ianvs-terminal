@@ -20,6 +20,18 @@ typedef _ResizeSessionNative =
       ffi.Uint16,
     );
 typedef _ResizeSessionDart = int Function(int, int, int, int, int);
+typedef _ResizeSessionWithCellSizeNative =
+    ffi.Int32 Function(
+      ffi.Uint64,
+      ffi.Uint16,
+      ffi.Uint16,
+      ffi.Uint16,
+      ffi.Uint16,
+      ffi.Uint16,
+      ffi.Uint16,
+    );
+typedef _ResizeSessionWithCellSizeDart =
+    int Function(int, int, int, int, int, int, int);
 typedef _WriteSessionNative =
     ffi.Int32 Function(ffi.Uint64, ffi.Pointer<ffi.Uint8>, ffi.Size);
 typedef _WriteSessionDart = int Function(int, ffi.Pointer<ffi.Uint8>, int);
@@ -90,6 +102,19 @@ _RequestSessionDart? _lookupOptionalRequestSession(
     return library.lookupFunction<_RequestSessionNative, _RequestSessionDart>(
       symbolName,
     );
+  } on ArgumentError {
+    return null;
+  }
+}
+
+_ResizeSessionWithCellSizeDart? _lookupOptionalResizeSessionWithCellSize(
+  ffi.DynamicLibrary library,
+) {
+  try {
+    return library.lookupFunction<
+      _ResizeSessionWithCellSizeNative,
+      _ResizeSessionWithCellSizeDart
+    >('ianvs_session_resize_with_cell_size');
   } on ArgumentError {
     return null;
   }
@@ -222,8 +247,10 @@ abstract class PtyBindings {
     int cols,
     int rows,
     int pixelWidth,
-    int pixelHeight,
-  );
+    int pixelHeight, [
+    int cellWidth = 0,
+    int cellHeight = 0,
+  ]);
   int sessionWrite(int sessionId, List<int> bytes);
   int sessionScroll(int sessionId, int deltaLines);
   int sessionScrollTo(int sessionId, int offset);
@@ -253,6 +280,9 @@ class NativePtyBindings implements PtyBindings {
           .lookupFunction<_ResizeSessionNative, _ResizeSessionDart>(
             'ianvs_session_resize',
           ),
+      _resizeSessionWithCellSize = _lookupOptionalResizeSessionWithCellSize(
+        library,
+      ),
       _writeSession = library
           .lookupFunction<_WriteSessionNative, _WriteSessionDart>(
             'ianvs_session_write',
@@ -295,6 +325,7 @@ class NativePtyBindings implements PtyBindings {
   final _CreateSessionDart _createSession;
   final _CloseSessionDart _closeSession;
   final _ResizeSessionDart _resizeSession;
+  final _ResizeSessionWithCellSizeDart? _resizeSessionWithCellSize;
   final _WriteSessionDart _writeSession;
   final _ScrollSessionDart _scrollSession;
   final _ScrollToSessionDart _scrollToSession;
@@ -333,8 +364,22 @@ class NativePtyBindings implements PtyBindings {
     int cols,
     int rows,
     int pixelWidth,
-    int pixelHeight,
-  ) {
+    int pixelHeight, [
+    int cellWidth = 0,
+    int cellHeight = 0,
+  ]) {
+    final resizeSessionWithCellSize = _resizeSessionWithCellSize;
+    if (resizeSessionWithCellSize != null) {
+      return resizeSessionWithCellSize(
+        sessionId,
+        cols,
+        rows,
+        pixelWidth,
+        pixelHeight,
+        cellWidth,
+        cellHeight,
+      );
+    }
     return _resizeSession(sessionId, cols, rows, pixelWidth, pixelHeight);
   }
 
@@ -491,6 +536,8 @@ abstract class PtySessionBackend {
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   });
   void writeInput(String sessionId, List<int> bytes);
   void scrollViewport(String sessionId, int deltaLines);
@@ -554,6 +601,8 @@ class NativePtyBackend
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {
     _bindings.sessionResize(
       _nativeSessionId(sessionId),
@@ -561,6 +610,8 @@ class NativePtyBackend
       rows,
       pixelWidth,
       pixelHeight,
+      cellWidth,
+      cellHeight,
     );
   }
 

@@ -379,6 +379,10 @@ pub struct TerminalGraphicPlacement {
     pub width_cells: usize,
     pub height_cells: usize,
     #[serde(default)]
+    pub source_y_offset_px: usize,
+    #[serde(default)]
+    pub visible_height_px: usize,
+    #[serde(default)]
     pub z_index: i32,
     #[serde(default)]
     pub x_offset_px: u32,
@@ -454,6 +458,10 @@ pub struct TerminalFrameDiff {
     pub viewport_start_row: usize,
     #[serde(default)]
     pub viewport_row_shift: i32,
+    #[serde(default)]
+    pub default_foreground: Option<String>,
+    #[serde(default)]
+    pub default_background: Option<String>,
     #[serde(default)]
     pub modes: TerminalFrameModes,
     #[serde(default)]

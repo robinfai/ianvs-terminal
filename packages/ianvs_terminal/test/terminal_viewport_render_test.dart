@@ -31,6 +31,39 @@ void main() {
     expect(renderObject.debugBackgroundSpansForRow(0), isEmpty);
   });
 
+  testWidgets('backend default backgrounds do not create row blocks', (
+    tester,
+  ) async {
+    final renderObject = await _pumpRenderViewportFrame(
+      tester,
+      frame: const TerminalFrameDiff(
+        rows: [
+          TerminalRow(
+            index: 0,
+            text: 'brew cleanup',
+            styleRuns: [
+              TerminalStyleRun(
+                start: 0,
+                end: 12,
+                foreground: Color(0xFF111111),
+                background: Color(0xFFF8F7F2),
+              ),
+            ],
+          ),
+        ],
+        cursor: TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: 1,
+        viewportCols: 20,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        defaultBackground: Color(0xFFF8F7F2),
+      ),
+    );
+
+    expect(renderObject.debugBackgroundSpansForRow(0), isEmpty);
+  });
+
   testWidgets('subtle Codex panel backgrounds still render', (tester) async {
     final renderObject = await _pumpRenderViewport(
       tester,
@@ -254,10 +287,12 @@ void main() {
               protocol: 'iterm',
               row: 0,
               col: 1,
-              widthPx: 1,
-              heightPx: 1,
+              widthPx: 12,
+              heightPx: 40,
               widthCells: 2,
-              heightCells: 1,
+              heightCells: 2,
+              sourceYOffsetPx: 8,
+              visibleHeightPx: 24,
             ),
           ],
         ),
@@ -299,6 +334,15 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('terminal-graphic-11')), findsOneWidget);
+    final positioned = tester.widget<Positioned>(
+      find.ancestor(
+        of: find.byKey(const Key('terminal-graphic-11')),
+        matching: find.byType(Positioned),
+      ),
+    );
+    final devicePixelRatio = tester.view.devicePixelRatio;
+    expect(positioned.width, 12 / devicePixelRatio);
+    expect(positioned.height, 24 / devicePixelRatio);
 
     runtime.dispose();
     controller.dispose();
@@ -624,118 +668,117 @@ void main() {
     },
   );
 
-  testWidgets(
-    'terminal viewport keys graphic overlays by render id',
-    (tester) async {
-      final firstImage = (await tester.runAsync(
-        () => createTestImage(cache: false),
-      ))!;
-      final secondImage = (await tester.runAsync(
-        () => createTestImage(cache: false),
-      ))!;
-      final secondCompleter = Completer<ui.Image>();
-      final cache = TerminalGraphicsCache(
-        loadAsset: (key) async => TerminalGraphicAsset(
-          key: key,
-          width: 1,
-          height: 1,
-          rgba: Uint8List.fromList(<int>[
-            key.id == 7 ? 255 : 0,
-            key.id == 7 ? 0 : 255,
-            0,
-            255,
-          ]),
-        ),
-        decodeImage: (rgba, width, height) async {
-          if (rgba[0] == 255) {
-            return firstImage;
-          }
-          return secondCompleter.future;
-        },
-      );
-      addTearDown(cache.dispose);
+  testWidgets('terminal viewport keys graphic overlays by render id', (
+    tester,
+  ) async {
+    final firstImage = (await tester.runAsync(
+      () => createTestImage(cache: false),
+    ))!;
+    final secondImage = (await tester.runAsync(
+      () => createTestImage(cache: false),
+    ))!;
+    final secondCompleter = Completer<ui.Image>();
+    final cache = TerminalGraphicsCache(
+      loadAsset: (key) async => TerminalGraphicAsset(
+        key: key,
+        width: 1,
+        height: 1,
+        rgba: Uint8List.fromList(<int>[
+          key.id == 7 ? 255 : 0,
+          key.id == 7 ? 0 : 255,
+          0,
+          255,
+        ]),
+      ),
+      decodeImage: (rgba, width, height) async {
+        if (rgba[0] == 255) {
+          return firstImage;
+        }
+        return secondCompleter.future;
+      },
+    );
+    addTearDown(cache.dispose);
 
-      final controller = TerminalViewportController()
-        ..updateFrame(
-          _graphicFrame(
-            const TerminalGraphicAssetKey(id: 7, version: 1),
-            renderId: 101,
-            placementId: 11,
-          ),
-        );
-      final selectionController = SelectionController();
-      final runtime = TerminalRuntimeController(
-        backend: _NoopPtyBackend(),
-        copyToClipboard: (_) async {},
-        readClipboard: () async => '',
-        enableSessionPolling: false,
-      );
-      final inputController = TerminalInputController(
-        sessionId: '1',
-        runtime: runtime,
-        readFrame: () => controller.frame,
-        readSelection: () => '',
-        copySelection: (_) async {},
-        readClipboard: () async => '',
-      );
-
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: SizedBox(
-            width: 160,
-            height: 48,
-            child: TerminalViewport(
-              controller: controller,
-              selectionController: selectionController,
-              inputController: inputController,
-              onScrollLines: (_) {},
-              onScrollToOffset: (_) {},
-              graphicsCache: cache,
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      await tester.pump();
-
-      final firstVisibleImage = tester
-          .widget<RawImage>(find.byType(RawImage))
-          .image;
-      expect(firstVisibleImage, isNotNull);
-      expect(find.byKey(const Key('terminal-graphic-101')), findsOneWidget);
-
-      controller.updateFrame(
+    final controller = TerminalViewportController()
+      ..updateFrame(
         _graphicFrame(
-          const TerminalGraphicAssetKey(id: 8, version: 1),
+          const TerminalGraphicAssetKey(id: 7, version: 1),
           renderId: 101,
-          placementId: 12,
-          col: 3,
+          placementId: 11,
         ),
       );
-      await tester.pump();
-      await tester.pump();
+    final selectionController = SelectionController();
+    final runtime = TerminalRuntimeController(
+      backend: _NoopPtyBackend(),
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: runtime,
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
 
-      expect(find.byKey(const Key('terminal-graphic-101')), findsOneWidget);
-      expect(
-        tester.widget<RawImage>(find.byType(RawImage)).image,
-        same(firstVisibleImage),
-      );
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 160,
+          height: 48,
+          child: TerminalViewport(
+            controller: controller,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+            graphicsCache: cache,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
 
-      secondCompleter.complete(secondImage);
-      await tester.pump();
-      await tester.pump();
+    final firstVisibleImage = tester
+        .widget<RawImage>(find.byType(RawImage))
+        .image;
+    expect(firstVisibleImage, isNotNull);
+    expect(find.byKey(const Key('terminal-graphic-101')), findsOneWidget);
 
-      final secondVisibleImage = tester
-          .widget<RawImage>(find.byType(RawImage))
-          .image;
-      expect(secondVisibleImage, isNotNull);
-      expect(secondVisibleImage, isNot(same(firstVisibleImage)));
+    controller.updateFrame(
+      _graphicFrame(
+        const TerminalGraphicAssetKey(id: 8, version: 1),
+        renderId: 101,
+        placementId: 12,
+        col: 3,
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
 
-      runtime.dispose();
-      controller.dispose();
-    },
-  );
+    expect(find.byKey(const Key('terminal-graphic-101')), findsOneWidget);
+    expect(
+      tester.widget<RawImage>(find.byType(RawImage)).image,
+      same(firstVisibleImage),
+    );
+
+    secondCompleter.complete(secondImage);
+    await tester.pump();
+    await tester.pump();
+
+    final secondVisibleImage = tester
+        .widget<RawImage>(find.byType(RawImage))
+        .image;
+    expect(secondVisibleImage, isNotNull);
+    expect(secondVisibleImage, isNot(same(firstVisibleImage)));
+
+    runtime.dispose();
+    controller.dispose();
+  });
 
   testWidgets('terminal viewport removes a graphic omitted by Rust', (
     tester,
@@ -1085,6 +1128,8 @@ class _NoopPtyBackend implements PtySessionBackend {
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {}
 
   @override

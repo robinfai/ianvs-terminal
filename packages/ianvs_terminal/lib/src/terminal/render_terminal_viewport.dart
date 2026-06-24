@@ -321,7 +321,7 @@ class RenderTerminalViewport extends RenderBox {
           row.index >= activeSelection.startRow &&
           row.index <= activeSelection.endRow;
       final rowLayout = rowNeedsRebuild || selectionTouchesRow
-          ? _rowLayoutFor(row)
+          ? _rowLayoutFor(row, frame)
           : null;
       if (rowNeedsRebuild) {
         _rebuildRowVisual(
@@ -588,12 +588,14 @@ class RenderTerminalViewport extends RenderBox {
     }
   }
 
-  _CachedRowLayout _rowLayoutFor(TerminalRow row) {
+  _CachedRowLayout _rowLayoutFor(TerminalRow row, TerminalFrameDiff frame) {
     final signature = Object.hashAll([
       row.text,
       _colors.foreground.toARGB32(),
       _colors.canvasBackground.toARGB32(),
       _colors.minimumContrastRatio,
+      frame.defaultForeground?.toARGB32(),
+      frame.defaultBackground?.toARGB32(),
       for (final entry in row.styleRuns)
         Object.hash(
           entry.start,
@@ -614,7 +616,7 @@ class RenderTerminalViewport extends RenderBox {
     }
 
     final textCells = TerminalTextCells.fromText(row.text);
-    final defaultRawForeground = _colors.foreground;
+    final defaultRawForeground = frame.defaultForeground ?? _colors.foreground;
     final defaultForeground = _foregroundWithMinimumContrast(
       defaultRawForeground,
       _colors.canvasBackground,
@@ -637,7 +639,11 @@ class RenderTerminalViewport extends RenderBox {
       if (start >= end) {
         continue;
       }
-      final resolvedStyle = _resolvedCellStyleFor(run);
+      final resolvedStyle = _resolvedCellStyleFor(
+        run,
+        defaultForeground: defaultRawForeground,
+        defaultBackground: frame.defaultBackground,
+      );
       resolvedStyles.add(
         TerminalResolvedStyle(
           start: start,
@@ -928,12 +934,18 @@ class RenderTerminalViewport extends RenderBox {
         (codePoint >= 0x100000 && codePoint <= 0x10FFFD);
   }
 
-  _ResolvedCellStyle _resolvedCellStyleFor(TerminalStyleRun run) {
-    var rawForeground = run.foreground ?? _colors.foreground;
-    var background = run.background ?? _colors.canvasBackground;
+  _ResolvedCellStyle _resolvedCellStyleFor(
+    TerminalStyleRun run, {
+    required Color defaultForeground,
+    required Color? defaultBackground,
+  }) {
+    var rawForeground = run.foreground ?? defaultForeground;
+    var background =
+        run.background ?? defaultBackground ?? _colors.canvasBackground;
     var paintBackground =
         run.inverse ||
-        (run.background != null && !_isDefaultLikeBackground(background));
+        (run.background != null &&
+            !_isDefaultLikeBackground(background, defaultBackground));
 
     if (run.inverse) {
       final swapped = background;
@@ -967,8 +979,13 @@ class RenderTerminalViewport extends RenderBox {
     );
   }
 
-  bool _isDefaultLikeBackground(Color background) {
-    return background.toARGB32() == _colors.canvasBackground.toARGB32();
+  bool _isDefaultLikeBackground(
+    Color background,
+    Color? backendDefaultBackground,
+  ) {
+    final backgroundValue = background.toARGB32();
+    return backgroundValue == _colors.canvasBackground.toARGB32() ||
+        backgroundValue == backendDefaultBackground?.toARGB32();
   }
 
   Color _foregroundWithMinimumContrast(Color foreground, Color background) {

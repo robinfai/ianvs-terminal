@@ -1837,7 +1837,12 @@ impl Terminal {
     /// so sixel graphics scroll correctly. TUI renderers using half-blocks
     /// should use the default (1, 2).
     pub fn set_cell_dimensions(&mut self, width: u32, height: u32) {
-        self.cell_dimensions = (width.max(1), height.max(1));
+        let width = width.max(1);
+        let height = height.max(1);
+        self.cell_dimensions = (width, height);
+        let (cols, rows) = self.size();
+        self.graphics_store
+            .refresh_cell_dimensions(width, height, cols, rows);
     }
 
     /// Set graphics memory limits for all supported image protocols.

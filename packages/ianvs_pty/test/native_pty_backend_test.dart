@@ -19,6 +19,8 @@ void main() {
       rows: 24,
       pixelWidth: 800,
       pixelHeight: 600,
+      cellWidth: 10,
+      cellHeight: 25,
     );
     backend.writeInput('1', const [0x41]);
     backend.scrollViewport('1', 3);
@@ -226,8 +228,10 @@ class _NoopPtyBindings implements PtyBindings {
     int cols,
     int rows,
     int pixelWidth,
-    int pixelHeight,
-  ) => 0;
+    int pixelHeight, [
+    int cellWidth = 0,
+    int cellHeight = 0,
+  ]) => 0;
 
   @override
   int sessionWrite(int sessionId, List<int> bytes) => 0;

@@ -53,6 +53,29 @@ pub extern "C" fn ianvs_session_resize(
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn ianvs_session_resize_with_cell_size(
+    session_id: u64,
+    cols: u16,
+    rows: u16,
+    pixel_width: u16,
+    pixel_height: u16,
+    cell_width: u16,
+    cell_height: u16,
+) -> c_int {
+    session::resize_session_with_cell_size(
+        session_id,
+        cols,
+        rows,
+        pixel_width,
+        pixel_height,
+        cell_width,
+        cell_height,
+    )
+    .map(|_| 0)
+    .unwrap_or(-1)
+}
+
+#[unsafe(no_mangle)]
 /// # Safety
 ///
 /// `bytes` must point to `len` readable bytes for the duration of this call.

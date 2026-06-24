@@ -1019,30 +1019,40 @@ fn session_frame_diff_clears_quiet_kitty_delete_without_replacement() {
 
 #[test]
 fn session_frame_diff_clears_codex_shutdown_delete_without_replacement() {
-    let profile = local_profile(
-        "kitty-shutdown-delete-clear",
-        "Kitty Shutdown Delete Clear",
-        "/bin/sh",
-        vec![
-            "-lc".to_string(),
-            format!(
-                r#"python3 - <<'PY'
-import sys, time
+    let script = format!(
+        r#"
+import sys, termios, time
+
+try:
+    attrs = termios.tcgetattr(sys.stdin.fileno())
+    attrs[3] = attrs[3] & ~termios.ECHO
+    termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, attrs)
+except Exception:
+    pass
 
 def out(value, delay=0.12):
     sys.stdout.write(value)
     sys.stdout.flush()
     time.sleep(delay)
 
+def wait():
+    if sys.stdin.readline() == '':
+        sys.exit(2)
+
 out('\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{png}\x1b\\')
-sys.stdin.readline()
+wait()
 out('\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\', 0.02)
+wait()
 out('\x1b[?2026h\x1b[20;1H\x1b[J', 0.02)
 out('\x1b[20;2H\x1b[0m\x1b[m\x1b[K\x1b[21;2H\x1b[0m\x1b[m\x1b[K\x1b[22;19H\x1b[0m\x1b[m\x1b[K\x1b[23;2H\x1b[0m\x1b[m\x1b[K\x1b[22;1H›\x1b[22;3HShutting down...\x1b[?2026l', 0.65)
-PY"#,
-                png = RED_PIXEL_PNG_BASE64,
-            ),
-        ],
+"#,
+        png = RED_PIXEL_PNG_BASE64,
+    );
+    let profile = local_profile(
+        "kitty-shutdown-delete-clear",
+        "Kitty Shutdown Delete Clear",
+        "/usr/bin/env",
+        vec!["python3".to_string(), "-c".to_string(), script],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
     );
@@ -1055,6 +1065,18 @@ PY"#,
         .as_array()
         .expect("expected first graphics placements");
     assert_eq!(first_graphics.len(), 1, "expected first pet frame: {first}");
+
+    session::write_session(session_id, b"\n").unwrap();
+    let delete_frame = wait_for_frame_where(session_id, |frame| frame.contains("\"graphics\":[]"));
+    let delete_parsed: serde_json::Value = serde_json::from_str(&delete_frame).unwrap();
+    let delete_graphics = delete_parsed["graphics"]
+        .as_array()
+        .expect("expected graphics placements field");
+    assert_eq!(
+        delete_graphics.len(),
+        0,
+        "Codex shutdown delete has no following Kitty replacement and must clear graphics before shutdown text: {delete_frame}"
+    );
 
     session::write_session(session_id, b"\n").unwrap();
 
@@ -1179,25 +1201,30 @@ fn session_frame_diff_keeps_codex_pet_graphic_across_split_replacement() {
         .map(|chunk| std::str::from_utf8(chunk).unwrap())
         .collect::<Vec<_>>();
     let chunks_json = serde_json::to_string(&chunks).unwrap();
-    let profile = local_profile(
-        "kitty-split-pet-frame-diff",
-        "Kitty Split Pet Frame Diff",
-        "/bin/sh",
-        vec![
-            "-lc".to_string(),
-            format!(
-                r#"python3 - <<'PY'
-import sys, time
+    let script = format!(
+        r#"
+import sys, termios, time
 
 chunks = {chunks_json}
+
+try:
+    attrs = termios.tcgetattr(sys.stdin.fileno())
+    attrs[3] = attrs[3] & ~termios.ECHO
+    termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, attrs)
+except Exception:
+    pass
 
 def out(value):
     sys.stdout.write(value)
     sys.stdout.flush()
-    time.sleep(0.08)
+    time.sleep(0.04)
+
+def wait():
+    if sys.stdin.readline() == '':
+        sys.exit(2)
 
 out('\x1b7\x1b[10;10H\x1b_Ga=T,t=d,f=100,c=9,r=5,q=2,i=49374;{png}\x1b\\\x1b8')
-sys.stdin.readline()
+wait()
 out('\x1b[?2026h\x1b_Ga=d,d=I,i=49374,q=2;\x1b\\\x1b7\x1b[10;10H')
 for index, payload in enumerate(chunks):
     if index == 0:
@@ -1209,11 +1236,16 @@ for index, payload in enumerate(chunks):
     if index + 1 < len(chunks):
         out('\x1b7\x1b[1;1Hstartup log line\x1b8')
     out('\x1b[' + str(1 + (index % 2)) + ';1H')
-PY"#,
-                chunks_json = chunks_json,
-                png = RED_PIXEL_PNG_BASE64,
-            ),
-        ],
+    wait()
+"#,
+        chunks_json = chunks_json,
+        png = RED_PIXEL_PNG_BASE64,
+    );
+    let profile = local_profile(
+        "kitty-split-pet-frame-diff",
+        "Kitty Split Pet Frame Diff",
+        "/usr/bin/env",
+        vec!["python3".to_string(), "-c".to_string(), script],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
     );
@@ -1233,33 +1265,57 @@ PY"#,
 
     session::write_session(session_id, b"\n").unwrap();
 
+    let assert_replacement_frame = |frame: &str| -> u64 {
+        let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+        let graphics = parsed["graphics"]
+            .as_array()
+            .expect("expected graphics placements field");
+        assert_eq!(
+            graphics.len(),
+            1,
+            "split Kitty pet replacement must not emit a frame without graphics: {frame}"
+        );
+        assert_eq!(
+            graphics[0]["placement_id"].as_u64(),
+            Some(placement_id),
+            "replacement must keep the same placement identity: {frame}"
+        );
+        graphics[0]["asset_id"]
+            .as_u64()
+            .expect("expected graphic asset id")
+    };
+
     let mut observed_final_asset = false;
-    for _ in 0..SESSION_WAIT_ATTEMPTS {
-        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
-            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
-            let graphics = parsed["graphics"]
-                .as_array()
-                .expect("expected graphics placements field");
-            assert_eq!(
-                graphics.len(),
-                1,
-                "split Kitty pet replacement must not emit a frame without graphics: {frame}"
-            );
-            assert_eq!(
-                graphics[0]["placement_id"].as_u64(),
-                Some(placement_id),
-                "replacement must keep the same placement identity: {frame}"
-            );
-            let asset_id = graphics[0]["asset_id"]
-                .as_u64()
-                .expect("expected graphic asset id");
-            if asset_id == 49375 {
-                observed_final_asset = true;
-                break;
+    for chunk_index in 0..chunks.len() {
+        for _ in 0..20 {
+            if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+                let asset_id = assert_replacement_frame(&frame);
+                if asset_id == 49375 {
+                    observed_final_asset = true;
+                    break;
+                }
+                assert_eq!(asset_id, 49374, "unexpected intermediate asset: {frame}");
             }
-            assert_eq!(asset_id, 49374, "unexpected intermediate asset: {frame}");
+            thread::sleep(Duration::from_millis(50));
         }
-        thread::sleep(Duration::from_millis(50));
+        if observed_final_asset || chunk_index + 1 == chunks.len() {
+            break;
+        }
+        session::write_session(session_id, b"\n").unwrap();
+    }
+
+    if !observed_final_asset {
+        for _ in 0..SESSION_WAIT_ATTEMPTS {
+            if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+                let asset_id = assert_replacement_frame(&frame);
+                if asset_id == 49375 {
+                    observed_final_asset = true;
+                    break;
+                }
+                assert_eq!(asset_id, 49374, "unexpected intermediate asset: {frame}");
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
     }
 
     assert!(

@@ -82,6 +82,9 @@ pub struct SerializableGraphic {
     pub original_height: usize,
     /// Cell dimensions (cell_width, cell_height) for rendering
     pub cell_dimensions: Option<(u32, u32)>,
+    /// Resolved display span in terminal cells
+    #[serde(default)]
+    pub display_cell_span: Option<(usize, usize)>,
     /// Rows scrolled off visible area
     pub scroll_offset_rows: usize,
     /// Row in scrollback buffer
@@ -136,6 +139,7 @@ impl From<&TerminalGraphic> for SerializableGraphic {
             original_width: g.original_width,
             original_height: g.original_height,
             cell_dimensions: g.cell_dimensions,
+            display_cell_span: g.display_cell_span,
             scroll_offset_rows: g.scroll_offset_rows,
             scrollback_row: g.scrollback_row,
             kitty_image_id: g.kitty_image_id,
@@ -173,6 +177,7 @@ impl SerializableGraphic {
             asset_version,
             pixels: Arc::new(pixels),
             cell_dimensions: self.cell_dimensions,
+            display_cell_span: self.display_cell_span,
             scroll_offset_rows: self.scroll_offset_rows,
             scrollback_row: self.scrollback_row,
             kitty_image_id: self.kitty_image_id,

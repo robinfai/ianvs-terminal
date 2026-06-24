@@ -243,6 +243,8 @@ pub struct TerminalGraphic {
     pub asset_version: u64,
     /// Cell dimensions (cell_width, cell_height) for rendering
     pub cell_dimensions: Option<(u32, u32)>,
+    /// Resolved display span in terminal cells for hit testing
+    pub display_cell_span: Option<(usize, usize)>,
     /// Rows scrolled off visible area (for partial rendering)
     pub scroll_offset_rows: usize,
     /// Row in scrollback buffer (only set when in scrollback)
@@ -290,6 +292,7 @@ impl TerminalGraphic {
             asset_version: graphic_content_version(width, height, &pixels),
             pixels: Arc::new(pixels),
             cell_dimensions: None,
+            display_cell_span: None,
             scroll_offset_rows: 0,
             scrollback_row: None,
             kitty_image_id: None,
@@ -324,6 +327,7 @@ impl TerminalGraphic {
             asset_version: graphic_content_version(width, height, pixels.as_ref()),
             pixels,
             cell_dimensions: None,
+            display_cell_span: None,
             scroll_offset_rows: 0,
             scrollback_row: None,
             kitty_image_id: None,
@@ -341,6 +345,57 @@ impl TerminalGraphic {
     /// Set cell dimensions used when creating this graphic
     pub fn set_cell_dimensions(&mut self, cell_width: u32, cell_height: u32) {
         self.cell_dimensions = Some((cell_width, cell_height));
+    }
+
+    /// Set the resolved display span used by scoped Kitty deletes.
+    pub fn set_display_cell_span(&mut self, columns: usize, rows: usize) {
+        self.display_cell_span = Some((columns.max(1), rows.max(1)));
+    }
+
+    /// Calculate display cell span using placement sizing and optional terminal size.
+    pub fn resolved_cell_span(
+        &self,
+        viewport_cols: Option<usize>,
+        viewport_rows: Option<usize>,
+    ) -> (usize, usize) {
+        let cell_width = self.cell_dimensions.map(|(w, _)| w as usize).unwrap_or(1);
+        let cell_height = self.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
+        let cell_width = cell_width.max(1);
+        let cell_height = cell_height.max(1);
+        let requested_width = graphic_dimension_px_for_cell_span(
+            self.placement.requested_width,
+            self.width,
+            cell_width,
+            viewport_cols.map(|cols| cols.saturating_mul(cell_width).max(cell_width)),
+        );
+        let requested_height = graphic_dimension_px_for_cell_span(
+            self.placement.requested_height,
+            self.height,
+            cell_height,
+            viewport_rows.map(|rows| rows.saturating_mul(cell_height).max(cell_height)),
+        );
+
+        let (width_px, height_px) = match (requested_width, requested_height) {
+            (Some(width), Some(height)) => (width, height),
+            (Some(width), None) if self.placement.preserve_aspect_ratio && self.width > 0 => {
+                let height = ((width as f64 * self.height as f64) / self.width as f64)
+                    .round()
+                    .max(1.0) as usize;
+                (width, height)
+            }
+            (None, Some(height)) if self.placement.preserve_aspect_ratio && self.height > 0 => {
+                let width = ((height as f64 * self.width as f64) / self.height as f64)
+                    .round()
+                    .max(1.0) as usize;
+                (width, height)
+            }
+            _ => (self.width.max(1), self.height.max(1)),
+        };
+
+        (
+            width_px.div_ceil(cell_width).max(1),
+            height_px.div_ceil(cell_height).max(1),
+        )
     }
 
     /// Calculate how many terminal cells this graphic spans
@@ -450,15 +505,32 @@ pub fn graphic_content_version(width: usize, height: usize, pixels: &[u8]) -> u6
     (hash & GRAPHIC_CONTENT_VERSION_MASK).max(1)
 }
 
+fn graphic_dimension_px_for_cell_span(
+    dimension: ImageDimension,
+    fallback_px: usize,
+    cell_px: usize,
+    terminal_px: Option<usize>,
+) -> Option<usize> {
+    if dimension.is_auto() {
+        return None;
+    }
+    let value = dimension.value.max(0.0);
+    let px = match dimension.unit {
+        ImageSizeUnit::Auto => fallback_px,
+        ImageSizeUnit::Cells => (value * cell_px as f64).round() as usize,
+        ImageSizeUnit::Pixels => value.round() as usize,
+        ImageSizeUnit::Percent => {
+            let terminal_px = terminal_px?;
+            ((value / 100.0) * terminal_px as f64).round() as usize
+        }
+    };
+    Some(px.max(1))
+}
+
 fn graphic_cell_span(graphic: &TerminalGraphic) -> (usize, usize) {
-    let cell_width = graphic.cell_dimensions.map(|(w, _)| w as usize).unwrap_or(1);
-    let cell_height = graphic.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
-    let cell_width = cell_width.max(1);
-    let cell_height = cell_height.max(1);
-    (
-        graphic.width.div_ceil(cell_width).max(1),
-        graphic.height.div_ceil(cell_height).max(1),
-    )
+    graphic
+        .display_cell_span
+        .unwrap_or_else(|| graphic.resolved_cell_span(None, None))
 }
 
 fn graphic_intersects_column(graphic: &TerminalGraphic, col: usize) -> bool {
@@ -657,6 +729,33 @@ impl GraphicsStore {
     /// Get mutable access to all graphics
     pub fn all_graphics_mut(&mut self) -> &mut Vec<TerminalGraphic> {
         &mut self.placements
+    }
+
+    /// Refresh cell metrics for every stored placement.
+    pub fn refresh_cell_dimensions(
+        &mut self,
+        cell_width: u32,
+        cell_height: u32,
+        cols: usize,
+        rows: usize,
+    ) {
+        let cell_width = cell_width.max(1);
+        let cell_height = cell_height.max(1);
+        for graphic in &mut self.placements {
+            refresh_graphic_cell_dimensions(graphic, cell_width, cell_height, cols, rows);
+        }
+        for graphic in &mut self.cleared_kitty_placements {
+            refresh_graphic_cell_dimensions(graphic, cell_width, cell_height, cols, rows);
+        }
+        for graphic in self.virtual_placements.values_mut() {
+            refresh_graphic_cell_dimensions(graphic, cell_width, cell_height, cols, rows);
+        }
+        for graphic in &mut self.scrollback {
+            refresh_graphic_cell_dimensions(graphic, cell_width, cell_height, cols, rows);
+        }
+        for graphic in &mut self.deleted_kitty_placements {
+            refresh_graphic_cell_dimensions(graphic, cell_width, cell_height, cols, rows);
+        }
     }
 
     /// Get total graphics count
@@ -890,7 +989,8 @@ impl GraphicsStore {
         let replacement_placement_id =
             self.replacement_kitty_graphic_id_for_pending_deletes(&pending, graphic);
         for delete in pending {
-            if delete.matches(graphic) || self.delete_waits_for_replacement_graphic(&delete, graphic)
+            if delete.matches(graphic)
+                || self.delete_waits_for_replacement_graphic(&delete, graphic)
             {
                 continue;
             }
@@ -1418,8 +1518,7 @@ impl GraphicsStore {
 
         self.placements.retain_mut(|g| {
             let graphic_row = g.position.1;
-            let cell_height = g.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
-            let graphic_height_in_rows = g.height.div_ceil(cell_height);
+            let (_, graphic_height_in_rows) = graphic_cell_span(g);
             let graphic_bottom = graphic_row + graphic_height_in_rows;
 
             // Check if graphic is within the scroll region
@@ -1457,8 +1556,7 @@ impl GraphicsStore {
     pub fn adjust_for_scroll_down(&mut self, lines: usize, top: usize, bottom: usize) {
         for g in &mut self.placements {
             let graphic_row = g.position.1;
-            let cell_height = g.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
-            let graphic_height_in_rows = g.height.div_ceil(cell_height);
+            let (_, graphic_height_in_rows) = graphic_cell_span(g);
             let graphic_bottom = graphic_row + graphic_height_in_rows;
 
             // Graphic starts within scroll region
@@ -1521,6 +1619,18 @@ fn image_values_fit_limits(
         && width.saturating_mul(height) <= limits.max_pixels
         && bytes <= limits.max_image_bytes
         && bytes <= limits.max_total_memory
+}
+
+fn refresh_graphic_cell_dimensions(
+    graphic: &mut TerminalGraphic,
+    cell_width: u32,
+    cell_height: u32,
+    cols: usize,
+    rows: usize,
+) {
+    graphic.set_cell_dimensions(cell_width, cell_height);
+    let (span_cols, span_rows) = graphic.resolved_cell_span(Some(cols), Some(rows));
+    graphic.set_display_cell_span(span_cols, span_rows);
 }
 
 /// Graphics error types
@@ -1844,6 +1954,103 @@ mod tests {
         let (cols, rows) = graphic.cell_span(10, 10);
         assert_eq!(cols, 13); // ceil(100/8) = 13
         assert_eq!(rows, 4); // ceil(50/16) = 4
+    }
+
+    #[test]
+    fn kitty_delete_hit_testing_uses_requested_cell_span() {
+        let mut store = GraphicsStore::new();
+        let mut graphic = TerminalGraphic::new(
+            1,
+            GraphicProtocol::Kitty,
+            (10, 8),
+            200,
+            160,
+            vec![255u8; 200 * 160 * 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::cells(9.0);
+        graphic.placement.requested_height = ImageDimension::cells(5.0);
+        store.add_graphic(graphic);
+
+        store.delete_kitty_graphics_in_column(19);
+        assert_eq!(
+            store.graphics_count(),
+            1,
+            "column outside requested c=9 display span must not delete"
+        );
+
+        store.delete_kitty_graphics_in_row(13);
+        assert_eq!(
+            store.graphics_count(),
+            1,
+            "row outside requested r=5 display span must not delete"
+        );
+
+        store.delete_kitty_graphics_intersecting_cell(18, 12, None);
+        assert_eq!(
+            store.graphics_count(),
+            0,
+            "last requested display cell should still delete the placement"
+        );
+    }
+
+    #[test]
+    fn kitty_delete_hit_testing_uses_resolved_percent_span() {
+        let mut store = GraphicsStore::new();
+        let mut graphic = TerminalGraphic::new(
+            1,
+            GraphicProtocol::Kitty,
+            (2, 3),
+            200,
+            160,
+            vec![255u8; 200 * 160 * 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::percent(50.0);
+        graphic.placement.requested_height = ImageDimension::percent(50.0);
+        let (cols, rows) = graphic.resolved_cell_span(Some(20), Some(10));
+        assert_eq!((cols, rows), (10, 5));
+        graphic.set_display_cell_span(cols, rows);
+        store.add_graphic(graphic);
+
+        store.delete_kitty_graphics_in_column(12);
+        assert_eq!(
+            store.graphics_count(),
+            1,
+            "column outside resolved percent display span must not delete"
+        );
+
+        store.delete_kitty_graphics_intersecting_cell(11, 7, None);
+        assert_eq!(
+            store.graphics_count(),
+            0,
+            "last resolved percent display cell should delete"
+        );
+    }
+
+    #[test]
+    fn kitty_scroll_up_uses_resolved_display_span() {
+        let mut store = GraphicsStore::new();
+        let mut graphic =
+            TerminalGraphic::new(1, GraphicProtocol::Kitty, (0, 0), 1, 1, vec![255u8; 4]);
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::cells(9.0);
+        graphic.placement.requested_height = ImageDimension::cells(5.0);
+        let (cols, rows) = graphic.resolved_cell_span(Some(80), Some(24));
+        assert_eq!((cols, rows), (9, 5));
+        graphic.set_display_cell_span(cols, rows);
+        store.add_graphic(graphic);
+
+        store.adjust_for_scroll_up_with_scrollback(1, 0, 23, 0);
+
+        assert_eq!(
+            store.graphics_count(),
+            1,
+            "a c=9,r=5 graphic should remain visible after one row scroll"
+        );
+        assert_eq!(store.scrollback_count(), 0);
+        assert_eq!(store.all_graphics()[0].position.1, 0);
+        assert_eq!(store.all_graphics()[0].scroll_offset_rows, 1);
     }
 
     #[test]

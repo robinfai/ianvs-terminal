@@ -454,11 +454,14 @@ class TerminalGraphicPlacement {
     required this.heightPx,
     required this.widthCells,
     required this.heightCells,
+    this.sourceYOffsetPx = 0,
+    int? visibleHeightPx,
     this.zIndex = 0,
     this.xOffsetPx = 0,
     this.yOffsetPx = 0,
     this.preserveAspectRatio = true,
-  }) : renderId = renderId ?? placementId;
+  }) : renderId = renderId ?? placementId,
+       visibleHeightPx = visibleHeightPx ?? heightPx - sourceYOffsetPx;
 
   final int renderId;
   final int placementId;
@@ -470,6 +473,8 @@ class TerminalGraphicPlacement {
   final int heightPx;
   final int widthCells;
   final int heightCells;
+  final int sourceYOffsetPx;
+  final int visibleHeightPx;
   final int zIndex;
   final int xOffsetPx;
   final int yOffsetPx;
@@ -500,6 +505,12 @@ class TerminalGraphicPlacement {
     final heightCells = _intOrNullFromJson(
       json['height_cells'] ?? json['heightCells'],
     );
+    final sourceYOffsetPx = _nonNegativeIntFromJson(
+      json['source_y_offset_px'] ?? json['sourceYOffsetPx'],
+    );
+    final visibleHeightPx = _intOrNullFromJson(
+      json['visible_height_px'] ?? json['visibleHeightPx'],
+    );
     if (placementId == null ||
         placementId < 0 ||
         assetKey == null ||
@@ -515,7 +526,11 @@ class TerminalGraphicPlacement {
         widthCells == null ||
         widthCells <= 0 ||
         heightCells == null ||
-        heightCells <= 0) {
+        heightCells <= 0 ||
+        sourceYOffsetPx >= heightPx ||
+        (visibleHeightPx != null &&
+            (visibleHeightPx <= 0 ||
+                visibleHeightPx > heightPx - sourceYOffsetPx))) {
       return null;
     }
     return TerminalGraphicPlacement(
@@ -529,6 +544,8 @@ class TerminalGraphicPlacement {
       heightPx: heightPx,
       widthCells: widthCells,
       heightCells: heightCells,
+      sourceYOffsetPx: sourceYOffsetPx,
+      visibleHeightPx: visibleHeightPx ?? heightPx - sourceYOffsetPx,
       zIndex: _intFromJson(json['z_index'] ?? json['zIndex'], fallback: 0),
       xOffsetPx: _nonNegativeIntFromJson(
         json['x_offset_px'] ?? json['xOffsetPx'],
@@ -632,6 +649,8 @@ class TerminalFrameDiff {
     required this.scrollbackMaxOffset,
     this.viewportStartRow = 0,
     this.viewportRowShift = 0,
+    this.defaultForeground,
+    this.defaultBackground,
     this.modes = TerminalFrameModes.empty,
     this.selection,
     this.windowTitle,
@@ -652,6 +671,8 @@ class TerminalFrameDiff {
   final int scrollbackMaxOffset;
   final int viewportStartRow;
   final int viewportRowShift;
+  final Color? defaultForeground;
+  final Color? defaultBackground;
   final TerminalFrameModes modes;
   final String? windowTitle;
   final String? windowIconName;
@@ -706,6 +727,12 @@ class TerminalFrameDiff {
       scrollbackMaxOffset: scrollbackMaxOffset,
       viewportStartRow: _nonNegativeIntFromJson(json['viewport_start_row']),
       viewportRowShift: _intFromJson(json['viewport_row_shift'], fallback: 0),
+      defaultForeground: _colorFromHex(
+        _stringFromJson(json['default_foreground']),
+      ),
+      defaultBackground: _colorFromHex(
+        _stringFromJson(json['default_background']),
+      ),
       modes: modesJson == null
           ? TerminalFrameModes.empty
           : TerminalFrameModes.fromJson(modesJson),
@@ -876,6 +903,10 @@ class TerminalViewportState {
         scrollbackMaxOffset: nextFrame.scrollbackMaxOffset,
         viewportStartRow: nextFrame.viewportStartRow,
         viewportRowShift: nextFrame.viewportRowShift,
+        defaultForeground:
+            nextFrame.defaultForeground ?? frame.defaultForeground,
+        defaultBackground:
+            nextFrame.defaultBackground ?? frame.defaultBackground,
         modes: nextFrame.modes,
         windowTitle: nextFrame.windowTitle,
         windowIconName: nextFrame.windowIconName,
@@ -1125,6 +1156,8 @@ TerminalFrameDiff _normalizeSnapshotFrame(
     scrollbackMaxOffset: frame.scrollbackMaxOffset,
     viewportStartRow: frame.viewportStartRow,
     viewportRowShift: 0,
+    defaultForeground: frame.defaultForeground,
+    defaultBackground: frame.defaultBackground,
     modes: frame.modes,
     windowTitle: frame.windowTitle,
     windowIconName: frame.windowIconName,

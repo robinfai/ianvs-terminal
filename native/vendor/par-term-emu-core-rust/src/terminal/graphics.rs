@@ -163,6 +163,9 @@ impl Terminal {
             Ok(KittyGraphicResult::Graphic(mut graphic)) => {
                 let (cell_w, cell_h) = self.cell_dimensions;
                 graphic.set_cell_dimensions(cell_w, cell_h);
+                let (cols, rows) = self.size();
+                let (span_cols, span_rows) = graphic.resolved_cell_span(Some(cols), Some(rows));
+                graphic.set_display_cell_span(span_cols, span_rows);
                 let row = graphic.position.1;
                 if self.graphics_store.add_graphic(graphic) {
                     self.terminal_events
@@ -232,15 +235,13 @@ impl Terminal {
     fn pending_kitty_replacement_target(&self) -> Option<(Option<u32>, u32, (usize, usize))> {
         let parser = self.kitty_parser.as_ref()?;
         match parser.action {
-            KittyAction::TransmitDisplay | KittyAction::Put => {
-                Some((
-                    parser.image_id,
-                    parser.placement_id.unwrap_or(0),
-                    parser
-                        .placement_position
-                        .unwrap_or((self.cursor.col, self.cursor.row)),
-                ))
-            }
+            KittyAction::TransmitDisplay | KittyAction::Put => Some((
+                parser.image_id,
+                parser.placement_id.unwrap_or(0),
+                parser
+                    .placement_position
+                    .unwrap_or((self.cursor.col, self.cursor.row)),
+            )),
             _ => None,
         }
     }

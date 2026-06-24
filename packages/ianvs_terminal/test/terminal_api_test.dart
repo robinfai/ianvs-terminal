@@ -49,7 +49,7 @@ void main() {
     expect(terminal.sessionId, '1');
     expect(terminal.cols, 100);
     expect(terminal.rows, 30);
-    expect(backend.resizeCalls.last, <Object?>['1', 100, 30, 900, 540]);
+    expect(backend.resizeCalls.last, <Object?>['1', 100, 30, 900, 540, 9, 18]);
 
     final payload = backend.lastCreateSessionPayload!;
     expect(payload['terminal'], <String, Object?>{
@@ -197,7 +197,7 @@ void main() {
     await tester.pump();
 
     expect(resizes.map((event) => (event.cols, event.rows)).last, (120, 40));
-    expect(backend.resizeCalls.last, <Object?>['1', 120, 40, 1080, 720]);
+    expect(backend.resizeCalls.last, <Object?>['1', 120, 40, 1080, 720, 9, 18]);
 
     terminal.refresh();
     await tester.pump();
@@ -318,8 +318,18 @@ class _FakePtyBackend
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {
-    resizeCalls.add(<Object?>[sessionId, cols, rows, pixelWidth, pixelHeight]);
+    resizeCalls.add(<Object?>[
+      sessionId,
+      cols,
+      rows,
+      pixelWidth,
+      pixelHeight,
+      cellWidth,
+      cellHeight,
+    ]);
     final frame = _frames[sessionId];
     if (frame != null) {
       frame['viewport_cols'] = cols;

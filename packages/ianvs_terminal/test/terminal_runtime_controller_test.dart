@@ -730,6 +730,8 @@ void main() {
           'height_px': 4,
           'width_cells': 4,
           'height_cells': 2,
+          'source_y_offset_px': 1,
+          'visible_height_px': 3,
           'z_index': 1,
           'x_offset_px': 2,
           'y_offset_px': 1,
@@ -750,6 +752,8 @@ void main() {
     expect(graphic.heightPx, 4);
     expect(graphic.widthCells, 4);
     expect(graphic.heightCells, 2);
+    expect(graphic.sourceYOffsetPx, 1);
+    expect(graphic.visibleHeightPx, 3);
     expect(graphic.zIndex, 1);
     expect(graphic.xOffsetPx, 2);
     expect(graphic.yOffsetPx, 1);
@@ -788,6 +792,8 @@ void main() {
     expect(frame.graphics, hasLength(1));
     expect(frame.graphics.single.renderId, 0);
     expect(frame.graphics.single.placementId, 0);
+    expect(frame.graphics.single.sourceYOffsetPx, 0);
+    expect(frame.graphics.single.visibleHeightPx, 4);
   });
 
   test('terminal graphics cache retries after a missing asset', () async {
@@ -912,6 +918,90 @@ void main() {
       expect(loadCount, 2);
     },
   );
+
+  test('terminal graphics cache drops pending image after eviction', () async {
+    final loadAsset = Completer<TerminalGraphicAsset?>();
+    final decodeImage = Completer<Image>();
+    Image? decodedImage;
+    final cache = TerminalGraphicsCache(
+      loadAsset: (_) => loadAsset.future,
+      decodeImage: (_, _, _) => decodeImage.future,
+    );
+    addTearDown(() {
+      final image = decodedImage;
+      if (image != null && !image.debugDisposed) {
+        image.dispose();
+      }
+      cache.dispose();
+    });
+
+    const key = TerminalGraphicAssetKey(id: 77, version: 1);
+    final pending = cache.imageFor(key);
+    cache.evictExcept(const <TerminalGraphicAssetKey>{});
+    loadAsset.complete(
+      TerminalGraphicAsset(
+        key: key,
+        width: 1,
+        height: 1,
+        rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      ),
+    );
+    final imageCompleter = Completer<Image>();
+    decodeImageFromPixels(
+      Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      1,
+      1,
+      PixelFormat.rgba8888,
+      imageCompleter.complete,
+    );
+    decodedImage = await imageCompleter.future;
+    decodeImage.complete(decodedImage);
+
+    expect(await pending, isNull);
+    expect(decodedImage.debugDisposed, isTrue);
+  });
+
+  test('terminal graphics cache drops pending image after dispose', () async {
+    final loadAsset = Completer<TerminalGraphicAsset?>();
+    final decodeImage = Completer<Image>();
+    Image? decodedImage;
+    final cache = TerminalGraphicsCache(
+      loadAsset: (_) => loadAsset.future,
+      decodeImage: (_, _, _) => decodeImage.future,
+    );
+    addTearDown(() {
+      final image = decodedImage;
+      if (image != null && !image.debugDisposed) {
+        image.dispose();
+      }
+      cache.dispose();
+    });
+
+    const key = TerminalGraphicAssetKey(id: 78, version: 1);
+    final pending = cache.imageFor(key);
+    cache.dispose();
+    loadAsset.complete(
+      TerminalGraphicAsset(
+        key: key,
+        width: 1,
+        height: 1,
+        rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      ),
+    );
+    final imageCompleter = Completer<Image>();
+    decodeImageFromPixels(
+      Uint8List.fromList(const <int>[255, 0, 0, 255]),
+      1,
+      1,
+      PixelFormat.rgba8888,
+      imageCompleter.complete,
+    );
+    decodedImage = await imageCompleter.future;
+    decodeImage.complete(decodedImage);
+
+    expect(await pending, isNull);
+    expect(decodedImage.debugDisposed, isTrue);
+  });
 
   test('terminal runtime loads graphic assets from the backend', () async {
     final runtimeBackend = _FakePtyBackend();
@@ -2527,7 +2617,15 @@ void main() {
       await tester.pump();
 
       expect(utf8.decode(runtimeBackend.writeCalls.last), 'A');
-      expect(runtimeBackend.resizeCalls.last, <Object?>['1', 21, 9, 189, 162]);
+      expect(runtimeBackend.resizeCalls.last, <Object?>[
+        '1',
+        21,
+        9,
+        189,
+        162,
+        9,
+        18,
+      ]);
       expect(timeline, <String>['resize:21x9', 'frame:21x9:resize settled']);
       expect(
         runtime.viewportFor(sessionId).frame.rows.first.text,
@@ -2764,7 +2862,7 @@ void main() {
         '\x1B]52;c;cGFzdGUgbWU=\x07',
       );
       expect(runtimeBackend.resizeCalls, <List<Object?>>[
-        <Object?>[sessionId, 21, 9, 189, 162],
+        <Object?>[sessionId, 21, 9, 189, 162, 9, 18],
       ]);
       expect(
         seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode,
@@ -3013,7 +3111,15 @@ void main() {
       expect(pasteWrite, '\x1B]52;c;cGFzdGUgbWU=\x07');
       expect(resizeWidthDelta, 9);
       expect(resizeHeightDelta, 18);
-      expect(runtimeBackend.resizeCalls.last, <Object?>['1', 21, 9, 189, 162]);
+      expect(runtimeBackend.resizeCalls.last, <Object?>[
+        '1',
+        21,
+        9,
+        189,
+        162,
+        9,
+        18,
+      ]);
     },
   );
 }
@@ -3122,8 +3228,18 @@ class _FakePtyBackend
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {
-    resizeCalls.add(<Object?>[sessionId, cols, rows, pixelWidth, pixelHeight]);
+    resizeCalls.add(<Object?>[
+      sessionId,
+      cols,
+      rows,
+      pixelWidth,
+      pixelHeight,
+      cellWidth,
+      cellHeight,
+    ]);
     final frame = _frames[sessionId];
     if (frame != null) {
       frame['viewport_cols'] = cols;
@@ -3234,6 +3350,8 @@ class _FrameOnlyPtyBackend implements PtySessionBackend {
     required int rows,
     required int pixelWidth,
     required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
   }) {}
 
   @override

@@ -6,7 +6,7 @@ use crate::model::{
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
-use par_term_emu_core_rust::color::{Color, NamedColor};
+use par_term_emu_core_rust::color::Color;
 use par_term_emu_core_rust::graphics::{
     ImageDimension, ImageSizeUnit, PLACEHOLDER_CHAR, TerminalGraphic,
 };
@@ -118,6 +118,8 @@ struct CachedFrameMeta {
     scrollback_offset: usize,
     viewport_start_row: usize,
     alt_screen_active: bool,
+    default_foreground_rgb: (u8, u8, u8),
+    default_background_rgb: (u8, u8, u8),
     modes: TerminalFrameModes,
     window_title: Option<String>,
     window_icon_name: Option<String>,
@@ -956,16 +958,32 @@ impl TerminalSession {
         pixel_width: u16,
         pixel_height: u16,
     ) -> Result<(), SessionError> {
+        self.resize_with_cell_size(cols, rows, pixel_width, pixel_height, 0, 0)
+    }
+
+    pub fn resize_with_cell_size(
+        &self,
+        cols: u16,
+        rows: u16,
+        pixel_width: u16,
+        pixel_height: u16,
+        cell_width: u16,
+        cell_height: u16,
+    ) -> Result<(), SessionError> {
         let mut state = self.state.lock();
         let (current_cols, current_rows) = state.terminal.size();
         let size_changed = current_cols != cols as usize || current_rows != rows as usize;
 
         if !size_changed {
-            if pixel_width > 0 && pixel_height > 0 {
-                state
-                    .terminal
-                    .set_pixel_size(pixel_width as usize, pixel_height as usize);
-            }
+            apply_terminal_pixel_metrics(
+                &mut state.terminal,
+                cols,
+                rows,
+                pixel_width,
+                pixel_height,
+                cell_width,
+                cell_height,
+            );
             return Ok(());
         }
 
@@ -995,17 +1013,29 @@ impl TerminalSession {
                 terminal.process(b"\x1b[62;1\"p");
             }
             if pixel_width > 0 && pixel_height > 0 {
-                terminal.set_pixel_size(pixel_width as usize, pixel_height as usize);
+                apply_terminal_pixel_metrics(
+                    &mut terminal,
+                    cols,
+                    rows,
+                    pixel_width,
+                    pixel_height,
+                    cell_width,
+                    cell_height,
+                );
             }
             terminal.process(&transcript);
             state.terminal = terminal;
         } else {
             state.terminal.resize(cols as usize, rows as usize);
-            if pixel_width > 0 && pixel_height > 0 {
-                state
-                    .terminal
-                    .set_pixel_size(pixel_width as usize, pixel_height as usize);
-            }
+            apply_terminal_pixel_metrics(
+                &mut state.terminal,
+                cols,
+                rows,
+                pixel_width,
+                pixel_height,
+                cell_width,
+                cell_height,
+            );
         }
         let new_max = current_scrollback_max(&state);
         state.scrollback_offset =
@@ -1106,6 +1136,7 @@ impl TerminalSession {
             state.scrollback_offset = state.scrollback_offset.min(scrollback_max_offset);
         }
         let terminal = &state.terminal;
+        let theme = terminal_theme_snapshot(terminal);
         let (viewport_cols, viewport_rows) = terminal.size();
 
         let cursor = terminal.cursor();
@@ -1172,6 +1203,8 @@ impl TerminalSession {
             scrollback_offset: state.scrollback_offset,
             viewport_start_row,
             alt_screen_active,
+            default_foreground_rgb: resolve_color_rgb(theme.default_fg, &theme.ansi_palette),
+            default_background_rgb: resolve_color_rgb(theme.default_bg, &theme.ansi_palette),
             modes: modes.clone(),
             window_title: window_title.clone(),
             window_icon_name: window_icon_name.clone(),
@@ -1289,6 +1322,8 @@ impl TerminalSession {
             scrollback_max_offset,
             viewport_start_row,
             viewport_row_shift,
+            default_foreground: color_to_hex(theme.default_fg, &theme.ansi_palette),
+            default_background: color_to_hex(theme.default_bg, &theme.ansi_palette),
             modes,
             window_title,
             window_icon_name,
@@ -1685,6 +1720,41 @@ fn unix_timestamp_micros() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_micros().min(u128::from(u64::MAX)) as u64)
         .unwrap_or(0)
+}
+
+fn apply_terminal_pixel_metrics(
+    terminal: &mut Terminal,
+    cols: u16,
+    rows: u16,
+    pixel_width: u16,
+    pixel_height: u16,
+    cell_width: u16,
+    cell_height: u16,
+) {
+    if pixel_width > 0 && pixel_height > 0 {
+        terminal.set_pixel_size(pixel_width as usize, pixel_height as usize);
+    }
+
+    let resolved_cell_width = if cell_width > 0 {
+        Some(cell_width as usize)
+    } else if pixel_width > 0 {
+        Some((pixel_width as usize / usize::from(cols.max(1))).max(1))
+    } else {
+        None
+    };
+    let resolved_cell_height = if cell_height > 0 {
+        Some(cell_height as usize)
+    } else if pixel_height > 0 {
+        Some((pixel_height as usize / usize::from(rows.max(1))).max(1))
+    } else {
+        None
+    };
+    if let (Some(cell_width), Some(cell_height)) = (resolved_cell_width, resolved_cell_height) {
+        terminal.set_cell_dimensions(
+            cell_width.min(u32::MAX as usize) as u32,
+            cell_height.min(u32::MAX as usize) as u32,
+        );
+    }
 }
 
 fn process_name_for_profile(profile: &TerminalProfile) -> String {
@@ -2263,6 +2333,7 @@ fn build_graphic_placements(
             viewport_end_row,
             viewport_cols,
             total_viewport_rows,
+            graphic.scroll_offset_rows,
         ) {
             placements.push(placement);
         }
@@ -2276,6 +2347,7 @@ fn build_graphic_placements(
             viewport_end_row,
             viewport_cols,
             total_viewport_rows,
+            graphic.scroll_offset_rows,
         ) {
             placements.push(placement);
         }
@@ -2293,6 +2365,7 @@ fn build_graphic_placements(
                 viewport_end_row,
                 viewport_cols,
                 total_viewport_rows,
+                0,
             ) {
                 placements.push(placement);
             }
@@ -2309,14 +2382,36 @@ fn graphic_placement_for_viewport(
     viewport_end_row: usize,
     viewport_cols: usize,
     total_viewport_rows: usize,
+    scrolled_top_rows: usize,
 ) -> Option<TerminalGraphicPlacement> {
     let (width_px, height_px, width_cells, height_cells) =
         graphic_display_geometry(graphic, viewport_cols, total_viewport_rows);
-    let absolute_end_row = absolute_start_row.saturating_add(height_cells.max(1));
+    let (_, cell_height_px) = graphic_cell_dimensions_px(graphic);
+    let scrolled_top_rows = scrolled_top_rows.min(height_cells);
+    let displayed_height_cells = height_cells.saturating_sub(scrolled_top_rows);
+    if displayed_height_cells == 0 {
+        return None;
+    }
+    let absolute_end_row = absolute_start_row.saturating_add(displayed_height_cells);
     if absolute_end_row <= viewport_start_row || absolute_start_row >= viewport_end_row {
         return None;
     }
     let row = absolute_start_row.saturating_sub(viewport_start_row);
+    let viewport_hidden_rows = viewport_start_row
+        .saturating_sub(absolute_start_row)
+        .min(displayed_height_cells);
+    let hidden_rows = scrolled_top_rows.saturating_add(viewport_hidden_rows);
+    let source_y_offset_px = hidden_rows.saturating_mul(cell_height_px).min(height_px);
+    let visible_height_cells = displayed_height_cells
+        .saturating_sub(viewport_hidden_rows)
+        .min(viewport_end_row.saturating_sub(absolute_start_row.max(viewport_start_row)));
+    if visible_height_cells == 0 {
+        return None;
+    }
+    let visible_height_px = height_px
+        .saturating_sub(source_y_offset_px)
+        .min(visible_height_cells.saturating_mul(cell_height_px))
+        .max(1);
     let placement_id = graphic_placement_id(graphic);
     Some(TerminalGraphicPlacement {
         render_id: placement_id,
@@ -2330,6 +2425,8 @@ fn graphic_placement_for_viewport(
         height_px,
         width_cells: width_cells.max(1),
         height_cells: height_cells.max(1),
+        source_y_offset_px,
+        visible_height_px,
         z_index: graphic.placement.z_index,
         x_offset_px: graphic.placement.x_offset,
         y_offset_px: graphic.placement.y_offset,
@@ -2423,9 +2520,7 @@ fn graphic_display_geometry(
     viewport_cols: usize,
     viewport_rows: usize,
 ) -> (usize, usize, usize, usize) {
-    let (cell_width_px, cell_height_px) = graphic.cell_dimensions.unwrap_or((1, 1));
-    let cell_width_px = cell_width_px.max(1) as usize;
-    let cell_height_px = cell_height_px.max(1) as usize;
+    let (cell_width_px, cell_height_px) = graphic_cell_dimensions_px(graphic);
     let terminal_width_px = viewport_cols
         .saturating_mul(cell_width_px)
         .max(cell_width_px);
@@ -2466,6 +2561,14 @@ fn graphic_display_geometry(
     let width_cells = width_px.div_ceil(cell_width_px).max(1);
     let height_cells = height_px.div_ceil(cell_height_px).max(1);
     (width_px, height_px, width_cells, height_cells)
+}
+
+fn graphic_cell_dimensions_px(graphic: &TerminalGraphic) -> (usize, usize) {
+    let (cell_width_px, cell_height_px) = graphic.cell_dimensions.unwrap_or((1, 1));
+    (
+        (cell_width_px as usize).max(1),
+        (cell_height_px as usize).max(1),
+    )
 }
 
 fn graphic_dimension_px(
@@ -2912,6 +3015,7 @@ fn segment_for_logical_byte_index(
 fn selection_text_for_state(state: &TerminalState, request: TerminalSelectionRequest) -> String {
     let normalized = normalize_selection_request(request);
     let terminal = &state.terminal;
+    let theme = terminal_theme_snapshot(terminal);
     let total_lines = total_visible_lines(terminal);
     if total_lines == 0 || normalized.start_row >= total_lines {
         return String::new();
@@ -2926,6 +3030,7 @@ fn selection_text_for_state(state: &TerminalState, request: TerminalSelectionReq
                 cells,
                 normalized.start_col,
                 normalized.end_col,
+                &theme,
             ));
         }
         return lines.join("\n");
@@ -2944,7 +3049,7 @@ fn selection_text_for_state(state: &TerminalState, request: TerminalSelectionReq
         } else {
             usize::MAX
         };
-        text.push_str(&slice_cells_columns(cells, start_col, end_col));
+        text.push_str(&slice_cells_columns(cells, start_col, end_col, &theme));
         if row != end_row && !wrapped {
             text.push('\n');
         }
@@ -3027,8 +3132,13 @@ fn primary_row_cells_for_visible_index(
     }
 }
 
-fn slice_cells_columns(cells: Option<&[Cell]>, start_col: usize, end_col: usize) -> String {
-    let effective_end_col = end_col.min(last_significant_column(cells));
+fn slice_cells_columns(
+    cells: Option<&[Cell]>,
+    start_col: usize,
+    end_col: usize,
+    theme: &TerminalThemeSnapshot,
+) -> String {
+    let effective_end_col = end_col.min(last_significant_column(cells, theme));
     if start_col >= effective_end_col {
         return String::new();
     }
@@ -3055,9 +3165,9 @@ fn slice_cells_columns(cells: Option<&[Cell]>, start_col: usize, end_col: usize)
     text
 }
 
-fn last_significant_column(cells: Option<&[Cell]>) -> usize {
-    let default_fg = Color::Named(NamedColor::White);
-    let default_bg = Color::Named(NamedColor::Black);
+fn last_significant_column(cells: Option<&[Cell]>, theme: &TerminalThemeSnapshot) -> usize {
+    let default_fg = theme.default_fg;
+    let default_bg = theme.default_bg;
     let default_flags = CellFlags::default();
     let mut last_significant = 0usize;
     let mut column_offset = 0usize;
@@ -3258,6 +3368,11 @@ fn frame_meta_delta_break_reason(
     if previous_frame_meta.alt_screen_active != frame_meta.alt_screen_active {
         return Some("alternate_screen_changed");
     }
+    if previous_frame_meta.default_foreground_rgb != frame_meta.default_foreground_rgb
+        || previous_frame_meta.default_background_rgb != frame_meta.default_background_rgb
+    {
+        return Some("terminal_default_colors_changed");
+    }
     if previous_frame_meta.modes != frame_meta.modes {
         return Some("terminal_modes_changed");
     }
@@ -3429,6 +3544,25 @@ pub fn resize_session(
     STORE
         .get(session_id)?
         .resize(cols, rows, pixel_width, pixel_height)
+}
+
+pub fn resize_session_with_cell_size(
+    session_id: u64,
+    cols: u16,
+    rows: u16,
+    pixel_width: u16,
+    pixel_height: u16,
+    cell_width: u16,
+    cell_height: u16,
+) -> Result<(), SessionError> {
+    STORE.get(session_id)?.resize_with_cell_size(
+        cols,
+        rows,
+        pixel_width,
+        pixel_height,
+        cell_width,
+        cell_height,
+    )
 }
 
 pub fn write_session(session_id: u64, bytes: &[u8]) -> Result<(), SessionError> {
@@ -3642,6 +3776,7 @@ pub fn copy_graphic_asset_rgba(
 mod tests {
     use super::*;
     use par_term_emu_core_rust::cell::Cell;
+    use par_term_emu_core_rust::color::NamedColor;
     use par_term_emu_core_rust::terminal::Terminal;
 
     #[test]
@@ -3863,6 +3998,102 @@ mod tests {
 
         assert_eq!(placements.len(), 1);
         assert_eq!(placements[0].row, 1);
+    }
+
+    #[test]
+    fn resize_pixel_metrics_drive_graphic_display_geometry() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        apply_terminal_pixel_metrics(&mut terminal, 80, 24, 800, 480, 0, 0);
+
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,c=9,r=5,i=49374;/wAA/w==\x1b\\");
+        let placements = build_graphic_placements(&terminal, 0, 24, 0, false);
+
+        assert_eq!(placements.len(), 1);
+        assert_eq!(placements[0].width_px, 90);
+        assert_eq!(placements[0].height_px, 100);
+        assert_eq!(placements[0].width_cells, 9);
+        assert_eq!(placements[0].height_cells, 5);
+    }
+
+    #[test]
+    fn explicit_cell_metrics_drive_graphic_display_geometry() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        apply_terminal_pixel_metrics(&mut terminal, 80, 24, 815, 487, 9, 18);
+
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,c=9,r=5,i=49374;/wAA/w==\x1b\\");
+        let placements = build_graphic_placements(&terminal, 0, 24, 0, false);
+
+        assert_eq!(placements.len(), 1);
+        assert_eq!(placements[0].width_px, 81);
+        assert_eq!(placements[0].height_px, 90);
+        assert_eq!(placements[0].width_cells, 9);
+        assert_eq!(placements[0].height_cells, 5);
+    }
+
+    #[test]
+    fn resize_updates_existing_graphic_cell_geometry() {
+        let mut terminal = Terminal::with_scrollback(80, 24, 16);
+        apply_terminal_pixel_metrics(&mut terminal, 80, 24, 800, 480, 10, 20);
+        terminal.process(b"\x1b_Ga=T,f=32,s=1,v=1,c=9,r=5,i=49374;/wAA/w==\x1b\\");
+
+        apply_terminal_pixel_metrics(&mut terminal, 80, 24, 815, 487, 9, 18);
+        let placements = build_graphic_placements(&terminal, 0, 24, 0, false);
+
+        assert_eq!(placements.len(), 1);
+        assert_eq!(placements[0].width_px, 81);
+        assert_eq!(placements[0].height_px, 90);
+        assert_eq!(placements[0].width_cells, 9);
+        assert_eq!(placements[0].height_cells, 5);
+        assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((9, 5)));
+    }
+
+    #[test]
+    fn graphic_placement_crops_scrolled_top_rows() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (0, 0),
+            1,
+            1,
+            vec![255u8; 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::cells(9.0);
+        graphic.placement.requested_height = ImageDimension::cells(5.0);
+        graphic.set_display_cell_span(9, 5);
+        graphic.scroll_offset_rows = 1;
+
+        let placement = graphic_placement_for_viewport(&graphic, 0, 0, 24, 80, 24, 1)
+            .expect("partially scrolled graphic should remain visible");
+
+        assert_eq!(placement.row, 0);
+        assert_eq!(placement.height_px, 100);
+        assert_eq!(placement.height_cells, 5);
+        assert_eq!(placement.source_y_offset_px, 20);
+        assert_eq!(placement.visible_height_px, 80);
+    }
+
+    #[test]
+    fn graphic_placement_crops_when_viewport_starts_inside_graphic() {
+        let mut graphic = TerminalGraphic::new(
+            1,
+            par_term_emu_core_rust::graphics::GraphicProtocol::Kitty,
+            (0, 3),
+            1,
+            1,
+            vec![255u8; 4],
+        );
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::cells(9.0);
+        graphic.placement.requested_height = ImageDimension::cells(5.0);
+        graphic.set_display_cell_span(9, 5);
+
+        let placement = graphic_placement_for_viewport(&graphic, 3, 5, 10, 80, 24, 0)
+            .expect("graphic should be visible through lower rows");
+
+        assert_eq!(placement.row, 0);
+        assert_eq!(placement.source_y_offset_px, 40);
+        assert_eq!(placement.visible_height_px, 60);
     }
 
     #[test]

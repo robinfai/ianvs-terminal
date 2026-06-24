@@ -43,34 +43,75 @@ class TerminalGraphicsCache {
       <TerminalGraphicAssetKey, Future<ui.Image?>>{};
   final Map<TerminalGraphicAssetKey, ui.Image> _images =
       <TerminalGraphicAssetKey, ui.Image>{};
+  final Map<TerminalGraphicAssetKey, Object> _activeLoadTokens =
+      <TerminalGraphicAssetKey, Object>{};
   final Map<TerminalGraphicAssetKey, int> _lastSeenGeneration =
       <TerminalGraphicAssetKey, int>{};
   int _evictionGeneration = 0;
+  bool _disposed = false;
 
   Future<ui.Image?> imageFor(TerminalGraphicAssetKey key) {
+    if (_disposed) {
+      return Future<ui.Image?>.value();
+    }
     _lastSeenGeneration[key] = _evictionGeneration;
     final cached = _images[key];
     if (cached != null) {
       return Future<ui.Image?>.value(cached);
     }
-    return _pending.putIfAbsent(key, () async {
-      try {
-        final asset = await _loadAsset(key);
-        if (asset == null || !asset.isValid) {
-          return null;
-        }
-        final image = await _decodeImage(
-          _premultiplyRgba(asset.rgba),
-          asset.width,
-          asset.height,
-        );
-        _images[key] = image;
-        _lastSeenGeneration[key] = _evictionGeneration;
-        return image;
-      } finally {
+    final pending = _pending[key];
+    if (pending != null) {
+      return pending;
+    }
+
+    final loadToken = Object();
+    _activeLoadTokens[key] = loadToken;
+    late final Future<ui.Image?> load;
+    load = _loadImage(key, loadToken).whenComplete(() {
+      if (identical(_pending[key], load)) {
         _pending.remove(key);
       }
+      if (identical(_activeLoadTokens[key], loadToken)) {
+        _activeLoadTokens.remove(key);
+      }
     });
+    _pending[key] = load;
+    return load;
+  }
+
+  Future<ui.Image?> _loadImage(
+    TerminalGraphicAssetKey key,
+    Object loadToken,
+  ) async {
+    final asset = await _loadAsset(key);
+    if (asset == null || !asset.isValid) {
+      return null;
+    }
+    final image = await _decodeImage(
+      _premultiplyRgba(asset.rgba),
+      asset.width,
+      asset.height,
+    );
+    if (_isLoadStale(key, loadToken)) {
+      image.dispose();
+      return null;
+    }
+    _images[key] = image;
+    _lastSeenGeneration[key] = _evictionGeneration;
+    return image;
+  }
+
+  bool _isLoadStale(TerminalGraphicAssetKey key, Object loadToken) {
+    return _disposed ||
+        !identical(_activeLoadTokens[key], loadToken) ||
+        !_lastSeenGeneration.containsKey(key);
+  }
+
+  void _invalidateKey(TerminalGraphicAssetKey key) {
+    _images.remove(key)?.dispose();
+    _pending.remove(key);
+    _activeLoadTokens.remove(key);
+    _lastSeenGeneration.remove(key);
   }
 
   void evictExcept(Set<TerminalGraphicAssetKey> liveKeys) {
@@ -78,12 +119,12 @@ class TerminalGraphicsCache {
     for (final key in liveKeys) {
       _lastSeenGeneration[key] = _evictionGeneration;
     }
-    final unusedKeys = _images.keys
-        .where((key) => !liveKeys.contains(key))
-        .toList(growable: false);
+    final unusedKeys = <TerminalGraphicAssetKey>{
+      ..._images.keys.where((key) => !liveKeys.contains(key)),
+      ..._pending.keys.where((key) => !liveKeys.contains(key)),
+    };
     for (final key in unusedKeys) {
-      _images.remove(key)?.dispose();
-      _lastSeenGeneration.remove(key);
+      _invalidateKey(key);
     }
 
     if (_images.length <= _maxCachedImages) {
@@ -102,18 +143,19 @@ class TerminalGraphicsCache {
       if (_images.length <= _maxCachedImages) {
         break;
       }
-      _images.remove(key)?.dispose();
-      _lastSeenGeneration.remove(key);
+      _invalidateKey(key);
     }
   }
 
   void dispose() {
+    _disposed = true;
     for (final image in _images.values) {
       image.dispose();
     }
     _images.clear();
     _lastSeenGeneration.clear();
     _pending.clear();
+    _activeLoadTokens.clear();
   }
 }
 

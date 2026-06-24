@@ -1553,15 +1553,18 @@ class _TerminalViewportState extends State<TerminalViewport>
                 contentPadding.top +
                 graphic.row * cellSize.height +
                 graphic.yOffsetPx / devicePixelRatio,
-              width: graphic.widthCells * cellSize.width,
-              height: graphic.heightCells * cellSize.height,
-              child: IgnorePointer(
-                child: _TerminalGraphicOverlay(
-                  key: Key('terminal-graphic-${graphic.renderId}'),
-                  cache: graphicsCache,
-                  placement: graphic,
-                ),
+            width: graphic.widthPx / devicePixelRatio,
+            height: graphic.visibleHeightPx / devicePixelRatio,
+            child: IgnorePointer(
+              child: _TerminalGraphicOverlay(
+                key: Key('terminal-graphic-${graphic.renderId}'),
+                cache: graphicsCache,
+                placement: graphic,
+                displayWidth: graphic.widthPx / devicePixelRatio,
+                displayHeight: graphic.heightPx / devicePixelRatio,
+                sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio,
               ),
+            ),
           ),
     ];
   }
@@ -2175,10 +2178,16 @@ class _TerminalGraphicOverlay extends StatefulWidget {
     super.key,
     required this.cache,
     required this.placement,
+    required this.displayWidth,
+    required this.displayHeight,
+    required this.sourceYOffset,
   });
 
   final TerminalGraphicsCache cache;
   final TerminalGraphicPlacement placement;
+  final double displayWidth;
+  final double displayHeight;
+  final double sourceYOffset;
 
   @override
   State<_TerminalGraphicOverlay> createState() =>
@@ -2251,10 +2260,21 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
     if (image == null || _imageFuture == null) {
       return const SizedBox.shrink();
     }
-    return RawImage(
-      image: image,
-      fit: widget.placement.preserveAspectRatio ? BoxFit.contain : BoxFit.fill,
-      filterQuality: FilterQuality.medium,
+    return ClipRect(
+      child: Transform.translate(
+        offset: Offset(0, -widget.sourceYOffset),
+        child: SizedBox(
+          width: widget.displayWidth,
+          height: widget.displayHeight,
+          child: RawImage(
+            image: image,
+            fit: widget.placement.preserveAspectRatio
+                ? BoxFit.contain
+                : BoxFit.fill,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      ),
     );
   }
 }

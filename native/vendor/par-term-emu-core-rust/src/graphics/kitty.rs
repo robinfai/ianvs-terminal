@@ -398,8 +398,12 @@ impl KittyParser {
                     row: self.y_offset.unwrap_or(1).saturating_sub(1) as usize,
                     z_index: self.z_index,
                 }),
-                'x' | 'X' => self.x_offset.map(KittyDeleteTarget::ByColumn),
-                'y' | 'Y' => self.y_offset.map(KittyDeleteTarget::ByRow),
+                'x' | 'X' => self
+                    .x_offset
+                    .map(|col| KittyDeleteTarget::ByColumn(col.saturating_sub(1))),
+                'y' | 'Y' => self
+                    .y_offset
+                    .map(|row| KittyDeleteTarget::ByRow(row.saturating_sub(1))),
                 'z' | 'Z' => self.z_index.map(KittyDeleteTarget::ByZIndex),
                 _ => None,
             };
@@ -511,7 +515,9 @@ impl KittyParser {
                         KittyDeleteTarget::ByColumn(col) => {
                             store.delete_kitty_graphics_in_column(*col as usize)
                         }
-                        KittyDeleteTarget::ByRow(row) => store.delete_kitty_graphics_in_row(*row as usize),
+                        KittyDeleteTarget::ByRow(row) => {
+                            store.delete_kitty_graphics_in_row(*row as usize)
+                        }
                         KittyDeleteTarget::ByZIndex(z_index) => {
                             store.delete_kitty_graphics_by_z_index(*z_index);
                         }
@@ -1347,6 +1353,39 @@ mod tests {
         let placement = parser.build_placement();
         assert_eq!(placement.x_offset, 5);
         assert_eq!(placement.y_offset, 3);
+    }
+
+    #[test]
+    fn test_kitty_delete_cell_coordinates_are_one_based() {
+        let mut parser = KittyParser::new();
+        parser.parse_chunk("a=d,d=p,x=1,y=2;").unwrap();
+        assert_eq!(
+            parser.delete_target,
+            Some(KittyDeleteTarget::InCell {
+                col: 0,
+                row: 1,
+                z_index: None,
+            })
+        );
+
+        let mut parser = KittyParser::new();
+        parser.parse_chunk("a=d,d=q,x=3,y=4,z=-2;").unwrap();
+        assert_eq!(
+            parser.delete_target,
+            Some(KittyDeleteTarget::InCell {
+                col: 2,
+                row: 3,
+                z_index: Some(-2),
+            })
+        );
+
+        let mut parser = KittyParser::new();
+        parser.parse_chunk("a=d,d=x,x=1;").unwrap();
+        assert_eq!(parser.delete_target, Some(KittyDeleteTarget::ByColumn(0)));
+
+        let mut parser = KittyParser::new();
+        parser.parse_chunk("a=d,d=y,y=1;").unwrap();
+        assert_eq!(parser.delete_target, Some(KittyDeleteTarget::ByRow(0)));
     }
 
     #[test]
