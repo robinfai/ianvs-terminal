@@ -1243,6 +1243,166 @@ void main() {
     },
   );
 
+  testWidgets(
+    'terminal runtime controller refreshes immediately after polling idle',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+      try {
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewport = runtime.viewportFor(sessionId);
+        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(viewport.frame.rows.first.text, 'demo');
+
+        runtimeBackend.clearFrame(sessionId);
+        await tester.pump(const Duration(milliseconds: 34));
+        expect(runtimeBackend.takeFrameDiffCalls, 2);
+
+        runtimeBackend.setFrame(sessionId, _singleRowSnapshot('after idle'));
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 3);
+        expect(viewport.frame.rows.first.text, 'after idle');
+      } finally {
+        runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller coalesces polling input bursts to 30fps',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+      try {
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewport = runtime.viewportFor(sessionId);
+        runtimeBackend.setFrame(sessionId, _singleRowSnapshot('coalesced'));
+
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x42]));
+        runtime.scrollViewport(sessionId, 1);
+
+        expect(runtimeBackend.takeFrameDiffCalls, 1);
+        expect(viewport.frame.rows.first.text, 'demo');
+
+        await tester.pump(const Duration(milliseconds: 32));
+        expect(runtimeBackend.takeFrameDiffCalls, 1);
+
+        await tester.pump(const Duration(milliseconds: 2));
+        expect(runtimeBackend.takeFrameDiffCalls, 2);
+        expect(viewport.frame.rows.first.text, 'coalesced');
+      } finally {
+        runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller schedules queued polling refresh after async events',
+    (tester) async {
+      final copyCompleter = Completer<void>();
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) => copyCompleter.future,
+        readClipboard: () async => '',
+      );
+      try {
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewport = runtime.viewportFor(sessionId);
+        runtimeBackend.setFrame(sessionId, _singleRowSnapshot('blocked'));
+        runtimeBackend.enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'clipboard_copy',
+            sessionId: sessionId,
+            payload: <String, Object?>{
+              'data': base64.encode(utf8.encode('queued copy')),
+            },
+          ),
+        );
+
+        runtime.sendInput(sessionId, Uint8List(0));
+        await tester.pump(const Duration(milliseconds: 34));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 2);
+        expect(viewport.frame.rows.first.text, 'blocked');
+
+        runtimeBackend.setFrame(sessionId, _singleRowSnapshot('after async'));
+        runtime.sendInput(sessionId, Uint8List(0));
+        await tester.pump(const Duration(milliseconds: 30));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 2);
+
+        copyCompleter.complete();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 4));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 3);
+        expect(viewport.frame.rows.first.text, 'after async');
+      } finally {
+        if (!copyCompleter.isCompleted) {
+          copyCompleter.complete();
+        }
+        runtime.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'terminal runtime controller cancels pending polling refresh on close',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+      );
+      try {
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        runtimeBackend.setFrame(
+          sessionId,
+          _singleRowSnapshot('should not show'),
+        );
+        runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 1);
+
+        runtime.closeSession(sessionId);
+        await tester.pump(const Duration(milliseconds: 40));
+
+        expect(runtimeBackend.takeFrameDiffCalls, 1);
+      } finally {
+        runtime.dispose();
+      }
+    },
+  );
+
   testWidgets('terminal runtime controller exposes explicit full refresh', (
     tester,
   ) async {
@@ -3170,6 +3330,10 @@ class _FakePtyBackend
 
   void setFrame(String sessionId, Map<String, Object?> frame) {
     _frames[sessionId] = frame;
+  }
+
+  void clearFrame(String sessionId) {
+    _frames.remove(sessionId);
   }
 
   void enqueueFrame(String sessionId, Map<String, Object?> frame) {

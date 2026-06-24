@@ -211,6 +211,8 @@ List<Map<String, Object?>> _mapList(Object? value) {
 }
 
 class TerminalRuntimeController {
+  static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
+
   TerminalRuntimeController({
     required PtySessionBackend backend,
     required this.copyToClipboard,
@@ -241,6 +243,8 @@ class TerminalRuntimeController {
   final Map<String, _SessionResizeMetric> _lastResizeMetrics =
       <String, _SessionResizeMetric>{};
   final Map<String, List<Timer>> _warmUpTimers = <String, List<Timer>>{};
+  final Map<String, Timer> _pollingCooldownTimers = <String, Timer>{};
+  final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
   final StreamController<TerminalSessionEvent> _events =
       StreamController<TerminalSessionEvent>.broadcast();
   final StreamController<TerminalSessionInputEvent> _inputEvents =
@@ -671,9 +675,7 @@ class TerminalRuntimeController {
         devicePixelRatio: devicePixelRatio,
       ),
     );
-    if (!enableSessionPolling) {
-      _requestRefreshSession(sessionId, immediate: true);
-    }
+    _requestRefreshAfterResize(sessionId);
   }
 
   void resizeSessionCells(
@@ -751,15 +753,13 @@ class TerminalRuntimeController {
         devicePixelRatio: devicePixelRatio,
       ),
     );
-    if (!enableSessionPolling) {
-      _requestRefreshSession(sessionId, immediate: true);
-    }
+    _requestRefreshAfterResize(sessionId);
   }
 
   void _startPolling() {
     _pollTimer ??= Timer.periodic(const Duration(milliseconds: 33), (_) {
       for (final sessionId in _activeSessionIds.toList(growable: false)) {
-        _requestRefreshSession(sessionId, immediate: true);
+        _requestRefreshSession(sessionId);
       }
     });
   }
@@ -767,6 +767,23 @@ class TerminalRuntimeController {
   void _requestRefreshSession(String sessionId, {bool immediate = false}) {
     if (!hasSession(sessionId)) {
       return;
+    }
+    if (enableSessionPolling && !immediate) {
+      _requestThrottledRefreshSession(sessionId);
+      return;
+    }
+    _requestUnthrottledRefreshSession(sessionId, immediate: immediate);
+  }
+
+  void _requestUnthrottledRefreshSession(
+    String sessionId, {
+    bool immediate = false,
+  }) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
+    if (immediate) {
+      _pollingCooldownTimers.remove(sessionId)?.cancel();
     }
     if (_refreshingSessionIds.contains(sessionId)) {
       _queuedRefreshSessionIds.add(sessionId);
@@ -785,7 +802,78 @@ class TerminalRuntimeController {
     unawaited(_refreshSession(sessionId));
   }
 
+  void _requestThrottledRefreshSession(String sessionId) {
+    if (!hasSession(sessionId)) {
+      return;
+    }
+    if (_refreshingSessionIds.contains(sessionId)) {
+      _queuedRefreshSessionIds.add(sessionId);
+      return;
+    }
+    if (_pollingCooldownTimers.containsKey(sessionId)) {
+      _queuedRefreshSessionIds.add(sessionId);
+      return;
+    }
+    _requestUnthrottledRefreshSession(sessionId, immediate: true);
+  }
+
   Future<void> _refreshSession(String sessionId) async {
+    if (enableSessionPolling) {
+      await _refreshSessionOnce(sessionId);
+      return;
+    }
+    await _refreshSessionDraining(sessionId);
+  }
+
+  Future<void> _refreshSessionOnce(String sessionId) async {
+    if (!hasSession(sessionId)) {
+      return;
+    }
+
+    _refreshingSessionIds.add(sessionId);
+    try {
+      final pendingFrames = <TerminalFrameDiff>[];
+      _queuedRefreshSessionIds.remove(sessionId);
+
+      final rawFrame = _backend.takeFrameDiffJson(sessionId);
+      if (rawFrame != null && rawFrame.isNotEmpty) {
+        final frame = _decodeFrame(rawFrame);
+        if (frame != null) {
+          _queuePendingFrame(pendingFrames, frame);
+        }
+      }
+
+      final events = _eventsForSession(
+        sessionId,
+        _backend.pollEvents(sessionId),
+      );
+      final shouldApplyBeforeEvents =
+          pendingFrames.isNotEmpty &&
+          (!_eventsDelayFrame(events) || _eventsContainExit(events));
+      if (shouldApplyBeforeEvents) {
+        _applyPendingFrames(sessionId, pendingFrames);
+      }
+
+      final eventProcessing = _processEvents(sessionId, events);
+      if (eventProcessing != null) {
+        await eventProcessing;
+      }
+      if (!hasSession(sessionId)) {
+        return;
+      }
+
+      if (pendingFrames.isNotEmpty) {
+        _applyPendingFrames(sessionId, pendingFrames);
+      }
+    } finally {
+      _refreshingSessionIds.remove(sessionId);
+      if (_queuedRefreshSessionIds.remove(sessionId) && hasSession(sessionId)) {
+        _requestRefreshSession(sessionId);
+      }
+    }
+  }
+
+  Future<void> _refreshSessionDraining(String sessionId) async {
     if (!hasSession(sessionId)) {
       return;
     }
@@ -846,14 +934,31 @@ class TerminalRuntimeController {
   }
 
   void _refreshSessionIfNeeded(String sessionId) {
-    if (!enableSessionPolling) {
-      _requestRefreshSession(sessionId);
-    }
+    _requestRefreshSession(sessionId);
+  }
+
+  void _requestRefreshAfterResize(String sessionId) {
+    _requestRefreshSession(sessionId, immediate: !enableSessionPolling);
   }
 
   void _applyFrame(String sessionId, TerminalFrameDiff frame) {
     viewportFor(sessionId).updateFrame(frame);
+    _lastFrameAppliedAt[sessionId] = DateTime.now();
+    _startPollingCooldown(sessionId);
     _events.add(TerminalSessionFrameEvent(sessionId, frame));
+  }
+
+  void _startPollingCooldown(String sessionId) {
+    if (!enableSessionPolling || !hasSession(sessionId)) {
+      return;
+    }
+    _pollingCooldownTimers.remove(sessionId)?.cancel();
+    _pollingCooldownTimers[sessionId] = Timer(_pollingFrameInterval, () {
+      _pollingCooldownTimers.remove(sessionId);
+      if (_queuedRefreshSessionIds.remove(sessionId) && hasSession(sessionId)) {
+        _requestThrottledRefreshSession(sessionId);
+      }
+    });
   }
 
   TerminalFrameDiff? _decodeFrame(String rawFrame) {
@@ -1050,9 +1155,7 @@ class TerminalRuntimeController {
         devicePixelRatio: metric.devicePixelRatio,
       ),
     );
-    if (!enableSessionPolling) {
-      _requestRefreshSession(sessionId, immediate: true);
-    }
+    _requestRefreshAfterResize(sessionId);
 
     if (widthDelta == 0 && heightDelta == 0) {
       return;
@@ -1162,6 +1265,8 @@ class TerminalRuntimeController {
     _refreshingSessionIds.remove(sessionId);
     _queuedRefreshSessionIds.remove(sessionId);
     _scheduledRefreshSessionIds.remove(sessionId);
+    _pollingCooldownTimers.remove(sessionId)?.cancel();
+    _lastFrameAppliedAt.remove(sessionId);
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
     }
