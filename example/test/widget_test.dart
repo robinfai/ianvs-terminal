@@ -151,6 +151,29 @@ Future<void> _openShellSearch(WidgetTester tester) async {
   await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
 }
 
+Map<String, Object?> _terminalFrameWithTitle(String title) {
+  return <String, Object?>{
+    'rows': <Object?>[
+      <String, Object?>{
+        'index': 0,
+        'text': title,
+        'style_runs': const <Object?>[],
+      },
+    ],
+    'cursor': <String, Object?>{'row': 0, 'col': title.length, 'visible': true},
+    'selection': null,
+    'viewport_rows': 24,
+    'viewport_cols': 80,
+    'dirty_ranges': <Object?>[
+      <String, Object?>{'start': 0, 'end': 1},
+    ],
+    'scrollback_offset': 0,
+    'scrollback_max_offset': 0,
+    'window_title': title,
+    'window_icon_name': null,
+  };
+}
+
 Future<void> _invokeNativeWindowBridge(
   WidgetTester tester,
   MethodCall call,
@@ -721,13 +744,17 @@ void main() {
     );
 
     expect(find.byKey(const Key('shell-pane-header-1')), findsNothing);
+    expect(
+      find.byKey(const Key('shell-pane-action-split-right-1')),
+      findsNothing,
+    );
 
     await _openTabContextMenu(tester);
     await tester.tap(find.text('Split right'));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-pane-header-2')), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-header-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-header-1')), findsOneWidget);
     expect(find.text('Pane 2/2'), findsOneWidget);
     expect(
       find.byKey(const Key('shell-pane-action-split-right-2')),
@@ -737,6 +764,18 @@ void main() {
       find.byKey(const Key('shell-pane-action-split-down-2')),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const Key('shell-pane-action-split-right-1')),
+      findsNothing,
+    );
+
+    final secondPaneTop = tester
+        .getTopLeft(find.byKey(const Key('shell-pane-2')))
+        .dy;
+    final secondHeaderTop = tester
+        .getTopLeft(find.byKey(const Key('shell-pane-header-2')))
+        .dy;
+    expect(secondHeaderTop, closeTo(secondPaneTop, 0.5));
 
     await tester.tap(find.byKey(const Key('shell-pane-action-split-down-2')));
     await tester.pumpAndSettle();
@@ -747,6 +786,62 @@ void main() {
     expect(find.byKey(const Key('shell-pane-header-3')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
+
+  testWidgets(
+    'tab title follows active pane title when tab has multiple panes',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setFrame(1, _terminalFrameWithTitle('Left Pane Title'));
+      fakeBindings.setFrame(2, _terminalFrameWithTitle('Right Pane Title'));
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-title-1')),
+          matching: find.text('Right Pane Title'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
+            .data,
+        'Right Pane Title',
+      );
+
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-tab-title-1')),
+          matching: find.text('Left Pane Title'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
+            .data,
+        'Left Pane Title',
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
   testWidgets('active split pane header zooms and closes the pane', (
     tester,
@@ -770,7 +865,7 @@ void main() {
     await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyC);
 
     expect(find.text('Copy mode'), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-header-2')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-header-2')), findsOneWidget);
 
     await tester.sendKeyDownEvent(LogicalKeyboardKey.escape, platform: 'macos');
     await tester.pumpAndSettle();
@@ -5401,7 +5496,13 @@ void main() {
         'needle',
         'smart_case_substring',
       ]);
-      expect(find.textContaining('/2'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('terminal-search-status')),
+          matching: find.text('1/2'),
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const Key('terminal-search-next')));
       await tester.pumpAndSettle();

@@ -247,8 +247,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
       }
     }
-    final activeChromeTitle =
-        activeTab?.title ?? defaultProfile?.name ?? 'Ianvs Terminal';
+    final activeChromeTitle = activeTab == null
+        ? defaultProfile?.name ?? 'Ianvs Terminal'
+        : _shellTabDisplayTitle(activeTab);
     final displayedSessionId = _displayedSessionIdFor(
       sessionController,
       sessionState,

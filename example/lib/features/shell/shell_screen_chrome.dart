@@ -431,6 +431,7 @@ class _ReferenceDemoTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = _shellTabDisplayTitle(tab);
     return Semantics(
       identifier: _shellTabSemanticsIdentifier(tab),
       label: _shellTabSemanticsLabel(tab, shortcutIndex),
@@ -459,7 +460,7 @@ class _ReferenceDemoTab extends StatelessWidget {
                 const SizedBox(width: 6),
               ],
               Text(
-                tab.title,
+                title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: isActive ? palette.textPrimary : palette.textSubtle,
                   fontWeight: isActive ? FontWeight.w500 : FontWeight.w400,
@@ -1138,6 +1139,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
 
   @override
   Widget build(BuildContext context) {
+    final title = _shellTabDisplayTitle(widget.tab);
     final tone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
       terminalBackground: widget.terminalBackgroundColor,
@@ -1192,7 +1194,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
-                  widget.tab.title,
+                  title,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: textColor,
@@ -1271,6 +1273,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
 
   @override
   Widget build(BuildContext context) {
+    final title = _shellTabDisplayTitle(widget.tab);
     final tone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
       terminalBackground: widget.chromeBackgroundColor,
@@ -1364,7 +1367,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                     duration: const Duration(milliseconds: 140),
                                     style: tabTextStyle,
                                     child: Text(
-                                      widget.tab.title,
+                                      title,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -1410,7 +1413,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                         duration: const Duration(milliseconds: 80),
                         opacity: _hovered ? 1 : 0,
                         child: Tooltip(
-                          message: 'Close ${widget.tab.title}',
+                          message: 'Close $title',
                           child: GestureDetector(
                             key: Key('shell-tab-close-${widget.tab.sessionId}'),
                             behavior: HitTestBehavior.opaque,
@@ -1441,7 +1444,15 @@ String _shellTabSemanticsIdentifier(TerminalTab tab) {
 
 String _shellTabSemanticsLabel(TerminalTab tab, int? shortcutIndex) {
   final shortcut = shortcutIndex == null ? '' : ', Command $shortcutIndex';
-  return '${tab.title} tab$shortcut';
+  return '${_shellTabDisplayTitle(tab)} tab$shortcut';
+}
+
+String _shellTabDisplayTitle(TerminalTab tab) {
+  if (tab.effectivePanes.length < 2) {
+    return tab.title;
+  }
+  final activePaneTitle = tab.activePane.title.trim();
+  return activePaneTitle.isEmpty ? tab.title : activePaneTitle;
 }
 
 class _ShellStartupSurface extends StatelessWidget {
