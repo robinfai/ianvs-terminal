@@ -108,6 +108,57 @@ class _SearchableSession {
   final String title;
 }
 
+enum _TerminalSearchScope {
+  activePane,
+  currentTab,
+  allTabs;
+
+  String get label {
+    return switch (this) {
+      _TerminalSearchScope.activePane => 'Active pane',
+      _TerminalSearchScope.currentTab => 'Current tab',
+      _TerminalSearchScope.allTabs => 'All tabs',
+    };
+  }
+
+  String get shortLabel {
+    return switch (this) {
+      _TerminalSearchScope.activePane => 'Pane',
+      _TerminalSearchScope.currentTab => 'Tab',
+      _TerminalSearchScope.allTabs => 'All',
+    };
+  }
+
+  String get wireName {
+    return switch (this) {
+      _TerminalSearchScope.activePane => 'active_pane',
+      _TerminalSearchScope.currentTab => 'current_tab',
+      _TerminalSearchScope.allTabs => 'all_tabs',
+    };
+  }
+}
+
+final class _ScopedSearchMatch {
+  const _ScopedSearchMatch({required this.session, required this.match});
+
+  final _SearchableSession session;
+  final terminal.TerminalSearchMatch match;
+}
+
+final class _ScopedSearchResult {
+  const _ScopedSearchResult({
+    required this.sessions,
+    required this.matchesBySession,
+    required this.hits,
+    this.errorText,
+  });
+
+  final List<_SearchableSession> sessions;
+  final Map<String, List<terminal.TerminalSearchMatch>> matchesBySession;
+  final List<_ScopedSearchMatch> hits;
+  final String? errorText;
+}
+
 class _GlobalSearchResult {
   const _GlobalSearchResult({required this.session, required this.match});
 

@@ -1,7 +1,7 @@
 import Cocoa
 import FlutterMacOS
 import XCTest
-@testable import Ianvs_Terminal
+@testable import Ianvs_Terminal_Dev
 
 class RunnerTests: XCTestCase {
 
@@ -23,6 +23,27 @@ class RunnerTests: XCTestCase {
       "Notifications are disabled for Ianvs Terminal in System Settings."
     )
     XCTAssertNil(error.details)
+  }
+
+  func testPreferredForegroundWindowChoosesFlutterWindowFirst() {
+    let utilityWindow = NSWindow()
+    let mainWindow = MainFlutterWindow()
+
+    let selected = AppDelegate.preferredForegroundWindow(
+      from: [utilityWindow, mainWindow]
+    )
+
+    XCTAssertTrue(selected === mainWindow)
+  }
+
+  func testPreferredForegroundWindowFallsBackToKeyCapableWindow() {
+    let keyCapableWindow = NSWindow()
+
+    let selected = AppDelegate.preferredForegroundWindow(
+      from: [keyCapableWindow]
+    )
+
+    XCTAssertTrue(selected === keyCapableWindow)
   }
 
   func testNativeWindowDragRegionCoversOnlyLeadingChromeGap() {

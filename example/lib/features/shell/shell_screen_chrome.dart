@@ -504,7 +504,9 @@ class _ShellTabStrip extends StatefulWidget {
 }
 
 class _ShellTabStripState extends State<_ShellTabStrip> {
-  static const double _minTabWidth = 180;
+  static const double _regularMinTabWidth = 180;
+  static const double _compactMinTabWidth = 104;
+  static const double _compactTabThreshold = 140;
   static const double _tabActionButtonWidth = 40;
 
   String? _draggingSessionId;
@@ -548,6 +550,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
           final tabWidth = visibleTabCount == 0
               ? 0.0
               : visibleTabsCapacity / visibleTabCount;
+          final compactTabs = tabWidth < _compactTabThreshold;
           final visibleTabsWidth = tabWidth * visibleTabCount;
 
           return Row(
@@ -595,15 +598,19 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                               tab.containsSession(widget.activeSessionId!);
                           final isDragging =
                               _draggingSessionId == tab.sessionId;
+                          final shortcutIndex = !compactTabs && index < 9
+                              ? index + 1
+                              : null;
                           return _ShellReorderableTabItem(
                             key: ValueKey('shell-tab-reorder-${tab.sessionId}'),
                             width: tabWidth,
                             child: _ShellTabButton(
                               palette: widget.palette,
                               tab: tab,
-                              shortcutIndex: index < 9 ? index + 1 : null,
+                              shortcutIndex: shortcutIndex,
                               isActive: isActive,
                               hasNewOutput: widget.tabHasNewOutput(tab),
+                              compact: compactTabs,
                               chromeBackgroundColor: chromeBackground,
                               dragRegionBuilder: (child) =>
                                   _ShellTabDragStartRegion(
@@ -656,10 +663,13 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
     if (tabCount == 0 || tabsAreaWidth <= 0) {
       return 0;
     }
-    if (tabsAreaWidth / tabCount >= _minTabWidth) {
+    if (tabsAreaWidth / tabCount >= _regularMinTabWidth) {
       return tabCount;
     }
-    final visibleCapacity = tabsAreaWidth ~/ _minTabWidth;
+    if (tabsAreaWidth / tabCount >= _compactMinTabWidth) {
+      return tabCount;
+    }
+    final visibleCapacity = tabsAreaWidth ~/ _compactMinTabWidth;
     if (visibleCapacity <= 0) {
       return 0;
     }
@@ -1232,6 +1242,7 @@ class _ShellTabButton extends StatefulWidget {
     required this.shortcutIndex,
     required this.isActive,
     required this.hasNewOutput,
+    required this.compact,
     required this.chromeBackgroundColor,
     required this.dragRegionBuilder,
     required this.onActivate,
@@ -1244,6 +1255,7 @@ class _ShellTabButton extends StatefulWidget {
   final int? shortcutIndex;
   final bool isActive;
   final bool hasNewOutput;
+  final bool compact;
   final Color chromeBackgroundColor;
   final Widget Function(Widget child) dragRegionBuilder;
   final VoidCallback onActivate;
@@ -1299,8 +1311,10 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                           minimumSize: const WidgetStatePropertyAll(
                             Size(0, 30),
                           ),
-                          padding: const WidgetStatePropertyAll(
-                            EdgeInsets.symmetric(horizontal: 12),
+                          padding: WidgetStatePropertyAll(
+                            EdgeInsets.symmetric(
+                              horizontal: widget.compact ? 8 : 12,
+                            ),
                           ),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: const VisualDensity(

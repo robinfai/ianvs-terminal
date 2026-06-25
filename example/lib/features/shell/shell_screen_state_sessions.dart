@@ -161,8 +161,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _isToolbeltOpen = false;
       _searchQuery = '';
       _searchErrorText = null;
-      _searchMatches = const [];
+      _searchMatchesBySession = const {};
+      _searchHits = const [];
       _activeSearchIndex = 0;
+      _lastSearchScopeSessionSignature = null;
       _autocompletePrefix = '';
       _autocompleteSuggestions = const [];
       _activeAutocompleteIndex = 0;
@@ -175,6 +177,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _copyModeExtentCol = null;
       _workspaceCueTimer?.cancel();
       _workspaceCueTimer = null;
+    } else {
+      _syncSearchResultsForSessionScope(sessionState);
     }
     _lastObservedTabCount = currentTabCount;
   }

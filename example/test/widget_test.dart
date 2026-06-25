@@ -146,7 +146,7 @@ Future<void> _hoverShellTab(WidgetTester tester, String sessionId) async {
 }
 
 Future<void> _openShellSearch(WidgetTester tester) async {
-  await tester.tap(find.byType(TerminalViewport));
+  await tester.tap(find.byType(TerminalViewport).last);
   await tester.pump();
   await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
 }
@@ -173,6 +173,16 @@ Future<void> _openTabContextMenu(
     buttons: kSecondaryButton,
   );
   await tester.pumpAndSettle();
+}
+
+Future<void> _openTabCountWithShortcut(
+  WidgetTester tester,
+  int tabCount,
+) async {
+  assert(tabCount >= 1);
+  for (var index = 1; index < tabCount; index += 1) {
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+  }
 }
 
 Future<void> _sendMetaShortcut(
@@ -241,6 +251,16 @@ Future<void> _selectSearchMode(WidgetTester tester, String modeWireName) async {
   await tester.tap(find.byKey(const Key('terminal-search-mode')));
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(Key('terminal-search-mode-$modeWireName')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectSearchScope(
+  WidgetTester tester,
+  String scopeWireName,
+) async {
+  await tester.tap(find.byKey(const Key('terminal-search-scope')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('terminal-search-scope-$scopeWireName')));
   await tester.pumpAndSettle();
 }
 
@@ -330,6 +350,88 @@ void main() {
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
   });
+
+  testWidgets(
+    'tab strip uses compact tabs before overflowing',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1100, 700);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabCountWithShortcut(tester, 8);
+
+      for (var sessionId = 1; sessionId <= 8; sessionId += 1) {
+        expect(
+          find.bySemanticsIdentifier('shell-tab-$sessionId'),
+          findsOneWidget,
+        );
+      }
+      expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
+
+      final compactTabWidth = tester
+          .getSize(find.byKey(const Key('shell-tab-8')))
+          .width;
+      expect(compactTabWidth, greaterThanOrEqualTo(104));
+      expect(compactTabWidth, lessThan(140));
+      expect(find.text('⌘8'), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'tab overflow menu activates hidden tabs',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(560, 700);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabCountWithShortcut(tester, 8);
+
+      expect(
+        find.byKey(const Key('shell-tab-overflow-button')),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('shell-tab-8'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('shell-tab-overflow-panel')), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-tab-overflow-item-8')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-item-8')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('shell-pane-8')), findsOneWidget);
+      expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets('new tab keeps current terminal visible until its first frame', (
     tester,
@@ -602,6 +704,101 @@ void main() {
 
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('active split pane header exposes split affordances', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    expect(find.byKey(const Key('shell-pane-header-1')), findsNothing);
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-header-2')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-header-1')), findsNothing);
+    expect(find.text('Pane 2/2'), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-pane-action-split-right-2')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('shell-pane-action-split-down-2')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-pane-action-split-down-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-3')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-header-3')), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('active split pane header zooms and closes the pane', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-header-2')), findsOneWidget);
+
+    await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyC);
+
+    expect(find.text('Copy mode'), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-header-2')), findsNothing);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.escape, platform: 'macos');
+    await tester.pumpAndSettle();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.escape, platform: 'macos');
+    await tester.pump();
+
+    expect(find.text('Copy mode'), findsNothing);
+    expect(find.byKey(const Key('shell-pane-header-2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-pane-action-zoom-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-header-2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-pane-action-zoom-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-pane-action-close-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-header-1')), findsNothing);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -2051,6 +2248,117 @@ void main() {
   );
 
   testWidgets(
+    'shortcut proof matrix covers planned mac shortcuts',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final windowBridgeCalls = <MethodCall>[];
+      const windowBridgeChannel = MethodChannel('app/window_bridge');
+      final pasteHistoryRepository = MemoryPasteHistoryRepository(
+        PasteHistoryDocument(
+          entries: [
+            PasteHistoryEntry(
+              text: 'matrix paste',
+              kind: PasteHistoryKind.paste,
+              createdAt: DateTime.utc(2026, 6, 25),
+            ),
+          ],
+        ),
+      );
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        windowBridgeChannel,
+        (call) async {
+          windowBridgeCalls.add(call);
+          if (call.method == 'windowMetrics') {
+            return <String, Object?>{
+              'contentWidth': 900.0,
+              'contentHeight': 600.0,
+              'frameWidth': 940.0,
+              'frameHeight': 660.0,
+              'devicePixelRatio': 2.0,
+            };
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          windowBridgeChannel,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        pasteHistoryRepository: pasteHistoryRepository,
+        instantReplayStore: InstantReplayStore(
+          now: () => DateTime.utc(2026, 6, 25, 12),
+        ),
+      );
+
+      await tester.tap(find.byType(TerminalViewport).last);
+      await tester.pump();
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      _expectSelectedTab(tester, '2');
+      expect(fakeBindings.writes, isEmpty);
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyD);
+      expect(find.byKey(const Key('shell-pane-3')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyD);
+      expect(find.byKey(const Key('shell-pane-4')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
+      expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+      await tester.tap(find.byKey(const Key('terminal-search-close')));
+      await tester.pumpAndSettle();
+
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyP);
+      expect(
+        find.byKey(const Key('shell-command-menu-overlay')),
+        findsOneWidget,
+      );
+      expect(fakeBindings.writes, isEmpty);
+      await tester.tap(find.byTooltip('Close actions'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TerminalViewport).last);
+      await tester.pump();
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyH);
+      expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
+      expect(find.text('matrix paste'), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+      await tester.tapAt(const Offset(8, 8));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TerminalViewport).last);
+      await tester.pump();
+      await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
+      expect(find.byKey(const Key('instant-replay-workspace')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+      await tester.tap(find.byTooltip('Exit instant replay'));
+      await tester.pumpAndSettle();
+
+      await _sendMetaAltShortcut(tester, LogicalKeyboardKey.space);
+      expect(
+        windowBridgeCalls.map((call) => call.method),
+        contains('toggleHotkeyWindow'),
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
     'repeated command-t is swallowed by the shell shortcut handler',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -2314,6 +2622,75 @@ void main() {
 
     expect(fakeBindings.writes.last, utf8.encode(clipboardText));
   });
+
+  testWidgets(
+    'read-only mode blocks shortcut and native paste before clipboard read',
+    (tester) async {
+      const clipboardText = 'shortcut blocked paste';
+      final fakeBindings = FakePtyBackend();
+      var clipboardReads = 0;
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            clipboardReads += 1;
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(
+        find.byKey(const Key('shell-toggle-read-only')),
+      );
+      await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyV);
+
+      expect(fakeBindings.writes, isEmpty);
+      expect(clipboardReads, 0);
+
+      await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
+
+      expect(fakeBindings.writes, isEmpty);
+      expect(clipboardReads, 0);
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(
+        find.byKey(const Key('shell-toggle-read-only')),
+      );
+      await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+      await tester.pumpAndSettle();
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyV);
+
+      expect(clipboardReads, 1);
+      expect(fakeBindings.writes.single, utf8.encode(clipboardText));
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets('command menu accepts hyphenated read-only query', (
     tester,
@@ -3128,7 +3505,24 @@ void main() {
 
     expect(find.byKey(const Key('shell-toolbelt-panel')), findsOneWidget);
     expect(find.text('Toolbelt'), findsOneWidget);
+    expect(
+      find.byKey(const Key('toolbelt-panel-command-history')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('toolbelt-tab-captured-output')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('toolbelt-tab-captured-output')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('toolbelt-panel-captured-output')),
+      findsOneWidget,
+    );
     expect(find.text('1 captured line'), findsOneWidget);
+    expect(find.text('ERROR 42 failed'), findsOneWidget);
     expect(find.byKey(const Key('toolbelt-captured-output')), findsOneWidget);
     expect(
       find.byKey(const Key('toolbelt-completion-diagnostics')),
@@ -3142,6 +3536,119 @@ void main() {
     expect(find.byKey(const Key('shell-toolbelt-panel')), findsNothing);
     expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
     expect(find.text('ERROR 42 failed'), findsOneWidget);
+  });
+
+  testWidgets('toolbelt previews shell history and paste sources', (
+    tester,
+  ) async {
+    const clipboardText = 'toolbelt paste item';
+    final fakeBindings = FakePtyBackend();
+
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (methodCall) async {
+        if (methodCall.method == 'Clipboard.getData') {
+          return <String, dynamic>{'text': clipboardText};
+        }
+        if (methodCall.method == 'Clipboard.setData') {
+          return null;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      pasteHistoryRepository: MemoryPasteHistoryRepository(),
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'command_finished',
+          'command': 'git status',
+          'pwd': '/tmp/project',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Paste clipboard'));
+    await tester.tap(find.text('Paste clipboard'));
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('toolbelt-panel-command-history')),
+      findsOneWidget,
+    );
+    expect(find.text('git status'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('toolbelt-command-history-entry-0')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-toolbelt-panel')), findsNothing);
+    expect(fakeBindings.writes.last, utf8.encode('git status'));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('toolbelt-tab-recent-directories')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('toolbelt-panel-recent-directories')),
+      findsOneWidget,
+    );
+    expect(find.text('/tmp/project'), findsAtLeastNWidgets(1));
+
+    await tester.tap(
+      find.byKey(const Key('toolbelt-recent-directory-entry-0')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(fakeBindings.writes.last, utf8.encode('cd /tmp/project'));
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('toolbelt-tab-paste-history')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('toolbelt-panel-paste-history')),
+      findsOneWidget,
+    );
+    expect(find.text(clipboardText), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('toolbelt-paste-history')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-toolbelt-panel')), findsNothing);
+    expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
+    expect(find.text(clipboardText), findsOneWidget);
   });
 
   testWidgets('switching panes does not show the return-to-shell cue', (
@@ -4602,7 +5109,7 @@ void main() {
       expect(barRect.left, greaterThanOrEqualTo(12));
       expect(barRect.right, lessThanOrEqualTo(346));
       expect(barRect.height, 38);
-      expect(fieldRect.width, greaterThan(110));
+      expect(fieldRect.width, greaterThan(100));
       expect(statusRect.left, greaterThanOrEqualTo(barRect.left));
       expect(statusRect.right, lessThanOrEqualTo(barRect.right));
       expect(find.text('No matches'), findsOneWidget);
@@ -4744,6 +5251,237 @@ void main() {
 
       await _selectSearchMode(tester, 'case_sensitive_substring');
       expect(focusNode.hasFocus, isFalse);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search scope searches current tab panes and jumps between panes',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.tap(find.byKey(const Key('shell-split-right')));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {
+          'row': 3,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'left pane needle',
+          'scrollback_offset': 3,
+        },
+      ]);
+      fakeBindings.setSearchMatches(2, 'needle', [
+        {
+          'row': 7,
+          'start_col': 2,
+          'end_col': 8,
+          'text': 'right pane needle',
+          'scrollback_offset': 7,
+        },
+      ]);
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pane'), findsOneWidget);
+      expect(fakeBindings.searchCalls.last, [
+        2,
+        'needle',
+        'smart_case_substring',
+      ]);
+      expect(find.text('1/1'), findsOneWidget);
+
+      await _selectSearchScope(tester, 'current_tab');
+
+      expect(find.text('Tab'), findsOneWidget);
+      expect(
+        fakeBindings.searchCalls,
+        contains(equals([1, 'needle', 'smart_case_substring'])),
+      );
+      expect(
+        fakeBindings.searchCalls,
+        contains(equals([2, 'needle', 'smart_case_substring'])),
+      );
+      expect(find.text('2/2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [2, 7]);
+
+      final viewportMatches = tester
+          .widgetList<TerminalViewport>(find.byType(TerminalViewport))
+          .map((viewport) => viewport.searchMatches.length)
+          .toList();
+      expect(viewportMatches, containsAll(<int>[1, 1]));
+
+      await tester.tap(find.byKey(const Key('terminal-search-next')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1/2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [1, 3]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search pane scope refreshes after activating another pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.tap(find.byKey(const Key('shell-split-right')));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {
+          'row': 3,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'left pane first needle',
+          'scrollback_offset': 3,
+        },
+        {
+          'row': 6,
+          'start_col': 1,
+          'end_col': 7,
+          'text': 'left pane second needle',
+          'scrollback_offset': 6,
+        },
+      ]);
+      fakeBindings.setSearchMatches(2, 'needle', [
+        {
+          'row': 9,
+          'start_col': 4,
+          'end_col': 10,
+          'text': 'right pane needle',
+          'scrollback_offset': 9,
+        },
+      ]);
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pane'), findsOneWidget);
+      expect(find.text('1/1'), findsOneWidget);
+      expect(fakeBindings.searchCalls.last, [
+        2,
+        'needle',
+        'smart_case_substring',
+      ]);
+
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.searchCalls.last, [
+        1,
+        'needle',
+        'smart_case_substring',
+      ]);
+      expect(find.textContaining('/2'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('terminal-search-next')));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.scrollToCalls.last[0], 1);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'shell search scope searches all tabs and jumps across tabs',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+      await tester.tap(find.byKey(const Key('shell-new-tab')));
+      await tester.pumpAndSettle();
+
+      fakeBindings.setSearchMatches(1, 'needle', [
+        {
+          'row': 5,
+          'start_col': 0,
+          'end_col': 6,
+          'text': 'first tab needle',
+          'scrollback_offset': 5,
+        },
+      ]);
+      fakeBindings.setSearchMatches(2, 'needle', [
+        {
+          'row': 9,
+          'start_col': 4,
+          'end_col': 10,
+          'text': 'second tab needle',
+          'scrollback_offset': 9,
+        },
+      ]);
+
+      await _openShellSearch(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'needle',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pane'), findsOneWidget);
+      expect(fakeBindings.searchCalls.last, [
+        2,
+        'needle',
+        'smart_case_substring',
+      ]);
+      expect(find.text('1/1'), findsOneWidget);
+
+      await _selectSearchScope(tester, 'all_tabs');
+
+      expect(find.text('All'), findsOneWidget);
+      expect(
+        fakeBindings.searchCalls,
+        contains(equals([1, 'needle', 'smart_case_substring'])),
+      );
+      expect(
+        fakeBindings.searchCalls,
+        contains(equals([2, 'needle', 'smart_case_substring'])),
+      );
+      expect(find.text('2/2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [2, 9]);
+
+      await tester.tap(find.byKey(const Key('terminal-search-next')));
+      await tester.pumpAndSettle();
+
+      _expectSelectedTab(tester, '1');
+      expect(find.text('1/2'), findsOneWidget);
+      expect(fakeBindings.scrollToCalls.last, [1, 5]);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );

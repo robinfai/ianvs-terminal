@@ -5,6 +5,7 @@ class _TerminalSearchBar extends StatefulWidget {
     required this.query,
     required this.matches,
     required this.activeIndex,
+    required this.searchScope,
     required this.searchMode,
     required this.errorText,
     required this.palette,
@@ -12,6 +13,7 @@ class _TerminalSearchBar extends StatefulWidget {
     required this.focusRequestSerial,
     required this.onChanged,
     required this.onClear,
+    required this.onScopeChanged,
     required this.onModeChanged,
     required this.onPrevious,
     required this.onNext,
@@ -21,6 +23,7 @@ class _TerminalSearchBar extends StatefulWidget {
   final String query;
   final int matches;
   final int activeIndex;
+  final _TerminalSearchScope searchScope;
   final terminal.TerminalSearchMode searchMode;
   final String? errorText;
   final AppThemeTokens palette;
@@ -28,6 +31,7 @@ class _TerminalSearchBar extends StatefulWidget {
   final int focusRequestSerial;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
+  final ValueChanged<_TerminalSearchScope> onScopeChanged;
   final ValueChanged<terminal.TerminalSearchMode> onModeChanged;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -38,8 +42,8 @@ class _TerminalSearchBar extends StatefulWidget {
 }
 
 class _TerminalSearchBarState extends State<_TerminalSearchBar> {
-  static const _searchBarMaxWidth = 420.0;
-  static const _searchBarIdleWidth = 420.0;
+  static const _searchBarMaxWidth = 520.0;
+  static const _searchBarIdleWidth = 520.0;
   static const _searchBarCompactBreakpoint = 340.0;
   static const _searchBarControlHeight = 30.0;
   static const _searchFieldEditHeight = 20.0;
@@ -284,6 +288,140 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     );
   }
 
+  IconData _searchScopeIcon(_TerminalSearchScope scope) {
+    return switch (scope) {
+      _TerminalSearchScope.activePane => Icons.splitscreen_rounded,
+      _TerminalSearchScope.currentTab => Icons.tab_rounded,
+      _TerminalSearchScope.allTabs => Icons.grid_view_rounded,
+    };
+  }
+
+  Widget _buildSearchScopeButton(
+    BuildContext context,
+    MenuController controller,
+  ) {
+    final palette = widget.palette;
+    return Tooltip(
+      message: 'Search scope: ${widget.searchScope.label}',
+      child: Semantics(
+        button: true,
+        label: 'Search scope: ${widget.searchScope.label}',
+        child: InkWell(
+          key: const Key('terminal-search-scope'),
+          borderRadius: BorderRadius.circular(palette.radius.sm),
+          onTap: () {
+            if (controller.isOpen) {
+              controller.close();
+            } else {
+              controller.open();
+            }
+          },
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: palette.selected.withValues(alpha: 0.52),
+              borderRadius: BorderRadius.circular(palette.radius.sm),
+              border: Border.all(color: palette.border.withValues(alpha: 0.7)),
+            ),
+            child: SizedBox(
+              width: 48,
+              height: _searchBarControlHeight,
+              child: Center(
+                child: Text(
+                  widget.searchScope.shortLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: palette.textPrimary,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSearchScopeMenuChildren(BuildContext context) {
+    final palette = widget.palette;
+    final textTheme = Theme.of(context).textTheme;
+
+    Widget item(_TerminalSearchScope scope) {
+      final selected = scope == widget.searchScope;
+      return MenuItemButton(
+        key: Key('terminal-search-scope-${scope.wireName}'),
+        onPressed: () {
+          widget.onScopeChanged(scope);
+        },
+        style: ButtonStyle(
+          minimumSize: WidgetStateProperty.all(const Size(220, 30)),
+          padding: WidgetStateProperty.all(
+            const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          ),
+          backgroundColor: WidgetStateProperty.all(
+            selected ? palette.selected : Colors.transparent,
+          ),
+          foregroundColor: WidgetStateProperty.all(palette.textPrimary),
+          overlayColor: WidgetStateProperty.all(
+            palette.accent.withValues(alpha: 0.12),
+          ),
+        ),
+        leadingIcon: Icon(
+          selected ? Icons.check_rounded : _searchScopeIcon(scope),
+          size: 16,
+          color: palette.textPrimary,
+        ),
+        child: Text(
+          scope.label,
+          style: textTheme.bodyMedium?.copyWith(
+            color: palette.textPrimary,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+        child: Text(
+          'Scope',
+          style: textTheme.titleSmall?.copyWith(
+            color: palette.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      Divider(color: palette.border),
+      for (final scope in _TerminalSearchScope.values) item(scope),
+    ];
+  }
+
+  Widget _buildSearchScopeMenu(BuildContext context) {
+    final palette = widget.palette;
+    return MenuAnchor(
+      style: MenuStyle(
+        backgroundColor: WidgetStateProperty.all(palette.overlay),
+        elevation: WidgetStateProperty.all(8.0),
+        padding: WidgetStateProperty.all(
+          const EdgeInsets.symmetric(vertical: 4),
+        ),
+        shape: WidgetStateProperty.all(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(palette.radius.md),
+            side: BorderSide(color: palette.borderStrong),
+          ),
+        ),
+      ),
+      menuChildren: _buildSearchScopeMenuChildren(context),
+      builder: (context, controller, child) {
+        return _buildSearchScopeButton(context, controller);
+      },
+    );
+  }
+
   KeyEventResult _handleSearchKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) {
       return KeyEventResult.ignored;
@@ -380,6 +518,9 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
             child: Row(
               children: [
                 _buildSearchModeMenu(context),
+                const SizedBox(width: 4),
+                _buildSearchScopeMenu(context),
+                const SizedBox(width: 6),
                 Expanded(
                   child: Focus(
                     onKeyEvent: _handleSearchKeyEvent,

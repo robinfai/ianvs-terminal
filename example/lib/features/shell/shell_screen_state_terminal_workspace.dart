@@ -32,6 +32,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           sessionController: sessionController,
           sessionState: sessionState,
           node: paneLayout,
+          activeTab: activeTab,
           activeSessionId: activeSessionId,
           palette: palette,
           terminalBackground: terminalBackground,
@@ -46,6 +47,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     required SessionController sessionController,
     required SessionState sessionState,
     required TerminalPaneLayoutNode node,
+    required TerminalTab activeTab,
     required String activeSessionId,
     required AppThemeTokens palette,
     required Color terminalBackground,
@@ -58,6 +60,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         sessionController: sessionController,
         sessionState: sessionState,
         pane: pane,
+        activeTab: activeTab,
         isActive: pane.sessionId == activeSessionId,
         palette: palette,
         onHostKeyEvent: onHostKeyEvent,
@@ -86,6 +89,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                 sessionController: sessionController,
                 sessionState: sessionState,
                 node: first,
+                activeTab: activeTab,
                 activeSessionId: activeSessionId,
                 palette: palette,
                 terminalBackground: terminalBackground,
@@ -117,6 +121,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                 sessionController: sessionController,
                 sessionState: sessionState,
                 node: second,
+                activeTab: activeTab,
                 activeSessionId: activeSessionId,
                 palette: palette,
                 terminalBackground: terminalBackground,
@@ -134,6 +139,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     required SessionController sessionController,
     required SessionState sessionState,
     required TerminalPane pane,
+    required TerminalTab activeTab,
     required bool isActive,
     required AppThemeTokens palette,
     required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
@@ -165,6 +171,34 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
     final annotations = _annotationsForSession(sessionId);
     final activeCoprocess = _coprocesses[sessionId];
     final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
+    final defaultProfile = _effectiveDefaultProfileFor(
+      sessionState.profiles,
+      sessionState.defaultProfileId,
+    );
+    final hasPaneAffordanceHeader =
+        isActive &&
+        !_isSearchOpen &&
+        !_isAutocompleteOpen &&
+        !_isAutoComposerOpen &&
+        !_isCopyModeOpen &&
+        (activeTab.effectivePanes.length > 1 ||
+            _zoomedPaneSessionId == sessionId);
+    final splitRightUnavailableReason = _splitAxisConflictReason(
+      sessionState,
+      sessionId,
+      TerminalSplitAxis.horizontal,
+    );
+    final splitDownUnavailableReason = _splitAxisConflictReason(
+      sessionState,
+      sessionId,
+      TerminalSplitAxis.vertical,
+    );
+    final paneIndex = math.max(
+      0,
+      activeTab.effectivePanes.indexWhere(
+        (pane) => pane.sessionId == sessionId,
+      ),
+    );
 
     return LayoutBuilder(
       key: Key('shell-pane-$sessionId'),
@@ -252,11 +286,11 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                     optionDragMode:
                         terminalConfig?.interaction.optionDragMode ??
                         terminal.TerminalOptionDragMode.blockSelection,
-                    searchMatches: isActive && _isSearchOpen
-                        ? _searchMatches
+                    searchMatches: _isSearchOpen
+                        ? _searchMatchesForSession(sessionId)
                         : const <terminal.TerminalSearchMatch>[],
-                    activeSearchMatchIndex: isActive && _isSearchOpen
-                        ? _activeSearchIndex
+                    activeSearchMatchIndex: _isSearchOpen
+                        ? _activeSearchMatchIndexForSession(sessionId)
                         : -1,
                     searchHighlightStyle: terminal.TerminalSearchHighlightStyle(
                       activeFill: palette.accent.withValues(alpha: 0.34),
@@ -291,6 +325,60 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                       ),
                     ),
                   ),
+                if (hasPaneAffordanceHeader)
+                  Positioned(
+                    top: _ShellScreenState._terminalOverlayPadding.top,
+                    left: _ShellScreenState._terminalOverlayPadding.left,
+                    child: _TerminalPaneHeader(
+                      key: Key('shell-pane-header-$sessionId'),
+                      palette: palette,
+                      sessionId: sessionId,
+                      maxWidth: math.max(
+                        0,
+                        constraints.maxWidth -
+                            _ShellScreenState._terminalOverlayPadding.left -
+                            _ShellScreenState._terminalOverlayPadding.right,
+                      ),
+                      title:
+                          'Pane ${paneIndex + 1}/${activeTab.effectivePanes.length}',
+                      isZoomed: _zoomedPaneSessionId == sessionId,
+                      canZoom: activeTab.effectivePanes.length > 1,
+                      onSplitRight:
+                          defaultProfile == null ||
+                              splitRightUnavailableReason != null
+                          ? null
+                          : () => _splitActiveSession(
+                              sessionController,
+                              defaultProfile,
+                              TerminalSplitAxis.horizontal,
+                            ),
+                      onSplitDown:
+                          defaultProfile == null ||
+                              splitDownUnavailableReason != null
+                          ? null
+                          : () => _splitActiveSession(
+                              sessionController,
+                              defaultProfile,
+                              TerminalSplitAxis.vertical,
+                            ),
+                      onToggleZoom: activeTab.effectivePanes.length < 2
+                          ? null
+                          : () {
+                              _mutateState(() {
+                                _zoomedPaneSessionId =
+                                    _zoomedPaneSessionId == sessionId
+                                    ? null
+                                    : sessionId;
+                              });
+                              _focusSession(sessionId);
+                            },
+                      onClose: () => _closeSession(
+                        sessionController,
+                        sessionState,
+                        sessionId,
+                      ),
+                    ),
+                  ),
                 if (isActive && _isSearchOpen)
                   Positioned(
                     top: _ShellScreenState._terminalOverlayPadding.top,
@@ -300,8 +388,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                       alignment: Alignment.topRight,
                       child: _TerminalSearchBar(
                         query: _searchQuery,
-                        matches: _searchMatches.length,
+                        matches: _searchHits.length,
                         activeIndex: _activeSearchIndex,
+                        searchScope: _searchScope,
                         searchMode: _searchMode,
                         errorText: _searchErrorText,
                         palette: palette,
@@ -309,6 +398,7 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                         focusRequestSerial: _searchFocusRequestSerial,
                         onChanged: _searchScrollback,
                         onClear: _clearSearch,
+                        onScopeChanged: _setSearchScope,
                         onModeChanged: _setSearchMode,
                         onPrevious: () => _moveSearchMatch(1),
                         onNext: () => _moveSearchMatch(-1),
@@ -408,6 +498,148 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
           ),
         );
       },
+    );
+  }
+}
+
+class _TerminalPaneHeader extends StatelessWidget {
+  const _TerminalPaneHeader({
+    super.key,
+    required this.palette,
+    required this.sessionId,
+    required this.maxWidth,
+    required this.title,
+    required this.isZoomed,
+    required this.canZoom,
+    required this.onSplitRight,
+    required this.onSplitDown,
+    required this.onToggleZoom,
+    required this.onClose,
+  });
+
+  final AppThemeTokens palette;
+  final String sessionId;
+  final double maxWidth;
+  final String title;
+  final bool isZoomed;
+  final bool canZoom;
+  final VoidCallback? onSplitRight;
+  final VoidCallback? onSplitDown;
+  final VoidCallback? onToggleZoom;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: palette.panelElevated.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          border: Border.all(color: palette.focusRing.withValues(alpha: 0.36)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  title,
+                  key: Key('shell-pane-header-title-$sessionId'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.labelSmall?.copyWith(
+                    color: palette.textMuted,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              _TerminalPaneHeaderAction(
+                buttonKey: Key('shell-pane-action-split-right-$sessionId'),
+                tooltip: 'Split right',
+                icon: Icons.vertical_split_rounded,
+                palette: palette,
+                onPressed: onSplitRight,
+              ),
+              _TerminalPaneHeaderAction(
+                buttonKey: Key('shell-pane-action-split-down-$sessionId'),
+                tooltip: 'Split down',
+                icon: Icons.horizontal_split_rounded,
+                palette: palette,
+                onPressed: onSplitDown,
+              ),
+              _TerminalPaneHeaderAction(
+                buttonKey: Key('shell-pane-action-zoom-$sessionId'),
+                tooltip: isZoomed ? 'Unzoom pane' : 'Zoom pane',
+                icon: isZoomed
+                    ? Icons.close_fullscreen_rounded
+                    : Icons.open_in_full_rounded,
+                palette: palette,
+                onPressed: canZoom ? onToggleZoom : null,
+                selected: isZoomed,
+              ),
+              _TerminalPaneHeaderAction(
+                buttonKey: Key('shell-pane-action-close-$sessionId'),
+                tooltip: 'Close pane',
+                icon: Icons.close_rounded,
+                palette: palette,
+                onPressed: onClose,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TerminalPaneHeaderAction extends StatelessWidget {
+  const _TerminalPaneHeaderAction({
+    required this.buttonKey,
+    required this.tooltip,
+    required this.icon,
+    required this.palette,
+    required this.onPressed,
+    this.selected = false,
+  });
+
+  final Key buttonKey;
+  final String tooltip;
+  final IconData icon;
+  final AppThemeTokens palette;
+  final VoidCallback? onPressed;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final color = selected
+        ? palette.focusRing
+        : enabled
+        ? palette.textMuted
+        : palette.textSubtle.withValues(alpha: 0.54);
+    return _buildCompactActionButton(
+      key: buttonKey,
+      tooltip: tooltip,
+      icon: Icon(icon, color: color),
+      onPressed: onPressed,
+      splashRadius: 14,
+      iconSize: 15,
+      constraints: const BoxConstraints.tightFor(width: 26, height: 24),
+      padding: EdgeInsets.zero,
+      isSelected: selected,
+      selectedIcon: Icon(icon, color: color),
     );
   }
 }

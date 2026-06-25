@@ -256,6 +256,67 @@ const List<_ColorFieldSpec> _allColorFieldSpecs = <_ColorFieldSpec>[
   ..._brightAnsiColorFieldSpecs,
 ];
 
+enum _ProfileEditorSection {
+  general,
+  startup,
+  terminal,
+  appearance,
+  keys,
+  automation,
+  advanced,
+}
+
+class _ProfileEditorSectionSpec {
+  const _ProfileEditorSectionSpec({
+    required this.section,
+    required this.label,
+    required this.icon,
+  });
+
+  final _ProfileEditorSection section;
+  final String label;
+  final IconData icon;
+}
+
+const List<_ProfileEditorSectionSpec> _profileEditorSections =
+    <_ProfileEditorSectionSpec>[
+      _ProfileEditorSectionSpec(
+        section: _ProfileEditorSection.general,
+        label: 'General',
+        icon: Icons.badge_outlined,
+      ),
+      _ProfileEditorSectionSpec(
+        section: _ProfileEditorSection.startup,
+        label: 'Startup',
+        icon: Icons.terminal_outlined,
+      ),
+      _ProfileEditorSectionSpec(
+        section: _ProfileEditorSection.terminal,
+        label: 'Terminal',
+        icon: Icons.settings_applications_outlined,
+      ),
+      _ProfileEditorSectionSpec(
+        section: _ProfileEditorSection.appearance,
+        label: 'Appearance',
+        icon: Icons.palette_outlined,
+      ),
+      _ProfileEditorSectionSpec(
+        section: _ProfileEditorSection.keys,
+        label: 'Keys',
+        icon: Icons.keyboard_outlined,
+      ),
+      _ProfileEditorSectionSpec(
+        section: _ProfileEditorSection.automation,
+        label: 'Automation',
+        icon: Icons.bolt_outlined,
+      ),
+      _ProfileEditorSectionSpec(
+        section: _ProfileEditorSection.advanced,
+        label: 'Advanced',
+        icon: Icons.tune_outlined,
+      ),
+    ];
+
 class ProfileEditorDialog extends StatefulWidget {
   const ProfileEditorDialog({
     super.key,
@@ -279,6 +340,27 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   final List<_EnvEntryControllers> _envControllers = [];
   final List<TextEditingController> _fallbackControllers = [];
   final _scrollController = ScrollController();
+  final _generalSectionKey = GlobalKey(
+    debugLabel: 'profile-editor-section-general-anchor',
+  );
+  final _startupSectionKey = GlobalKey(
+    debugLabel: 'profile-editor-section-startup-anchor',
+  );
+  final _terminalSectionKey = GlobalKey(
+    debugLabel: 'profile-editor-section-terminal-anchor',
+  );
+  final _appearanceSectionKey = GlobalKey(
+    debugLabel: 'profile-editor-section-appearance-anchor',
+  );
+  final _keysSectionKey = GlobalKey(
+    debugLabel: 'profile-editor-section-keys-anchor',
+  );
+  final _automationSectionKey = GlobalKey(
+    debugLabel: 'profile-editor-section-automation-anchor',
+  );
+  final _advancedSectionKey = GlobalKey(
+    debugLabel: 'profile-editor-section-advanced-anchor',
+  );
   final Map<String, TextEditingController> _colorControllers =
       <String, TextEditingController>{};
   final Map<String, FocusNode> _colorFocusNodes = <String, FocusNode>{};
@@ -315,6 +397,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   bool _didAttemptSave = false;
   bool _didEdit = false;
   bool _allowClose = false;
+  _ProfileEditorSection _activeSection = _ProfileEditorSection.general;
 
   @override
   void initState() {
@@ -1015,6 +1098,73 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     return null;
   }
 
+  GlobalKey _sectionKeyFor(_ProfileEditorSection section) {
+    return switch (section) {
+      _ProfileEditorSection.general => _generalSectionKey,
+      _ProfileEditorSection.startup => _startupSectionKey,
+      _ProfileEditorSection.terminal => _terminalSectionKey,
+      _ProfileEditorSection.appearance => _appearanceSectionKey,
+      _ProfileEditorSection.keys => _keysSectionKey,
+      _ProfileEditorSection.automation => _automationSectionKey,
+      _ProfileEditorSection.advanced => _advancedSectionKey,
+    };
+  }
+
+  Future<void> _jumpToSection(_ProfileEditorSection section) async {
+    setState(() {
+      _activeSection = section;
+    });
+    final sectionContext = _sectionKeyFor(section).currentContext;
+    if (sectionContext == null) {
+      return;
+    }
+    await Scrollable.ensureVisible(
+      sectionContext,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      alignment: 0.04,
+    );
+  }
+
+  Widget _buildSectionNavigation({required bool vertical}) {
+    final theme = context.appTheme;
+    final children = [
+      for (final spec in _profileEditorSections)
+        _ProfileEditorSectionNavItem(
+          key: Key('profile-editor-nav-${spec.section.name}'),
+          spec: spec,
+          selected: _activeSection == spec.section,
+          vertical: vertical,
+          onTap: () => unawaited(_jumpToSection(spec.section)),
+        ),
+    ];
+
+    if (!vertical) {
+      return AppPanel(
+        key: const Key('profile-editor-section-nav'),
+        tone: AppPanelTone.chrome,
+        padding: EdgeInsets.all(theme.spacing.sm),
+        borderRadius: BorderRadius.circular(theme.radius.lg),
+        child: Wrap(
+          spacing: theme.spacing.xs,
+          runSpacing: theme.spacing.xs,
+          children: children,
+        ),
+      );
+    }
+
+    return AppPanel(
+      key: const Key('profile-editor-section-nav'),
+      tone: AppPanelTone.chrome,
+      padding: EdgeInsets.all(theme.spacing.sm),
+      borderRadius: BorderRadius.circular(theme.radius.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
@@ -1051,422 +1201,521 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           autovalidateMode: _didAttemptSave
               ? AutovalidateMode.always
               : AutovalidateMode.disabled,
-          child: SingleChildScrollView(
-            controller: _scrollController,
-            child: Padding(
-              padding: EdgeInsets.only(right: theme.spacing.xl + 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SettingsSection(
-                    key: const Key('profile-editor-section-identity'),
-                    title: 'Identity',
-                    description:
-                        'Name and tag the profile before configuring launch behavior.',
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final showSideNavigation = constraints.maxWidth >= 760;
+              final sectionNavigation = _buildSectionNavigation(
+                vertical: showSideNavigation,
+              );
+              final scrollableSections = SingleChildScrollView(
+                key: const Key('profile-editor-scroll-view'),
+                controller: _scrollController,
+                child: Padding(
+                  padding: EdgeInsets.only(right: theme.spacing.xl + 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextFormField(
-                        key: const Key('profile-editor-name'),
-                        controller: _nameController,
-                        focusNode: _nameFocusNode,
-                        decoration: const InputDecoration(labelText: 'Name'),
-                        validator: (value) =>
-                            _requiredFieldError(value ?? '', 'Name'),
+                      KeyedSubtree(
+                        key: const Key('profile-editor-section-general'),
+                        child: KeyedSubtree(
+                          key: const Key('profile-editor-section-identity'),
+                          child: SettingsSection(
+                            key: _generalSectionKey,
+                            title: 'General',
+                            description:
+                                'Name and tag the profile before configuring launch behavior.',
+                            children: [
+                              TextFormField(
+                                key: const Key('profile-editor-name'),
+                                controller: _nameController,
+                                focusNode: _nameFocusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Name',
+                                ),
+                                validator: (value) =>
+                                    _requiredFieldError(value ?? '', 'Name'),
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                key: const Key('profile-editor-tags'),
+                                controller: _tagsController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Tags',
+                                  helperText: 'Separate tags with commas.',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        key: const Key('profile-editor-tags'),
-                        controller: _tagsController,
-                        decoration: const InputDecoration(
-                          labelText: 'Tags',
-                          helperText: 'Separate tags with commas.',
+                      KeyedSubtree(
+                        key: const Key('profile-editor-section-startup'),
+                        child: SettingsSection(
+                          key: _startupSectionKey,
+                          title: 'Startup',
+                          description:
+                              'Configure the command, working directory, and process environment.',
+                          children: [
+                            _ProfileFormGroup(
+                              key: const Key('profile-editor-group-command'),
+                              title: 'Command',
+                              children: [
+                                TextFormField(
+                                  key: const Key('profile-editor-shell'),
+                                  controller: _shellController,
+                                  focusNode: _shellFocusNode,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Shell / Program',
+                                  ),
+                                  validator: (value) =>
+                                      _requiredFieldError(value ?? '', 'Shell'),
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  key: const Key('profile-editor-cwd'),
+                                  controller: _cwdController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Working directory',
+                                    helperText:
+                                        'Leave empty to use the default working directory.',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            _ProfileFormGroup(
+                              key: const Key(
+                                'profile-editor-group-launch-data',
+                              ),
+                              title: 'Arguments and environment',
+                              children: [
+                                _buildStringListEditor(
+                                  title: 'Arguments',
+                                  addKey: const Key('profile-editor-add-arg'),
+                                  addLabel: 'Add arg',
+                                  emptyLabel: 'No launch arguments',
+                                  controllers: _argControllers,
+                                  fieldKeyPrefix: 'profile-editor-arg',
+                                  onAdd: _addArg,
+                                  onRemove: _removeArg,
+                                  onMoveUp: (index) =>
+                                      _moveArg(index, index - 1),
+                                  onMoveDown: (index) =>
+                                      _moveArg(index, index + 1),
+                                ),
+                                const SizedBox(height: 16),
+                                _buildEnvEditor(),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      KeyedSubtree(
+                        key: const Key('profile-editor-section-terminal'),
+                        child: KeyedSubtree(
+                          key: const Key('profile-editor-section-session'),
+                          child: SettingsSection(
+                            key: _terminalSectionKey,
+                            title: 'Terminal',
+                            description:
+                                'Pick terminal emulation and scrollback retention.',
+                            children: [
+                              _ProfileFormGroup(
+                                key: const Key('profile-editor-group-terminal'),
+                                title: 'Emulation',
+                                children: [
+                                  DropdownButtonFormField<TerminalEmulation>(
+                                    key: const Key('profile-editor-emulation'),
+                                    initialValue: _terminalEmulation,
+                                    isExpanded: true,
+                                    iconSize: 18,
+                                    itemHeight: _dropdownItemHeight,
+                                    menuMaxHeight: 240,
+                                    borderRadius: BorderRadius.circular(
+                                      theme.radius.md,
+                                    ),
+                                    decoration: InputDecoration(
+                                      labelText: 'Emulation',
+                                      constraints: const BoxConstraints(
+                                        minHeight: _controlHeight,
+                                      ),
+                                    ),
+                                    items: TerminalEmulation.values
+                                        .map(
+                                          (value) =>
+                                              DropdownMenuItem<
+                                                TerminalEmulation
+                                              >(
+                                                value: value,
+                                                child: Text(
+                                                  terminalEmulationLabel(value),
+                                                ),
+                                              ),
+                                        )
+                                        .toList(),
+                                    onChanged: (value) {
+                                      if (value == null) {
+                                        return;
+                                      }
+                                      setState(() {
+                                        _didEdit = true;
+                                        _terminalEmulation = value;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextFormField(
+                                    key: const Key('profile-editor-scrollback'),
+                                    controller: _scrollbackController,
+                                    focusNode: _scrollbackFocusNode,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Scrollback lines',
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                    validator: (value) => _positiveIntegerError(
+                                      value ?? '',
+                                      'Scrollback lines',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      KeyedSubtree(
+                        key: const Key('profile-editor-section-appearance'),
+                        child: SettingsSection(
+                          key: _appearanceSectionKey,
+                          title: 'Appearance',
+                          description:
+                              'Control typography, terminal colors, and cursor rendering.',
+                          children: [
+                            _ProfileFormGroup(
+                              key: const Key('profile-editor-group-typography'),
+                              title: 'Typography',
+                              children: [
+                                TextFormField(
+                                  key: const Key('profile-editor-font-family'),
+                                  controller: _fontFamilyController,
+                                  focusNode: _fontFamilyFocusNode,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Font family',
+                                  ),
+                                  validator: (value) => _requiredFieldError(
+                                    value ?? '',
+                                    'Font family',
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                _buildStringListEditor(
+                                  title: 'Fallback fonts',
+                                  addKey: const Key(
+                                    'profile-editor-add-fallback',
+                                  ),
+                                  addLabel: 'Add fallback',
+                                  emptyLabel: 'No fallback fonts',
+                                  controllers: _fallbackControllers,
+                                  fieldKeyPrefix: 'profile-editor-fallback',
+                                  onAdd: _addFallback,
+                                  onRemove: _removeFallback,
+                                  onMoveUp: (index) =>
+                                      _moveFallback(index, index - 1),
+                                  onMoveDown: (index) =>
+                                      _moveFallback(index, index + 1),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        key: const Key(
+                                          'profile-editor-font-size',
+                                        ),
+                                        controller: _fontSizeController,
+                                        focusNode: _fontSizeFocusNode,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Font size',
+                                        ),
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        validator: (value) =>
+                                            _positiveDoubleError(
+                                              value ?? '',
+                                              'Font size',
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: TextFormField(
+                                        key: const Key(
+                                          'profile-editor-font-line-height',
+                                        ),
+                                        controller: _lineHeightController,
+                                        focusNode: _lineHeightFocusNode,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Line height',
+                                        ),
+                                        keyboardType:
+                                            const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
+                                        validator: (value) =>
+                                            _positiveDoubleError(
+                                              value ?? '',
+                                              'Line height',
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            _ProfileFormGroup(
+                              key: const Key('profile-editor-group-colors'),
+                              title: 'Colors',
+                              children: [
+                                _buildThemePresetSection(),
+                                const SizedBox(height: 16),
+                                _buildColorGroupSection(
+                                  title: 'Special',
+                                  description:
+                                      'Foreground, background, cursor, and selection.',
+                                  specs: _specialColorFieldSpecs,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildColorGroupSection(
+                                  title: 'ANSI normal',
+                                  description:
+                                      'Standard ANSI 0-7 terminal colors.',
+                                  specs: _normalAnsiColorFieldSpecs,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildColorGroupSection(
+                                  title: 'ANSI bright',
+                                  description:
+                                      'Bright ANSI 8-15 terminal colors.',
+                                  specs: _brightAnsiColorFieldSpecs,
+                                ),
+                              ],
+                            ),
+                            _ProfileFormGroup(
+                              key: const Key('profile-editor-group-cursor'),
+                              title: 'Cursor',
+                              children: [
+                                DropdownButtonFormField<TerminalCursorShape>(
+                                  key: const Key('profile-editor-cursor-shape'),
+                                  initialValue: _cursorShape,
+                                  isExpanded: true,
+                                  iconSize: 18,
+                                  itemHeight: _dropdownItemHeight,
+                                  menuMaxHeight: 240,
+                                  borderRadius: BorderRadius.circular(
+                                    theme.radius.md,
+                                  ),
+                                  decoration: InputDecoration(
+                                    labelText: 'Cursor shape',
+                                    constraints: const BoxConstraints(
+                                      minHeight: _controlHeight,
+                                    ),
+                                  ),
+                                  items: TerminalCursorShape.values
+                                      .map(
+                                        (value) =>
+                                            DropdownMenuItem<
+                                              TerminalCursorShape
+                                            >(
+                                              value: value,
+                                              child: Text(
+                                                terminalCursorShapeLabel(value),
+                                              ),
+                                            ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value == null) {
+                                      return;
+                                    }
+                                    setState(() {
+                                      _didEdit = true;
+                                      _cursorShape = value;
+                                    });
+                                  },
+                                ),
+                                ToggleSettingRow(
+                                  key: const Key('profile-editor-cursor-blink'),
+                                  label: 'Blink cursor',
+                                  value: _cursorBlink,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _didEdit = true;
+                                      _cursorBlink = value;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      KeyedSubtree(
+                        key: const Key('profile-editor-section-keys'),
+                        child: KeyedSubtree(
+                          key: const Key('profile-editor-section-interaction'),
+                          child: SettingsSection(
+                            key: _keysSectionKey,
+                            title: 'Keys',
+                            description:
+                                'Choose selection defaults for newly opened sessions.',
+                            children: [
+                              _ProfileFormGroup(
+                                key: const Key(
+                                  'profile-editor-group-selection',
+                                ),
+                                title: 'Selection',
+                                children: [
+                                  ToggleSettingRow(
+                                    key: const Key(
+                                      'profile-editor-copy-on-select',
+                                    ),
+                                    label: 'Copy on select',
+                                    value: _copyOnSelect,
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _didEdit = true;
+                                        _copyOnSelect = value;
+                                      });
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Option-drag mode',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  _buildOptionDragModeField(),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      KeyedSubtree(
+                        key: const Key('profile-editor-section-automation'),
+                        child: SettingsSection(
+                          key: _automationSectionKey,
+                          title: 'Automation',
+                          description:
+                              'Match terminal output, then notify you or type a fixed reply.',
+                          children: [
+                            _ProfileFormGroup(
+                              key: const Key(
+                                'profile-editor-group-automation-rules',
+                              ),
+                              title: 'Rules',
+                              children: [
+                                TextFormField(
+                                  key: const Key('profile-editor-triggers'),
+                                  controller: _triggersController,
+                                  focusNode: _triggersFocusNode,
+                                  minLines: 2,
+                                  maxLines: 5,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Triggers',
+                                    helperText:
+                                        'Examples: ERROR => notify, Password: => send: secret\\n',
+                                  ),
+                                  validator: (value) =>
+                                      _triggerLinesError(value ?? ''),
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  key: const Key('profile-editor-switch-rules'),
+                                  controller: _switchRulesController,
+                                  focusNode: _switchRulesFocusNode,
+                                  minLines: 2,
+                                  maxLines: 5,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Automatic profile switching',
+                                    helperText:
+                                        'Change this profile after host, user, or directory changes.',
+                                  ),
+                                  validator: (value) =>
+                                      _switchRuleLinesError(value ?? ''),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      KeyedSubtree(
+                        key: const Key('profile-editor-section-advanced'),
+                        child: SettingsSection(
+                          key: _advancedSectionKey,
+                          title: 'Advanced',
+                          description:
+                              'Control shell-aware profile behavior for new sessions.',
+                          children: [
+                            _ProfileFormGroup(
+                              key: const Key(
+                                'profile-editor-group-integration',
+                              ),
+                              title: 'Integration',
+                              children: [
+                                ToggleSettingRow(
+                                  key: const Key(
+                                    'profile-editor-shell-integration',
+                                  ),
+                                  label: 'Shell integration',
+                                  description:
+                                      'Enable prompt marks, badges, command navigation, and shell-aware actions.',
+                                  value: _shellIntegrationEnabled,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _didEdit = true;
+                                      _shellIntegrationEnabled = value;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                  SettingsSection(
-                    key: const Key('profile-editor-section-startup'),
-                    title: 'Startup',
-                    description:
-                        'Configure the command, working directory, and process environment.',
-                    children: [
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-command'),
-                        title: 'Command',
-                        children: [
-                          TextFormField(
-                            key: const Key('profile-editor-shell'),
-                            controller: _shellController,
-                            focusNode: _shellFocusNode,
-                            decoration: const InputDecoration(
-                              labelText: 'Shell / Program',
-                            ),
-                            validator: (value) =>
-                                _requiredFieldError(value ?? '', 'Shell'),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            key: const Key('profile-editor-cwd'),
-                            controller: _cwdController,
-                            decoration: const InputDecoration(
-                              labelText: 'Working directory',
-                              helperText:
-                                  'Leave empty to use the default working directory.',
-                            ),
-                          ),
-                        ],
-                      ),
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-launch-data'),
-                        title: 'Arguments and environment',
-                        children: [
-                          _buildStringListEditor(
-                            title: 'Arguments',
-                            addKey: const Key('profile-editor-add-arg'),
-                            addLabel: 'Add arg',
-                            emptyLabel: 'No launch arguments',
-                            controllers: _argControllers,
-                            fieldKeyPrefix: 'profile-editor-arg',
-                            onAdd: _addArg,
-                            onRemove: _removeArg,
-                            onMoveUp: (index) => _moveArg(index, index - 1),
-                            onMoveDown: (index) => _moveArg(index, index + 1),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildEnvEditor(),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SettingsSection(
-                    key: const Key('profile-editor-section-automation'),
-                    title: 'Automation',
-                    description:
-                        'Match terminal output, then notify you or type a fixed reply.',
-                    children: [
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-automation-rules'),
-                        title: 'Rules',
-                        children: [
-                          TextFormField(
-                            key: const Key('profile-editor-triggers'),
-                            controller: _triggersController,
-                            focusNode: _triggersFocusNode,
-                            minLines: 2,
-                            maxLines: 5,
-                            decoration: const InputDecoration(
-                              labelText: 'Triggers',
-                              helperText:
-                                  'Examples: ERROR => notify, Password: => send: secret\\n',
-                            ),
-                            validator: (value) =>
-                                _triggerLinesError(value ?? ''),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            key: const Key('profile-editor-switch-rules'),
-                            controller: _switchRulesController,
-                            focusNode: _switchRulesFocusNode,
-                            minLines: 2,
-                            maxLines: 5,
-                            decoration: const InputDecoration(
-                              labelText: 'Automatic profile switching',
-                              helperText:
-                                  'Change this profile after host, user, or directory changes.',
-                            ),
-                            validator: (value) =>
-                                _switchRuleLinesError(value ?? ''),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SettingsSection(
-                    key: const Key('profile-editor-section-session'),
-                    title: 'Terminal session',
-                    description:
-                        'Pick terminal emulation and scrollback retention.',
-                    children: [
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-terminal'),
-                        title: 'Emulation',
-                        children: [
-                          DropdownButtonFormField<TerminalEmulation>(
-                            key: const Key('profile-editor-emulation'),
-                            initialValue: _terminalEmulation,
-                            isExpanded: true,
-                            iconSize: 18,
-                            itemHeight: _dropdownItemHeight,
-                            menuMaxHeight: 240,
-                            borderRadius: BorderRadius.circular(
-                              theme.radius.md,
-                            ),
-                            decoration: InputDecoration(
-                              labelText: 'Emulation',
-                              constraints: const BoxConstraints(
-                                minHeight: _controlHeight,
-                              ),
-                            ),
-                            items: TerminalEmulation.values
-                                .map(
-                                  (value) =>
-                                      DropdownMenuItem<TerminalEmulation>(
-                                        value: value,
-                                        child: Text(
-                                          terminalEmulationLabel(value),
-                                        ),
-                                      ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() {
-                                _didEdit = true;
-                                _terminalEmulation = value;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            key: const Key('profile-editor-scrollback'),
-                            controller: _scrollbackController,
-                            focusNode: _scrollbackFocusNode,
-                            decoration: const InputDecoration(
-                              labelText: 'Scrollback lines',
-                            ),
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            validator: (value) => _positiveIntegerError(
-                              value ?? '',
-                              'Scrollback lines',
-                            ),
-                          ),
-                        ],
-                      ),
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-integration'),
-                        title: 'Integration',
-                        children: [
-                          ToggleSettingRow(
-                            key: const Key('profile-editor-shell-integration'),
-                            label: 'Shell integration',
-                            description:
-                                'Enable prompt marks, badges, command navigation, and shell-aware actions.',
-                            value: _shellIntegrationEnabled,
-                            onChanged: (value) {
-                              setState(() {
-                                _didEdit = true;
-                                _shellIntegrationEnabled = value;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SettingsSection(
-                    key: const Key('profile-editor-section-appearance'),
-                    title: 'Appearance',
-                    description:
-                        'Control typography, terminal colors, and cursor rendering.',
-                    children: [
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-typography'),
-                        title: 'Typography',
-                        children: [
-                          TextFormField(
-                            key: const Key('profile-editor-font-family'),
-                            controller: _fontFamilyController,
-                            focusNode: _fontFamilyFocusNode,
-                            decoration: const InputDecoration(
-                              labelText: 'Font family',
-                            ),
-                            validator: (value) =>
-                                _requiredFieldError(value ?? '', 'Font family'),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildStringListEditor(
-                            title: 'Fallback fonts',
-                            addKey: const Key('profile-editor-add-fallback'),
-                            addLabel: 'Add fallback',
-                            emptyLabel: 'No fallback fonts',
-                            controllers: _fallbackControllers,
-                            fieldKeyPrefix: 'profile-editor-fallback',
-                            onAdd: _addFallback,
-                            onRemove: _removeFallback,
-                            onMoveUp: (index) =>
-                                _moveFallback(index, index - 1),
-                            onMoveDown: (index) =>
-                                _moveFallback(index, index + 1),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  key: const Key('profile-editor-font-size'),
-                                  controller: _fontSizeController,
-                                  focusNode: _fontSizeFocusNode,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Font size',
-                                  ),
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  validator: (value) => _positiveDoubleError(
-                                    value ?? '',
-                                    'Font size',
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextFormField(
-                                  key: const Key(
-                                    'profile-editor-font-line-height',
-                                  ),
-                                  controller: _lineHeightController,
-                                  focusNode: _lineHeightFocusNode,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Line height',
-                                  ),
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                  validator: (value) => _positiveDoubleError(
-                                    value ?? '',
-                                    'Line height',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-colors'),
-                        title: 'Colors',
-                        children: [
-                          _buildThemePresetSection(),
-                          const SizedBox(height: 16),
-                          _buildColorGroupSection(
-                            title: 'Special',
-                            description:
-                                'Foreground, background, cursor, and selection.',
-                            specs: _specialColorFieldSpecs,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildColorGroupSection(
-                            title: 'ANSI normal',
-                            description: 'Standard ANSI 0-7 terminal colors.',
-                            specs: _normalAnsiColorFieldSpecs,
-                          ),
-                          const SizedBox(height: 16),
-                          _buildColorGroupSection(
-                            title: 'ANSI bright',
-                            description: 'Bright ANSI 8-15 terminal colors.',
-                            specs: _brightAnsiColorFieldSpecs,
-                          ),
-                        ],
-                      ),
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-cursor'),
-                        title: 'Cursor',
-                        children: [
-                          DropdownButtonFormField<TerminalCursorShape>(
-                            key: const Key('profile-editor-cursor-shape'),
-                            initialValue: _cursorShape,
-                            isExpanded: true,
-                            iconSize: 18,
-                            itemHeight: _dropdownItemHeight,
-                            menuMaxHeight: 240,
-                            borderRadius: BorderRadius.circular(
-                              theme.radius.md,
-                            ),
-                            decoration: InputDecoration(
-                              labelText: 'Cursor shape',
-                              constraints: const BoxConstraints(
-                                minHeight: _controlHeight,
-                              ),
-                            ),
-                            items: TerminalCursorShape.values
-                                .map(
-                                  (value) =>
-                                      DropdownMenuItem<TerminalCursorShape>(
-                                        value: value,
-                                        child: Text(
-                                          terminalCursorShapeLabel(value),
-                                        ),
-                                      ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) {
-                                return;
-                              }
-                              setState(() {
-                                _didEdit = true;
-                                _cursorShape = value;
-                              });
-                            },
-                          ),
-                          ToggleSettingRow(
-                            key: const Key('profile-editor-cursor-blink'),
-                            label: 'Blink cursor',
-                            value: _cursorBlink,
-                            onChanged: (value) {
-                              setState(() {
-                                _didEdit = true;
-                                _cursorBlink = value;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  SettingsSection(
-                    key: const Key('profile-editor-section-interaction'),
-                    title: 'Interaction',
-                    description:
-                        'Choose selection defaults for newly opened sessions.',
-                    children: [
-                      _ProfileFormGroup(
-                        key: const Key('profile-editor-group-selection'),
-                        title: 'Selection',
-                        children: [
-                          ToggleSettingRow(
-                            key: const Key('profile-editor-copy-on-select'),
-                            label: 'Copy on select',
-                            value: _copyOnSelect,
-                            onChanged: (value) {
-                              setState(() {
-                                _didEdit = true;
-                                _copyOnSelect = value;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Option-drag mode',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 8),
-                          _buildOptionDragModeField(),
-                        ],
-                      ),
-                    ],
-                  ),
+                ),
+              );
+
+              if (showSideNavigation) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 172, child: sectionNavigation),
+                    SizedBox(width: theme.spacing.lg),
+                    Expanded(child: scrollableSections),
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  sectionNavigation,
+                  SizedBox(height: theme.spacing.md),
+                  Expanded(child: scrollableSections),
                 ],
-              ),
-            ),
+              );
+            },
           ),
         ),
         footer: Row(
@@ -1875,6 +2124,89 @@ class _ProfileFormGroup extends StatelessWidget {
             SizedBox(height: theme.spacing.md),
             ...children,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileEditorSectionNavItem extends StatelessWidget {
+  const _ProfileEditorSectionNavItem({
+    super.key,
+    required this.spec,
+    required this.selected,
+    required this.vertical,
+    required this.onTap,
+  });
+
+  final _ProfileEditorSectionSpec spec;
+  final bool selected;
+  final bool vertical;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final foreground = selected ? theme.textPrimary : theme.textMuted;
+    final background = selected
+        ? theme.selected
+        : theme.chrome.withValues(alpha: 0);
+    final borderColor = selected ? theme.focusRing : Colors.transparent;
+    final content = Row(
+      mainAxisSize: vertical ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        Icon(spec.icon, size: 16, color: foreground),
+        SizedBox(width: theme.spacing.sm),
+        Flexible(
+          child: Text(
+            spec.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: foreground,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${spec.label} profile section',
+      child: Tooltip(
+        message: spec.label,
+        child: Padding(
+          padding: EdgeInsets.only(
+            right: vertical ? 0 : theme.spacing.xs,
+            bottom: vertical ? theme.spacing.xs : 0,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(theme.radius.md),
+              onTap: onTap,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCubic,
+                constraints: BoxConstraints(
+                  minHeight: 36,
+                  minWidth: vertical ? 0 : 118,
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: theme.spacing.sm + 2,
+                  vertical: theme.spacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: background,
+                  borderRadius: BorderRadius.circular(theme.radius.md),
+                  border: Border.all(color: borderColor),
+                ),
+                child: content,
+              ),
+            ),
+          ),
         ),
       ),
     );

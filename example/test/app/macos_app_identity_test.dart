@@ -25,12 +25,12 @@ void main() {
     expect(appInfoText, isNot(contains('com.example')));
 
     final projectText = project.readAsStringSync();
-    expect(projectText, contains('/* Ianvs Terminal.app */'));
+    expect(projectText, contains('/* Ianvs Terminal Dev.app */'));
     expect(
       projectText,
       contains(
-        r'TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal.app/'
-        r'$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal";',
+        r'TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal Dev.app/'
+        r'$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal Dev";',
       ),
     );
     expect(
@@ -41,7 +41,7 @@ void main() {
     expect(projectText, isNot(contains('com.example.app')));
 
     final schemeText = scheme.readAsStringSync();
-    expect(schemeText, contains('BuildableName = "Ianvs Terminal.app"'));
+    expect(schemeText, contains('BuildableName = "Ianvs Terminal Dev.app"'));
     expect(schemeText, isNot(contains('BuildableName = "app.app"')));
   });
 }

@@ -93,7 +93,8 @@ void main() {
       expect(find.text('ANSI normal'), findsOneWidget);
       expect(find.text('ANSI bright'), findsOneWidget);
       expect(find.text('Cursor'), findsOneWidget);
-      expect(find.text('Interaction'), findsOneWidget);
+      expect(find.text('Keys'), findsAtLeastNWidgets(1));
+      expect(find.text('Advanced'), findsAtLeastNWidgets(1));
       expect(find.text('VT220'), findsOneWidget);
       expect(find.text('Beam'), findsOneWidget);
       for (final fieldKey in _allColorFieldKeys) {
@@ -479,11 +480,11 @@ void main() {
       const Key('profile-editor-switch-rules'),
     );
     _expectDescendant(
-      const Key('profile-editor-section-session'),
+      const Key('profile-editor-section-terminal'),
       const Key('profile-editor-emulation'),
     );
     _expectDescendant(
-      const Key('profile-editor-section-session'),
+      const Key('profile-editor-section-advanced'),
       const Key('profile-editor-shell-integration'),
     );
     _expectDescendant(
@@ -499,16 +500,74 @@ void main() {
       const Key('profile-editor-cursor-shape'),
     );
     _expectDescendant(
-      const Key('profile-editor-section-interaction'),
+      const Key('profile-editor-section-keys'),
       const Key('profile-editor-copy-on-select'),
     );
 
-    expect(find.text('Identity'), findsOneWidget);
-    expect(find.text('Startup'), findsOneWidget);
-    expect(find.text('Automation'), findsOneWidget);
-    expect(find.text('Terminal session'), findsOneWidget);
-    expect(find.text('Appearance'), findsOneWidget);
-    expect(find.text('Interaction'), findsOneWidget);
+    expect(find.text('General'), findsAtLeastNWidgets(1));
+    expect(find.text('Startup'), findsAtLeastNWidgets(1));
+    expect(find.text('Terminal'), findsAtLeastNWidgets(1));
+    expect(find.text('Appearance'), findsAtLeastNWidgets(1));
+    expect(find.text('Keys'), findsAtLeastNWidgets(1));
+    expect(find.text('Automation'), findsAtLeastNWidgets(1));
+    expect(find.text('Advanced'), findsAtLeastNWidgets(1));
+    for (final section in [
+      'general',
+      'startup',
+      'terminal',
+      'appearance',
+      'keys',
+      'automation',
+      'advanced',
+    ]) {
+      expect(find.byKey(Key('profile-editor-nav-$section')), findsOneWidget);
+    }
+  });
+
+  testWidgets('profile editor section navigation jumps to deep sections', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 820);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (_) {},
+    );
+
+    expect(
+      find.byKey(const Key('profile-editor-section-nav')),
+      findsAtLeastNWidgets(1),
+    );
+
+    await tester.tap(find.byKey(const Key('profile-editor-nav-advanced')));
+    await tester.pumpAndSettle();
+
+    final advancedTop = tester
+        .getTopLeft(find.byKey(const Key('profile-editor-section-advanced')))
+        .dy;
+    final footerTop =
+        tester.getTopLeft(find.byKey(const Key('profile-editor-save'))).dy - 12;
+    expect(advancedTop, greaterThan(0));
+    expect(advancedTop, lessThan(footerTop));
+
+    await tester.tap(find.byKey(const Key('profile-editor-nav-appearance')));
+    await tester.pumpAndSettle();
+
+    final appearanceTop = tester
+        .getTopLeft(find.byKey(const Key('profile-editor-section-appearance')))
+        .dy;
+    expect(appearanceTop, greaterThan(0));
+    expect(appearanceTop, lessThan(footerTop));
   });
 
   testWidgets('profile editor saves notification and send-text triggers', (
@@ -1235,7 +1294,7 @@ Future<void> _ensureVisible(WidgetTester tester, Finder finder) async {
   }
 
   await tester.drag(
-    find.byType(SingleChildScrollView),
+    find.byKey(const Key('profile-editor-scroll-view')),
     Offset(0, -(targetCenter.dy - footerTop + 48)),
   );
   await tester.pumpAndSettle();

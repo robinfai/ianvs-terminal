@@ -145,11 +145,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String? _lastRenderableSessionId;
   String _searchQuery = '';
   String? _searchErrorText;
-  List<terminal.TerminalSearchMatch> _searchMatches = const [];
+  Map<String, List<terminal.TerminalSearchMatch>> _searchMatchesBySession =
+      const {};
+  List<_ScopedSearchMatch> _searchHits = const [];
   int _activeSearchIndex = 0;
   int _searchFocusRequestSerial = 0;
   terminal.TerminalSearchMode _searchMode =
       terminal.TerminalSearchMode.smartCaseSubstring;
+  _TerminalSearchScope _searchScope = _TerminalSearchScope.activePane;
+  String? _lastSearchScopeSessionSignature;
   String _autocompletePrefix = '';
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
@@ -821,18 +825,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               ),
                               if (_isToolbeltOpen)
                                 _ShellToolbelt(
-                                  capturedOutputCount:
+                                  capturedOutputEntries:
                                       _capturedOutputForSession(
                                         activeSessionId,
-                                      ).length,
-                                  pasteHistoryCount:
-                                      _pasteHistoryEntries.length,
-                                  commandHistoryCount: activeShellIntegration
-                                      .recentCommands
-                                      .length,
-                                  recentDirectoryCount: activeShellIntegration
-                                      .recentDirectories
-                                      .length,
+                                      ),
+                                  pasteHistoryEntries: _pasteHistoryEntries,
+                                  shellIntegration: activeShellIntegration,
                                   promptMarkCount:
                                       _effectivePromptMarksForSession(
                                         activeSessionId,
@@ -869,6 +867,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                           activeSessionId,
                                         ),
                                       ),
+                                  onInsertCommand: (command) {
+                                    _closeToolbelt();
+                                    _sendPlainTextToSession(
+                                      activeSessionId,
+                                      command,
+                                    );
+                                  },
+                                  onChangeDirectory: (directory) {
+                                    _closeToolbelt();
+                                    _sendPlainTextToSession(
+                                      activeSessionId,
+                                      'cd ${_shellQuotedPath(directory)}',
+                                    );
+                                  },
                                   onOpenTmuxIntegration: () =>
                                       _openToolbeltChild(
                                         () => _openTmuxIntegration(

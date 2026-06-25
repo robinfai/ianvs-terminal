@@ -37,41 +37,160 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     _mutateState(() {
       _searchQuery = '';
       _searchErrorText = null;
-      _searchMatches = const [];
+      _searchMatchesBySession = const {};
+      _searchHits = const [];
       _activeSearchIndex = 0;
       _searchFocusRequestSerial += 1;
+      _lastSearchScopeSessionSignature = null;
     });
     _requestSearchFocus();
   }
 
   void _searchScrollback(String query) {
-    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
-    if (activeSessionId == null) {
+    final sessionState = ref.read(sessionControllerProvider);
+    if (sessionState.activeSessionId == null) {
       return;
     }
-    final result = ref
-        .read(terminalRuntimeControllerProvider)
-        .searchTextResult(activeSessionId, query, mode: _searchMode);
-    final activeIndex = _defaultSearchActiveIndex(result.matches);
+    if (query.isEmpty) {
+      _mutateState(() {
+        _searchQuery = query;
+        _searchErrorText = null;
+        _searchMatchesBySession = const {};
+        _searchHits = const [];
+        _activeSearchIndex = 0;
+        _lastSearchScopeSessionSignature = null;
+      });
+      return;
+    }
+    final result = _searchScopedSessions(query, sessionState);
+    final activeIndex = _defaultSearchActiveIndex(result.hits);
+    final scopeSignature = _searchScopeSessionSignatureFor(result.sessions);
     _mutateState(() {
       _searchQuery = query;
       _searchErrorText = result.errorText;
-      _searchMatches = result.matches;
+      _searchMatchesBySession = result.matchesBySession;
+      _searchHits = result.hits;
       _activeSearchIndex = activeIndex;
+      _lastSearchScopeSessionSignature = scopeSignature;
     });
-    if (result.matches.isNotEmpty) {
-      ref
-          .read(terminalRuntimeControllerProvider)
-          .scrollViewportTo(
-            activeSessionId,
-            result.matches[activeIndex].scrollbackOffset,
-          );
+    if (result.hits.isNotEmpty) {
+      _scrollToSearchHit(result.hits[activeIndex]);
     }
-    _rememberSearchRefreshFrameSignature(activeSessionId);
+    _rememberSearchRefreshFrameSignatures(
+      result.sessions.map((session) => session.sessionId),
+    );
   }
 
-  int _defaultSearchActiveIndex(List<terminal.TerminalSearchMatch> matches) {
-    return matches.isEmpty ? 0 : matches.length - 1;
+  _ScopedSearchResult _searchScopedSessions(
+    String query,
+    SessionState sessionState,
+  ) {
+    final sessions = _searchSessionsForScope(sessionState);
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final matchesBySession = <String, List<terminal.TerminalSearchMatch>>{};
+    final hits = <_ScopedSearchMatch>[];
+
+    for (final session in sessions) {
+      final result = runtime.searchTextResult(
+        session.sessionId,
+        query,
+        mode: _searchMode,
+      );
+      if (result.errorText != null) {
+        return _ScopedSearchResult(
+          sessions: sessions,
+          matchesBySession:
+              const <String, List<terminal.TerminalSearchMatch>>{},
+          hits: const <_ScopedSearchMatch>[],
+          errorText: result.errorText,
+        );
+      }
+      matchesBySession[session.sessionId] = result.matches;
+      for (final match in result.matches) {
+        hits.add(_ScopedSearchMatch(session: session, match: match));
+      }
+    }
+
+    return _ScopedSearchResult(
+      sessions: sessions,
+      matchesBySession: Map.unmodifiable(matchesBySession),
+      hits: List.unmodifiable(hits),
+    );
+  }
+
+  List<_SearchableSession> _searchSessionsForScope(SessionState sessionState) {
+    final activeSessionId = sessionState.activeSessionId;
+    if (activeSessionId == null) {
+      return const <_SearchableSession>[];
+    }
+    final activeTab = _tabForSession(sessionState, activeSessionId);
+    return switch (_searchScope) {
+      _TerminalSearchScope.activePane => [
+        _SearchableSession(
+          sessionId: activeSessionId,
+          title:
+              activeTab?.paneFor(activeSessionId)?.title ??
+              activeTab?.title ??
+              'Active pane',
+        ),
+      ],
+      _TerminalSearchScope.currentTab => [
+        if (activeTab != null)
+          for (final pane in activeTab.effectivePanes)
+            _SearchableSession(sessionId: pane.sessionId, title: pane.title),
+      ],
+      _TerminalSearchScope.allTabs => _searchableSessions(sessionState),
+    };
+  }
+
+  int _defaultSearchActiveIndex(List<_ScopedSearchMatch> hits) {
+    return hits.isEmpty ? 0 : hits.length - 1;
+  }
+
+  String _searchScopeSessionSignature(SessionState sessionState) {
+    return _searchScopeSessionSignatureFor(
+      _searchSessionsForScope(sessionState),
+    );
+  }
+
+  String _searchScopeSessionSignatureFor(
+    Iterable<_SearchableSession> sessions,
+  ) {
+    final buffer = StringBuffer(_searchScope.wireName);
+    for (final session in sessions) {
+      buffer
+        ..write('|')
+        ..write(session.sessionId);
+    }
+    return buffer.toString();
+  }
+
+  void _syncSearchResultsForSessionScope(SessionState sessionState) {
+    if (!_isSearchOpen ||
+        _searchQuery.isEmpty ||
+        sessionState.activeSessionId == null) {
+      _lastSearchScopeSessionSignature = null;
+      return;
+    }
+    final signature = _searchScopeSessionSignature(sessionState);
+    if (signature == _lastSearchScopeSessionSignature) {
+      return;
+    }
+    _lastSearchScopeSessionSignature = signature;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_isSearchOpen || _searchQuery.isEmpty) {
+        return;
+      }
+      final currentSessionState = ref.read(sessionControllerProvider);
+      if (_searchScopeSessionSignature(currentSessionState) != signature) {
+        return;
+      }
+      final activeSessionId = currentSessionState.activeSessionId;
+      if (activeSessionId == null) {
+        return;
+      }
+      _refreshSearchMatchesForSession(activeSessionId);
+    });
   }
 
   void _refreshSearchMatchesAfterResize(String sessionId) {
@@ -97,10 +216,9 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     if (!_isSearchOpen || _searchQuery.isEmpty) {
       return false;
     }
-    if (ref.read(sessionControllerProvider).activeSessionId != sessionId) {
-      return false;
-    }
-    return true;
+    return _searchSessionsForScope(
+      ref.read(sessionControllerProvider),
+    ).any((session) => session.sessionId == sessionId);
   }
 
   void _refreshSearchMatchesForSession(
@@ -111,26 +229,38 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       return;
     }
     final previousActiveIndex = _activeSearchIndex;
-    final previousActiveMatch =
-        previousActiveIndex >= 0 && previousActiveIndex < _searchMatches.length
-        ? _searchMatches[previousActiveIndex]
+    final previousActiveHit =
+        previousActiveIndex >= 0 && previousActiveIndex < _searchHits.length
+        ? _searchHits[previousActiveIndex]
         : null;
-    final result = ref
-        .read(terminalRuntimeControllerProvider)
-        .searchTextResult(sessionId, _searchQuery, mode: _searchMode);
+    final result = _searchScopedSessions(
+      _searchQuery,
+      ref.read(sessionControllerProvider),
+    );
+    final scopeSignature = _searchScopeSessionSignatureFor(result.sessions);
     if (!mounted) {
       return;
     }
     _mutateState(() {
       _searchErrorText = result.errorText;
-      _searchMatches = result.matches;
+      _searchMatchesBySession = result.matchesBySession;
+      _searchHits = result.hits;
       _activeSearchIndex = _refreshedSearchActiveIndex(
-        result.matches,
-        previousActiveMatch: previousActiveMatch,
+        result.hits,
+        previousActiveHit: previousActiveHit,
         previousActiveIndex: previousActiveIndex,
       );
+      _lastSearchScopeSessionSignature = scopeSignature;
     });
     if (frame == null) {
+      _rememberSearchRefreshFrameSignatures(
+        result.sessions.map((session) => session.sessionId),
+      );
+    }
+  }
+
+  void _rememberSearchRefreshFrameSignatures(Iterable<String> sessionIds) {
+    for (final sessionId in sessionIds) {
       _rememberSearchRefreshFrameSignature(sessionId);
     }
   }
@@ -171,51 +301,50 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   }
 
   int _refreshedSearchActiveIndex(
-    List<terminal.TerminalSearchMatch> matches, {
-    required terminal.TerminalSearchMatch? previousActiveMatch,
+    List<_ScopedSearchMatch> hits, {
+    required _ScopedSearchMatch? previousActiveHit,
     required int previousActiveIndex,
   }) {
-    if (matches.isEmpty) {
+    if (hits.isEmpty) {
       return 0;
     }
-    if (previousActiveMatch == null) {
+    if (previousActiveHit == null) {
       return 0;
     }
     final exactIndex = _closestSearchMatchIndex(
-      matches,
+      hits,
       previousActiveIndex,
-      (match) =>
-          match.row == previousActiveMatch.row &&
-          match.startCol == previousActiveMatch.startCol &&
-          match.endCol == previousActiveMatch.endCol &&
-          match.scrollbackOffset == previousActiveMatch.scrollbackOffset &&
-          match.text == previousActiveMatch.text,
+      (hit) =>
+          hit.session.sessionId == previousActiveHit.session.sessionId &&
+          _sameSearchMatch(hit.match, previousActiveHit.match),
     );
     if (exactIndex != -1) {
       return exactIndex;
     }
     final stableContentIndex = _closestSearchMatchIndex(
-      matches,
+      hits,
       previousActiveIndex,
-      (match) =>
-          match.scrollbackOffset == previousActiveMatch.scrollbackOffset &&
-          match.text == previousActiveMatch.text,
+      (hit) =>
+          hit.session.sessionId == previousActiveHit.session.sessionId &&
+          hit.match.scrollbackOffset ==
+              previousActiveHit.match.scrollbackOffset &&
+          hit.match.text == previousActiveHit.match.text,
     );
     if (stableContentIndex != -1) {
       return stableContentIndex;
     }
-    return previousActiveIndex.clamp(0, matches.length - 1).toInt();
+    return previousActiveIndex.clamp(0, hits.length - 1).toInt();
   }
 
   int _closestSearchMatchIndex(
-    List<terminal.TerminalSearchMatch> matches,
+    List<_ScopedSearchMatch> hits,
     int preferredIndex,
-    bool Function(terminal.TerminalSearchMatch match) matchesIdentity,
+    bool Function(_ScopedSearchMatch hit) matchesIdentity,
   ) {
     var bestIndex = -1;
     var bestDistance = 1 << 30;
-    for (var index = 0; index < matches.length; index += 1) {
-      if (!matchesIdentity(matches[index])) {
+    for (var index = 0; index < hits.length; index += 1) {
+      if (!matchesIdentity(hits[index])) {
         continue;
       }
       final distance = (index - preferredIndex).abs();
@@ -227,6 +356,17 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     return bestIndex;
   }
 
+  bool _sameSearchMatch(
+    terminal.TerminalSearchMatch left,
+    terminal.TerminalSearchMatch right,
+  ) {
+    return left.row == right.row &&
+        left.startCol == right.startCol &&
+        left.endCol == right.endCol &&
+        left.scrollbackOffset == right.scrollbackOffset &&
+        left.text == right.text;
+  }
+
   void _setSearchMode(terminal.TerminalSearchMode value) {
     if (_searchMode == value) {
       return;
@@ -234,32 +374,77 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     _mutateState(() {
       _searchMode = value;
       _searchErrorText = null;
-      _searchMatches = const [];
+      _searchMatchesBySession = const {};
+      _searchHits = const [];
       _activeSearchIndex = 0;
+      _lastSearchScopeSessionSignature = null;
     });
     if (_searchQuery.isNotEmpty) {
       _searchScrollback(_searchQuery);
     }
   }
 
-  void _moveSearchMatch(int delta) {
-    final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
-    if (activeSessionId == null || _searchMatches.isEmpty) {
+  void _setSearchScope(_TerminalSearchScope value) {
+    if (_searchScope == value) {
       return;
     }
-    final nextIndex = (_activeSearchIndex + delta) % _searchMatches.length;
+    _mutateState(() {
+      _searchScope = value;
+      _searchErrorText = null;
+      _searchMatchesBySession = const {};
+      _searchHits = const [];
+      _activeSearchIndex = 0;
+      _lastSearchScopeSessionSignature = null;
+    });
+    if (_searchQuery.isNotEmpty) {
+      _searchScrollback(_searchQuery);
+    }
+    _requestSearchFocus();
+  }
+
+  void _moveSearchMatch(int delta) {
+    if (_searchHits.isEmpty) {
+      return;
+    }
+    final nextIndex = (_activeSearchIndex + delta) % _searchHits.length;
     final normalizedIndex = nextIndex < 0
-        ? nextIndex + _searchMatches.length
+        ? nextIndex + _searchHits.length
         : nextIndex;
     _mutateState(() {
       _activeSearchIndex = normalizedIndex;
     });
+    _scrollToSearchHit(_searchHits[normalizedIndex]);
+  }
+
+  void _scrollToSearchHit(_ScopedSearchMatch hit) {
+    final sessionController = ref.read(sessionControllerProvider.notifier);
+    sessionController.activateSession(hit.session.sessionId);
     ref
         .read(terminalRuntimeControllerProvider)
-        .scrollViewportTo(
-          activeSessionId,
-          _searchMatches[normalizedIndex].scrollbackOffset,
-        );
+        .scrollViewportTo(hit.session.sessionId, hit.match.scrollbackOffset);
+  }
+
+  List<terminal.TerminalSearchMatch> _searchMatchesForSession(
+    String sessionId,
+  ) {
+    return _searchMatchesBySession[sessionId] ??
+        const <terminal.TerminalSearchMatch>[];
+  }
+
+  int _activeSearchMatchIndexForSession(String sessionId) {
+    if (!_isSearchOpen ||
+        _activeSearchIndex < 0 ||
+        _activeSearchIndex >= _searchHits.length) {
+      return -1;
+    }
+    final activeHit = _searchHits[_activeSearchIndex];
+    if (activeHit.session.sessionId != sessionId) {
+      return -1;
+    }
+    final matches = _searchMatchesForSession(sessionId);
+    return matches.indexWhere(
+      (match) => _sameSearchMatch(match, activeHit.match),
+    );
   }
 
   void _closeSearch() {

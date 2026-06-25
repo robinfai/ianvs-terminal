@@ -412,6 +412,10 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
   }
 
   Future<void> _pasteToSession(String sessionId) async {
+    if (_isSessionReadOnly(sessionId)) {
+      _focusSession(sessionId);
+      return;
+    }
     final text = await ClipboardBridge.paste();
     if (text.isEmpty) {
       return;

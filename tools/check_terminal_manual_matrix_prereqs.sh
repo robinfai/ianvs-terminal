@@ -16,6 +16,9 @@ FLUTTER_VERSION_LOG="$(mktemp -t terminal-manual-matrix-flutter-version.XXXXXX.l
 FLUTTER_DOCTOR_LOG="$(mktemp -t terminal-manual-matrix-flutter-doctor.XXXXXX.log)"
 FLUTTER_DEVICES_LOG="$(mktemp -t terminal-manual-matrix-flutter-devices.XXXXXX.log)"
 SMOKE_LOG="$(mktemp -t terminal-manual-matrix-flutter-smoke.XXXXXX.log)"
+DIRECT_OPEN_LOG="$(mktemp -t terminal-manual-matrix-direct-open.XXXXXX.log)"
+DIRECT_OPEN_RETRY_LOG="$(mktemp -t terminal-manual-matrix-direct-open-retry.XXXXXX.log)"
+ACTIVATE_LOG="$(mktemp -t terminal-manual-matrix-activate.XXXXXX.log)"
 
 run_logged_command() {
   local timeout_seconds="$1"
@@ -215,15 +218,96 @@ if [[ -n "$app_bundle_path" ]]; then
   app_bundle_observed="yes"
 fi
 
+app_bundle_id="unknown"
+app_display_name="unknown"
+app_executable_name="unknown"
+if [[ "$app_bundle_observed" == "yes" ]]; then
+  app_info_plist="$app_bundle_path/Contents/Info.plist"
+  app_bundle_id="$(
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_info_plist" 2>/dev/null ||
+      echo unknown
+  )"
+  app_display_name="$(
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$app_info_plist" 2>/dev/null ||
+      echo unknown
+  )"
+  app_executable_name="$(
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_info_plist" 2>/dev/null ||
+      echo unknown
+  )"
+fi
+
 app_process_observed="no"
 if [[ "$vm_service_observed" == "yes" ]] || grep -Fq "Syncing files to device macOS..." "$RUN_LOG"; then
   app_process_observed="yes"
 fi
 
+direct_open_status="blocked"
+direct_open_detail="app bundle was not available for direct open verification"
+direct_open_exit="not-run"
+direct_open_retry_exit="not-run"
+frontmost_after_direct_open="not-run"
+activate_status="blocked"
+activate_detail="app bundle id was not available for AppleScript activation"
+activate_exit="not-run"
+frontmost_after_activate="not-run"
+if [[ "$app_bundle_observed" == "yes" ]]; then
+  set +e
+  run_logged_command 20 "$DIRECT_OPEN_LOG" open "$app_bundle_path"
+  direct_open_exit=$?
+  sleep 2
+  frontmost_after_direct_open="$(
+    osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>&1
+  )"
+  if [[ "$direct_open_exit" -eq 0 ]]; then
+    direct_open_status="pass"
+    direct_open_detail="open exited 0; frontmost after direct open: $frontmost_after_direct_open"
+  elif [[ "$direct_open_exit" -eq 124 ]]; then
+    direct_open_detail="open timed out after 20s; frontmost after direct open: $frontmost_after_direct_open"
+  else
+    run_logged_command 20 "$DIRECT_OPEN_RETRY_LOG" open -n "$app_bundle_path"
+    direct_open_retry_exit=$?
+    sleep 2
+    frontmost_after_direct_open="$(
+      osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>&1
+    )"
+    if [[ "$direct_open_retry_exit" -eq 0 ]]; then
+      direct_open_status="pass"
+      direct_open_detail="initial open exited $direct_open_exit; open -n retry exited 0; frontmost after retry: $frontmost_after_direct_open"
+    elif [[ "$direct_open_retry_exit" -eq 124 ]]; then
+      direct_open_detail="initial open exited $direct_open_exit; open -n retry timed out after 20s; frontmost after retry: $frontmost_after_direct_open"
+    else
+      direct_open_status="fail"
+      direct_open_detail="initial open exited $direct_open_exit; open -n retry exited $direct_open_retry_exit; frontmost after retry: $frontmost_after_direct_open"
+    fi
+  fi
+
+  if [[ "$app_bundle_id" != "unknown" ]]; then
+    run_logged_command 20 "$ACTIVATE_LOG" osascript -e "tell application id \"$app_bundle_id\" to activate"
+    activate_exit=$?
+    sleep 2
+    frontmost_after_activate="$(
+      osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true' 2>&1
+    )"
+    if [[ "$activate_exit" -eq 0 && "$frontmost_after_activate" == "$app_display_name" ]]; then
+      activate_status="pass"
+      activate_detail="AppleScript activate succeeded and $app_display_name became frontmost"
+    elif [[ "$activate_exit" -eq 0 ]]; then
+      activate_detail="AppleScript activate exited 0, but frontmost remained $frontmost_after_activate; current host may block app foregrounding"
+    elif [[ "$activate_exit" -eq 124 ]]; then
+      activate_detail="AppleScript activate timed out after 20s; frontmost after activate: $frontmost_after_activate"
+    else
+      activate_status="fail"
+      activate_detail="AppleScript activate exited $activate_exit; frontmost after activate: $frontmost_after_activate"
+    fi
+  fi
+  set -e
+fi
+
 run_status="blocked"
 run_detail="script-only preflight cannot prove foreground interaction; keep this run blocked until a human confirms the app is interactive on a standard macOS desktop"
 if [[ "$foreground_failure_observed" == "yes" ]]; then
-  run_detail="runner reported foreground failure; treat this host as blocked until rechecked on a standard interactive macOS machine"
+  run_detail="Flutter tool reported foreground failure; direct open status: $direct_open_status; activation status: $activate_status"
 elif [[ "$run_exit" -ne 0 && "$run_exit" -ne 124 ]]; then
   run_status="fail"
   run_detail="flutter run exited unexpectedly before manual GUI verification could complete"
@@ -274,9 +358,24 @@ Observed evidence:
   - Dart VM Service observed: $vm_service_observed
   - app bundle observed: $app_bundle_observed
   - app bundle path: ${app_bundle_path:-not found}
+  - app bundle id: $app_bundle_id
+  - app display name: $app_display_name
+  - app executable name: $app_executable_name
   - app process likely observed: $app_process_observed
   - \`Failed to foreground app; open returned 1\` observed: $foreground_failure_observed
   - log: $RUN_LOG
+- Direct bundle \`open\`: $direct_open_status
+  - $direct_open_detail
+  - exit code: $direct_open_exit
+  - retry exit code: $direct_open_retry_exit
+  - frontmost after direct open: $frontmost_after_direct_open
+  - log: $DIRECT_OPEN_LOG
+  - retry log: $DIRECT_OPEN_RETRY_LOG
+- AppleScript app activation: $activate_status
+  - $activate_detail
+  - exit code: $activate_exit
+  - frontmost after activate: $frontmost_after_activate
+  - log: $ACTIVATE_LOG
 
 Paste-ready record:
 - host: $HOST_NAME
@@ -309,8 +408,23 @@ Paste-ready record:
   - Dart VM Service observed: $vm_service_observed
   - app bundle observed: $app_bundle_observed
   - app bundle path: ${app_bundle_path:-not found}
+  - app bundle id: $app_bundle_id
+  - app display name: $app_display_name
+  - app executable name: $app_executable_name
   - app process likely observed: $app_process_observed
   - \`Failed to foreground app; open returned 1\` observed: $foreground_failure_observed
+- Direct bundle \`open\`: $direct_open_status
+  - $direct_open_detail
+  - exit code: $direct_open_exit
+  - retry exit code: $direct_open_retry_exit
+  - frontmost after direct open: $frontmost_after_direct_open
+  - log: $DIRECT_OPEN_LOG
+  - retry log: $DIRECT_OPEN_RETRY_LOG
+- AppleScript app activation: $activate_status
+  - $activate_detail
+  - exit code: $activate_exit
+  - frontmost after activate: $frontmost_after_activate
+  - log: $ACTIVATE_LOG
   - foreground interaction manually confirmed: no
   - if you manually confirmed foreground interaction during this run, replace this item with \`pass\` and set the confirmation field to \`yes\`
 

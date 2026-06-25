@@ -1,11 +1,17 @@
 part of 'shell_screen.dart';
 
-class _ShellToolbelt extends StatelessWidget {
+enum _ToolbeltPanel {
+  commandHistory,
+  recentDirectories,
+  capturedOutput,
+  pasteHistory,
+}
+
+class _ShellToolbelt extends StatefulWidget {
   const _ShellToolbelt({
-    required this.capturedOutputCount,
-    required this.pasteHistoryCount,
-    required this.commandHistoryCount,
-    required this.recentDirectoryCount,
+    required this.capturedOutputEntries,
+    required this.pasteHistoryEntries,
+    required this.shellIntegration,
     required this.promptMarkCount,
     required this.tmuxControlModeActive,
     required this.coprocessActive,
@@ -16,6 +22,8 @@ class _ShellToolbelt extends StatelessWidget {
     required this.onOpenCapturedOutput,
     required this.onOpenPasteHistory,
     required this.onOpenShellIntegrationUtilities,
+    required this.onInsertCommand,
+    required this.onChangeDirectory,
     required this.onOpenTmuxIntegration,
     required this.onOpenCoprocess,
     required this.onOpenAnnotations,
@@ -23,10 +31,9 @@ class _ShellToolbelt extends StatelessWidget {
     required this.onOpenPasswordManager,
   });
 
-  final int capturedOutputCount;
-  final int pasteHistoryCount;
-  final int commandHistoryCount;
-  final int recentDirectoryCount;
+  final List<_CapturedOutputEntry> capturedOutputEntries;
+  final List<PasteHistoryEntry> pasteHistoryEntries;
+  final TerminalShellIntegrationSnapshot shellIntegration;
   final int promptMarkCount;
   final bool tmuxControlModeActive;
   final bool coprocessActive;
@@ -37,6 +44,8 @@ class _ShellToolbelt extends StatelessWidget {
   final VoidCallback onOpenCapturedOutput;
   final VoidCallback onOpenPasteHistory;
   final VoidCallback onOpenShellIntegrationUtilities;
+  final ValueChanged<String> onInsertCommand;
+  final ValueChanged<String> onChangeDirectory;
   final VoidCallback onOpenTmuxIntegration;
   final VoidCallback onOpenCoprocess;
   final VoidCallback onOpenAnnotations;
@@ -44,10 +53,18 @@ class _ShellToolbelt extends StatelessWidget {
   final VoidCallback onOpenPasswordManager;
 
   @override
+  State<_ShellToolbelt> createState() => _ShellToolbeltState();
+}
+
+class _ShellToolbeltState extends State<_ShellToolbelt> {
+  _ToolbeltPanel _activePanel = _ToolbeltPanel.commandHistory;
+
+  @override
   Widget build(BuildContext context) {
+    final palette = widget.palette;
     return SizedBox(
       key: const Key('shell-toolbelt-panel'),
-      width: 304,
+      width: 336,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: palette.chromeElevated,
@@ -82,89 +99,84 @@ class _ShellToolbelt extends StatelessWidget {
                       ),
                       _buildSheetCloseButton(
                         tooltip: 'Close toolbelt',
-                        onPressed: onClose,
+                        onPressed: widget.onClose,
                         buttonKey: const Key('toolbelt-close'),
                       ),
                     ],
                   ),
                   SizedBox(height: palette.spacing.sm),
+                  _ToolbeltPanelTabs(
+                    activePanel: _activePanel,
+                    palette: palette,
+                    capturedOutputCount: widget.capturedOutputEntries.length,
+                    pasteHistoryCount: widget.pasteHistoryEntries.length,
+                    commandHistoryCount:
+                        widget.shellIntegration.recentCommands.length,
+                    recentDirectoryCount:
+                        widget.shellIntegration.recentDirectories.length,
+                    onChanged: (panel) {
+                      setState(() {
+                        _activePanel = panel;
+                      });
+                    },
+                  ),
+                  SizedBox(height: palette.spacing.md),
                   Expanded(
                     child: SingleChildScrollView(
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _ToolbeltActionRow(
-                            key: const Key('toolbelt-captured-output'),
-                            icon: Icons.outbox_rounded,
-                            title: 'Captured output',
-                            countLabel:
-                                '$capturedOutputCount captured line${capturedOutputCount == 1 ? '' : 's'}',
+                          _ToolbeltPrimaryPanel(
+                            activePanel: _activePanel,
                             palette: palette,
-                            onTap: onOpenCapturedOutput,
+                            capturedOutputEntries: widget.capturedOutputEntries,
+                            pasteHistoryEntries: widget.pasteHistoryEntries,
+                            shellIntegration: widget.shellIntegration,
+                            onOpenCapturedOutput: widget.onOpenCapturedOutput,
+                            onOpenPasteHistory: widget.onOpenPasteHistory,
+                            onOpenShellIntegrationUtilities:
+                                widget.onOpenShellIntegrationUtilities,
+                            onInsertCommand: widget.onInsertCommand,
+                            onChangeDirectory: widget.onChangeDirectory,
                           ),
-                          _ToolbeltActionRow(
-                            key: const Key('toolbelt-paste-history'),
-                            icon: Icons.history_rounded,
-                            title: 'Paste history',
-                            countLabel:
-                                '$pasteHistoryCount recent item${pasteHistoryCount == 1 ? '' : 's'}',
-                            palette: palette,
-                            onTap: onOpenPasteHistory,
-                          ),
-                          _ToolbeltActionRow(
-                            key: const Key('toolbelt-command-history'),
-                            icon: Icons.list_alt_rounded,
-                            title: 'Command history',
-                            countLabel:
-                                '$commandHistoryCount command${commandHistoryCount == 1 ? '' : 's'}',
-                            palette: palette,
-                            onTap: onOpenShellIntegrationUtilities,
-                          ),
-                          _ToolbeltActionRow(
-                            key: const Key('toolbelt-recent-directories'),
-                            icon: Icons.folder_rounded,
-                            title: 'Recent directories',
-                            countLabel:
-                                '$recentDirectoryCount director${recentDirectoryCount == 1 ? 'y' : 'ies'}',
-                            palette: palette,
-                            onTap: onOpenShellIntegrationUtilities,
-                          ),
+                          Divider(color: palette.border, height: 22),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-prompt-marks'),
                             icon: Icons.assistant_direction_rounded,
                             title: 'Prompt marks',
                             countLabel:
-                                '$promptMarkCount mark${promptMarkCount == 1 ? '' : 's'}',
+                                '${widget.promptMarkCount} mark${widget.promptMarkCount == 1 ? '' : 's'}',
                             palette: palette,
-                            onTap: onOpenShellIntegrationUtilities,
+                            onTap: widget.onOpenShellIntegrationUtilities,
                           ),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-tmux-integration'),
                             icon: Icons.account_tree_rounded,
                             title: 'tmux integration',
-                            countLabel: tmuxControlModeActive
+                            countLabel: widget.tmuxControlModeActive
                                 ? 'Control mode active'
                                 : 'Start or attach',
                             palette: palette,
-                            onTap: onOpenTmuxIntegration,
+                            onTap: widget.onOpenTmuxIntegration,
                           ),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-coprocess'),
                             icon: Icons.hub_rounded,
                             title: 'Coprocess',
-                            countLabel: coprocessActive
+                            countLabel: widget.coprocessActive
                                 ? 'Automation active'
                                 : 'Run automation',
                             palette: palette,
-                            onTap: onOpenCoprocess,
+                            onTap: widget.onOpenCoprocess,
                           ),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-annotations'),
                             icon: Icons.sticky_note_2_rounded,
                             title: 'Annotations',
                             countLabel:
-                                '$annotationCount note${annotationCount == 1 ? '' : 's'}',
+                                '${widget.annotationCount} note${widget.annotationCount == 1 ? '' : 's'}',
                             palette: palette,
-                            onTap: onOpenAnnotations,
+                            onTap: widget.onOpenAnnotations,
                           ),
                           Divider(color: palette.border, height: 18),
                           _ToolbeltActionRow(
@@ -173,7 +185,7 @@ class _ShellToolbelt extends StatelessWidget {
                             title: 'Instant replay',
                             countLabel: 'Recent frames',
                             palette: palette,
-                            onTap: onOpenInstantReplay,
+                            onTap: widget.onOpenInstantReplay,
                           ),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-password-manager'),
@@ -181,12 +193,12 @@ class _ShellToolbelt extends StatelessWidget {
                             title: 'Password manager',
                             countLabel: 'Prompt-gated sends',
                             palette: palette,
-                            onTap: onOpenPasswordManager,
+                            onTap: widget.onOpenPasswordManager,
                           ),
                           Divider(color: palette.border, height: 18),
                           LocalTerminalCompletionDiagnosticsPanel(
                             key: const Key('toolbelt-completion-diagnostics'),
-                            snapshot: completionDiagnosticsSnapshot,
+                            snapshot: widget.completionDiagnosticsSnapshot,
                             maxItemsPerSection: 4,
                           ),
                         ],
@@ -198,6 +210,488 @@ class _ShellToolbelt extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ToolbeltPanelTabs extends StatelessWidget {
+  const _ToolbeltPanelTabs({
+    required this.activePanel,
+    required this.palette,
+    required this.capturedOutputCount,
+    required this.pasteHistoryCount,
+    required this.commandHistoryCount,
+    required this.recentDirectoryCount,
+    required this.onChanged,
+  });
+
+  final _ToolbeltPanel activePanel;
+  final AppThemeTokens palette;
+  final int capturedOutputCount;
+  final int pasteHistoryCount;
+  final int commandHistoryCount;
+  final int recentDirectoryCount;
+  final ValueChanged<_ToolbeltPanel> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: palette.spacing.xs,
+      runSpacing: palette.spacing.xs,
+      children: [
+        _ToolbeltPanelTab(
+          panel: _ToolbeltPanel.commandHistory,
+          activePanel: activePanel,
+          palette: palette,
+          icon: Icons.list_alt_rounded,
+          label: 'Commands',
+          count: commandHistoryCount,
+          onChanged: onChanged,
+        ),
+        _ToolbeltPanelTab(
+          panel: _ToolbeltPanel.recentDirectories,
+          activePanel: activePanel,
+          palette: palette,
+          icon: Icons.folder_rounded,
+          label: 'Dirs',
+          count: recentDirectoryCount,
+          onChanged: onChanged,
+        ),
+        _ToolbeltPanelTab(
+          panel: _ToolbeltPanel.capturedOutput,
+          activePanel: activePanel,
+          palette: palette,
+          icon: Icons.outbox_rounded,
+          label: 'Output',
+          count: capturedOutputCount,
+          onChanged: onChanged,
+        ),
+        _ToolbeltPanelTab(
+          panel: _ToolbeltPanel.pasteHistory,
+          activePanel: activePanel,
+          palette: palette,
+          icon: Icons.history_rounded,
+          label: 'Paste',
+          count: pasteHistoryCount,
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+}
+
+class _ToolbeltPanelTab extends StatelessWidget {
+  const _ToolbeltPanelTab({
+    required this.panel,
+    required this.activePanel,
+    required this.palette,
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.onChanged,
+  });
+
+  final _ToolbeltPanel panel;
+  final _ToolbeltPanel activePanel;
+  final AppThemeTokens palette;
+  final IconData icon;
+  final String label;
+  final int count;
+  final ValueChanged<_ToolbeltPanel> onChanged;
+
+  String get _wireName {
+    return switch (panel) {
+      _ToolbeltPanel.commandHistory => 'command-history',
+      _ToolbeltPanel.recentDirectories => 'recent-directories',
+      _ToolbeltPanel.capturedOutput => 'captured-output',
+      _ToolbeltPanel.pasteHistory => 'paste-history',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = panel == activePanel;
+    final foreground = selected ? palette.textPrimary : palette.textMuted;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '$label toolbelt panel',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: Key('toolbelt-tab-$_wireName'),
+          borderRadius: BorderRadius.circular(palette.radius.md),
+          onTap: () => onChanged(panel),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            width: 142,
+            height: 44,
+            padding: EdgeInsets.symmetric(horizontal: palette.spacing.sm),
+            decoration: BoxDecoration(
+              color: selected ? palette.selected : palette.chrome,
+              borderRadius: BorderRadius.circular(palette.radius.md),
+              border: Border.all(
+                color: selected ? palette.focusRing : palette.border,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 17, color: foreground),
+                SizedBox(width: palette.spacing.xs),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: foreground,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  count.toString(),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolbeltPrimaryPanel extends StatelessWidget {
+  const _ToolbeltPrimaryPanel({
+    required this.activePanel,
+    required this.palette,
+    required this.capturedOutputEntries,
+    required this.pasteHistoryEntries,
+    required this.shellIntegration,
+    required this.onOpenCapturedOutput,
+    required this.onOpenPasteHistory,
+    required this.onOpenShellIntegrationUtilities,
+    required this.onInsertCommand,
+    required this.onChangeDirectory,
+  });
+
+  final _ToolbeltPanel activePanel;
+  final AppThemeTokens palette;
+  final List<_CapturedOutputEntry> capturedOutputEntries;
+  final List<PasteHistoryEntry> pasteHistoryEntries;
+  final TerminalShellIntegrationSnapshot shellIntegration;
+  final VoidCallback onOpenCapturedOutput;
+  final VoidCallback onOpenPasteHistory;
+  final VoidCallback onOpenShellIntegrationUtilities;
+  final ValueChanged<String> onInsertCommand;
+  final ValueChanged<String> onChangeDirectory;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPanel(
+      tone: AppPanelTone.panel,
+      padding: EdgeInsets.all(palette.spacing.md),
+      borderRadius: BorderRadius.circular(palette.radius.lg),
+      child: switch (activePanel) {
+        _ToolbeltPanel.commandHistory => _buildCommands(context),
+        _ToolbeltPanel.recentDirectories => _buildDirectories(context),
+        _ToolbeltPanel.capturedOutput => _buildCapturedOutput(context),
+        _ToolbeltPanel.pasteHistory => _buildPasteHistory(context),
+      },
+    );
+  }
+
+  Widget _buildCommands(BuildContext context) {
+    final commands = shellIntegration.recentCommands.take(5).toList();
+    return _ToolbeltPreviewSection(
+      sectionKey: const Key('toolbelt-panel-command-history'),
+      icon: Icons.list_alt_rounded,
+      title: 'Command history',
+      subtitle:
+          '${shellIntegration.recentCommands.length} command'
+          '${shellIntegration.recentCommands.length == 1 ? '' : 's'}',
+      palette: palette,
+      actionKey: const Key('toolbelt-command-history'),
+      actionLabel: 'All',
+      onAction: onOpenShellIntegrationUtilities,
+      children: commands.isEmpty
+          ? [
+              _ToolbeltEmptyPreview(
+                message: 'Run a command in this tab to fill command history.',
+                palette: palette,
+              ),
+            ]
+          : [
+              for (var index = 0; index < commands.length; index += 1)
+                _ToolbeltPreviewTile(
+                  tileKey: Key('toolbelt-command-history-entry-$index'),
+                  icon: Icons.keyboard_return_rounded,
+                  title: commands[index],
+                  subtitle: 'Insert command',
+                  palette: palette,
+                  onTap: () => onInsertCommand(commands[index]),
+                ),
+            ],
+    );
+  }
+
+  Widget _buildDirectories(BuildContext context) {
+    final directories = shellIntegration.recentDirectories.take(5).toList();
+    return _ToolbeltPreviewSection(
+      sectionKey: const Key('toolbelt-panel-recent-directories'),
+      icon: Icons.folder_rounded,
+      title: 'Recent directories',
+      subtitle:
+          '${shellIntegration.recentDirectories.length} director'
+          '${shellIntegration.recentDirectories.length == 1 ? 'y' : 'ies'}',
+      palette: palette,
+      actionKey: const Key('toolbelt-recent-directories'),
+      actionLabel: 'All',
+      onAction: onOpenShellIntegrationUtilities,
+      children: directories.isEmpty
+          ? [
+              _ToolbeltEmptyPreview(
+                message: 'Change directories to fill recent directories.',
+                palette: palette,
+              ),
+            ]
+          : [
+              for (var index = 0; index < directories.length; index += 1)
+                _ToolbeltPreviewTile(
+                  tileKey: Key('toolbelt-recent-directory-entry-$index'),
+                  icon: Icons.subdirectory_arrow_right_rounded,
+                  title: directories[index],
+                  subtitle: 'Insert cd command',
+                  palette: palette,
+                  onTap: () => onChangeDirectory(directories[index]),
+                ),
+            ],
+    );
+  }
+
+  Widget _buildCapturedOutput(BuildContext context) {
+    final entries = capturedOutputEntries.take(5).toList();
+    return _ToolbeltPreviewSection(
+      sectionKey: const Key('toolbelt-panel-captured-output'),
+      icon: Icons.outbox_rounded,
+      title: 'Captured output',
+      subtitle:
+          '${capturedOutputEntries.length} captured line'
+          '${capturedOutputEntries.length == 1 ? '' : 's'}',
+      palette: palette,
+      actionKey: const Key('toolbelt-captured-output'),
+      actionLabel: 'Open',
+      onAction: onOpenCapturedOutput,
+      children: entries.isEmpty
+          ? [
+              _ToolbeltEmptyPreview(
+                message: 'Profile triggers and coprocesses can capture output.',
+                palette: palette,
+              ),
+            ]
+          : [
+              for (var index = 0; index < entries.length; index += 1)
+                _ToolbeltPreviewTile(
+                  tileKey: Key('toolbelt-captured-output-entry-$index'),
+                  icon: Icons.outbox_rounded,
+                  title: entries[index].text,
+                  subtitle:
+                      'Pattern ${entries[index].pattern} - Row ${entries[index].rowIndex}',
+                  palette: palette,
+                  onTap: onOpenCapturedOutput,
+                ),
+            ],
+    );
+  }
+
+  Widget _buildPasteHistory(BuildContext context) {
+    final entries = pasteHistoryEntries.take(5).toList();
+    return _ToolbeltPreviewSection(
+      sectionKey: const Key('toolbelt-panel-paste-history'),
+      icon: Icons.history_rounded,
+      title: 'Paste history',
+      subtitle:
+          '${pasteHistoryEntries.length} recent item'
+          '${pasteHistoryEntries.length == 1 ? '' : 's'}',
+      palette: palette,
+      actionKey: const Key('toolbelt-paste-history'),
+      actionLabel: 'Open',
+      onAction: onOpenPasteHistory,
+      children: entries.isEmpty
+          ? [
+              _ToolbeltEmptyPreview(
+                message: 'Copied and pasted text appears here.',
+                palette: palette,
+              ),
+            ]
+          : [
+              for (var index = 0; index < entries.length; index += 1)
+                _ToolbeltPreviewTile(
+                  tileKey: Key('toolbelt-paste-history-entry-$index'),
+                  icon: entries[index].kind == PasteHistoryKind.copy
+                      ? Icons.copy_rounded
+                      : Icons.content_paste_rounded,
+                  title: entries[index].text.replaceAll('\n', r' \n '),
+                  subtitle: switch (entries[index].kind) {
+                    PasteHistoryKind.copy => 'Copied',
+                    PasteHistoryKind.paste => 'Pasted',
+                  },
+                  palette: palette,
+                  onTap: onOpenPasteHistory,
+                ),
+            ],
+    );
+  }
+}
+
+class _ToolbeltPreviewSection extends StatelessWidget {
+  const _ToolbeltPreviewSection({
+    required this.sectionKey,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+    required this.actionKey,
+    required this.actionLabel,
+    required this.onAction,
+    required this.children,
+  });
+
+  final Key sectionKey;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final AppThemeTokens palette;
+  final Key actionKey;
+  final String actionLabel;
+  final VoidCallback onAction;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: sectionKey,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20, color: palette.accent),
+            SizedBox(width: palette.spacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: palette.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
+                  ),
+                ],
+              ),
+            ),
+            AppActionButton(
+              buttonKey: actionKey,
+              tone: AppActionTone.ghost,
+              size: AppActionSize.compact,
+              label: actionLabel,
+              tooltip: actionLabel,
+              onPressed: onAction,
+            ),
+          ],
+        ),
+        SizedBox(height: palette.spacing.sm),
+        ...children,
+      ],
+    );
+  }
+}
+
+class _ToolbeltPreviewTile extends StatelessWidget {
+  const _ToolbeltPreviewTile({
+    required this.tileKey,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.palette,
+    required this.onTap,
+  });
+
+  final Key tileKey;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final AppThemeTokens palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: tileKey,
+      dense: true,
+      minLeadingWidth: 22,
+      contentPadding: EdgeInsets.symmetric(horizontal: palette.spacing.xs),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(palette.radius.md),
+      ),
+      leading: Icon(icon, color: palette.textMuted, size: 18),
+      title: Text(
+        title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: palette.textPrimary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: palette.textSubtle),
+      ),
+      hoverColor: _shellTileHoverColor(palette),
+      focusColor: _shellTileFocusColor(palette),
+      onTap: onTap,
+    );
+  }
+}
+
+class _ToolbeltEmptyPreview extends StatelessWidget {
+  const _ToolbeltEmptyPreview({required this.message, required this.palette});
+
+  final String message;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: palette.spacing.md),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
       ),
     );
   }
