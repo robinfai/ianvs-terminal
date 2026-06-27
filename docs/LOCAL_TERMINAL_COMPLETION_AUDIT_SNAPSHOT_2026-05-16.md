@@ -55,9 +55,9 @@ The objective can close only when all of the following are true:
 | P5 visual and advanced wiring | Theme picker, layout template, pane sizing, scrollback export, graphics/timestamp/command-pane planning records; P5 suite passed 33/33 | Verified for baseline | Selected advanced visual follow-ups remain outside the closure baseline. |
 | Required backlog gate | `LocalTerminalCompletionEvidenceReport.requiredBacklogTaskIds` requires T-164 through T-169; diagnostics now surface missing ids through summary, view model, menu, command menu, bundle, presentation, panel, facade, and snapshot layers | Verified | `LocalTerminalRealWiringBacklogEvidence.currentVerified` verifies T-164 through T-169 with latest passed verification evidence. |
 | Verification evidence model | Verification evidence, recorder, batch recording, plan records, command plan, test targets, manual template, and evidence runbook exist; verification-evidence suite passed 13/13 in `20260516T171327Z-verification-evidence` | Verified | Canonical records are represented by `LocalTerminalVerificationPlanRecords.latestPassed()`. |
-| Unit/widget/integration tests | Focused test files have been added across shell, workspace, productivity, policy, visual, diagnostics, manifests, evidence models, `example/integration_test`, and terminal packages; focused suites passed, terminal package tests passed in the 2026-05-31 audit, latest broader passed in `20260516T171406Z-broader`, and latest integration passed in `20260516T171644Z-integration` | Verified | Canonical evidence conversion is complete. |
-| Static analysis | Verification command plan requires `flutter analyze` | Passed | `build/local-terminal-verification/20260516T145142Z-all-automated`: `No issues found!`. |
-| Formatting | Verification command plan requires expanded `dart format` coverage across app, integration/test-driver/tool files, and local packages | Passed | `build/local-terminal-verification/20260516T145142Z-all-automated`: `Formatted 252 files (0 changed)`. 2026-05-31 audit expanded the scope and confirmed `Formatted 287 files (0 changed)`. |
+| Unit/widget/integration tests | Focused test files have been added across shell, workspace, productivity, policy, visual, diagnostics, manifests, evidence models, `example/integration_test`, and terminal packages; latest all-automated passed in `20260627T172040Z-all-automated`, and latest integration passed in `20260627T172908Z-integration` | Verified | Canonical evidence conversion is complete. |
+| Static analysis | Verification command plan requires `flutter analyze` | Passed | `build/local-terminal-verification/20260627T172040Z-all-automated`: `No issues found!`. |
+| Formatting | Verification command plan requires expanded `dart format` coverage across app, integration/test-driver/tool files, and local packages | Passed | `build/local-terminal-verification/20260627T172040Z-all-automated`: `Formatted 311 files (0 changed)`. |
 | Manual/integration gates | Manual template defines local shell, paste/focus, multipane, notification, and hotkey-window gates; integration batch maps to macOS-targeted `ianvs_smoke_test.dart` plus `real_pty_acceptance_test.dart` | Verified | Manual/integration-backed ledger rows are passed. |
 
 ## Evidence That Must Not Be Treated As Completion
@@ -73,9 +73,9 @@ The objective can close only when all of the following are true:
 
 - No required baseline blocker remains for T-169/local-terminal closure.
 - Broader `flutter test example/test` passed in
-  `build/local-terminal-verification/20260516T171406Z-broader`.
+  `build/local-terminal-verification/20260627T172040Z-all-automated`.
 - Integration/smoke passed in
-  `build/local-terminal-verification/20260516T171644Z-integration`.
+  `build/local-terminal-verification/20260627T172908Z-integration`.
 - Manual/integration-backed behavior is recorded in the evidence ledger.
 - Canonical verification evidence is converted by
   `LocalTerminalVerificationPlanRecords.latestPassed()`.
@@ -87,8 +87,8 @@ The objective can close only when all of the following are true:
 
 The required closure sequence has completed for the local-terminal baseline:
 
-1. Broader passed in `20260516T171406Z-broader`.
-2. Integration passed in `20260516T171644Z-integration`.
+1. All automated gates passed in `20260627T172040Z-all-automated`.
+2. Integration passed in `20260627T172908Z-integration`.
 3. Manual/integration-backed gates are recorded in the ledger.
 4. Results are recorded through latest passed verification evidence.
 5. The completion evidence report can close through

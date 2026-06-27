@@ -86,6 +86,7 @@ class LocalTerminalVerificationPlanRecords {
           LocalTerminalVerificationGate.formatting,
           command: _expandedFormattingCommand,
           output: const [
+            'build/local-terminal-verification/20260627T172040Z-all-automated: exit 0; Formatted 311 files (0 changed).',
             '2026-05-31 expanded formatting scope audit: dart format --output=none --set-exit-if-changed ... reported Formatted 287 files (0 changed).',
           ],
         ),
@@ -95,6 +96,7 @@ class LocalTerminalVerificationPlanRecords {
               'bash tools/local_terminal_verification_capture.sh run '
               'static-analysis',
           output: const [
+            'build/local-terminal-verification/20260627T172040Z-all-automated: exit 0; No issues found.',
             'build/local-terminal-verification/20260516T171224Z-static-analysis: exit 0; No issues found.',
           ],
         ),
@@ -104,6 +106,7 @@ class LocalTerminalVerificationPlanRecords {
               'bash tools/local_terminal_verification_capture.sh run '
               'broader',
           output: const [
+            'build/local-terminal-verification/20260627T172040Z-all-automated: exit 0; completion 51/51, P1 35/35, cross-milestone 8/8, P2 32/32, P3 38/38, P4 25/25, P5 51/51, verification-evidence 13/13, terminal packages 118/118 and 9/9, broader 805 passed plus 1 skipped.',
             'Focused completion/P1/cross-milestone/P2/P3/P4/P5 suites passed in 20260516T145142Z-all-automated.',
             'build/local-terminal-verification/20260516T171327Z-verification-evidence: exit 0; 13/13 passed.',
             '2026-05-31 terminal package tests passed: flutter test packages/ianvs_terminal/test 92/92 and dart test packages/ianvs_pty/test 8/8.',
@@ -116,6 +119,7 @@ class LocalTerminalVerificationPlanRecords {
               'bash tools/local_terminal_verification_capture.sh run '
               'broader',
           output: const [
+            'build/local-terminal-verification/20260627T172040Z-all-automated: exit 0; broader widget/unit coverage passed with 805 passing tests plus 1 skipped test, including Toolbelt complete diagnostics, tab overflow, paste, multipane, notification, and hotkey regressions.',
             'build/local-terminal-verification/20260516T171406Z-broader: exit 0; widget coverage passed, including paste confirmation, zoom/unzoom, and hotkey visible-failure regressions.',
           ],
         ),
@@ -125,36 +129,42 @@ class LocalTerminalVerificationPlanRecords {
               'bash tools/local_terminal_verification_capture.sh run '
               'integration',
           output: const [
+            'build/local-terminal-verification/20260627T172908Z-integration: exit 0; smoke 4/4 and real PTY 7/7 passed.',
             'build/local-terminal-verification/20260516T171644Z-integration: exit 0; smoke 4/4 and real PTY 7/7 passed.',
           ],
         ),
         _passed(
           LocalTerminalVerificationGate.manualLocalShellSmoke,
           output: const [
+            '2026-06-27 integration smoke rerun passed 4/4, including startup, new tab, profile tab creation, close-to-empty-state, and New Tab recovery.',
             'Manual macOS product app observation: local shell launched, echo OMX_SMOKE_1636 rendered output, New tab and Split right worked; integration smoke covered close recovery.',
           ],
         ),
         _passed(
           LocalTerminalVerificationGate.manualPasteFocusSafety,
           output: const [
+            '2026-06-27 all-automated broader rerun passed paste policy, read-only, keyboard paste, and focus-preservation regressions.',
             'Manual macOS product app observation: multiline paste confirmation appeared, confirmed paste inserted text, read-only mode blocked paste sentinel, and focus returned to shell.',
           ],
         ),
         _passed(
           LocalTerminalVerificationGate.manualMultipaneBehavior,
           output: const [
+            '2026-06-27 all-automated broader rerun passed pane focus, close/reopen, tab overflow, and multipane workspace regressions; integration smoke passed close/empty-state recovery.',
             'Manual macOS product app observation: split, focus next, grow, and swap worked; zoom gap was fixed and covered by focused phase4 plus broader.',
           ],
         ),
         _passed(
           LocalTerminalVerificationGate.manualNotificationBehavior,
           output: const [
+            '2026-06-27 integration real PTY rerun passed inactive wrapped activity notification; broader rerun passed notification policy regressions.',
             'Latest broader covers command-finished, bell, inactive activity, trigger notification, wrapped preview, and focus/target policy; real PTY integration covers inactive wrapped activity.',
           ],
         ),
         _passed(
           LocalTerminalVerificationGate.manualHotkeyWindowFailurePath,
           output: const [
+            '2026-06-27 all-automated broader rerun passed command-menu hotkey-window invocation and visible failure-path regressions.',
             'Latest broader covers hotkey bridge invocation and simulated unregistered hotkey status with visible Hotkey window unavailable feedback.',
           ],
         ),

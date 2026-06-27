@@ -670,11 +670,15 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
     if (tabsAreaWidth / tabCount >= _compactMinTabWidth) {
       return tabCount;
     }
-    final visibleCapacity = tabsAreaWidth ~/ _compactMinTabWidth;
-    if (visibleCapacity <= 0) {
+    final regularVisibleCapacity = tabsAreaWidth ~/ _regularMinTabWidth;
+    if (regularVisibleCapacity > 0) {
+      return math.min(tabCount - 1, regularVisibleCapacity);
+    }
+    final compactVisibleCapacity = tabsAreaWidth ~/ _compactMinTabWidth;
+    if (compactVisibleCapacity <= 0) {
       return 0;
     }
-    return math.min(tabCount - 1, visibleCapacity);
+    return math.min(tabCount - 1, compactVisibleCapacity);
   }
 }
 

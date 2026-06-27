@@ -17,16 +17,10 @@ Verification authorization:
   docs/LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md
 
 Latest automated evidence:
-  build/local-terminal-verification/20260516T145142Z-all-automated
-  format/analyze/focused completion/P1/P2-P5/verification-evidence batches passed
-  build/local-terminal-verification/20260516T171224Z-static-analysis
-  latest static-analysis rerun passed
-  build/local-terminal-verification/20260516T171406Z-broader
-  latest broader rerun passed
-  build/local-terminal-verification/20260516T171327Z-verification-evidence
-  latest verification-evidence rerun passed
-  build/local-terminal-verification/20260516T171644Z-integration
-  latest integration passed
+  build/local-terminal-verification/20260627T172040Z-all-automated
+  latest formatting, static-analysis, focused, terminal-package, broader unit/widget gates passed
+  build/local-terminal-verification/20260627T172908Z-integration
+  latest smoke and real PTY integration passed
 
 Manual/integration-backed evidence:
   local shell smoke passed

@@ -11,11 +11,10 @@ the overall objective complete.
 ## Current Completion State
 
 Current decision: **verified**.
-Verification execution was authorized on 2026-05-16 and automated batches were
-run through the capture helper. The latest successful evidence directories are
-`build/local-terminal-verification/20260516T171224Z-static-analysis`,
-`build/local-terminal-verification/20260516T171406Z-broader`, and
-`build/local-terminal-verification/20260516T171644Z-integration`.
+Verification execution was authorized on 2026-05-16 and rerun through the
+capture helper on 2026-06-27. The latest successful evidence directories are
+`build/local-terminal-verification/20260627T172040Z-all-automated` and
+`build/local-terminal-verification/20260627T172908Z-integration`.
 
 Optional navigation helper:
 
@@ -45,25 +44,24 @@ What exists:
 
 Latest verification evidence:
 
-- Formatting passed; the latest expanded 2026-05-31 scope audit reported
-  `Formatted 287 files (0 changed)`.
+- Formatting passed in `20260627T172040Z-all-automated` with
+  `Formatted 311 files (0 changed)`.
 - Latest static analysis passed with `No issues found!` in
-  `20260516T171224Z-static-analysis`.
-- Focused completion diagnostics passed 45/45.
-- P1 action wiring passed 33/33.
+  `20260627T172040Z-all-automated`.
+- Focused completion diagnostics passed 51/51.
+- P1 action wiring passed 35/35.
 - Cross-milestone production wiring passed 8/8.
-- P2 workspace passed 21/21.
-- P3 productivity passed 26/26.
-- P4 policy passed 22/22.
-- P5 visual passed 33/33.
-- Verification evidence passed 13/13 in
-  `20260516T171327Z-verification-evidence`.
-- Terminal package tests passed in the 2026-05-31 audit:
-  `packages/ianvs_terminal/test` 92/92 and `packages/ianvs_pty/test` 8/8.
-- Latest broader `flutter test example/test` passed with 601 passing tests plus
-  1 skipped test in `20260516T171406Z-broader`.
+- P2 workspace passed 32/32.
+- P3 productivity passed 38/38.
+- P4 policy passed 25/25.
+- P5 visual passed 51/51.
+- Verification evidence passed 13/13.
+- Terminal package tests passed 118/118 for `packages/ianvs_terminal/test` and
+  9/9 for `packages/ianvs_pty/test`.
+- Latest broader `flutter test example/test` passed with 805 passing tests plus
+  1 skipped test in `20260627T172040Z-all-automated`.
 - Latest integration passed with smoke 4/4 and real PTY 7/7 in
-  `20260516T171644Z-integration`.
+  `20260627T172908Z-integration`.
 - Manual/integration-backed gates are recorded as passed in the evidence
   ledger for local shell smoke, paste/focus safety, multipane behavior,
   notification behavior, and hotkey-window failure path.
@@ -92,24 +90,22 @@ Before running verification, read:
 
 Current execution sequence:
 
-1. Automated focused evidence has been captured in
-   `build/local-terminal-verification/20260516T145142Z-all-automated`.
-2. Broader test evidence has been captured in
-   `build/local-terminal-verification/20260516T171406Z-broader`.
-3. Integration evidence has been captured in
-   `build/local-terminal-verification/20260516T171644Z-integration`.
-4. Manual/integration-backed gates have been recorded in the ledger.
-5. Ledger entries have been converted into
+1. Automated focused, package, and broader evidence has been captured in
+   `build/local-terminal-verification/20260627T172040Z-all-automated`.
+2. Integration evidence has been captured in
+   `build/local-terminal-verification/20260627T172908Z-integration`.
+3. Manual/integration-backed gates have been recorded in the ledger.
+4. Ledger entries have been converted into
    `LocalTerminalVerificationGateRecord` values by
    `LocalTerminalVerificationPlanRecords.latestPassed()`.
-6. Verification evidence is rebuilt through
+5. Verification evidence is rebuilt through
    `LocalTerminalVerificationPlanRecords.latestPassed().toRecorder()`.
-7. T-169 evidence is rebuilt from the verified verification evidence.
-8. T-164 through T-168 are verified by
+6. T-169 evidence is rebuilt from the verified verification evidence.
+7. T-164 through T-168 are verified by
    `LocalTerminalRealWiringBacklogEvidence.currentVerified(...)`.
-9. The completion evidence report is rebuilt by
+8. The completion evidence report is rebuilt by
    `LocalTerminalCurrentCompletionState.verified(...)`.
-10. The completion audit checklist references the final code evidence.
+9. The completion audit checklist references the final code evidence.
 
 Optional helper:
 

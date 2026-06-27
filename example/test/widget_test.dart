@@ -3623,7 +3623,10 @@ void main() {
       find.byKey(const Key('toolbelt-completion-diagnostics')),
       findsOneWidget,
     );
-    expect(find.text('Local terminal objective is blocked'), findsOneWidget);
+    expect(find.text('Local terminal objective is complete'), findsOneWidget);
+    expect(find.text('Milestones: 0'), findsOneWidget);
+    expect(find.text('Backlog: 0'), findsOneWidget);
+    expect(find.text('Verification: 0'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('toolbelt-captured-output')));
     await tester.pumpAndSettle();

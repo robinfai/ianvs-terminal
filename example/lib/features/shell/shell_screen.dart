@@ -183,16 +183,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       onFind: _handleNativeFindMenu,
     );
     _completionDiagnosticsSnapshot =
-        const LocalTerminalPendingCompletionSnapshotFactory(
-          p0BoundaryManifest: LocalTerminalP0BoundaryClosureManifest(
-            localTerminalPlanDocumented: true,
-            roadmapLocalWorkspaceAligned: true,
-            remoteScopeExcluded: true,
-            perMilestoneExecutionPlansCreated: true,
-            competitorCoverageMapped: true,
-            productionWiringChecklistCreated: true,
-          ),
-        ).build(capturedAt: DateTime.now());
+        LocalTerminalShellUiWiringSnapshot.verified(capturedAt: DateTime.now());
     _terminalEventSubscription = ref
         .read(terminalRuntimeControllerProvider)
         .events

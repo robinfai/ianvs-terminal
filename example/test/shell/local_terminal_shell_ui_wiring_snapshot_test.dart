@@ -34,4 +34,16 @@ void main() {
     );
     expect(json['facade'], isA<Map<String, Object?>>());
   });
+
+  test('verified snapshot closes objective from latest passed records', () {
+    final snapshot = LocalTerminalShellUiWiringSnapshot.verified(
+      capturedAt: DateTime.utc(2026, 5, 16),
+    );
+
+    expect(snapshot.canCloseObjective, isTrue);
+    expect(snapshot.blockedMilestoneCount, 0);
+    expect(snapshot.blockedBacklogItemCount, 0);
+    expect(snapshot.blockedVerificationGateCount, 0);
+    expect(snapshot.summaryText, contains('can close'));
+  });
 }

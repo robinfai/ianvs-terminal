@@ -32,6 +32,9 @@ Do not continue to claim closure while any row in this log remains unresolved.
 | F-20260516-004 | manual product app | `manualPasteFocusSafety` | manual multiline paste path | failed, then resolved | Product paste path sent multiline clipboard text without showing the policy confirmation dialog required by the paste decision model. | P4 policy / ShellScreen paste dispatch | Routed `_pasteToSession` through `LocalTerminalPasteDecisionResolver`, added confirmation dialog, and added focused phase4 widget coverage. | resolved by focused `flutter test example/test/shell/shell_screen_phase4_test.dart` 9/9 and latest `build/local-terminal-verification/20260516T171406Z-broader` |
 | F-20260516-005 | manual product app | `manualMultipaneBehavior` | manual command-menu `Zoom active pane` path | failed, then resolved | The zoom action updated `_zoomedPaneSessionId`, but `_buildTerminalWorkspace` still rendered all `activeTab.effectivePanes`, so no visible single-pane zoom occurred. | P2 workspace / ShellScreen pane rendering | Updated `_buildTerminalWorkspace` to render only the zoomed pane when present, and added focused phase4 zoom/unzoom widget coverage. | resolved by focused `flutter test example/test/shell/shell_screen_phase4_test.dart` 9/9 and latest `build/local-terminal-verification/20260516T171406Z-broader` |
 | F-20260516-006 | manual/product policy audit | `manualHotkeyWindowFailurePath` | hotkey-window platform failure path | failed, then resolved | The product invoked the window bridge directly, so an unregistered hotkey-window status could become a silent no-op instead of visible failure feedback. | P4 policy / WindowBridge integration | Added `_toggleHotkeyWindowWithFeedback`, checked `WindowBridge.hotkeyStatus()`, showed `Hotkey window unavailable` SnackBar on unregistered status or platform error, and added focused phase4 failure-path coverage. | resolved by focused `flutter test example/test/shell/shell_screen_phase4_test.dart` 9/9 and latest `build/local-terminal-verification/20260516T171406Z-broader` |
+| F-20260627-001 | `all-automated` -> `broader` | `unitTests` / `widgetTests` | `bash tools/local_terminal_verification_capture.sh run all-automated` | failed, then resolved | `shell_screen_architecture_test.dart` read `lib/features/shell/shell_screen.dart` from the repo root and failed with `PathNotFoundException`; `shell_screen_phase1b_test.dart` found readable-width overflow tabs compressed to about 105 px instead of the expected 180 px baseline. | Verification tooling and P2 workspace tab chrome | Made the architecture test resolve both repo-root and `example/` working directories; changed tab overflow capacity to preserve regular 180 px tabs when all tabs cannot fit compactly, while retaining compact-before-overflow behavior. | resolved by focused reruns and `build/local-terminal-verification/20260627T172040Z-all-automated`: exit 0 |
+| F-20260627-002 | `integration` | `integrationTests` | `bash tools/local_terminal_verification_capture.sh run integration` | failed, then resolved | `ianvs_terminal_smoke_test.dart: closing tabs reaches the empty state and recovers via New Tab` tapped the `Close Local Shell` tooltip at a point obscured by tab chrome/list hit targets, so the last tab did not close. | Integration smoke / P2 workspace close-tab path | Changed the smoke test to close the active tab with the product Command-W shortcut instead of a hover-dependent tooltip tap. | resolved by focused smoke rerun 4/4 and `build/local-terminal-verification/20260627T172908Z-integration`: exit 0 |
+| F-20260627-003 | `integration` | `integrationTests` | `bash tools/local_terminal_verification_capture.sh run integration` | failed, then resolved | `real_pty_acceptance_test.dart: real PTY wrapped trigger output is captured as a logical row` used an early viewport column measurement capped near 200 and required `row.wrapped == true`; after resize, output could fit without the wrapped flag or be reassembled as a logical row by the backend. | Integration real PTY / notification and captured-output verification | Increased the forced prefix length to survive resize timing and accepted either wrapped rows or reassembled overwide logical rows before verifying trigger notification and captured output. | resolved by focused real PTY rerun and `build/local-terminal-verification/20260627T172908Z-integration`: exit 0 |
 
 ## Owner Guide
 
@@ -80,13 +83,11 @@ original failure.
 
 ## Current Status
 
-Verification batches have been run. The latest full automation attempt is
-`build/local-terminal-verification/20260516T145142Z-all-automated`; its failed
-`broader` step was rerun and passed in
-`build/local-terminal-verification/20260516T171406Z-broader`.
+Verification batches have been rerun. The latest full automation attempt passed
+in `build/local-terminal-verification/20260627T172040Z-all-automated`.
 
-The integration batch was then fixed and the latest run passed in
-`build/local-terminal-verification/20260516T171644Z-integration`.
+The integration batch was then rerun and passed in
+`build/local-terminal-verification/20260627T172908Z-integration`.
 
 No unresolved automated, integration, or manual product failure row remains.
 Manual/integration-backed verification rows are recorded as passed in the

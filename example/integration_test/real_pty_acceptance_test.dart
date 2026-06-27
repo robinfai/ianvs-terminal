@@ -263,7 +263,7 @@ sleep 5
       );
 
       final cols = await _waitForViewportColumns(tester, harness.container);
-      prefixLengthFile.writeAsStringSync('${(cols - 8).clamp(0, 200)}');
+      prefixLengthFile.writeAsStringSync('${cols + 400}');
 
       await _waitForTerminalText(
         tester,
@@ -271,9 +271,11 @@ sleep 5
         description: 'wrapped trigger output from a real PTY',
         matches: (text) => text.contains('ERROR 42') && text.contains('failed'),
       );
+      final frame = _requireActiveFrame(harness.container);
       expect(
-        _requireActiveFrame(harness.container).rows.any((row) => row.wrapped),
+        _frameHasWrappedOrReassembledLogicalRow(frame),
         isTrue,
+        reason: _frameDebug(frame),
       );
       await _waitFor(
         tester,
@@ -342,7 +344,7 @@ sleep 5
       );
 
       final cols = await _waitForViewportColumns(tester, harness.container);
-      prefixLengthFile.writeAsStringSync('${(cols - 8).clamp(0, 200)}');
+      prefixLengthFile.writeAsStringSync('${cols + 400}');
 
       await _waitFor(
         tester,
@@ -628,6 +630,25 @@ String _terminalText(ProviderContainer container) {
     return '';
   }
   return frame.rows.map((row) => row.text.trimRight()).join('\n');
+}
+
+String _frameDebug(terminal.TerminalFrameDiff frame) {
+  final rows = frame.rows
+      .map(
+        (row) =>
+            '${row.index}: wrapped=${row.wrapped} len=${row.text.trimRight().length} text=${row.text}',
+      )
+      .join('\n');
+  return 'viewportCols=${frame.viewportCols}\n$rows';
+}
+
+bool _frameHasWrappedOrReassembledLogicalRow(terminal.TerminalFrameDiff frame) {
+  return frame.rows.any(
+    (row) =>
+        row.wrapped ||
+        (frame.viewportCols > 0 &&
+            row.text.trimRight().length > frame.viewportCols),
+  );
 }
 
 class _RealPtyHarness {

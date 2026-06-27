@@ -151,7 +151,14 @@ void main() {
       profiles: TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
     );
 
-    await tester.tap(find.byTooltip('Close Local Shell'));
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.metaLeft,
+      platform: 'macos',
+    );
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyW, platform: 'macos');
+    await tester.pumpAndSettle();
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyW, platform: 'macos');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
