@@ -24,6 +24,8 @@ cd example && flutter test test/widget_test.dart --plain-name "keyboard-only foc
 cd example && flutter test test/widget_test.dart --plain-name "focused shell semantics"
 cd example && flutter test test/widget_test.dart --plain-name toolbelt
 cd example && flutter test test/profiles/profile_editor_test.dart
+cd example && flutter test test/widget_test.dart --plain-name "tab strip supports keyboard-only focus traversal between tabs"
+cd example && flutter test test/widget_test.dart --plain-name "pane focus can move through keyboard-only command traversal"
 flutter test packages/ianvs_terminal/test/terminal_config_test.dart
 cd example && flutter test test/profiles/profile_repository_test.dart test/profiles/profile_editor_test.dart
 cd example && flutter test test/widget_test.dart --plain-name "tab"
@@ -31,6 +33,7 @@ cd example && flutter analyze lib/features/shell test/widget_test.dart test/shel
 flutter analyze packages/ianvs_terminal/lib/src/config/terminal_config.dart packages/ianvs_terminal/test/terminal_config_test.dart example/lib/features/profiles example/lib/features/shell example/lib/ui/foundation/terminal_theme_presets.dart example/test/profiles example/test/widget_test.dart
 flutter analyze example/lib/features/shell/shell_screen_toolbelt.dart example/test/widget_test.dart
 flutter analyze example/lib/features/profiles/profile_editor.dart example/test/profiles/profile_editor_test.dart
+flutter analyze example/lib/features/shell/shell_screen_chrome.dart example/lib/features/shell/shell_screen_command_menu.dart example/lib/features/shell/shell_screen_state_command_actions.dart example/test/widget_test.dart
 ```
 
 Results:
@@ -47,11 +50,13 @@ Results:
 - The focused keyboard traversal and Flutter semantics regressions passed.
 - The Toolbelt keyboard traversal and focused semantics widget rerun passed 3 tests.
 - The profile editor focused semantics and keyboard section traversal suite passed 15 tests.
+- The tab strip and split-pane keyboard traversal widget reruns passed.
 - The optional tab color config/profile/editor/tab reruns passed: terminal config passed 18 tests, profile repository/editor passed 32 tests, and the tab widget filter passed 23 tests.
 - The shell feature analysis command passed.
 - The optional tab color analysis command passed.
 - The focused Toolbelt analysis command passed.
 - The focused profile editor analysis command passed.
+- The focused tab/pane keyboard analysis command passed.
 
 ## Bucket Status
 
@@ -63,7 +68,7 @@ Results:
 | 4. Roadmap M1/M2 evidence lane | M1-style automated UX and terminal probes relevant to the current docs pass in the current worktree. | Current focused test reruns plus canonical local-terminal verification evidence. | M2 host/platform/performance items that require target hardware or a quiet machine. |
 | 5. Branch-only product line | Removed from `main` by design; it belongs to another branch and is no longer an acceptance item in this branch. | Main-branch cleanup already removed the related docs and roadmap references. | None in this branch. |
 | 6. xterm API alignment gaps | Paste, bracketed paste, DPR snapping, shell search, global search, and current keyboard input paths have automated coverage in the current run or existing terminal-package tests. | Current focused test reruns and `docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md`. | Kitty keyboard protocol, platform-specific Windows/Android input delivery, and broader host-font/rendering smoke. |
-| 7. UX optimization follow-ups | `T-UX-002` through `T-UX-008` have automated proof for the app-level scope: shortcut matrix, search scope/result count/regex/global search, compact tab/overflow, optional tab color, pane header/actions, profile sections, profile editor keyboard/semantics coverage, paste safety/read-only, Toolbelt IA, Toolbelt keyboard/semantics coverage, shell integration health, guided annotation/captured-output empty states, instant replay timeline/retention display, hotkey/notification diagnostics, and focused command-menu keyboard/semantics coverage. | `SHORTCUT_PROOF_MATRIX.md`, `PASTE_SAFETY_PROOF.md`, `PROFILE_EDITOR_SECTION_NAVIGATION.md`, `TOOLBELT_IA_PROOF.md`, plus the 2026-06-28 rerun commands above. | `T-UX-001` foreground proof remains host/tooling-limited; full keyboard traversal across tabs/panes, per-profile keybinding editing, import diff/rollback, advanced parity, and full accessibility-tree proof remain future work. |
+| 7. UX optimization follow-ups | `T-UX-002` through `T-UX-008` have automated proof for the app-level scope: shortcut matrix, search scope/result count/regex/global search, compact tab/overflow, optional tab color, pane header/actions, tab/pane keyboard traversal, profile sections, profile editor keyboard/semantics coverage, paste safety/read-only, Toolbelt IA, Toolbelt keyboard/semantics coverage, shell integration health, guided annotation/captured-output empty states, instant replay timeline/retention display, hotkey/notification diagnostics, and focused command-menu keyboard/semantics coverage. | `SHORTCUT_PROOF_MATRIX.md`, `PASTE_SAFETY_PROOF.md`, `PROFILE_EDITOR_SECTION_NAVIGATION.md`, `TOOLBELT_IA_PROOF.md`, plus the 2026-06-28 rerun commands above. | `T-UX-001` foreground proof remains host/tooling-limited; per-profile keybinding editing, import diff/rollback, advanced parity, and full accessibility-tree proof remain future work. |
 
 ## Closeout Rule
 

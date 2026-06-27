@@ -62,6 +62,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     final activePaneZoomed =
         activeSessionIdBeforeOpen != null &&
         _zoomedPaneSessionId == activeSessionIdBeforeOpen;
+    final activeTabBeforeOpen = activeSessionIdBeforeOpen == null
+        ? null
+        : sessionState.tabs.cast<TerminalTab?>().firstWhere(
+            (tab) => tab!.containsSession(activeSessionIdBeforeOpen),
+            orElse: () => null,
+          );
+    final hasMultiplePanes =
+        (activeTabBeforeOpen?.effectivePanes.length ?? 0) > 1;
     final splitRightUnavailableReason = _splitAxisConflictReason(
       sessionState,
       activeSessionIdBeforeOpen,
@@ -87,6 +95,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         searchShortcutLabel: _searchShortcutLabel(),
         hasDefaultProfile: defaultProfile != null,
         hasActiveSession: hasActiveSession,
+        hasMultiplePanes: hasMultiplePanes,
         activePaneZoomed: activePaneZoomed,
         canReopenClosedTab: sessionController.canReopenClosedTab,
         splitRightUnavailableReason: splitRightUnavailableReason,

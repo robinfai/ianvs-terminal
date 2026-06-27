@@ -516,6 +516,34 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
   static const double _tabActionButtonWidth = 40;
 
   String? _draggingSessionId;
+  final Map<String, FocusNode> _tabFocusNodes = <String, FocusNode>{};
+
+  @override
+  void didUpdateWidget(_ShellTabStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final liveSessionIds = widget.tabs.map((tab) => tab.sessionId).toSet();
+    final staleSessionIds = _tabFocusNodes.keys
+        .where((sessionId) => !liveSessionIds.contains(sessionId))
+        .toList(growable: false);
+    for (final sessionId in staleSessionIds) {
+      _tabFocusNodes.remove(sessionId)?.dispose();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final focusNode in _tabFocusNodes.values) {
+      focusNode.dispose();
+    }
+    super.dispose();
+  }
+
+  FocusNode _focusNodeForTab(TerminalTab tab) {
+    return _tabFocusNodes.putIfAbsent(
+      tab.sessionId,
+      () => FocusNode(debugLabel: 'shell-tab-${tab.sessionId}'),
+    );
+  }
 
   bool get _usesDelayedDragStart {
     return switch (defaultTargetPlatform) {
@@ -537,131 +565,146 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
       palette: widget.palette,
       terminalBackground: chromeBackground,
     );
-    return SizedBox(
-      key: const Key('shell-tab-strip'),
-      height: double.infinity,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final totalWidth = constraints.maxWidth.isFinite
-              ? constraints.maxWidth
-              : 0.0;
-          final actionButtonWidth = math.min(_tabActionButtonWidth, totalWidth);
-          final tabsAreaWidth = math.max(0.0, totalWidth - actionButtonWidth);
-          final visibleTabCount = _visibleTabCountFor(tabsAreaWidth);
-          final hasOverflow = visibleTabCount < widget.tabs.length;
-          final hiddenTabs = hasOverflow
-              ? widget.tabs.skip(visibleTabCount).toList(growable: false)
-              : const <TerminalTab>[];
-          final visibleTabsCapacity = tabsAreaWidth;
-          final tabWidth = visibleTabCount == 0
-              ? 0.0
-              : visibleTabsCapacity / visibleTabCount;
-          final compactTabs = tabWidth < _compactTabThreshold;
-          final visibleTabsWidth = tabWidth * visibleTabCount;
+    return FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: SizedBox(
+        key: const Key('shell-tab-strip'),
+        height: double.infinity,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final totalWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : 0.0;
+            final actionButtonWidth = math.min(
+              _tabActionButtonWidth,
+              totalWidth,
+            );
+            final tabsAreaWidth = math.max(0.0, totalWidth - actionButtonWidth);
+            final visibleTabCount = _visibleTabCountFor(tabsAreaWidth);
+            final hasOverflow = visibleTabCount < widget.tabs.length;
+            final hiddenTabs = hasOverflow
+                ? widget.tabs.skip(visibleTabCount).toList(growable: false)
+                : const <TerminalTab>[];
+            final visibleTabsCapacity = tabsAreaWidth;
+            final tabWidth = visibleTabCount == 0
+                ? 0.0
+                : visibleTabsCapacity / visibleTabCount;
+            final compactTabs = tabWidth < _compactTabThreshold;
+            final visibleTabsWidth = tabWidth * visibleTabCount;
 
-          return Row(
-            children: [
-              SizedBox(
-                width: visibleTabsWidth,
-                child: visibleTabCount == 0
-                    ? const SizedBox.expand()
-                    : ReorderableListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        buildDefaultDragHandles: false,
-                        padding: EdgeInsets.zero,
-                        proxyDecorator: (child, index, animation) =>
-                            _ShellTabDragProxy(
-                              animation: animation,
-                              child: child,
-                            ),
-                        onReorderStart: (index) {
-                          if (index >= visibleTabCount) {
-                            return;
-                          }
-                          unawaited(HapticFeedback.selectionClick());
-                          setState(() {
-                            _draggingSessionId = widget.tabs[index].sessionId;
-                          });
-                        },
-                        onReorderEnd: (_) {
-                          if (_draggingSessionId == null) {
-                            return;
-                          }
-                          setState(() {
-                            _draggingSessionId = null;
-                          });
-                        },
-                        onReorderItem: (oldIndex, newIndex) =>
-                            widget.onReorderTab(
-                              oldIndex: oldIndex,
-                              newIndex: newIndex,
-                            ),
-                        itemCount: visibleTabCount,
-                        itemBuilder: (context, index) {
-                          final tab = widget.tabs[index];
-                          final isActive =
-                              widget.activeSessionId != null &&
-                              tab.containsSession(widget.activeSessionId!);
-                          final isDragging =
-                              _draggingSessionId == tab.sessionId;
-                          final shortcutIndex = !compactTabs && index < 9
-                              ? index + 1
-                              : null;
-                          return _ShellReorderableTabItem(
-                            key: ValueKey('shell-tab-reorder-${tab.sessionId}'),
-                            width: tabWidth,
-                            child: _ShellTabButton(
-                              palette: widget.palette,
-                              tab: tab,
-                              shortcutIndex: shortcutIndex,
-                              isActive: isActive,
-                              hasNewOutput: widget.tabHasNewOutput(tab),
-                              tabColor: widget.tabColor(tab),
-                              compact: compactTabs,
-                              chromeBackgroundColor: chromeBackground,
-                              dragRegionBuilder: (child) =>
-                                  _ShellTabDragStartRegion(
-                                    key: Key('shell-tab-drag-${tab.sessionId}'),
-                                    index: index,
-                                    useDelayedStart: _usesDelayedDragStart,
-                                    isDragging: isDragging,
-                                    child: child,
+            return Row(
+              children: [
+                SizedBox(
+                  width: visibleTabsWidth,
+                  child: visibleTabCount == 0
+                      ? const SizedBox.expand()
+                      : ReorderableListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          buildDefaultDragHandles: false,
+                          padding: EdgeInsets.zero,
+                          proxyDecorator: (child, index, animation) =>
+                              _ShellTabDragProxy(
+                                animation: animation,
+                                child: child,
+                              ),
+                          onReorderStart: (index) {
+                            if (index >= visibleTabCount) {
+                              return;
+                            }
+                            unawaited(HapticFeedback.selectionClick());
+                            setState(() {
+                              _draggingSessionId = widget.tabs[index].sessionId;
+                            });
+                          },
+                          onReorderEnd: (_) {
+                            if (_draggingSessionId == null) {
+                              return;
+                            }
+                            setState(() {
+                              _draggingSessionId = null;
+                            });
+                          },
+                          onReorderItem: (oldIndex, newIndex) =>
+                              widget.onReorderTab(
+                                oldIndex: oldIndex,
+                                newIndex: newIndex,
+                              ),
+                          itemCount: visibleTabCount,
+                          itemBuilder: (context, index) {
+                            final tab = widget.tabs[index];
+                            final isActive =
+                                widget.activeSessionId != null &&
+                                tab.containsSession(widget.activeSessionId!);
+                            final isDragging =
+                                _draggingSessionId == tab.sessionId;
+                            final shortcutIndex = !compactTabs && index < 9
+                                ? index + 1
+                                : null;
+                            return _ShellReorderableTabItem(
+                              key: ValueKey(
+                                'shell-tab-reorder-${tab.sessionId}',
+                              ),
+                              width: tabWidth,
+                              child: FocusTraversalOrder(
+                                order: NumericFocusOrder(index.toDouble()),
+                                child: _ShellTabButton(
+                                  palette: widget.palette,
+                                  tab: tab,
+                                  shortcutIndex: shortcutIndex,
+                                  isActive: isActive,
+                                  hasNewOutput: widget.tabHasNewOutput(tab),
+                                  tabColor: widget.tabColor(tab),
+                                  compact: compactTabs,
+                                  chromeBackgroundColor: chromeBackground,
+                                  focusNode: _focusNodeForTab(tab),
+                                  dragRegionBuilder: (child) =>
+                                      _ShellTabDragStartRegion(
+                                        key: Key(
+                                          'shell-tab-drag-${tab.sessionId}',
+                                        ),
+                                        index: index,
+                                        useDelayedStart: _usesDelayedDragStart,
+                                        isDragging: isDragging,
+                                        child: child,
+                                      ),
+                                  onActivate: () => widget.onActivateSession(
+                                    tab.activeSessionId,
                                   ),
-                              onActivate: () =>
-                                  widget.onActivateSession(tab.activeSessionId),
-                              onClose: () =>
-                                  widget.onCloseSession(tab.sessionId),
-                              onShowContextMenu: (position) =>
-                                  widget.onShowTabContextMenu(tab, position),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              if (visibleTabsWidth < tabsAreaWidth)
-                const Expanded(child: SizedBox()),
-              if (hasOverflow)
-                _ShellTabOverflowMenu(
-                  palette: widget.palette,
-                  chromeBackgroundColor: chromeBackground,
-                  tabs: hiddenTabs,
-                  activeSessionId: widget.activeSessionId,
-                  tabHasNewOutput: widget.tabHasNewOutput,
-                  tabBackgroundColor: (_) => chromeBackground,
-                  tabColor: widget.tabColor,
-                  onActivateSession: widget.onActivateSession,
-                  width: actionButtonWidth,
+                                  onClose: () =>
+                                      widget.onCloseSession(tab.sessionId),
+                                  onShowContextMenu: (position) => widget
+                                      .onShowTabContextMenu(tab, position),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                 ),
-              if (!hasOverflow && actionButtonWidth > 0)
-                _ShellNewTabButton(
-                  palette: widget.palette,
-                  tone: chromeTone,
-                  width: actionButtonWidth,
-                  onPressed: widget.onNewTab,
-                ),
-            ],
-          );
-        },
+                if (visibleTabsWidth < tabsAreaWidth)
+                  const Expanded(child: SizedBox()),
+                if (hasOverflow)
+                  _ShellTabOverflowMenu(
+                    palette: widget.palette,
+                    chromeBackgroundColor: chromeBackground,
+                    tabs: hiddenTabs,
+                    activeSessionId: widget.activeSessionId,
+                    tabHasNewOutput: widget.tabHasNewOutput,
+                    tabBackgroundColor: (_) => chromeBackground,
+                    tabColor: widget.tabColor,
+                    onActivateSession: widget.onActivateSession,
+                    width: actionButtonWidth,
+                  ),
+                if (!hasOverflow && actionButtonWidth > 0)
+                  _ShellNewTabButton(
+                    palette: widget.palette,
+                    tone: chromeTone,
+                    width: actionButtonWidth,
+                    onPressed: widget.onNewTab,
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -1289,6 +1332,7 @@ class _ShellTabButton extends StatefulWidget {
     required this.tabColor,
     required this.compact,
     required this.chromeBackgroundColor,
+    required this.focusNode,
     required this.dragRegionBuilder,
     required this.onActivate,
     required this.onClose,
@@ -1303,6 +1347,7 @@ class _ShellTabButton extends StatefulWidget {
   final Color? tabColor;
   final bool compact;
   final Color chromeBackgroundColor;
+  final FocusNode focusNode;
   final Widget Function(Widget child) dragRegionBuilder;
   final VoidCallback onActivate;
   final VoidCallback onClose;
@@ -1354,6 +1399,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                     SizedBox.expand(
                       child: TextButton(
                         key: Key('shell-tab-${widget.tab.sessionId}'),
+                        focusNode: widget.focusNode,
                         style: ButtonStyle(
                           minimumSize: const WidgetStatePropertyAll(
                             Size(0, 30),

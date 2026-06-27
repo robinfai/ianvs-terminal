@@ -51,6 +51,7 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.searchShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
+    required this.hasMultiplePanes,
     required this.activePaneZoomed,
     required this.canReopenClosedTab,
     required this.splitRightUnavailableReason,
@@ -76,6 +77,7 @@ class _ShellCommandMenu extends StatefulWidget {
   final String searchShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
+  final bool hasMultiplePanes;
   final bool activePaneZoomed;
   final bool canReopenClosedTab;
   final String? splitRightUnavailableReason;
@@ -113,6 +115,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final searchShortcutLabel = widget.searchShortcutLabel;
     final hasDefaultProfile = widget.hasDefaultProfile;
     final hasActiveSession = widget.hasActiveSession;
+    final hasMultiplePanes = widget.hasMultiplePanes;
     final activePaneZoomed = widget.activePaneZoomed;
     final canReopenClosedTab = widget.canReopenClosedTab;
     final splitRightUnavailableReason = widget.splitRightUnavailableReason;
@@ -166,6 +169,19 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         return activeSessionRequired;
       }
       return 'No prompt-marked command output is available yet.';
+    }
+
+    String? paneFocusUnavailableReason() {
+      if (!hasActiveSession) {
+        return activeSessionRequired;
+      }
+      if (activePaneZoomed) {
+        return 'Unzoom the active pane to manage other panes.';
+      }
+      if (!hasMultiplePanes) {
+        return 'Add another pane to use this action.';
+      }
+      return null;
     }
 
     var commandTileTraversalOrder = 1.0;
@@ -423,6 +439,32 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.zoomPane),
+                      ),
+                      commandTile(
+                        key: const Key('shell-focus-next-pane'),
+                        actionId: TerminalActionId.focusNextPane,
+                        icon: Icons.keyboard_tab_rounded,
+                        title: 'Focus next pane',
+                        subtitle:
+                            'Session action • Move keyboard focus to the next split pane.',
+                        enabled: paneFocusUnavailableReason() == null,
+                        disabledReason: paneFocusUnavailableReason(),
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.focusNextPane),
+                      ),
+                      commandTile(
+                        key: const Key('shell-focus-previous-pane'),
+                        actionId: TerminalActionId.focusPreviousPane,
+                        icon: Icons.keyboard_tab_rounded,
+                        title: 'Focus previous pane',
+                        subtitle:
+                            'Session action • Move keyboard focus to the previous split pane.',
+                        enabled: paneFocusUnavailableReason() == null,
+                        disabledReason: paneFocusUnavailableReason(),
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.focusPreviousPane),
                       ),
                       commandTile(
                         key: const Key('shell-theme-picker'),
@@ -858,6 +900,11 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
   MapEntry('split right vertical pane', TerminalActionId.splitRight),
   MapEntry('split down horizontal pane', TerminalActionId.splitDown),
   MapEntry('zoom active pane unzoom focus', TerminalActionId.zoomPane),
+  MapEntry('focus next pane split keyboard', TerminalActionId.focusNextPane),
+  MapEntry(
+    'focus previous pane split keyboard',
+    TerminalActionId.focusPreviousPane,
+  ),
   MapEntry(
     'theme picker terminal color presets appearance defaults',
     TerminalActionId.openThemePicker,

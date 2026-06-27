@@ -3001,6 +3001,42 @@ void main() {
     },
   );
 
+  testWidgets('tab strip supports keyboard-only focus traversal between tabs', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+    _expectSelectedTab(tester, '2');
+
+    await tester.tap(find.byKey(const Key('shell-tab-1')));
+    await tester.pumpAndSettle();
+    _expectSelectedTab(tester, '1');
+
+    tester
+        .widget<TextButton>(find.byKey(const Key('shell-tab-1')))
+        .focusNode!
+        .requestFocus();
+    await tester.pump();
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    _expectSelectedTab(tester, '2');
+    expect(fakeBindings.writes, isEmpty);
+  });
+
   testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {
@@ -4078,6 +4114,45 @@ void main() {
 
     expect(find.text('Pane 1 of 2'), findsOneWidget);
     expect(find.text('Back in shell'), findsNothing);
+  });
+
+  testWidgets('pane focus can move through keyboard-only command traversal', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openTabContextMenu(tester);
+    await tester.tap(find.text('Split right'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-pane-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'focus next pane',
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pane 2 of 2'), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+    expect(fakeBindings.writes, isEmpty);
   });
 
   testWidgets(
