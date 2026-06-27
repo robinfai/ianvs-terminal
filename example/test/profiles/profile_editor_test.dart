@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
@@ -665,6 +666,74 @@ void main() {
     expect(find.byKey(const Key('profile-editor-dialog')), findsNothing);
     expect(savedProfile, isNull);
   });
+
+  testWidgets(
+    'profile editor exposes focused semantics and keyboard section traversal',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1200, 820);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await _pumpEditorHarness(
+        tester,
+        initialValue: TerminalProfile(
+          id: 'default',
+          name: 'Local Shell',
+          shell: '/bin/zsh',
+        ),
+        onSaved: (_) {},
+      );
+
+      expect(
+        find.bySemanticsIdentifier('profile-editor-dialog'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsIdentifier('profile-editor-section-nav'),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSemantics(
+          find.bySemanticsIdentifier('profile-editor-nav-general'),
+        ),
+        matchesSemantics(
+          label: 'General profile section',
+          hasSelectedState: true,
+          isSelected: true,
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+
+      final searchField = find.byKey(
+        const Key('profile-editor-section-search'),
+      );
+      await tester.tap(searchField);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(
+          find.bySemanticsIdentifier('profile-editor-nav-startup'),
+        ),
+        matchesSemantics(
+          label: 'Startup profile section',
+          hasSelectedState: true,
+          isSelected: true,
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+    },
+  );
 
   testWidgets('profile editor summarizes and resets dirty sections', (
     tester,
