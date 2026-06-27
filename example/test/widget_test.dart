@@ -145,6 +145,11 @@ Future<void> _hoverShellTab(WidgetTester tester, String sessionId) async {
   await tester.pump();
 }
 
+Color _decoratedBoxColor(WidgetTester tester, Key key) {
+  final decoration = tester.widget<DecoratedBox>(find.byKey(key)).decoration;
+  return (decoration as BoxDecoration).color!;
+}
+
 Future<void> _openShellSearch(WidgetTester tester) async {
   await tester.tap(find.byType(TerminalViewport).last);
   await tester.pump();
@@ -408,6 +413,65 @@ void main() {
       expect(compactTabWidth, greaterThanOrEqualTo(104));
       expect(compactTabWidth, lessThan(140));
       expect(find.text('⌘8'), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'profile tab color renders in the active tab and overflow selector',
+    (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(560, 700);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      const tabColor = Color(0xFF336699);
+      final baseProfile = defaultTerminalProfile();
+      final profile = baseProfile.copyWith(
+        name: 'Prod Shell',
+        appearance: baseProfile.appearance.copyWith(
+          colors: baseProfile.appearance.colors.copyWith(
+            special: baseProfile.appearance.colors.special.copyWith(
+              background: '#11141A',
+              tab: '#336699',
+            ),
+          ),
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
+        ),
+      );
+
+      expect(find.byKey(const Key('shell-tab-color-1')), findsOneWidget);
+      expect(
+        _decoratedBoxColor(tester, const Key('shell-tab-color-1')),
+        tabColor,
+      );
+
+      await _openTabCountWithShortcut(tester, 8);
+      expect(
+        find.byKey(const Key('shell-tab-overflow-button')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('shell-tab-overflow-color-8')),
+        findsOneWidget,
+      );
+      expect(
+        _decoratedBoxColor(tester, const Key('shell-tab-overflow-color-8')),
+        tabColor,
+      );
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );

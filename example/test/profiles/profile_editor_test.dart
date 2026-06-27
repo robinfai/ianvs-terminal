@@ -36,6 +36,7 @@ void main() {
                 background: '#101112',
                 cursor: '#778899',
                 selection: '#334455',
+                tab: '#335577',
               ),
               normal: terminal.TerminalAnsiColors(
                 red: '#AA5500',
@@ -327,6 +328,14 @@ void main() {
       );
       await _ensureVisible(
         tester,
+        find.byKey(const Key('profile-editor-color-tab')),
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-editor-color-tab')),
+        '#556677',
+      );
+      await _ensureVisible(
+        tester,
         find.byKey(const Key('profile-editor-color-normal-red')),
       );
       await tester.enterText(
@@ -420,6 +429,7 @@ void main() {
       expect(savedProfile!.appearance.colors.background, '#101112');
       expect(savedProfile!.appearance.colors.cursor, isNull);
       expect(savedProfile!.appearance.colors.selection, '#445566');
+      expect(savedProfile!.appearance.colors.tab, '#556677');
       expect(savedProfile!.appearance.colors.normal.red, '#BB5500');
       expect(savedProfile!.appearance.colors.normal.blue, '#3355AA');
       expect(savedProfile!.appearance.colors.bright.blue, '#55AAFF');
@@ -1185,6 +1195,7 @@ void main() {
         'profile-editor-color-selection',
         paperSlate.palette.special.selection!,
       );
+      _expectColorFieldText(tester, 'profile-editor-color-tab', '');
       _expectColorFieldText(
         tester,
         'profile-editor-color-normal-red',
@@ -1294,6 +1305,7 @@ void main() {
       expect(savedProfile!.appearance.colors.background, '#11141A');
       expect(savedProfile!.appearance.colors.cursor, '#123456');
       expect(savedProfile!.appearance.colors.selection, '#2A3C56');
+      expect(savedProfile!.appearance.colors.tab, isNull);
       expect(savedProfile!.appearance.colors.normal.green, '#8FB573');
       expect(savedProfile!.appearance.colors.bright.white, '#F8FBFF');
     },
@@ -1385,6 +1397,7 @@ void main() {
       expect(savedProfile!.appearance.colors.background, '#F1F5EF');
       expect(savedProfile!.appearance.colors.cursor, '#2F855A');
       expect(savedProfile!.appearance.colors.selection, '#CFE3D4');
+      expect(savedProfile!.appearance.colors.tab, isNull);
       expect(savedProfile!.appearance.colors.normal.green, '#3F7A57');
       expect(savedProfile!.appearance.colors.bright.white, '#FFFFFF');
     },
@@ -1396,6 +1409,7 @@ const List<String> _allColorFieldKeys = <String>[
   'profile-editor-color-background',
   'profile-editor-color-cursor',
   'profile-editor-color-selection',
+  'profile-editor-color-tab',
   'profile-editor-color-normal-black',
   'profile-editor-color-normal-red',
   'profile-editor-color-normal-green',

@@ -335,6 +335,7 @@ void main() {
                   'background': '#111111',
                   'cursor': '#22c55e',
                   'selection': '#334155',
+                  'tab': '#2563eb',
                 },
                 'normal': {'red': '#ff5544', 'blue': '#3366cc'},
                 'bright': {'yellow': '#ffd166', 'white': '#fafafa'},
@@ -388,6 +389,7 @@ void main() {
     expect(loaded.profiles.single.appearance.colors.background, '#111111');
     expect(loaded.profiles.single.appearance.colors.cursor, '#22C55E');
     expect(loaded.profiles.single.appearance.colors.selection, '#334155');
+    expect(loaded.profiles.single.appearance.colors.tab, '#2563EB');
     expect(loaded.profiles.single.appearance.colors.normal.red, '#FF5544');
     expect(loaded.profiles.single.appearance.colors.normal.blue, '#3366CC');
     expect(loaded.profiles.single.appearance.colors.bright.yellow, '#FFD166');
@@ -403,16 +405,33 @@ void main() {
           'Custom Command': 'Yes',
           'Command': 'ssh prod.example.com',
           'Tags': ['ssh', 'prod'],
+          'Use Tab Color': true,
+          'Tab Color': {
+            'Red Component': 0.2,
+            'Green Component': 0.4,
+            'Blue Component': 0.6,
+          },
+        },
+        {
+          'Name': 'dev.example.com',
+          'Guid': 'dev-host',
+          'Use Tab Color': false,
+          'Tab Color': '#112233',
         },
       ],
     });
 
-    final profile = document.profiles.single;
+    final profile = document.profiles.first;
     expect(profile.id, 'prod-host');
     expect(profile.name, 'prod.example.com');
     expect(profile.tags, const ['ssh', 'prod', 'Dynamic']);
     expect(profile.shell, '/bin/sh');
     expect(profile.args, const ['-lc', 'ssh prod.example.com']);
+    expect(profile.appearance.colors.tab, '#336699');
+
+    final disabledProfile = document.profiles.last;
+    expect(disabledProfile.id, 'dev-host');
+    expect(disabledProfile.appearance.colors.tab, isNull);
   });
 
   test(

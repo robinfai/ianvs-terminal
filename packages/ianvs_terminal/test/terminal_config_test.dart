@@ -9,6 +9,7 @@ void main() {
         background: '#445566',
         cursor: '#778899',
         selection: '#AABBCC',
+        tab: '#CCDDEE',
       ),
       normal: TerminalAnsiColors(
         black: '#010101',
@@ -38,6 +39,7 @@ void main() {
         'background': '#445566',
         'cursor': '#778899',
         'selection': '#AABBCC',
+        'tab': '#CCDDEE',
       },
       'normal': <String, Object?>{
         'black': '#010101',
@@ -66,6 +68,7 @@ void main() {
     expect(roundTrip.special.background, '#445566');
     expect(roundTrip.special.cursor, '#778899');
     expect(roundTrip.special.selection, '#AABBCC');
+    expect(roundTrip.special.tab, '#CCDDEE');
     expect(roundTrip.normal.red, '#020202');
     expect(roundTrip.normal.blue, '#050505');
     expect(roundTrip.bright.red, '#121212');
@@ -79,6 +82,7 @@ void main() {
         'background': '   ',
         'cursor': 'not-a-color',
         'selection': 42,
+        'tab': ' #ccddff ',
       },
       'normal': <String, Object?>{'red': ' #020202 ', 'blue': 'bad'},
       'bright': <String, Object?>{'white': '#abcdef'},
@@ -88,6 +92,7 @@ void main() {
     expect(palette.special.background, defaultTerminalSpecialColors.background);
     expect(palette.special.cursor, defaultTerminalSpecialColors.cursor);
     expect(palette.special.selection, defaultTerminalSpecialColors.selection);
+    expect(palette.special.tab, '#CCDDFF');
     expect(palette.normal.red, '#020202');
     expect(palette.normal.blue, defaultTerminalAnsiColors.blue);
     expect(palette.bright.white, '#ABCDEF');
@@ -265,6 +270,7 @@ void main() {
               'background': '#445566',
               'cursor': '#778899',
               'selection': '#AABBCC',
+              'tab': '#CCDDEE',
             },
             'normal': <String, Object?>{
               'black': '#010101',
@@ -304,6 +310,7 @@ void main() {
     expect(config.display.colors.special.background, '#445566');
     expect(config.display.colors.special.cursor, '#778899');
     expect(config.display.colors.special.selection, '#AABBCC');
+    expect(config.display.colors.special.tab, '#CCDDEE');
     expect(config.display.colors.normal.blue, '#050505');
     expect(config.display.colors.bright.white, '#181818');
     expect(
@@ -357,6 +364,7 @@ void main() {
               'background': '#445566',
               'cursor': '#778899',
               'selection': '#AABBCC',
+              'tab': '#CCDDEE',
             },
           },
         },
@@ -368,6 +376,7 @@ void main() {
       expect(config.display.colors.special.background, isNull);
       expect(config.display.colors.special.cursor, isNull);
       expect(config.display.colors.special.selection, isNull);
+      expect(config.display.colors.special.tab, isNull);
       expect(
         warnings.map((warning) => warning.path),
         containsAll(<String>[
@@ -375,6 +384,7 @@ void main() {
           'appearance.colors.background',
           'appearance.colors.cursor',
           'appearance.colors.selection',
+          'appearance.colors.tab',
         ]),
       );
     },

@@ -201,18 +201,21 @@ class TerminalSpecialColors {
     this.background,
     this.cursor,
     this.selection,
+    this.tab,
   });
 
   final String? foreground;
   final String? background;
   final String? cursor;
   final String? selection;
+  final String? tab;
 
   TerminalSpecialColors copyWith({
     Object? foreground = _terminalConfigNoChange,
     Object? background = _terminalConfigNoChange,
     Object? cursor = _terminalConfigNoChange,
     Object? selection = _terminalConfigNoChange,
+    Object? tab = _terminalConfigNoChange,
   }) {
     return TerminalSpecialColors(
       foreground: identical(foreground, _terminalConfigNoChange)
@@ -227,6 +230,7 @@ class TerminalSpecialColors {
       selection: identical(selection, _terminalConfigNoChange)
           ? this.selection
           : selection as String?,
+      tab: identical(tab, _terminalConfigNoChange) ? this.tab : tab as String?,
     );
   }
 
@@ -236,6 +240,7 @@ class TerminalSpecialColors {
       background: background ?? defaults.background,
       cursor: cursor ?? defaults.cursor,
       selection: selection ?? defaults.selection,
+      tab: tab ?? defaults.tab,
     );
   }
 
@@ -245,6 +250,7 @@ class TerminalSpecialColors {
       'background': background,
       'cursor': cursor,
       'selection': selection,
+      'tab': tab,
     };
   }
 
@@ -255,6 +261,7 @@ class TerminalSpecialColors {
       background: _hexColorOrNull(map?['background']),
       cursor: _hexColorOrNull(map?['cursor']),
       selection: _hexColorOrNull(map?['selection']),
+      tab: _hexColorOrNull(map?['tab']),
     );
   }
 }
@@ -402,6 +409,7 @@ class TerminalColorPalette {
   String? get background => special.background;
   String? get cursor => special.cursor;
   String? get selection => special.selection;
+  String? get tab => special.tab;
 
   TerminalColorPalette copyWith({
     TerminalSpecialColors? special,
@@ -795,6 +803,11 @@ TerminalDisplayConfig _displayConfigFromProfileJson(
           path: 'appearance.colors.special.selection',
           onWarning: onWarning,
         ),
+        tab: _nullableHexColor(
+          specialColors?['tab'],
+          path: 'appearance.colors.special.tab',
+          onWarning: onWarning,
+        ),
       ),
       normal: _ansiColorsFromProfileJson(
         normalColors,
@@ -903,6 +916,7 @@ void _warnLegacyFlatColorFields(
     'background',
     'cursor',
     'selection',
+    'tab',
   ]) {
     if (!colors.containsKey(field)) {
       continue;

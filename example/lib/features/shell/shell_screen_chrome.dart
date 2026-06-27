@@ -14,6 +14,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.activeSessionId,
     required this.activeTabTitle,
     required this.tabHasNewOutput,
+    required this.tabColor,
     required this.referenceDemoMode,
     required this.onNewTab,
     required this.onActivateSession,
@@ -29,6 +30,7 @@ class _ShellChromeBar extends StatelessWidget {
   final String? activeSessionId;
   final String activeTabTitle;
   final bool Function(TerminalTab tab) tabHasNewOutput;
+  final Color? Function(TerminalTab tab) tabColor;
   final bool referenceDemoMode;
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
@@ -114,6 +116,7 @@ class _ShellChromeBar extends StatelessWidget {
                               tabs: tabs,
                               activeSessionId: activeSessionId,
                               tabHasNewOutput: tabHasNewOutput,
+                              tabColor: tabColor,
                               onNewTab: onNewTab,
                               onActivateSession: onActivateSession,
                               onCloseSession: onCloseSession,
@@ -481,6 +484,7 @@ class _ShellTabStrip extends StatefulWidget {
     required this.tabs,
     required this.activeSessionId,
     required this.tabHasNewOutput,
+    required this.tabColor,
     required this.onNewTab,
     required this.onActivateSession,
     required this.onCloseSession,
@@ -493,6 +497,7 @@ class _ShellTabStrip extends StatefulWidget {
   final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
+  final Color? Function(TerminalTab tab) tabColor;
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onCloseSession;
@@ -611,6 +616,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                               shortcutIndex: shortcutIndex,
                               isActive: isActive,
                               hasNewOutput: widget.tabHasNewOutput(tab),
+                              tabColor: widget.tabColor(tab),
                               compact: compactTabs,
                               chromeBackgroundColor: chromeBackground,
                               dragRegionBuilder: (child) =>
@@ -642,6 +648,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                   activeSessionId: widget.activeSessionId,
                   tabHasNewOutput: widget.tabHasNewOutput,
                   tabBackgroundColor: (_) => chromeBackground,
+                  tabColor: widget.tabColor,
                   onActivateSession: widget.onActivateSession,
                   width: actionButtonWidth,
                 ),
@@ -835,6 +842,7 @@ class _ShellTabOverflowMenu extends StatefulWidget {
     required this.activeSessionId,
     required this.tabHasNewOutput,
     required this.tabBackgroundColor,
+    required this.tabColor,
     required this.onActivateSession,
     required this.width,
   });
@@ -845,6 +853,7 @@ class _ShellTabOverflowMenu extends StatefulWidget {
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
   final Color Function(TerminalTab tab) tabBackgroundColor;
+  final Color? Function(TerminalTab tab) tabColor;
   final ValueChanged<String> onActivateSession;
   final double width;
 
@@ -909,6 +918,7 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
               activeSessionId: widget.activeSessionId,
               tabHasNewOutput: widget.tabHasNewOutput,
               tabBackgroundColor: widget.tabBackgroundColor,
+              tabColor: widget.tabColor,
               onSelected: (sessionId) {
                 _closeMenu();
                 widget.onActivateSession(sessionId);
@@ -1043,6 +1053,7 @@ class _ShellTabOverflowPanel extends StatelessWidget {
     required this.activeSessionId,
     required this.tabHasNewOutput,
     required this.tabBackgroundColor,
+    required this.tabColor,
     required this.onSelected,
   });
 
@@ -1053,6 +1064,7 @@ class _ShellTabOverflowPanel extends StatelessWidget {
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
   final Color Function(TerminalTab tab) tabBackgroundColor;
+  final Color? Function(TerminalTab tab) tabColor;
   final ValueChanged<String> onSelected;
 
   @override
@@ -1102,6 +1114,7 @@ class _ShellTabOverflowPanel extends StatelessWidget {
                               tab.containsSession(activeSessionId!),
                           hasNewOutput: tabHasNewOutput(tab),
                           terminalBackgroundColor: tabBackgroundColor(tab),
+                          tabColor: tabColor(tab),
                           onSelected: () => onSelected(tab.activeSessionId),
                         ),
                     ],
@@ -1124,6 +1137,7 @@ class _ShellTabOverflowRow extends StatefulWidget {
     required this.isActive,
     required this.hasNewOutput,
     required this.terminalBackgroundColor,
+    required this.tabColor,
     required this.onSelected,
   });
 
@@ -1132,6 +1146,7 @@ class _ShellTabOverflowRow extends StatefulWidget {
   final bool isActive;
   final bool hasNewOutput;
   final Color terminalBackgroundColor;
+  final Color? tabColor;
   final VoidCallback onSelected;
 
   @override
@@ -1195,7 +1210,30 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                   ],
                 ),
               ),
-              const SizedBox(width: 7),
+              if (widget.tabColor == null)
+                const SizedBox(width: 7)
+              else ...[
+                const SizedBox(width: 5),
+                Tooltip(
+                  message: 'Profile tab color',
+                  child: DecoratedBox(
+                    key: Key(
+                      'shell-tab-overflow-color-${widget.tab.sessionId}',
+                    ),
+                    decoration: BoxDecoration(
+                      color: widget.tabColor,
+                      borderRadius: BorderRadius.circular(2),
+                      border: Border.all(
+                        color: widget.palette.textPrimary.withValues(
+                          alpha: 0.22,
+                        ),
+                      ),
+                    ),
+                    child: const SizedBox.square(dimension: 8),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               Expanded(
                 child: Text(
                   title,
@@ -1248,6 +1286,7 @@ class _ShellTabButton extends StatefulWidget {
     required this.shortcutIndex,
     required this.isActive,
     required this.hasNewOutput,
+    required this.tabColor,
     required this.compact,
     required this.chromeBackgroundColor,
     required this.dragRegionBuilder,
@@ -1261,6 +1300,7 @@ class _ShellTabButton extends StatefulWidget {
   final int? shortcutIndex;
   final bool isActive;
   final bool hasNewOutput;
+  final Color? tabColor;
   final bool compact;
   final Color chromeBackgroundColor;
   final Widget Function(Widget child) dragRegionBuilder;
@@ -1407,6 +1447,30 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                       ),
                     ),
                   ),
+                  if (widget.tabColor != null)
+                    Positioned(
+                      top: 2,
+                      left: widget.compact ? 10 : 14,
+                      right: widget.compact ? 10 : 14,
+                      child: IgnorePointer(
+                        child: Tooltip(
+                          message: 'Profile tab color',
+                          child: DecoratedBox(
+                            key: Key('shell-tab-color-${widget.tab.sessionId}'),
+                            decoration: BoxDecoration(
+                              color: widget.tabColor,
+                              borderRadius: BorderRadius.circular(2),
+                              border: Border.all(
+                                color: widget.palette.textPrimary.withValues(
+                                  alpha: 0.18,
+                                ),
+                              ),
+                            ),
+                            child: const SizedBox(height: 3),
+                          ),
+                        ),
+                      ),
+                    ),
                   Positioned(
                     top: 0,
                     left: widget.palette.spacing.md,

@@ -28,6 +28,7 @@ import '../terminal/selection_controller.dart';
 import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
+import '../terminal/terminal_viewport_colors.dart';
 import '../visual/local_terminal_diagnostics_exporter.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
@@ -712,6 +713,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 activeSessionId: activeSessionId,
                 activeTabTitle: activeChromeTitle,
                 tabHasNewOutput: _tabHasNewOutput,
+                tabColor: (tab) => _tabProfileColor(sessionState, tab),
                 referenceDemoMode: referenceDemoMode,
                 onNewTab: defaultProfile == null
                     ? null

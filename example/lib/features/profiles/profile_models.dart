@@ -435,12 +435,70 @@ Map<String, Object?> _dynamicProfileToProfileJson(
   if (cwd != null && cwd.isNotEmpty) {
     launch['cwd'] = cwd;
   }
+  final tabColor = _dynamicProfileUsesTabColor(dynamicProfile['Use Tab Color'])
+      ? _dynamicProfileColorToHex(dynamicProfile['Tab Color'])
+      : null;
+  final appearance = <String, Object?>{};
+  if (tabColor != null) {
+    appearance['colors'] = <String, Object?>{
+      'special': <String, Object?>{'tab': tabColor},
+    };
+  }
   return <String, Object?>{
     if (guid != null && guid.isNotEmpty) 'id': guid,
     if (name != null && name.isNotEmpty) 'name': name,
     'tags': tags.toSet().toList(growable: false),
     if (launch.isNotEmpty) 'launch': launch,
+    if (appearance.isNotEmpty) 'appearance': appearance,
   };
+}
+
+bool _dynamicProfileUsesTabColor(Object? rawValue) {
+  if (rawValue == null) {
+    return true;
+  }
+  if (rawValue is bool) {
+    return rawValue;
+  }
+  if (rawValue is num && rawValue.isFinite) {
+    return rawValue != 0;
+  }
+  final normalized = _stringOrNull(rawValue)?.trim().toLowerCase();
+  return switch (normalized) {
+    'yes' || 'true' || '1' => true,
+    'no' || 'false' || '0' => false,
+    _ => false,
+  };
+}
+
+String? _dynamicProfileColorToHex(Object? rawValue) {
+  if (rawValue is String) {
+    final normalized = rawValue.trim().toUpperCase();
+    return RegExp(r'^#[0-9A-F]{6}$').hasMatch(normalized) ? normalized : null;
+  }
+  final map = _asStringMap(rawValue);
+  if (map == null) {
+    return null;
+  }
+  final red = _dynamicProfileColorComponent(map['Red Component']);
+  final green = _dynamicProfileColorComponent(map['Green Component']);
+  final blue = _dynamicProfileColorComponent(map['Blue Component']);
+  if (red == null || green == null || blue == null) {
+    return null;
+  }
+  String hexByte(int value) => value.toRadixString(16).padLeft(2, '0');
+  return '#${hexByte(red)}${hexByte(green)}${hexByte(blue)}'.toUpperCase();
+}
+
+int? _dynamicProfileColorComponent(Object? rawValue) {
+  if (rawValue is! num || !rawValue.isFinite) {
+    return null;
+  }
+  final value = rawValue.toDouble();
+  if (value < 0 || value > 1) {
+    return null;
+  }
+  return (value * 255).round();
 }
 
 TerminalProfile defaultTerminalProfile() {

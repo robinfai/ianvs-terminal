@@ -59,7 +59,7 @@ The immediate opportunity is not to copy iTerm2 wholesale. Ianvs should lean int
 | --- | --- | --- | --- | --- |
 | Launch and window readiness | Mature native launch and window behavior. | App launches and is usable, but debug run still reports `Failed to foreground app; open returned 1`. | Ianvs intent is good, proof is noisy. | Treat foreground launch as P0; capture a clean launch proof on a quiet host. |
 | First screen | Minimal native terminal window; most actions live in menus and shortcuts. | First screen has terminal, tab rail, command-menu button, new-tab button, status chips. | Ianvs is more explicit and product-like; iTerm2 is quieter. | Keep explicit controls, but make density configurable for expert users. |
-| Tabs | Native compact tabs with mature window/menu behavior. | Tabs work; compact/overflow behavior is now covered by widget tests. | Daily density is no longer an app-level acceptance gap; optional tab color remains polish. | Keep compact/overflow regressions; revisit optional color only with real user need. |
+| Tabs | Native compact tabs with mature window/menu behavior. | Tabs work; compact/overflow behavior and optional profile tab color are now covered by widget/model tests. | Daily density is no longer an app-level acceptance gap. | Keep compact/overflow and tab-color regressions. |
 | Panes | `Cmd+D` / `Cmd+Shift+D`, pane title controls, visible active/inactive contrast. | Split right works; active split pane header, active tab title, zoom, and close affordances are tested. | The main discoverability pass is accepted at widget level. | Keep pane header/action regressions; defer broader layout templates. |
 | Search | Robust find overlay, regex support, global search, Expose-style tab search. | Search now has app-level proof for `Cmd+F`, current-tab/all-tabs scope, result count, regex/case modes, and global search jump. | The old split-pane scope confusion is covered by tests; physical shortcut delivery remains host proof. | Keep scope/result/mode regressions and add visual host captures when foreground proof is clean. |
 | Command discovery | Menus, profiles window, preferences, shortcuts. | Command menu is a strong surface: searchable, categorized, shortcut-aware, disabled reasons visible. | Ianvs can surpass iTerm2 for action discoverability. | Make command menu the primary command surface, but reduce first-level overload. |
@@ -122,7 +122,7 @@ Goal: match iTerm2's everyday flow where users feel friction fastest.
 Tasks:
 
 - Done: compact tab mode and tab overflow behavior.
-- Partial: close-on-hover behavior is covered; optional tab color remains polish.
+- Done: optional profile tab color with editor/schema/import and tab strip/overflow markers.
 - Done: active pane header with close, split, zoom, and action affordances.
 - Done: search scope selector for active pane/current tab/all tabs.
 - Done: search result count and search modes for case sensitivity and regex.
@@ -213,7 +213,7 @@ This lets Ianvs compete on clarity and command-aware workflows while borrowing m
 1. `T-UX-001`: Foreground launch proof and fix. Status: partially handled by app-side activation and proof tooling; still host/tooling-limited.
 2. `T-UX-002`: Shortcut verification matrix. Status: accepted by automated proof.
 3. `T-UX-003`: Search scope selector and result count. Status: accepted by automated proof.
-4. `T-UX-004`: Compact tab mode and overflow behavior. Status: accepted by automated proof; optional tab color remains future polish.
+4. `T-UX-004`: Compact tab mode, overflow behavior, and optional tab color. Status: accepted by automated proof.
 5. `T-UX-005`: Pane active-state and action affordance pass. Status: accepted by automated proof.
 6. `T-UX-006`: Profile editor section navigation. Status: accepted by automated proof.
 7. `T-UX-007`: Paste safety recapture and read-only path proof. Status: accepted by automated proof.

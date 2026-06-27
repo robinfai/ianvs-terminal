@@ -226,6 +226,7 @@ const List<_ColorFieldSpec> _specialColorFieldSpecs = <_ColorFieldSpec>[
     slot: 'selection',
     label: 'Selection color',
   ),
+  _ColorFieldSpec(group: 'special', slot: 'tab', label: 'Tab color'),
 ];
 
 const List<_ColorFieldSpec> _normalAnsiColorFieldSpecs = <_ColorFieldSpec>[
@@ -580,6 +581,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         'background' => palette.special.background,
         'cursor' => palette.special.cursor,
         'selection' => palette.special.selection,
+        'tab' => palette.special.tab,
         _ => null,
       },
       'normal' => _ansiColorValueForSlot(palette.normal, spec.slot),
@@ -832,6 +834,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         background: valueFor(_specialColorFieldSpecs[1]),
         cursor: valueFor(_specialColorFieldSpecs[2]),
         selection: valueFor(_specialColorFieldSpecs[3]),
+        tab: valueFor(_specialColorFieldSpecs[4]),
       ),
       normal: TerminalAnsiColors(
         black: valueFor(_normalAnsiColorFieldSpecs[0]),
@@ -956,6 +959,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             ),
             selection: _normalizedColorValueForPreset(
               _colorControllerForSpec(_specialColorFieldSpecs[3]).text,
+            ),
+            tab: _normalizedColorValueForPreset(
+              _colorControllerForSpec(_specialColorFieldSpecs[4]).text,
             ),
           ),
           normal: TerminalAnsiColors(
@@ -1822,7 +1828,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 _buildColorGroupSection(
                                   title: 'Special',
                                   description:
-                                      'Foreground, background, cursor, and selection.',
+                                      'Foreground, background, cursor, selection, and tab.',
                                   specs: _specialColorFieldSpecs,
                                 ),
                                 const SizedBox(height: 16),

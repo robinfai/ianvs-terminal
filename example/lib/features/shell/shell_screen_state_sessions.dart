@@ -230,6 +230,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     return _terminalColorsForProfile(context, profile).canvasBackground;
   }
 
+  Color? _tabProfileColor(SessionState sessionState, TerminalTab tab) {
+    final profile = _profileForPane(tab.activePane, sessionState.profiles);
+    return terminalViewportColorFromHex(profile?.appearance.colors.tab);
+  }
+
   void _clearNewOutputForTab(TerminalTab? tab) {
     if (tab == null) {
       return;

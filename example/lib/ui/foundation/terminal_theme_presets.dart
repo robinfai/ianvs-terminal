@@ -48,6 +48,7 @@ Map<String, String?> _flattenColors(TerminalColorPalette palette) {
     'special.background': palette.special.background,
     'special.cursor': palette.special.cursor,
     'special.selection': palette.special.selection,
+    'special.tab': palette.special.tab,
     'normal.black': palette.normal.black,
     'normal.red': palette.normal.red,
     'normal.green': palette.normal.green,
