@@ -48,9 +48,34 @@ class ProfileRepository {
     await file.writeAsString(document.encode());
   }
 
+  Future<File> exportDocument(
+    TerminalProfilesDocument document, {
+    String basename = 'ianvs-profiles',
+  }) async {
+    final directory = await _directoryResolver();
+    await directory.create(recursive: true);
+    final safeBasename = _safeBasename(basename);
+    final file = File(
+      '${directory.path}/$safeBasename.ianvs-terminal-profiles.json',
+    );
+    await file.writeAsString(document.encode());
+    return file;
+  }
+
   Future<File> _profilesFile() async {
     final directory = await _directoryResolver();
     return File('${directory.path}/ianvs_profiles.json');
+  }
+
+  String _safeBasename(String basename) {
+    final safe = basename
+        .replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '-')
+        .replaceAll(RegExp('-+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    if (safe.isEmpty) {
+      return 'ianvs-profiles';
+    }
+    return safe;
   }
 
   TerminalProfilesDocument _documentForInvalidLoad({

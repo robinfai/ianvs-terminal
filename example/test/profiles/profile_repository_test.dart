@@ -154,6 +154,69 @@ void main() {
     },
   );
 
+  test('profile repository exports a profile document', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs terminal-profiles-export',
+    );
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
+    final document = TerminalProfilesDocument(
+      profiles: [
+        defaultTerminalProfile().copyWith(
+          name: 'Exported Shell',
+          tags: const ['exported'],
+        ),
+      ],
+    );
+
+    final file = await repository.exportDocument(document);
+    final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
+
+    expect(file.path, contains('ianvs-profiles.ianvs-terminal-profiles.json'));
+    expect(raw['schemaVersion'], TerminalProfilesDocument.currentSchemaVersion);
+    expect(
+      (raw['profiles'] as List<dynamic>).single,
+      containsPair('name', 'Exported Shell'),
+    );
+    expect(
+      (raw['profiles'] as List<dynamic>).single,
+      containsPair('tags', const ['exported']),
+    );
+  });
+
+  test(
+    'profile repository sanitizes exported profile document basename',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'ianvs terminal-profiles-export-safe-name',
+      );
+      final directory = Directory('${root.path}/profiles');
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final file = await repository.exportDocument(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        basename: '../escaped profiles',
+      );
+
+      final directoryPath = await directory.resolveSymbolicLinks();
+      final filePath = await file.resolveSymbolicLinks();
+      expect(filePath, startsWith('$directoryPath${Platform.pathSeparator}'));
+      expect(
+        file.path,
+        contains('..-escaped-profiles.ianvs-terminal-profiles.json'),
+      );
+      expect(
+        File(
+          '${root.path}/escaped profiles.ianvs-terminal-profiles.json',
+        ).existsSync(),
+        isFalse,
+      );
+    },
+  );
+
   test(
     'profile repository ignores legacy defaultProfileId from older documents',
     () async {
