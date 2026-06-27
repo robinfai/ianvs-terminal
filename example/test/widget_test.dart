@@ -3855,6 +3855,65 @@ void main() {
     expect(find.text('ERROR 42 failed'), findsOneWidget);
   });
 
+  testWidgets('toolbelt exposes focused semantics and keyboard tab traversal', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-toolbelt')));
+    await tester.tap(find.byKey(const Key('shell-toolbelt')));
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('toolbelt-panel'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.bySemanticsIdentifier('toolbelt-panel')),
+      matchesSemantics(label: 'Toolbelt terminal tools'),
+    );
+    expect(
+      tester.getSemantics(
+        find.bySemanticsIdentifier('toolbelt-tab-command-history'),
+      ),
+      matchesSemantics(
+        label: 'Commands toolbelt panel',
+        hasSelectedState: true,
+        isSelected: true,
+        isButton: true,
+        hasTapAction: true,
+      ),
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('toolbelt-panel-recent-directories')),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSemantics(
+        find.bySemanticsIdentifier('toolbelt-tab-recent-directories'),
+      ),
+      matchesSemantics(
+        label: 'Dirs toolbelt panel',
+        hasSelectedState: true,
+        isSelected: true,
+        isButton: true,
+        hasTapAction: true,
+      ),
+    );
+  });
+
   testWidgets('toolbelt previews shell history and paste sources', (
     tester,
   ) async {
