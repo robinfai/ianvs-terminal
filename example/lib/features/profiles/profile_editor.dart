@@ -271,11 +271,13 @@ class _ProfileEditorSectionSpec {
     required this.section,
     required this.label,
     required this.icon,
+    this.searchTerms = const <String>[],
   });
 
   final _ProfileEditorSection section;
   final String label;
   final IconData icon;
+  final List<String> searchTerms;
 }
 
 const List<_ProfileEditorSectionSpec> _profileEditorSections =
@@ -284,36 +286,69 @@ const List<_ProfileEditorSectionSpec> _profileEditorSections =
         section: _ProfileEditorSection.general,
         label: 'General',
         icon: Icons.badge_outlined,
+        searchTerms: ['name', 'tags', 'identity'],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.startup,
         label: 'Startup',
         icon: Icons.terminal_outlined,
+        searchTerms: [
+          'shell',
+          'program',
+          'working directory',
+          'arguments',
+          'environment',
+          'cwd',
+        ],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.terminal,
         label: 'Terminal',
         icon: Icons.settings_applications_outlined,
+        searchTerms: ['emulation', 'scrollback', 'retention'],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.appearance,
         label: 'Appearance',
         icon: Icons.palette_outlined,
+        searchTerms: [
+          'font',
+          'typography',
+          'fallback',
+          'theme',
+          'colors',
+          'ansi',
+          'cursor',
+        ],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.keys,
         label: 'Keys',
         icon: Icons.keyboard_outlined,
+        searchTerms: ['selection', 'copy on select', 'option drag'],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.automation,
         label: 'Automation',
         icon: Icons.bolt_outlined,
+        searchTerms: [
+          'triggers',
+          'notify',
+          'send text',
+          'automatic profile switching',
+          'profile switching',
+        ],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.advanced,
         label: 'Advanced',
         icon: Icons.tune_outlined,
+        searchTerms: [
+          'shell integration',
+          'prompt marks',
+          'badges',
+          'command navigation',
+        ],
       ),
     ];
 
@@ -378,6 +413,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late final TextEditingController _fontFamilyController;
   late final TextEditingController _fontSizeController;
   late final TextEditingController _lineHeightController;
+  late final TextEditingController _sectionSearchController;
   late final FocusNode _nameFocusNode;
   late final FocusNode _triggersFocusNode;
   late final FocusNode _switchRulesFocusNode;
@@ -397,6 +433,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   bool _didAttemptSave = false;
   bool _didEdit = false;
   bool _allowClose = false;
+  String _sectionSearchQuery = '';
   _ProfileEditorSection _activeSection = _ProfileEditorSection.general;
 
   @override
@@ -425,6 +462,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _lineHeightController = _trackedController(
       text: profile.appearance.font.lineHeight.toString(),
     );
+    _sectionSearchController = TextEditingController();
     _nameFocusNode = FocusNode(debugLabel: 'profile-editor-name');
     _triggersFocusNode = FocusNode(debugLabel: 'profile-editor-triggers');
     _switchRulesFocusNode = FocusNode(
@@ -476,6 +514,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       _fontFamilyController,
       _fontSizeController,
       _lineHeightController,
+      _sectionSearchController,
       ..._colorControllers.values,
     ]);
     _disposeControllers(_argControllers);
@@ -1126,10 +1165,38 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
   }
 
+  List<_ProfileEditorSectionSpec> _matchingSectionSpecs() {
+    final normalizedTerms = _sectionSearchQuery
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedTerms.isEmpty) {
+      return _profileEditorSections;
+    }
+    return _profileEditorSections
+        .where((spec) {
+          final searchable = <String>[
+            spec.label,
+            ...spec.searchTerms,
+          ].join('\n').toLowerCase();
+          return normalizedTerms.every(searchable.contains);
+        })
+        .toList(growable: false);
+  }
+
+  void _updateSectionSearch(String value) {
+    setState(() {
+      _sectionSearchQuery = value;
+    });
+  }
+
   Widget _buildSectionNavigation({required bool vertical}) {
     final theme = context.appTheme;
+    final matchingSections = _matchingSectionSpecs();
     final children = [
-      for (final spec in _profileEditorSections)
+      for (final spec in matchingSections)
         _ProfileEditorSectionNavItem(
           key: Key('profile-editor-nav-${spec.section.name}'),
           spec: spec,
@@ -1138,6 +1205,59 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           onTap: () => unawaited(_jumpToSection(spec.section)),
         ),
     ];
+    final searchHasQuery = _sectionSearchQuery.trim().isNotEmpty;
+    final searchField = TextField(
+      key: const Key('profile-editor-section-search'),
+      controller: _sectionSearchController,
+      onChanged: _updateSectionSearch,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        labelText: 'Find setting',
+        hintText: 'Font, shell, triggers',
+        prefixIcon: const Icon(Icons.search_outlined, size: 18),
+        suffixIcon: searchHasQuery
+            ? IconButton(
+                key: const Key('profile-editor-section-search-clear'),
+                tooltip: 'Clear settings search',
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () {
+                  _sectionSearchController.clear();
+                  _updateSectionSearch('');
+                },
+              )
+            : null,
+        isDense: true,
+      ),
+    );
+    final resultSummary = searchHasQuery
+        ? Padding(
+            padding: EdgeInsets.only(top: theme.spacing.xs),
+            child: Text(
+              matchingSections.isEmpty
+                  ? 'No settings found'
+                  : '${matchingSections.length} section${matchingSections.length == 1 ? '' : 's'} found',
+              key: const Key('profile-editor-section-search-count'),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: matchingSections.isEmpty
+                    ? theme.warning
+                    : theme.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
+    final emptyState = matchingSections.isEmpty
+        ? Padding(
+            padding: EdgeInsets.only(top: theme.spacing.sm),
+            child: Text(
+              'No profile settings match "${_sectionSearchQuery.trim()}".',
+              key: const Key('profile-editor-section-search-empty'),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: theme.textMuted),
+            ),
+          )
+        : const SizedBox.shrink();
 
     if (!vertical) {
       return AppPanel(
@@ -1145,10 +1265,21 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         tone: AppPanelTone.chrome,
         padding: EdgeInsets.all(theme.spacing.sm),
         borderRadius: BorderRadius.circular(theme.radius.lg),
-        child: Wrap(
-          spacing: theme.spacing.xs,
-          runSpacing: theme.spacing.xs,
-          children: children,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            searchField,
+            resultSummary,
+            if (matchingSections.isNotEmpty) ...[
+              SizedBox(height: theme.spacing.sm),
+              Wrap(
+                spacing: theme.spacing.xs,
+                runSpacing: theme.spacing.xs,
+                children: children,
+              ),
+            ] else
+              emptyState,
+          ],
         ),
       );
     }
@@ -1160,7 +1291,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       borderRadius: BorderRadius.circular(theme.radius.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
+        children: [
+          searchField,
+          resultSummary,
+          if (matchingSections.isNotEmpty) ...[
+            SizedBox(height: theme.spacing.sm),
+            ...children,
+          ] else
+            emptyState,
+        ],
       ),
     );
   }

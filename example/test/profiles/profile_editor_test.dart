@@ -570,6 +570,92 @@ void main() {
     expect(appearanceTop, lessThan(footerTop));
   });
 
+  testWidgets('profile editor search filters and jumps to matching sections', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 820);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    TerminalProfile? savedProfile;
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (value) => savedProfile = value,
+    );
+
+    final searchField = find.byKey(const Key('profile-editor-section-search'));
+    expect(searchField, findsOneWidget);
+
+    await tester.enterText(searchField, 'font');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('profile-editor-nav-appearance')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('profile-editor-nav-general')), findsNothing);
+    expect(find.text('1 section found'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('profile-editor-nav-appearance')));
+    await tester.pumpAndSettle();
+
+    final appearanceTop = tester
+        .getTopLeft(find.byKey(const Key('profile-editor-section-appearance')))
+        .dy;
+    final footerTop =
+        tester.getTopLeft(find.byKey(const Key('profile-editor-save'))).dy - 12;
+    expect(appearanceTop, greaterThan(0));
+    expect(appearanceTop, lessThan(footerTop));
+
+    await tester.enterText(searchField, 'profile switching');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('profile-editor-nav-automation')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('profile-editor-nav-appearance')),
+      findsNothing,
+    );
+    expect(find.text('1 section found'), findsOneWidget);
+
+    await tester.enterText(searchField, 'not-a-setting');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('profile-editor-section-search-empty')),
+      findsOneWidget,
+    );
+    expect(find.text('No settings found'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const Key('profile-editor-section-search-clear')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('profile-editor-nav-general')), findsOneWidget);
+    expect(
+      find.byKey(const Key('profile-editor-nav-advanced')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Close profile editor'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard profile changes?'), findsNothing);
+    expect(find.byKey(const Key('profile-editor-dialog')), findsNothing);
+    expect(savedProfile, isNull);
+  });
+
   testWidgets('profile editor saves notification and send-text triggers', (
     tester,
   ) async {
