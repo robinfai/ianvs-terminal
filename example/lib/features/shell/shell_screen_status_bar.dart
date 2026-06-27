@@ -8,6 +8,7 @@ class _ShellStatusBar extends StatelessWidget {
     required this.directory,
     required this.viewportLabel,
     required this.modeItems,
+    required this.shellIntegrationHealth,
     required this.encodingLabel,
   });
 
@@ -16,6 +17,7 @@ class _ShellStatusBar extends StatelessWidget {
   final String? directory;
   final String? viewportLabel;
   final List<_ShellStatusModeItem> modeItems;
+  final _ShellIntegrationHealth shellIntegrationHealth;
   final String encodingLabel;
 
   @override
@@ -52,6 +54,17 @@ class _ShellStatusBar extends StatelessWidget {
           highlighted: true,
           maxWidth: 118,
         ),
+      _ShellStatusItem(
+        key: const Key('shell-status-shell-integration'),
+        palette: palette,
+        tone: tone,
+        label: shellIntegrationHealth.label,
+        tooltip: shellIntegrationHealth.tooltip,
+        semanticsLabel: shellIntegrationHealth.semanticsLabel,
+        monospace: true,
+        highlighted: shellIntegrationHealth.highlighted,
+        maxWidth: 142,
+      ),
       if (directory != null && directory!.trim().isNotEmpty)
         _ShellStatusDirectoryItem(
           key: const Key('shell-status-directory'),
@@ -115,6 +128,75 @@ class _ShellStatusBar extends StatelessWidget {
     }
     return '...${normalized.substring(normalized.length - 31)}';
   }
+}
+
+enum _ShellIntegrationHealthLevel { active, partial, unavailable }
+
+class _ShellIntegrationHealth {
+  const _ShellIntegrationHealth._(this.level);
+
+  factory _ShellIntegrationHealth.fromSnapshot(
+    TerminalShellIntegrationSnapshot snapshot,
+  ) {
+    final hasCommandMetadata =
+        snapshot.recentCommands.isNotEmpty ||
+        snapshot.promptMarks.isNotEmpty ||
+        snapshot.lastCommand?.trim().isNotEmpty == true;
+    if (hasCommandMetadata) {
+      return const _ShellIntegrationHealth._(
+        _ShellIntegrationHealthLevel.active,
+      );
+    }
+
+    final hasContext =
+        snapshot.currentDirectory?.trim().isNotEmpty == true ||
+        snapshot.hostname?.trim().isNotEmpty == true ||
+        snapshot.username?.trim().isNotEmpty == true ||
+        snapshot.shell?.trim().isNotEmpty == true ||
+        snapshot.recentDirectories.isNotEmpty;
+    if (hasContext) {
+      return const _ShellIntegrationHealth._(
+        _ShellIntegrationHealthLevel.partial,
+      );
+    }
+
+    return const _ShellIntegrationHealth._(
+      _ShellIntegrationHealthLevel.unavailable,
+    );
+  }
+
+  final _ShellIntegrationHealthLevel level;
+
+  String get label {
+    return switch (level) {
+      _ShellIntegrationHealthLevel.active => 'SHELL ACTIVE',
+      _ShellIntegrationHealthLevel.partial => 'SHELL PARTIAL',
+      _ShellIntegrationHealthLevel.unavailable => 'SHELL WAITING',
+    };
+  }
+
+  String get tooltip {
+    return switch (level) {
+      _ShellIntegrationHealthLevel.active =>
+        'Shell integration is active for this pane.',
+      _ShellIntegrationHealthLevel.partial =>
+        'Shell integration has shell context, but command or prompt metadata has not arrived.',
+      _ShellIntegrationHealthLevel.unavailable =>
+        'Shell integration metadata has not arrived for this pane yet.',
+    };
+  }
+
+  String get semanticsLabel {
+    return switch (level) {
+      _ShellIntegrationHealthLevel.active => 'Shell integration health: active',
+      _ShellIntegrationHealthLevel.partial =>
+        'Shell integration health: partial',
+      _ShellIntegrationHealthLevel.unavailable =>
+        'Shell integration health: waiting',
+    };
+  }
+
+  bool get highlighted => level != _ShellIntegrationHealthLevel.unavailable;
 }
 
 class _ShellStatusModeItem {

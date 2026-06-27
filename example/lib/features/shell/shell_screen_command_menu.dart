@@ -168,6 +168,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       return 'No prompt-marked command output is available yet.';
     }
 
+    var commandTileTraversalOrder = 1.0;
+
     Widget commandTile({
       Key? key,
       required TerminalActionId actionId,
@@ -189,626 +191,652 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         return const SizedBox.shrink();
       }
 
-      return _ShellCommandTile(
-        key: key,
-        icon: icon,
-        title: title,
-        subtitle: subtitle,
-        shortcutLabel: shortcutLabel,
-        enabled: enabled,
-        disabledReason: disabledReason,
-        subtitleMaxLines: subtitleMaxLines,
-        onTap: onTap,
+      final traversalOrder = commandTileTraversalOrder;
+      commandTileTraversalOrder += 1;
+      return FocusTraversalOrder(
+        order: NumericFocusOrder(traversalOrder),
+        child: _ShellCommandTile(
+          key: key,
+          icon: icon,
+          title: title,
+          subtitle: subtitle,
+          shortcutLabel: shortcutLabel,
+          enabled: enabled,
+          disabledReason: disabledReason,
+          subtitleMaxLines: subtitleMaxLines,
+          onTap: onTap,
+        ),
       );
     }
 
     return Material(
       key: const Key('shell-command-menu-overlay'),
       color: Colors.transparent,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 320, maxHeight: maxMenuHeight),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: palette.overlay,
-            borderRadius: BorderRadius.circular(palette.radius.xl),
-            border: Border.all(color: palette.borderStrong),
-            boxShadow: palette.elevation.dialog,
-          ),
-          child: Material(
-            type: MaterialType.transparency,
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(5),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 1, 1, 1),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Top actions',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    color: palette.textPrimary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                          ),
-                          _buildSheetCloseButton(
-                            tooltip: 'Close actions',
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(6, 3, 6, 5),
-                      child: MergeSemantics(
-                        child: Semantics(
-                          label: 'Search actions',
-                          textField: true,
-                          child: TextField(
-                            key: const Key('shell-command-search-field'),
-                            autofocus: true,
-                            textInputAction: TextInputAction.search,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(color: palette.textPrimary),
-                            decoration: InputDecoration(
-                              isDense: true,
-                              prefixIcon: const Icon(Icons.search_rounded),
-                              labelText: 'Search actions',
-                              hintText: 'Type an action and press Enter',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(
-                                  palette.radius.lg,
-                                ),
+      child: FocusTraversalGroup(
+        policy: OrderedTraversalPolicy(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 320, maxHeight: maxMenuHeight),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: palette.overlay,
+              borderRadius: BorderRadius.circular(palette.radius.xl),
+              border: Border.all(color: palette.borderStrong),
+              boxShadow: palette.elevation.dialog,
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(6, 1, 1, 1),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Top actions',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      color: palette.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                               ),
                             ),
-                            onChanged: (value) {
-                              setState(() {
-                                _query = value;
-                              });
-                            },
-                            onSubmitted: (query) {
-                              final action = _commandMenuActionForQuery(query);
-                              if (action == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'No action matches "$query".',
+                            FocusTraversalOrder(
+                              order: const NumericFocusOrder(1000),
+                              child: _buildSheetCloseButton(
+                                tooltip: 'Close actions',
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(6, 3, 6, 5),
+                        child: MergeSemantics(
+                          child: Semantics(
+                            label: 'Search actions',
+                            textField: true,
+                            child: FocusTraversalOrder(
+                              order: const NumericFocusOrder(0),
+                              child: TextField(
+                                key: const Key('shell-command-search-field'),
+                                autofocus: true,
+                                textInputAction: TextInputAction.search,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: palette.textPrimary),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  prefixIcon: const Icon(Icons.search_rounded),
+                                  labelText: 'Search actions',
+                                  hintText: 'Type an action and press Enter',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      palette.radius.lg,
                                     ),
                                   ),
-                                );
-                                return;
-                              }
-                              Navigator.of(context).pop(action);
-                            },
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _query = value;
+                                  });
+                                },
+                                onSubmitted: (query) {
+                                  final action = _commandMenuActionForQuery(
+                                    query,
+                                  );
+                                  if (action == null) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'No action matches "$query".',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  Navigator.of(context).pop(action);
+                                },
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    commandTile(
-                      key: const Key('shell-search-scrollback-top'),
-                      actionId: TerminalActionId.search,
-                      icon: Icons.search_rounded,
-                      title: 'Search terminal output',
-                      subtitle:
-                          'Top action • Open in-terminal search for the active pane.',
-                      shortcutLabel: searchShortcutLabel,
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.search),
-                    ),
-                    sectionLabel('App actions'),
-                    commandTile(
-                      key: const Key('shell-new-tab'),
-                      actionId: TerminalActionId.newTab,
-                      icon: Icons.add_box_outlined,
-                      title: 'New tab',
-                      subtitle: 'App action • Open the default shell profile.',
-                      shortcutLabel: newTabShortcutLabel,
-                      enabled: hasDefaultProfile,
-                      disabledReason: defaultProfileRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.newTab),
-                    ),
-                    commandTile(
-                      key: const Key('shell-command-defaults'),
-                      actionId: TerminalActionId.defaults,
-                      icon: Icons.tune_rounded,
-                      title: 'Defaults & appearance',
-                      subtitle:
-                          'App action • Pick the default profile and theme.',
-                      enabled: true,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.defaults),
-                    ),
-                    commandTile(
-                      key: const Key('shell-reopen-closed-tab'),
-                      actionId: TerminalActionId.reopenClosedTab,
-                      icon: Icons.restore_rounded,
-                      title: 'Reopen closed tab',
-                      subtitle:
-                          'App action • Recreate the most recently closed tab.',
-                      enabled: canReopenClosedTab,
-                      disabledReason: closedTabRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.reopenClosedTab),
-                    ),
-                    commandTile(
-                      key: const Key('shell-toolbelt'),
-                      actionId: TerminalActionId.toolbelt,
-                      icon: Icons.view_sidebar_rounded,
-                      title: 'Toolbelt',
-                      subtitle:
-                          'App action • Keep terminal tools in a sidebar.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.toolbelt),
-                    ),
-                    commandTile(
-                      key: const Key('shell-split-right'),
-                      actionId: TerminalActionId.splitRight,
-                      icon: Icons.vertical_split_rounded,
-                      title: 'Split right',
-                      subtitle: 'Session action • Add a pane to the right.',
-                      enabled:
-                          hasDefaultProfile &&
-                          hasActiveSession &&
-                          splitRightUnavailableReason == null,
-                      disabledReason: !hasDefaultProfile
-                          ? defaultProfileRequired
-                          : !hasActiveSession
-                          ? activeSessionRequired
-                          : splitRightUnavailableReason,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.splitRight),
-                    ),
-                    commandTile(
-                      key: const Key('shell-split-down'),
-                      actionId: TerminalActionId.splitDown,
-                      icon: Icons.horizontal_split_rounded,
-                      title: 'Split down',
-                      subtitle: 'Session action • Add a pane below.',
-                      enabled:
-                          hasDefaultProfile &&
-                          hasActiveSession &&
-                          splitDownUnavailableReason == null,
-                      disabledReason: !hasDefaultProfile
-                          ? defaultProfileRequired
-                          : !hasActiveSession
-                          ? activeSessionRequired
-                          : splitDownUnavailableReason,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.splitDown),
-                    ),
-                    commandTile(
-                      key: const Key('shell-zoom-pane'),
-                      actionId: TerminalActionId.zoomPane,
-                      icon: Icons.zoom_out_map_rounded,
-                      title: activePaneZoomed
-                          ? 'Unzoom active pane'
-                          : 'Zoom active pane',
-                      subtitle: 'Session action • Focus one pane temporarily.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.zoomPane),
-                    ),
-                    commandTile(
-                      key: const Key('shell-theme-picker'),
-                      actionId: TerminalActionId.openThemePicker,
-                      icon: Icons.palette_rounded,
-                      title: 'Terminal color presets',
-                      subtitle:
-                          'App action • Open Defaults & appearance to choose terminal colors.',
-                      enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.openThemePicker),
-                    ),
-                    commandTile(
-                      key: const Key('shell-toggle-command-finished-notify'),
-                      actionId: TerminalActionId.toggleCommandFinishedNotify,
-                      icon: Icons.notifications_active_rounded,
-                      title:
-                          '${commandFinishedNotificationsEnabled ? 'Disable' : 'Enable'} command-finished notifications',
-                      subtitle: notificationsBlockedBySystem
-                          ? 'App action • Toggle shell hook completion alerts. macOS notifications are currently blocked in System Settings.'
-                          : 'App action • Toggle shell hook completion alerts.',
-                      subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
-                      enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.toggleCommandFinishedNotify),
-                    ),
-                    commandTile(
-                      key: const Key('shell-toggle-bell-notify'),
-                      actionId: TerminalActionId.toggleBellNotify,
-                      icon: Icons.notifications_rounded,
-                      title:
-                          '${bellNotificationsEnabled ? 'Disable' : 'Enable'} bell notifications',
-                      subtitle: notificationsBlockedBySystem
-                          ? 'App action • Toggle terminal bell alerts. macOS notifications are currently blocked in System Settings.'
-                          : 'App action • Toggle terminal bell alerts.',
-                      subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
-                      enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.toggleBellNotify),
-                    ),
-                    commandTile(
-                      key: const Key('shell-toggle-activity-monitor'),
-                      actionId: TerminalActionId.toggleActivityMonitor,
-                      icon: Icons.notification_important_rounded,
-                      title:
-                          '${activityMonitorEnabled ? 'Disable' : 'Enable'} activity monitor',
-                      subtitle: notificationsBlockedBySystem
-                          ? 'App action • Toggle inactive-session activity alerts. macOS notifications are currently blocked in System Settings.'
-                          : 'App action • Toggle inactive-session activity alerts.',
-                      subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
-                      enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.toggleActivityMonitor),
-                    ),
-                    commandTile(
-                      key: const Key('shell-command-profiles'),
-                      actionId: TerminalActionId.profiles,
-                      icon: Icons.folder_open_rounded,
-                      title: 'Profiles…',
-                      subtitle: 'App action • Open or edit shell profiles.',
-                      enabled: true,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.profiles),
-                    ),
-                    commandTile(
-                      key: const Key('shell-dynamic-profiles'),
-                      actionId: TerminalActionId.dynamicProfiles,
-                      icon: Icons.data_object_rounded,
-                      title: 'Dynamic profiles',
-                      subtitle:
-                          'App action • Import iTerm-style JSON profiles.',
-                      enabled: true,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.dynamicProfiles),
-                    ),
-                    sectionLabel('Session actions'),
-                    if (!hasActiveSession)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Requires an active shell session.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: palette.textSubtle),
-                          ),
-                        ),
+                      commandTile(
+                        key: const Key('shell-search-scrollback-top'),
+                        actionId: TerminalActionId.search,
+                        icon: Icons.search_rounded,
+                        title: 'Search terminal output',
+                        subtitle:
+                            'Top action • Open in-terminal search for the active pane.',
+                        shortcutLabel: searchShortcutLabel,
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () =>
+                            Navigator.of(context).pop(TerminalActionId.search),
                       ),
-                    commandTile(
-                      actionId: TerminalActionId.copy,
-                      icon: Icons.copy_rounded,
-                      title: 'Copy selection',
-                      subtitle: 'Session action • Copy the current selection.',
-                      shortcutLabel: sessionCopyShortcutLabel,
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.copy),
-                    ),
-                    commandTile(
-                      key: const Key('shell-copy-mode'),
-                      actionId: TerminalActionId.copyMode,
-                      icon: Icons.select_all_rounded,
-                      title: 'Copy mode',
-                      subtitle:
-                          'Session action • Select terminal text from the keyboard.',
-                      shortcutLabel: copyModeShortcutLabel,
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.copyMode),
-                    ),
-                    commandTile(
-                      key: const Key('shell-toggle-read-only'),
-                      actionId: TerminalActionId.toggleReadOnly,
-                      icon: Icons.lock_outline_rounded,
-                      title:
-                          '${isActiveSessionReadOnly ? 'Disable' : 'Enable'} read-only mode',
-                      subtitle:
-                          'Session action • Block terminal input for this pane.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.toggleReadOnly),
-                    ),
-                    commandTile(
-                      key: const Key('shell-clear-scrollback'),
-                      actionId: TerminalActionId.clearScrollback,
-                      icon: Icons.clear_all_rounded,
-                      title: 'Clear scrollback',
-                      subtitle:
-                          'Session action • Clear local scrollback when supported.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.clearScrollback),
-                    ),
-                    commandTile(
-                      key: const Key('shell-export-scrollback'),
-                      actionId: TerminalActionId.exportScrollback,
-                      icon: Icons.ios_share_rounded,
-                      title: 'Export scrollback',
-                      subtitle:
-                          'Session action • Save a terminal text snapshot to Application Support.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.exportScrollback),
-                    ),
-                    commandTile(
-                      key: const Key('shell-export-diagnostics'),
-                      actionId: TerminalActionId.exportDiagnostics,
-                      icon: Icons.bug_report_rounded,
-                      title: 'Export diagnostics',
-                      subtitle:
-                          'Session action • Save a local resource evidence bundle.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.exportDiagnostics),
-                    ),
-                    commandTile(
-                      key: const Key('shell-annotations'),
-                      actionId: TerminalActionId.annotations,
-                      icon: Icons.sticky_note_2_rounded,
-                      title: 'Annotations',
-                      subtitle:
-                          'Session action • Attach notes to selected output.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.annotations),
-                    ),
-                    commandTile(
-                      key: const Key('shell-captured-output'),
-                      actionId: TerminalActionId.capturedOutput,
-                      icon: Icons.outbox_rounded,
-                      title: 'Captured output',
-                      subtitle:
-                          'Session action • Review lines matched by triggers.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.capturedOutput),
-                    ),
-                    commandTile(
-                      key: const Key('shell-paste-clipboard'),
-                      actionId: TerminalActionId.paste,
-                      icon: Icons.content_paste_rounded,
-                      title: 'Paste clipboard',
-                      subtitle:
-                          'Session action • Paste clipboard into the shell.',
-                      shortcutLabel: sessionPasteShortcutLabel,
-                      enabled: hasActiveSession && !isActiveSessionReadOnly,
-                      disabledReason: hasActiveSession
-                          ? readOnlySendRequired
-                          : activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.paste),
-                    ),
-                    commandTile(
-                      key: const Key('shell-advanced-paste'),
-                      actionId: TerminalActionId.advancedPaste,
-                      icon: Icons.assignment_rounded,
-                      title: 'Advanced paste',
-                      subtitle:
-                          'Session action • Edit and transform text before pasting.',
-                      enabled: hasActiveSession && !isActiveSessionReadOnly,
-                      disabledReason: hasActiveSession
-                          ? readOnlySendRequired
-                          : activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.advancedPaste),
-                    ),
-                    commandTile(
-                      key: const Key('shell-paste-history'),
-                      actionId: TerminalActionId.pasteHistory,
-                      icon: Icons.history_rounded,
-                      title: 'Paste history',
-                      subtitle:
-                          'Session action • Revisit recently copied or pasted text.',
-                      shortcutLabel: pasteHistoryShortcutLabel,
-                      enabled: hasActiveSession && !isActiveSessionReadOnly,
-                      disabledReason: hasActiveSession
-                          ? readOnlySendRequired
-                          : activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.pasteHistory),
-                    ),
-                    commandTile(
-                      key: const Key('shell-integration-utilities'),
-                      actionId: TerminalActionId.shellIntegrationUtilities,
-                      icon: Icons.integration_instructions_rounded,
-                      title: 'Shell integration',
-                      subtitle:
-                          'Session action • Command history, directories, and marks.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.shellIntegrationUtilities),
-                    ),
-                    commandTile(
-                      key: const Key('shell-select-command-output'),
-                      actionId: TerminalActionId.selectCommandOutput,
-                      icon: Icons.fact_check_rounded,
-                      title: 'Select command output',
-                      subtitle:
-                          'Session action • Select output between prompt marks.',
-                      enabled: hasActiveSession && canSelectCommandOutput,
-                      disabledReason: selectCommandOutputUnavailableReason(),
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.selectCommandOutput),
-                    ),
-                    commandTile(
-                      key: const Key('shell-tmux-integration'),
-                      actionId: TerminalActionId.tmuxIntegration,
-                      icon: Icons.account_tree_rounded,
-                      title: 'tmux integration',
-                      subtitle:
-                          'Session action • Start or drive tmux control mode.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.tmuxIntegration),
-                    ),
-                    commandTile(
-                      key: const Key('shell-coprocess'),
-                      actionId: TerminalActionId.coprocess,
-                      icon: Icons.hub_rounded,
-                      title: 'Coprocess',
-                      subtitle:
-                          'Session action • Automate replies from terminal output.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.coprocess),
-                    ),
-                    commandTile(
-                      key: const Key('shell-password-manager'),
-                      actionId: TerminalActionId.passwordManager,
-                      icon: Icons.password_rounded,
-                      title: 'Password manager',
-                      subtitle:
-                          'Session action • Send saved passwords at prompts.',
-                      enabled: hasActiveSession && !isActiveSessionReadOnly,
-                      disabledReason: hasActiveSession
-                          ? readOnlySendRequired
-                          : activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.passwordManager),
-                    ),
-                    commandTile(
-                      key: const Key('shell-instant-replay'),
-                      actionId: TerminalActionId.instantReplay,
-                      icon: Icons.replay_rounded,
-                      title: 'Instant replay',
-                      subtitle:
-                          'Session action • Recover text from recent terminal frames.',
-                      shortcutLabel: instantReplayShortcutLabel,
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.instantReplay),
-                    ),
-                    commandTile(
-                      actionId: TerminalActionId.search,
-                      icon: Icons.search_rounded,
-                      title: 'Search terminal output',
-                      subtitle: 'Session action • Find text in local output.',
-                      shortcutLabel: searchShortcutLabel,
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () =>
-                          Navigator.of(context).pop(TerminalActionId.search),
-                    ),
-                    commandTile(
-                      key: const Key('shell-global-search'),
-                      actionId: TerminalActionId.globalSearch,
-                      icon: Icons.manage_search_rounded,
-                      title: 'Global search',
-                      subtitle: 'Workspace action • Search all tabs at once.',
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.globalSearch),
-                    ),
-                    commandTile(
-                      key: const Key('shell-autocomplete'),
-                      actionId: TerminalActionId.autocomplete,
-                      icon: Icons.auto_fix_high_rounded,
-                      title: 'Autocomplete',
-                      subtitle:
-                          'Session action • Complete a word from visible output.',
-                      shortcutLabel: autocompleteShortcutLabel,
-                      enabled: hasActiveSession,
-                      disabledReason: activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.autocomplete),
-                    ),
-                    commandTile(
-                      key: const Key('shell-auto-composer'),
-                      actionId: TerminalActionId.autoComposer,
-                      icon: Icons.edit_note_rounded,
-                      title: 'Auto Composer',
-                      subtitle:
-                          'Session action • Native command editor with completions.',
-                      enabled: hasActiveSession && !isActiveSessionReadOnly,
-                      disabledReason: hasActiveSession
-                          ? readOnlySendRequired
-                          : activeSessionRequired,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.autoComposer),
-                    ),
-                    commandTile(
-                      key: const Key('shell-hotkey-window'),
-                      actionId: TerminalActionId.hotkeyWindow,
-                      icon: Icons.keyboard_rounded,
-                      title: 'Hotkey window',
-                      subtitle:
-                          'App action • Hide this window. Reopen with $hotkeyWindowShortcutLabel.',
-                      shortcutLabel: hotkeyWindowShortcutLabel,
-                      enabled: hotkeyWindowUnavailableReason() == null,
-                      disabledReason: hotkeyWindowUnavailableReason(),
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(TerminalActionId.hotkeyWindow),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.keyboard_command_key_rounded,
-                            size: 16,
-                            color: palette.textSubtle,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
+                      sectionLabel('App actions'),
+                      commandTile(
+                        key: const Key('shell-new-tab'),
+                        actionId: TerminalActionId.newTab,
+                        icon: Icons.add_box_outlined,
+                        title: 'New tab',
+                        subtitle:
+                            'App action • Open the default shell profile.',
+                        shortcutLabel: newTabShortcutLabel,
+                        enabled: hasDefaultProfile,
+                        disabledReason: defaultProfileRequired,
+                        onTap: () =>
+                            Navigator.of(context).pop(TerminalActionId.newTab),
+                      ),
+                      commandTile(
+                        key: const Key('shell-command-defaults'),
+                        actionId: TerminalActionId.defaults,
+                        icon: Icons.tune_rounded,
+                        title: 'Defaults & appearance',
+                        subtitle:
+                            'App action • Pick the default profile and theme.',
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.defaults),
+                      ),
+                      commandTile(
+                        key: const Key('shell-reopen-closed-tab'),
+                        actionId: TerminalActionId.reopenClosedTab,
+                        icon: Icons.restore_rounded,
+                        title: 'Reopen closed tab',
+                        subtitle:
+                            'App action • Recreate the most recently closed tab.',
+                        enabled: canReopenClosedTab,
+                        disabledReason: closedTabRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.reopenClosedTab),
+                      ),
+                      commandTile(
+                        key: const Key('shell-toolbelt'),
+                        actionId: TerminalActionId.toolbelt,
+                        icon: Icons.view_sidebar_rounded,
+                        title: 'Toolbelt',
+                        subtitle:
+                            'App action • Keep terminal tools in a sidebar.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.toolbelt),
+                      ),
+                      commandTile(
+                        key: const Key('shell-split-right'),
+                        actionId: TerminalActionId.splitRight,
+                        icon: Icons.vertical_split_rounded,
+                        title: 'Split right',
+                        subtitle: 'Session action • Add a pane to the right.',
+                        enabled:
+                            hasDefaultProfile &&
+                            hasActiveSession &&
+                            splitRightUnavailableReason == null,
+                        disabledReason: !hasDefaultProfile
+                            ? defaultProfileRequired
+                            : !hasActiveSession
+                            ? activeSessionRequired
+                            : splitRightUnavailableReason,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.splitRight),
+                      ),
+                      commandTile(
+                        key: const Key('shell-split-down'),
+                        actionId: TerminalActionId.splitDown,
+                        icon: Icons.horizontal_split_rounded,
+                        title: 'Split down',
+                        subtitle: 'Session action • Add a pane below.',
+                        enabled:
+                            hasDefaultProfile &&
+                            hasActiveSession &&
+                            splitDownUnavailableReason == null,
+                        disabledReason: !hasDefaultProfile
+                            ? defaultProfileRequired
+                            : !hasActiveSession
+                            ? activeSessionRequired
+                            : splitDownUnavailableReason,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.splitDown),
+                      ),
+                      commandTile(
+                        key: const Key('shell-zoom-pane'),
+                        actionId: TerminalActionId.zoomPane,
+                        icon: Icons.zoom_out_map_rounded,
+                        title: activePaneZoomed
+                            ? 'Unzoom active pane'
+                            : 'Zoom active pane',
+                        subtitle:
+                            'Session action • Focus one pane temporarily.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.zoomPane),
+                      ),
+                      commandTile(
+                        key: const Key('shell-theme-picker'),
+                        actionId: TerminalActionId.openThemePicker,
+                        icon: Icons.palette_rounded,
+                        title: 'Terminal color presets',
+                        subtitle:
+                            'App action • Open Defaults & appearance to choose terminal colors.',
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.openThemePicker),
+                      ),
+                      commandTile(
+                        key: const Key('shell-toggle-command-finished-notify'),
+                        actionId: TerminalActionId.toggleCommandFinishedNotify,
+                        icon: Icons.notifications_active_rounded,
+                        title:
+                            '${commandFinishedNotificationsEnabled ? 'Disable' : 'Enable'} command-finished notifications',
+                        subtitle: notificationsBlockedBySystem
+                            ? 'App action • Toggle shell hook completion alerts. macOS notifications are currently blocked in System Settings.'
+                            : 'App action • Toggle shell hook completion alerts.',
+                        subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.toggleCommandFinishedNotify),
+                      ),
+                      commandTile(
+                        key: const Key('shell-toggle-bell-notify'),
+                        actionId: TerminalActionId.toggleBellNotify,
+                        icon: Icons.notifications_rounded,
+                        title:
+                            '${bellNotificationsEnabled ? 'Disable' : 'Enable'} bell notifications',
+                        subtitle: notificationsBlockedBySystem
+                            ? 'App action • Toggle terminal bell alerts. macOS notifications are currently blocked in System Settings.'
+                            : 'App action • Toggle terminal bell alerts.',
+                        subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.toggleBellNotify),
+                      ),
+                      commandTile(
+                        key: const Key('shell-toggle-activity-monitor'),
+                        actionId: TerminalActionId.toggleActivityMonitor,
+                        icon: Icons.notification_important_rounded,
+                        title:
+                            '${activityMonitorEnabled ? 'Disable' : 'Enable'} activity monitor',
+                        subtitle: notificationsBlockedBySystem
+                            ? 'App action • Toggle inactive-session activity alerts. macOS notifications are currently blocked in System Settings.'
+                            : 'App action • Toggle inactive-session activity alerts.',
+                        subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.toggleActivityMonitor),
+                      ),
+                      commandTile(
+                        key: const Key('shell-command-profiles'),
+                        actionId: TerminalActionId.profiles,
+                        icon: Icons.folder_open_rounded,
+                        title: 'Profiles…',
+                        subtitle: 'App action • Open or edit shell profiles.',
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.profiles),
+                      ),
+                      commandTile(
+                        key: const Key('shell-dynamic-profiles'),
+                        actionId: TerminalActionId.dynamicProfiles,
+                        icon: Icons.data_object_rounded,
+                        title: 'Dynamic profiles',
+                        subtitle:
+                            'App action • Import iTerm-style JSON profiles.',
+                        enabled: true,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.dynamicProfiles),
+                      ),
+                      sectionLabel('Session actions'),
+                      if (!hasActiveSession)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
                             child: Text(
-                              'Open command menu with $launcherShortcutLabel',
-                              style: Theme.of(context).textTheme.labelMedium
+                              'Requires an active shell session.',
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: palette.textSubtle),
                             ),
                           ),
-                        ],
+                        ),
+                      commandTile(
+                        actionId: TerminalActionId.copy,
+                        icon: Icons.copy_rounded,
+                        title: 'Copy selection',
+                        subtitle:
+                            'Session action • Copy the current selection.',
+                        shortcutLabel: sessionCopyShortcutLabel,
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () =>
+                            Navigator.of(context).pop(TerminalActionId.copy),
                       ),
-                    ),
-                  ],
+                      commandTile(
+                        key: const Key('shell-copy-mode'),
+                        actionId: TerminalActionId.copyMode,
+                        icon: Icons.select_all_rounded,
+                        title: 'Copy mode',
+                        subtitle:
+                            'Session action • Select terminal text from the keyboard.',
+                        shortcutLabel: copyModeShortcutLabel,
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.copyMode),
+                      ),
+                      commandTile(
+                        key: const Key('shell-toggle-read-only'),
+                        actionId: TerminalActionId.toggleReadOnly,
+                        icon: Icons.lock_outline_rounded,
+                        title:
+                            '${isActiveSessionReadOnly ? 'Disable' : 'Enable'} read-only mode',
+                        subtitle:
+                            'Session action • Block terminal input for this pane.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.toggleReadOnly),
+                      ),
+                      commandTile(
+                        key: const Key('shell-clear-scrollback'),
+                        actionId: TerminalActionId.clearScrollback,
+                        icon: Icons.clear_all_rounded,
+                        title: 'Clear scrollback',
+                        subtitle:
+                            'Session action • Clear local scrollback when supported.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.clearScrollback),
+                      ),
+                      commandTile(
+                        key: const Key('shell-export-scrollback'),
+                        actionId: TerminalActionId.exportScrollback,
+                        icon: Icons.ios_share_rounded,
+                        title: 'Export scrollback',
+                        subtitle:
+                            'Session action • Save a terminal text snapshot to Application Support.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.exportScrollback),
+                      ),
+                      commandTile(
+                        key: const Key('shell-export-diagnostics'),
+                        actionId: TerminalActionId.exportDiagnostics,
+                        icon: Icons.bug_report_rounded,
+                        title: 'Export diagnostics',
+                        subtitle:
+                            'Session action • Save a local resource evidence bundle.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.exportDiagnostics),
+                      ),
+                      commandTile(
+                        key: const Key('shell-annotations'),
+                        actionId: TerminalActionId.annotations,
+                        icon: Icons.sticky_note_2_rounded,
+                        title: 'Annotations',
+                        subtitle:
+                            'Session action • Attach notes to selected output.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.annotations),
+                      ),
+                      commandTile(
+                        key: const Key('shell-captured-output'),
+                        actionId: TerminalActionId.capturedOutput,
+                        icon: Icons.outbox_rounded,
+                        title: 'Captured output',
+                        subtitle:
+                            'Session action • Review lines matched by triggers.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.capturedOutput),
+                      ),
+                      commandTile(
+                        key: const Key('shell-paste-clipboard'),
+                        actionId: TerminalActionId.paste,
+                        icon: Icons.content_paste_rounded,
+                        title: 'Paste clipboard',
+                        subtitle:
+                            'Session action • Paste clipboard into the shell.',
+                        shortcutLabel: sessionPasteShortcutLabel,
+                        enabled: hasActiveSession && !isActiveSessionReadOnly,
+                        disabledReason: hasActiveSession
+                            ? readOnlySendRequired
+                            : activeSessionRequired,
+                        onTap: () =>
+                            Navigator.of(context).pop(TerminalActionId.paste),
+                      ),
+                      commandTile(
+                        key: const Key('shell-advanced-paste'),
+                        actionId: TerminalActionId.advancedPaste,
+                        icon: Icons.assignment_rounded,
+                        title: 'Advanced paste',
+                        subtitle:
+                            'Session action • Edit and transform text before pasting.',
+                        enabled: hasActiveSession && !isActiveSessionReadOnly,
+                        disabledReason: hasActiveSession
+                            ? readOnlySendRequired
+                            : activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.advancedPaste),
+                      ),
+                      commandTile(
+                        key: const Key('shell-paste-history'),
+                        actionId: TerminalActionId.pasteHistory,
+                        icon: Icons.history_rounded,
+                        title: 'Paste history',
+                        subtitle:
+                            'Session action • Revisit recently copied or pasted text.',
+                        shortcutLabel: pasteHistoryShortcutLabel,
+                        enabled: hasActiveSession && !isActiveSessionReadOnly,
+                        disabledReason: hasActiveSession
+                            ? readOnlySendRequired
+                            : activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.pasteHistory),
+                      ),
+                      commandTile(
+                        key: const Key('shell-integration-utilities'),
+                        actionId: TerminalActionId.shellIntegrationUtilities,
+                        icon: Icons.integration_instructions_rounded,
+                        title: 'Shell integration',
+                        subtitle:
+                            'Session action • Command history, directories, and marks.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.shellIntegrationUtilities),
+                      ),
+                      commandTile(
+                        key: const Key('shell-select-command-output'),
+                        actionId: TerminalActionId.selectCommandOutput,
+                        icon: Icons.fact_check_rounded,
+                        title: 'Select command output',
+                        subtitle:
+                            'Session action • Select output between prompt marks.',
+                        enabled: hasActiveSession && canSelectCommandOutput,
+                        disabledReason: selectCommandOutputUnavailableReason(),
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.selectCommandOutput),
+                      ),
+                      commandTile(
+                        key: const Key('shell-tmux-integration'),
+                        actionId: TerminalActionId.tmuxIntegration,
+                        icon: Icons.account_tree_rounded,
+                        title: 'tmux integration',
+                        subtitle:
+                            'Session action • Start or drive tmux control mode.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.tmuxIntegration),
+                      ),
+                      commandTile(
+                        key: const Key('shell-coprocess'),
+                        actionId: TerminalActionId.coprocess,
+                        icon: Icons.hub_rounded,
+                        title: 'Coprocess',
+                        subtitle:
+                            'Session action • Automate replies from terminal output.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.coprocess),
+                      ),
+                      commandTile(
+                        key: const Key('shell-password-manager'),
+                        actionId: TerminalActionId.passwordManager,
+                        icon: Icons.password_rounded,
+                        title: 'Password manager',
+                        subtitle:
+                            'Session action • Send saved passwords at prompts.',
+                        enabled: hasActiveSession && !isActiveSessionReadOnly,
+                        disabledReason: hasActiveSession
+                            ? readOnlySendRequired
+                            : activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.passwordManager),
+                      ),
+                      commandTile(
+                        key: const Key('shell-instant-replay'),
+                        actionId: TerminalActionId.instantReplay,
+                        icon: Icons.replay_rounded,
+                        title: 'Instant replay',
+                        subtitle:
+                            'Session action • Recover text from recent terminal frames.',
+                        shortcutLabel: instantReplayShortcutLabel,
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.instantReplay),
+                      ),
+                      commandTile(
+                        actionId: TerminalActionId.search,
+                        icon: Icons.search_rounded,
+                        title: 'Search terminal output',
+                        subtitle: 'Session action • Find text in local output.',
+                        shortcutLabel: searchShortcutLabel,
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () =>
+                            Navigator.of(context).pop(TerminalActionId.search),
+                      ),
+                      commandTile(
+                        key: const Key('shell-global-search'),
+                        actionId: TerminalActionId.globalSearch,
+                        icon: Icons.manage_search_rounded,
+                        title: 'Global search',
+                        subtitle: 'Workspace action • Search all tabs at once.',
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.globalSearch),
+                      ),
+                      commandTile(
+                        key: const Key('shell-autocomplete'),
+                        actionId: TerminalActionId.autocomplete,
+                        icon: Icons.auto_fix_high_rounded,
+                        title: 'Autocomplete',
+                        subtitle:
+                            'Session action • Complete a word from visible output.',
+                        shortcutLabel: autocompleteShortcutLabel,
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.autocomplete),
+                      ),
+                      commandTile(
+                        key: const Key('shell-auto-composer'),
+                        actionId: TerminalActionId.autoComposer,
+                        icon: Icons.edit_note_rounded,
+                        title: 'Auto Composer',
+                        subtitle:
+                            'Session action • Native command editor with completions.',
+                        enabled: hasActiveSession && !isActiveSessionReadOnly,
+                        disabledReason: hasActiveSession
+                            ? readOnlySendRequired
+                            : activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.autoComposer),
+                      ),
+                      commandTile(
+                        key: const Key('shell-hotkey-window'),
+                        actionId: TerminalActionId.hotkeyWindow,
+                        icon: Icons.keyboard_rounded,
+                        title: 'Hotkey window',
+                        subtitle:
+                            'App action • Hide this window. Reopen with $hotkeyWindowShortcutLabel.',
+                        shortcutLabel: hotkeyWindowShortcutLabel,
+                        enabled: hotkeyWindowUnavailableReason() == null,
+                        disabledReason: hotkeyWindowUnavailableReason(),
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.hotkeyWindow),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.keyboard_command_key_rounded,
+                              size: 16,
+                              color: palette.textSubtle,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Open command menu with $launcherShortcutLabel',
+                                style: Theme.of(context).textTheme.labelMedium
+                                    ?.copyWith(color: palette.textSubtle),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -73,11 +73,13 @@ final class _InstantReplayWorkspaceSession {
   const _InstantReplayWorkspaceSession({
     required this.sourceSessionId,
     required this.sourceLabel,
+    required this.retentionFrameLimit,
     required this.frames,
   });
 
   final String sourceSessionId;
   final String sourceLabel;
+  final int retentionFrameLimit;
   final List<InstantReplayFrame> frames;
 }
 

@@ -503,6 +503,7 @@ class _InstantReplayWorkspaceState extends State<_InstantReplayWorkspace> {
       key: const Key('instant-replay-controls'),
       sourceLabel: widget.workspace.sourceLabel,
       frameLabel: frameLabel,
+      retentionFrameLimit: widget.workspace.retentionFrameLimit,
       frameCount: widget.workspace.frames.length,
       activeIndex: _activeIndex,
       timelineValue: _timelineValueForDuration(_playheadElapsed),
@@ -667,6 +668,7 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
     super.key,
     required this.sourceLabel,
     required this.frameLabel,
+    required this.retentionFrameLimit,
     required this.frameCount,
     required this.activeIndex,
     required this.timelineValue,
@@ -693,6 +695,7 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
 
   final String sourceLabel;
   final String frameLabel;
+  final int retentionFrameLimit;
   final int frameCount;
   final int activeIndex;
   final double timelineValue;
@@ -765,6 +768,7 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
             final header = _InstantReplayControlHeader(
               sourceLabel: sourceLabel,
               frameDetail: frameDetail,
+              retentionPolicyLabel: _retentionPolicyLabel(retentionFrameLimit),
               palette: palette,
             );
             final timeline = _InstantReplayTimelineDeck(
@@ -834,17 +838,26 @@ class _InstantReplayWorkspaceControls extends StatelessWidget {
     String twoDigits(int value) => value.toString().padLeft(2, '0');
     return '${twoDigits(timestamp.hour)}:${twoDigits(timestamp.minute)}:${twoDigits(timestamp.second)}';
   }
+
+  static String _retentionPolicyLabel(int frameLimit) {
+    if (frameLimit <= 0) {
+      return 'Retention disabled';
+    }
+    return 'Retains latest $frameLimit frame${frameLimit == 1 ? '' : 's'}';
+  }
 }
 
 class _InstantReplayControlHeader extends StatelessWidget {
   const _InstantReplayControlHeader({
     required this.sourceLabel,
     required this.frameDetail,
+    required this.retentionPolicyLabel,
     required this.palette,
   });
 
   final String sourceLabel;
   final String frameDetail;
+  final String retentionPolicyLabel;
   final AppThemeTokens palette;
 
   @override
@@ -872,13 +885,28 @@ class _InstantReplayControlHeader extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(
-            '$sourceLabel • $frameDetail',
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: palette.textSubtle,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$sourceLabel • $frameDetail',
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: palette.textSubtle,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                retentionPolicyLabel,
+                key: const Key('instant-replay-retention-policy'),
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: palette.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       ],

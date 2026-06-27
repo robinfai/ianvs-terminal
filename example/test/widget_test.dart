@@ -1361,7 +1361,7 @@ void main() {
   });
 
   testWidgets(
-    'command-option-b opens replay workspace backed by terminal viewport',
+    'command-option-b opens instant replay workspace backed by terminal viewport',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       String? copiedText;
@@ -1483,6 +1483,11 @@ void main() {
         ),
       );
       expect(find.textContaining('Recorded at 80x24'), findsOneWidget);
+      expect(
+        find.byKey(const Key('instant-replay-retention-policy')),
+        findsOneWidget,
+      );
+      expect(find.text('Retains latest 60 frames'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
       expect(
         windowBridgeCalls.where((call) => call.method == 'windowMetrics'),
@@ -2115,6 +2120,38 @@ void main() {
     expect(find.byKey(const Key('paste-history-sheet')), findsOneWidget);
     expect(find.text('ianvs terminal ready'), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('annotations empty state guides setup before selected text', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-annotations')));
+    await tester.tap(find.byKey(const Key('shell-annotations')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('annotations-sheet')), findsOneWidget);
+    expect(find.byKey(const Key('annotations-empty-state')), findsOneWidget);
+    expect(find.text('Select output before annotating'), findsOneWidget);
+    expect(find.text('Select terminal output in the pane.'), findsOneWidget);
+    expect(find.text('Open Annotations again.'), findsOneWidget);
+    expect(find.text('Enter a note and save it.'), findsOneWidget);
+    expect(find.byKey(const Key('annotations-empty-step-0')), findsOneWidget);
+
+    final saveButton = tester.widget<FilledButton>(
+      find.byKey(const Key('annotation-save')),
+    );
+    expect(saveButton.onPressed, isNull);
   });
 
   testWidgets('annotations attach notes to selected terminal text', (
@@ -2822,6 +2859,85 @@ void main() {
   });
 
   testWidgets(
+    'focused shell semantics expose command search and selected tab',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: const <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'pwd',
+            'pwd': '/tmp/project',
+            'exit_code': 0,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')),
+        matchesSemantics(
+          hasSelectedState: true,
+          isSelected: true,
+          isButton: true,
+        ),
+      );
+      await _openCommandMenu(tester);
+
+      final searchSemantics = tester.getSemantics(
+        find.bySemanticsLabel('Search actions'),
+      );
+      expect(searchSemantics.flagsCollection.isTextField, isTrue);
+    },
+  );
+
+  testWidgets(
+    'command menu supports keyboard-only focus traversal to actions',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openCommandMenu(tester);
+
+      final searchEditable = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byKey(const Key('shell-command-search-field')),
+          matching: find.byType(EditableText),
+        ),
+      );
+      expect(searchEditable.focusNode.hasFocus, isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
+
+  testWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3438,6 +3554,46 @@ void main() {
     },
   );
 
+  testWidgets('captured output empty state guides trigger setup', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      notificationSender: ({required title, body, identifier}) async {},
+    );
+
+    await _openCommandMenu(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-captured-output')));
+    await tester.tap(find.byKey(const Key('shell-captured-output')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
+    expect(
+      find.byKey(const Key('captured-output-empty-state')),
+      findsOneWidget,
+    );
+    expect(find.text('Start capturing matching output'), findsOneWidget);
+    expect(
+      find.text('Open Profiles and add a trigger pattern.'),
+      findsOneWidget,
+    );
+    expect(find.text('Run a command that prints the pattern.'), findsOneWidget);
+    expect(
+      find.text('Reopen Captured Output to review and copy matches.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('captured-output-empty-step-0')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('captured output lists trigger-matched terminal rows', (
     tester,
   ) async {
@@ -3503,11 +3659,10 @@ void main() {
 
     expect(find.byKey(const Key('captured-output-entry-0')), findsNothing);
     expect(
-      find.text(
-        'No trigger output captured yet. Add profile triggers or coprocess patterns to collect matching terminal lines here.',
-      ),
+      find.byKey(const Key('captured-output-empty-state')),
       findsOneWidget,
     );
+    expect(find.text('Start capturing matching output'), findsOneWidget);
   });
 
   testWidgets('captured output stores wrapped logical trigger matches', (
@@ -4006,7 +4161,9 @@ void main() {
     expect(find.byKey(const Key('terminal-auto-composer')), findsNothing);
   });
 
-  testWidgets('shell status bar shows current session context', (tester) async {
+  testWidgets('shell status bar shows current shell integration context', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -4041,11 +4198,20 @@ void main() {
     expect(find.byKey(const Key('shell-status-connection')), findsNothing);
     expect(find.byKey(const Key('shell-status-viewport')), findsOneWidget);
     expect(find.byKey(const Key('shell-status-encoding')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-status-shell-integration')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('terminal-session-badge-1')), findsNothing);
     expect(find.text('/tmp/project'), findsOneWidget);
     expect(find.text('zsh'), findsNothing);
     expect(find.text('Connected'), findsNothing);
     expect(find.text('UTF-8'), findsOneWidget);
+    expect(find.text('SHELL ACTIVE'), findsOneWidget);
+    expect(
+      find.byTooltip('Shell integration is active for this pane.'),
+      findsOneWidget,
+    );
 
     final directoryMenu = tester.widget<PopupMenuButton<String>>(
       find.descendant(
@@ -4060,6 +4226,56 @@ void main() {
     await tester.tap(find.byKey(const Key('shell-status-directory')));
     await tester.pumpAndSettle();
     expect(find.text('Copy full path'), findsOneWidget);
+  });
+
+  testWidgets('shell integration health reports waiting and partial states', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      bindings: fakeBindings,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    expect(
+      find.byKey(const Key('shell-status-shell-integration')),
+      findsOneWidget,
+    );
+    expect(find.text('SHELL WAITING'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        'Shell integration metadata has not arrived for this pane yet.',
+      ),
+      findsOneWidget,
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'shell_hook',
+        sessionId: '1',
+        payload: const <String, Object?>{
+          'hook': 'directory_changed',
+          'pwd': '/tmp/project',
+          'shell': 'zsh',
+          'host': 'workstation.local',
+          'user': 'dev',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.text('SHELL PARTIAL'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        'Shell integration has shell context, but command or prompt metadata has not arrived.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shell status bar shows important active mode tokens', (

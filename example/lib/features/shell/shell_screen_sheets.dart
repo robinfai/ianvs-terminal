@@ -274,13 +274,24 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                 const SizedBox(height: 6),
                 Flexible(
                   child: _entries.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 22),
-                          child: Center(
-                            child: Text(
-                              'No trigger output captured yet. Add profile triggers or coprocess patterns to collect matching terminal lines here.',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: palette.textSubtle),
+                      ? SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: _ShellGuidedEmptyState(
+                              stateKey: const Key(
+                                'captured-output-empty-state',
+                              ),
+                              stepKeyPrefix: 'captured-output-empty-step',
+                              icon: Icons.outbox_rounded,
+                              title: 'Start capturing matching output',
+                              body:
+                                  'Captured rows appear after a profile trigger or coprocess pattern matches terminal output.',
+                              steps: const [
+                                'Open Profiles and add a trigger pattern.',
+                                'Run a command that prints the pattern.',
+                                'Reopen Captured Output to review and copy matches.',
+                              ],
+                              palette: palette,
                             ),
                           ),
                         )
@@ -522,13 +533,31 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                 const SizedBox(height: 6),
                 Flexible(
                   child: _entries.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 20),
-                          child: Center(
-                            child: Text(
-                              'No annotations in this session. Select terminal output first, then open Annotations to attach a note.',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: palette.textSubtle),
+                      ? SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            child: _ShellGuidedEmptyState(
+                              stateKey: const Key('annotations-empty-state'),
+                              stepKeyPrefix: 'annotations-empty-step',
+                              icon: Icons.sticky_note_2_rounded,
+                              title: hasSelection
+                                  ? 'Add the first annotation'
+                                  : 'Select output before annotating',
+                              body: hasSelection
+                                  ? 'Use the note field above to attach a note to the selected terminal output.'
+                                  : 'Annotations are created from selected terminal text in the active pane.',
+                              steps: hasSelection
+                                  ? const [
+                                      'Enter a note for the selected output.',
+                                      'Save the annotation.',
+                                      'Use the annotation badge to reopen notes later.',
+                                    ]
+                                  : const [
+                                      'Select terminal output in the pane.',
+                                      'Open Annotations again.',
+                                      'Enter a note and save it.',
+                                    ],
+                              palette: palette,
                             ),
                           ),
                         )
@@ -552,6 +581,138 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ShellGuidedEmptyState extends StatelessWidget {
+  const _ShellGuidedEmptyState({
+    required this.stateKey,
+    required this.stepKeyPrefix,
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.steps,
+    required this.palette,
+  });
+
+  final Key stateKey;
+  final String stepKeyPrefix;
+  final IconData icon;
+  final String title;
+  final String body;
+  final List<String> steps;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return DecoratedBox(
+      key: stateKey,
+      decoration: BoxDecoration(
+        color: palette.terminalSurface,
+        borderRadius: BorderRadius.circular(palette.radius.md),
+        border: Border.all(color: palette.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, size: 18, color: palette.textMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: textTheme.titleSmall?.copyWith(
+                          color: palette.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        body,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: palette.textSubtle,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            for (final step in steps.indexed) ...[
+              _ShellGuidedEmptyStep(
+                key: Key('$stepKeyPrefix-${step.$1}'),
+                index: step.$1 + 1,
+                text: step.$2,
+                palette: palette,
+              ),
+              if (step.$1 != steps.length - 1) const SizedBox(height: 6),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShellGuidedEmptyStep extends StatelessWidget {
+  const _ShellGuidedEmptyStep({
+    super.key,
+    required this.index,
+    required this.text,
+    required this.palette,
+  });
+
+  final int index;
+  final String text;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.chrome,
+            shape: BoxShape.circle,
+            border: Border.all(color: palette.border),
+          ),
+          child: SizedBox.square(
+            dimension: 22,
+            child: Center(
+              child: Text(
+                '$index',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: palette.textMuted,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: palette.textPrimary,
+              height: 1.25,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

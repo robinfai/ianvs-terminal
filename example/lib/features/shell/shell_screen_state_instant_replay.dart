@@ -99,6 +99,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
           sessionState,
           activeSessionIdBeforeOpen,
         ),
+        retentionFrameLimit: store.frameLimit,
         frames: store.framesForReplay(activeSessionIdBeforeOpen),
       );
     });
@@ -156,6 +157,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
       _instantReplayWorkspaceSession = _InstantReplayWorkspaceSession(
         sourceSessionId: current.sourceSessionId,
         sourceLabel: current.sourceLabel,
+        retentionFrameLimit: current.retentionFrameLimit,
         frames: const <InstantReplayFrame>[],
       );
     });

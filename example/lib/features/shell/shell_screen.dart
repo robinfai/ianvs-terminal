@@ -924,6 +924,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         : statusProfile?.cwd,
                     viewportLabel: statusViewportLabel,
                     modeItems: const <_ShellStatusModeItem>[],
+                    shellIntegrationHealth:
+                        _ShellIntegrationHealth.fromSnapshot(
+                          statusPane.shellIntegration,
+                        ),
                     encodingLabel: 'UTF-8',
                   )
                 else
@@ -942,6 +946,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           displayedSessionId,
                           statusViewportController.frame.modes,
                         ),
+                        shellIntegrationHealth:
+                            _ShellIntegrationHealth.fromSnapshot(
+                              statusPane.shellIntegration,
+                            ),
                         encodingLabel: 'UTF-8',
                       );
                     },
