@@ -603,11 +603,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   }
 
   void _markDirtyFromListener() {
-    if (_didEdit || !mounted) {
+    if (!mounted) {
       return;
     }
     setState(() {
-      _didEdit = true;
+      _didEdit = _hasAnyDirtySection();
     });
   }
 
@@ -1192,16 +1192,198 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     });
   }
 
+  bool _stringListsEqual(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  List<String> _controllerTexts(List<TextEditingController> controllers) {
+    return [for (final controller in controllers) controller.text];
+  }
+
+  List<String> _initialEnvLines() {
+    return [
+      for (final entry in widget.initialValue.launch.env.entries)
+        '${entry.key}=${entry.value}',
+    ];
+  }
+
+  List<String> _currentEnvLines() {
+    return [
+      for (final entry in _envControllers)
+        '${entry.keyController.text}=${entry.valueController.text}',
+    ];
+  }
+
+  bool _isSectionDirty(_ProfileEditorSection section) {
+    final profile = widget.initialValue;
+    return switch (section) {
+      _ProfileEditorSection.general =>
+        _nameController.text != profile.name ||
+            !_stringListsEqual(
+              _normalizedTagsFromText(_tagsController.text),
+              profile.tags,
+            ),
+      _ProfileEditorSection.startup =>
+        _shellController.text != profile.shell ||
+            _cwdController.text != (profile.cwd ?? '') ||
+            !_stringListsEqual(
+              _controllerTexts(_argControllers),
+              profile.args,
+            ) ||
+            !_stringListsEqual(_currentEnvLines(), _initialEnvLines()),
+      _ProfileEditorSection.terminal =>
+        _terminalEmulation != profile.terminalEmulation ||
+            _scrollbackController.text != profile.scrollbackLines.toString(),
+      _ProfileEditorSection.appearance =>
+        _fontFamilyController.text != profile.appearance.font.family ||
+            !_stringListsEqual(
+              _controllerTexts(_fallbackControllers),
+              profile.appearance.font.fallback,
+            ) ||
+            _fontSizeController.text !=
+                profile.appearance.font.size.toString() ||
+            _lineHeightController.text !=
+                profile.appearance.font.lineHeight.toString() ||
+            _cursorShape != profile.appearance.cursor.shape ||
+            _cursorBlink != profile.appearance.cursor.blink ||
+            _allColorFieldSpecs.any(
+              (spec) =>
+                  _colorControllerForSpec(spec).text !=
+                  (_colorValueForSpec(profile.appearance.colors, spec) ?? ''),
+            ),
+      _ProfileEditorSection.keys =>
+        _copyOnSelect != profile.interaction.copyOnSelect ||
+            _optionDragMode != profile.interaction.optionDragMode,
+      _ProfileEditorSection.automation =>
+        _triggersController.text !=
+                profile.triggers.map(_triggerLineFor).join('\n') ||
+            _switchRulesController.text !=
+                profile.switchRules.map(_switchRuleLineFor).join('\n'),
+      _ProfileEditorSection.advanced =>
+        _shellIntegrationEnabled !=
+            profile.sessionConfig.shellIntegration.enabled,
+    };
+  }
+
+  bool _hasAnyDirtySection() {
+    return _profileEditorSections.any((spec) => _isSectionDirty(spec.section));
+  }
+
+  int _dirtySectionCount() {
+    return _profileEditorSections
+        .where((spec) => _isSectionDirty(spec.section))
+        .length;
+  }
+
+  void _replaceStringListControllers(
+    List<TextEditingController> controllers,
+    Iterable<String> values,
+  ) {
+    _disposeControllers(controllers);
+    controllers
+      ..clear()
+      ..addAll(values.map((value) => _trackedController(text: value)));
+  }
+
+  void _replaceEnvControllers(Map<String, String> values) {
+    for (final entry in _envControllers) {
+      entry.dispose();
+    }
+    _envControllers
+      ..clear()
+      ..addAll(
+        values.entries.map(
+          (entry) => _trackedEnvEntry(key: entry.key, value: entry.value),
+        ),
+      );
+  }
+
+  void _resetSection(_ProfileEditorSection section) {
+    final profile = widget.initialValue;
+    switch (section) {
+      case _ProfileEditorSection.general:
+        _setControllerText(_nameController, profile.name);
+        _setControllerText(_tagsController, profile.tags.join(', '));
+      case _ProfileEditorSection.startup:
+        _setControllerText(_shellController, profile.shell);
+        _setControllerText(_cwdController, profile.cwd ?? '');
+        _replaceStringListControllers(_argControllers, profile.args);
+        _replaceEnvControllers(profile.launch.env);
+      case _ProfileEditorSection.terminal:
+        _terminalEmulation = profile.terminalEmulation;
+        _setControllerText(
+          _scrollbackController,
+          profile.scrollbackLines.toString(),
+        );
+      case _ProfileEditorSection.appearance:
+        _setControllerText(
+          _fontFamilyController,
+          profile.appearance.font.family,
+        );
+        _replaceStringListControllers(
+          _fallbackControllers,
+          profile.appearance.font.fallback,
+        );
+        _setControllerText(
+          _fontSizeController,
+          profile.appearance.font.size.toString(),
+        );
+        _setControllerText(
+          _lineHeightController,
+          profile.appearance.font.lineHeight.toString(),
+        );
+        for (final spec in _allColorFieldSpecs) {
+          _setControllerText(
+            _colorControllerForSpec(spec),
+            _colorValueForSpec(profile.appearance.colors, spec) ?? '',
+          );
+          _colorErrors[spec.fieldKey] = null;
+        }
+        _cursorShape = profile.appearance.cursor.shape;
+        _cursorBlink = profile.appearance.cursor.blink;
+      case _ProfileEditorSection.keys:
+        _copyOnSelect = profile.interaction.copyOnSelect;
+        _optionDragMode = profile.interaction.optionDragMode;
+      case _ProfileEditorSection.automation:
+        _setControllerText(
+          _triggersController,
+          profile.triggers.map(_triggerLineFor).join('\n'),
+        );
+        _setControllerText(
+          _switchRulesController,
+          profile.switchRules.map(_switchRuleLineFor).join('\n'),
+        );
+      case _ProfileEditorSection.advanced:
+        _shellIntegrationEnabled =
+            profile.sessionConfig.shellIntegration.enabled;
+    }
+
+    setState(() {
+      _didEdit = _hasAnyDirtySection();
+    });
+  }
+
   Widget _buildSectionNavigation({required bool vertical}) {
     final theme = context.appTheme;
     final matchingSections = _matchingSectionSpecs();
+    final dirtySectionCount = _dirtySectionCount();
     final children = [
       for (final spec in matchingSections)
         _ProfileEditorSectionNavItem(
           key: Key('profile-editor-nav-${spec.section.name}'),
           spec: spec,
           selected: _activeSection == spec.section,
+          dirty: _isSectionDirty(spec.section),
           vertical: vertical,
+          onReset: () => _resetSection(spec.section),
           onTap: () => unawaited(_jumpToSection(spec.section)),
         ),
     ];
@@ -1246,6 +1428,19 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             ),
           )
         : const SizedBox.shrink();
+    final dirtySummary = dirtySectionCount > 0
+        ? Padding(
+            padding: EdgeInsets.only(top: theme.spacing.xs),
+            child: Text(
+              '$dirtySectionCount modified section${dirtySectionCount == 1 ? '' : 's'}',
+              key: const Key('profile-editor-dirty-summary'),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: theme.warning,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          )
+        : const SizedBox.shrink();
     final emptyState = matchingSections.isEmpty
         ? Padding(
             padding: EdgeInsets.only(top: theme.spacing.sm),
@@ -1270,6 +1465,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           children: [
             searchField,
             resultSummary,
+            dirtySummary,
             if (matchingSections.isNotEmpty) ...[
               SizedBox(height: theme.spacing.sm),
               Wrap(
@@ -1294,6 +1490,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         children: [
           searchField,
           resultSummary,
+          dirtySummary,
           if (matchingSections.isNotEmpty) ...[
             SizedBox(height: theme.spacing.sm),
             ...children,
@@ -2274,13 +2471,17 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
     super.key,
     required this.spec,
     required this.selected,
+    required this.dirty,
     required this.vertical,
+    required this.onReset,
     required this.onTap,
   });
 
   final _ProfileEditorSectionSpec spec;
   final bool selected;
+  final bool dirty;
   final bool vertical;
+  final VoidCallback onReset;
   final VoidCallback onTap;
 
   @override
@@ -2298,7 +2499,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
         SizedBox(width: theme.spacing.sm),
         Flexible(
           child: Text(
-            spec.label,
+            dirty ? '${spec.label} *' : spec.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -2307,13 +2508,27 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
             ),
           ),
         ),
+        if (dirty) ...[
+          SizedBox(width: theme.spacing.xs),
+          Tooltip(
+            message: 'Reset ${spec.label}',
+            child: IconButton(
+              key: Key('profile-editor-reset-${spec.section.name}'),
+              icon: const Icon(Icons.restore, size: 15),
+              color: theme.warning,
+              constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+              padding: EdgeInsets.zero,
+              onPressed: onReset,
+            ),
+          ),
+        ],
       ],
     );
 
     return Semantics(
       button: true,
       selected: selected,
-      label: '${spec.label} profile section',
+      label: '${spec.label} profile section${dirty ? ', modified' : ''}',
       child: Tooltip(
         message: spec.label,
         child: Padding(

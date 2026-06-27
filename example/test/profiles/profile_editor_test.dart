@@ -656,6 +656,106 @@ void main() {
     expect(savedProfile, isNull);
   });
 
+  testWidgets('profile editor summarizes and resets dirty sections', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1200, 820);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await _pumpEditorHarness(
+      tester,
+      initialValue: TerminalProfile(
+        id: 'default',
+        name: 'Local Shell',
+        shell: '/bin/zsh',
+      ),
+      onSaved: (_) {},
+    );
+
+    expect(find.byKey(const Key('profile-editor-dirty-summary')), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-name')),
+      'Work Shell',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 modified section'), findsOneWidget);
+    expect(
+      find.byKey(const Key('profile-editor-reset-general')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-section-search')),
+      'font',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('profile-editor-nav-appearance')));
+    await tester.pumpAndSettle();
+    await _ensureVisible(
+      tester,
+      find.byKey(const Key('profile-editor-font-family')),
+    );
+    final initialFontFamily = tester
+        .widget<TextFormField>(
+          find.byKey(const Key('profile-editor-font-family')),
+        )
+        .controller!
+        .text;
+    await tester.enterText(
+      find.byKey(const Key('profile-editor-font-family')),
+      'Fira Code',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 modified sections'), findsOneWidget);
+    expect(
+      find.byKey(const Key('profile-editor-reset-appearance')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('profile-editor-reset-appearance')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<TextFormField>(
+            find.byKey(const Key('profile-editor-font-family')),
+          )
+          .controller!
+          .text,
+      initialFontFamily,
+    );
+    expect(find.text('1 modified section'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const Key('profile-editor-section-search-clear')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('profile-editor-reset-general')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const Key('profile-editor-name')))
+          .controller!
+          .text,
+      'Local Shell',
+    );
+    expect(find.byKey(const Key('profile-editor-dirty-summary')), findsNothing);
+
+    await tester.tap(find.byTooltip('Close profile editor'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Discard profile changes?'), findsNothing);
+    expect(find.byKey(const Key('profile-editor-dialog')), findsNothing);
+  });
+
   testWidgets('profile editor saves notification and send-text triggers', (
     tester,
   ) async {
