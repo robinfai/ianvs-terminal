@@ -216,7 +216,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       sheetAnimationStyle: animationsEnabled
           ? null
           : AnimationStyle.noAnimation,
-      builder: (sheetContext) => const DynamicProfilesSheet(),
+      builder: (sheetContext) => DynamicProfilesSheet(
+        existingProfiles: ref.read(sessionControllerProvider).profiles,
+      ),
     );
     if (!mounted || result == null) {
       return;
@@ -231,6 +233,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       SnackBar(
         content: Text(
           'Imported ${result.profiles.length} dynamic profile${result.profiles.length == 1 ? '' : 's'}'
+          '${result.replacementCount == 0 ? '' : ' (${result.addedCount} new, ${result.replacementCount} replaced)'}'
           '${result.warningCount == 0 ? '' : ' with ${result.warningCount} warning${result.warningCount == 1 ? '' : 's'}'}',
         ),
       ),

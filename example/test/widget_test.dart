@@ -4776,6 +4776,14 @@ void main() {
         ],
       }),
     );
+    await tester.tap(find.byKey(const Key('dynamic-profiles-preview-action')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('1 profile ready • 1 new • 0 replacements'),
+      findsOneWidget,
+    );
+
     await tester.tap(find.byKey(const Key('dynamic-profiles-import')));
     await tester.pumpAndSettle();
 

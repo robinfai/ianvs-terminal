@@ -140,7 +140,7 @@ void main() {
       find.byKey(const Key('dynamic-profiles-json-field')),
       jsonEncode(const ['not-an-object']),
     );
-    await tester.tap(find.byKey(const Key('dynamic-profiles-import')));
+    await tester.tap(find.byKey(const Key('dynamic-profiles-preview-action')));
     await tester.pump();
 
     expect(find.text('Top-level JSON must be an object.'), findsOneWidget);
@@ -171,15 +171,94 @@ void main() {
         ],
       }),
     );
+    await tester.tap(find.byKey(const Key('dynamic-profiles-preview-action')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('1 profile ready • 1 new • 0 replacements'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('dynamic-profiles-preview-prod-host')),
+      findsOneWidget,
+    );
+    expect(find.text('New profile'), findsOneWidget);
+
     await tester.tap(find.byKey(const Key('dynamic-profiles-import')));
     await tester.pumpAndSettle();
 
     expect(result, isNotNull);
     expect(result!.warningCount, 0);
+    expect(result!.addedCount, 1);
+    expect(result!.replacementCount, 0);
     expect(result!.profiles.single.id, 'prod-host');
     expect(result!.profiles.single.name, 'prod.example.com');
     expect(result!.profiles.single.tags, const ['ssh', 'Dynamic']);
     expect(result!.profiles.single.args, const ['-lc', 'ssh prod.example.com']);
+  });
+
+  testWidgets('dynamic profiles sheet previews profile replacements', (
+    tester,
+  ) async {
+    DynamicProfilesImportResult? result;
+
+    await _pumpDynamicProfilesSheetHarness(
+      tester,
+      existingProfiles: [
+        TerminalProfile(id: 'prod-host', name: 'Old prod', shell: '/bin/zsh'),
+      ],
+      onClosed: (value) => result = value,
+    );
+
+    final importButton = tester.widget<FilledButton>(
+      find.byKey(const Key('dynamic-profiles-import')),
+    );
+    expect(importButton.onPressed, isNull);
+
+    await tester.enterText(
+      find.byKey(const Key('dynamic-profiles-json-field')),
+      jsonEncode({
+        'Profiles': [
+          {
+            'Name': 'prod.example.com',
+            'Guid': 'prod-host',
+            'Custom Command': 'Yes',
+            'Command': 'ssh prod.example.com',
+          },
+          {
+            'Name': 'dev.example.com',
+            'Guid': 'dev-host',
+            'Custom Command': 'Yes',
+            'Command': 'ssh dev.example.com',
+          },
+        ],
+      }),
+    );
+    await tester.tap(find.byKey(const Key('dynamic-profiles-preview-action')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('2 profiles ready • 1 new • 1 replacement'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('dynamic-profiles-preview-prod-host')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('dynamic-profiles-preview-dev-host')),
+      findsOneWidget,
+    );
+    expect(find.text('Replaces existing'), findsOneWidget);
+    expect(find.text('New profile'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('dynamic-profiles-import')));
+    await tester.pumpAndSettle();
+
+    expect(result, isNotNull);
+    expect(result!.profiles, hasLength(2));
+    expect(result!.addedCount, 1);
+    expect(result!.replacementCount, 1);
   });
 }
 
@@ -227,6 +306,7 @@ Future<void> _pumpProfilesSheetHarness(
 
 Future<void> _pumpDynamicProfilesSheetHarness(
   WidgetTester tester, {
+  List<TerminalProfile> existingProfiles = const [],
   required ValueChanged<DynamicProfilesImportResult?> onClosed,
 }) async {
   await tester.pumpWidget(
@@ -245,7 +325,9 @@ Future<void> _pumpDynamicProfilesSheetHarness(
                       context: context,
                       backgroundColor: Colors.transparent,
                       isScrollControlled: true,
-                      builder: (_) => const DynamicProfilesSheet(),
+                      builder: (_) => DynamicProfilesSheet(
+                        existingProfiles: existingProfiles,
+                      ),
                     ),
                   );
                 },
