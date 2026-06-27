@@ -12,6 +12,10 @@ cd example && flutter test test/widget_test.dart --plain-name "shortcut proof ma
 
 Latest result in this worktree: passed.
 
+2026-06-28 rerun:
+
+- `cd example && flutter test test/widget_test.dart test/shell/shell_screen_phase1b_test.dart test/terminal/render_terminal_viewport_test.dart`: passed, 196 tests. This includes `shortcut proof matrix covers planned mac shortcuts`, `cmd-f opens shell search without writing to terminal`, and the related tab/search/pane regressions.
+
 ## Matrix
 
 | Shortcut | Expected action | Automated proof |

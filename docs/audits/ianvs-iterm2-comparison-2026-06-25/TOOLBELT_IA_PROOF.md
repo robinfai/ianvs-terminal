@@ -24,6 +24,10 @@ Latest results in this worktree:
 - `flutter test test/widget_test.dart`: passed, 100 tests.
 - `git diff --check`: passed.
 
+2026-06-28 rerun:
+
+- `cd example && flutter test test/widget_test.dart test/shell/shell_screen_phase1b_test.dart test/terminal/render_terminal_viewport_test.dart`: passed, 196 tests. This includes `toolbelt opens a sidebar with terminal tool shortcuts`, `toolbelt previews shell history and paste sources`, and the paste/history/search regressions that exercise Toolbelt handoffs.
+
 ## Matrix
 
 | Requirement | Result | Automated proof |

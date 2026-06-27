@@ -17,18 +17,20 @@ Capture tools used:
 - Flutter VM service inspector screenshot for production `main.dart` surfaces.
 - Flutter Driver screenshot for `test_driver/main.dart` surfaces.
 
+Post-audit update, 2026-06-28: the missing app-level paste, shortcut, search, tab, pane, profile, Toolbelt, and DPR-snapping proofs called out by this audit have since been covered by automated tests and recorded in `../ianvs-iterm2-comparison-2026-06-25/AUTOMATED_ACCEPTANCE_STATUS_2026-06-28.md`. The foreground launch warning and host accessibility/physical-input risks remain separate environment proof items.
+
 ## Evidence Limits
 
 This audit completed the visible app-flow path through Flutter Driver: startup, command menu, new tab, split right, and search.
 
-Two parts remain limited by the current host session:
+The original 2026-06-03 run was limited by the host session:
 
 - `flutter run -d macos` launched the app, but repeated launches reported `Failed to foreground app; open returned 1`.
 - macOS `screencapture` returned the lock screen, so OS screenshots were rejected.
 - Computer Use initially saw the Ianvs Terminal window, then text input did not reach the terminal and the AX window handle became unavailable.
-- Paste history and multiline paste confirmation were not captured in this run.
+- Paste history and multiline paste confirmation were not captured in that screenshot pass; later automated acceptance now covers the paste policy path.
 
-Because of this, the report treats the Flutter Driver screenshots as accepted visual flow evidence, while keeping real keyboard entry and paste policy as verification gaps.
+Because of this, the report treats the Flutter Driver screenshots as accepted visual flow evidence. Real host keyboard entry, foreground ownership, and AX stability remain environment proof gaps; paste policy is no longer an app-level automated gap.
 
 ## Screenshots
 

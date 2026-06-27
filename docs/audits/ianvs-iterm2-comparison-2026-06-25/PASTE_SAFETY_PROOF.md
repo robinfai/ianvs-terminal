@@ -21,6 +21,12 @@ Latest results in this worktree:
 - `flutter test test/terminal_input_controller_test.dart --plain-name "paste"`: passed.
 - `flutter test test/widget_test.dart`: passed.
 
+2026-06-28 rerun:
+
+- `cd example && flutter test test/widget_test.dart test/shell/shell_screen_phase1b_test.dart test/terminal/render_terminal_viewport_test.dart`: passed, 196 tests. This includes command-menu paste, advanced paste, paste history, saved paste history shortcut, multiline history confirmation, and read-only paste blocking tests from `test/widget_test.dart`.
+- `cd example && flutter test test/shell/shell_screen_phase4_test.dart --plain-name "paste"`: passed, 4 tests.
+- `cd example && flutter test test/terminal_input_controller_test.dart --plain-name "paste"`: passed, 4 tests.
+
 ## Matrix
 
 | Path | Expected safety behavior | Automated proof |

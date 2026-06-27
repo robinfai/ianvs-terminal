@@ -20,6 +20,10 @@ Latest results in this worktree:
 - `flutter test test/shell/shell_screen_phase3_test.dart --plain-name "profile"`: passed.
 - `flutter analyze lib/features/profiles test/profiles`: passed.
 
+2026-06-28 rerun:
+
+- `cd example && flutter test test/profiles test/shell/shell_screen_phase3_test.dart --plain-name "profile"`: passed, 41 tests. This includes the section-navigation jump test and profile/defaults shell entry points.
+
 ## Matrix
 
 | Requirement | Result | Automated proof |

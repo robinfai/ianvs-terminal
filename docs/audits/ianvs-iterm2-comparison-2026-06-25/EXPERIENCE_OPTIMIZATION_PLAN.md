@@ -36,6 +36,15 @@ Official iTerm2 references:
 - https://iterm2.com/documentation-preferences-profiles-keys.html
 - https://iterm2.com/3.0/documentation-menu-items.html
 
+## Current Acceptance Update
+
+Current status as of 2026-06-28:
+
+- The stale app-level gaps for shortcuts, search scope/result count, compact tab overflow, pane header/actions, profile section navigation, paste safety/read-only behavior, and Toolbelt IA are now covered by automated proof. See `AUTOMATED_ACCEPTANCE_STATUS_2026-06-28.md`.
+- The focused rerun passed `test/widget_test.dart`, `test/shell/shell_screen_phase1b_test.dart`, and `test/terminal/render_terminal_viewport_test.dart` with 196 passing tests.
+- Additional focused reruns passed the paste policy, terminal input paste, and profile/profile-shell suites.
+- Remaining proof gaps are host/tooling or hardware/platform dependent: foreground ownership, accessibility-tree bridge noise, physical/global shortcut delivery outside the app process, fractional-display sharpness, Windows/Android keyboard delivery, and quiet-host performance.
+
 ## Short Verdict
 
 Ianvs is already beyond a basic terminal demo. It has a credible local-terminal surface: real shell session, tabs, panes, searchable command menu, status chips, profile editing, theme presets, search overlay, shell-integration-oriented actions, paste/history-oriented actions, instant replay, annotations, captured output, tmux/coprocess entry points, and hotkey-window entry points.
@@ -50,21 +59,21 @@ The immediate opportunity is not to copy iTerm2 wholesale. Ianvs should lean int
 | --- | --- | --- | --- | --- |
 | Launch and window readiness | Mature native launch and window behavior. | App launches and is usable, but debug run still reports `Failed to foreground app; open returned 1`. | Ianvs intent is good, proof is noisy. | Treat foreground launch as P0; capture a clean launch proof on a quiet host. |
 | First screen | Minimal native terminal window; most actions live in menus and shortcuts. | First screen has terminal, tab rail, command-menu button, new-tab button, status chips. | Ianvs is more explicit and product-like; iTerm2 is quieter. | Keep explicit controls, but make density configurable for expert users. |
-| Tabs | Native compact tabs with mature window/menu behavior. | Tabs work; visual model uses large equal-width cells. | Easier targets, lower density. | Add compact tab mode, overflow behavior, close-on-hover, optional tab color. |
-| Panes | `Cmd+D` / `Cmd+Shift+D`, pane title controls, visible active/inactive contrast. | Split right works; viewport updates correctly. Pane chrome is lighter. | Ianvs is functional but less discoverable once many panes exist. | Add stronger active pane cue, optional pane header, split/zoom/close affordance. |
-| Search | Robust find overlay, regex support, global search, Expose-style tab search. | Search overlay opens from command menu; active-pane scope is not obvious. Global search entry exists. | Search works, but scope feedback can confuse users in split panes. | Add scope selector: active pane, current tab, all tabs. Add result count and regex/case controls. |
+| Tabs | Native compact tabs with mature window/menu behavior. | Tabs work; compact/overflow behavior is now covered by widget tests. | Daily density is no longer an app-level acceptance gap; optional tab color remains polish. | Keep compact/overflow regressions; revisit optional color only with real user need. |
+| Panes | `Cmd+D` / `Cmd+Shift+D`, pane title controls, visible active/inactive contrast. | Split right works; active split pane header, active tab title, zoom, and close affordances are tested. | The main discoverability pass is accepted at widget level. | Keep pane header/action regressions; defer broader layout templates. |
+| Search | Robust find overlay, regex support, global search, Expose-style tab search. | Search now has app-level proof for `Cmd+F`, current-tab/all-tabs scope, result count, regex/case modes, and global search jump. | The old split-pane scope confusion is covered by tests; physical shortcut delivery remains host proof. | Keep scope/result/mode regressions and add visual host captures when foreground proof is clean. |
 | Command discovery | Menus, profiles window, preferences, shortcuts. | Command menu is a strong surface: searchable, categorized, shortcut-aware, disabled reasons visible. | Ianvs can surpass iTerm2 for action discoverability. | Make command menu the primary command surface, but reduce first-level overload. |
-| Profiles | Searchable/taggable profile system, deep preferences, profile keys, automatic switching. | Profiles list and editor exist. Current editor covers identity, startup, args/env, automation, emulation, shell integration, typography, fallback fonts, color presets, ANSI colors. | Ianvs has a strong base but needs clearer information architecture. | Split editor into sections/tabs: General, Startup, Terminal, Appearance, Keys, Automation, Advanced. |
+| Profiles | Searchable/taggable profile system, deep preferences, profile keys, automatic switching. | Profiles list and editor exist with section navigation for General, Startup, Terminal, Appearance, Keys, Automation, and Advanced. | Section navigation is accepted; deeper keybinding/import workflows remain future profile architecture. | Continue with profile search, import preview, diff/rollback, and per-section reset only as P3 follow-up. |
 | Dynamic profiles/import | iTerm2 supports dynamic profiles and rich profile workflows. | Dynamic Profiles entry imports iTerm-style JSON. | Good migration hook. | Add import preview, conflict handling, profile diff, export, and rollback. |
-| Keybindings | Deep global and profile key mapping, modifier remap, profile hotkeys. | Action registry has default shortcuts and input policy; UI proof is incomplete. `Cmd+F` did not open search in this run. | Architecture exists; physical shortcut proof is the gap. | Build a shortcut verification matrix and in-app conflict diagnostics. |
+| Keybindings | Deep global and profile key mapping, modifier remap, profile hotkeys. | Shortcut matrix now proves app-level dispatch for the planned macOS shortcut set without terminal input leakage. | Physical/global delivery outside the app process is the remaining gap. | Keep the shortcut matrix and separate host/global shortcut proof from app behavior. |
 | Shell integration | Knows prompt, command, host, cwd; enables prompt nav, recent dirs, command autocomplete, profile switching. | Shell integration toggle and actions exist; status and prompt-aware entries are present. | Product direction matches iTerm2's strongest productivity lane. | Make shell integration health visible per pane and degrade gracefully when unavailable. |
-| Paste safety/history | Paste history, advanced paste, paste warnings and transformations. | Paste, advanced paste, paste history, bracketed paste status, read-only action exist. | Strong plan; current run did not recapture paste confirmation. | Re-verify all paste paths, especially multiline/large paste and read-only mode. |
+| Paste safety/history | Paste history, advanced paste, paste warnings and transformations. | Paste, advanced paste, paste history, bracketed paste, multiline confirmation, and read-only blocking are now covered by automated tests. | Paste safety is accepted at app/input-policy level. | Keep paste regressions; recapture screenshots only for product-design evidence. |
 | Automation/triggers | Triggers, captured output, coprocesses, annotations, password manager. | Profile automation rules, captured output, coprocess, annotations, password manager entries exist. | Ianvs is already tracking the right advanced surfaces. | Graduate these from entries to polished flows with setup templates and diagnostics. |
 | Notifications | Activity, bells, job completion via Notification Center. | Command-finished, bell, and activity monitor toggles exist. | Comparable intent; platform proof needed. | Add notification permission diagnostics and manual evidence for bell/activity/command-finished. |
 | Hotkey window | Dedicated configurable hotkey windows with multiple options. | Hotkey window action exists with `Option+Cmd+Space` label. | Useful target but not mature yet. | Add dedicated settings UI, permission/failure state, and launch/restore proof. |
 | tmux | Deep `tmux -CC` native integration. | tmux integration entry exists. | iTerm2 remains far ahead. | Keep tmux as advanced/future unless current users need it; do not block core UX on parity. |
 | Instant replay | Mature instant replay feature. | Instant replay entry and shortcut exist. | Good differentiator to keep. | Surface it as recovery, with clear timeline and memory policy. |
-| Status/toolbelt | Toolbelt with command history, jobs, profiles, paste history, captured output, recent dirs. | Toolbelt entry exists; bottom status chips show encoding, viewport, paste state, cwd. | Ianvs has a cleaner status baseline. | Make toolbelt a collapsible productivity sidebar, not a menu dump. |
+| Status/toolbelt | Toolbelt with command history, jobs, profiles, paste history, captured output, recent dirs. | Toolbelt now has first-class Commands, Dirs, Output, and Paste panels with tested preview/action paths. | The Toolbelt IA pass is accepted at app level. | Keep Toolbelt regressions; polish advanced empty states separately. |
 | Accessibility | Mature native controls plus terminal-specific complexity. | Command menu and profile editor expose many accessibility labels; screenshots alone cannot prove full reading order. | Promising, incomplete. | Audit keyboard traversal, screen-reader order, text scaling, contrast, focus rings. |
 
 ## Current Ianvs Strengths
@@ -79,14 +88,12 @@ The immediate opportunity is not to copy iTerm2 wholesale. Ianvs should lean int
 ## Key Experience Gaps
 
 1. Launch proof is noisy because foreground activation still reports failure.
-2. Shortcut behavior needs current physical proof. In this run, `Cmd+F` did not visibly open search, while menu-opened search worked.
-3. Search scope is unclear in split panes. Searching the empty active pane while left pane has output returns `No matches`, which can look like broken search.
+2. Accessibility bridge errors appeared in the debug log, so screen-reader and accessibility-tree stability should be verified explicitly.
+3. Physical/global shortcut delivery still needs host proof separate from app-level shortcut dispatch.
 4. Command menu has too many first-level actions. It is powerful but starts to feel like an implementation inventory.
-5. Tab density will not scale well if every tab stays equal-width.
-6. Pane affordances are lighter than iTerm2; expert users may miss close, zoom, focus, and action handles.
-7. Settings/Profile editing is comprehensive but needs a stronger structure before it grows further.
-8. Advanced entries such as tmux, coprocess, captured output, password manager, hotkey window, and global search need visible maturity states.
-9. Accessibility bridge errors appeared in the debug log, so screen-reader and accessibility-tree stability should be verified explicitly.
+5. Settings/Profile editing now has section navigation, but deeper keybinding editing, import diff/rollback, and per-section reset remain future work.
+6. Advanced entries such as tmux, coprocess, captured output, password manager, and hotkey window need visible maturity states.
+7. Host-only evidence still matters for notification banners, foreground ownership, fractional-display sharpness, Windows/Android keyboard delivery, and quiet-host performance.
 
 ## Optimization Plan
 
@@ -96,12 +103,12 @@ Goal: make the current terminal feel dependable before adding breadth.
 
 Tasks:
 
-- Fix or suppress the false `Failed to foreground app; open returned 1` path.
-- Create a repeatable manual capture script for launch, command menu, split, tab, search, paste, profiles, and shortcuts.
-- Build a shortcut proof matrix for `Cmd+T`, `Cmd+D`, `Cmd+Shift+D`, `Cmd+F`, `Cmd+Shift+P`, `Cmd+Shift+H`, `Option+Cmd+B`, and `Option+Cmd+Space`.
-- Re-verify paste confirmation, paste history, advanced paste, bracketed paste, and read-only mode.
-- Add a visible diagnostics state for notification permission, shell integration status, hotkey-window availability, and shortcut conflicts.
-- Reproduce or eliminate the accessibility bridge `AXTree` errors with the command menu, search overlay, Defaults, Profiles, and Profile editor flows.
+- Remaining: fix or fully isolate the false `Failed to foreground app; open returned 1` path on a standard foreground-capable host.
+- Done for current-host proof collection: add app-side foreground activation and a preflight script that separates Flutter SDK foreground failure from direct `open`, AppleScript activation, and actual frontmost ownership.
+- Done: build the shortcut proof matrix for `Cmd+T`, `Cmd+D`, `Cmd+Shift+D`, `Cmd+F`, `Cmd+Shift+P`, `Cmd+Shift+H`, `Option+Cmd+B`, and `Option+Cmd+Space`.
+- Done: re-verify paste confirmation, paste history, advanced paste, bracketed paste, and read-only mode.
+- Partial: notification authorization feedback, shell integration utility state, and hotkey bridge calls have widget proof; native banner delivery and global hotkey availability still need host proof.
+- Remaining: reproduce or eliminate the accessibility bridge `AXTree` errors with the command menu, search overlay, Defaults, Profiles, and Profile editor flows.
 
 Acceptance:
 
@@ -114,12 +121,12 @@ Goal: match iTerm2's everyday flow where users feel friction fastest.
 
 Tasks:
 
-- Add compact tab mode and tab overflow behavior.
-- Add optional tab close-on-hover and tab color support.
-- Add active pane border, focus ring, and optional pane header with close, split, zoom, and actions.
-- Add search scope selector: active pane, current tab, all tabs.
-- Add search result count and toggles for case sensitivity and regex.
-- Make global search a real workspace surface if not already wired: query, per-tab results, jump-to-result.
+- Done: compact tab mode and tab overflow behavior.
+- Partial: close-on-hover behavior is covered; optional tab color remains polish.
+- Done: active pane header with close, split, zoom, and action affordances.
+- Done: search scope selector for active pane/current tab/all tabs.
+- Done: search result count and search modes for case sensitivity and regex.
+- Done: global search query, per-tab result discovery, and jump-to-result behavior.
 
 Acceptance:
 
@@ -133,7 +140,7 @@ Tasks:
 
 - Promote shell integration health into the status bar or pane header.
 - Make command blocks/ranges visible enough to support command output copy and prompt navigation.
-- Add recent directories and command history as first-class toolbelt panels.
+- Done: add recent directories and command history as first-class Toolbelt panels.
 - Turn annotations and captured output into setup-guided flows with empty states.
 - Add instant replay timeline with memory retention policy.
 
@@ -147,7 +154,7 @@ Goal: keep iTerm2-level configurability without turning one modal into a long fo
 
 Tasks:
 
-- Split Profile editor into section navigation: General, Startup, Terminal, Appearance, Keys, Automation, Advanced.
+- Done: split Profile editor into section navigation: General, Startup, Terminal, Appearance, Keys, Automation, Advanced.
 - Add profile search inside settings.
 - Add dirty-state summary and reset/revert per section.
 - Add import preview for iTerm JSON: added, changed, skipped, unsupported fields.
@@ -203,14 +210,14 @@ This lets Ianvs compete on clarity and command-aware workflows while borrowing m
 
 ## Suggested Next Tasks
 
-1. `T-UX-001`: Foreground launch proof and fix.
-2. `T-UX-002`: Shortcut verification matrix.
-3. `T-UX-003`: Search scope selector and result count.
-4. `T-UX-004`: Compact tab mode and overflow behavior.
-5. `T-UX-005`: Pane active-state and action affordance pass.
-6. `T-UX-006`: Profile editor section navigation.
-7. `T-UX-007`: Paste safety recapture and read-only path proof.
-8. `T-UX-008`: Toolbelt IA: command history, recent dirs, captured output, paste history.
+1. `T-UX-001`: Foreground launch proof and fix. Status: partially handled by app-side activation and proof tooling; still host/tooling-limited.
+2. `T-UX-002`: Shortcut verification matrix. Status: accepted by automated proof.
+3. `T-UX-003`: Search scope selector and result count. Status: accepted by automated proof.
+4. `T-UX-004`: Compact tab mode and overflow behavior. Status: accepted by automated proof; optional tab color remains future polish.
+5. `T-UX-005`: Pane active-state and action affordance pass. Status: accepted by automated proof.
+6. `T-UX-006`: Profile editor section navigation. Status: accepted by automated proof.
+7. `T-UX-007`: Paste safety recapture and read-only path proof. Status: accepted by automated proof.
+8. `T-UX-008`: Toolbelt IA: command history, recent dirs, captured output, paste history. Status: accepted by automated proof.
 
 ## Limits
 

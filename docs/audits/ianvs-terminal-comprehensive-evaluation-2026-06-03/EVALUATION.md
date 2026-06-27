@@ -61,6 +61,8 @@ The biggest current weakness is not visual quality. It is confidence at the edge
 - paste safety was proven historically but not recaptured in the latest Product Design pass;
 - `ShellScreen` is doing too much and will slow future product work.
 
+Post-evaluation update, 2026-06-28: app-level shortcut dispatch, `Cmd+F`, search scope/result count/regex/global search, paste safety/read-only behavior, profile section navigation, compact tab overflow, pane header/actions, Toolbelt IA, and DPR snapping have current automated acceptance evidence. See `../ianvs-iterm2-comparison-2026-06-25/AUTOMATED_ACCEPTANCE_STATUS_2026-06-28.md`. The foreground launch warning, physical/global host shortcut delivery, accessibility-tree stability, quiet-host performance, and cross-platform hardware checks remain separate host/platform proof work.
+
 My overall assessment: keep investing. The project has a credible path to becoming a strong macOS local terminal, but it should stabilize proof and complexity before widening into SSH, sync, plugins, or cross-platform support.
 
 ## Scorecard
