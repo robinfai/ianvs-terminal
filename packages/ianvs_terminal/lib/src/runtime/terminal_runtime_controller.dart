@@ -81,6 +81,118 @@ final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
   }
 }
 
+final class TerminalSessionShellContextEvent extends TerminalSessionEvent {
+  TerminalSessionShellContextEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get cwd => _stringValue(rawPayload['cwd']);
+  String? get hostname => _stringValue(rawPayload['hostname']);
+  String? get username => _stringValue(rawPayload['username']);
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+}
+
+final class TerminalSessionShellCommandEvent extends TerminalSessionEvent {
+  TerminalSessionShellCommandEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get eventType => _stringValue(rawPayload['eventType']);
+  String? get command => _stringValue(rawPayload['command']);
+  int? get exitCode => _wholeIntValue(rawPayload['exitCode']);
+  int? get timestamp => _wholeIntValue(rawPayload['timestamp']);
+  int? get cursorLine => _wholeIntValue(rawPayload['cursorLine']);
+  int? get zoneId => _wholeIntValue(rawPayload['zoneId']);
+  String? get zoneType => _stringValue(rawPayload['zoneType']);
+  int? get absRowStart => _wholeIntValue(rawPayload['absRowStart']);
+  int? get absRowEnd => _wholeIntValue(rawPayload['absRowEnd']);
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+}
+
+final class TerminalSessionShellUserVarEvent extends TerminalSessionEvent {
+  TerminalSessionShellUserVarEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get name => _stringValue(rawPayload['name']);
+  String? get value => _stringValue(rawPayload['value']);
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+}
+
+final class TerminalSessionNotificationEvent extends TerminalSessionEvent {
+  TerminalSessionNotificationEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String get title => _stringValue(rawPayload['title']) ?? '';
+  String get message => _stringValue(rawPayload['message']) ?? '';
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+}
+
+final class TerminalSessionProgressEvent extends TerminalSessionEvent {
+  TerminalSessionProgressEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  bool get named => rawPayload['named'] == true;
+  String? get action => _stringValue(rawPayload['action']);
+  String? get id => _stringValue(rawPayload['id']);
+  String? get state => _stringValue(rawPayload['state']);
+  int? get percent => _wholeIntValue(rawPayload['percent']);
+  String? get label => _stringValue(rawPayload['label']);
+  bool get active => state != null && state != 'hidden' && action != 'clear';
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+}
+
+final class TerminalSessionBadgeEvent extends TerminalSessionEvent {
+  TerminalSessionBadgeEvent(super.sessionId, {Map<String, Object?>? rawPayload})
+    : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  String? get source => _stringValue(rawPayload['source']);
+  String? get text => _stringValue(rawPayload['text']);
+
+  static String? _stringValue(Object? value) {
+    return value is String ? value : null;
+  }
+}
+
 enum TerminalClipboardOperation { copy, pasteRequest }
 
 enum TerminalClipboardDecision { allowed, blocked, invalidPayload }
@@ -1187,6 +1299,48 @@ class TerminalRuntimeController {
         case 'shell_hook':
           _events.add(
             TerminalSessionShellHookEvent(sessionId, rawPayload: event.payload),
+          );
+          break;
+        case 'shell_context':
+          _events.add(
+            TerminalSessionShellContextEvent(
+              sessionId,
+              rawPayload: event.payload,
+            ),
+          );
+          break;
+        case 'shell_command':
+          _events.add(
+            TerminalSessionShellCommandEvent(
+              sessionId,
+              rawPayload: event.payload,
+            ),
+          );
+          break;
+        case 'shell_user_var':
+          _events.add(
+            TerminalSessionShellUserVarEvent(
+              sessionId,
+              rawPayload: event.payload,
+            ),
+          );
+          break;
+        case 'session_notification':
+          _events.add(
+            TerminalSessionNotificationEvent(
+              sessionId,
+              rawPayload: event.payload,
+            ),
+          );
+          break;
+        case 'session_progress':
+          _events.add(
+            TerminalSessionProgressEvent(sessionId, rawPayload: event.payload),
+          );
+          break;
+        case 'session_badge':
+          _events.add(
+            TerminalSessionBadgeEvent(sessionId, rawPayload: event.payload),
           );
           break;
         default:

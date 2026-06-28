@@ -412,6 +412,81 @@ fn clipboard_paste_request_profile() -> TerminalProfile {
     )
 }
 
+fn osc7_shell_context_profile(emulation: TerminalEmulation) -> TerminalProfile {
+    local_profile(
+        "osc7-shell-context",
+        "OSC7 Shell Context",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]7;file://alice@remote.example.com/tmp/ianvs%20project\x07")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        emulation,
+    )
+}
+
+fn osc1337_current_dir_profile() -> TerminalProfile {
+    local_profile(
+        "osc1337-current-dir",
+        "OSC1337 CurrentDir",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]1337;CurrentDir=/tmp/ianvs%20current\x07")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc133_shell_command_profile() -> TerminalProfile {
+    local_profile(
+        "osc133-shell-command",
+        "OSC133 Shell Command",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033]133;A\\a\\033]133;B\\a\\033]133;C;echo ok\\aoutput\\n\\033]133;D;7\\a'"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc1337_remote_host_user_var_profile() -> TerminalProfile {
+    local_profile(
+        "osc1337-remote-user-var",
+        "OSC1337 RemoteHost SetUserVar",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033]1337;RemoteHost=deploy@example.internal\\a\\033]1337;SetUserVar=IANVS_TEST=aGVsbG8=\\a'"
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc_notification_progress_badge_profile() -> TerminalProfile {
+    local_profile(
+        "osc-notification-progress-badge",
+        "OSC Notification Progress Badge",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import sys; sys.stdout.buffer.write(b"\x1b]9;Build finished\x07\x1b]777;notify;Deploy;Done\x07\x1b]9;4;1;55\x07\x1b]934;set;build;percent=80;label=Compiling\x07\x1b]1337;SetBadgeFormat=QnVpbGQ=\x07")'"#
+                .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn apc_unsupported_noop_profile() -> TerminalProfile {
     local_profile(
         "apc-unsupported-noop",
@@ -708,6 +783,28 @@ fn wait_for_event(session_id: u64, kind: &str) -> serde_json::Value {
         thread::sleep(Duration::from_millis(100));
     }
     panic!("timed out waiting for event {kind:?}");
+}
+
+fn collect_events_until(
+    session_id: u64,
+    predicate: impl Fn(&[serde_json::Value]) -> bool,
+) -> Vec<serde_json::Value> {
+    let mut collected = Vec::new();
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        let events = session::poll_events(session_id).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&events).unwrap();
+        if let Some(entries) = parsed.as_array() {
+            collected.extend(entries.iter().cloned());
+        }
+        if predicate(&collected) {
+            return collected;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    panic!(
+        "timed out waiting for event batch: {}",
+        serde_json::to_string_pretty(&collected).unwrap()
+    );
 }
 
 fn wait_for_shell_hook(session_id: u64, hook: &str) -> serde_json::Value {
@@ -3870,6 +3967,218 @@ fn vt220_sessions_do_not_emit_clipboard_paste_requests_from_osc_52_queries() {
     .unwrap();
 
     assert_event_kind_never_arrives(session_id, "clipboard_paste_request");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_shell_context_from_osc_7() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc7_shell_context_profile(TerminalEmulation::Xterm256)).unwrap(),
+    )
+    .unwrap();
+
+    let event = wait_for_event(session_id, "shell_context");
+    assert_eq!(event["payload"]["source"].as_str(), Some("osc7"));
+    assert_eq!(event["payload"]["cwd"].as_str(), Some("/tmp/ianvs project"));
+    assert_eq!(
+        event["payload"]["hostname"].as_str(),
+        Some("remote.example.com")
+    );
+    assert_eq!(event["payload"]["username"].as_str(), Some("alice"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn vt220_sessions_do_not_emit_shell_context_from_osc_7() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc7_shell_context_profile(TerminalEmulation::Vt220)).unwrap(),
+    )
+    .unwrap();
+
+    assert_event_kind_never_arrives(session_id, "shell_context");
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_shell_context_from_osc_1337_current_dir() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc1337_current_dir_profile()).unwrap())
+            .unwrap();
+
+    let event = wait_for_event(session_id, "shell_context");
+    assert_eq!(
+        event["payload"]["source"].as_str(),
+        Some("osc1337_current_dir")
+    );
+    assert_eq!(event["payload"]["cwd"].as_str(), Some("/tmp/ianvs current"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_shell_command_events_from_osc_133() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc133_shell_command_profile()).unwrap())
+            .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("command_executed")
+        }) && events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("command_finished")
+        }) && events.iter().any(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("zone_closed")
+                && event["payload"]["zoneType"].as_str() == Some("output")
+        })
+    });
+    let executed = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("command_executed")
+        })
+        .expect("expected command_executed event");
+    assert_eq!(executed["payload"]["command"].as_str(), Some("echo ok"));
+
+    let finished = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("command_finished")
+        })
+        .expect("expected command_finished event");
+    assert_eq!(finished["payload"]["exitCode"].as_i64(), Some(7));
+
+    let zone = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_command"
+                && event["payload"]["eventType"].as_str() == Some("zone_closed")
+                && event["payload"]["zoneType"].as_str() == Some("output")
+        })
+        .expect("expected output zone_closed event");
+    assert_eq!(zone["payload"]["exitCode"].as_i64(), Some(7));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_remote_host_and_user_var_from_osc_1337() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc1337_remote_host_user_var_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "shell_context"
+                && event["payload"]["source"].as_str() == Some("osc1337_remote_host")
+        }) && events.iter().any(|event| event["kind"] == "shell_user_var")
+    });
+    let context = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "shell_context"
+                && event["payload"]["source"].as_str() == Some("osc1337_remote_host")
+        })
+        .expect("expected remote host context");
+    assert_eq!(
+        context["payload"]["hostname"].as_str(),
+        Some("example.internal")
+    );
+    assert_eq!(context["payload"]["username"].as_str(), Some("deploy"));
+
+    let user_var = events
+        .iter()
+        .find(|event| event["kind"] == "shell_user_var")
+        .expect("expected user var event");
+    assert_eq!(user_var["payload"]["name"].as_str(), Some("IANVS_TEST"));
+    assert_eq!(user_var["payload"]["value"].as_str(), Some("hello"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_notification_progress_and_badge_events_from_osc() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&osc_notification_progress_badge_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "session_notification"
+                && event["payload"]["message"].as_str() == Some("Build finished")
+        }) && events.iter().any(|event| {
+            event["kind"] == "session_notification"
+                && event["payload"]["title"].as_str() == Some("Deploy")
+        }) && events.iter().any(|event| {
+            event["kind"] == "session_progress"
+                && event["payload"]["source"].as_str() == Some("osc9;4")
+        }) && events.iter().any(|event| {
+            event["kind"] == "session_progress"
+                && event["payload"]["source"].as_str() == Some("osc934")
+        }) && events.iter().any(|event| event["kind"] == "session_badge")
+    });
+    let osc9_notification = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "session_notification"
+                && event["payload"]["message"].as_str() == Some("Build finished")
+        })
+        .expect("expected OSC 9 notification");
+    assert_eq!(osc9_notification["payload"]["title"].as_str(), Some(""));
+
+    let osc777_notification = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "session_notification"
+                && event["payload"]["title"].as_str() == Some("Deploy")
+        })
+        .expect("expected OSC 777 notification");
+    assert_eq!(
+        osc777_notification["payload"]["message"].as_str(),
+        Some("Done")
+    );
+
+    let primary_progress = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "session_progress"
+                && event["payload"]["source"].as_str() == Some("osc9;4")
+        })
+        .expect("expected OSC 9;4 progress");
+    assert_eq!(
+        primary_progress["payload"]["state"].as_str(),
+        Some("normal")
+    );
+    assert_eq!(primary_progress["payload"]["percent"].as_u64(), Some(55));
+
+    let named_progress = events
+        .iter()
+        .find(|event| {
+            event["kind"] == "session_progress"
+                && event["payload"]["source"].as_str() == Some("osc934")
+        })
+        .expect("expected OSC 934 named progress");
+    assert_eq!(named_progress["payload"]["id"].as_str(), Some("build"));
+    assert_eq!(named_progress["payload"]["percent"].as_u64(), Some(80));
+    assert_eq!(
+        named_progress["payload"]["label"].as_str(),
+        Some("Compiling")
+    );
+
+    let badge = events
+        .iter()
+        .find(|event| event["kind"] == "session_badge")
+        .expect("expected badge event");
+    assert_eq!(badge["payload"]["text"].as_str(), Some("Build"));
 
     session::close_session(session_id).unwrap();
 }

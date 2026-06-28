@@ -14,6 +14,12 @@ class _ShellStatusBar extends StatelessWidget {
     this.linkTooltip,
     this.osc52Label,
     this.osc52Tooltip,
+    this.remoteLabel,
+    this.remoteTooltip,
+    this.progressLabel,
+    this.progressTooltip,
+    this.badgeLabel,
+    this.badgeTooltip,
   });
 
   final AppThemeTokens palette;
@@ -27,6 +33,12 @@ class _ShellStatusBar extends StatelessWidget {
   final String? linkTooltip;
   final String? osc52Label;
   final String? osc52Tooltip;
+  final String? remoteLabel;
+  final String? remoteTooltip;
+  final String? progressLabel;
+  final String? progressTooltip;
+  final String? badgeLabel;
+  final String? badgeTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +97,43 @@ class _ShellStatusBar extends StatelessWidget {
           monospace: true,
           highlighted: true,
           maxWidth: 190,
+        ),
+      if (remoteLabel != null)
+        _ShellStatusItem(
+          key: const Key('shell-status-remote'),
+          palette: palette,
+          tone: tone,
+          label: remoteLabel!,
+          tooltip: remoteTooltip,
+          semanticsLabel:
+              'Remote shell context: ${remoteTooltip ?? remoteLabel}',
+          monospace: true,
+          highlighted: true,
+          maxWidth: 190,
+        ),
+      if (progressLabel != null)
+        _ShellStatusItem(
+          key: const Key('shell-status-progress'),
+          palette: palette,
+          tone: tone,
+          label: progressLabel!,
+          tooltip: progressTooltip,
+          semanticsLabel: 'Terminal progress status: $progressLabel',
+          monospace: true,
+          highlighted: true,
+          maxWidth: 190,
+        ),
+      if (badgeLabel != null)
+        _ShellStatusItem(
+          key: const Key('shell-status-badge'),
+          palette: palette,
+          tone: tone,
+          label: badgeLabel!,
+          tooltip: badgeTooltip,
+          semanticsLabel: 'Terminal badge: $badgeLabel',
+          monospace: true,
+          highlighted: true,
+          maxWidth: 170,
         ),
       _ShellStatusItem(
         key: const Key('shell-status-shell-integration'),

@@ -279,6 +279,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ? activePane
         : displayedTab?.paneFor(displayedSessionId) ?? activePane;
     final statusDirectory = statusPane?.shellIntegration.currentDirectory;
+    final statusRemoteHost = statusPane?.shellIntegration.hostname?.trim();
+    final statusRemoteUser = statusPane?.shellIntegration.username?.trim();
+    final statusBadge = statusPane?.oscBadge?.trim();
+    final statusProgress = statusPane?.progress;
     final statusProfile = statusPane == null
         ? null
         : _profileForPane(statusPane, sessionState.profiles);
@@ -956,6 +960,35 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     linkTooltip: _terminalLinkStatusTooltip,
                     osc52Label: _lastOsc52StatusLabel,
                     osc52Tooltip: _lastOsc52StatusTooltip,
+                    remoteLabel:
+                        statusRemoteHost != null && statusRemoteHost.isNotEmpty
+                        ? 'REMOTE ${_shortStatusValue(statusRemoteHost)}'
+                        : null,
+                    remoteTooltip:
+                        statusRemoteHost != null && statusRemoteHost.isNotEmpty
+                        ? [
+                            'Remote context reported by shell integration.',
+                            'Host: $statusRemoteHost',
+                            if (statusRemoteUser != null &&
+                                statusRemoteUser.isNotEmpty)
+                              'User: $statusRemoteUser',
+                            'Local file actions stay disabled for remote paths.',
+                          ].join('\n')
+                        : null,
+                    progressLabel:
+                        statusProgress != null && statusProgress.active
+                        ? statusProgress.displayLabel
+                        : null,
+                    progressTooltip:
+                        statusProgress != null && statusProgress.active
+                        ? _progressStatusTooltip(statusProgress)
+                        : null,
+                    badgeLabel: statusBadge != null && statusBadge.isNotEmpty
+                        ? 'BADGE ${_shortStatusValue(statusBadge)}'
+                        : null,
+                    badgeTooltip: statusBadge != null && statusBadge.isNotEmpty
+                        ? 'OSC 1337 badge: $statusBadge'
+                        : null,
                   )
                 else
                   ListenableBuilder(
@@ -982,6 +1015,39 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         linkTooltip: _terminalLinkStatusTooltip,
                         osc52Label: _lastOsc52StatusLabel,
                         osc52Tooltip: _lastOsc52StatusTooltip,
+                        remoteLabel:
+                            statusRemoteHost != null &&
+                                statusRemoteHost.isNotEmpty
+                            ? 'REMOTE ${_shortStatusValue(statusRemoteHost)}'
+                            : null,
+                        remoteTooltip:
+                            statusRemoteHost != null &&
+                                statusRemoteHost.isNotEmpty
+                            ? [
+                                'Remote context reported by shell integration.',
+                                'Host: $statusRemoteHost',
+                                if (statusRemoteUser != null &&
+                                    statusRemoteUser.isNotEmpty)
+                                  'User: $statusRemoteUser',
+                                'Local file actions stay disabled for remote paths.',
+                              ].join('\n')
+                            : null,
+                        progressLabel:
+                            statusProgress != null && statusProgress.active
+                            ? statusProgress.displayLabel
+                            : null,
+                        progressTooltip:
+                            statusProgress != null && statusProgress.active
+                            ? _progressStatusTooltip(statusProgress)
+                            : null,
+                        badgeLabel:
+                            statusBadge != null && statusBadge.isNotEmpty
+                            ? 'BADGE ${_shortStatusValue(statusBadge)}'
+                            : null,
+                        badgeTooltip:
+                            statusBadge != null && statusBadge.isNotEmpty
+                            ? 'OSC 1337 badge: $statusBadge'
+                            : null,
                       );
                     },
                   ),

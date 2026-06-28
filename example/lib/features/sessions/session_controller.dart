@@ -862,6 +862,23 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionShellHookEvent():
         _applyShellHook(event);
         break;
+      case TerminalSessionShellContextEvent():
+        _applyShellContext(event);
+        break;
+      case TerminalSessionShellCommandEvent():
+        _applyShellCommand(event);
+        break;
+      case TerminalSessionShellUserVarEvent():
+        _applyShellUserVar(event);
+        break;
+      case TerminalSessionNotificationEvent():
+        break;
+      case TerminalSessionProgressEvent():
+        _applySessionProgress(event);
+        break;
+      case TerminalSessionBadgeEvent():
+        _applySessionBadge(event);
+        break;
       case TerminalSessionClipboardEvent():
         break;
     }
@@ -918,6 +935,135 @@ class SessionController extends Notifier<SessionState> {
     _applyAutomaticProfileSwitch(event.sessionId, nextIntegration);
   }
 
+  void _applyShellContext(TerminalSessionShellContextEvent event) {
+    final currentPane = _paneForSession(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    final cwd = _trimShellHookValue(event.cwd);
+    final hostname = _trimShellHookValue(event.hostname);
+    final username = _trimShellHookValue(event.username);
+    if (cwd == null && hostname == null && username == null) {
+      return;
+    }
+    final nextDirectories = _prependRecentShellValue(
+      currentPane.shellIntegration.recentDirectories,
+      cwd,
+      limit: 40,
+    );
+    final nextIntegration = currentPane.shellIntegration.copyWith(
+      currentDirectory: cwd ?? currentPane.shellIntegration.currentDirectory,
+      hostname: hostname ?? currentPane.shellIntegration.hostname,
+      username: username ?? currentPane.shellIntegration.username,
+      recentDirectories: nextDirectories,
+    );
+    _replaceSessionPane(
+      event.sessionId,
+      currentPane.copyWith(shellIntegration: nextIntegration),
+    );
+    _applyAutomaticProfileSwitch(event.sessionId, nextIntegration);
+  }
+
+  void _applyShellCommand(TerminalSessionShellCommandEvent event) {
+    final currentPane = _paneForSession(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    final eventType = _trimShellHookValue(event.eventType);
+    if (eventType == null) {
+      return;
+    }
+    final current = currentPane.shellIntegration;
+    final command = _trimShellHookValue(event.command) ?? current.lastCommand;
+    final promptOffset = event.cursorLine;
+    final nextPromptMarks = eventType == 'prompt_start' && promptOffset != null
+        ? _promptMarksForValues(
+            current.promptMarks,
+            promptOffset: promptOffset,
+            command: command,
+            cwd: current.currentDirectory,
+          )
+        : current.promptMarks;
+    final shouldTrackCommand =
+        eventType == 'command_start' ||
+        eventType == 'command_executed' ||
+        eventType == 'command_finished' ||
+        (eventType == 'zone_closed' && event.zoneType == 'output');
+    if (!shouldTrackCommand &&
+        identical(nextPromptMarks, current.promptMarks)) {
+      return;
+    }
+    final nextCommands = _prependRecentShellValue(
+      current.recentCommands,
+      shouldTrackCommand ? command : null,
+      limit: 40,
+    );
+    final nextIntegration = current.copyWith(
+      lastCommand: shouldTrackCommand ? command : current.lastCommand,
+      lastExitCode: event.exitCode ?? current.lastExitCode,
+      recentCommands: nextCommands,
+      promptMarks: nextPromptMarks,
+    );
+    _replaceSessionPane(
+      event.sessionId,
+      currentPane.copyWith(shellIntegration: nextIntegration),
+    );
+  }
+
+  void _applyShellUserVar(TerminalSessionShellUserVarEvent event) {
+    final name = _trimShellHookValue(event.name);
+    final value = _trimShellHookValue(event.value);
+    if (name == null || value == null || !_oscUserVarAllowed(name)) {
+      return;
+    }
+    final currentPane = _paneForSession(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    final nextVariables = <String, String>{
+      ...currentPane.shellIntegration.userVariables,
+      name: value,
+    };
+    final nextIntegration = currentPane.shellIntegration.copyWith(
+      userVariables: Map.unmodifiable(nextVariables),
+    );
+    _replaceSessionPane(
+      event.sessionId,
+      currentPane.copyWith(shellIntegration: nextIntegration),
+    );
+  }
+
+  void _applySessionBadge(TerminalSessionBadgeEvent event) {
+    final currentPane = _paneForSession(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    final text = _trimShellHookValue(event.text);
+    _replaceSessionPane(event.sessionId, currentPane.copyWith(oscBadge: text));
+  }
+
+  void _applySessionProgress(TerminalSessionProgressEvent event) {
+    final currentPane = _paneForSession(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    final progress = event.active
+        ? TerminalPaneProgressState(
+            source: event.source ?? 'osc',
+            named: event.named,
+            action: event.action ?? 'set',
+            id: _trimShellHookValue(event.id),
+            state: _trimShellHookValue(event.state),
+            percent: event.percent,
+            label: _trimShellHookValue(event.label),
+          )
+        : null;
+    _replaceSessionPane(
+      event.sessionId,
+      currentPane.copyWith(progress: progress),
+    );
+  }
+
   TerminalShellIntegrationSnapshot _shellIntegrationForHook(
     TerminalShellIntegrationSnapshot current,
     TerminalSessionShellHookEvent event,
@@ -968,7 +1114,23 @@ class SessionController extends Notifier<SessionState> {
     if (promptOffset == null || promptOffset < 0) {
       return current;
     }
+    return _promptMarksForValues(
+      current,
+      promptOffset: promptOffset,
+      command: command,
+      cwd: cwd,
+    );
+  }
 
+  List<TerminalShellPromptMark> _promptMarksForValues(
+    List<TerminalShellPromptMark> current, {
+    required int promptOffset,
+    required String? command,
+    required String? cwd,
+  }) {
+    if (promptOffset < 0) {
+      return current;
+    }
     final nextMarks = <TerminalShellPromptMark>[
       for (final mark in current)
         if (mark.scrollbackOffset != promptOffset) mark,
@@ -985,6 +1147,34 @@ class SessionController extends Notifier<SessionState> {
       (a, b) => a.scrollbackOffset.compareTo(b.scrollbackOffset),
     );
     return boundedMarks;
+  }
+
+  void _replaceSessionPane(String sessionId, TerminalPane replacement) {
+    final tabIndex = _tabIndexContainingSession(sessionId);
+    if (tabIndex == -1) {
+      return;
+    }
+    final currentTab = state.tabs[tabIndex];
+    final nextTabs = <TerminalTab>[...state.tabs];
+    if (currentTab.panes.isEmpty && currentTab.sessionId == sessionId) {
+      nextTabs[tabIndex] = currentTab.copyWith(
+        title: replacement.title,
+        profileId: replacement.profileId,
+        profileSnapshot: replacement.profileSnapshot,
+        isExited: replacement.isExited,
+        exitCode: replacement.exitCode,
+        shellIntegration: replacement.shellIntegration,
+        oscBadge: replacement.oscBadge,
+        progress: replacement.progress,
+      );
+    } else {
+      nextTabs[tabIndex] = currentTab.replacePane(replacement);
+    }
+    state = state.copyWith(tabs: nextTabs);
+  }
+
+  bool _oscUserVarAllowed(String name) {
+    return name.startsWith('IANVS_');
   }
 
   List<String> _prependRecentShellValue(

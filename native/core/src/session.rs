@@ -14,7 +14,8 @@ use par_term_emu_core_rust::graphics::{
 use par_term_emu_core_rust::grid::{Grid, ScrollRegionDamage};
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::{
-    Terminal, TerminalDamage, TerminalProcessDebugStats, snapshot::ExportFormat,
+    Terminal, TerminalDamage, TerminalEvent as ParserTerminalEvent, TerminalProcessDebugStats,
+    snapshot::ExportFormat,
 };
 use parking_lot::Mutex;
 use regex::RegexBuilder;
@@ -101,6 +102,13 @@ enum CallbackEvent {
     ClipboardCopy { selection: String, data: String },
     ClipboardPasteRequest { selection: String },
     ShellHook { payload: serde_json::Value },
+    ShellContext { payload: serde_json::Value },
+    ShellCommand { payload: serde_json::Value },
+    ShellUserVar { name: String, value: String },
+    SessionNotification { title: String, message: String },
+    SessionProgress { payload: serde_json::Value },
+    SessionBadge { text: Option<String> },
+    Bell,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -599,6 +607,18 @@ impl HostProtocolState {
                     }
                 }
             }
+            b"9" => {
+                if let Some(payload) = primary_progress_payload_from_osc9(remainder) {
+                    events.push(CallbackEvent::SessionProgress { payload });
+                }
+            }
+            b"1337" => {
+                if let Ok(data) = std::str::from_utf8(remainder) {
+                    if let Some(payload) = shell_context_payload_from_current_dir(data) {
+                        events.push(CallbackEvent::ShellContext { payload });
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -640,6 +660,302 @@ impl HostProtocolState {
             events.push(CallbackEvent::Resize { rows, cols });
         }
     }
+}
+
+fn callback_event_from_parser_event(event: ParserTerminalEvent) -> Option<CallbackEvent> {
+    match event {
+        ParserTerminalEvent::BellRang(_) => Some(CallbackEvent::Bell),
+        ParserTerminalEvent::CwdChanged(change) => {
+            let mut payload = serde_json::Map::new();
+            payload.insert(
+                "source".to_string(),
+                serde_json::Value::String("osc7".to_string()),
+            );
+            payload.insert(
+                "cwd".to_string(),
+                serde_json::Value::String(sanitize_protocol_text(&change.new_cwd, 1024)),
+            );
+            if let Some(hostname) = sanitize_protocol_text_option(change.hostname.as_deref(), 255) {
+                payload.insert("hostname".to_string(), serde_json::Value::String(hostname));
+            }
+            if let Some(username) = sanitize_protocol_text_option(change.username.as_deref(), 255) {
+                payload.insert("username".to_string(), serde_json::Value::String(username));
+            }
+            payload.insert(
+                "timestamp".to_string(),
+                serde_json::Value::from(change.timestamp),
+            );
+            Some(CallbackEvent::ShellContext {
+                payload: serde_json::Value::Object(payload),
+            })
+        }
+        ParserTerminalEvent::ShellIntegrationEvent {
+            event_type,
+            command,
+            exit_code,
+            timestamp,
+            cursor_line,
+        } => Some(CallbackEvent::ShellCommand {
+            payload: serde_json::json!({
+                "source": "osc133",
+                "eventType": sanitize_protocol_text(&event_type, 80),
+                "command": command
+                    .as_deref()
+                    .and_then(|value| sanitize_protocol_text_option(Some(value), 512)),
+                "exitCode": exit_code,
+                "timestamp": timestamp,
+                "cursorLine": cursor_line,
+            }),
+        }),
+        ParserTerminalEvent::ZoneOpened {
+            zone_id,
+            zone_type,
+            abs_row_start,
+        } => Some(CallbackEvent::ShellCommand {
+            payload: serde_json::json!({
+                "source": "osc133",
+                "eventType": "zone_opened",
+                "zoneId": zone_id,
+                "zoneType": zone_type.to_string(),
+                "absRowStart": abs_row_start,
+            }),
+        }),
+        ParserTerminalEvent::ZoneClosed {
+            zone_id,
+            zone_type,
+            abs_row_start,
+            abs_row_end,
+            exit_code,
+        } => Some(CallbackEvent::ShellCommand {
+            payload: serde_json::json!({
+                "source": "osc133",
+                "eventType": "zone_closed",
+                "zoneId": zone_id,
+                "zoneType": zone_type.to_string(),
+                "absRowStart": abs_row_start,
+                "absRowEnd": abs_row_end,
+                "exitCode": exit_code,
+            }),
+        }),
+        ParserTerminalEvent::ZoneScrolledOut { zone_id, zone_type } => {
+            Some(CallbackEvent::ShellCommand {
+                payload: serde_json::json!({
+                    "source": "osc133",
+                    "eventType": "zone_scrolled_out",
+                    "zoneId": zone_id,
+                    "zoneType": zone_type.to_string(),
+                }),
+            })
+        }
+        ParserTerminalEvent::EnvironmentChanged {
+            key,
+            value,
+            old_value: _,
+        } => {
+            let mut payload = serde_json::Map::new();
+            payload.insert(
+                "source".to_string(),
+                serde_json::Value::String("osc1337_environment".to_string()),
+            );
+            let value = sanitize_protocol_text(&value, 1024);
+            match key.as_str() {
+                "cwd" => {
+                    payload.insert("cwd".to_string(), serde_json::Value::String(value));
+                }
+                "hostname" => {
+                    payload.insert("hostname".to_string(), serde_json::Value::String(value));
+                }
+                "username" => {
+                    payload.insert("username".to_string(), serde_json::Value::String(value));
+                }
+                _ => return None,
+            }
+            Some(CallbackEvent::ShellContext {
+                payload: serde_json::Value::Object(payload),
+            })
+        }
+        ParserTerminalEvent::RemoteHostTransition {
+            hostname,
+            username,
+            old_hostname: _,
+            old_username: _,
+        } => Some(CallbackEvent::ShellContext {
+            payload: serde_json::json!({
+                "source": "osc1337_remote_host",
+                "hostname": sanitize_protocol_text(&hostname, 255),
+                "username": username
+                    .as_deref()
+                    .and_then(|value| sanitize_protocol_text_option(Some(value), 255)),
+            }),
+        }),
+        ParserTerminalEvent::UserVarChanged { name, value, .. } => {
+            Some(CallbackEvent::ShellUserVar {
+                name: sanitize_protocol_text(&name, 80),
+                value: sanitize_protocol_text(&value, 512),
+            })
+        }
+        ParserTerminalEvent::ProgressBarChanged {
+            action,
+            id,
+            state,
+            percent,
+            label,
+        } => {
+            let action = match action {
+                par_term_emu_core_rust::terminal::ProgressBarAction::Set => "set",
+                par_term_emu_core_rust::terminal::ProgressBarAction::Remove => "remove",
+                par_term_emu_core_rust::terminal::ProgressBarAction::RemoveAll => "remove_all",
+            };
+            Some(CallbackEvent::SessionProgress {
+                payload: serde_json::json!({
+                    "source": "osc934",
+                    "named": true,
+                    "action": action,
+                    "id": sanitize_protocol_text(&id, 80),
+                    "state": state.map(|value| value.description()),
+                    "percent": percent,
+                    "label": label
+                        .as_deref()
+                        .and_then(|value| sanitize_protocol_text_option(Some(value), 160)),
+                }),
+            })
+        }
+        ParserTerminalEvent::BadgeChanged(text) => Some(CallbackEvent::SessionBadge {
+            text: text.and_then(|value| sanitize_protocol_text_option(Some(&value), 80)),
+        }),
+        _ => None,
+    }
+}
+
+fn primary_progress_payload_from_osc9(remainder: &[u8]) -> Option<serde_json::Value> {
+    let mut parts = remainder.split(|byte| *byte == b';');
+    if parts.next()? != b"4" {
+        return None;
+    }
+    let state = std::str::from_utf8(parts.next()?).ok()?.trim();
+    let state = match state {
+        "0" => "hidden",
+        "1" => "normal",
+        "2" => "error",
+        "3" => "indeterminate",
+        "4" => "warning",
+        _ => return None,
+    };
+    let percent = parts
+        .next()
+        .and_then(|part| std::str::from_utf8(part).ok())
+        .and_then(|value| value.trim().parse::<u8>().ok())
+        .map(|value| value.min(100))
+        .unwrap_or(0);
+    Some(serde_json::json!({
+        "source": "osc9;4",
+        "named": false,
+        "action": if state == "hidden" { "clear" } else { "set" },
+        "state": state,
+        "percent": percent,
+    }))
+}
+
+fn shell_context_payload_from_current_dir(data: &str) -> Option<serde_json::Value> {
+    let raw = data.strip_prefix("CurrentDir=")?;
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let (cwd, hostname, username) = if raw.starts_with("file://") {
+        parse_file_url_context(raw)?
+    } else if raw.starts_with('/') {
+        (percent_decode_lossy(raw), None, None)
+    } else {
+        return None;
+    };
+    if !cwd.starts_with('/') {
+        return None;
+    }
+    let mut payload = serde_json::Map::new();
+    payload.insert(
+        "source".to_string(),
+        serde_json::Value::String("osc1337_current_dir".to_string()),
+    );
+    payload.insert(
+        "cwd".to_string(),
+        serde_json::Value::String(sanitize_protocol_text(&cwd, 1024)),
+    );
+    if let Some(hostname) =
+        hostname.and_then(|value| sanitize_protocol_text_option(Some(&value), 255))
+    {
+        payload.insert("hostname".to_string(), serde_json::Value::String(hostname));
+    }
+    if let Some(username) =
+        username.and_then(|value| sanitize_protocol_text_option(Some(&value), 255))
+    {
+        payload.insert("username".to_string(), serde_json::Value::String(username));
+    }
+    Some(serde_json::Value::Object(payload))
+}
+
+fn parse_file_url_context(raw: &str) -> Option<(String, Option<String>, Option<String>)> {
+    let mut remainder = raw.strip_prefix("file://")?;
+    if let Some(index) = remainder.find(['?', '#']) {
+        remainder = &remainder[..index];
+    }
+    if remainder.starts_with('/') {
+        return Some((percent_decode_lossy(remainder), None, None));
+    }
+    let slash = remainder.find('/')?;
+    let authority = &remainder[..slash];
+    let path = percent_decode_lossy(&remainder[slash..]);
+    let (username, host_part) = match authority.rsplit_once('@') {
+        Some((username, host)) => (Some(percent_decode_lossy(username)), host),
+        None => (None, authority),
+    };
+    let host = host_part.split(':').next().unwrap_or_default();
+    let hostname = if host.is_empty()
+        || host.eq_ignore_ascii_case("localhost")
+        || host == "127.0.0.1"
+        || host == "::1"
+    {
+        None
+    } else {
+        Some(percent_decode_lossy(host))
+    };
+    let username = username.and_then(|value| if value.is_empty() { None } else { Some(value) });
+    Some((path, hostname, username))
+}
+
+fn percent_decode_lossy(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            if let (Some(high), Some(low)) =
+                (hex_nibble(bytes[index + 1]), hex_nibble(bytes[index + 2]))
+            {
+                decoded.push((high << 4) | low);
+                index += 3;
+                continue;
+            }
+        }
+        decoded.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&decoded).to_string()
+}
+
+fn sanitize_protocol_text(value: &str, max_chars: usize) -> String {
+    value
+        .chars()
+        .filter(|ch| !ch.is_control())
+        .take(max_chars)
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+fn sanitize_protocol_text_option(value: Option<&str>, max_chars: usize) -> Option<String> {
+    let value = sanitize_protocol_text(value?, max_chars);
+    if value.is_empty() { None } else { Some(value) }
 }
 
 pub struct TerminalSession {
@@ -768,12 +1084,27 @@ impl TerminalSession {
                             let mut state = reader_session.state.lock();
                             let cursor_before = terminal_cursor_snapshot(state.terminal.cursor());
                             let host_started_at = Instant::now();
-                            let callback_events = state
+                            let mut callback_events = state
                                 .host_protocol
                                 .observe(&buf[..read], reader_session.emulation);
                             let host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
                             let process_started_at = Instant::now();
                             state.terminal.process(&buf[..read]);
+                            let parser_events = state.terminal.poll_events();
+                            let notifications = state.terminal.take_notifications();
+                            if reader_session.emulation == TerminalEmulation::Xterm256 {
+                                callback_events.extend(
+                                    parser_events
+                                        .into_iter()
+                                        .filter_map(callback_event_from_parser_event),
+                                );
+                                callback_events.extend(notifications.into_iter().map(
+                                    |notification| CallbackEvent::SessionNotification {
+                                        title: sanitize_protocol_text(&notification.title, 160),
+                                        message: sanitize_protocol_text(&notification.message, 512),
+                                    },
+                                ));
+                            }
                             let terminal_process_micros =
                                 process_started_at.elapsed().as_micros() as u64;
                             let terminal_process_breakdown =
@@ -1661,6 +1992,39 @@ impl TerminalSession {
                 })),
             ),
             CallbackEvent::ShellHook { payload } => self.push_event("shell_hook", Some(payload)),
+            CallbackEvent::ShellContext { payload } => {
+                self.push_event("shell_context", Some(payload))
+            }
+            CallbackEvent::ShellCommand { payload } => {
+                self.push_event("shell_command", Some(payload))
+            }
+            CallbackEvent::ShellUserVar { name, value } => self.push_event(
+                "shell_user_var",
+                Some(serde_json::json!({
+                    "source": "osc1337_set_user_var",
+                    "name": name,
+                    "value": value,
+                })),
+            ),
+            CallbackEvent::SessionNotification { title, message } => self.push_event(
+                "session_notification",
+                Some(serde_json::json!({
+                    "source": "osc",
+                    "title": title,
+                    "message": message,
+                })),
+            ),
+            CallbackEvent::SessionProgress { payload } => {
+                self.push_event("session_progress", Some(payload))
+            }
+            CallbackEvent::SessionBadge { text } => self.push_event(
+                "session_badge",
+                Some(serde_json::json!({
+                    "source": "osc1337_set_badge_format",
+                    "text": text,
+                })),
+            ),
+            CallbackEvent::Bell => self.push_event("bell", None),
         }
     }
 
@@ -1849,8 +2213,115 @@ fn sanitize_diagnostic_event_payload(
             "selection": payload.get("selection").and_then(serde_json::Value::as_str),
         })),
         "shell_hook" => sanitize_shell_hook_payload(payload),
+        "shell_context" => sanitize_shell_context_payload(payload),
+        "shell_command" => sanitize_shell_command_payload(payload),
+        "shell_user_var" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "name": payload.get("name").and_then(serde_json::Value::as_str),
+            "value_chars": payload
+                .get("value")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "value_hash": payload
+                .get("value")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
+        })),
+        "session_notification" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "title_chars": payload
+                .get("title")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "title_hash": payload
+                .get("title")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
+            "message_chars": payload
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "message_hash": payload
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
+        })),
+        "session_progress" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "named": payload.get("named").and_then(serde_json::Value::as_bool),
+            "action": payload.get("action").and_then(serde_json::Value::as_str),
+            "state": payload.get("state").and_then(serde_json::Value::as_str),
+            "percent": payload.get("percent").and_then(serde_json::Value::as_u64),
+            "id": payload.get("id").and_then(serde_json::Value::as_str),
+            "label_hash": payload
+                .get("label")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
+        })),
+        "session_badge" => Some(serde_json::json!({
+            "source": payload.get("source").and_then(serde_json::Value::as_str),
+            "text_chars": payload
+                .get("text")
+                .and_then(serde_json::Value::as_str)
+                .map(|value| value.chars().count()),
+            "text_hash": payload
+                .get("text")
+                .and_then(serde_json::Value::as_str)
+                .map(diagnostic_hash),
+        })),
         _ => None,
     }
+}
+
+fn sanitize_shell_context_payload(payload: &serde_json::Value) -> Option<serde_json::Value> {
+    let object = payload.as_object()?;
+    let mut sanitized = serde_json::Map::new();
+    if let Some(source) = object.get("source").and_then(serde_json::Value::as_str) {
+        sanitized.insert(
+            "source".to_string(),
+            serde_json::Value::String(source.to_string()),
+        );
+    }
+    if let Some(cwd) = object.get("cwd").and_then(serde_json::Value::as_str) {
+        sanitized.insert("cwd".to_string(), cwd_diagnostic_summary(cwd));
+    }
+    if let Some(username) = object.get("username").and_then(serde_json::Value::as_str) {
+        sanitized.insert(
+            "username_hash".to_string(),
+            serde_json::Value::String(diagnostic_hash(username)),
+        );
+    }
+    if let Some(hostname) = object.get("hostname").and_then(serde_json::Value::as_str) {
+        sanitized.insert(
+            "hostname_hash".to_string(),
+            serde_json::Value::String(diagnostic_hash(hostname)),
+        );
+    }
+    Some(serde_json::Value::Object(sanitized))
+}
+
+fn sanitize_shell_command_payload(payload: &serde_json::Value) -> Option<serde_json::Value> {
+    let object = payload.as_object()?;
+    let mut sanitized = serde_json::Map::new();
+    for key in [
+        "source",
+        "eventType",
+        "zoneType",
+        "zoneId",
+        "absRowStart",
+        "absRowEnd",
+        "cursorLine",
+        "timestamp",
+        "exitCode",
+    ] {
+        if let Some(value) = object.get(key) {
+            sanitized.insert(key.to_string(), value.clone());
+        }
+    }
+    if let Some(command) = object.get("command").and_then(serde_json::Value::as_str) {
+        sanitized.insert("command".to_string(), command_diagnostic_summary(command));
+    }
+    Some(serde_json::Value::Object(sanitized))
 }
 
 fn sanitize_shell_hook_payload(payload: &serde_json::Value) -> Option<serde_json::Value> {

@@ -12,6 +12,8 @@ class TerminalPane {
     this.isExited = false,
     this.exitCode,
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
+    this.oscBadge,
+    this.progress,
   });
 
   final String sessionId;
@@ -21,6 +23,8 @@ class TerminalPane {
   final bool isExited;
   final int? exitCode;
   final TerminalShellIntegrationSnapshot shellIntegration;
+  final String? oscBadge;
+  final TerminalPaneProgressState? progress;
 
   TerminalPane copyWith({
     String? title,
@@ -29,6 +33,8 @@ class TerminalPane {
     bool? isExited,
     int? exitCode,
     TerminalShellIntegrationSnapshot? shellIntegration,
+    Object? oscBadge = _terminalPaneNoChange,
+    Object? progress = _terminalPaneNoChange,
   }) {
     return TerminalPane(
       sessionId: sessionId,
@@ -38,7 +44,47 @@ class TerminalPane {
       isExited: isExited ?? this.isExited,
       exitCode: exitCode ?? this.exitCode,
       shellIntegration: shellIntegration ?? this.shellIntegration,
+      oscBadge: identical(oscBadge, _terminalPaneNoChange)
+          ? this.oscBadge
+          : oscBadge as String?,
+      progress: identical(progress, _terminalPaneNoChange)
+          ? this.progress
+          : progress as TerminalPaneProgressState?,
     );
+  }
+}
+
+const Object _terminalPaneNoChange = Object();
+
+class TerminalPaneProgressState {
+  const TerminalPaneProgressState({
+    required this.source,
+    required this.named,
+    required this.action,
+    this.id,
+    this.state,
+    this.percent,
+    this.label,
+  });
+
+  final String source;
+  final bool named;
+  final String action;
+  final String? id;
+  final String? state;
+  final int? percent;
+  final String? label;
+
+  bool get active => state != null && state != 'hidden' && action != 'clear';
+
+  String get displayLabel {
+    final prefix = named ? (id ?? 'PROGRESS') : 'PROGRESS';
+    final value = percent?.toString();
+    final stateLabel = state?.toUpperCase();
+    return [
+      prefix.toUpperCase(),
+      if (value != null) '$value%' else ?stateLabel,
+    ].join(' ');
   }
 }
 
@@ -341,6 +387,8 @@ class TerminalTab {
     this.activePaneSessionId,
     this.splitAxis = TerminalSplitAxis.horizontal,
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
+    this.oscBadge,
+    this.progress,
   });
 
   final String sessionId;
@@ -354,6 +402,8 @@ class TerminalTab {
   final String? activePaneSessionId;
   final TerminalSplitAxis splitAxis;
   final TerminalShellIntegrationSnapshot shellIntegration;
+  final String? oscBadge;
+  final TerminalPaneProgressState? progress;
 
   TerminalPane get rootPane {
     return TerminalPane(
@@ -364,6 +414,8 @@ class TerminalTab {
       isExited: isExited,
       exitCode: exitCode,
       shellIntegration: shellIntegration,
+      oscBadge: oscBadge,
+      progress: progress,
     );
   }
 
@@ -418,6 +470,8 @@ class TerminalTab {
         isExited: replacement.isExited,
         exitCode: replacement.exitCode,
         shellIntegration: replacement.shellIntegration,
+        oscBadge: replacement.oscBadge,
+        progress: replacement.progress,
       );
     }
     final nextLayout = effectivePaneLayout.replacePane(replacement);
@@ -439,6 +493,8 @@ class TerminalTab {
     Object? activePaneSessionId = _terminalTabNoChange,
     TerminalSplitAxis? splitAxis,
     TerminalShellIntegrationSnapshot? shellIntegration,
+    Object? oscBadge = _terminalTabNoChange,
+    Object? progress = _terminalTabNoChange,
   }) {
     final nextSplitAxis = splitAxis ?? this.splitAxis;
     final nextPaneLayout = identical(paneLayout, _terminalTabNoChange)
@@ -462,6 +518,12 @@ class TerminalTab {
           : activePaneSessionId as String?,
       splitAxis: nextSplitAxis,
       shellIntegration: shellIntegration ?? this.shellIntegration,
+      oscBadge: identical(oscBadge, _terminalTabNoChange)
+          ? this.oscBadge
+          : oscBadge as String?,
+      progress: identical(progress, _terminalTabNoChange)
+          ? this.progress
+          : progress as TerminalPaneProgressState?,
     );
   }
 }
@@ -495,6 +557,7 @@ class TerminalShellIntegrationSnapshot {
     this.recentCommands = const <String>[],
     this.recentDirectories = const <String>[],
     this.promptMarks = const <TerminalShellPromptMark>[],
+    this.userVariables = const <String, String>{},
   });
 
   static const empty = TerminalShellIntegrationSnapshot();
@@ -508,6 +571,7 @@ class TerminalShellIntegrationSnapshot {
   final List<String> recentCommands;
   final List<String> recentDirectories;
   final List<TerminalShellPromptMark> promptMarks;
+  final Map<String, String> userVariables;
 
   TerminalShellIntegrationSnapshot copyWith({
     Object? currentDirectory = _shellIntegrationNoChange,
@@ -519,6 +583,7 @@ class TerminalShellIntegrationSnapshot {
     List<String>? recentCommands,
     List<String>? recentDirectories,
     List<TerminalShellPromptMark>? promptMarks,
+    Map<String, String>? userVariables,
   }) {
     return TerminalShellIntegrationSnapshot(
       currentDirectory: identical(currentDirectory, _shellIntegrationNoChange)
@@ -542,6 +607,7 @@ class TerminalShellIntegrationSnapshot {
       recentCommands: recentCommands ?? this.recentCommands,
       recentDirectories: recentDirectories ?? this.recentDirectories,
       promptMarks: promptMarks ?? this.promptMarks,
+      userVariables: userVariables ?? this.userVariables,
     );
   }
 }

@@ -272,6 +272,29 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     return '$cols×$rows';
   }
 
+  String _shortStatusValue(String value, {int max = 18}) {
+    final trimmed = value.trim();
+    if (trimmed.length <= max) {
+      return trimmed;
+    }
+    if (max <= 1) {
+      return trimmed.substring(0, max);
+    }
+    return '${trimmed.substring(0, max - 1)}…';
+  }
+
+  String _progressStatusTooltip(TerminalPaneProgressState progress) {
+    return [
+      'Terminal progress reported by ${progress.source}.',
+      if (progress.label?.trim().isNotEmpty == true)
+        'Label: ${progress.label!.trim()}',
+      if (progress.percent != null) 'Percent: ${progress.percent}%',
+      if (progress.state?.trim().isNotEmpty == true)
+        'State: ${progress.state!.trim()}',
+      if (progress.id?.trim().isNotEmpty == true) 'ID: ${progress.id!.trim()}',
+    ].join('\n');
+  }
+
   List<_ShellStatusModeItem> _statusModeItemsFor(
     String sessionId,
     terminal.TerminalFrameModes modes,

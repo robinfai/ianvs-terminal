@@ -64,6 +64,18 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _notifyBell(event.sessionId);
       case terminal.TerminalSessionShellHookEvent():
         _notifyShellHook(event);
+      case terminal.TerminalSessionShellContextEvent():
+        break;
+      case terminal.TerminalSessionShellCommandEvent():
+        break;
+      case terminal.TerminalSessionShellUserVarEvent():
+        break;
+      case terminal.TerminalSessionNotificationEvent():
+        _handleOscNotification(event);
+      case terminal.TerminalSessionProgressEvent():
+        break;
+      case terminal.TerminalSessionBadgeEvent():
+        break;
       case terminal.TerminalSessionClipboardEvent():
         _handleOsc52ClipboardEvent(event);
     }
@@ -292,6 +304,26 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       ) =>
         'OSC 52 paste read ignored: invalid payload',
     };
+  }
+
+  void _handleOscNotification(terminal.TerminalSessionNotificationEvent event) {
+    final title = event.title.trim();
+    final message = event.message.trim();
+    final visibleTitle = title.isEmpty ? 'Terminal notification' : title;
+    final visibleMessage = message.isEmpty ? visibleTitle : message;
+    _showShellSnackBar('$visibleTitle: $visibleMessage');
+    if (!_activityNotificationsEnabled ||
+        !_notificationSessionIsInactive(event.sessionId) ||
+        !_activityNotificationAllowed(event.sessionId)) {
+      return;
+    }
+    _sendShellNotification(
+      title:
+          '$visibleTitle in ${_sessionTitleForNotification(event.sessionId)}',
+      body: visibleMessage,
+      identifier:
+          'ianvs-terminal.osc.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
+    );
   }
 
   void _notifyInactiveActivity(

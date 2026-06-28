@@ -457,6 +457,18 @@ class Terminal implements TerminalDisposable {
         break;
       case TerminalSessionShellHookEvent():
         break;
+      case TerminalSessionShellContextEvent():
+        break;
+      case TerminalSessionShellCommandEvent():
+        break;
+      case TerminalSessionShellUserVarEvent():
+        break;
+      case TerminalSessionNotificationEvent():
+        break;
+      case TerminalSessionProgressEvent():
+        break;
+      case TerminalSessionBadgeEvent():
+        break;
       case TerminalSessionClipboardEvent():
         break;
     }
