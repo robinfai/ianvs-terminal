@@ -457,6 +457,8 @@ class Terminal implements TerminalDisposable {
         break;
       case TerminalSessionShellHookEvent():
         break;
+      case TerminalSessionClipboardEvent():
+        break;
     }
   }
 

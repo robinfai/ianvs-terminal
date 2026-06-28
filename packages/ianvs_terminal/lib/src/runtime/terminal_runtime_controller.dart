@@ -81,6 +81,69 @@ final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
   }
 }
 
+enum TerminalClipboardOperation { copy, pasteRequest }
+
+enum TerminalClipboardDecision { allowed, blocked, invalidPayload }
+
+final class TerminalClipboardAccessRequest {
+  const TerminalClipboardAccessRequest({
+    required this.sessionId,
+    required this.operation,
+    this.selection,
+    this.byteCount,
+    this.characterCount,
+    this.textPreview,
+    this.textPreviewTruncated = false,
+    this.resolveText,
+  });
+
+  final String sessionId;
+  final TerminalClipboardOperation operation;
+  final String? selection;
+  final int? byteCount;
+  final int? characterCount;
+  final String? textPreview;
+  final bool textPreviewTruncated;
+  final Future<String> Function()? resolveText;
+}
+
+final class TerminalSessionClipboardEvent extends TerminalSessionEvent {
+  const TerminalSessionClipboardEvent(
+    super.sessionId, {
+    required this.operation,
+    required this.decision,
+    this.selection,
+    this.byteCount,
+    this.characterCount,
+    this.textPreview,
+    this.textPreviewTruncated = false,
+  });
+
+  final TerminalClipboardOperation operation;
+  final TerminalClipboardDecision decision;
+  final String? selection;
+  final int? byteCount;
+  final int? characterCount;
+  final String? textPreview;
+  final bool textPreviewTruncated;
+
+  bool get allowed => decision == TerminalClipboardDecision.allowed;
+}
+
+final class _ClipboardTextSummary {
+  const _ClipboardTextSummary({
+    required this.byteCount,
+    required this.characterCount,
+    required this.preview,
+    required this.previewTruncated,
+  });
+
+  final int byteCount;
+  final int characterCount;
+  final String preview;
+  final bool previewTruncated;
+}
+
 final class TerminalSessionResizeEvent {
   const TerminalSessionResizeEvent(
     this.sessionId, {
@@ -212,6 +275,7 @@ List<Map<String, Object?>> _mapList(Object? value) {
 
 class TerminalRuntimeController {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
+  static const int _clipboardPreviewRunes = 120;
 
   TerminalRuntimeController({
     required PtySessionBackend backend,
@@ -219,19 +283,28 @@ class TerminalRuntimeController {
     required this.readClipboard,
     Future<bool> Function()? allowClipboardCopy,
     Future<bool> Function()? allowClipboardPasteRequest,
+    Future<bool> Function(TerminalClipboardAccessRequest request)?
+    allowClipboardCopyWithContext,
+    Future<bool> Function(TerminalClipboardAccessRequest request)?
+    allowClipboardPasteRequestWithContext,
     this.resizeWindowBy,
     this.enableSessionPolling = true,
     this.enableWarmUpRefresh = false,
   }) : _backend = backend,
-       allowClipboardCopy = allowClipboardCopy ?? _allowClipboardAccess,
+       allowClipboardCopy =
+           allowClipboardCopyWithContext ??
+           ((_) => (allowClipboardCopy ?? _allowClipboardAccess)()),
        allowClipboardPasteRequest =
-           allowClipboardPasteRequest ?? _allowClipboardAccess;
+           allowClipboardPasteRequestWithContext ??
+           ((_) => (allowClipboardPasteRequest ?? _allowClipboardAccess)());
 
   final PtySessionBackend _backend;
   final Future<void> Function(String text) copyToClipboard;
   final Future<String> Function() readClipboard;
-  final Future<bool> Function() allowClipboardCopy;
-  final Future<bool> Function() allowClipboardPasteRequest;
+  final Future<bool> Function(TerminalClipboardAccessRequest request)
+  allowClipboardCopy;
+  final Future<bool> Function(TerminalClipboardAccessRequest request)
+  allowClipboardPasteRequest;
   final TerminalWindowResizeCallback? resizeWindowBy;
   final bool enableSessionPolling;
   final bool enableWarmUpRefresh;
@@ -1048,7 +1121,7 @@ class TerminalRuntimeController {
         case 'clipboard_copy':
           pendingAsyncWork = _chainAsyncEvent(
             pendingAsyncWork,
-            () => _handleClipboardCopyEvent(event.payload),
+            () => _handleClipboardCopyEvent(sessionId, event.payload),
           );
           break;
         case 'clipboard_paste_request':
@@ -1180,23 +1253,100 @@ class TerminalRuntimeController {
     return value.isFinite && value > 0;
   }
 
-  Future<void> _handleClipboardCopyEvent(Map<String, Object?>? payload) async {
-    if (!await allowClipboardCopy()) {
-      return;
-    }
+  Future<void> _handleClipboardCopyEvent(
+    String sessionId,
+    Map<String, Object?>? payload,
+  ) async {
+    final selection = _nonEmptyTrimmedStringFromJsonValue(
+      payload?['selection'],
+    );
     if (payload == null) {
+      _events.add(
+        TerminalSessionClipboardEvent(
+          sessionId,
+          operation: TerminalClipboardOperation.copy,
+          decision: TerminalClipboardDecision.invalidPayload,
+          selection: selection,
+        ),
+      );
       return;
     }
     final raw = _stringFromJsonValue(payload['data']);
     if (raw == null) {
+      _events.add(
+        TerminalSessionClipboardEvent(
+          sessionId,
+          operation: TerminalClipboardOperation.copy,
+          decision: TerminalClipboardDecision.invalidPayload,
+          selection: selection,
+        ),
+      );
       return;
     }
     final bytes = _decodeOsc52ClipboardPayload(raw);
     if (bytes == null) {
+      _events.add(
+        TerminalSessionClipboardEvent(
+          sessionId,
+          operation: TerminalClipboardOperation.copy,
+          decision: TerminalClipboardDecision.invalidPayload,
+          selection: selection,
+        ),
+      );
       return;
     }
-    final decoded = utf8.decode(bytes, allowMalformed: true);
+    late final String decoded;
+    try {
+      decoded = utf8.decode(bytes);
+    } on FormatException {
+      _events.add(
+        TerminalSessionClipboardEvent(
+          sessionId,
+          operation: TerminalClipboardOperation.copy,
+          decision: TerminalClipboardDecision.invalidPayload,
+          selection: selection,
+        ),
+      );
+      return;
+    }
+    final summary = _summarizeClipboardText(decoded, byteCount: bytes.length);
+    final request = TerminalClipboardAccessRequest(
+      sessionId: sessionId,
+      operation: TerminalClipboardOperation.copy,
+      selection: selection,
+      byteCount: summary.byteCount,
+      characterCount: summary.characterCount,
+      textPreview: summary.preview,
+      textPreviewTruncated: summary.previewTruncated,
+    );
+    if (!await allowClipboardCopy(request)) {
+      _events.add(
+        TerminalSessionClipboardEvent(
+          sessionId,
+          operation: TerminalClipboardOperation.copy,
+          decision: TerminalClipboardDecision.blocked,
+          selection: selection,
+          byteCount: summary.byteCount,
+          characterCount: summary.characterCount,
+          textPreview: summary.preview,
+          textPreviewTruncated: summary.previewTruncated,
+        ),
+      );
+      return;
+    }
     await copyToClipboard(decoded);
+    _events.add(
+      TerminalSessionClipboardEvent(
+        sessionId,
+        operation: TerminalClipboardOperation.copy,
+        decision: TerminalClipboardDecision.allowed,
+        selection: selection,
+        byteCount: summary.byteCount,
+        characterCount: summary.characterCount,
+        textPreview: summary.preview,
+        textPreviewTruncated: summary.previewTruncated,
+      ),
+    );
   }
 
   Uint8List? _decodeOsc52ClipboardPayload(String raw) {
@@ -1212,15 +1362,64 @@ class TerminalRuntimeController {
     String sessionId,
     Map<String, Object?>? payload,
   ) async {
-    if (!await allowClipboardPasteRequest()) {
-      return;
-    }
     final selection =
         _nonEmptyTrimmedStringFromJsonValue(payload?['selection']) ?? 'c';
-    final clipboardText = await readClipboard();
+    String? resolvedClipboardText;
+    Future<String> resolveClipboardText() async {
+      final cached = resolvedClipboardText;
+      if (cached != null) {
+        return cached;
+      }
+      final clipboardText = await readClipboard();
+      resolvedClipboardText = clipboardText;
+      return clipboardText;
+    }
+
+    final request = TerminalClipboardAccessRequest(
+      sessionId: sessionId,
+      operation: TerminalClipboardOperation.pasteRequest,
+      selection: selection,
+      resolveText: resolveClipboardText,
+    );
+    if (!await allowClipboardPasteRequest(request)) {
+      _events.add(
+        TerminalSessionClipboardEvent(
+          sessionId,
+          operation: TerminalClipboardOperation.pasteRequest,
+          decision: TerminalClipboardDecision.blocked,
+          selection: selection,
+        ),
+      );
+      return;
+    }
+    final clipboardText = await resolveClipboardText();
+    final summary = _summarizeClipboardText(clipboardText);
     final encoded = base64.encode(utf8.encode(clipboardText));
     final response = '\x1B]52;$selection;$encoded\x07';
     sendInput(sessionId, Uint8List.fromList(utf8.encode(response)));
+    _events.add(
+      TerminalSessionClipboardEvent(
+        sessionId,
+        operation: TerminalClipboardOperation.pasteRequest,
+        decision: TerminalClipboardDecision.allowed,
+        selection: selection,
+        byteCount: summary.byteCount,
+        characterCount: summary.characterCount,
+        textPreview: summary.preview,
+        textPreviewTruncated: summary.previewTruncated,
+      ),
+    );
+  }
+
+  _ClipboardTextSummary _summarizeClipboardText(String text, {int? byteCount}) {
+    final runes = text.runes.toList(growable: false);
+    final previewRunes = runes.take(_clipboardPreviewRunes).toList();
+    return _ClipboardTextSummary(
+      byteCount: byteCount ?? utf8.encode(text).length,
+      characterCount: runes.length,
+      preview: String.fromCharCodes(previewRunes),
+      previewTruncated: runes.length > _clipboardPreviewRunes,
+    );
   }
 
   void _scheduleWarmUpRefreshes(String sessionId) {

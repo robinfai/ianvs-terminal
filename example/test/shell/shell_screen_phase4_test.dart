@@ -1,16 +1,19 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
@@ -27,6 +30,7 @@ Future<void> _pumpShellScreen(
   TerminalAppPreferencesDocument? preferences,
   MemoryAppPreferencesRepository? preferencesRepository,
   LocalTerminalConfigRepository? localConfigRepository,
+  Future<String> Function()? clipboardPaste,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -46,6 +50,8 @@ Future<void> _pumpShellScreen(
         localTerminalConfigRepositoryProvider.overrideWithValue(
           localConfigRepository ?? _MemoryLocalTerminalConfigRepository(null),
         ),
+        if (clipboardPaste != null)
+          sessionClipboardPasteProvider.overrideWithValue(clipboardPaste),
       ],
       child: MaterialApp(
         theme: ThemeData.light().copyWith(
@@ -182,6 +188,312 @@ void main() {
     );
 
     expect(viewport.copyOnSelect, isTrue);
+  });
+
+  testWidgets('defaults dialog saves OSC 52 ask policy', (tester) async {
+    final fakeBindings = FakePtyBackend();
+    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+      const LocalTerminalConfigDocument(),
+    );
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: localConfigRepository,
+    );
+
+    await _openCommandMenu(tester);
+    await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('default-osc52-policy-ask')),
+    );
+    await tester.tap(find.byKey(const Key('default-osc52-policy-ask')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(localConfigRepository.savedDocuments, isNotEmpty);
+    expect(
+      localConfigRepository.savedDocuments.last.clipboard.osc52,
+      LocalTerminalOsc52Policy.ask,
+    );
+  });
+
+  testWidgets('OSC 8 hover shows link target and context menu actions', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    fakeBindings.setFrame(1, const <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'open docs',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'hyperlinks': <Object?>[
+        <String, Object?>{
+          'row': 0,
+          'start_col': 5,
+          'end_col': 9,
+          'uri': 'https://example.com/docs',
+        },
+      ],
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final cellSize = renderObject.debugCellSize;
+    final linkPosition = renderObject.localToGlobal(
+      Offset(cellSize.width * 6, cellSize.height / 2),
+    );
+    final pointer = TestPointer(44, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(pointer.hover(linkPosition));
+    await tester.pump();
+
+    expect(find.text('LINK CHECK example.com'), findsOneWidget);
+    expect(
+      find.byTooltip(
+        'OSC 8 link text differs from the target\n'
+        'Target: https://example.com/docs\n'
+        'Text: docs',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Target: https://example.com/docs'),
+      findsOneWidget,
+    );
+    expect(find.byKey(terminalLinkTooltipKey), findsOneWidget);
+    expect(find.byKey(const Key('shell-status-link-target')), findsOneWidget);
+
+    await tester.sendEventToBinding(
+      pointer.down(linkPosition, buttons: kSecondaryMouseButton),
+    );
+    await tester.pump();
+    await tester.sendEventToBinding(pointer.up());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open link'), findsOneWidget);
+    expect(find.text('Copy link'), findsOneWidget);
+    expect(find.text('Copy link text'), findsOneWidget);
+    expect(find.text('Show target'), findsOneWidget);
+
+    await tester.sendEventToBinding(pointer.removePointer());
+    await tester.pump();
+  });
+
+  testWidgets('OSC 8 file links ask before opening', (tester) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    fakeBindings.setFrame(1, const <String, Object?>{
+      'rows': <Object?>[
+        <String, Object?>{
+          'index': 0,
+          'text': 'open file',
+          'style_runs': <Object?>[],
+        },
+      ],
+      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+      'selection': null,
+      'viewport_rows': 24,
+      'viewport_cols': 80,
+      'dirty_ranges': <Object?>[
+        <String, Object?>{'start': 0, 'end': 1},
+      ],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+      'hyperlinks': <Object?>[
+        <String, Object?>{
+          'row': 0,
+          'start_col': 5,
+          'end_col': 9,
+          'uri': 'file:///tmp/secret.txt',
+        },
+      ],
+    });
+    await tester.pump(const Duration(milliseconds: 40));
+
+    final renderObject = tester.allRenderObjects
+        .whereType<RenderTerminalViewport>()
+        .last;
+    final cellSize = renderObject.debugCellSize;
+    final linkPosition = renderObject.localToGlobal(
+      Offset(cellSize.width * 6, cellSize.height / 2),
+    );
+    final pointer = TestPointer(45, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(pointer.down(linkPosition));
+    await tester.pump();
+    await tester.sendEventToBinding(pointer.up());
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open local file link?'), findsOneWidget);
+    expect(find.textContaining('file:///tmp/secret.txt'), findsOneWidget);
+
+    await tester.tap(find.text('Deny'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Blocked file link'), findsOneWidget);
+  });
+
+  testWidgets('OSC 52 blocked copy shows visible status and feedback', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(
+            osc52: LocalTerminalOsc52Policy.disabled,
+          ),
+        ),
+      ),
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      PtyEvent(
+        kind: 'clipboard_copy',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'selection': 'c',
+          'data': base64.encode(utf8.encode('blocked')),
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.text('OSC52 COPY BLOCKED'), findsOneWidget);
+    expect(
+      find.text('OSC 52 clipboard copy blocked by policy'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-status-osc52')), findsOneWidget);
+  });
+
+  testWidgets('OSC 52 ask policy prompts before paste read', (tester) async {
+    final fakeBindings = FakePtyBackend();
+    var clipboardReads = 0;
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          clipboard: LocalTerminalClipboardConfig(
+            osc52: LocalTerminalOsc52Policy.ask,
+          ),
+        ),
+      ),
+      clipboardPaste: () async {
+        clipboardReads += 1;
+        return 'paste preview';
+      },
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'clipboard_paste_request',
+        sessionId: '1',
+        payload: <String, Object?>{'selection': 'c'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.text('Allow OSC 52 paste read?'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'The terminal is requesting clipboard contents and will send them back',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Session: 1'), findsOneWidget);
+    expect(find.text('Selection: c'), findsOneWidget);
+    expect(find.text('Size: 13 characters / 13 bytes'), findsOneWidget);
+    expect(find.text('paste preview'), findsOneWidget);
+    await tester.tap(find.text('Deny'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('OSC52 PASTE BLOCKED'), findsOneWidget);
+    expect(find.text('OSC 52 paste read blocked by policy'), findsOneWidget);
+    expect(clipboardReads, 1);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('OSC 52 profile policy prompts before paste read', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      clipboardPaste: () async => 'profile preview',
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'clipboard_paste_request',
+        sessionId: '1',
+        payload: <String, Object?>{'selection': 'c'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.text('Allow OSC 52 paste read?'), findsOneWidget);
+    expect(find.text('profile preview'), findsOneWidget);
+    await tester.tap(find.text('Deny'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('OSC52 PASTE BLOCKED'), findsOneWidget);
+    expect(fakeBindings.writes, isEmpty);
+  });
+
+  testWidgets('OSC 52 paste read labels empty clipboard preview', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      clipboardPaste: () async => '',
+    );
+
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'clipboard_paste_request',
+        sessionId: '1',
+        payload: <String, Object?>{'selection': 'c'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+
+    expect(find.text('Allow OSC 52 paste read?'), findsOneWidget);
+    expect(find.text('Size: 0 characters / 0 bytes'), findsOneWidget);
+    expect(find.text('Clipboard is empty'), findsOneWidget);
   });
 
   testWidgets('notification toggles read and write local config when present', (

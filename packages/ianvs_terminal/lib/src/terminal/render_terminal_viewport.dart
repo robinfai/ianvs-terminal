@@ -159,6 +159,7 @@ class RenderTerminalViewport extends RenderBox {
   final Map<int, List<TerminalResolvedBackgroundSpan>> _debugBackgroundSpans =
       {};
   final Map<int, int> _rowPictureBuildCounts = {};
+  final List<Rect> _debugHyperlinkUnderlineRects = <Rect>[];
   int _paragraphBuilds = 0;
   Size _cellSize = terminalFallbackCellSize;
   double _cellBaseline = terminalFallbackCellSize.height;
@@ -305,6 +306,7 @@ class RenderTerminalViewport extends RenderBox {
         : (hasNewFrame ? _dirtyRowIndexesFor(frame) : const <int>{});
     final searchHighlightsByRow = _searchHighlightsByRow(frame);
     _debugSearchHighlightRects.clear();
+    _debugHyperlinkUnderlineRects.clear();
 
     for (final row in frame.rows) {
       activeRowIndexes.add(row.index);
@@ -375,6 +377,7 @@ class RenderTerminalViewport extends RenderBox {
         canvas.drawPicture(rowVisual.picture);
         canvas.restore();
       }
+      _paintHyperlinkUnderlinesForRow(canvas, frame, row.index, y);
     }
     _pruneInactiveRowCaches(activeRowIndexes);
     _debugLastPaintedRowTexts = paintedRowTexts;
@@ -414,6 +417,8 @@ class RenderTerminalViewport extends RenderBox {
       List<int>.unmodifiable(_debugLastRebuiltRowIndexes);
   List<Rect> get debugSearchHighlightRects =>
       List<Rect>.unmodifiable(_debugSearchHighlightRects);
+  List<Rect> get debugHyperlinkUnderlineRects =>
+      List<Rect>.unmodifiable(_debugHyperlinkUnderlineRects);
   bool get debugCursorVisible {
     final frame = _controller.frame;
     return frame.cursor.visible && _cursorVisible;
@@ -583,6 +588,75 @@ class RenderTerminalViewport extends RenderBox {
             ..strokeWidth = _snapLogical(1)
             ..isAntiAlias = true,
         );
+      }
+    }
+  }
+
+  void _paintHyperlinkUnderlinesForRow(
+    Canvas canvas,
+    TerminalFrameDiff frame,
+    int rowIndex,
+    double rowY,
+  ) {
+    if (frame.hyperlinks.isEmpty ||
+        frame.viewportCols <= 0 ||
+        _cellSize.width <= 0 ||
+        _cellSize.height <= 0) {
+      return;
+    }
+    final color = _foregroundWithMinimumContrast(
+      frame.defaultForeground ?? _colors.foreground,
+      _canvasBackgroundFor(frame),
+    ).withValues(alpha: 0.82);
+    final devicePixelRatio = _devicePixelRatio.isFinite && _devicePixelRatio > 0
+        ? _devicePixelRatio
+        : 1.0;
+    final strokeWidth = _snapLogical(math.max(1.0 / devicePixelRatio, 1.0));
+    final underlineY = _snapLogicalY(
+      rowY +
+          math.min(
+            _cellSize.height - strokeWidth,
+            _rowTextMetrics.alphabeticBaseline +
+                math.max(1.0, _rowTextMetrics.descent * 0.35),
+          ),
+    );
+    final dashLength = math.max(2.0, _cellSize.width * 0.48);
+    final gapLength = math.max(2.0, _cellSize.width * 0.28);
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    for (final hyperlink in frame.hyperlinks) {
+      if (hyperlink.row != rowIndex) {
+        continue;
+      }
+      final startCol = hyperlink.startCol.clamp(0, frame.viewportCols).toInt();
+      final endCol = hyperlink.endCol
+          .clamp(startCol, frame.viewportCols)
+          .toInt();
+      if (endCol <= startCol) {
+        continue;
+      }
+      final left = _snapLogicalX(startCol * _cellSize.width);
+      final right = _snapLogicalX(endCol * _cellSize.width);
+      _debugHyperlinkUnderlineRects.add(
+        Rect.fromLTRB(
+          left,
+          underlineY - strokeWidth / 2,
+          right,
+          underlineY + strokeWidth / 2,
+        ),
+      );
+      var x = left;
+      while (x < right) {
+        final dashEnd = math.min(right, x + dashLength);
+        canvas.drawLine(
+          Offset(x, underlineY),
+          Offset(dashEnd, underlineY),
+          paint,
+        );
+        x += dashLength + gapLength;
       }
     }
   }
@@ -1005,12 +1079,13 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   Color _cursorPaintColorFor(TerminalFrameDiff frame) {
+    final cursorColor = frame.cursorColor ?? _colors.cursor;
     if (!_colors.smartCursorColor) {
-      return _colors.cursor;
+      return cursorColor;
     }
     final background = _cursorBackgroundFor(frame);
     return _foregroundWithContrastRatio(
-      _colors.cursor,
+      cursorColor,
       background,
       math.max(_minimumContrastRatio, _smartCursorContrastRatio),
     );

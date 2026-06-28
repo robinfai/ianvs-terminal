@@ -152,6 +152,24 @@ void main() {
       );
     });
 
+    test('OSC 52 policy parses ask and deny aliases', () {
+      final askConfig = LocalTerminalConfigDocument.fromJson(const {
+        'clipboard': {'osc52': ' Ask '},
+      });
+      final denyConfig = LocalTerminalConfigDocument.fromJson(const {
+        'clipboard': {'osc52': 'deny'},
+      });
+
+      expect(askConfig.clipboard.osc52, LocalTerminalOsc52Policy.ask);
+      expect(denyConfig.clipboard.osc52, LocalTerminalOsc52Policy.disabled);
+      expect(
+        askConfig.clipboard
+            .copyWith(osc52: LocalTerminalOsc52Policy.allow)
+            .osc52,
+        LocalTerminalOsc52Policy.allow,
+      );
+    });
+
     test('decode rejects non-object json roots', () {
       expect(
         () => LocalTerminalConfigDocument.decode('[]'),

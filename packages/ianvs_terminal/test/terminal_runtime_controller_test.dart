@@ -305,11 +305,13 @@ void main() {
       ],
       'scrollback_offset': 0,
       'scrollback_max_offset': 0,
+      'cursor_color': ' #123456 ',
     });
 
     final run = frame.rows.single.styleRuns.first;
     expect(run.foreground, const Color(0xFF112233));
     expect(run.background, const Color(0x80445566));
+    expect(frame.cursorColor, const Color(0xFF123456));
     expect(frame.rows.single.styleRuns.last.foreground, isNull);
   });
 
@@ -447,6 +449,7 @@ void main() {
       'scrollback_max_offset': 'bad',
       'viewport_start_row': 'bad',
       'viewport_row_shift': 'bad',
+      'cursor_color': 'not-a-color',
       'modes': {
         'alternate_screen': 'yes',
         'mouse_mode': false,
@@ -460,6 +463,7 @@ void main() {
     expect(frame.cursor.row, 0);
     expect(frame.cursor.col, 0);
     expect(frame.cursor.visible, isFalse);
+    expect(frame.cursorColor, isNull);
     expect(frame.selection, isNull);
     expect(frame.viewportRows, 0);
     expect(frame.viewportCols, 0);
@@ -2271,6 +2275,7 @@ void main() {
         ],
         'scrollback_offset': 0,
         'scrollback_max_offset': 0,
+        'cursor_color': '#123456',
         'hyperlinks': <Object?>[
           <String, Object?>{
             'row': 0,
@@ -2322,6 +2327,7 @@ void main() {
         'https://example.com/alpha',
         'https://example.com/beta',
       ]);
+      expect(merged.cursorColor, const Color(0xFF123456));
     },
   );
 
@@ -2854,6 +2860,8 @@ void main() {
     tester,
   ) async {
     final copiedTexts = <String>[];
+    final seenEvents = <TerminalSessionEvent>[];
+    TerminalClipboardAccessRequest? accessRequest;
     final runtimeBackend = _FakePtyBackend();
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
@@ -2861,10 +2869,15 @@ void main() {
         copiedTexts.add(text);
       },
       readClipboard: () async => '',
-      allowClipboardCopy: () async => false,
+      allowClipboardCopyWithContext: (request) async {
+        accessRequest = request;
+        return false;
+      },
       enableSessionPolling: false,
     );
     addTearDown(runtime.dispose);
+    final subscription = runtime.events.listen(seenEvents.add);
+    addTearDown(subscription.cancel);
 
     final sessionId = runtime.createSession(
       const TerminalSessionConfig(
@@ -2886,12 +2899,69 @@ void main() {
     await tester.pump();
 
     expect(copiedTexts, isEmpty);
+    expect(accessRequest?.operation, TerminalClipboardOperation.copy);
+    expect(accessRequest?.sessionId, sessionId);
+    expect(accessRequest?.textPreview, 'blocked');
+    expect(accessRequest?.characterCount, 7);
+    expect(accessRequest?.byteCount, 7);
+    final clipboardEvent = seenEvents
+        .whereType<TerminalSessionClipboardEvent>()
+        .single;
+    expect(clipboardEvent.operation, TerminalClipboardOperation.copy);
+    expect(clipboardEvent.decision, TerminalClipboardDecision.blocked);
+    expect(clipboardEvent.textPreview, 'blocked');
+  });
+
+  testWidgets('terminal runtime controller reports malformed OSC 52 UTF-8', (
+    tester,
+  ) async {
+    final copiedTexts = <String>[];
+    final seenEvents = <TerminalSessionEvent>[];
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (text) async {
+        copiedTexts.add(text);
+      },
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    addTearDown(runtime.dispose);
+    final subscription = runtime.events.listen(seenEvents.add);
+    addTearDown(subscription.cancel);
+
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    runtimeBackend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'clipboard_copy',
+        sessionId: sessionId,
+        payload: <String, Object?>{
+          'data': base64.encode([0xff, 0xfe]),
+        },
+      ),
+    );
+
+    runtime.sendInput(sessionId, Uint8List(0));
+    await tester.pump();
+
+    expect(copiedTexts, isEmpty);
+    final clipboardEvent = seenEvents
+        .whereType<TerminalSessionClipboardEvent>()
+        .single;
+    expect(clipboardEvent.operation, TerminalClipboardOperation.copy);
+    expect(clipboardEvent.decision, TerminalClipboardDecision.invalidPayload);
   });
 
   testWidgets('terminal runtime controller can block OSC 52 paste requests', (
     tester,
   ) async {
     var readClipboardCount = 0;
+    final seenEvents = <TerminalSessionEvent>[];
     final runtimeBackend = _FakePtyBackend();
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
@@ -2904,6 +2974,8 @@ void main() {
       enableSessionPolling: false,
     );
     addTearDown(runtime.dispose);
+    final subscription = runtime.events.listen(seenEvents.add);
+    addTearDown(subscription.cancel);
 
     final sessionId = runtime.createSession(
       const TerminalSessionConfig(
@@ -2925,6 +2997,11 @@ void main() {
     expect(readClipboardCount, 0);
     expect(runtimeBackend.writeCalls, hasLength(1));
     expect(runtimeBackend.writeCalls.single, isEmpty);
+    final clipboardEvent = seenEvents
+        .whereType<TerminalSessionClipboardEvent>()
+        .single;
+    expect(clipboardEvent.operation, TerminalClipboardOperation.pasteRequest);
+    expect(clipboardEvent.decision, TerminalClipboardDecision.blocked);
   });
 
   testWidgets(
@@ -3028,6 +3105,25 @@ void main() {
         seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode,
         isNull,
       );
+      final clipboardEvents = seenEvents
+          .whereType<TerminalSessionClipboardEvent>()
+          .toList();
+      expect(
+        clipboardEvents.map((event) => event.decision),
+        <TerminalClipboardDecision>[
+          TerminalClipboardDecision.invalidPayload,
+          TerminalClipboardDecision.allowed,
+          TerminalClipboardDecision.allowed,
+        ],
+      );
+      expect(clipboardEvents[1].operation, TerminalClipboardOperation.copy);
+      expect(clipboardEvents[1].characterCount, 7);
+      expect(
+        clipboardEvents[2].operation,
+        TerminalClipboardOperation.pasteRequest,
+      );
+      expect(clipboardEvents[2].selection, 'c');
+      expect(clipboardEvents[2].characterCount, 8);
       expect(runtime.hasSession(sessionId), isFalse);
     },
   );

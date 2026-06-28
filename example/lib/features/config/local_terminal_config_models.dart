@@ -290,6 +290,16 @@ class LocalTerminalClipboardConfig {
   final bool copyOnSelect;
   final LocalTerminalOsc52Policy osc52;
 
+  LocalTerminalClipboardConfig copyWith({
+    bool? copyOnSelect,
+    LocalTerminalOsc52Policy? osc52,
+  }) {
+    return LocalTerminalClipboardConfig(
+      copyOnSelect: copyOnSelect ?? this.copyOnSelect,
+      osc52: osc52 ?? this.osc52,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return {'copyOnSelect': copyOnSelect, 'osc52': osc52.name};
   }
@@ -302,7 +312,7 @@ class LocalTerminalClipboardConfig {
   }
 }
 
-enum LocalTerminalOsc52Policy { disabled, profile, allow }
+enum LocalTerminalOsc52Policy { disabled, profile, allow, ask }
 
 class LocalTerminalPasteConfig {
   const LocalTerminalPasteConfig({
@@ -525,6 +535,9 @@ TerminalKeyBindingScope _keyBindingScope(Object? value) {
 LocalTerminalOsc52Policy _osc52Policy(Object? value) {
   if (value is String) {
     final normalized = value.trim().toLowerCase();
+    if (normalized == 'deny') {
+      return LocalTerminalOsc52Policy.disabled;
+    }
     for (final policy in LocalTerminalOsc52Policy.values) {
       if (policy.name == normalized) {
         return policy;

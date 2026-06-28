@@ -120,6 +120,7 @@ struct CachedFrameMeta {
     alt_screen_active: bool,
     default_foreground_rgb: (u8, u8, u8),
     default_background_rgb: (u8, u8, u8),
+    cursor_color_rgb: (u8, u8, u8),
     modes: TerminalFrameModes,
     window_title: Option<String>,
     window_icon_name: Option<String>,
@@ -580,17 +581,21 @@ impl HostProtocolState {
                 let mut args = remainder.splitn(2, |byte| *byte == b';');
                 let selection =
                     String::from_utf8_lossy(args.next().unwrap_or_default()).into_owned();
-                let data = String::from_utf8_lossy(args.next().unwrap_or_default()).into_owned();
+                let data = args
+                    .next()
+                    .map(|value| String::from_utf8_lossy(value).into_owned());
                 let selection = if selection.is_empty() {
                     "c".to_string()
                 } else {
                     selection
                 };
 
-                if data == "?" {
-                    events.push(CallbackEvent::ClipboardPasteRequest { selection });
-                } else if !data.is_empty() {
-                    events.push(CallbackEvent::ClipboardCopy { selection, data });
+                if let Some(data) = data {
+                    if data == "?" {
+                        events.push(CallbackEvent::ClipboardPasteRequest { selection });
+                    } else {
+                        events.push(CallbackEvent::ClipboardCopy { selection, data });
+                    }
                 }
             }
             _ => {}
@@ -1205,6 +1210,7 @@ impl TerminalSession {
             alt_screen_active,
             default_foreground_rgb: resolve_color_rgb(theme.default_fg, &theme.ansi_palette),
             default_background_rgb: resolve_color_rgb(theme.default_bg, &theme.ansi_palette),
+            cursor_color_rgb: resolve_color_rgb(theme.cursor_color, &theme.ansi_palette),
             modes: modes.clone(),
             window_title: window_title.clone(),
             window_icon_name: window_icon_name.clone(),
@@ -1324,6 +1330,7 @@ impl TerminalSession {
             viewport_row_shift,
             default_foreground: color_to_hex(theme.default_fg, &theme.ansi_palette),
             default_background: color_to_hex(theme.default_bg, &theme.ansi_palette),
+            cursor_color: color_to_hex(theme.cursor_color, &theme.ansi_palette),
             modes,
             window_title,
             window_icon_name,
@@ -2829,6 +2836,7 @@ fn extract_hyperlinks_for_row(
 struct TerminalThemeSnapshot {
     default_fg: Color,
     default_bg: Color,
+    cursor_color: Color,
     ansi_palette: [Color; 16],
 }
 
@@ -2836,6 +2844,7 @@ fn terminal_theme_snapshot(terminal: &Terminal) -> TerminalThemeSnapshot {
     TerminalThemeSnapshot {
         default_fg: terminal.default_fg(),
         default_bg: terminal.default_bg(),
+        cursor_color: terminal.cursor_color(),
         ansi_palette: *terminal.get_ansi_palette(),
     }
 }
@@ -3373,6 +3382,9 @@ fn frame_meta_delta_break_reason(
     {
         return Some("terminal_default_colors_changed");
     }
+    if previous_frame_meta.cursor_color_rgb != frame_meta.cursor_color_rgb {
+        return Some("terminal_cursor_color_changed");
+    }
     if previous_frame_meta.modes != frame_meta.modes {
         return Some("terminal_modes_changed");
     }
@@ -3837,6 +3849,7 @@ mod tests {
         let theme = TerminalThemeSnapshot {
             default_fg: Color::Named(NamedColor::White),
             default_bg: Color::Named(NamedColor::Black),
+            cursor_color: Color::Named(NamedColor::White),
             ansi_palette,
         };
 
@@ -3866,6 +3879,7 @@ mod tests {
         let theme = TerminalThemeSnapshot {
             default_fg,
             default_bg,
+            cursor_color: Color::Named(NamedColor::White),
             ansi_palette,
         };
         let row = vec![Cell::with_colors('a', default_fg, default_bg)];
@@ -4199,6 +4213,7 @@ mod tests {
         let theme = TerminalThemeSnapshot {
             default_fg: Color::Named(NamedColor::White),
             default_bg: Color::Named(NamedColor::Black),
+            cursor_color: Color::Named(NamedColor::White),
             ansi_palette,
         };
         let mut placeholder = Cell::with_colors(

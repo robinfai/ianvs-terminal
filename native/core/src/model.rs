@@ -463,6 +463,8 @@ pub struct TerminalFrameDiff {
     #[serde(default)]
     pub default_background: Option<String>,
     #[serde(default)]
+    pub cursor_color: Option<String>,
+    #[serde(default)]
     pub modes: TerminalFrameModes,
     #[serde(default)]
     pub window_title: Option<String>,

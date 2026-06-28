@@ -328,7 +328,16 @@ class MainFlutterWindow: NSWindow {
           return
         }
 
-        NSWorkspace.shared.open(url)
+        if !NSWorkspace.shared.open(url) {
+          result(
+            FlutterError(
+              code: "open_failed",
+              message: "macOS could not open the URL",
+              details: rawUrl
+            )
+          )
+          return
+        }
         result(nil)
       case "showNotification":
         self.showNotification(arguments: call.arguments, result: result)

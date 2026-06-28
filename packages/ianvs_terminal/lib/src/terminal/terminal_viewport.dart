@@ -17,6 +17,7 @@ import 'terminal_viewport_colors.dart';
 
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
+const Key terminalLinkTooltipKey = Key('terminal-link-tooltip');
 const double _terminalTimestampOverlayWidth = 66;
 const Size terminalFallbackCellSize = Size(9, 18);
 final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
@@ -29,6 +30,29 @@ final RegExp _smartPathPattern = RegExp(
 const String _smartSelectionLeadingTrim = "([<{\"'";
 const String _smartSelectionTrailingTrim = ".,;:!?)]}>\"'";
 const String _xtermWordSeparators = " ()[]{}',\"`";
+
+class TerminalLinkTarget {
+  const TerminalLinkTarget({
+    required this.uri,
+    required this.globalPosition,
+    this.visibleText,
+    this.explicitHyperlink = false,
+  });
+
+  final String uri;
+  final Offset globalPosition;
+  final String? visibleText;
+  final bool explicitHyperlink;
+
+  bool get hasMismatchedVisibleText {
+    final text = visibleText?.trim();
+    final target = uri.trim();
+    return explicitHyperlink &&
+        text != null &&
+        text.isNotEmpty &&
+        text != target;
+  }
+}
 
 class TerminalViewportController extends ChangeNotifier {
   TerminalViewportController({DateTime Function()? now})
@@ -94,6 +118,8 @@ class TerminalViewport extends StatefulWidget {
     this.focusNode,
     this.onHostKeyEvent,
     this.onOpenLink,
+    this.onLinkHoverChanged,
+    this.onLinkContextMenu,
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
@@ -118,6 +144,8 @@ class TerminalViewport extends StatefulWidget {
   final FocusNode? focusNode;
   final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
   final ValueChanged<String>? onOpenLink;
+  final ValueChanged<TerminalLinkTarget?>? onLinkHoverChanged;
+  final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle? searchHighlightStyle;
@@ -155,6 +183,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _isLocalSelectionActive = false;
   Offset? _selectionPointerGlobalPosition;
   Offset? _selectionPointerDownGlobalPosition;
+  Offset? _lastHoverGlobalPosition;
+  TerminalLinkTarget? _hoveredLinkTarget;
   Offset? _lastPrimaryTapUpPosition;
   Duration? _lastPrimaryTapUpTimestamp;
   int _lastPrimaryTapCount = 0;
@@ -201,6 +231,7 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   @override
   void dispose() {
+    widget.onLinkHoverChanged?.call(null);
     widget.controller.removeListener(_handleFrameUpdate);
     _unbindFocusNodeListener();
     _closeTextInputConnection(notify: false);
@@ -244,6 +275,12 @@ class _TerminalViewportState extends State<TerminalViewport>
       _wordSelectionAnchor = null;
       _localSelectionMode = _LocalSelectionMode.cell;
       _stopSelectionAutoScroll();
+      _setHoveredLinkTarget(null);
+    } else {
+      final hoverPosition = _lastHoverGlobalPosition;
+      if (hoverPosition != null) {
+        _updateHoveredLinkTarget(hoverPosition);
+      }
     }
   }
 
@@ -715,6 +752,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     return (buttons & kPrimaryButton) != 0;
   }
 
+  bool _isSecondaryButton(int buttons) {
+    return (buttons & kSecondaryMouseButton) != 0;
+  }
+
   void _sendMouseEvent({
     required Offset globalPosition,
     required int button,
@@ -740,6 +781,10 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _handlePointerDown(PointerDownEvent event) {
     _stopScrollMomentum();
     if (!_terminalMouseEnabled) {
+      if (_isSecondaryButton(event.buttons)) {
+        _showLinkContextMenuAt(event.position);
+        return;
+      }
       if (!_isPrimarySelectionButton(event.buttons) ||
           _scrollbarContainsGlobalPosition(event.position) ||
           !_surfaceContainsGlobalPosition(event.position)) {
@@ -824,11 +869,15 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerHover(PointerHoverEvent event) {
-    if (!_terminalMouseEnabled ||
-        widget.controller.frame.modes.mouseMode != 'any_event') {
+    _lastHoverGlobalPosition = event.position;
+    if (!_terminalMouseEnabled) {
+      _updateHoveredLinkTarget(event.position);
       return;
     }
-    _sendAnyMouseMotion(event.position);
+    _setHoveredLinkTarget(null);
+    if (widget.controller.frame.modes.mouseMode == 'any_event') {
+      _sendAnyMouseMotion(event.position);
+    }
   }
 
   void _sendAnyMouseMotion(Offset globalPosition) {
@@ -879,10 +928,12 @@ class _TerminalViewportState extends State<TerminalViewport>
     _isLocalSelectionActive = false;
     _selectionPointerGlobalPosition = null;
     _selectionPointerDownGlobalPosition = null;
+    _lastHoverGlobalPosition = null;
     _wordSelectionAnchor = null;
     _localSelectionMode = _LocalSelectionMode.cell;
     _cancelPendingLinkOpen();
     _stopSelectionAutoScroll();
+    _setHoveredLinkTarget(null);
   }
 
   void _sendMouseWheel(double deltaY, {Offset? globalPosition}) {
@@ -942,6 +993,20 @@ class _TerminalViewportState extends State<TerminalViewport>
       return;
     }
     onOpenLink(link);
+  }
+
+  void _showLinkContextMenuAt(Offset globalPosition) {
+    if (_scrollbarContainsGlobalPosition(globalPosition) ||
+        !_surfaceContainsGlobalPosition(globalPosition)) {
+      return;
+    }
+    final target = _linkTargetAt(globalPosition);
+    if (target == null) {
+      return;
+    }
+    _cancelPendingLinkOpen();
+    _focusNode.requestFocus();
+    widget.onLinkContextMenu?.call(target);
   }
 
   int _nextPrimaryTapCount(Offset globalPosition, Duration timeStamp) {
@@ -1007,6 +1072,10 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   String? _linkAt(Offset globalPosition) {
+    return _linkTargetAt(globalPosition)?.uri;
+  }
+
+  TerminalLinkTarget? _linkTargetAt(Offset globalPosition) {
     final cell = _cellForGlobalPosition(globalPosition);
     if (cell == null) {
       return null;
@@ -1016,7 +1085,12 @@ class _TerminalViewportState extends State<TerminalViewport>
       if (hyperlink.row == cell.row &&
           cell.col >= hyperlink.startCol &&
           cell.col < hyperlink.endCol) {
-        return hyperlink.uri;
+        return TerminalLinkTarget(
+          uri: hyperlink.uri,
+          globalPosition: globalPosition,
+          visibleText: _visibleTextForHyperlink(frame, hyperlink),
+          explicitHyperlink: true,
+        );
       }
     }
 
@@ -1035,10 +1109,62 @@ class _TerminalViewportState extends State<TerminalViewport>
     final codeUnit = textCells.codeUnitForColumn(cell.col);
     for (final match in _visibleUrlPattern.allMatches(text)) {
       if (codeUnit >= match.start && codeUnit < match.end) {
-        return match.group(0);
+        final uri = match.group(0);
+        if (uri == null) {
+          continue;
+        }
+        return TerminalLinkTarget(
+          uri: uri,
+          globalPosition: globalPosition,
+          visibleText: uri,
+        );
       }
     }
     return null;
+  }
+
+  String? _visibleTextForHyperlink(
+    TerminalFrameDiff frame,
+    TerminalHyperlinkRange hyperlink,
+  ) {
+    TerminalRow? row;
+    for (final candidate in frame.rows) {
+      if (candidate.index == hyperlink.row) {
+        row = candidate;
+        break;
+      }
+    }
+    final text = row?.text;
+    if (text == null || text.isEmpty) {
+      return null;
+    }
+    return TerminalTextCells.fromText(
+      text,
+    ).sliceColumns(hyperlink.startCol, hyperlink.endCol);
+  }
+
+  void _updateHoveredLinkTarget(Offset globalPosition) {
+    if (_scrollbarContainsGlobalPosition(globalPosition) ||
+        !_surfaceContainsGlobalPosition(globalPosition)) {
+      _setHoveredLinkTarget(null);
+      return;
+    }
+    _setHoveredLinkTarget(_linkTargetAt(globalPosition));
+  }
+
+  void _setHoveredLinkTarget(TerminalLinkTarget? target) {
+    final previous = _hoveredLinkTarget;
+    if (previous?.uri == target?.uri &&
+        (previous == null ||
+            target == null ||
+            (previous.globalPosition - target.globalPosition).distance < 1)) {
+      return;
+    }
+    _hoveredLinkTarget = target;
+    widget.onLinkHoverChanged?.call(target);
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _resetPendingScroll() {
@@ -1384,101 +1510,190 @@ class _TerminalViewportState extends State<TerminalViewport>
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _focusNode.requestFocus(),
-        child: Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: _handlePointerDown,
-          onPointerMove: _handlePointerMove,
-          onPointerHover: _handlePointerHover,
-          onPointerUp: _handlePointerUp,
-          onPointerCancel: _handlePointerCancel,
-          onPointerSignal: _handlePointerSignal,
-          onPointerPanZoomStart: _handlePanZoomStart,
-          onPointerPanZoomUpdate: _handlePanZoomUpdate,
-          onPointerPanZoomEnd: _handlePanZoomEnd,
-          child: AnimatedBuilder(
-            animation: widget.controller,
-            builder: (context, _) {
-              final frame = widget.controller.frame;
-              final graphics = frame.graphics;
-              final effectiveColors = _effectiveColorsForFrame(colors, frame);
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  final contentPadding = widget.contentPadding;
-                  final trackHeight = math.max(0.0, constraints.maxHeight - 16);
-                  return DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: effectiveColors.canvasBackground,
-                    ),
-                    child: Stack(
-                      children: [
-                        ..._buildGraphicOverlays(
-                          frame,
-                          graphics,
-                          contentPadding,
-                          belowText: true,
-                        ),
-                        Positioned.fill(
-                          child: Padding(
-                            padding: contentPadding,
-                            child: _TerminalViewportSurface(
-                              key: _surfaceKey,
-                              controller: widget.controller,
-                              selectionController: widget.selectionController,
-                              cursorVisible:
-                                  _canDisplayFrameCursor && _cursorVisible,
-                              font: widget.font,
-                              cursor: widget.cursor,
-                              colors: effectiveColors,
-                              searchMatches: widget.searchMatches,
-                              activeSearchMatchIndex:
-                                  widget.activeSearchMatchIndex,
-                              searchHighlightStyle:
-                                  widget.searchHighlightStyle ??
-                                  const TerminalSearchHighlightStyle(),
+        child: MouseRegion(
+          cursor: _hoveredLinkTarget == null
+              ? SystemMouseCursors.text
+              : SystemMouseCursors.click,
+          onExit: (_) {
+            _lastHoverGlobalPosition = null;
+            _setHoveredLinkTarget(null);
+          },
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: _handlePointerDown,
+            onPointerMove: _handlePointerMove,
+            onPointerHover: _handlePointerHover,
+            onPointerUp: _handlePointerUp,
+            onPointerCancel: _handlePointerCancel,
+            onPointerSignal: _handlePointerSignal,
+            onPointerPanZoomStart: _handlePanZoomStart,
+            onPointerPanZoomUpdate: _handlePanZoomUpdate,
+            onPointerPanZoomEnd: _handlePanZoomEnd,
+            child: AnimatedBuilder(
+              animation: widget.controller,
+              builder: (context, _) {
+                final frame = widget.controller.frame;
+                final graphics = frame.graphics;
+                final effectiveColors = _effectiveColorsForFrame(colors, frame);
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    final contentPadding = widget.contentPadding;
+                    final trackHeight = math.max(
+                      0.0,
+                      constraints.maxHeight - 16,
+                    );
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: effectiveColors.canvasBackground,
+                      ),
+                      child: Stack(
+                        children: [
+                          ..._buildGraphicOverlays(
+                            frame,
+                            graphics,
+                            contentPadding,
+                            belowText: true,
+                          ),
+                          Positioned.fill(
+                            child: Padding(
+                              padding: contentPadding,
+                              child: _TerminalViewportSurface(
+                                key: _surfaceKey,
+                                controller: widget.controller,
+                                selectionController: widget.selectionController,
+                                cursorVisible:
+                                    _canDisplayFrameCursor && _cursorVisible,
+                                font: widget.font,
+                                cursor: widget.cursor,
+                                colors: effectiveColors,
+                                searchMatches: widget.searchMatches,
+                                activeSearchMatchIndex:
+                                    widget.activeSearchMatchIndex,
+                                searchHighlightStyle:
+                                    widget.searchHighlightStyle ??
+                                    const TerminalSearchHighlightStyle(),
+                              ),
                             ),
                           ),
-                        ),
-                        ..._buildInlineImageOverlays(
-                          frame,
-                          contentPadding,
-                          effectiveColors,
-                        ),
-                        ..._buildGraphicOverlays(
-                          frame,
-                          graphics,
-                          contentPadding,
-                          belowText: false,
-                        ),
-                        if (widget.showLineTimestamps)
-                          ..._buildTimestampOverlays(
+                          ..._buildInlineImageOverlays(
                             frame,
                             contentPadding,
                             effectiveColors,
                           ),
-                        if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
-                          Positioned(
-                            top: 8,
-                            right: 6,
-                            bottom: 8,
-                            child: _TerminalScrollbar(
-                              viewportRows: frame.viewportRows,
-                              scrollbackOffset: frame.scrollbackOffset,
-                              scrollbackMaxOffset: frame.scrollbackMaxOffset,
-                              trackHeight: trackHeight,
-                              colors: effectiveColors,
-                              onScrollToOffset: widget.onScrollToOffset,
-                            ),
+                          ..._buildGraphicOverlays(
+                            frame,
+                            graphics,
+                            contentPadding,
+                            belowText: false,
                           ),
-                        ?_buildComposingOverlay(
-                          effectiveColors,
-                          viewportWidth: constraints.maxWidth,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
+                          if (widget.showLineTimestamps)
+                            ..._buildTimestampOverlays(
+                              frame,
+                              contentPadding,
+                              effectiveColors,
+                            ),
+                          if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
+                            Positioned(
+                              top: 8,
+                              right: 6,
+                              bottom: 8,
+                              child: _TerminalScrollbar(
+                                viewportRows: frame.viewportRows,
+                                scrollbackOffset: frame.scrollbackOffset,
+                                scrollbackMaxOffset: frame.scrollbackMaxOffset,
+                                trackHeight: trackHeight,
+                                colors: effectiveColors,
+                                onScrollToOffset: widget.onScrollToOffset,
+                              ),
+                            ),
+                          ?_buildComposingOverlay(
+                            effectiveColors,
+                            viewportWidth: constraints.maxWidth,
+                          ),
+                          ?_buildLinkTooltipOverlay(
+                            constraints: constraints,
+                            colors: effectiveColors,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget? _buildLinkTooltipOverlay({
+    required BoxConstraints constraints,
+    required TerminalViewportColors colors,
+  }) {
+    final target = _hoveredLinkTarget;
+    if (target == null ||
+        target.uri.trim().isEmpty ||
+        !constraints.hasBoundedWidth ||
+        !constraints.hasBoundedHeight) {
+      return null;
+    }
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return null;
+    }
+    final localPosition = renderObject.globalToLocal(target.globalPosition);
+    final tooltipText = target.hasMismatchedVisibleText
+        ? 'Target: ${target.uri}\nText: ${target.visibleText!.trim()}'
+        : target.uri;
+    final tooltipHeight = target.hasMismatchedVisibleText ? 54.0 : 34.0;
+    final maxWidth = math.min(420.0, math.max(96.0, constraints.maxWidth - 16));
+    final leftLimit = math.max(8.0, constraints.maxWidth - maxWidth - 8);
+    final left = (localPosition.dx + 10).clamp(8.0, leftLimit).toDouble();
+    final aboveTop = localPosition.dy - tooltipHeight - 2;
+    final belowTop = localPosition.dy + 18;
+    final rawTop = aboveTop >= 8 ? aboveTop : belowTop;
+    final top = rawTop
+        .clamp(8.0, math.max(8.0, constraints.maxHeight - tooltipHeight))
+        .toDouble();
+    final background = colors.foreground.withValues(alpha: 0.94);
+    final foreground = colors.canvasBackground;
+    return Positioned(
+      left: left,
+      top: top,
+      child: IgnorePointer(
+        child: Semantics(
+          container: true,
+          label: target.hasMismatchedVisibleText
+              ? 'Terminal link target: ${target.uri}. Visible text: ${target.visibleText!.trim()}'
+              : 'Terminal link target: ${target.uri}',
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: DecoratedBox(
+              key: terminalLinkTooltipKey,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: colors.canvasBackground.withValues(alpha: 0.34),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                child: Text(
+                  tooltipText,
+                  maxLines: target.hasMismatchedVisibleText ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foreground,
+                    fontFamily: widget.font.family,
+                    fontFamilyFallback: widget.font.fallback,
+                    fontSize: math.max(11, widget.font.size * 0.82),
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),

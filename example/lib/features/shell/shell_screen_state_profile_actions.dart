@@ -33,6 +33,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             effectiveDefaultProfileId: sessionState.defaultProfileId,
             themeMode: sessionState.themeMode,
             terminalViewportPadding: sessionState.terminalViewportPadding,
+            osc52Policy: _clipboardConfig.osc52,
           ),
         ),
       ),
@@ -89,6 +90,17 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         await sessionController.setTerminalViewportPadding(
           selection.terminalViewportPadding,
         );
+      }
+      if (selection.osc52Policy != _clipboardConfig.osc52) {
+        await sessionController.setOsc52Policy(selection.osc52Policy);
+        if (!mounted) {
+          return;
+        }
+        _mutateState(() {
+          _clipboardConfig = _clipboardConfig.copyWith(
+            osc52: selection.osc52Policy,
+          );
+        });
       }
       final updatedProfile = selection.updatedProfile;
       if (updatedProfile != null) {

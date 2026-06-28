@@ -10,6 +10,10 @@ class _ShellStatusBar extends StatelessWidget {
     required this.modeItems,
     required this.shellIntegrationHealth,
     required this.encodingLabel,
+    this.linkLabel,
+    this.linkTooltip,
+    this.osc52Label,
+    this.osc52Tooltip,
   });
 
   final AppThemeTokens palette;
@@ -19,6 +23,10 @@ class _ShellStatusBar extends StatelessWidget {
   final List<_ShellStatusModeItem> modeItems;
   final _ShellIntegrationHealth shellIntegrationHealth;
   final String encodingLabel;
+  final String? linkLabel;
+  final String? linkTooltip;
+  final String? osc52Label;
+  final String? osc52Tooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +61,30 @@ class _ShellStatusBar extends StatelessWidget {
           monospace: true,
           highlighted: true,
           maxWidth: 118,
+        ),
+      if (linkLabel != null)
+        _ShellStatusItem(
+          key: const Key('shell-status-link-target'),
+          palette: palette,
+          tone: tone,
+          label: linkLabel!,
+          tooltip: linkTooltip,
+          semanticsLabel: 'Terminal link target: ${linkTooltip ?? linkLabel}',
+          monospace: true,
+          highlighted: true,
+          maxWidth: 220,
+        ),
+      if (osc52Label != null)
+        _ShellStatusItem(
+          key: const Key('shell-status-osc52'),
+          palette: palette,
+          tone: tone,
+          label: osc52Label!,
+          tooltip: osc52Tooltip,
+          semanticsLabel: 'OSC 52 clipboard status: $osc52Label',
+          monospace: true,
+          highlighted: true,
+          maxWidth: 190,
         ),
       _ShellStatusItem(
         key: const Key('shell-status-shell-integration'),

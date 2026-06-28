@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show utf8;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,12 +25,66 @@ final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
 final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
   ref,
 ) {
-  Future<bool> osc52ClipboardAccessAllowed() async {
+  const osc52PromptPreviewRunes = 120;
+
+  ({
+    int byteCount,
+    int characterCount,
+    String textPreview,
+    bool textPreviewTruncated,
+  })
+  clipboardPromptSummary(String text) {
+    final runes = text.runes.toList(growable: false);
+    return (
+      byteCount: utf8.encode(text).length,
+      characterCount: runes.length,
+      textPreview: String.fromCharCodes(runes.take(osc52PromptPreviewRunes)),
+      textPreviewTruncated: runes.length > osc52PromptPreviewRunes,
+    );
+  }
+
+  Future<SessionOsc52PromptRequest> promptRequestFor(
+    TerminalClipboardAccessRequest request,
+  ) async {
+    if (request.operation == TerminalClipboardOperation.pasteRequest &&
+        request.textPreview == null &&
+        request.resolveText != null) {
+      try {
+        final clipboardText = await request.resolveText!();
+        final summary = clipboardPromptSummary(clipboardText);
+        return SessionOsc52PromptRequest(
+          operation: request.operation,
+          sessionId: request.sessionId,
+          selection: request.selection,
+          byteCount: summary.byteCount,
+          characterCount: summary.characterCount,
+          textPreview: summary.textPreview,
+          textPreviewTruncated: summary.textPreviewTruncated,
+        );
+      } on Object {
+        return SessionOsc52PromptRequest.fromAccessRequest(request);
+      }
+    }
+    return SessionOsc52PromptRequest.fromAccessRequest(request);
+  }
+
+  Future<bool> osc52ClipboardAccessAllowed(
+    TerminalClipboardAccessRequest request,
+  ) async {
     try {
       final config = await ref.read(localTerminalConfigLoaderProvider).load();
       return switch (config.config.clipboard.osc52) {
         LocalTerminalOsc52Policy.disabled => false,
-        LocalTerminalOsc52Policy.profile ||
+        LocalTerminalOsc52Policy.ask =>
+          await ref
+              .read(sessionOsc52PromptControllerProvider)
+              .request(await promptRequestFor(request)),
+        LocalTerminalOsc52Policy.profile =>
+          request.operation == TerminalClipboardOperation.pasteRequest
+              ? await ref
+                    .read(sessionOsc52PromptControllerProvider)
+                    .request(await promptRequestFor(request))
+              : true,
         LocalTerminalOsc52Policy.allow => true,
       };
     } on Object {
@@ -41,8 +96,8 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
     backend: ref.read(ptySessionBackendProvider),
     copyToClipboard: ref.read(sessionClipboardCopyProvider),
     readClipboard: ref.read(sessionClipboardPasteProvider),
-    allowClipboardCopy: osc52ClipboardAccessAllowed,
-    allowClipboardPasteRequest: osc52ClipboardAccessAllowed,
+    allowClipboardCopyWithContext: osc52ClipboardAccessAllowed,
+    allowClipboardPasteRequestWithContext: osc52ClipboardAccessAllowed,
     resizeWindowBy: ref.read(sessionWindowResizeProvider),
     enableSessionPolling: ref.read(sessionPollingEnabledProvider),
     enableWarmUpRefresh: ref.read(driverWarmUpRefreshEnabledProvider),
@@ -77,6 +132,10 @@ final localTerminalConfigLoaderProvider = Provider<LocalTerminalConfigLoader>((
 
 final sessionPollingEnabledProvider = Provider<bool>((ref) => true);
 final driverWarmUpRefreshEnabledProvider = Provider<bool>((ref) => false);
+final sessionOsc52PromptControllerProvider =
+    Provider<SessionOsc52PromptController>((ref) {
+      return SessionOsc52PromptController();
+    });
 final sessionEnvironmentOverridesProvider = Provider<Map<String, String>>((
   ref,
 ) {
@@ -88,6 +147,63 @@ final sessionControllerProvider =
 
 typedef _LocalConfigUpdater =
     LocalTerminalConfigDocument Function(LocalTerminalConfigDocument config);
+
+class SessionOsc52PromptRequest {
+  const SessionOsc52PromptRequest({
+    required this.operation,
+    this.sessionId,
+    this.selection,
+    this.byteCount,
+    this.characterCount,
+    this.textPreview,
+    this.textPreviewTruncated = false,
+  });
+
+  factory SessionOsc52PromptRequest.fromAccessRequest(
+    TerminalClipboardAccessRequest request,
+  ) {
+    return SessionOsc52PromptRequest(
+      operation: request.operation,
+      sessionId: request.sessionId,
+      selection: request.selection,
+      byteCount: request.byteCount,
+      characterCount: request.characterCount,
+      textPreview: request.textPreview,
+      textPreviewTruncated: request.textPreviewTruncated,
+    );
+  }
+
+  final TerminalClipboardOperation operation;
+  final String? sessionId;
+  final String? selection;
+  final int? byteCount;
+  final int? characterCount;
+  final String? textPreview;
+  final bool textPreviewTruncated;
+}
+
+typedef SessionOsc52PromptHandler =
+    Future<bool> Function(SessionOsc52PromptRequest request);
+
+class SessionOsc52PromptController {
+  SessionOsc52PromptHandler? _handler;
+
+  void setHandler(SessionOsc52PromptHandler handler) {
+    _handler = handler;
+  }
+
+  void clearHandler() {
+    _handler = null;
+  }
+
+  Future<bool> request(SessionOsc52PromptRequest request) async {
+    final handler = _handler;
+    if (handler == null) {
+      return false;
+    }
+    return handler(request);
+  }
+}
 
 class _AutomaticProfileBaseline {
   const _AutomaticProfileBaseline({
@@ -746,6 +862,8 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionShellHookEvent():
         _applyShellHook(event);
         break;
+      case TerminalSessionClipboardEvent():
+        break;
     }
   }
 
@@ -1358,6 +1476,17 @@ class SessionController extends Notifier<SessionState> {
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
     );
+  }
+
+  Future<void> setOsc52Policy(LocalTerminalOsc52Policy policy) async {
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
+    final latestConfig = await repository.load() ?? _localConfigDocument;
+    _localConfigDocument = latestConfig.copyWith(
+      clipboard: latestConfig.clipboard.copyWith(osc52: policy),
+    );
+    _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
+    await repository.save(_localConfigDocument);
+    _preferencesLoadedFromDisk = true;
   }
 
   Future<void> deleteProfile(String profileId) async {

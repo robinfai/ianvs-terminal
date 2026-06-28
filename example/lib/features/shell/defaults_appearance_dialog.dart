@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../config/local_terminal_config_models.dart';
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
 import '../terminal/terminal_viewport_colors.dart';
@@ -10,6 +11,7 @@ class DefaultsAndAppearanceSelection {
     required this.configuredDefaultProfileId,
     required this.themeMode,
     required this.terminalViewportPadding,
+    required this.osc52Policy,
     this.updatedProfile,
     this.openProfiles = false,
   });
@@ -17,6 +19,7 @@ class DefaultsAndAppearanceSelection {
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
   final double terminalViewportPadding;
+  final LocalTerminalOsc52Policy osc52Policy;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -29,6 +32,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.effectiveDefaultProfileId,
     required this.themeMode,
     required this.terminalViewportPadding,
+    required this.osc52Policy,
   });
 
   final List<TerminalProfile> profiles;
@@ -36,6 +40,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final String? effectiveDefaultProfileId;
   final TerminalThemeMode themeMode;
   final double terminalViewportPadding;
+  final LocalTerminalOsc52Policy osc52Policy;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -48,6 +53,7 @@ class _DefaultsAndAppearanceDialogState
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
   late double _selectedTerminalViewportPadding;
+  late LocalTerminalOsc52Policy _selectedOsc52Policy;
   String _terminalPresetFilter = '';
 
   @override
@@ -56,6 +62,7 @@ class _DefaultsAndAppearanceDialogState
     _selectedProfileId = widget.configuredDefaultProfileId;
     _selectedThemeMode = widget.themeMode;
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
+    _selectedOsc52Policy = widget.osc52Policy;
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
@@ -210,6 +217,7 @@ class _DefaultsAndAppearanceDialogState
                             themeMode: _selectedThemeMode,
                             terminalViewportPadding:
                                 _selectedTerminalViewportPadding,
+                            osc52Policy: _selectedOsc52Policy,
                             updatedProfile: null,
                             openProfiles: true,
                           ),
@@ -379,6 +387,35 @@ class _DefaultsAndAppearanceDialogState
             ),
             SizedBox(height: theme.spacing.xl),
             const AppSectionHeader(
+              title: 'OSC 52 clipboard',
+              description:
+                  'Choose how terminal escape sequences may access the system clipboard.',
+            ),
+            SizedBox(height: theme.spacing.sm),
+            RadioGroup<LocalTerminalOsc52Policy>(
+              groupValue: _selectedOsc52Policy,
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _selectedOsc52Policy = value;
+                });
+              },
+              child: Column(
+                children: [
+                  for (final policy in LocalTerminalOsc52Policy.values)
+                    AppCompactRadioTile<LocalTerminalOsc52Policy>(
+                      tileKey: Key('default-osc52-policy-${policy.name}'),
+                      value: policy,
+                      title: Text(osc52PolicyLabel(policy)),
+                      subtitle: Text(osc52PolicyDescription(policy)),
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(height: theme.spacing.xl),
+            const AppSectionHeader(
               title: 'Terminal canvas inset',
               description:
                   'Adjust the empty space between the shell frame and terminal text.',
@@ -499,6 +536,7 @@ class _DefaultsAndAppearanceDialogState
                   configuredDefaultProfileId: _selectedProfileId,
                   themeMode: _selectedThemeMode,
                   terminalViewportPadding: _selectedTerminalViewportPadding,
+                  osc52Policy: _selectedOsc52Policy,
                   updatedProfile: _updatedProfileForPreset(effectiveProfile),
                   openProfiles: false,
                 ),
@@ -524,6 +562,28 @@ String _themeModeDescription(TerminalThemeMode mode) {
     TerminalThemeMode.system => 'Follow the current device appearance.',
     TerminalThemeMode.light => 'Keep the shell app in light mode.',
     TerminalThemeMode.dark => 'Keep the shell app in dark mode.',
+  };
+}
+
+String osc52PolicyLabel(LocalTerminalOsc52Policy policy) {
+  return switch (policy) {
+    LocalTerminalOsc52Policy.disabled => 'Deny',
+    LocalTerminalOsc52Policy.profile => 'Profile',
+    LocalTerminalOsc52Policy.allow => 'Allow',
+    LocalTerminalOsc52Policy.ask => 'Ask',
+  };
+}
+
+String osc52PolicyDescription(LocalTerminalOsc52Policy policy) {
+  return switch (policy) {
+    LocalTerminalOsc52Policy.disabled =>
+      'Block OSC 52 clipboard copy and paste-read requests.',
+    LocalTerminalOsc52Policy.profile =>
+      'Allow clipboard writes and prompt before paste-read requests.',
+    LocalTerminalOsc52Policy.allow =>
+      'Allow trusted terminal sessions to use OSC 52 without prompting.',
+    LocalTerminalOsc52Policy.ask =>
+      'Prompt before each OSC 52 clipboard write or paste-read request.',
   };
 }
 

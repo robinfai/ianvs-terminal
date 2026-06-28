@@ -651,6 +651,7 @@ class TerminalFrameDiff {
     this.viewportRowShift = 0,
     this.defaultForeground,
     this.defaultBackground,
+    this.cursorColor,
     this.modes = TerminalFrameModes.empty,
     this.selection,
     this.windowTitle,
@@ -673,6 +674,7 @@ class TerminalFrameDiff {
   final int viewportRowShift;
   final Color? defaultForeground;
   final Color? defaultBackground;
+  final Color? cursorColor;
   final TerminalFrameModes modes;
   final String? windowTitle;
   final String? windowIconName;
@@ -733,6 +735,7 @@ class TerminalFrameDiff {
       defaultBackground: _colorFromHex(
         _stringFromJson(json['default_background']),
       ),
+      cursorColor: _colorFromHex(_stringFromJson(json['cursor_color'])),
       modes: modesJson == null
           ? TerminalFrameModes.empty
           : TerminalFrameModes.fromJson(modesJson),
@@ -907,6 +910,7 @@ class TerminalViewportState {
             nextFrame.defaultForeground ?? frame.defaultForeground,
         defaultBackground:
             nextFrame.defaultBackground ?? frame.defaultBackground,
+        cursorColor: nextFrame.cursorColor ?? frame.cursorColor,
         modes: nextFrame.modes,
         windowTitle: nextFrame.windowTitle,
         windowIconName: nextFrame.windowIconName,
@@ -1158,6 +1162,7 @@ TerminalFrameDiff _normalizeSnapshotFrame(
     viewportRowShift: 0,
     defaultForeground: frame.defaultForeground,
     defaultBackground: frame.defaultBackground,
+    cursorColor: frame.cursorColor,
     modes: frame.modes,
     windowTitle: frame.windowTitle,
     windowIconName: frame.windowIconName,

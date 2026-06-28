@@ -787,6 +787,15 @@ void main() {
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.allow,
+              ),
+            ),
+          ),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -834,6 +843,15 @@ void main() {
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.allow,
+              ),
+            ),
+          ),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -1243,6 +1261,15 @@ void main() {
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.allow,
+              ),
+            ),
+          ),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -1336,6 +1363,15 @@ void main() {
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
         ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.allow,
+              ),
+            ),
+          ),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -1360,6 +1396,64 @@ void main() {
       fakeBindings.writes.last,
       utf8.encode('\x1B]52;c;$expectedPayload\x07'),
     );
+  });
+
+  test('OSC 52 profile policy prompts before paste requests', () async {
+    final fakeBindings = FakePtyBackend();
+    final bindings = _EventfulPtyBackend(fakeBindings);
+    final coreClient = bindings;
+    final promptRequests = <SessionOsc52PromptRequest>[];
+
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionClipboardPasteProvider.overrideWithValue(() async {
+          return 'profile paste';
+        }),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(),
+          ),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(sessionOsc52PromptControllerProvider).setHandler((
+      request,
+    ) async {
+      promptRequests.add(request);
+      return false;
+    });
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'clipboard_paste_request',
+      'session_id': int.parse(sessionId),
+      'payload': {'selection': 'c'},
+    });
+
+    controller.resizeActiveSession(const Size(640, 480), 1.0);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(promptRequests, hasLength(1));
+    expect(
+      promptRequests.single.operation,
+      terminal.TerminalClipboardOperation.pasteRequest,
+    );
+    expect(promptRequests.single.textPreview, 'profile paste');
+    expect(fakeBindings.writes, isEmpty);
   });
 
   test(
@@ -1418,6 +1512,95 @@ void main() {
       expect(fakeBindings.writes, isEmpty);
     },
   );
+
+  test('OSC 52 ask policy prompts before clipboard access', () async {
+    final fakeBindings = FakePtyBackend();
+    final bindings = _EventfulPtyBackend(fakeBindings);
+    final coreClient = bindings;
+    final promptRequests = <SessionOsc52PromptRequest>[];
+    String copied = '';
+    var pasteReadCount = 0;
+
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(coreClient),
+        sessionClipboardCopyProvider.overrideWithValue((text) async {
+          copied = text;
+        }),
+        sessionClipboardPasteProvider.overrideWithValue(() async {
+          pasteReadCount += 1;
+          return 'denied paste';
+        }),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(
+            const LocalTerminalConfigDocument(
+              clipboard: LocalTerminalClipboardConfig(
+                osc52: LocalTerminalOsc52Policy.ask,
+              ),
+            ),
+          ),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(sessionOsc52PromptControllerProvider).setHandler((
+      request,
+    ) async {
+      promptRequests.add(request);
+      return request.operation == terminal.TerminalClipboardOperation.copy;
+    });
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'clipboard_copy',
+      'session_id': int.parse(sessionId),
+      'payload': {
+        'selection': 'c',
+        'data': base64.encode(utf8.encode('prompted copy')),
+      },
+    });
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'clipboard_paste_request',
+      'session_id': int.parse(sessionId),
+      'payload': {'selection': 'c'},
+    });
+
+    controller.resizeActiveSession(const Size(640, 480), 1.0);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(
+      promptRequests.map((request) => request.operation),
+      <terminal.TerminalClipboardOperation>[
+        terminal.TerminalClipboardOperation.copy,
+        terminal.TerminalClipboardOperation.pasteRequest,
+      ],
+    );
+    expect(promptRequests[0].sessionId, sessionId);
+    expect(promptRequests[0].selection, 'c');
+    expect(promptRequests[0].textPreview, 'prompted copy');
+    expect(promptRequests[0].characterCount, 13);
+    expect(promptRequests[0].byteCount, 13);
+    expect(promptRequests[1].sessionId, sessionId);
+    expect(promptRequests[1].selection, 'c');
+    expect(promptRequests[1].textPreview, 'denied paste');
+    expect(promptRequests[1].characterCount, 12);
+    expect(promptRequests[1].byteCount, 12);
+    expect(copied, 'prompted copy');
+    expect(pasteReadCount, 1);
+    expect(fakeBindings.writes, isEmpty);
+  });
 
   test(
     'bootstrap prefers explicit override over persisted and legacy defaults',

@@ -2600,6 +2600,225 @@ void main() {
     expect(opened, ['https://example.com/docs']);
   });
 
+  testWidgets('terminal viewport reports OSC 8 hover targets', (tester) async {
+    final hovered = <TerminalLinkTarget?>[];
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'open docs')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          hyperlinks: [
+            TerminalHyperlinkRange(
+              row: 0,
+              startCol: 5,
+              endCol: 9,
+              uri: 'https://example.com/docs',
+            ),
+          ],
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: SelectionController(),
+              inputController: TerminalInputController(
+                sessionId: '1',
+                runtime: testRuntime(FakePtyBackend()),
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onLinkHoverChanged: hovered.add,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = _terminalRenderObject(tester);
+    final cellSize = renderObject.debugCellSize;
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    final linkPosition = renderObject.localToGlobal(
+      Offset(cellSize.width * 6, cellSize.height / 2),
+    );
+    await tester.sendEventToBinding(pointer.hover(linkPosition));
+    await tester.pump();
+
+    expect(hovered.last?.uri, 'https://example.com/docs');
+    expect(hovered.last?.visibleText, 'docs');
+    expect(hovered.last?.explicitHyperlink, isTrue);
+    expect(hovered.last?.hasMismatchedVisibleText, isTrue);
+    final tooltipFinder = find.byKey(terminalLinkTooltipKey);
+    expect(tooltipFinder, findsOneWidget);
+    expect(
+      find.textContaining('Target: https://example.com/docs'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Text: docs'), findsOneWidget);
+    final tooltipRect = tester.getRect(tooltipFinder);
+    expect((tooltipRect.left - linkPosition.dx).abs(), lessThan(120));
+    expect((tooltipRect.top - linkPosition.dy).abs(), lessThan(60));
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.click,
+    );
+
+    await tester.sendEventToBinding(
+      pointer.hover(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 1, cellSize.height / 2),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(hovered.last, isNull);
+    expect(find.byKey(terminalLinkTooltipKey), findsNothing);
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.text,
+    );
+  });
+
+  testWidgets('terminal viewport paints OSC 8 hyperlink dashed underlines', (
+    tester,
+  ) async {
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'open docs')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          hyperlinks: [
+            TerminalHyperlinkRange(
+              row: 0,
+              startCol: 5,
+              endCol: 9,
+              uri: 'https://example.com/docs',
+            ),
+          ],
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: SelectionController(),
+              inputController: TerminalInputController(
+                sessionId: '1',
+                runtime: testRuntime(FakePtyBackend()),
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = _terminalRenderObject(tester);
+    final cellSize = renderObject.debugCellSize;
+    final underline = renderObject.debugHyperlinkUnderlineRects.single;
+
+    expect(underline.left, closeTo(cellSize.width * 5, 0.001));
+    expect(underline.right, closeTo(cellSize.width * 9, 0.001));
+    expect(underline.top, greaterThan(0));
+    expect(underline.bottom, lessThan(cellSize.height));
+  });
+
+  testWidgets('terminal viewport reports OSC 8 context menu targets', (
+    tester,
+  ) async {
+    final contextTargets = <TerminalLinkTarget>[];
+    final controller = TerminalViewportController()
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'open docs')],
+          cursor: TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          hyperlinks: [
+            TerminalHyperlinkRange(
+              row: 0,
+              startCol: 5,
+              endCol: 9,
+              uri: 'https://example.com/docs',
+            ),
+          ],
+        ),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: 200,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: SelectionController(),
+              inputController: TerminalInputController(
+                sessionId: '1',
+                runtime: testRuntime(FakePtyBackend()),
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onLinkContextMenu: contextTargets.add,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final renderObject = _terminalRenderObject(tester);
+    final cellSize = renderObject.debugCellSize;
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(
+      pointer.down(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 6, cellSize.height / 2),
+        ),
+        buttons: kSecondaryMouseButton,
+      ),
+    );
+    await tester.pump();
+    await tester.sendEventToBinding(pointer.up());
+    await tester.pump();
+
+    expect(contextTargets.single.uri, 'https://example.com/docs');
+  });
+
   testWidgets('terminal viewport clears stale OSC 8 hit targets', (
     tester,
   ) async {
@@ -4826,6 +5045,32 @@ void main() {
     expect(cursorRect.width, cellSize.width);
     expect(cursorRect.height, cellSize.height);
     expect(cursorRect.top, 0);
+  });
+
+  testWidgets('terminal viewport paints backend cursor color from frame', (
+    tester,
+  ) async {
+    const backendCursor = Color(0xFF123456);
+    final renderObject = await _pumpThemedTerminalViewport(
+      tester,
+      themeMode: ThemeMode.dark,
+      colors: TerminalViewportColors.dark.copyWith(
+        cursor: const Color(0xFFFF0000),
+        smartCursorColor: false,
+      ),
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'x')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 24,
+        viewportCols: 80,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        cursorColor: backendCursor,
+      ),
+    );
+
+    expect(renderObject.debugCursorColor, backendCursor);
   });
 
   testWidgets('terminal viewport adjusts cursor color against the cell below', (

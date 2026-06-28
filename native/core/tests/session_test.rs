@@ -361,6 +361,17 @@ fn clipboard_copy_profile() -> TerminalProfile {
     )
 }
 
+fn clipboard_empty_copy_profile() -> TerminalProfile {
+    local_profile(
+        "clipboard-empty-copy",
+        "Clipboard Empty Copy",
+        "/bin/sh",
+        vec!["-lc".to_string(), "printf '\\033]52;c;\\a'".to_string()],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn clipboard_paste_request_profile() -> TerminalProfile {
     local_profile(
         "clipboard-paste",
@@ -542,6 +553,20 @@ fn osc4_query_profile() -> TerminalProfile {
             "-lc".to_string(),
             r#"python3 -c 'import os,select,sys,termios,time,tty; old=termios.tcgetattr(0); tty.setraw(0); time.sleep(0.2); os.write(1,b"\x1b]4;1;rgba:12/34/56/78\x1b\\"); os.write(1,b"\x1b]4;1;?\x1b\\"); sys.stdout.flush(); ready,_,_=select.select([0],[],[],2.0); data=os.read(0,128) if ready else b"TIMEOUT"; termios.tcsetattr(0, termios.TCSANOW, old); os.write(1,b"OSC4-RESPONSE:"+repr(data).encode()+b"\n")'"#
                 .to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    )
+}
+
+fn osc12_cursor_color_profile() -> TerminalProfile {
+    local_profile(
+        "osc12-cursor-color",
+        "OSC 12 Cursor Color",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            "printf '\\033]12;#123456\\aOSC12-CURSOR\\n'".to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -3627,6 +3652,20 @@ fn session_osc4_query_reports_rgb_for_alpha_color_specs() {
 }
 
 #[test]
+fn session_frame_diff_exposes_osc12_cursor_color() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&osc12_cursor_color_profile()).unwrap())
+            .unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "OSC12-CURSOR");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(parsed["cursor_color"].as_str(), Some("#123456"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_emits_clipboard_copy_events_from_osc_52() {
     let session_id =
         session::create_session(&serde_json::to_string(&clipboard_copy_profile()).unwrap())
@@ -3638,6 +3677,19 @@ fn session_emits_clipboard_copy_events_from_osc_52() {
         event["payload"]["data"].as_str(),
         Some("5aSN5Yi25YaF5a658J+Mnw=="),
     );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_emits_empty_clipboard_copy_events_from_osc_52() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&clipboard_empty_copy_profile()).unwrap())
+            .unwrap();
+
+    let event = wait_for_event(session_id, "clipboard_copy");
+    assert_eq!(event["payload"]["selection"].as_str(), Some("c"));
+    assert_eq!(event["payload"]["data"].as_str(), Some(""));
 
     session::close_session(session_id).unwrap();
 }

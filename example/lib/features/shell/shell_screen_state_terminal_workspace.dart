@@ -1,5 +1,7 @@
 part of 'shell_screen.dart';
 
+enum _TerminalLinkMenuAction { open, copy, copyText, inspect }
+
 extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
   Widget _buildTerminalWorkspace({
     required BuildContext context,
@@ -369,7 +371,9 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
                                     .scrollViewportTo(sessionId, offset);
                               },
                               onOpenLink: (url) =>
-                                  unawaited(WindowBridge.openExternalUrl(url)),
+                                  unawaited(_openTerminalLink(url)),
+                              onLinkHoverChanged: _handleTerminalLinkHover,
+                              onLinkContextMenu: _handleTerminalLinkContextMenu,
                             ),
                           ),
                           if (!isActive)
@@ -542,6 +546,185 @@ extension _ShellScreenStateTerminalWorkspace on _ShellScreenState {
         );
       },
     );
+  }
+
+  String? get _terminalLinkStatusLabel {
+    final target = _hoveredTerminalLink;
+    final uri = target?.uri;
+    if (uri == null || uri.trim().isEmpty) {
+      return null;
+    }
+    final prefix = target?.hasMismatchedVisibleText ?? false
+        ? 'LINK CHECK'
+        : 'LINK';
+    return '$prefix ${_terminalLinkShortLabel(uri)}';
+  }
+
+  String? get _terminalLinkStatusTooltip {
+    final target = _hoveredTerminalLink;
+    final uri = target?.uri.trim();
+    if (target == null || uri == null || uri.isEmpty) {
+      return null;
+    }
+    return [
+      if (target.hasMismatchedVisibleText)
+        'OSC 8 link text differs from the target',
+      'Target: $uri',
+      if (target.visibleText != null && target.visibleText!.trim().isNotEmpty)
+        'Text: ${target.visibleText!.trim()}',
+    ].join('\n');
+  }
+
+  void _handleTerminalLinkHover(terminal.TerminalLinkTarget? target) {
+    final previous = _hoveredTerminalLink;
+    if (previous?.uri == target?.uri &&
+        previous?.visibleText == target?.visibleText &&
+        previous?.explicitHyperlink == target?.explicitHyperlink) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    _mutateState(() {
+      _hoveredTerminalLink = target;
+    });
+  }
+
+  Future<void> _handleTerminalLinkContextMenu(
+    terminal.TerminalLinkTarget target,
+  ) async {
+    if (!mounted) {
+      return;
+    }
+    final overlay = Navigator.of(context).overlay?.context.findRenderObject();
+    if (overlay is! RenderBox) {
+      return;
+    }
+    final position = RelativeRect.fromRect(
+      Rect.fromLTWH(target.globalPosition.dx, target.globalPosition.dy, 1, 1),
+      Offset.zero & overlay.size,
+    );
+    final action = await showMenu<_TerminalLinkMenuAction>(
+      context: context,
+      position: position,
+      items: [
+        const PopupMenuItem(
+          value: _TerminalLinkMenuAction.open,
+          child: Text('Open link'),
+        ),
+        const PopupMenuItem(
+          value: _TerminalLinkMenuAction.copy,
+          child: Text('Copy link'),
+        ),
+        PopupMenuItem(
+          value: _TerminalLinkMenuAction.copyText,
+          enabled: target.visibleText?.trim().isNotEmpty ?? false,
+          child: const Text('Copy link text'),
+        ),
+        const PopupMenuItem(
+          value: _TerminalLinkMenuAction.inspect,
+          child: Text('Show target'),
+        ),
+      ],
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case _TerminalLinkMenuAction.open:
+        await _openTerminalLink(target.uri);
+      case _TerminalLinkMenuAction.copy:
+        await ClipboardBridge.copy(target.uri);
+        _showShellSnackBar('Copied link target');
+      case _TerminalLinkMenuAction.copyText:
+        final text = target.visibleText?.trim();
+        if (text == null || text.isEmpty) {
+          return;
+        }
+        await ClipboardBridge.copy(text);
+        _showShellSnackBar('Copied link text');
+      case _TerminalLinkMenuAction.inspect:
+        _showShellSnackBar(_terminalLinkInspectionMessage(target));
+    }
+  }
+
+  Future<void> _openTerminalLink(String url) async {
+    final normalized = url.trim();
+    final uri = Uri.tryParse(normalized);
+    final scheme = uri?.scheme.toLowerCase();
+    if (uri == null ||
+        scheme == null ||
+        !const <String>{'http', 'https', 'file'}.contains(scheme)) {
+      _showShellSnackBar(
+        'Blocked link scheme: ${scheme == null || scheme.isEmpty ? 'unknown' : scheme}',
+      );
+      return;
+    }
+    if (scheme == 'file' && !await _confirmOpenFileLink(normalized)) {
+      _showShellSnackBar('Blocked file link');
+      return;
+    }
+    try {
+      await WindowBridge.openExternalUrl(normalized);
+    } on PlatformException catch (error) {
+      final message = error.message?.trim();
+      _showShellSnackBar(
+        message == null || message.isEmpty
+            ? 'Could not open link'
+            : 'Could not open link: $message',
+      );
+    }
+  }
+
+  Future<bool> _confirmOpenFileLink(String url) async {
+    if (!mounted) {
+      return false;
+    }
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Open local file link?'),
+          content: SelectableText(
+            'The terminal is asking to open a local file URL.\n\n$url',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Deny'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Open'),
+            ),
+          ],
+        );
+      },
+    );
+    return result ?? false;
+  }
+
+  String _terminalLinkInspectionMessage(terminal.TerminalLinkTarget target) {
+    final visibleText = target.visibleText?.trim();
+    if (target.hasMismatchedVisibleText &&
+        visibleText != null &&
+        visibleText.isNotEmpty) {
+      return 'Link text "$visibleText" opens ${target.uri}';
+    }
+    return 'Link target: ${target.uri}';
+  }
+
+  String _terminalLinkShortLabel(String value) {
+    final uri = Uri.tryParse(value.trim());
+    final host = uri?.host.trim();
+    if (host != null && host.isNotEmpty) {
+      return host.length <= 22 ? host : '${host.substring(0, 19)}...';
+    }
+    final scheme = uri?.scheme.trim();
+    if (scheme != null && scheme.isNotEmpty) {
+      return scheme.toUpperCase();
+    }
+    return 'TARGET';
   }
 }
 

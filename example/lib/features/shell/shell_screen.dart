@@ -155,6 +155,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       terminal.TerminalSearchMode.smartCaseSubstring;
   _TerminalSearchScope _searchScope = _TerminalSearchScope.activePane;
   String? _lastSearchScopeSessionSignature;
+  terminal.TerminalLinkTarget? _hoveredTerminalLink;
+  String? _lastOsc52StatusLabel;
+  String? _lastOsc52StatusTooltip;
+  Timer? _osc52StatusClearTimer;
+  int _osc52BlockedCount = 0;
+  SessionOsc52PromptController? _osc52PromptController;
   String _autocompletePrefix = '';
   List<String> _autocompleteSuggestions = const [];
   int _activeAutocompleteIndex = 0;
@@ -185,6 +191,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     _completionDiagnosticsSnapshot =
         LocalTerminalShellUiWiringSnapshot.verified(capturedAt: DateTime.now());
+    _osc52PromptController = ref.read(sessionOsc52PromptControllerProvider);
+    _osc52PromptController?.setHandler(_confirmOsc52Access);
     _terminalEventSubscription = ref
         .read(terminalRuntimeControllerProvider)
         .events
@@ -196,9 +204,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void dispose() {
     WindowBridge.setNativeMenuHandlers();
+    _osc52PromptController?.clearHandler();
     _terminalEventSubscription?.cancel();
     _workspaceCueTimer?.cancel();
     _viewportResizeTimer?.cancel();
+    _osc52StatusClearTimer?.cancel();
     for (final focusNode in _terminalFocusNodes.values) {
       focusNode.dispose();
     }
@@ -210,6 +220,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   void _mutateState(VoidCallback fn) {
     setState(fn);
+  }
+
+  void _showShellSnackBar(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+      );
   }
 
   @override
@@ -931,6 +952,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           statusPane.shellIntegration,
                         ),
                     encodingLabel: 'UTF-8',
+                    linkLabel: _terminalLinkStatusLabel,
+                    linkTooltip: _terminalLinkStatusTooltip,
+                    osc52Label: _lastOsc52StatusLabel,
+                    osc52Tooltip: _lastOsc52StatusTooltip,
                   )
                 else
                   ListenableBuilder(
@@ -953,6 +978,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               statusPane.shellIntegration,
                             ),
                         encodingLabel: 'UTF-8',
+                        linkLabel: _terminalLinkStatusLabel,
+                        linkTooltip: _terminalLinkStatusTooltip,
+                        osc52Label: _lastOsc52StatusLabel,
+                        osc52Tooltip: _lastOsc52StatusTooltip,
                       );
                     },
                   ),
