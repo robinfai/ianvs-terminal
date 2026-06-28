@@ -1202,6 +1202,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
   @override
   Widget build(BuildContext context) {
     final title = _shellTabDisplayTitle(widget.tab);
+    final badgeText = _shellTabBadgeText(widget.tab);
     final tone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
       terminalBackground: widget.terminalBackgroundColor,
@@ -1291,6 +1292,20 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                   ),
                 ),
               ),
+              if (badgeText != null) ...[
+                const SizedBox(width: 6),
+                _ShellTabBadgeChip(
+                  key: Key('shell-tab-overflow-badge-${widget.tab.sessionId}'),
+                  palette: widget.palette,
+                  text: _shellTabBadgeLabel(badgeText),
+                  fullText: badgeText,
+                  foreground: textColor,
+                  background: widget.palette.panel.withValues(
+                    alpha: widget.isActive ? 0.32 : 0.64,
+                  ),
+                  border: widget.palette.textPrimary.withValues(alpha: 0.20),
+                ),
+              ],
             ],
           ),
         ),
@@ -1317,6 +1332,60 @@ class _ShellTabNewOutputDot extends StatelessWidget {
           ),
         ),
         child: const SizedBox.square(dimension: 7),
+      ),
+    );
+  }
+}
+
+class _ShellTabBadgeChip extends StatelessWidget {
+  const _ShellTabBadgeChip({
+    super.key,
+    required this.palette,
+    required this.text,
+    required this.fullText,
+    required this.foreground,
+    required this.background,
+    required this.border,
+  });
+
+  final AppThemeTokens palette;
+  final String text;
+  final String fullText;
+  final Color foreground;
+  final Color background;
+  final Color border;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'OSC 1337 badge: $fullText',
+      child: Semantics(
+        container: true,
+        label: 'Terminal badge: $fullText',
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 72),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: border),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: foreground,
+                  fontSize: 9.5,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1363,6 +1432,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
   @override
   Widget build(BuildContext context) {
     final title = _shellTabDisplayTitle(widget.tab);
+    final badgeText = _shellTabBadgeText(widget.tab);
     final tone = _ShellTabTone.fromTerminalBackground(
       palette: widget.palette,
       terminalBackground: widget.chromeBackgroundColor,
@@ -1462,6 +1532,24 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                     ),
                                   ),
                                 ),
+                                if (badgeText != null) ...[
+                                  const SizedBox(width: 6),
+                                  _ShellTabBadgeChip(
+                                    key: Key(
+                                      'shell-tab-badge-${widget.tab.sessionId}',
+                                    ),
+                                    palette: widget.palette,
+                                    text: _shellTabBadgeLabel(badgeText),
+                                    fullText: badgeText,
+                                    foreground: widget.isActive
+                                        ? tone.primaryText
+                                        : tone.mutedText,
+                                    background: tone.hoverBackground.withValues(
+                                      alpha: widget.isActive ? 0.70 : 0.45,
+                                    ),
+                                    border: tone.border.withValues(alpha: 0.38),
+                                  ),
+                                ],
                                 if (widget.hasNewOutput &&
                                     !widget.isActive) ...[
                                   const SizedBox(width: 6),
@@ -1558,7 +1646,9 @@ String _shellTabSemanticsIdentifier(TerminalTab tab) {
 
 String _shellTabSemanticsLabel(TerminalTab tab, int? shortcutIndex) {
   final shortcut = shortcutIndex == null ? '' : ', Command $shortcutIndex';
-  return '${_shellTabDisplayTitle(tab)} tab$shortcut';
+  final badge = _shellTabBadgeText(tab);
+  final badgeLabel = badge == null ? '' : ', badge $badge';
+  return '${_shellTabDisplayTitle(tab)} tab$badgeLabel$shortcut';
 }
 
 String _shellTabDisplayTitle(TerminalTab tab) {
@@ -1567,6 +1657,24 @@ String _shellTabDisplayTitle(TerminalTab tab) {
   }
   final activePaneTitle = tab.activePane.title.trim();
   return activePaneTitle.isEmpty ? tab.title : activePaneTitle;
+}
+
+String? _shellTabBadgeText(TerminalTab tab) {
+  final text = tab.activePane.oscBadge?.trim();
+  if (text == null || text.isEmpty) {
+    return null;
+  }
+  return text;
+}
+
+String _shellTabBadgeLabel(String text) {
+  final trimmed = text.trim();
+  const maxRunes = 10;
+  final runes = trimmed.runes.toList(growable: false);
+  if (runes.length <= maxRunes) {
+    return trimmed.toUpperCase();
+  }
+  return '${String.fromCharCodes(runes.take(maxRunes - 1)).toUpperCase()}…';
 }
 
 class _ShellStartupSurface extends StatelessWidget {

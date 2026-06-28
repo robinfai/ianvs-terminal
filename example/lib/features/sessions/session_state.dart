@@ -14,6 +14,8 @@ class TerminalPane {
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
     this.oscBadge,
     this.progress,
+    this.namedProgress = const <String, TerminalPaneProgressState>{},
+    this.recentNotifications = const <TerminalPaneNotificationState>[],
   });
 
   final String sessionId;
@@ -25,6 +27,8 @@ class TerminalPane {
   final TerminalShellIntegrationSnapshot shellIntegration;
   final String? oscBadge;
   final TerminalPaneProgressState? progress;
+  final Map<String, TerminalPaneProgressState> namedProgress;
+  final List<TerminalPaneNotificationState> recentNotifications;
 
   TerminalPane copyWith({
     String? title,
@@ -35,6 +39,8 @@ class TerminalPane {
     TerminalShellIntegrationSnapshot? shellIntegration,
     Object? oscBadge = _terminalPaneNoChange,
     Object? progress = _terminalPaneNoChange,
+    Map<String, TerminalPaneProgressState>? namedProgress,
+    List<TerminalPaneNotificationState>? recentNotifications,
   }) {
     return TerminalPane(
       sessionId: sessionId,
@@ -50,6 +56,8 @@ class TerminalPane {
       progress: identical(progress, _terminalPaneNoChange)
           ? this.progress
           : progress as TerminalPaneProgressState?,
+      namedProgress: namedProgress ?? this.namedProgress,
+      recentNotifications: recentNotifications ?? this.recentNotifications,
     );
   }
 }
@@ -77,6 +85,32 @@ class TerminalPaneProgressState {
 
   bool get active => state != null && state != 'hidden' && action != 'clear';
 
+  TerminalPaneProgressState copyWith({
+    String? source,
+    bool? named,
+    String? action,
+    Object? id = _terminalPaneNoChange,
+    Object? state = _terminalPaneNoChange,
+    Object? percent = _terminalPaneNoChange,
+    Object? label = _terminalPaneNoChange,
+  }) {
+    return TerminalPaneProgressState(
+      source: source ?? this.source,
+      named: named ?? this.named,
+      action: action ?? this.action,
+      id: identical(id, _terminalPaneNoChange) ? this.id : id as String?,
+      state: identical(state, _terminalPaneNoChange)
+          ? this.state
+          : state as String?,
+      percent: identical(percent, _terminalPaneNoChange)
+          ? this.percent
+          : percent as int?,
+      label: identical(label, _terminalPaneNoChange)
+          ? this.label
+          : label as String?,
+    );
+  }
+
   String get displayLabel {
     final prefix = named ? (id ?? 'PROGRESS') : 'PROGRESS';
     final value = percent?.toString();
@@ -85,6 +119,29 @@ class TerminalPaneProgressState {
       prefix.toUpperCase(),
       if (value != null) '$value%' else ?stateLabel,
     ].join(' ');
+  }
+}
+
+class TerminalPaneNotificationState {
+  const TerminalPaneNotificationState({
+    required this.source,
+    required this.title,
+    required this.message,
+    this.count = 1,
+  });
+
+  final String source;
+  final String title;
+  final String message;
+  final int count;
+
+  TerminalPaneNotificationState copyWith({int? count}) {
+    return TerminalPaneNotificationState(
+      source: source,
+      title: title,
+      message: message,
+      count: count ?? this.count,
+    );
   }
 }
 
@@ -389,6 +446,8 @@ class TerminalTab {
     this.shellIntegration = TerminalShellIntegrationSnapshot.empty,
     this.oscBadge,
     this.progress,
+    this.namedProgress = const <String, TerminalPaneProgressState>{},
+    this.recentNotifications = const <TerminalPaneNotificationState>[],
   });
 
   final String sessionId;
@@ -404,6 +463,8 @@ class TerminalTab {
   final TerminalShellIntegrationSnapshot shellIntegration;
   final String? oscBadge;
   final TerminalPaneProgressState? progress;
+  final Map<String, TerminalPaneProgressState> namedProgress;
+  final List<TerminalPaneNotificationState> recentNotifications;
 
   TerminalPane get rootPane {
     return TerminalPane(
@@ -416,6 +477,8 @@ class TerminalTab {
       shellIntegration: shellIntegration,
       oscBadge: oscBadge,
       progress: progress,
+      namedProgress: namedProgress,
+      recentNotifications: recentNotifications,
     );
   }
 
@@ -472,6 +535,8 @@ class TerminalTab {
         shellIntegration: replacement.shellIntegration,
         oscBadge: replacement.oscBadge,
         progress: replacement.progress,
+        namedProgress: replacement.namedProgress,
+        recentNotifications: replacement.recentNotifications,
       );
     }
     final nextLayout = effectivePaneLayout.replacePane(replacement);
@@ -495,6 +560,8 @@ class TerminalTab {
     TerminalShellIntegrationSnapshot? shellIntegration,
     Object? oscBadge = _terminalTabNoChange,
     Object? progress = _terminalTabNoChange,
+    Map<String, TerminalPaneProgressState>? namedProgress,
+    List<TerminalPaneNotificationState>? recentNotifications,
   }) {
     final nextSplitAxis = splitAxis ?? this.splitAxis;
     final nextPaneLayout = identical(paneLayout, _terminalTabNoChange)
@@ -524,6 +591,8 @@ class TerminalTab {
       progress: identical(progress, _terminalTabNoChange)
           ? this.progress
           : progress as TerminalPaneProgressState?,
+      namedProgress: namedProgress ?? this.namedProgress,
+      recentNotifications: recentNotifications ?? this.recentNotifications,
     );
   }
 }

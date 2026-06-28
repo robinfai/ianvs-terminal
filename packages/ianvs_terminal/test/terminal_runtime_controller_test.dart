@@ -1875,6 +1875,135 @@ void main() {
   );
 
   testWidgets(
+    'terminal runtime controller emits typed OSC session metadata events',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await tester.pump();
+
+      final events = <TerminalSessionEvent>[];
+      final subscription = runtime.events.listen(events.add);
+      addTearDown(subscription.cancel);
+
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'shell_context',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc7',
+            'cwd': '/tmp/project',
+            'hostname': 'workstation.local',
+            'username': 'dev',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'shell_command',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc133',
+            'eventType': 'command_finished',
+            'command': 'dart test',
+            'exitCode': 0,
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'shell_user_var',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc1337_set_user_var',
+            'name': 'IANVS_TEST',
+            'value': 'ok',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'session_notification',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc777',
+            'title': 'Build',
+            'message': 'Done',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'set',
+            'id': 'build',
+            'state': 'normal',
+            'percent': 70,
+            'label': 'Compile',
+          },
+        ),
+      );
+      runtimeBackend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc1337_set_badge_format',
+            'text': 'Build',
+          },
+        ),
+      );
+
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+
+      final shellContext = events.whereType<TerminalSessionShellContextEvent>();
+      expect(shellContext.single.cwd, '/tmp/project');
+      expect(shellContext.single.hostname, 'workstation.local');
+      final shellCommand = events.whereType<TerminalSessionShellCommandEvent>();
+      expect(shellCommand.single.eventType, 'command_finished');
+      expect(shellCommand.single.exitCode, 0);
+      expect(
+        events.whereType<TerminalSessionShellUserVarEvent>().single.name,
+        'IANVS_TEST',
+      );
+      expect(
+        events.whereType<TerminalSessionNotificationEvent>().single.message,
+        'Done',
+      );
+      expect(
+        events.whereType<TerminalSessionProgressEvent>().single.id,
+        'build',
+      );
+      expect(
+        events.whereType<TerminalSessionBadgeEvent>().single.text,
+        'Build',
+      );
+    },
+  );
+
+  testWidgets(
     'terminal runtime controller emits shell hooks before same-batch exits',
     (tester) async {
       final runtimeBackend = _FakePtyBackend();

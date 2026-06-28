@@ -31,6 +31,7 @@ Future<void> _pumpShellScreen(
   MemoryAppPreferencesRepository? preferencesRepository,
   LocalTerminalConfigRepository? localConfigRepository,
   Future<String> Function()? clipboardPaste,
+  ShellNotificationSender? notificationSender,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -52,6 +53,8 @@ Future<void> _pumpShellScreen(
         ),
         if (clipboardPaste != null)
           sessionClipboardPasteProvider.overrideWithValue(clipboardPaste),
+        if (notificationSender != null)
+          shellNotificationSenderProvider.overrideWithValue(notificationSender),
       ],
       child: MaterialApp(
         theme: ThemeData.light().copyWith(
@@ -109,6 +112,17 @@ Future<void> _tapCommandMenuAction(WidgetTester tester, Key key) async {
   await tester.ensureVisible(find.byKey(key));
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(key));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openTabContextMenu(
+  WidgetTester tester, {
+  String sessionId = '1',
+}) async {
+  await tester.tap(
+    find.byKey(Key('shell-tab-$sessionId')),
+    buttons: kSecondaryButton,
+  );
   await tester.pumpAndSettle();
 }
 
@@ -495,6 +509,242 @@ void main() {
     expect(find.text('Size: 0 characters / 0 bytes'), findsOneWidget);
     expect(find.text('Clipboard is empty'), findsOneWidget);
   });
+
+  testWidgets(
+    'OSC shell context progress and badge show status bar affordances',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_context',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc7',
+            'cwd': '/srv/app',
+            'hostname': 'remote.example',
+            'username': 'deploy',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'session_progress',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'set',
+            'id': 'build',
+            'state': 'normal',
+            'percent': 80,
+            'label': 'Compile',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'session_badge',
+          sessionId: '1',
+          payload: <String, Object?>{'text': 'Deploy'},
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('shell-status-remote')), findsOneWidget);
+      expect(find.byKey(const Key('shell-status-progress')), findsOneWidget);
+      expect(find.byKey(const Key('shell-status-badge')), findsOneWidget);
+      expect(find.byKey(const Key('shell-tab-badge-1')), findsOneWidget);
+      expect(find.text('REMOTE remote.example'), findsOneWidget);
+      expect(find.text('BUILD 80%'), findsOneWidget);
+      expect(find.text('BADGE Deploy'), findsOneWidget);
+      expect(find.text('DEPLOY'), findsOneWidget);
+      expect(
+        find.byTooltip(
+          [
+            'Remote-reported shell integration path.',
+            'Path: /srv/app',
+            'Host: remote.example',
+            'User: deploy',
+            'Local file actions stay disabled for remote paths.',
+          ].join('\n'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byTooltip(
+          [
+            'Remote context reported by shell integration.',
+            'Host: remote.example',
+            'User: deploy',
+            'Local file actions stay disabled for remote paths.',
+          ].join('\n'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byTooltip(
+          [
+            'Terminal progress reported by osc934.',
+            'Label: Compile',
+            'Percent: 80%',
+            'State: normal',
+            'ID: build',
+          ].join('\n'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('OSC 1337 badge: Deploy'), findsNWidgets(2));
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'session_progress',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'set',
+            'id': 'test',
+            'state': 'normal',
+            'percent': 25,
+            'label': 'Verify',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('TEST 25%'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('shell-status-progress')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('BUILD 80%'), findsOneWidget);
+      expect(find.text('TEST 25%'), findsWidgets);
+      expect(find.text('Verify · normal · 25% · osc934'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'OSC shell context remote cwd disables local duplicate affordance',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_context',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc7',
+            'cwd': '/srv/app',
+            'hostname': 'remote.example',
+            'username': 'deploy',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      await _openTabContextMenu(tester);
+
+      expect(find.text('Duplicate current directory'), findsOneWidget);
+      expect(
+        find.text(
+          'Unavailable: Remote-reported current directories cannot be duplicated as local sessions.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'OSC notification shows in-window feedback and uses gated system sender',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender: ({required title, body, identifier}) async {
+          notifications.add({
+            'title': title,
+            'body': body,
+            'identifier': identifier,
+          });
+        },
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'session_notification',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc777',
+            'title': 'Build',
+            'message': 'Active pane done',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.text('Build: Active pane done'), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-status-notification')),
+        findsOneWidget,
+      );
+      expect(find.text('NOTIFY Build'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('shell-status-notification')));
+      await tester.pumpAndSettle();
+      expect(find.text('Build'), findsOneWidget);
+      expect(find.text('Active pane done · osc777'), findsOneWidget);
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+      expect(notifications, isEmpty);
+
+      await _tapCommandMenuAction(tester, const Key('shell-new-tab'));
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'session_notification',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc777',
+            'title': 'Build',
+            'message': 'Inactive pane done',
+          },
+        ),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+
+      final paneOne = container
+          .read(sessionControllerProvider)
+          .tabs
+          .first
+          .paneFor('1')!;
+      expect(paneOne.recentNotifications.first.message, 'Inactive pane done');
+      expect(notifications, hasLength(1));
+      expect(notifications.single['title'], startsWith('Build in '));
+      expect(notifications.single['body'], 'Inactive pane done');
+      expect(
+        notifications.single['identifier'],
+        startsWith('ianvs-terminal.osc.1.'),
+      );
+    },
+  );
 
   testWidgets('notification toggles read and write local config when present', (
     tester,

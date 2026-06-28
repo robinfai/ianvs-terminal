@@ -3972,7 +3972,7 @@ fn vt220_sessions_do_not_emit_clipboard_paste_requests_from_osc_52_queries() {
 }
 
 #[test]
-fn session_emits_shell_context_from_osc_7() {
+fn session_emits_shell_context_from_osc7() {
     let session_id = session::create_session(
         &serde_json::to_string(&osc7_shell_context_profile(TerminalEmulation::Xterm256)).unwrap(),
     )
@@ -3991,7 +3991,7 @@ fn session_emits_shell_context_from_osc_7() {
 }
 
 #[test]
-fn vt220_sessions_do_not_emit_shell_context_from_osc_7() {
+fn vt220_sessions_do_not_emit_shell_context_from_osc7() {
     let session_id = session::create_session(
         &serde_json::to_string(&osc7_shell_context_profile(TerminalEmulation::Vt220)).unwrap(),
     )
@@ -4003,7 +4003,7 @@ fn vt220_sessions_do_not_emit_shell_context_from_osc_7() {
 }
 
 #[test]
-fn session_emits_shell_context_from_osc_1337_current_dir() {
+fn session_emits_shell_context_from_osc1337_current_dir() {
     let session_id =
         session::create_session(&serde_json::to_string(&osc1337_current_dir_profile()).unwrap())
             .unwrap();
@@ -4019,7 +4019,7 @@ fn session_emits_shell_context_from_osc_1337_current_dir() {
 }
 
 #[test]
-fn session_emits_shell_command_events_from_osc_133() {
+fn session_emits_shell_command_events_from_osc133() {
     let session_id =
         session::create_session(&serde_json::to_string(&osc133_shell_command_profile()).unwrap())
             .unwrap();
@@ -4069,7 +4069,7 @@ fn session_emits_shell_command_events_from_osc_133() {
 }
 
 #[test]
-fn session_emits_remote_host_and_user_var_from_osc_1337() {
+fn session_emits_remote_host_and_user_var_from_osc1337() {
     let session_id = session::create_session(
         &serde_json::to_string(&osc1337_remote_host_user_var_profile()).unwrap(),
     )
@@ -4105,7 +4105,7 @@ fn session_emits_remote_host_and_user_var_from_osc_1337() {
 }
 
 #[test]
-fn session_emits_notification_progress_and_badge_events_from_osc() {
+fn session_emits_osc9_osc777_osc934_notification_progress_and_badge_events() {
     let session_id = session::create_session(
         &serde_json::to_string(&osc_notification_progress_badge_profile()).unwrap(),
     )

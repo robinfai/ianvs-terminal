@@ -6,6 +6,7 @@ class _ShellStatusBar extends StatelessWidget {
     required this.palette,
     required this.terminalBackgroundColor,
     required this.directory,
+    this.directoryTooltip,
     required this.viewportLabel,
     required this.modeItems,
     required this.shellIntegrationHealth,
@@ -18,6 +19,10 @@ class _ShellStatusBar extends StatelessWidget {
     this.remoteTooltip,
     this.progressLabel,
     this.progressTooltip,
+    this.progressItems = const <TerminalPaneProgressState>[],
+    this.notificationLabel,
+    this.notificationTooltip,
+    this.notifications = const <TerminalPaneNotificationState>[],
     this.badgeLabel,
     this.badgeTooltip,
   });
@@ -25,6 +30,7 @@ class _ShellStatusBar extends StatelessWidget {
   final AppThemeTokens palette;
   final Color terminalBackgroundColor;
   final String? directory;
+  final String? directoryTooltip;
   final String? viewportLabel;
   final List<_ShellStatusModeItem> modeItems;
   final _ShellIntegrationHealth shellIntegrationHealth;
@@ -37,6 +43,10 @@ class _ShellStatusBar extends StatelessWidget {
   final String? remoteTooltip;
   final String? progressLabel;
   final String? progressTooltip;
+  final List<TerminalPaneProgressState> progressItems;
+  final String? notificationLabel;
+  final String? notificationTooltip;
+  final List<TerminalPaneNotificationState> notifications;
   final String? badgeLabel;
   final String? badgeTooltip;
 
@@ -112,16 +122,22 @@ class _ShellStatusBar extends StatelessWidget {
           maxWidth: 190,
         ),
       if (progressLabel != null)
-        _ShellStatusItem(
-          key: const Key('shell-status-progress'),
+        _ShellStatusProgressItem(
+          itemKey: const Key('shell-status-progress'),
           palette: palette,
           tone: tone,
           label: progressLabel!,
           tooltip: progressTooltip,
-          semanticsLabel: 'Terminal progress status: $progressLabel',
-          monospace: true,
-          highlighted: true,
-          maxWidth: 190,
+          progressItems: progressItems,
+        ),
+      if (notificationLabel != null)
+        _ShellStatusNotificationItem(
+          itemKey: const Key('shell-status-notification'),
+          palette: palette,
+          tone: tone,
+          label: notificationLabel!,
+          tooltip: notificationTooltip,
+          notifications: notifications,
         ),
       if (badgeLabel != null)
         _ShellStatusItem(
@@ -153,6 +169,7 @@ class _ShellStatusBar extends StatelessWidget {
           tone: tone,
           label: _statusPathLabel(directory!),
           fullPath: directory!.trim(),
+          tooltip: directoryTooltip,
           minWidth: 176,
           maxWidth: 260,
         ),
@@ -301,6 +318,7 @@ class _ShellStatusDirectoryItem extends StatefulWidget {
     required this.tone,
     required this.label,
     required this.fullPath,
+    this.tooltip,
     this.minWidth,
     this.maxWidth,
   });
@@ -309,6 +327,7 @@ class _ShellStatusDirectoryItem extends StatefulWidget {
   final _ShellTabTone tone;
   final String label;
   final String fullPath;
+  final String? tooltip;
   final double? minWidth;
   final double? maxWidth;
 
@@ -357,7 +376,7 @@ class _ShellStatusDirectoryItemState extends State<_ShellStatusDirectoryItem> {
       child: Theme(
         data: themedMenu,
         child: PopupMenuButton<String>(
-          tooltip: widget.fullPath,
+          tooltip: widget.tooltip ?? widget.fullPath,
           padding: EdgeInsets.zero,
           position: PopupMenuPosition.under,
           offset: Offset(0, widget.palette.spacing.xs),
@@ -390,6 +409,233 @@ class _ShellStatusDirectoryItemState extends State<_ShellStatusDirectoryItem> {
             highlighted: _hovered || _menuOpen,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ShellStatusProgressItem extends StatelessWidget {
+  const _ShellStatusProgressItem({
+    required this.itemKey,
+    required this.palette,
+    required this.tone,
+    required this.label,
+    required this.progressItems,
+    this.tooltip,
+  });
+
+  final Key itemKey;
+  final AppThemeTokens palette;
+  final _ShellTabTone tone;
+  final String label;
+  final List<TerminalPaneProgressState> progressItems;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = _ShellStatusItem(
+      key: itemKey,
+      palette: palette,
+      tone: tone,
+      label: label,
+      tooltip: progressItems.length <= 1 ? tooltip : null,
+      semanticsLabel: 'Terminal progress status: $label',
+      monospace: true,
+      highlighted: true,
+      maxWidth: 190,
+    );
+    if (progressItems.length <= 1) {
+      return item;
+    }
+    return _ShellStatusPopup<int>(
+      palette: palette,
+      tone: tone,
+      tooltip: tooltip ?? 'Terminal progress',
+      item: item,
+      entries: [
+        for (var index = 0; index < progressItems.length; index += 1)
+          PopupMenuItem<int>(
+            value: index,
+            enabled: false,
+            height: 48,
+            child: _ShellStatusMenuTextBlock(
+              title: progressItems[index].displayLabel,
+              subtitle: _progressMenuSubtitle(progressItems[index]),
+              tone: tone,
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _progressMenuSubtitle(TerminalPaneProgressState progress) {
+    return [
+      if (progress.label?.trim().isNotEmpty == true) progress.label!.trim(),
+      if (progress.state?.trim().isNotEmpty == true) progress.state!.trim(),
+      if (progress.percent != null) '${progress.percent}%',
+      progress.source,
+    ].join(' · ');
+  }
+}
+
+class _ShellStatusNotificationItem extends StatelessWidget {
+  const _ShellStatusNotificationItem({
+    required this.itemKey,
+    required this.palette,
+    required this.tone,
+    required this.label,
+    required this.notifications,
+    this.tooltip,
+  });
+
+  final Key itemKey;
+  final AppThemeTokens palette;
+  final _ShellTabTone tone;
+  final String label;
+  final List<TerminalPaneNotificationState> notifications;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = _ShellStatusItem(
+      key: itemKey,
+      palette: palette,
+      tone: tone,
+      label: label,
+      tooltip: notifications.isEmpty ? tooltip : null,
+      semanticsLabel: 'Terminal notification status: $label',
+      monospace: true,
+      highlighted: true,
+      maxWidth: 210,
+    );
+    if (notifications.isEmpty) {
+      return item;
+    }
+    return _ShellStatusPopup<int>(
+      palette: palette,
+      tone: tone,
+      tooltip: tooltip ?? 'Terminal notifications',
+      item: item,
+      entries: [
+        for (var index = 0; index < notifications.take(6).length; index += 1)
+          PopupMenuItem<int>(
+            value: index,
+            enabled: false,
+            height: 52,
+            child: _ShellStatusMenuTextBlock(
+              title: _notificationMenuTitle(notifications[index]),
+              subtitle: _notificationMenuSubtitle(notifications[index]),
+              tone: tone,
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _notificationMenuTitle(TerminalPaneNotificationState notification) {
+    final count = notification.count > 1 ? ' x${notification.count}' : '';
+    return '${notification.title}$count';
+  }
+
+  String _notificationMenuSubtitle(TerminalPaneNotificationState notification) {
+    return [
+      if (notification.message.trim().isNotEmpty) notification.message.trim(),
+      notification.source,
+    ].join(' · ');
+  }
+}
+
+class _ShellStatusPopup<T> extends StatelessWidget {
+  const _ShellStatusPopup({
+    required this.palette,
+    required this.tone,
+    required this.tooltip,
+    required this.item,
+    required this.entries,
+  });
+
+  final AppThemeTokens palette;
+  final _ShellTabTone tone;
+  final String tooltip;
+  final Widget item;
+  final List<PopupMenuEntry<T>> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final menuBackground = Color.alphaBlend(
+      tone.hoverBackground.withValues(alpha: 0.42),
+      tone.activeBackground,
+    );
+    final menuShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(palette.radius.md),
+      side: BorderSide(color: tone.border.withValues(alpha: 0.58)),
+    );
+    return Theme(
+      data: Theme.of(context).copyWith(
+        popupMenuTheme: PopupMenuThemeData(
+          color: menuBackground,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shape: menuShape,
+        ),
+      ),
+      child: PopupMenuButton<T>(
+        tooltip: tooltip,
+        padding: EdgeInsets.zero,
+        position: PopupMenuPosition.under,
+        offset: Offset(0, palette.spacing.xs),
+        color: menuBackground,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shape: menuShape,
+        itemBuilder: (context) => entries,
+        child: item,
+      ),
+    );
+  }
+}
+
+class _ShellStatusMenuTextBlock extends StatelessWidget {
+  const _ShellStatusMenuTextBlock({
+    required this.title,
+    required this.subtitle,
+    required this.tone,
+  });
+
+  final String title;
+  final String subtitle;
+  final _ShellTabTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: tone.primaryText,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (subtitle.trim().isNotEmpty)
+            Text(
+              subtitle,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: tone.mutedText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+        ],
       ),
     );
   }

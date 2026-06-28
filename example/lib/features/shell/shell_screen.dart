@@ -282,10 +282,39 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final statusRemoteHost = statusPane?.shellIntegration.hostname?.trim();
     final statusRemoteUser = statusPane?.shellIntegration.username?.trim();
     final statusBadge = statusPane?.oscBadge?.trim();
-    final statusProgress = statusPane?.progress;
+    final statusNamedProgress = statusPane == null
+        ? const <TerminalPaneProgressState>[]
+        : statusPane.namedProgress.values.toList(growable: false);
+    final statusProgress =
+        statusPane?.progress ??
+        (statusNamedProgress.isEmpty ? null : statusNamedProgress.last);
+    final statusProgressItems = [
+      if (statusPane?.progress case final progress? when progress.active)
+        progress,
+      for (final progress in statusNamedProgress)
+        if (progress.active) progress,
+    ];
+    final statusNotifications =
+        statusPane?.recentNotifications ??
+        const <TerminalPaneNotificationState>[];
+    final statusNotification = statusNotifications.isEmpty
+        ? null
+        : statusNotifications.first;
     final statusProfile = statusPane == null
         ? null
         : _profileForPane(statusPane, sessionState.profiles);
+    final statusDisplayDirectory = statusDirectory?.trim().isNotEmpty == true
+        ? statusDirectory!.trim()
+        : statusProfile?.cwd;
+    final statusDirectoryTooltip =
+        statusDisplayDirectory?.trim().isNotEmpty == true
+        ? _statusDirectoryTooltip(
+            path: statusDisplayDirectory!.trim(),
+            fromShellIntegration: statusDirectory?.trim().isNotEmpty == true,
+            hostname: statusRemoteHost,
+            username: statusRemoteUser,
+          )
+        : null;
     final statusViewportLabel = _viewportStatusLabelFor(displayedSessionId);
     final statusViewportController = displayedSessionId == null
         ? null
@@ -946,9 +975,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     key: const Key('shell-status-bar'),
                     palette: palette,
                     terminalBackgroundColor: shellChromeBackground,
-                    directory: statusDirectory?.trim().isNotEmpty == true
-                        ? statusDirectory!.trim()
-                        : statusProfile?.cwd,
+                    directory: statusDisplayDirectory,
+                    directoryTooltip: statusDirectoryTooltip,
                     viewportLabel: statusViewportLabel,
                     modeItems: const <_ShellStatusModeItem>[],
                     shellIntegrationHealth:
@@ -983,6 +1011,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         statusProgress != null && statusProgress.active
                         ? _progressStatusTooltip(statusProgress)
                         : null,
+                    progressItems: statusProgressItems,
+                    notificationLabel: statusNotification == null
+                        ? null
+                        : _notificationStatusLabel(statusNotification),
+                    notificationTooltip: statusNotification == null
+                        ? null
+                        : _notificationStatusTooltip(statusNotification),
+                    notifications: statusNotifications,
                     badgeLabel: statusBadge != null && statusBadge.isNotEmpty
                         ? 'BADGE ${_shortStatusValue(statusBadge)}'
                         : null,
@@ -998,9 +1034,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         key: const Key('shell-status-bar'),
                         palette: palette,
                         terminalBackgroundColor: shellChromeBackground,
-                        directory: statusDirectory?.trim().isNotEmpty == true
-                            ? statusDirectory!.trim()
-                            : statusProfile?.cwd,
+                        directory: statusDisplayDirectory,
+                        directoryTooltip: statusDirectoryTooltip,
                         viewportLabel: statusViewportLabel,
                         modeItems: _statusModeItemsFor(
                           displayedSessionId,
@@ -1040,6 +1075,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             statusProgress != null && statusProgress.active
                             ? _progressStatusTooltip(statusProgress)
                             : null,
+                        progressItems: statusProgressItems,
+                        notificationLabel: statusNotification == null
+                            ? null
+                            : _notificationStatusLabel(statusNotification),
+                        notificationTooltip: statusNotification == null
+                            ? null
+                            : _notificationStatusTooltip(statusNotification),
+                        notifications: statusNotifications,
                         badgeLabel:
                             statusBadge != null && statusBadge.isNotEmpty
                             ? 'BADGE ${_shortStatusValue(statusBadge)}'

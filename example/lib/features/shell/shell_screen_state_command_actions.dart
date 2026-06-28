@@ -261,6 +261,11 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               'No current directory is available to duplicate.',
             );
           }
+          if (_shellHostIsRemote(currentPane?.shellIntegration.hostname)) {
+            return const ShellActionBindingResult.skipped(
+              'Remote-reported current directories cannot be duplicated as local sessions.',
+            );
+          }
           _createSession(
             sessionController,
             defaultProfile,
@@ -1286,6 +1291,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     final targetPane = tab.paneFor(targetSessionId);
     final hasCurrentDirectory =
         (targetPane?.shellIntegration.currentDirectory ?? '').isNotEmpty;
+    final duplicateCwdBlockedReason = defaultProfile == null
+        ? 'No default profile is available.'
+        : !hasCurrentDirectory
+        ? 'No current directory is available.'
+        : _shellHostIsRemote(targetPane?.shellIntegration.hostname)
+        ? 'Remote-reported current directories cannot be duplicated as local sessions.'
+        : null;
     final isTargetPaneZoomed =
         _zoomedPaneSessionId == targetSessionId && targetPane != null;
     final paneManagementBlockedReason = _zoomedPaneManagementUnavailableReason(
@@ -1350,7 +1362,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           action: TerminalActionId.duplicateCurrentCwd,
           icon: Icons.create_new_folder_rounded,
           title: 'Duplicate current directory',
-          enabled: defaultProfile != null && hasCurrentDirectory,
+          enabled: duplicateCwdBlockedReason == null,
+          disabledReason: duplicateCwdBlockedReason,
         ),
         item(
           action: TerminalActionId.splitRight,
@@ -1488,6 +1501,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         final currentPane = _paneForSession(currentState, currentSessionId);
         final currentDirectory = currentPane?.shellIntegration.currentDirectory;
         if (currentDirectory == null || currentDirectory.isEmpty) {
+          return;
+        }
+        if (_shellHostIsRemote(currentPane?.shellIntegration.hostname)) {
+          _showShellSnackBar(
+            'Remote-reported current directories cannot be duplicated as local sessions.',
+          );
           return;
         }
         _createSession(

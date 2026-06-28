@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert' show utf8;
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -222,6 +223,7 @@ class SessionController extends Notifier<SessionState> {
       <String, TerminalViewportController>{};
   final Map<String, _AutomaticProfileBaseline> _automaticProfileBaselines =
       <String, _AutomaticProfileBaseline>{};
+  final Map<String, Timer> _progressGraceTimers = <String, Timer>{};
   final List<TerminalTab> _recentlyClosedTabs = <TerminalTab>[];
   TerminalAppPreferencesDocument _appPreferences =
       const TerminalAppPreferencesDocument();
@@ -259,6 +261,10 @@ class SessionController extends Notifier<SessionState> {
     Future.microtask(_bootstrap);
     ref.onDispose(() {
       _runtimeEventsSubscription?.cancel();
+      for (final timer in _progressGraceTimers.values) {
+        timer.cancel();
+      }
+      _progressGraceTimers.clear();
       for (final controller in _demoViewports.values) {
         controller.dispose();
       }
@@ -860,18 +866,31 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionBellEvent():
         break;
       case TerminalSessionShellHookEvent():
+        if (!_sessionShellIntegrationEnabled(event.sessionId)) {
+          return;
+        }
         _applyShellHook(event);
         break;
       case TerminalSessionShellContextEvent():
+        if (!_sessionShellIntegrationEnabled(event.sessionId)) {
+          return;
+        }
         _applyShellContext(event);
         break;
       case TerminalSessionShellCommandEvent():
+        if (!_sessionShellIntegrationEnabled(event.sessionId)) {
+          return;
+        }
         _applyShellCommand(event);
         break;
       case TerminalSessionShellUserVarEvent():
+        if (!_sessionShellIntegrationEnabled(event.sessionId)) {
+          return;
+        }
         _applyShellUserVar(event);
         break;
       case TerminalSessionNotificationEvent():
+        _applySessionNotification(event);
         break;
       case TerminalSessionProgressEvent():
         _applySessionProgress(event);
@@ -940,9 +959,9 @@ class SessionController extends Notifier<SessionState> {
     if (currentPane == null) {
       return;
     }
-    final cwd = _trimShellHookValue(event.cwd);
-    final hostname = _trimShellHookValue(event.hostname);
-    final username = _trimShellHookValue(event.username);
+    final cwd = _boundedShellMetadata(event.cwd, 1024);
+    final hostname = _boundedShellMetadata(event.hostname, 255);
+    final username = _boundedShellMetadata(event.username, 255);
     if (cwd == null && hostname == null && username == null) {
       return;
     }
@@ -969,12 +988,13 @@ class SessionController extends Notifier<SessionState> {
     if (currentPane == null) {
       return;
     }
-    final eventType = _trimShellHookValue(event.eventType);
+    final eventType = _boundedShellMetadata(event.eventType, 64);
     if (eventType == null) {
       return;
     }
     final current = currentPane.shellIntegration;
-    final command = _trimShellHookValue(event.command) ?? current.lastCommand;
+    final command =
+        _boundedShellMetadata(event.command, 512) ?? current.lastCommand;
     final promptOffset = event.cursorLine;
     final nextPromptMarks = eventType == 'prompt_start' && promptOffset != null
         ? _promptMarksForValues(
@@ -1011,8 +1031,8 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _applyShellUserVar(TerminalSessionShellUserVarEvent event) {
-    final name = _trimShellHookValue(event.name);
-    final value = _trimShellHookValue(event.value);
+    final name = _boundedShellMetadata(event.name, 80);
+    final value = _boundedShellMetadata(event.value, 512);
     if (name == null || value == null || !_oscUserVarAllowed(name)) {
       return;
     }
@@ -1033,12 +1053,45 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
+  void _applySessionNotification(TerminalSessionNotificationEvent event) {
+    final currentPane = _paneForSession(event.sessionId);
+    if (currentPane == null) {
+      return;
+    }
+    final title =
+        _boundedShellMetadata(event.title, 160) ?? 'Terminal notification';
+    final message = _boundedShellMetadata(event.message, 512) ?? '';
+    final source = _boundedShellMetadata(event.source, 48) ?? 'osc';
+    final recent = currentPane.recentNotifications;
+    final isDuplicate =
+        recent.isNotEmpty &&
+        recent.first.source == source &&
+        recent.first.title == title &&
+        recent.first.message == message;
+    final nextNotifications = <TerminalPaneNotificationState>[
+      if (isDuplicate)
+        recent.first.copyWith(count: recent.first.count + 1)
+      else
+        TerminalPaneNotificationState(
+          source: source,
+          title: title,
+          message: message,
+        ),
+      for (var index = isDuplicate ? 1 : 0; index < recent.length; index += 1)
+        recent[index],
+    ].take(20).toList(growable: false);
+    _replaceSessionPane(
+      event.sessionId,
+      currentPane.copyWith(recentNotifications: nextNotifications),
+    );
+  }
+
   void _applySessionBadge(TerminalSessionBadgeEvent event) {
     final currentPane = _paneForSession(event.sessionId);
     if (currentPane == null) {
       return;
     }
-    final text = _trimShellHookValue(event.text);
+    final text = _boundedShellMetadata(event.text, 80);
     _replaceSessionPane(event.sessionId, currentPane.copyWith(oscBadge: text));
   }
 
@@ -1047,32 +1100,114 @@ class SessionController extends Notifier<SessionState> {
     if (currentPane == null) {
       return;
     }
-    final progress = event.active
-        ? TerminalPaneProgressState(
-            source: event.source ?? 'osc',
-            named: event.named,
-            action: event.action ?? 'set',
-            id: _trimShellHookValue(event.id),
-            state: _trimShellHookValue(event.state),
-            percent: event.percent,
-            label: _trimShellHookValue(event.label),
-          )
-        : null;
+    _progressGraceTimers.remove(event.sessionId)?.cancel();
+    final progress = _progressStateForEvent(event);
+    final nextNamedProgress = _namedProgressForEvent(
+      currentPane.namedProgress,
+      event,
+      progress,
+    );
+    if (!event.named && progress == null) {
+      final currentProgress = currentPane.progress;
+      if (currentProgress != null && currentProgress.active) {
+        final completedProgress = currentProgress.copyWith(
+          action: 'complete',
+          state: 'complete',
+          percent: currentProgress.percent ?? 100,
+        );
+        _replaceSessionPane(
+          event.sessionId,
+          currentPane.copyWith(
+            progress: completedProgress,
+            namedProgress: nextNamedProgress,
+          ),
+        );
+        _scheduleProgressGraceClear(event.sessionId);
+        return;
+      }
+    }
     _replaceSessionPane(
       event.sessionId,
-      currentPane.copyWith(progress: progress),
+      currentPane.copyWith(
+        progress: event.named ? currentPane.progress : progress,
+        namedProgress: nextNamedProgress,
+      ),
     );
+  }
+
+  void _scheduleProgressGraceClear(String sessionId) {
+    _progressGraceTimers[sessionId] = Timer(
+      const Duration(milliseconds: 1400),
+      () {
+        _progressGraceTimers.remove(sessionId);
+        if (!ref.mounted) {
+          return;
+        }
+        final pane = _paneForSession(sessionId);
+        if (pane?.progress?.action != 'complete') {
+          return;
+        }
+        _replaceSessionPane(sessionId, pane!.copyWith(progress: null));
+      },
+    );
+  }
+
+  TerminalPaneProgressState? _progressStateForEvent(
+    TerminalSessionProgressEvent event,
+  ) {
+    if (!event.active) {
+      return null;
+    }
+    return TerminalPaneProgressState(
+      source: _boundedShellMetadata(event.source, 48) ?? 'osc',
+      named: event.named,
+      action: _boundedShellMetadata(event.action, 32) ?? 'set',
+      id: _boundedShellMetadata(event.id, 80),
+      state: _boundedShellMetadata(event.state, 32),
+      percent: event.percent?.clamp(0, 100).toInt(),
+      label: _boundedShellMetadata(event.label, 160),
+    );
+  }
+
+  Map<String, TerminalPaneProgressState> _namedProgressForEvent(
+    Map<String, TerminalPaneProgressState> current,
+    TerminalSessionProgressEvent event,
+    TerminalPaneProgressState? progress,
+  ) {
+    if (!event.named) {
+      return current;
+    }
+    final action = _boundedShellMetadata(event.action, 32);
+    if (action == 'remove_all') {
+      return const <String, TerminalPaneProgressState>{};
+    }
+    final id = _boundedShellMetadata(event.id, 80);
+    if (id == null) {
+      return current;
+    }
+    final next = <String, TerminalPaneProgressState>{...current};
+    if (action == 'remove' || progress == null) {
+      next.remove(id);
+    } else {
+      next
+        ..remove(id)
+        ..[id] = progress;
+      while (next.length > 8) {
+        next.remove(next.keys.first);
+      }
+    }
+    return Map.unmodifiable(next);
   }
 
   TerminalShellIntegrationSnapshot _shellIntegrationForHook(
     TerminalShellIntegrationSnapshot current,
     TerminalSessionShellHookEvent event,
   ) {
-    final command = _trimShellHookValue(event.command);
-    final cwd = _trimShellHookValue(event.cwd);
-    final hostname = _trimShellHookValue(event.hostname);
-    final username = _trimShellHookValue(event.username);
-    final shell = _trimShellHookValue(event.shell);
+    final command = _boundedShellMetadata(event.command, 512);
+    final cwd = _boundedShellMetadata(event.cwd, 1024);
+    final hostname = _boundedShellMetadata(event.hostname, 255);
+    final username = _boundedShellMetadata(event.username, 255);
+    final shell = _boundedShellMetadata(event.shell, 80);
     final nextCommands = _prependRecentShellValue(
       current.recentCommands,
       command,
@@ -1166,6 +1301,8 @@ class SessionController extends Notifier<SessionState> {
         shellIntegration: replacement.shellIntegration,
         oscBadge: replacement.oscBadge,
         progress: replacement.progress,
+        namedProgress: replacement.namedProgress,
+        recentNotifications: replacement.recentNotifications,
       );
     } else {
       nextTabs[tabIndex] = currentTab.replacePane(replacement);
@@ -1175,6 +1312,12 @@ class SessionController extends Notifier<SessionState> {
 
   bool _oscUserVarAllowed(String name) {
     return name.startsWith('IANVS_');
+  }
+
+  bool _sessionShellIntegrationEnabled(String sessionId) {
+    final pane = _paneForSession(sessionId);
+    return pane?.profileSnapshot?.sessionConfig.shellIntegration.enabled ??
+        true;
   }
 
   List<String> _prependRecentShellValue(
@@ -1193,11 +1336,28 @@ class SessionController extends Notifier<SessionState> {
   }
 
   String? _trimShellHookValue(String? value) {
-    final trimmed = value?.trim();
+    final sanitized = value == null
+        ? null
+        : String.fromCharCodes(
+            value.runes.where((rune) => rune >= 0x20 && rune != 0x7f),
+          );
+    final trimmed = sanitized?.trim();
     if (trimmed == null || trimmed.isEmpty) {
       return null;
     }
     return trimmed;
+  }
+
+  String? _boundedShellMetadata(String? value, int maxRunes) {
+    final trimmed = _trimShellHookValue(value);
+    if (trimmed == null) {
+      return null;
+    }
+    final runes = trimmed.runes.toList(growable: false);
+    if (runes.length <= maxRunes) {
+      return trimmed;
+    }
+    return String.fromCharCodes(runes.take(maxRunes));
   }
 
   void _applyAutomaticProfileSwitch(
@@ -1342,6 +1502,10 @@ class SessionController extends Notifier<SessionState> {
       return false;
     }
     if (rule.kind == TerminalProfileSwitchRuleKind.directory &&
+        _isRemoteShellHost(shellIntegration.hostname)) {
+      return false;
+    }
+    if (rule.kind == TerminalProfileSwitchRuleKind.directory &&
         !rule.pattern.contains('*')) {
       return _directoryRuleMatches(value, rule);
     }
@@ -1362,6 +1526,19 @@ class SessionController extends Notifier<SessionState> {
         : pattern;
     return candidate == normalizedPattern ||
         candidate.startsWith('$normalizedPattern/');
+  }
+
+  bool _isRemoteShellHost(String? hostname) {
+    final normalized = hostname?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) {
+      return false;
+    }
+    final localHostname = Platform.localHostname.toLowerCase();
+    return normalized != 'localhost' &&
+        normalized != '127.0.0.1' &&
+        normalized != '::1' &&
+        normalized != localHostname &&
+        normalized != '$localHostname.local';
   }
 
   bool _shellPatternMatches(

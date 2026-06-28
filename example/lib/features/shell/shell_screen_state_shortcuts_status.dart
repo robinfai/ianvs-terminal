@@ -295,6 +295,58 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     ].join('\n');
   }
 
+  String _notificationStatusLabel(TerminalPaneNotificationState notification) {
+    final suffix = notification.count > 1 ? ' x${notification.count}' : '';
+    return 'NOTIFY ${_shortStatusValue(notification.title, max: 14)}$suffix';
+  }
+
+  String _notificationStatusTooltip(
+    TerminalPaneNotificationState notification,
+  ) {
+    return [
+      'Terminal notification reported by ${notification.source}.',
+      'Title: ${notification.title}',
+      if (notification.message.trim().isNotEmpty)
+        'Message: ${notification.message.trim()}',
+      if (notification.count > 1) 'Count: ${notification.count}',
+      'Click to inspect recent notifications for this pane.',
+    ].join('\n');
+  }
+
+  String _statusDirectoryTooltip({
+    required String path,
+    required bool fromShellIntegration,
+    String? hostname,
+    String? username,
+  }) {
+    final remote = _shellHostIsRemote(hostname);
+    return [
+      if (!fromShellIntegration)
+        'Profile default working directory.'
+      else if (remote)
+        'Remote-reported shell integration path.'
+      else
+        'Local shell integration path.',
+      'Path: $path',
+      if (hostname?.trim().isNotEmpty == true) 'Host: ${hostname!.trim()}',
+      if (username?.trim().isNotEmpty == true) 'User: ${username!.trim()}',
+      if (remote) 'Local file actions stay disabled for remote paths.',
+    ].join('\n');
+  }
+
+  bool _shellHostIsRemote(String? hostname) {
+    final normalized = hostname?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) {
+      return false;
+    }
+    final localHostname = Platform.localHostname.toLowerCase();
+    return normalized != 'localhost' &&
+        normalized != '127.0.0.1' &&
+        normalized != '::1' &&
+        normalized != localHostname &&
+        normalized != '$localHostname.local';
+  }
+
   List<_ShellStatusModeItem> _statusModeItemsFor(
     String sessionId,
     terminal.TerminalFrameModes modes,

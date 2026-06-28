@@ -1122,6 +1122,386 @@ void main() {
     expect(pane.shellIntegration.username, 'dev');
   });
 
+  testWidgets(
+    'shell context ignores OSC metadata when shell integration is disabled',
+    (tester) async {
+      final baseProfile = defaultTerminalProfile();
+      final disabledProfile = baseProfile.copyWith(
+        id: 'disabled',
+        name: 'Disabled Integration',
+        sessionConfig: baseProfile.sessionConfig.copyWith(
+          shellIntegration: const terminal.TerminalShellIntegrationConfig(
+            enabled: false,
+          ),
+        ),
+      );
+      final bindings = _EventfulPtyBackend(FakePtyBackend());
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [disabledProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider);
+      await tester.pump(const Duration(milliseconds: 50));
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'shell_context',
+        'payload': const <String, Object?>{
+          'source': 'osc7',
+          'cwd': '/tmp/project',
+          'hostname': 'localhost',
+          'username': 'dev',
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+
+      final pane = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane;
+      expect(pane.shellIntegration.currentDirectory, isNull);
+      expect(pane.shellIntegration.hostname, isNull);
+      expect(pane.shellIntegration.username, isNull);
+    },
+  );
+
+  testWidgets(
+    'shell context remote cwd does not trigger local directory profile switch',
+    (tester) async {
+      final localProfile = defaultTerminalProfile().copyWith(
+        id: 'local',
+        name: 'Local',
+      );
+      final projectProfile = defaultTerminalProfile().copyWith(
+        id: 'project',
+        name: 'Project',
+        switchRules: const [
+          TerminalProfileSwitchRule(
+            kind: TerminalProfileSwitchRuleKind.directory,
+            pattern: '/srv/app',
+          ),
+        ],
+      );
+      final bindings = _EventfulPtyBackend(FakePtyBackend());
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: [localProfile, projectProfile],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider);
+      await tester.pump(const Duration(milliseconds: 50));
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'shell_context',
+        'payload': const <String, Object?>{
+          'source': 'osc7',
+          'cwd': '/srv/app',
+          'hostname': 'remote.example',
+          'username': 'deploy',
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+
+      var pane = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane;
+      expect(pane.profileId, 'local');
+      expect(pane.shellIntegration.currentDirectory, '/srv/app');
+      expect(pane.shellIntegration.hostname, 'remote.example');
+
+      bindings.enqueueEvent(sessionId, {
+        'kind': 'shell_context',
+        'payload': const <String, Object?>{
+          'source': 'osc7',
+          'cwd': '/srv/app',
+          'hostname': 'localhost',
+          'username': 'dev',
+        },
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+
+      pane = container.read(sessionControllerProvider).tabs.single.activePane;
+      expect(pane.profileId, 'project');
+      expect(pane.shellIntegration.hostname, 'localhost');
+    },
+  );
+
+  testWidgets('shell context user variables are allowlisted and capped', (
+    tester,
+  ) async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider);
+    await tester.pump(const Duration(milliseconds: 50));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'shell_user_var',
+      'payload': <String, Object?>{
+        'name': 'IANVS_TEST',
+        'value': '${List.filled(600, 'x').join()}\u0007',
+      },
+    });
+    bindings.enqueueEvent(sessionId, {
+      'kind': 'shell_user_var',
+      'payload': const <String, Object?>{
+        'name': 'SECRET_TOKEN',
+        'value': 'do-not-store',
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
+    await tester.pump();
+
+    final userVariables = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .activePane
+        .shellIntegration
+        .userVariables;
+    expect(userVariables.keys, <String>['IANVS_TEST']);
+    expect(userVariables['IANVS_TEST']!.runes, hasLength(512));
+    expect(userVariables['IANVS_TEST'], isNot(contains('\u0007')));
+  });
+
+  testWidgets(
+    'OSC notification metadata is bounded and duplicate bursts collapse',
+    (tester) async {
+      final bindings = _EventfulPtyBackend(FakePtyBackend());
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(sessionControllerProvider);
+      await tester.pump(const Duration(milliseconds: 50));
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      for (var index = 0; index < 2; index += 1) {
+        bindings.enqueueEvent(sessionId, {
+          'kind': 'session_notification',
+          'payload': <String, Object?>{
+            'source': 'osc777',
+            'title': '${List.filled(200, 'T').join()}\u0007',
+            'message': '${List.filled(600, 'M').join()}\u0007',
+          },
+        });
+      }
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+
+      final notifications = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .activePane
+          .recentNotifications;
+      expect(notifications, hasLength(1));
+      expect(notifications.single.count, 2);
+      expect(notifications.single.title.runes, hasLength(160));
+      expect(notifications.single.message.runes, hasLength(512));
+      expect(notifications.single.title, isNot(contains('\u0007')));
+    },
+  );
+
+  testWidgets('OSC progress and badge metadata update pane state', (
+    tester,
+  ) async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider);
+    await tester.pump(const Duration(milliseconds: 50));
+    final sessionId = container
+        .read(sessionControllerProvider)
+        .activeSessionId!;
+
+    void enqueue(String kind, Map<String, Object?> payload) {
+      bindings.enqueueEvent(sessionId, {'kind': kind, 'payload': payload});
+    }
+
+    Future<void> flush() async {
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await tester.pump();
+    }
+
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc9;4',
+      'action': 'set',
+      'state': 'normal',
+      'percent': 150,
+      'label': 'Primary',
+    });
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc934',
+      'named': true,
+      'action': 'set',
+      'id': 'build',
+      'state': 'normal',
+      'percent': 80,
+      'label': 'Compile',
+    });
+    enqueue('session_badge', <String, Object?>{
+      'text': '${List.filled(120, 'B').join()}\u0007',
+    });
+    await flush();
+
+    var pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.progress!.percent, 100);
+    expect(pane.namedProgress.keys, <String>['build']);
+    expect(pane.namedProgress['build']!.label, 'Compile');
+    expect(pane.oscBadge!.runes, hasLength(80));
+    expect(pane.oscBadge, isNot(contains('\u0007')));
+
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc934',
+      'named': true,
+      'action': 'remove',
+      'id': 'build',
+    });
+    enqueue('session_badge', const <String, Object?>{'text': ''});
+    await flush();
+
+    pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.namedProgress, isEmpty);
+    expect(pane.oscBadge, isNull);
+
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc934',
+      'named': true,
+      'action': 'set',
+      'id': 'test',
+      'state': 'normal',
+      'percent': 50,
+    });
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc934',
+      'named': true,
+      'action': 'remove_all',
+    });
+    enqueue('session_progress', const <String, Object?>{
+      'source': 'osc9;4',
+      'action': 'clear',
+      'state': 'hidden',
+    });
+    await flush();
+
+    pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.namedProgress, isEmpty);
+    expect(pane.progress?.action, 'complete');
+    expect(pane.progress?.state, 'complete');
+
+    await tester.pump(const Duration(milliseconds: 1500));
+
+    pane = container.read(sessionControllerProvider).tabs.single.activePane;
+    expect(pane.progress, isNull);
+  });
+
   test(
     'resize events update the terminal session before resizing the macOS window',
     () async {
