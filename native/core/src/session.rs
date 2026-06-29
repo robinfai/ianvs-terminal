@@ -1,8 +1,9 @@
 use crate::model::{
-    TerminalCursor, TerminalDirtyRange, TerminalEmulation, TerminalEvent, TerminalFrameDiff,
-    TerminalFrameKind, TerminalFrameModes, TerminalGraphicPlacement, TerminalHyperlinkRange,
-    TerminalProfile, TerminalProfileAnsiColors, TerminalProfileColors, TerminalRow,
-    TerminalSearchMatch, TerminalSelectionRequest, TerminalStyleRun,
+    TERMINAL_FRAME_SCHEMA_VERSION, TerminalCursor, TerminalDirtyRange, TerminalEmulation,
+    TerminalEvent, TerminalFrameDiff, TerminalFrameKind, TerminalFrameModes,
+    TerminalGraphicPlacement, TerminalHyperlinkRange, TerminalProfile, TerminalProfileAnsiColors,
+    TerminalProfileColors, TerminalRow, TerminalSearchMatch, TerminalSelectionRequest,
+    TerminalStyleRun,
 };
 use crate::pty::spawn_pty;
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
@@ -1317,6 +1318,7 @@ impl TerminalSession {
         }
 
         Ok(Some(TerminalFrameDiff {
+            frame_schema_version: TERMINAL_FRAME_SCHEMA_VERSION.to_string(),
             frame_kind,
             rows,
             cursor: cursor_snapshot,
@@ -3791,6 +3793,39 @@ mod tests {
     use par_term_emu_core_rust::cell::Cell;
     use par_term_emu_core_rust::color::NamedColor;
     use par_term_emu_core_rust::terminal::Terminal;
+
+    fn pending_full_screen_scroll(
+        dirty_rows: &[usize],
+        viewport_row_shift: i32,
+    ) -> PendingFrameWork {
+        PendingFrameWork {
+            dirty_rows: dirty_rows.iter().copied().collect(),
+            scroll_region: Some(PendingScrollRegion {
+                top: 0,
+                bottom_exclusive: 5,
+                delta_rows: viewport_row_shift,
+            }),
+            ..PendingFrameWork::default()
+        }
+    }
+
+    #[test]
+    fn delta_candidates_include_rows_exposed_by_negative_viewport_shift() {
+        let pending = pending_full_screen_scroll(&[4], -1);
+
+        let candidates = delta_candidate_row_indexes(&pending, 5, 100, 100, false, -1);
+
+        assert_eq!(candidates, vec![3, 4]);
+    }
+
+    #[test]
+    fn delta_candidates_include_rows_exposed_by_positive_viewport_shift() {
+        let pending = pending_full_screen_scroll(&[0], 1);
+
+        let candidates = delta_candidate_row_indexes(&pending, 5, 100, 100, false, 1);
+
+        assert_eq!(candidates, vec![0, 1]);
+    }
 
     #[test]
     fn color_to_hex_handles_named_and_rgb_colors() {

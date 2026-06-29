@@ -75,6 +75,7 @@ void main() {
           'background': '#101010',
           'cursor': '#FFFFFF',
           'selection': '#334455',
+          'tab': null,
         },
         'normal': <String, Object?>{
           'black': '#14191E',

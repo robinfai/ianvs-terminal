@@ -293,17 +293,16 @@ class RenderTerminalViewport extends RenderBox {
     final activeRowIndexes = <int>{};
     final rebuiltRowIndexes = <int>[];
     final hasNewFrame = _lastPaintedFrameVersion != _controller.frameVersion;
-    if (hasNewFrame &&
-        frame.frameKind == TerminalFrameKind.delta &&
-        frame.viewportRowShift != 0) {
-      _shiftRowCaches(frame.viewportRowShift, frame.viewportRows);
+    final renderIntent = TerminalRenderIntent.fromFrame(
+      frame,
+      hasNewFrame: hasNewFrame,
+      forceFullRowVisualRebuild: _needsFullRowVisualRebuild,
+    );
+    if (renderIntent.shiftsRowCache) {
+      _shiftRowCaches(renderIntent.rowCacheShift, frame.viewportRows);
     }
-    final shouldRebuildAllRows =
-        _needsFullRowVisualRebuild ||
-        (hasNewFrame && frame.frameKind == TerminalFrameKind.snapshot);
-    final dirtyRowIndexes = shouldRebuildAllRows
-        ? <int>{}
-        : (hasNewFrame ? _dirtyRowIndexesFor(frame) : const <int>{});
+    final shouldRebuildAllRows = renderIntent.rebuildAllRows;
+    final dirtyRowIndexes = renderIntent.dirtyRowIndexes;
     final searchHighlightsByRow = _searchHighlightsByRow(frame);
     _debugSearchHighlightRects.clear();
     _debugHyperlinkUnderlineRects.clear();
@@ -801,16 +800,6 @@ class RenderTerminalViewport extends RenderBox {
     _cellSize = _cachedCellMetrics!.size;
     _cellBaseline = _cachedCellMetrics!.alphabeticBaseline;
     _rowTextMetrics = _cachedMeasuredRowTextMetrics!;
-  }
-
-  Set<int> _dirtyRowIndexesFor(TerminalFrameDiff frame) {
-    final dirtyRows = <int>{};
-    for (final range in frame.dirtyRanges) {
-      for (var rowIndex = range.start; rowIndex < range.end; rowIndex += 1) {
-        dirtyRows.add(rowIndex);
-      }
-    }
-    return dirtyRows;
   }
 
   void _rebuildRowVisual({

@@ -184,6 +184,35 @@ sys.stdout.flush()
     )
 }
 
+fn burst_stdout_profile(gate_path: &Path) -> TerminalProfile {
+    let mut env = BTreeMap::new();
+    env.insert(
+        "IANVS_BURST_GATE".to_string(),
+        gate_path.display().to_string(),
+    );
+    local_profile(
+        "burst-stdout",
+        "Burst Stdout",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            r#"python3 -c 'import os, sys, time
+gate = os.environ["IANVS_BURST_GATE"]
+sys.stdout.write("burst-ready\n")
+sys.stdout.flush()
+while not os.path.exists(gate):
+    time.sleep(0.01)
+for i in range(512):
+    sys.stdout.write(f"burst-{i:05d}\n")
+sys.stdout.flush()
+'"#
+            .to_string(),
+        ],
+        env,
+        TerminalEmulation::Xterm256,
+    )
+}
+
 fn clear_screen_profile() -> TerminalProfile {
     local_profile(
         "clear-screen",
@@ -887,6 +916,44 @@ fn session_emits_frame_diff_for_simple_command() {
         .expect("expected frame diff");
 
     assert!(frame.contains("hello"));
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_declares_schema_version() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+    assert_eq!(
+        parsed["frame_schema_version"].as_str(),
+        Some("terminal-frame-diff-v1"),
+        "frame diffs must carry an explicit schema version: {}",
+        serde_json::to_string_pretty(&parsed).unwrap()
+    );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_frame_diff_omits_empty_optional_fields() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame diff");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let object = parsed.as_object().expect("expected frame object");
+
+    assert!(!object.contains_key("selection"));
+    assert!(!object.contains_key("window_title"));
+    assert!(!object.contains_key("window_icon_name"));
     session::close_session(session_id).unwrap();
 }
 
@@ -2382,6 +2449,34 @@ fn session_can_resize() {
 }
 
 #[test]
+fn resize_stress_returns_snapshots_with_current_dimensions() {
+    let session_id =
+        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
+    let _ = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"frame_kind\":\"snapshot\"")
+    });
+
+    for (cols, rows, pixel_width, pixel_height) in [
+        (100, 30, 900, 540),
+        (40, 8, 360, 144),
+        (120, 24, 1080, 432),
+        (80, 12, 720, 216),
+    ] {
+        session::resize_session(session_id, cols, rows, pixel_width, pixel_height).unwrap();
+        let frame = session::take_frame_diff(session_id)
+            .unwrap()
+            .expect("expected frame after resize stress step");
+        let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+
+        assert_eq!(parsed["frame_kind"].as_str(), Some("snapshot"));
+        assert_eq!(parsed["viewport_cols"].as_u64(), Some(cols as u64));
+        assert_eq!(parsed["viewport_rows"].as_u64(), Some(rows as u64));
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
 fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
     let session_id =
         session::create_session(&serde_json::to_string(&scrollback_profile()).unwrap()).unwrap();
@@ -2404,8 +2499,17 @@ fn session_reports_scrollback_bounds_and_clamps_absolute_scroll() {
     let max_after_scroll = parsed["scrollback_max_offset"]
         .as_u64()
         .expect("expected scrollback max offset");
+    let debug_stats = session::take_frame_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected frame debug stats");
+    let debug_parsed: serde_json::Value = serde_json::from_str(&debug_stats).unwrap();
 
+    assert_eq!(parsed["frame_kind"].as_str(), Some("snapshot"));
     assert_eq!(offset, max_after_scroll);
+    assert_eq!(
+        debug_parsed["snapshot_fallback_reason"].as_str(),
+        Some("scrollback_navigation")
+    );
     session::close_session(session_id).unwrap();
 }
 
@@ -2426,6 +2530,46 @@ fn session_top_anchored_partial_scroll_region_contributes_to_scrollback() {
         .expect("expected scrolled frame diff");
     assert!(scrolled.contains("row01"));
     assert!(scrolled.contains("row02"));
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn burst_stdout_delta_stays_bounded_to_visible_rows() {
+    let gate = tempdir().unwrap();
+    let gate_path = gate.path().join("continue");
+    let session_id =
+        session::create_session(&serde_json::to_string(&burst_stdout_profile(&gate_path)).unwrap())
+            .unwrap();
+    session::resize_session(session_id, 80, 12, 720, 216).unwrap();
+
+    let _ = wait_for_frame_containing(session_id, "burst-ready");
+    fs::write(&gate_path, "").unwrap();
+
+    let frame = wait_for_frame_containing(session_id, "burst-00511");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let debug_stats = session::take_frame_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected frame debug stats");
+    let debug_parsed: serde_json::Value = serde_json::from_str(&debug_stats).unwrap();
+
+    assert_eq!(parsed["frame_kind"].as_str(), Some("delta"));
+    assert!(
+        parsed["viewport_row_shift"].as_i64().unwrap_or_default() < 0,
+        "burst stdout should advance the viewport with a negative row shift: {}",
+        serde_json::to_string_pretty(&parsed).unwrap()
+    );
+    assert!(
+        debug_parsed["rows_scanned"].as_u64().unwrap_or(u64::MAX) <= 12,
+        "burst delta scan should stay bounded to visible rows: {}",
+        serde_json::to_string_pretty(&debug_parsed).unwrap()
+    );
+    assert!(
+        debug_parsed["rows_emitted"].as_u64().unwrap_or(u64::MAX) <= 12,
+        "burst delta emission should stay bounded to visible rows: {}",
+        serde_json::to_string_pretty(&debug_parsed).unwrap()
+    );
+    assert!(debug_parsed["snapshot_fallback_reason"].is_null());
 
     session::close_session(session_id).unwrap();
 }
@@ -4441,7 +4585,7 @@ fn diagnostics_export_after_session_close_fails_stably() {
 }
 
 #[test]
-fn transcript_is_bounded_and_resize_still_returns_snapshot() {
+fn scrollback_heavy_transcript_is_bounded_and_resize_still_returns_snapshot() {
     let session_id =
         session::create_session(&serde_json::to_string(&large_transcript_profile()).unwrap())
             .unwrap();

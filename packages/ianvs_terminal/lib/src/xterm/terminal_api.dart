@@ -469,7 +469,9 @@ class Terminal implements TerminalDisposable {
     if (frame.viewportRows > 0) {
       _currentRows = frame.viewportRows;
     }
-    final range = _dirtyRenderRange(frame);
+    final range = _renderEventFromIntent(
+      TerminalRenderIntent.fromFrame(frame, hasNewFrame: true),
+    );
     if (range != null) {
       _renderEvents.add(range);
     }
@@ -526,20 +528,14 @@ TerminalCursorShape _cursorShapeFor(TerminalCursorStyle style) {
   };
 }
 
-TerminalRenderEvent? _dirtyRenderRange(TerminalFrameDiff frame) {
-  if (frame.dirtyRanges.isEmpty) {
+TerminalRenderEvent? _renderEventFromIntent(TerminalRenderIntent intent) {
+  if (!intent.hasDirtyExtent) {
     return null;
   }
-  var start = frame.viewportRows;
-  var end = 0;
-  for (final range in frame.dirtyRanges) {
-    start = range.start < start ? range.start : start;
-    end = range.end > end ? range.end : end;
-  }
-  if (start >= end) {
-    return null;
-  }
-  return TerminalRenderEvent(start: start, end: end - 1);
+  return TerminalRenderEvent(
+    start: intent.dirtyStart!,
+    end: intent.dirtyEnd! - 1,
+  );
 }
 
 bool _sameSelection(TerminalSelection? left, TerminalSelection? right) {

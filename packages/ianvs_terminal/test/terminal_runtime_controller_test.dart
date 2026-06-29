@@ -188,6 +188,51 @@ void main() {
   });
 
   test(
+    'terminal viewport controller reuses unchanged rows across sparse deltas',
+    () {
+      final modifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 3);
+      final row0 = TerminalRow(index: 0, text: 'alpha', modifiedAt: modifiedAt);
+      final row1 = TerminalRow(index: 1, text: 'beta', modifiedAt: modifiedAt);
+      final row2 = TerminalRow(index: 2, text: 'gamma', modifiedAt: modifiedAt);
+      final incomingRow = TerminalRow(
+        index: 1,
+        text: 'beta*',
+        modifiedAt: modifiedAt.add(const Duration(seconds: 1)),
+      );
+      final controller = TerminalViewportController();
+
+      controller.updateFrame(
+        TerminalFrameDiff(
+          rows: [row0, row1, row2],
+          cursor: const TerminalCursor(row: 1, col: 4, visible: true),
+          viewportRows: 3,
+          viewportCols: 80,
+          dirtyRanges: const [TerminalDirtyRange(start: 0, end: 3)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+      controller.updateFrame(
+        TerminalFrameDiff(
+          frameKind: TerminalFrameKind.delta,
+          rows: [incomingRow],
+          cursor: const TerminalCursor(row: 1, col: 5, visible: true),
+          viewportRows: 3,
+          viewportCols: 80,
+          dirtyRanges: const [TerminalDirtyRange(start: 1, end: 2)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      final rows = controller.frame.rows;
+      expect(rows[0], same(row0));
+      expect(rows[1], same(incomingRow));
+      expect(rows[2], same(row2));
+    },
+  );
+
+  test(
     'terminal viewport controller leaves whitespace-only rows untimestamped',
     () {
       final modifiedAt = DateTime.utc(2026, 5, 13, 1, 2, 3);
@@ -460,6 +505,7 @@ void main() {
     });
 
     expect(frame.frameKind, TerminalFrameKind.snapshot);
+    expect(frame.frameSchemaVersion, 'terminal-frame-diff-v1');
     expect(frame.cursor.row, 0);
     expect(frame.cursor.col, 0);
     expect(frame.cursor.visible, isFalse);
@@ -477,6 +523,86 @@ void main() {
     expect(frame.windowTitle, isNull);
     expect(frame.windowIconName, isNull);
   });
+
+  test('terminal frames parse explicit frame schema versions', () {
+    final explicit = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'frame_schema_version': ' terminal-frame-diff-v2 ',
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 1,
+      'viewport_cols': 80,
+      'dirty_ranges': [],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+    final legacy = TerminalFrameDiff.fromJson(const <String, Object?>{
+      'rows': [],
+      'cursor': {'row': 0, 'col': 0, 'visible': true},
+      'viewport_rows': 1,
+      'viewport_cols': 80,
+      'dirty_ranges': [],
+      'scrollback_offset': 0,
+      'scrollback_max_offset': 0,
+    });
+
+    expect(explicit.frameSchemaVersion, 'terminal-frame-diff-v2');
+    expect(legacy.frameSchemaVersion, 'terminal-frame-diff-v1');
+  });
+
+  test('terminal render intent describes sparse delta repaint work', () {
+    final intent = TerminalRenderIntent.fromFrame(
+      const TerminalFrameDiff(
+        frameKind: TerminalFrameKind.delta,
+        rows: [TerminalRow(index: 2, text: 'changed')],
+        cursor: TerminalCursor(row: 2, col: 7, visible: true),
+        viewportRows: 4,
+        viewportCols: 80,
+        dirtyRanges: [
+          TerminalDirtyRange(start: 0, end: 1),
+          TerminalDirtyRange(start: 2, end: 3),
+        ],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        viewportRowShift: -1,
+      ),
+      hasNewFrame: true,
+    );
+
+    expect(intent.rebuildAllRows, isFalse);
+    expect(intent.shiftsRowCache, isTrue);
+    expect(intent.rowCacheShift, -1);
+    expect(intent.dirtyRowIndexes, <int>{0, 2});
+    expect(intent.dirtyStart, 0);
+    expect(intent.dirtyEnd, 3);
+  });
+
+  test(
+    'terminal render intent keeps full rebuild separate from dirty rows',
+    () {
+      final snapshotIntent = TerminalRenderIntent.fromFrame(
+        const TerminalFrameDiff(
+          rows: [TerminalRow(index: 0, text: 'full')],
+          cursor: TerminalCursor(row: 0, col: 4, visible: true),
+          viewportRows: 3,
+          viewportCols: 80,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 3)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+        hasNewFrame: true,
+      );
+      final idleIntent = TerminalRenderIntent.fromFrame(
+        TerminalFrameDiff.empty,
+        hasNewFrame: false,
+      );
+
+      expect(snapshotIntent.rebuildAllRows, isTrue);
+      expect(snapshotIntent.dirtyRowIndexes, isEmpty);
+      expect(snapshotIntent.dirtyStart, 0);
+      expect(snapshotIntent.dirtyEnd, 3);
+      expect(idleIntent, same(TerminalRenderIntent.none));
+    },
+  );
 
   test('terminal frames normalize frame kind tokens', () {
     final frame = TerminalFrameDiff.fromJson(const <String, Object?>{
@@ -1317,6 +1443,46 @@ void main() {
       }
     },
   );
+
+  testWidgets('terminal runtime controller backs off repeated idle polling', (
+    tester,
+  ) async {
+    final runtimeBackend = _FakePtyBackend();
+    final runtime = TerminalRuntimeController(
+      backend: runtimeBackend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+    );
+    try {
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final viewport = runtime.viewportFor(sessionId);
+      runtimeBackend.clearFrame(sessionId);
+
+      await tester.pump(const Duration(milliseconds: 34));
+      await tester.pump(const Duration(milliseconds: 34));
+
+      expect(runtimeBackend.takeFrameDiffCalls, 3);
+      expect(runtimeBackend.pollEventsCalls, 3);
+
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(runtimeBackend.takeFrameDiffCalls, 3);
+      expect(runtimeBackend.pollEventsCalls, 3);
+
+      runtimeBackend.setFrame(sessionId, _singleRowSnapshot('wake'));
+      runtime.sendInput(sessionId, Uint8List.fromList(const [0x41]));
+
+      expect(runtimeBackend.takeFrameDiffCalls, 4);
+      expect(runtimeBackend.pollEventsCalls, 4);
+      expect(viewport.frame.rows.first.text, 'wake');
+    } finally {
+      runtime.dispose();
+    }
+  });
 
   testWidgets(
     'terminal runtime controller schedules queued polling refresh after async events',

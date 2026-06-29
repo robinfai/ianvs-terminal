@@ -2,6 +2,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
+pub const TERMINAL_FRAME_SCHEMA_VERSION: &str = "terminal-frame-diff-v1";
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalEmulation {
@@ -441,10 +443,13 @@ pub enum TerminalFrameKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalFrameDiff {
+    #[serde(default = "default_terminal_frame_schema_version")]
+    pub frame_schema_version: String,
     #[serde(default)]
     pub frame_kind: TerminalFrameKind,
     pub rows: Vec<TerminalRow>,
     pub cursor: TerminalCursor,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection: Option<TerminalSelection>,
     pub viewport_rows: u16,
     pub viewport_cols: u16,
@@ -458,17 +463,17 @@ pub struct TerminalFrameDiff {
     pub viewport_start_row: usize,
     #[serde(default)]
     pub viewport_row_shift: i32,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_foreground: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_background: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor_color: Option<String>,
     #[serde(default)]
     pub modes: TerminalFrameModes,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window_title: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window_icon_name: Option<String>,
     #[serde(default)]
     pub hyperlinks: Vec<TerminalHyperlinkRange>,
@@ -485,6 +490,10 @@ pub struct TerminalEvent {
 
 fn default_mouse_mode() -> String {
     "off".to_string()
+}
+
+fn default_terminal_frame_schema_version() -> String {
+    TERMINAL_FRAME_SCHEMA_VERSION.to_string()
 }
 
 fn default_mouse_encoding() -> String {

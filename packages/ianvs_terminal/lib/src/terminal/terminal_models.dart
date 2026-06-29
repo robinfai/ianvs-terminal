@@ -638,7 +638,10 @@ class TerminalSearchMatch {
 }
 
 class TerminalFrameDiff {
+  static const currentFrameSchemaVersion = 'terminal-frame-diff-v1';
+
   const TerminalFrameDiff({
+    this.frameSchemaVersion = currentFrameSchemaVersion,
     this.frameKind = TerminalFrameKind.snapshot,
     required this.rows,
     required this.cursor,
@@ -661,6 +664,7 @@ class TerminalFrameDiff {
     this.graphics = const [],
   });
 
+  final String frameSchemaVersion;
   final TerminalFrameKind frameKind;
   final List<TerminalRow> rows;
   final TerminalCursor cursor;
@@ -683,6 +687,7 @@ class TerminalFrameDiff {
   final List<TerminalGraphicPlacement> graphics;
 
   static const empty = TerminalFrameDiff(
+    frameSchemaVersion: currentFrameSchemaVersion,
     frameKind: TerminalFrameKind.snapshot,
     rows: [],
     cursor: TerminalCursor(row: 0, col: 0, visible: false),
@@ -708,6 +713,9 @@ class TerminalFrameDiff {
       json['scrollback_offset'],
     ).clamp(0, scrollbackMaxOffset).toInt();
     return TerminalFrameDiff(
+      frameSchemaVersion:
+          _nonEmptyTrimmedStringFromJson(json['frame_schema_version']) ??
+          currentFrameSchemaVersion,
       frameKind: _terminalFrameKindFromWire(
         _stringFromJson(json['frame_kind']),
       ),
@@ -812,6 +820,73 @@ Map<String, Object?>? _jsonMapFromJson(Object? value) {
   return json;
 }
 
+class TerminalRenderIntent {
+  const TerminalRenderIntent._({
+    required this.rebuildAllRows,
+    required this.dirtyRowIndexes,
+    required this.dirtyStart,
+    required this.dirtyEnd,
+    required this.rowCacheShift,
+  });
+
+  static const none = TerminalRenderIntent._(
+    rebuildAllRows: false,
+    dirtyRowIndexes: <int>{},
+    dirtyStart: null,
+    dirtyEnd: null,
+    rowCacheShift: 0,
+  );
+
+  factory TerminalRenderIntent.fromFrame(
+    TerminalFrameDiff frame, {
+    required bool hasNewFrame,
+    bool forceFullRowVisualRebuild = false,
+  }) {
+    if (!hasNewFrame && !forceFullRowVisualRebuild) {
+      return none;
+    }
+    final rowCacheShift =
+        hasNewFrame && frame.frameKind == TerminalFrameKind.delta
+        ? frame.viewportRowShift
+        : 0;
+    final dirtyExtent = hasNewFrame
+        ? _dirtyRowExtentForRanges(frame.dirtyRanges, frame.viewportRows)
+        : null;
+    if (forceFullRowVisualRebuild ||
+        frame.frameKind == TerminalFrameKind.snapshot) {
+      return TerminalRenderIntent._(
+        rebuildAllRows: true,
+        dirtyRowIndexes: const <int>{},
+        dirtyStart: dirtyExtent?.start,
+        dirtyEnd: dirtyExtent?.end,
+        rowCacheShift: rowCacheShift,
+      );
+    }
+
+    final dirtyRows = _dirtyRowIndexesForRanges(
+      frame.dirtyRanges,
+      frame.viewportRows,
+    );
+    return TerminalRenderIntent._(
+      rebuildAllRows: false,
+      dirtyRowIndexes: Set<int>.unmodifiable(dirtyRows),
+      dirtyStart: dirtyExtent?.start,
+      dirtyEnd: dirtyExtent?.end,
+      rowCacheShift: rowCacheShift,
+    );
+  }
+
+  final bool rebuildAllRows;
+  final Set<int> dirtyRowIndexes;
+  final int? dirtyStart;
+  final int? dirtyEnd;
+  final int rowCacheShift;
+
+  bool get shiftsRowCache => rowCacheShift != 0;
+  bool get hasDirtyExtent =>
+      dirtyStart != null && dirtyEnd != null && dirtyStart! < dirtyEnd!;
+}
+
 class TerminalViewportState {
   const TerminalViewportState({required this.frame});
 
@@ -895,6 +970,7 @@ class TerminalViewportState {
 
     return TerminalViewportState(
       frame: TerminalFrameDiff(
+        frameSchemaVersion: nextFrame.frameSchemaVersion,
         frameKind: nextFrame.frameKind,
         rows: mergedRows,
         cursor: nextFrame.cursor,
@@ -1145,6 +1221,7 @@ TerminalFrameDiff _normalizeSnapshotFrame(
   DateTime? capturedAt,
 }) {
   return TerminalFrameDiff(
+    frameSchemaVersion: frame.frameSchemaVersion,
     frameKind: TerminalFrameKind.snapshot,
     rows: _normalizeViewportRows(
       rows: frame.rows,
@@ -1192,6 +1269,45 @@ List<TerminalDirtyRange> _fullViewportDirtyRanges(int viewportRows) {
     return const <TerminalDirtyRange>[];
   }
   return <TerminalDirtyRange>[TerminalDirtyRange(start: 0, end: viewportRows)];
+}
+
+Set<int> _dirtyRowIndexesForRanges(
+  List<TerminalDirtyRange> dirtyRanges,
+  int viewportRows,
+) {
+  final dirtyRows = <int>{};
+  for (final range in dirtyRanges) {
+    final start = range.start.clamp(0, viewportRows).toInt();
+    final end = range.end.clamp(start, viewportRows).toInt();
+    for (var row = start; row < end; row += 1) {
+      dirtyRows.add(row);
+    }
+  }
+  return dirtyRows;
+}
+
+TerminalDirtyRange? _dirtyRowExtentForRanges(
+  List<TerminalDirtyRange> dirtyRanges,
+  int viewportRows,
+) {
+  if (viewportRows <= 0 || dirtyRanges.isEmpty) {
+    return null;
+  }
+  var start = viewportRows;
+  var end = 0;
+  for (final range in dirtyRanges) {
+    final rangeStart = range.start.clamp(0, viewportRows).toInt();
+    final rangeEnd = range.end.clamp(rangeStart, viewportRows).toInt();
+    if (rangeStart >= rangeEnd) {
+      continue;
+    }
+    start = rangeStart < start ? rangeStart : start;
+    end = rangeEnd > end ? rangeEnd : end;
+  }
+  if (start >= end) {
+    return null;
+  }
+  return TerminalDirtyRange(start: start, end: end);
 }
 
 List<TerminalDirtyRange> _mergeDirtyRangesWithRows({
@@ -1261,25 +1377,33 @@ List<TerminalRow> _mergeViewportRows({
   required int viewportRows,
   DateTime? modifiedAt,
 }) {
-  final normalizedCurrent = _normalizeViewportRows(
-    rows: currentRows,
-    viewportRows: viewportRows,
-  );
+  final mergedRows = _rowsCoverViewport(currentRows, viewportRows)
+      ? List<TerminalRow>.of(currentRows, growable: false)
+      : _normalizeViewportRows(rows: currentRows, viewportRows: viewportRows);
   if (incomingRows.isEmpty) {
-    return normalizedCurrent;
+    return mergedRows;
   }
 
-  final rowsByIndex = <int, TerminalRow>{};
   for (final row in incomingRows) {
     if (row.index < 0 || row.index >= viewportRows) {
       continue;
     }
-    rowsByIndex[row.index] = _rowWithFallbackModifiedAt(row, modifiedAt);
+    mergedRows[row.index] = _rowWithFallbackModifiedAt(row, modifiedAt);
   }
 
-  return List<TerminalRow>.generate(viewportRows, (index) {
-    return rowsByIndex[index] ?? normalizedCurrent[index];
-  }, growable: false);
+  return mergedRows;
+}
+
+bool _rowsCoverViewport(List<TerminalRow> rows, int viewportRows) {
+  if (rows.length != viewportRows) {
+    return false;
+  }
+  for (var index = 0; index < rows.length; index += 1) {
+    if (rows[index].index != index) {
+      return false;
+    }
+  }
+  return true;
 }
 
 List<TerminalRow> _shiftViewportRows({

@@ -275,6 +275,8 @@ List<Map<String, Object?>> _mapList(Object? value) {
 
 class TerminalRuntimeController {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
+  static const int _pollingIdleBackoffAfterEmptyRefreshes = 2;
+  static const int _pollingIdleBackoffTicks = 3;
   static const int _clipboardPreviewRunes = 120;
 
   TerminalRuntimeController({
@@ -317,6 +319,8 @@ class TerminalRuntimeController {
       <String, _SessionResizeMetric>{};
   final Map<String, List<Timer>> _warmUpTimers = <String, List<Timer>>{};
   final Map<String, Timer> _pollingCooldownTimers = <String, Timer>{};
+  final Map<String, int> _emptyPollingRefreshCounts = <String, int>{};
+  final Map<String, int> _pollingIdleSkipTicks = <String, int>{};
   final Map<String, DateTime> _lastFrameAppliedAt = <String, DateTime>{};
   final StreamController<TerminalSessionEvent> _events =
       StreamController<TerminalSessionEvent>.broadcast();
@@ -383,6 +387,7 @@ class TerminalRuntimeController {
     final copiedBytes = Uint8List.fromList(bytes);
     _inputEvents.add(TerminalSessionInputEvent(sessionId, copiedBytes));
     _backend.writeInput(sessionId, copiedBytes);
+    _resetPollingIdleBackoff(sessionId);
     _refreshSessionIfNeeded(sessionId);
   }
 
@@ -391,6 +396,7 @@ class TerminalRuntimeController {
       return;
     }
     _backend.scrollViewport(sessionId, deltaLines);
+    _resetPollingIdleBackoff(sessionId);
     _refreshSessionIfNeeded(sessionId);
   }
 
@@ -399,6 +405,7 @@ class TerminalRuntimeController {
       return;
     }
     _backend.scrollViewportTo(sessionId, offset);
+    _resetPollingIdleBackoff(sessionId);
     _refreshSessionIfNeeded(sessionId);
   }
 
@@ -411,6 +418,7 @@ class TerminalRuntimeController {
         .clamp(0, frame.scrollbackMaxOffset)
         .toInt();
     _backend.scrollViewportTo(sessionId, scrollbackOffset);
+    _resetPollingIdleBackoff(sessionId);
     _requestRefreshSession(sessionId, immediate: true);
   }
 
@@ -830,11 +838,24 @@ class TerminalRuntimeController {
   }
 
   void _startPolling() {
-    _pollTimer ??= Timer.periodic(const Duration(milliseconds: 33), (_) {
+    _pollTimer ??= Timer.periodic(_pollingFrameInterval, (_) {
       for (final sessionId in _activeSessionIds.toList(growable: false)) {
-        _requestRefreshSession(sessionId);
+        _requestPollingRefreshSession(sessionId);
       }
     });
+  }
+
+  void _requestPollingRefreshSession(String sessionId) {
+    final skipTicks = _pollingIdleSkipTicks[sessionId] ?? 0;
+    if (skipTicks > 0) {
+      if (skipTicks == 1) {
+        _pollingIdleSkipTicks.remove(sessionId);
+      } else {
+        _pollingIdleSkipTicks[sessionId] = skipTicks - 1;
+      }
+      return;
+    }
+    _requestRefreshSession(sessionId);
   }
 
   void _requestRefreshSession(String sessionId, {bool immediate = false}) {
@@ -907,11 +928,13 @@ class TerminalRuntimeController {
     try {
       final pendingFrames = <TerminalFrameDiff>[];
       _queuedRefreshSessionIds.remove(sessionId);
+      var receivedFrame = false;
 
       final rawFrame = _backend.takeFrameDiffJson(sessionId);
       if (rawFrame != null && rawFrame.isNotEmpty) {
         final frame = _decodeFrame(rawFrame);
         if (frame != null) {
+          receivedFrame = true;
           _queuePendingFrame(pendingFrames, frame);
         }
       }
@@ -938,6 +961,10 @@ class TerminalRuntimeController {
       if (pendingFrames.isNotEmpty) {
         _applyPendingFrames(sessionId, pendingFrames);
       }
+      _recordPollingRefreshResult(
+        sessionId,
+        hadActivity: receivedFrame || events.isNotEmpty,
+      );
     } finally {
       _refreshingSessionIds.remove(sessionId);
       if (_queuedRefreshSessionIds.remove(sessionId) && hasSession(sessionId)) {
@@ -1011,6 +1038,7 @@ class TerminalRuntimeController {
   }
 
   void _requestRefreshAfterResize(String sessionId) {
+    _resetPollingIdleBackoff(sessionId);
     _requestRefreshSession(sessionId, immediate: !enableSessionPolling);
   }
 
@@ -1032,6 +1060,29 @@ class TerminalRuntimeController {
         _requestThrottledRefreshSession(sessionId);
       }
     });
+  }
+
+  void _recordPollingRefreshResult(
+    String sessionId, {
+    required bool hadActivity,
+  }) {
+    if (!enableSessionPolling || !hasSession(sessionId)) {
+      return;
+    }
+    if (hadActivity) {
+      _resetPollingIdleBackoff(sessionId);
+      return;
+    }
+    final emptyRefreshCount = (_emptyPollingRefreshCounts[sessionId] ?? 0) + 1;
+    _emptyPollingRefreshCounts[sessionId] = emptyRefreshCount;
+    if (emptyRefreshCount >= _pollingIdleBackoffAfterEmptyRefreshes) {
+      _pollingIdleSkipTicks[sessionId] = _pollingIdleBackoffTicks;
+    }
+  }
+
+  void _resetPollingIdleBackoff(String sessionId) {
+    _emptyPollingRefreshCounts.remove(sessionId);
+    _pollingIdleSkipTicks.remove(sessionId);
   }
 
   TerminalFrameDiff? _decodeFrame(String rawFrame) {
@@ -1465,6 +1516,7 @@ class TerminalRuntimeController {
     _queuedRefreshSessionIds.remove(sessionId);
     _scheduledRefreshSessionIds.remove(sessionId);
     _pollingCooldownTimers.remove(sessionId)?.cancel();
+    _resetPollingIdleBackoff(sessionId);
     _lastFrameAppliedAt.remove(sessionId);
     for (final timer in _warmUpTimers.remove(sessionId) ?? const <Timer>[]) {
       timer.cancel();
