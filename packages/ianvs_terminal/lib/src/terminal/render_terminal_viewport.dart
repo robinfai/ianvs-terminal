@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 
 import '../config/terminal_config.dart';
+import '../runtime/terminal_benchmarking.dart';
 import 'selection_controller.dart';
 import 'terminal_models.dart';
 import 'terminal_viewport.dart';
@@ -127,6 +128,7 @@ class RenderTerminalViewport extends RenderBox {
     int activeSearchMatchIndex = -1,
     TerminalSearchHighlightStyle searchHighlightStyle =
         const TerminalSearchHighlightStyle(),
+    TerminalBenchmarkEventSink? benchmarkEventSink,
   }) : _controller = controller,
        _selectionController = selectionController,
        _cursorVisible = cursorVisible,
@@ -136,7 +138,8 @@ class RenderTerminalViewport extends RenderBox {
        _colors = colors,
        _searchMatches = searchMatches,
        _activeSearchMatchIndex = activeSearchMatchIndex,
-       _searchHighlightStyle = searchHighlightStyle {
+       _searchHighlightStyle = searchHighlightStyle,
+       _benchmarkEventSink = benchmarkEventSink {
     _controller.addListener(markNeedsPaint);
     _selectionController.addListener(markNeedsPaint);
   }
@@ -151,6 +154,7 @@ class RenderTerminalViewport extends RenderBox {
   List<TerminalSearchMatch> _searchMatches;
   int _activeSearchMatchIndex;
   TerminalSearchHighlightStyle _searchHighlightStyle;
+  TerminalBenchmarkEventSink? _benchmarkEventSink;
   final Map<int, _CachedRowLayout> _rowLayoutCache = {};
   final Map<int, _CachedGlyphParagraph> _glyphParagraphCache = {};
   final Map<int, _CachedRowVisual> _rowVisualCache = {};
@@ -266,6 +270,10 @@ class RenderTerminalViewport extends RenderBox {
     markNeedsPaint();
   }
 
+  set benchmarkEventSink(TerminalBenchmarkEventSink? value) {
+    _benchmarkEventSink = value;
+  }
+
   @override
   bool hitTestSelf(Offset position) => true;
 
@@ -278,6 +286,10 @@ class RenderTerminalViewport extends RenderBox {
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    final paintWatch = _benchmarkEventSink == null
+        ? null
+        : (Stopwatch()..start());
+    final paragraphBuildsBefore = _paragraphBuilds;
     final canvas = context.canvas;
     canvas.save();
     canvas.translate(offset.dx, offset.dy);
@@ -292,6 +304,7 @@ class RenderTerminalViewport extends RenderBox {
     final paintedRowTexts = <String>[];
     final activeRowIndexes = <int>{};
     final rebuiltRowIndexes = <int>[];
+    var rowCacheHits = 0;
     final hasNewFrame = _lastPaintedFrameVersion != _controller.frameVersion;
     final renderIntent = TerminalRenderIntent.fromFrame(
       frame,
@@ -328,6 +341,8 @@ class RenderTerminalViewport extends RenderBox {
           rowLayout: rowLayout!,
           rebuiltRowIndexes: rebuiltRowIndexes,
         );
+      } else {
+        rowCacheHits += 1;
       }
       final rowVisual = _rowVisualCache[row.index];
       final y = row.index * _cellSize.height;
@@ -402,6 +417,44 @@ class RenderTerminalViewport extends RenderBox {
       _debugCursorColor = null;
     }
     canvas.restore();
+    paintWatch?.stop();
+    _emitBenchmarkPaintEvent(
+      frame: frame,
+      renderIntent: renderIntent,
+      rowCacheHits: rowCacheHits,
+      rowCacheMisses: rebuiltRowIndexes.length,
+      paragraphBuildCount: _paragraphBuilds - paragraphBuildsBefore,
+      paintMicros: paintWatch?.elapsedMicroseconds ?? 0,
+    );
+  }
+
+  void _emitBenchmarkPaintEvent({
+    required TerminalFrameDiff frame,
+    required TerminalRenderIntent renderIntent,
+    required int rowCacheHits,
+    required int rowCacheMisses,
+    required int paragraphBuildCount,
+    required int paintMicros,
+  }) {
+    final sink = _benchmarkEventSink;
+    if (sink == null) {
+      return;
+    }
+    sink(<String, Object?>{
+      'schema_version': 'ianvs-bench-flutter-render-v1',
+      'timestamp_micros': DateTime.now().microsecondsSinceEpoch,
+      'session_id': 'render',
+      'frame_version': _controller.frameVersion,
+      'frame_kind': frame.frameKind.name,
+      'viewport_row_shift': frame.viewportRowShift,
+      'viewport_rows': frame.viewportRows,
+      'dirty_row_count': _benchmarkDirtyRowCount(frame, renderIntent),
+      'row_visual_rebuild_count': rowCacheMisses,
+      'row_cache_hits': rowCacheHits,
+      'row_cache_misses': rowCacheMisses,
+      'paragraph_build_count': paragraphBuildCount,
+      'paint_micros': paintMicros,
+    });
   }
 
   TerminalCellPosition debugCellForOffset(Offset offset) =>
@@ -1621,6 +1674,23 @@ class RenderTerminalViewport extends RenderBox {
     }
     super.dispose();
   }
+}
+
+int _benchmarkDirtyRowCount(
+  TerminalFrameDiff frame,
+  TerminalRenderIntent renderIntent,
+) {
+  if (renderIntent.rebuildAllRows) {
+    return frame.viewportRows;
+  }
+  if (renderIntent.dirtyRowIndexes.isNotEmpty) {
+    return renderIntent.dirtyRowIndexes.length;
+  }
+  var count = 0;
+  for (final range in frame.dirtyRanges) {
+    count += math.max(0, range.end - range.start);
+  }
+  return count;
 }
 
 bool _sameFontConfig(TerminalFontConfig left, TerminalFontConfig right) {

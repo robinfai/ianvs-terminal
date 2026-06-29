@@ -4393,6 +4393,44 @@ void main() {
       ]);
     },
   );
+
+  test(
+    'terminal runtime emits benchmark stats only when a sink is provided',
+    () async {
+      final runtimeBackend = _FakePtyBackend();
+      final benchmarkEvents = <Map<String, Object?>>[];
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        benchmarkEventSink: benchmarkEvents.add,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      benchmarkEvents.clear();
+
+      runtime.refreshSession(sessionId);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(benchmarkEvents, isNotEmpty);
+      final event = benchmarkEvents.singleWhere(
+        (event) => event['schema_version'] == 'ianvs-bench-dart-runtime-v1',
+      );
+      expect(event['session_id'], sessionId);
+      expect(event['frame_kind'], 'snapshot');
+      expect(event['raw_frame_bytes'], greaterThan(0));
+      expect(event['json_decode_micros'], isA<int>());
+      expect(event['apply_frame_micros'], isA<int>());
+      expect(event['viewport_hash_after_apply'], isA<String>());
+    },
+  );
 }
 
 class _FakePtyBackend

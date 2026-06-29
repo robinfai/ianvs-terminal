@@ -1,0 +1,28 @@
+suite: ianvs_terminal_bench_paper_run
+version: 1
+policies:
+  frame:
+    - snapshot_only
+    - delta_no_coalesce
+    - delta_coalesced
+  render:
+    - normal_render
+workloads:
+  - burst_stdout.seq_1m
+  - scrollback_heavy.lines_200k
+  - resize_churn.extended
+viewport:
+  cols: 120
+  rows: 40
+repeat: 10
+warmup_runs: 2
+output_dir: build/bench-results-paper
+collectors:
+  rust_frame: true
+  dart_runtime: true
+  flutter_render: true
+  flutter_frame_timing: true
+  os_resource: false
+gates:
+  require_hash_match: true
+  require_schema_valid: true

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ianvs Bench Correctness Result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "workload",
+    "reference_policy",
+    "tested_policy",
+    "reference_final_viewport_hash",
+    "tested_final_viewport_hash",
+    "hash_match"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ianvs-bench-correctness-v1"
+    },
+    "workload": {
+      "type": "string"
+    },
+    "reference_policy": {
+      "type": "string"
+    },
+    "tested_policy": {
+      "type": "string"
+    },
+    "reference_final_viewport_hash": {
+      "type": "string"
+    },
+    "tested_final_viewport_hash": {
+      "type": "string"
+    },
+    "hash_match": {
+      "type": "boolean"
+    },
+    "first_divergence": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

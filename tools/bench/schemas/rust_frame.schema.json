@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ianvs Bench Rust Frame Event",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "timestamp_micros",
+    "session_id",
+    "frame_id",
+    "frame_kind",
+    "rows_scanned",
+    "rows_emitted"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ianvs-bench-rust-frame-v1"
+    },
+    "timestamp_micros": {
+      "type": "integer"
+    },
+    "session_id": {
+      "type": [
+        "integer",
+        "string"
+      ]
+    },
+    "frame_id": {
+      "type": "integer"
+    },
+    "semantic_generation": {
+      "type": "integer"
+    },
+    "damage_generation": {
+      "type": "integer"
+    },
+    "frame_kind": {
+      "enum": [
+        "snapshot",
+        "delta"
+      ]
+    },
+    "snapshot_fallback_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "viewport_rows": {
+      "type": "integer"
+    },
+    "viewport_cols": {
+      "type": "integer"
+    },
+    "viewport_row_shift": {
+      "type": "integer"
+    },
+    "rows_scanned": {
+      "type": "integer"
+    },
+    "rows_emitted": {
+      "type": "integer"
+    },
+    "frame_build_micros": {
+      "type": "integer"
+    },
+    "json_encode_micros": {
+      "type": "integer"
+    },
+    "viewport_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,27 @@
+suite: ianvs_terminal_bench_ci_smoke
+version: 1
+policies:
+  frame:
+    - snapshot_only
+    - delta_coalesced
+  render:
+    - headless_state_only
+workloads:
+  - burst_stdout.seq_1000
+  - scrollback_heavy.lines_1000
+  - resize_churn.tiny
+viewport:
+  cols: 80
+  rows: 24
+repeat: 1
+warmup_runs: 0
+output_dir: build/bench-results-ci
+collectors:
+  rust_frame: true
+  dart_runtime: true
+  flutter_render: false
+  flutter_frame_timing: false
+  os_resource: false
+gates:
+  require_hash_match: true
+  require_schema_valid: true

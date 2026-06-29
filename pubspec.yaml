@@ -8,3 +8,6 @@ workspace:
   - example
   - packages/ianvs_pty
   - packages/ianvs_terminal
+
+dev_dependencies:
+  test: ^1.26.0

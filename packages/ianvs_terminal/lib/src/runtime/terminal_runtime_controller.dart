@@ -11,6 +11,7 @@ import '../terminal/selection_controller.dart';
 import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_models.dart';
 import '../terminal/terminal_viewport.dart';
+import 'terminal_benchmarking.dart';
 
 typedef TerminalWindowResizeCallback =
     Future<void> Function({
@@ -385,6 +386,16 @@ List<Map<String, Object?>> _mapList(Object? value) {
   );
 }
 
+final class _DecodedFrameBenchmarkMetrics {
+  const _DecodedFrameBenchmarkMetrics({
+    required this.rawFrameBytes,
+    required this.jsonDecodeMicros,
+  });
+
+  final int rawFrameBytes;
+  final int jsonDecodeMicros;
+}
+
 class TerminalRuntimeController {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
   static const int _pollingIdleBackoffAfterEmptyRefreshes = 2;
@@ -404,6 +415,7 @@ class TerminalRuntimeController {
     this.resizeWindowBy,
     this.enableSessionPolling = true,
     this.enableWarmUpRefresh = false,
+    this.benchmarkEventSink,
   }) : _backend = backend,
        allowClipboardCopy =
            allowClipboardCopyWithContext ??
@@ -422,6 +434,7 @@ class TerminalRuntimeController {
   final TerminalWindowResizeCallback? resizeWindowBy;
   final bool enableSessionPolling;
   final bool enableWarmUpRefresh;
+  final TerminalBenchmarkEventSink? benchmarkEventSink;
 
   final Map<String, TerminalViewportController> _viewportControllers =
       <String, TerminalViewportController>{};
@@ -444,8 +457,12 @@ class TerminalRuntimeController {
   final Set<String> _refreshingSessionIds = <String>{};
   final Set<String> _queuedRefreshSessionIds = <String>{};
   final Set<String> _scheduledRefreshSessionIds = <String>{};
+  final Map<TerminalFrameDiff, _DecodedFrameBenchmarkMetrics>
+  _decodedFrameBenchmarkMetrics =
+      <TerminalFrameDiff, _DecodedFrameBenchmarkMetrics>{};
   Timer? _pollTimer;
   int _wireSessionSeed = 0;
+  int _benchmarkFrameId = 0;
 
   Stream<TerminalSessionEvent> get events => _events.stream;
   Stream<TerminalSessionInputEvent> get inputEvents => _inputEvents.stream;
@@ -1154,11 +1171,31 @@ class TerminalRuntimeController {
     _requestRefreshSession(sessionId, immediate: !enableSessionPolling);
   }
 
-  void _applyFrame(String sessionId, TerminalFrameDiff frame) {
-    viewportFor(sessionId).updateFrame(frame);
+  void _applyFrame(
+    String sessionId,
+    TerminalFrameDiff frame, {
+    int pendingFramesBefore = 0,
+    int pendingFramesAfter = 0,
+  }) {
+    final decodedMetrics = _decodedFrameBenchmarkMetrics.remove(frame);
+    final applyWatch = benchmarkEventSink == null
+        ? null
+        : (Stopwatch()..start());
+    final viewport = viewportFor(sessionId);
+    viewport.updateFrame(frame);
+    applyWatch?.stop();
     _lastFrameAppliedAt[sessionId] = DateTime.now();
     _startPollingCooldown(sessionId);
     _events.add(TerminalSessionFrameEvent(sessionId, frame));
+    _emitRuntimeBenchmarkEvent(
+      sessionId: sessionId,
+      frame: frame,
+      appliedFrame: viewport.frame,
+      decodedMetrics: decodedMetrics,
+      applyFrameMicros: applyWatch?.elapsedMicroseconds ?? 0,
+      pendingFramesBefore: pendingFramesBefore,
+      pendingFramesAfter: pendingFramesAfter,
+    );
   }
 
   void _startPollingCooldown(String sessionId) {
@@ -1198,12 +1235,23 @@ class TerminalRuntimeController {
   }
 
   TerminalFrameDiff? _decodeFrame(String rawFrame) {
+    final decodeWatch = benchmarkEventSink == null
+        ? null
+        : (Stopwatch()..start());
     final json = _tryDecodeJsonObject(rawFrame);
     if (json == null) {
       return null;
     }
     try {
-      return TerminalFrameDiff.fromJson(json);
+      final frame = TerminalFrameDiff.fromJson(json);
+      decodeWatch?.stop();
+      if (benchmarkEventSink != null) {
+        _decodedFrameBenchmarkMetrics[frame] = _DecodedFrameBenchmarkMetrics(
+          rawFrameBytes: utf8.encode(rawFrame).length,
+          jsonDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
+        );
+      }
+      return frame;
     } on Object {
       return null;
     }
@@ -1223,10 +1271,48 @@ class TerminalRuntimeController {
     String sessionId,
     List<TerminalFrameDiff> pendingFrames,
   ) {
-    for (final frame in pendingFrames) {
-      _applyFrame(sessionId, frame);
+    for (var index = 0; index < pendingFrames.length; index += 1) {
+      _applyFrame(
+        sessionId,
+        pendingFrames[index],
+        pendingFramesBefore: pendingFrames.length - index,
+        pendingFramesAfter: pendingFrames.length - index - 1,
+      );
     }
     pendingFrames.clear();
+  }
+
+  void _emitRuntimeBenchmarkEvent({
+    required String sessionId,
+    required TerminalFrameDiff frame,
+    required TerminalFrameDiff appliedFrame,
+    required _DecodedFrameBenchmarkMetrics? decodedMetrics,
+    required int applyFrameMicros,
+    required int pendingFramesBefore,
+    required int pendingFramesAfter,
+  }) {
+    final sink = benchmarkEventSink;
+    if (sink == null) {
+      return;
+    }
+    _benchmarkFrameId += 1;
+    sink(<String, Object?>{
+      'schema_version': 'ianvs-bench-dart-runtime-v1',
+      'timestamp_micros': DateTime.now().microsecondsSinceEpoch,
+      'session_id': sessionId,
+      'frame_id': _benchmarkFrameId,
+      'raw_frame_bytes': decodedMetrics?.rawFrameBytes ?? 0,
+      'frame_kind': frame.frameKind.name,
+      'json_decode_micros': decodedMetrics?.jsonDecodeMicros ?? 0,
+      'apply_frame_micros': applyFrameMicros,
+      'pending_frames_before': pendingFramesBefore,
+      'pending_frames_after': pendingFramesAfter,
+      'queued_refresh_count': _queuedRefreshSessionIds.contains(sessionId)
+          ? 1
+          : 0,
+      'events_processed': 0,
+      'viewport_hash_after_apply': terminalBenchmarkViewportHash(appliedFrame),
+    });
   }
 
   bool _eventsContainExit(List<PtyEvent> events) {

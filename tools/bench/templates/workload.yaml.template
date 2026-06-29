@@ -1,0 +1,12 @@
+name: burst_stdout.seq_1000
+type: deterministic_trace
+cols: 80
+rows: 24
+duration_limit_seconds: 10
+expected:
+  requires_hash_match: true
+  max_snapshot_ratio: 0.20
+metrics:
+  - coalescing_ratio
+  - rows_emitted
+  - frame_build_micros

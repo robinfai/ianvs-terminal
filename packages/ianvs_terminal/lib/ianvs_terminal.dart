@@ -1,6 +1,7 @@
 export 'src/config/terminal_config.dart';
 export 'src/config/terminal_defaults.dart';
 export 'src/runtime/terminal_runtime_controller.dart';
+export 'src/runtime/terminal_benchmarking.dart';
 export 'src/terminal/selection_controller.dart';
 export 'src/terminal/terminal_graphics_cache.dart';
 export 'src/terminal/terminal_input_controller.dart';

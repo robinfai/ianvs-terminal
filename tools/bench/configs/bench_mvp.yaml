@@ -1,0 +1,28 @@
+suite: ianvs_terminal_bench_mvp
+version: 1
+policies:
+  frame:
+    - snapshot_only
+    - delta_no_coalesce
+    - delta_coalesced
+  render:
+    - normal_render
+workloads:
+  - burst_stdout.seq_100k
+  - scrollback_heavy.lines_100k
+  - resize_churn.basic
+viewport:
+  cols: 120
+  rows: 40
+repeat: 5
+warmup_runs: 1
+output_dir: build/bench-results
+collectors:
+  rust_frame: true
+  dart_runtime: true
+  flutter_render: true
+  flutter_frame_timing: true
+  os_resource: false
+gates:
+  require_hash_match: true
+  require_schema_valid: true

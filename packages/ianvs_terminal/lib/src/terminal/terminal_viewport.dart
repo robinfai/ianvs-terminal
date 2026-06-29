@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
 import '../config/terminal_config.dart';
+import '../runtime/terminal_benchmarking.dart';
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
 import 'terminal_graphics_cache.dart';
@@ -125,6 +126,7 @@ class TerminalViewport extends StatefulWidget {
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
     this.graphicsCache,
+    this.benchmarkEventSink,
   });
 
   final TerminalViewportController controller;
@@ -152,6 +154,7 @@ class TerminalViewport extends StatefulWidget {
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle? searchHighlightStyle;
   final TerminalGraphicsCache? graphicsCache;
+  final TerminalBenchmarkEventSink? benchmarkEventSink;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -1693,6 +1696,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                                 searchHighlightStyle:
                                     widget.searchHighlightStyle ??
                                     const TerminalSearchHighlightStyle(),
+                                benchmarkEventSink: widget.benchmarkEventSink,
                               ),
                             ),
                           ),
@@ -2586,6 +2590,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
     required this.searchMatches,
     required this.activeSearchMatchIndex,
     required this.searchHighlightStyle,
+    this.benchmarkEventSink,
   });
 
   final TerminalViewportController controller;
@@ -2597,6 +2602,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle searchHighlightStyle;
+  final TerminalBenchmarkEventSink? benchmarkEventSink;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -2611,6 +2617,7 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       searchMatches: searchMatches,
       activeSearchMatchIndex: activeSearchMatchIndex,
       searchHighlightStyle: searchHighlightStyle,
+      benchmarkEventSink: benchmarkEventSink,
     );
   }
 
@@ -2629,7 +2636,8 @@ class _TerminalViewportSurface extends LeafRenderObjectWidget {
       ..searchMatches = searchMatches
       ..activeSearchMatchIndex = activeSearchMatchIndex
       ..searchHighlightStyle = searchHighlightStyle
-      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+      ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
+      ..benchmarkEventSink = benchmarkEventSink;
   }
 }
 

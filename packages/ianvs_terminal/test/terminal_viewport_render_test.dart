@@ -66,6 +66,40 @@ void main() {
     expect(renderObject.debugCanvasBackground, const Color(0xFFF8F7F2));
   });
 
+  testWidgets(
+    'render viewport emits benchmark paint stats when sink is provided',
+    (tester) async {
+      final benchmarkEvents = <Map<String, Object?>>[];
+      await _pumpRenderViewportFrame(
+        tester,
+        benchmarkEventSink: benchmarkEvents.add,
+        frame: const TerminalFrameDiff(
+          rows: [
+            TerminalRow(index: 0, text: 'alpha'),
+            TerminalRow(index: 1, text: 'beta'),
+          ],
+          cursor: TerminalCursor(row: 0, col: 0, visible: false),
+          viewportRows: 2,
+          viewportCols: 20,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 2)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        ),
+      );
+
+      expect(benchmarkEvents, isNotEmpty);
+      final event = benchmarkEvents.singleWhere(
+        (event) => event['schema_version'] == 'ianvs-bench-flutter-render-v1',
+      );
+      expect(event['frame_kind'], 'snapshot');
+      expect(event['viewport_rows'], 2);
+      expect(event['dirty_row_count'], 2);
+      expect(event['row_visual_rebuild_count'], 2);
+      expect(event['row_cache_misses'], 2);
+      expect(event['paint_micros'], isA<int>());
+    },
+  );
+
   testWidgets('subtle Codex panel backgrounds still render', (tester) async {
     final renderObject = await _pumpRenderViewport(
       tester,
@@ -1920,6 +1954,7 @@ Future<RenderTerminalViewport> _pumpRenderViewportFrame(
   required TerminalFrameDiff frame,
   List<TerminalSearchMatch> searchMatches = const [],
   int activeSearchMatchIndex = -1,
+  TerminalBenchmarkEventSink? benchmarkEventSink,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -1946,6 +1981,7 @@ Future<RenderTerminalViewport> _pumpRenderViewportFrame(
             ),
             searchMatches: searchMatches,
             activeSearchMatchIndex: activeSearchMatchIndex,
+            benchmarkEventSink: benchmarkEventSink,
           ),
         ),
       ),
@@ -1964,6 +2000,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
     required this.colors,
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
+    this.benchmarkEventSink,
   });
 
   final TerminalViewportController controller;
@@ -1971,6 +2008,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
   final TerminalViewportColors colors;
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
+  final TerminalBenchmarkEventSink? benchmarkEventSink;
 
   @override
   RenderTerminalViewport createRenderObject(BuildContext context) {
@@ -1984,6 +2022,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
       colors: colors,
       searchMatches: searchMatches,
       activeSearchMatchIndex: activeSearchMatchIndex,
+      benchmarkEventSink: benchmarkEventSink,
     );
   }
 
@@ -2001,7 +2040,8 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
       ..colors = colors
       ..searchMatches = searchMatches
-      ..activeSearchMatchIndex = activeSearchMatchIndex;
+      ..activeSearchMatchIndex = activeSearchMatchIndex
+      ..benchmarkEventSink = benchmarkEventSink;
   }
 }
 

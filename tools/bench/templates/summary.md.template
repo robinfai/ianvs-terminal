@@ -1,0 +1,4 @@
+# Ianvs Benchmark Summary
+
+| workload | policy | repeat | hash match | coalescing ratio |
+|---|---|---:|---:|---:|

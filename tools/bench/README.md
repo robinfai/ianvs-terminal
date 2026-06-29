@@ -1,0 +1,128 @@
+# Ianvs Terminal Benchmark Suite
+
+This directory contains the MVP benchmark suite for validating terminal
+semantic/render decoupling:
+
+- `snapshot_only`
+- `delta_no_coalesce`
+- `delta_coalesced`
+- deterministic trace replay
+- final viewport hash correctness
+- Rust/Dart/Flutter-style NDJSON metrics
+- `summary.csv` and `summary.md`
+
+## CI Smoke
+
+```bash
+dart run tools/bench/runner/bench_runner.dart \
+  --config tools/bench/configs/bench_ci_smoke.yaml
+```
+
+The smoke config runs small deterministic workloads in `headless_state_only`
+mode and checks `snapshot_only` versus `delta_coalesced` final viewport hashes.
+
+## Single Workload
+
+```bash
+dart run tools/bench/runner/bench_runner.dart \
+  --workload burst_stdout.seq_1000 \
+  --frame-policy delta_coalesced \
+  --render-policy headless_state_only \
+  --cols 80 \
+  --rows 24 \
+  --output build/bench-results
+```
+
+## Analyze Existing Run
+
+```bash
+dart run tools/bench/analysis/summarize.dart --input build/bench-results/<run>
+```
+
+## Real Flutter Profile Matrix
+
+The synthetic runner above is deterministic and fast, but it does not launch the
+Flutter engine. To capture real Flutter rendering, run the profile harness from
+the example app:
+
+```bash
+cd example
+flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/terminal_render_profile_test.dart \
+  -d macos \
+  --profile \
+  --dart-define=IANVS_BENCH_PROFILE_OUTPUT=/absolute/path/to/ianvs-terminal/build/bench-results-profile/<run> \
+  --dart-define=IANVS_BENCH_PROFILE_TARGET_LABEL=macos-darwin-arm64
+```
+
+By default this runs `burst_stdout_profile`, `scrollback_heavy_profile`, and
+`resize_churn_profile` with five repeats each. The root output directory gets
+`summary.csv`, `summary_by_workload.csv`, and `summary.md`. Each run directory
+also gets `flutter_render.ndjson`, `flutter_frame_timing.ndjson`,
+`metadata.json`, `correctness.json`, `summary.csv`, and `summary.md`.
+
+Useful overrides:
+
+```bash
+--dart-define=IANVS_BENCH_PROFILE_WORKLOAD=scrollback_heavy_profile
+--dart-define=IANVS_BENCH_PROFILE_WORKLOADS=burst_stdout_profile,resize_churn_profile
+--dart-define=IANVS_BENCH_PROFILE_REPEATS=3
+--dart-define=IANVS_BENCH_PROFILE_FRAME_COUNT=120
+--dart-define=IANVS_BENCH_PROFILE_TARGET_LABEL=<device-or-machine-label>
+```
+
+The summary includes real Flutter engine frame timing fields
+(`p95_build_duration_micros`, `p95_raster_duration_micros`,
+`p95_total_span_micros`) plus render-object paint/cache fields
+(`p95_paint_micros`, `row_cache_hit_rate`). The macOS profile target is
+currently the primary supported target. Additional native targets can be run by
+changing `-d <device-id>` and the target label, provided the target supports the
+native `ianvs_pty` FFI dependency. The current example app is not web-ready for
+this harness because Chrome/web cannot compile `dart:ffi` dependencies.
+
+For formal multi-device runs, prefer the matrix runner. It discovers Flutter
+devices, skips unsupported web targets, and can enforce that enough native
+targets are connected:
+
+```bash
+dart run tools/bench/runner/flutter_profile_matrix_runner.dart \
+  --output build/bench-results-profile/<run> \
+  --readiness-output build/bench-results-profile/<run>/readiness.json \
+  --runbook-output build/bench-results-profile/<run>/runbook.md \
+  --require-target-count 2
+```
+
+Use `--dry-run` to inspect the generated `flutter drive` commands without
+starting the apps. On a machine with only macOS plus Chrome, the formal
+two-target gate fails because Chrome cannot compile the native FFI dependency.
+When `--readiness-output` is set, the runner writes a machine-readable
+`ianvs-bench-flutter-profile-readiness-v1` JSON file before enforcing the gate,
+including supported native targets, skipped targets, and shortage failures.
+When `--runbook-output` is set, it also writes a Markdown runbook with target
+discovery commands plus the exact matrix/audit commands to rerun after adding a
+second native target.
+
+After collecting one or more matrix result directories, run the formal audit to
+merge and verify the report gates:
+
+```bash
+dart run tools/bench/analysis/flutter_profile_audit.dart \
+  --input build/bench-results-profile/<target-run-a> \
+  --input build/bench-results-profile/<target-run-b> \
+  --output build/bench-results-profile/<formal-report> \
+  --readiness-output build/bench-results-profile/<run>/readiness.json \
+  --runbook-output build/bench-results-profile/<run>/runbook.md \
+  --require-target-count 2 \
+  --repeats 5
+```
+
+The audit writes `formal_profile_summary.csv`,
+`formal_profile_audit.json`, `formal_profile_manifest.json`, and
+`formal_profile_report.md`. It fails if target count, workload/repeat coverage,
+hash correctness, or raw timing/render event files are missing. When
+`--readiness-output` or `--runbook-output` is provided to the audit command, the
+manifest records those files plus per-artifact presence and byte-size details.
+
+Benchmark files are written only when these tools are run. Default product app
+behavior does not emit benchmark files.
