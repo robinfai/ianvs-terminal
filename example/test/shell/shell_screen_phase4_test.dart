@@ -140,6 +140,30 @@ Future<void> _openTabContextMenu(
   await tester.pumpAndSettle();
 }
 
+Future<void> _sendMetaShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key,
+) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.sendKeyDownEvent(key, platform: 'macos');
+  await tester.sendKeyUpEvent(key, platform: 'macos');
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await tester.pumpAndSettle();
+}
+
+Future<void> _invokeNativeWindowBridge(
+  WidgetTester tester,
+  MethodCall call,
+) async {
+  final codec = const StandardMethodCodec();
+  await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+    'app/window_bridge',
+    codec.encodeMethodCall(call),
+    (_) {},
+  );
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('shell resizes the session from the padded terminal viewport', (
     tester,
@@ -4288,6 +4312,96 @@ void main() {
       isFalse,
     );
   });
+
+  testWidgets(
+    'command-v pastes into the open search field instead of the terminal',
+    (tester) async {
+      const clipboardText = 'needle';
+      var clipboardReads = 0;
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            clipboardReads += 1;
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
+
+      expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyV);
+
+      final searchField = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(searchField.controller?.text, clipboardText);
+      expect(fakeBindings.writes, isEmpty);
+      expect(clipboardReads, 1);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'native paste menu pastes into the open search field instead of the terminal',
+    (tester) async {
+      const clipboardText = 'native needle';
+      var clipboardReads = 0;
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            clipboardReads += 1;
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
+
+      expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
+
+      await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
+
+      final searchField = tester.widget<TextField>(
+        find.byKey(const Key('terminal-search-field')),
+      );
+      expect(searchField.controller?.text, clipboardText);
+      expect(fakeBindings.writes, isEmpty);
+      expect(clipboardReads, 1);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets('zoom active pane hides the split sibling and can unzoom', (
     tester,

@@ -2,6 +2,10 @@ part of 'shell_screen.dart';
 
 extension _ShellScreenStateEvents on _ShellScreenState {
   Future<void> _handleNativePasteMenu() async {
+    if (_isSearchOpen) {
+      await _searchPasteHandler?.call();
+      return;
+    }
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {
       return;

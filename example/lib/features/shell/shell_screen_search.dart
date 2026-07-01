@@ -18,6 +18,8 @@ class _TerminalSearchBar extends StatefulWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onClose,
+    required this.onPasteHandlerMounted,
+    required this.onPasteHandlerUnmounted,
   });
 
   final String query;
@@ -36,6 +38,8 @@ class _TerminalSearchBar extends StatefulWidget {
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onClose;
+  final ValueChanged<Future<void> Function()> onPasteHandlerMounted;
+  final ValueChanged<Future<void> Function()> onPasteHandlerUnmounted;
 
   @override
   State<_TerminalSearchBar> createState() => _TerminalSearchBarState();
@@ -51,11 +55,13 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
   static const _searchBarVerticalInset = 4.0;
 
   late final TextEditingController _controller;
+  late final Future<void> Function() _pasteHandler = _pasteClipboardIntoQuery;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.query);
+    widget.onPasteHandlerMounted(_pasteHandler);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         return;
@@ -86,6 +92,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
 
   @override
   void dispose() {
+    widget.onPasteHandlerUnmounted(_pasteHandler);
     _controller.dispose();
     super.dispose();
   }
@@ -109,6 +116,40 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       baseOffset: 0,
       extentOffset: _controller.text.length,
     );
+  }
+
+  Future<void> _pasteClipboardIntoQuery() async {
+    final pastedText = await ClipboardBridge.paste();
+    if (!mounted || pastedText.isEmpty) {
+      return;
+    }
+    final value = _controller.value;
+    final text = value.text;
+    final selection = value.selection;
+
+    int clampOffset(int offset) {
+      if (offset < 0) {
+        return 0;
+      }
+      if (offset > text.length) {
+        return text.length;
+      }
+      return offset;
+    }
+
+    final start = selection.isValid
+        ? clampOffset(math.min(selection.baseOffset, selection.extentOffset))
+        : text.length;
+    final end = selection.isValid
+        ? clampOffset(math.max(selection.baseOffset, selection.extentOffset))
+        : text.length;
+    final nextText = text.replaceRange(start, end, pastedText);
+    _controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: start + pastedText.length),
+    );
+    widget.focusNode.requestFocus();
+    widget.onChanged(nextText);
   }
 
   String _searchModeLabel(terminal.TerminalSearchMode mode) {
@@ -427,7 +468,12 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       return KeyEventResult.ignored;
     }
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
+    final isControlPressed = HardwareKeyboard.instance.isControlPressed;
     final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final usesMetaPaste = switch (defaultTargetPlatform) {
+      TargetPlatform.macOS || TargetPlatform.iOS => true,
+      _ => false,
+    };
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       widget.onClose();
       return KeyEventResult.handled;
@@ -447,6 +493,11 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     }
     if (isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyA) {
       _focusAndSelectQuery();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.keyV &&
+        (usesMetaPaste ? isMetaPressed : isControlPressed)) {
+      unawaited(_pasteClipboardIntoQuery());
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;

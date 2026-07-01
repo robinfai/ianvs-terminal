@@ -2966,6 +2966,95 @@ void main() {
   });
 
   testWidgets(
+    'terminal viewport keeps IME composing background off inline images',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = _runtimeFor(backend);
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final imageBytes = base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ'
+        'AAAADUlEQVR42mP8z8BQDwAFgwJ/lBnJ3wAAAABJRU5ErkJggg==',
+      );
+      final viewportController = TerminalViewportController()
+        ..updateFrame(
+          TerminalFrameDiff(
+            rows: const [TerminalRow(index: 0, text: '')],
+            cursor: const TerminalCursor(row: 0, col: 0, visible: true),
+            viewportRows: 1,
+            viewportCols: 40,
+            dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+            inlineImages: [
+              TerminalInlineImage(
+                row: 0,
+                col: 10,
+                widthCells: 4,
+                heightCells: 1,
+                bytes: imageBytes,
+              ),
+            ],
+          ),
+        );
+      final inputController = TerminalInputController(
+        sessionId: sessionId,
+        runtime: runtime,
+        readFrame: () => viewportController.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 640,
+              height: 160,
+              child: TerminalViewport(
+                controller: viewportController,
+                selectionController: SelectionController(),
+                inputController: inputController,
+                onScrollLines: (_) {},
+                onScrollToOffset: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'sa',
+          selection: TextSelection.collapsed(offset: 2),
+          composing: TextRange(start: 0, end: 2),
+        ),
+      );
+      await tester.pump();
+
+      final composingRect = tester.getRect(
+        find.byKey(const Key('terminal-composing-overlay')),
+      );
+      final imageRect = tester.getRect(
+        find.byKey(const Key('terminal-inline-image-0-10')),
+      );
+
+      expect(composingRect.right, lessThanOrEqualTo(imageRect.left));
+      expect(
+        composingRect.width,
+        lessThan(imageRect.left - composingRect.left),
+      );
+    },
+  );
+
+  testWidgets(
     'terminal input controller does not repeat app-modifier paste shortcuts',
     (tester) async {
       final previousOverride = debugDefaultTargetPlatformOverride;

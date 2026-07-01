@@ -1587,9 +1587,9 @@ class _TerminalViewportState extends State<TerminalViewport>
       left: widget.contentPadding.left + caretCellRect.left,
       top: widget.contentPadding.top + caretCellRect.top,
       child: IgnorePointer(
-        child: SizedBox(
+        child: ConstrainedBox(
           key: const Key('terminal-composing-overlay'),
-          width: maxWidth,
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: ClipRect(
             child: DecoratedBox(
               decoration: BoxDecoration(color: colors.canvasBackground),

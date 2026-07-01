@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
@@ -480,6 +481,84 @@ void main() {
         cellSize.height,
       ),
     );
+  });
+
+  testWidgets('block cursor spans the full width of a CJK wide cell', (
+    tester,
+  ) async {
+    final renderObject = await _pumpRenderViewportFrame(
+      tester,
+      cursorVisible: true,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: 'a你b')],
+        cursor: TerminalCursor(row: 0, col: 1, visible: true),
+        viewportRows: 1,
+        viewportCols: 4,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    final cellSize = renderObject.debugCellSize;
+    final cursorRect = renderObject.debugCursorRect;
+
+    expect(cursorRect, isNotNull);
+    _expectRectClose(
+      cursorRect!,
+      Rect.fromLTWH(cellSize.width, 0, cellSize.width * 2, cellSize.height),
+    );
+  });
+
+  testWidgets('block cursor keeps the covered CJK glyph visible', (
+    tester,
+  ) async {
+    final boundaryKey = GlobalKey();
+    final renderObject = await _pumpRenderViewportFrame(
+      tester,
+      cursorVisible: true,
+      repaintBoundaryKey: boundaryKey,
+      frame: const TerminalFrameDiff(
+        rows: [TerminalRow(index: 0, text: '打')],
+        cursor: TerminalCursor(row: 0, col: 0, visible: true),
+        viewportRows: 1,
+        viewportCols: 2,
+        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+      ),
+    );
+
+    final cursorRect = renderObject.debugCursorRect;
+    final cursorColor = renderObject.debugCursorColor;
+
+    expect(cursorRect, isNotNull);
+    expect(cursorColor, isNotNull);
+
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(boundaryKey),
+    );
+    final image = await _runUiAsync(tester, () => boundary.toImage());
+    try {
+      final byteData = await _runUiAsync(
+        tester,
+        () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
+      );
+      if (byteData == null) {
+        throw StateError('Failed to read cursor image bytes.');
+      }
+
+      final nonCursorPixels = _countPixelsDifferentFrom(
+        byteData.buffer.asUint8List(),
+        imageWidth: image.width,
+        sampleRect: cursorRect!,
+        color: cursorColor!,
+      );
+
+      expect(nonCursorPixels, greaterThan(0));
+    } finally {
+      image.dispose();
+    }
   });
 
   testWidgets('terminal viewport renders resolved graphic placements', (
@@ -1954,6 +2033,8 @@ Future<RenderTerminalViewport> _pumpRenderViewportFrame(
   required TerminalFrameDiff frame,
   List<TerminalSearchMatch> searchMatches = const [],
   int activeSearchMatchIndex = -1,
+  bool cursorVisible = false,
+  GlobalKey? repaintBoundaryKey,
   TerminalBenchmarkEventSink? benchmarkEventSink,
 }) async {
   tester.view.devicePixelRatio = 1.0;
@@ -1961,29 +2042,34 @@ Future<RenderTerminalViewport> _pumpRenderViewportFrame(
   final controller = TerminalViewportController()..updateFrame(frame);
   final selectionController = SelectionController();
 
+  final viewport = SizedBox(
+    width: 320,
+    height: 96,
+    child: _RenderViewportHarness(
+      controller: controller,
+      selectionController: selectionController,
+      colors: const TerminalViewportColors(
+        canvasBackground: Color(0xFF10141A),
+        foreground: Color(0xFFE5E7EB),
+        cursor: Color(0xFFE5E7EB),
+        selection: Color(0x663B82F6),
+        scrollbarTrack: Color(0x00000000),
+        scrollbarThumb: Color(0x00000000),
+      ),
+      searchMatches: searchMatches,
+      activeSearchMatchIndex: activeSearchMatchIndex,
+      cursorVisible: cursorVisible,
+      benchmarkEventSink: benchmarkEventSink,
+    ),
+  );
+
   await tester.pumpWidget(
     Directionality(
       textDirection: TextDirection.ltr,
       child: Center(
-        child: SizedBox(
-          width: 320,
-          height: 96,
-          child: _RenderViewportHarness(
-            controller: controller,
-            selectionController: selectionController,
-            colors: const TerminalViewportColors(
-              canvasBackground: Color(0xFF10141A),
-              foreground: Color(0xFFE5E7EB),
-              cursor: Color(0xFFE5E7EB),
-              selection: Color(0x663B82F6),
-              scrollbarTrack: Color(0x00000000),
-              scrollbarThumb: Color(0x00000000),
-            ),
-            searchMatches: searchMatches,
-            activeSearchMatchIndex: activeSearchMatchIndex,
-            benchmarkEventSink: benchmarkEventSink,
-          ),
-        ),
+        child: repaintBoundaryKey == null
+            ? viewport
+            : RepaintBoundary(key: repaintBoundaryKey, child: viewport),
       ),
     ),
   );
@@ -2000,6 +2086,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
     required this.colors,
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
+    this.cursorVisible = false,
     this.benchmarkEventSink,
   });
 
@@ -2008,6 +2095,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
   final TerminalViewportColors colors;
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
+  final bool cursorVisible;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
 
   @override
@@ -2015,7 +2103,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
     return RenderTerminalViewport(
       controller: controller,
       selectionController: selectionController,
-      cursorVisible: false,
+      cursorVisible: cursorVisible,
       font: const TerminalFontConfig(),
       cursor: const TerminalCursorConfig(),
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
@@ -2034,7 +2122,7 @@ class _RenderViewportHarness extends LeafRenderObjectWidget {
     renderObject
       ..controller = controller
       ..selectionController = selectionController
-      ..cursorVisible = false
+      ..cursorVisible = cursorVisible
       ..font = const TerminalFontConfig()
       ..cursor = const TerminalCursorConfig()
       ..devicePixelRatio = MediaQuery.devicePixelRatioOf(context)
@@ -2118,6 +2206,42 @@ int _directChildIndexWhere(Element parent, bool Function(Element child) test) {
     }
   }
   return -1;
+}
+
+int _countPixelsDifferentFrom(
+  Uint8List bytes, {
+  required int imageWidth,
+  required Rect sampleRect,
+  required Color color,
+}) {
+  final left = sampleRect.left.floor();
+  final top = sampleRect.top.floor();
+  final right = sampleRect.right.ceil();
+  final bottom = sampleRect.bottom.ceil();
+  var count = 0;
+  for (var y = top; y < bottom; y += 1) {
+    for (var x = left; x < right; x += 1) {
+      final offset = ((y * imageWidth) + x) * 4;
+      final pixel = Color.fromARGB(
+        bytes[offset + 3],
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+      );
+      if (pixel.toARGB32() != color.toARGB32()) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+Future<T> _runUiAsync<T>(
+  WidgetTester tester,
+  Future<T> Function() operation,
+) async {
+  final result = await tester.runAsync(operation);
+  return result as T;
 }
 
 class _NoopPtyBackend implements PtySessionBackend {

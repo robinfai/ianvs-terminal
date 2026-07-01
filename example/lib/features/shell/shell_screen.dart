@@ -107,6 +107,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsSeenForNewOutputBadges = {};
   final Set<String> _sessionsWithNewOutput = {};
   StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
+  Future<void> Function()? _searchPasteHandler;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   Timer? _workspaceCueTimer;
   final Map<String, Timer> _viewportResizeTimers = {};

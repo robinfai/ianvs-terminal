@@ -412,6 +412,9 @@ class RenderTerminalViewport extends RenderBox {
           ..color = cursorColor
           ..isAntiAlias = false,
       );
+      if (_cursor.shape == TerminalCursorShape.block) {
+        _paintCursorText(canvas, frame, frame.cursor, cursorColor);
+      }
     } else {
       _debugCursorRect = null;
       _debugCursorColor = null;
@@ -813,6 +816,8 @@ class RenderTerminalViewport extends RenderBox {
           foreground: foreground,
           background: style.background,
           fontWeight: style.fontWeight,
+          fontStyle: style.fontStyle,
+          decoration: style.decoration,
           glyphClass: glyphClass,
           paragraph: paragraph,
           glyphSize: glyphSize,
@@ -1133,19 +1138,62 @@ class RenderTerminalViewport extends RenderBox {
     );
   }
 
+  void _paintCursorText(
+    Canvas canvas,
+    TerminalFrameDiff frame,
+    TerminalCursor cursor,
+    Color cursorColor,
+  ) {
+    final cell = _cursorCellFor(cursor);
+    if (cell == null || cell.isContinuation || cell.text.isEmpty) {
+      return;
+    }
+
+    final foreground = _cursorTextColorFor(frame, cursorColor);
+    final placement = _placementForCell(cell, cursor.row * _cellSize.height);
+    canvas.save();
+    canvas.clipRect(_cursorBlockRect(cursor));
+    if (cell.usesCustomGeometry) {
+      _paintCustomGeometry(
+        canvas,
+        cell,
+        placement.rect,
+        foreground: foreground,
+      );
+    } else {
+      final paragraph = _glyphParagraphFor(
+        cell.text,
+        _ResolvedCellStyle(
+          rawForeground: foreground,
+          foreground: foreground,
+          background: cell.background,
+          fontWeight: cell.fontWeight,
+          fontStyle: cell.fontStyle,
+          decoration: cell.decoration,
+        ),
+      ).paragraph;
+      canvas.save();
+      canvas.translate(placement.drawOffset.dx, placement.drawOffset.dy);
+      if (placement.scaleX != 1 || placement.scaleY != 1) {
+        canvas.scale(placement.scaleX, placement.scaleY);
+      }
+      canvas.drawParagraph(paragraph, Offset.zero);
+      canvas.restore();
+    }
+    canvas.restore();
+  }
+
+  Color _cursorTextColorFor(TerminalFrameDiff frame, Color cursorColor) {
+    return _foregroundWithContrastRatio(
+      _cursorBackgroundFor(frame),
+      cursorColor,
+      math.max(_minimumContrastRatio, _smartCursorContrastRatio),
+    );
+  }
+
   Color _cursorBackgroundFor(TerminalFrameDiff frame) {
     final cursor = frame.cursor;
-    final rowLayout = _rowLayoutCache[cursor.row];
-    if (rowLayout == null) {
-      return _canvasBackgroundFor(frame);
-    }
-    for (final cell in rowLayout.cells) {
-      if (cursor.col >= cell.column &&
-          cursor.col < cell.column + cell.columnSpan) {
-        return cell.background ?? _canvasBackgroundFor(frame);
-      }
-    }
-    return _canvasBackgroundFor(frame);
+    return _cursorCellFor(cursor)?.background ?? _canvasBackgroundFor(frame);
   }
 
   double get _minimumContrastRatio =>
@@ -1453,11 +1501,7 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   Rect _cursorBlockRect(TerminalCursor cursor) {
-    final left = cursor.col * _cellSize.width;
-    final top = cursor.row * _cellSize.height;
-    return _snapRect(
-      Rect.fromLTWH(left, top, _cellSize.width, _cellSize.height),
-    );
+    return _snapRect(_cursorCellRect(cursor));
   }
 
   Rect _cursorBeamRect(TerminalCursor cursor) {
@@ -1475,17 +1519,46 @@ class RenderTerminalViewport extends RenderBox {
         ? _devicePixelRatio
         : 1.0;
     final thickness = math.max(1.0, 2.0 / devicePixelRatio);
-    final left = cursor.col * _cellSize.width;
-    final top = cursor.row * _cellSize.height;
-    final bottom = top + _cellSize.height;
+    final cellRect = _cursorCellRect(cursor);
+    final bottom = cellRect.bottom;
     return _snapRect(
       Rect.fromLTRB(
-        left,
-        math.max(top, bottom - thickness),
-        left + _cellSize.width,
+        cellRect.left,
+        math.max(cellRect.top, bottom - thickness),
+        cellRect.right,
         bottom,
       ),
     );
+  }
+
+  Rect _cursorCellRect(TerminalCursor cursor) {
+    var column = cursor.col;
+    var columnSpan = 1;
+    final cell = _cursorCellFor(cursor);
+    if (cell != null) {
+      column = cell.column;
+      columnSpan = math.max(1, cell.columnSpan);
+    }
+    return Rect.fromLTWH(
+      column * _cellSize.width,
+      cursor.row * _cellSize.height,
+      columnSpan * _cellSize.width,
+      _cellSize.height,
+    );
+  }
+
+  _PaintCell? _cursorCellFor(TerminalCursor cursor) {
+    final rowLayout = _rowLayoutCache[cursor.row];
+    if (rowLayout == null) {
+      return null;
+    }
+    for (final cell in rowLayout.cells) {
+      if (cursor.col >= cell.column &&
+          cursor.col < cell.column + cell.columnSpan) {
+        return cell;
+      }
+    }
+    return null;
   }
 
   ui.ParagraphStyle _paragraphStyle() {
@@ -1514,12 +1587,18 @@ class RenderTerminalViewport extends RenderBox {
     );
   }
 
-  void _paintCustomGeometry(Canvas canvas, _PaintCell cell, Rect rect) {
+  void _paintCustomGeometry(
+    Canvas canvas,
+    _PaintCell cell,
+    Rect rect, {
+    Color? foreground,
+  }) {
+    final color = foreground ?? cell.foreground;
     final fillPaint = Paint()
-      ..color = cell.foreground
+      ..color = color
       ..isAntiAlias = false;
     final strokePaint = Paint()
-      ..color = cell.foreground
+      ..color = color
       ..style = PaintingStyle.stroke
       ..strokeWidth = _boxDrawingStrokeWidth()
       ..strokeCap = StrokeCap.butt
@@ -1769,6 +1848,8 @@ class _PaintCell {
     required this.foreground,
     required this.background,
     required this.fontWeight,
+    required this.fontStyle,
+    required this.decoration,
     required this.glyphClass,
     required this.paragraph,
     required this.glyphSize,
@@ -1784,6 +1865,8 @@ class _PaintCell {
   final Color foreground;
   final Color? background;
   final FontWeight fontWeight;
+  final FontStyle fontStyle;
+  final TextDecoration decoration;
   final TerminalGlyphClass glyphClass;
   final ui.Paragraph? paragraph;
   final Size glyphSize;
