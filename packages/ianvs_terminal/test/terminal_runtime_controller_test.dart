@@ -1866,6 +1866,46 @@ void main() {
   );
 
   testWidgets(
+    'terminal runtime scrolls to the live cursor before non-empty input',
+    (tester) async {
+      final runtimeBackend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: runtimeBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      runtimeBackend.setFrame(sessionId, <String, Object?>{
+        ..._singleRowSnapshot('history prompt'),
+        'scrollback_offset': 8,
+        'scrollback_max_offset': 8,
+      });
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(runtime.viewportFor(sessionId).frame.scrollbackOffset, 8);
+      runtimeBackend.scrollToCalls.clear();
+      runtimeBackend.writeCalls.clear();
+
+      runtime.sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+      await tester.pump();
+
+      expect(runtimeBackend.scrollToCalls, <(String, int)>[(sessionId, 0)]);
+      expect(
+        runtimeBackend.writeCalls.map(utf8.decode).toList(growable: false),
+        <String>['A'],
+      );
+    },
+  );
+
+  testWidgets(
     'terminal runtime controller refreshes immediately after polling idle',
     (tester) async {
       final runtimeBackend = _FakePtyBackend();

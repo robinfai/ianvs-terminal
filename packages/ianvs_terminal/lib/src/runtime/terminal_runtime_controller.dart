@@ -514,10 +514,21 @@ class TerminalRuntimeController {
       return;
     }
     final copiedBytes = Uint8List.fromList(bytes);
+    if (copiedBytes.isNotEmpty) {
+      _scrollToLiveCursorIfNeeded(sessionId);
+    }
     _inputEvents.add(TerminalSessionInputEvent(sessionId, copiedBytes));
     _backend.writeInput(sessionId, copiedBytes);
     _resetPollingIdleBackoff(sessionId);
     _refreshSessionIfNeeded(sessionId);
+  }
+
+  void _scrollToLiveCursorIfNeeded(String sessionId) {
+    final frame = viewportFor(sessionId).frame;
+    if (frame.scrollbackOffset <= 0) {
+      return;
+    }
+    _backend.scrollViewportTo(sessionId, 0);
   }
 
   void scrollViewport(String sessionId, int deltaLines) {

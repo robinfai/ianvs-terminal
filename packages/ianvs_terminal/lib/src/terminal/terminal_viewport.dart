@@ -2104,7 +2104,9 @@ class _TerminalViewportState extends State<TerminalViewport>
       previousValue: previousValue,
       hadActiveComposition: hadActiveComposition,
     );
-    if (text.isNotEmpty && _shouldForwardCommittedText(text)) {
+    if (text.isNotEmpty &&
+        !_isHandledKeyboardControlCommit(text) &&
+        _shouldForwardCommittedText(text)) {
       widget.inputController.sendText(text);
     }
     _clearTextInputState();
@@ -2207,6 +2209,13 @@ class _TerminalViewportState extends State<TerminalViewport>
         _awaitingSystemTextCommit ||
         _containsNonAscii(text) ||
         text.runes.length > 1;
+  }
+
+  bool _isHandledKeyboardControlCommit(String text) {
+    return text.runes.every(
+      (codePoint) =>
+          codePoint == 0x09 || codePoint == 0x0a || codePoint == 0x0d,
+    );
   }
 
   bool _isPrintableAscii(String text) {

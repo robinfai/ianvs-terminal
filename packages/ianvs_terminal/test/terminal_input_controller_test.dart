@@ -2966,6 +2966,85 @@ void main() {
   });
 
   testWidgets(
+    'terminal viewport ignores text-input commits for handled enter and tab',
+    (tester) async {
+      final previousOverride = debugDefaultTargetPlatformOverride;
+      try {
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+
+        final backend = _FakePtyBackend();
+        final runtime = _runtimeFor(backend);
+        addTearDown(runtime.dispose);
+        final sessionId = runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/sh'),
+          ),
+        );
+        final viewportController = TerminalViewportController()
+          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+        final inputController = TerminalInputController(
+          sessionId: sessionId,
+          runtime: runtime,
+          readFrame: () => viewportController.frame,
+          readSelection: () => '',
+          copySelection: (_) async {},
+          readClipboard: () async => '',
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 640,
+                height: 240,
+                child: TerminalViewport(
+                  controller: viewportController,
+                  selectionController: SelectionController(),
+                  inputController: inputController,
+                  onScrollLines: (_) {},
+                  onScrollToOffset: (_) {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA, character: 'a');
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: '\n',
+            selection: TextSelection.collapsed(offset: 1),
+          ),
+        );
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.keyB, character: 'b');
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.keyB);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: '\t',
+            selection: TextSelection.collapsed(offset: 1),
+          ),
+        );
+        await tester.pump();
+
+        expect(
+          backend.writeCalls.map(utf8.decode).toList(growable: false),
+          <String>['\r', '\t'],
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = previousOverride;
+      }
+    },
+  );
+
+  testWidgets(
     'terminal viewport keeps IME composing background off inline images',
     (tester) async {
       final backend = _FakePtyBackend();

@@ -119,21 +119,48 @@ void main() {
       expect(find.text('Session actions'), findsOneWidget);
       expect(find.text('Defaults & appearance'), findsOneWidget);
       expect(find.text('Profiles…'), findsOneWidget);
-      expect(
-        find.textContaining('Open the default shell profile.'),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('shell-new-tab')), findsOneWidget);
       expect(
         find.textContaining('Copy the current selection.'),
         findsOneWidget,
       );
-      expect(
-        find.textContaining('Paste clipboard into the shell.'),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('shell-paste-clipboard')), findsOneWidget);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
+
+  testWidgets('command menu groups top actions and sections by purpose', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('shell-search-scrollback-top')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-split-right')), findsOneWidget);
+    expect(find.byKey(const Key('shell-top-toolbelt')), findsOneWidget);
+
+    final appTop = tester.getTopLeft(find.text('App actions')).dy;
+    final paneTop = tester.getTopLeft(find.text('Pane actions')).dy;
+    final sessionTop = tester.getTopLeft(find.text('Session actions')).dy;
+    final toolsTop = tester.getTopLeft(find.text('Shell tools')).dy;
+
+    expect(appTop, lessThan(paneTop));
+    expect(paneTop, lessThan(sessionTop));
+    expect(sessionTop, lessThan(toolsTop));
+  });
 
   testWidgets('launcher close restores terminal viewport focus', (
     tester,
