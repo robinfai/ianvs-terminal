@@ -65,7 +65,7 @@ license = "MIT"
 repository = "https://github.com/paulrobello/par-term-emu-core-rust"
 
 [features]
-default = ["python"]
+default = ["rust-only"]
 full = [
     "python",
     "streaming",
@@ -275,10 +275,6 @@ version = "1.8.2"
 
 [dev-dependencies.proptest]
 version = "1.11.0"
-
-[dev-dependencies.pyo3]
-version = "0.28.3"
-features = ["auto-initialize"]
 
 [dev-dependencies.tempfile]
 version = "3.27"
