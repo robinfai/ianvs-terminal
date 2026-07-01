@@ -697,7 +697,7 @@ void main() {
   );
 
   testWidgets(
-    'shell chrome traffic lights keep the default cursor',
+    'shell chrome titlebar uses the default cursor without drag tooltip',
     (tester) async {
       await pumpShellScreen(
         tester,
@@ -709,6 +709,8 @@ void main() {
 
       final dragHandle = find.byKey(const Key('shell-window-drag-leading'));
       expect(dragHandle, findsOneWidget);
+      expect(find.byTooltip('Drag window'), findsNothing);
+
       final dragHandleRect = tester.getRect(dragHandle);
       final gesture = await tester.createGesture(
         kind: PointerDeviceKind.mouse,
@@ -729,7 +731,7 @@ void main() {
 
       expect(
         RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
-        SystemMouseCursors.grab,
+        SystemMouseCursors.basic,
       );
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),

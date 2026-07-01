@@ -253,60 +253,34 @@ class _WindowDragHandle extends StatelessWidget {
   }
 }
 
-class _MacWindowDragHandle extends StatefulWidget {
+class _MacWindowDragHandle extends StatelessWidget {
   const _MacWindowDragHandle({required this.child});
 
   final Widget child;
-
-  @override
-  State<_MacWindowDragHandle> createState() => _MacWindowDragHandleState();
-}
-
-class _MacWindowDragHandleState extends State<_MacWindowDragHandle> {
   static const double _trafficLightCursorShieldLeft = 8;
   static const double _trafficLightCursorShieldTop = 7;
   static const double _trafficLightCursorShieldWidth = 70;
   static const double _trafficLightCursorShieldHeight = 24;
 
-  bool _dragging = false;
-
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        MouseRegion(
-          cursor: _dragging
-              ? SystemMouseCursors.grabbing
-              : SystemMouseCursors.grab,
-          child: Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (_) {
-              setState(() {
-                _dragging = true;
-              });
-              unawaited(WindowBridge.beginWindowDrag());
-            },
-            onPointerUp: (_) {
-              setState(() {
-                _dragging = false;
-              });
-            },
-            onPointerCancel: (_) {
-              setState(() {
-                _dragging = false;
-              });
-            },
-            child: Tooltip(message: 'Drag window', child: widget.child),
-          ),
+        Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) {
+            unawaited(WindowBridge.beginWindowDrag());
+          },
+          child: child,
         ),
         const Positioned(
           left: _trafficLightCursorShieldLeft,
           top: _trafficLightCursorShieldTop,
           width: _trafficLightCursorShieldWidth,
           height: _trafficLightCursorShieldHeight,
-          child: MouseRegion(
+          child: Listener(
             key: Key('shell-window-traffic-light-cursor-shield'),
-            cursor: SystemMouseCursors.basic,
+            behavior: HitTestBehavior.opaque,
             child: SizedBox.expand(),
           ),
         ),
