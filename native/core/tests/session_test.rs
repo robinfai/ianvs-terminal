@@ -7,15 +7,15 @@ use par_term_emu_core_rust::cell::Cell;
 use par_term_emu_core_rust::color::{Color, NamedColor};
 use par_term_emu_core_rust::graphics::kitty::KittyParser;
 use par_term_emu_core_rust::graphics::{
-    next_graphic_id, AnimationControl, AnimationFrame, AnimationState, GraphicProtocol,
-    GraphicsStore, ImageDimension, ImageSizeUnit, TerminalGraphic,
+    AnimationControl, AnimationFrame, AnimationState, GraphicProtocol, GraphicsStore,
+    ImageDimension, ImageSizeUnit, TerminalGraphic, next_graphic_id,
 };
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseEvent, MouseMode};
 use par_term_emu_core_rust::screenshot::{ScreenshotConfig, SixelRenderMode};
 use par_term_emu_core_rust::terminal::{
-    sanitize_bracketed_paste_content, Terminal as ParserTerminal,
+    Terminal as ParserTerminal, sanitize_bracketed_paste_content,
 };
-use par_term_emu_core_rust::{str_width, WidthConfig};
+use par_term_emu_core_rust::{WidthConfig, str_width};
 use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::fs;
@@ -6824,10 +6824,12 @@ fn parser_terminal_kitty_uppercase_placement_delete_keeps_referenced_image_data(
         2,
         "uppercase placement delete must keep shared image data while another placement references it"
     );
-    assert!(terminal
-        .all_graphics()
-        .iter()
-        .any(|graphic| graphic.kitty_placement_id == Some(3)));
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.kitty_placement_id == Some(3))
+    );
 }
 
 #[test]
@@ -7483,10 +7485,12 @@ fn parser_terminal_replaces_and_deletes_kitty_placements() {
     terminal.settle_graphics_transactions();
     terminal.settle_graphics_transactions();
     assert_eq!(terminal.graphics_count(), 2);
-    assert!(terminal
-        .all_graphics()
-        .iter()
-        .all(|graphic| graphic.kitty_placement_id != Some(1)));
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .all(|graphic| graphic.kitty_placement_id != Some(1))
+    );
 
     terminal.process(b"\x1b_Ga=d,d=i,i=40,q=1;\x1b\\");
     terminal.settle_graphics_transactions();
@@ -7577,8 +7581,7 @@ fn parser_terminal_kitty_image_number_response_reports_allocated_id() {
     terminal.process(format!("\x1b_Ga=t,f=32,s=1,v=1,I=22;{GREEN_RGBA_BASE64}\x1b\\").as_bytes());
     let transmit_response = String::from_utf8(terminal.drain_responses()).unwrap();
     assert!(
-        transmit_response.starts_with("\x1b_Gi=")
-            && transmit_response.ends_with(",I=22;OK\x1b\\"),
+        transmit_response.starts_with("\x1b_Gi=") && transmit_response.ends_with(",I=22;OK\x1b\\"),
         "terminal-allocated transmit-only response should include the allocated image id and image number: {transmit_response:?}"
     );
     let transmit_id = transmit_response
@@ -8480,10 +8483,12 @@ fn parser_terminal_scopes_kitty_clear_screen_to_alternate_screen() {
         format!("\x1b[2;1H\x1b_Ga=T,f=32,s=1,v=1,i=20,p=1,q=1;{GREEN_RGBA_BASE64}\x1b\\");
     terminal.process(alternate.as_bytes());
     assert_eq!(terminal.graphics_count(), 2);
-    assert!(terminal
-        .all_graphics()
-        .iter()
-        .any(|graphic| graphic.alternate_screen));
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.alternate_screen)
+    );
 
     terminal.process(b"\x1b[2J");
 
@@ -9451,10 +9456,12 @@ fn parser_terminal_ed2_removes_sixel_graphics_on_active_screen() {
     terminal.process(b"\x1b[2;2H\x1bPq????\x1b\\");
     terminal.process(b"\x1b[6;2H\x1bPq????\x1b\\");
     assert_eq!(terminal.graphics_count(), 2);
-    assert!(terminal
-        .all_graphics()
-        .iter()
-        .all(|graphic| graphic.protocol.as_str() == "sixel"));
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .all(|graphic| graphic.protocol.as_str() == "sixel")
+    );
 
     terminal.process(b"\x1b[2J");
 
@@ -9584,14 +9591,18 @@ fn parser_terminal_el_removes_intersecting_iterm_and_sixel_graphics() {
     terminal.process(iterm.as_bytes());
     terminal.process(b"\x1b[6;3H\x1bPq????\x1b\\");
     assert_eq!(terminal.graphics_count(), 2);
-    assert!(terminal
-        .all_graphics()
-        .iter()
-        .any(|graphic| graphic.protocol.as_str() == "iterm"));
-    assert!(terminal
-        .all_graphics()
-        .iter()
-        .any(|graphic| graphic.protocol.as_str() == "sixel"));
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.protocol.as_str() == "iterm")
+    );
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.protocol.as_str() == "sixel")
+    );
 
     terminal.process(b"\x1b[2;3H\x1b[K");
 
@@ -10207,9 +10218,11 @@ fn parser_terminal_screenshot_includes_scrollback_graphics_at_offset() {
         "test setup should create text scrollback"
     );
 
-    assert!(terminal
-        .graphics_store_mut()
-        .add_graphic(screenshot_sixel_graphic(0, 1, vec![255, 0, 0, 255], 0)));
+    assert!(
+        terminal
+            .graphics_store_mut()
+            .add_graphic(screenshot_sixel_graphic(0, 1, vec![255, 0, 0, 255], 0))
+    );
     terminal
         .graphics_store_mut()
         .adjust_for_scroll_up_with_scrollback(1, 0, 1, scrollback_len.saturating_sub(1));
@@ -10237,20 +10250,24 @@ fn parser_terminal_screenshot_includes_scrollback_graphics_at_offset() {
 fn parser_terminal_screenshot_crops_partially_scrolled_graphic_top() {
     let mut cropped = ParserTerminal::with_scrollback(4, 2, 16);
     cropped.set_cell_dimensions(1, 1);
-    assert!(cropped
-        .graphics_store_mut()
-        .add_graphic(screenshot_sixel_graphic(
-            0,
-            2,
-            vec![255, 0, 0, 255, 0, 255, 0, 255],
-            1,
-        )));
+    assert!(
+        cropped
+            .graphics_store_mut()
+            .add_graphic(screenshot_sixel_graphic(
+                0,
+                2,
+                vec![255, 0, 0, 255, 0, 255, 0, 255],
+                1,
+            ))
+    );
 
     let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
     expected.set_cell_dimensions(1, 1);
-    assert!(expected
-        .graphics_store_mut()
-        .add_graphic(screenshot_sixel_graphic(0, 1, vec![0, 255, 0, 255], 0)));
+    assert!(
+        expected
+            .graphics_store_mut()
+            .add_graphic(screenshot_sixel_graphic(0, 1, vec![0, 255, 0, 255], 0))
+    );
 
     let cropped_png = cropped
         .screenshot(screenshot_pixels_config(), 0)
@@ -10277,16 +10294,18 @@ fn parser_terminal_screenshot_applies_graphic_source_rectangle() {
 
     let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
     expected.set_cell_dimensions(1, 1);
-    assert!(expected
-        .graphics_store_mut()
-        .add_graphic(screenshot_rgba_graphic_at(
-            0,
-            0,
-            1,
-            1,
-            vec![0, 255, 0, 255],
-            0,
-        )));
+    assert!(
+        expected
+            .graphics_store_mut()
+            .add_graphic(screenshot_rgba_graphic_at(
+                0,
+                0,
+                1,
+                1,
+                vec![0, 255, 0, 255],
+                0,
+            ))
+    );
 
     assert_eq!(
         source_rect
@@ -10311,16 +10330,18 @@ fn parser_terminal_screenshot_halfblocks_applies_graphic_source_rectangle() {
 
     let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
     expected.set_cell_dimensions(1, 1);
-    assert!(expected
-        .graphics_store_mut()
-        .add_graphic(screenshot_rgba_graphic_at(
-            0,
-            0,
-            1,
-            1,
-            vec![0, 255, 0, 255],
-            0,
-        )));
+    assert!(
+        expected
+            .graphics_store_mut()
+            .add_graphic(screenshot_rgba_graphic_at(
+                0,
+                0,
+                1,
+                1,
+                vec![0, 255, 0, 255],
+                0,
+            ))
+    );
 
     assert_eq!(
         source_rect
@@ -10344,16 +10365,18 @@ fn parser_terminal_screenshot_applies_graphic_offsets() {
 
     let mut expected = ParserTerminal::with_scrollback(4, 3, 16);
     expected.set_cell_dimensions(1, 1);
-    assert!(expected
-        .graphics_store_mut()
-        .add_graphic(screenshot_rgba_graphic_at(
-            0,
-            0,
-            2,
-            2,
-            vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 255,],
-            0,
-        )));
+    assert!(
+        expected
+            .graphics_store_mut()
+            .add_graphic(screenshot_rgba_graphic_at(
+                0,
+                0,
+                2,
+                2,
+                vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 255,],
+                0,
+            ))
+    );
 
     assert_eq!(
         offset
@@ -10379,16 +10402,18 @@ fn parser_terminal_screenshot_orders_graphics_by_z_index() {
 
     let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
     expected.set_cell_dimensions(1, 1);
-    assert!(expected
-        .graphics_store_mut()
-        .add_graphic(screenshot_rgba_graphic_at(
-            0,
-            0,
-            1,
-            1,
-            vec![255, 0, 0, 255],
-            0,
-        )));
+    assert!(
+        expected
+            .graphics_store_mut()
+            .add_graphic(screenshot_rgba_graphic_at(
+                0,
+                0,
+                1,
+                1,
+                vec![255, 0, 0, 255],
+                0,
+            ))
+    );
 
     assert_eq!(
         layered
@@ -10412,16 +10437,18 @@ fn parser_terminal_screenshot_applies_requested_pixel_size() {
 
     let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
     expected.set_cell_dimensions(1, 1);
-    assert!(expected
-        .graphics_store_mut()
-        .add_graphic(screenshot_rgba_graphic_at(
-            0,
-            0,
-            2,
-            1,
-            vec![255, 0, 0, 255, 255, 0, 0, 255],
-            0,
-        )));
+    assert!(
+        expected
+            .graphics_store_mut()
+            .add_graphic(screenshot_rgba_graphic_at(
+                0,
+                0,
+                2,
+                1,
+                vec![255, 0, 0, 255, 255, 0, 0, 255],
+                0,
+            ))
+    );
 
     assert_eq!(
         scaled
@@ -10445,16 +10472,18 @@ fn parser_terminal_screenshot_halfblocks_applies_requested_pixel_size() {
 
     let mut expected = ParserTerminal::with_scrollback(4, 2, 16);
     expected.set_cell_dimensions(1, 1);
-    assert!(expected
-        .graphics_store_mut()
-        .add_graphic(screenshot_rgba_graphic_at(
-            0,
-            0,
-            2,
-            1,
-            vec![255, 0, 0, 255, 255, 0, 0, 255],
-            0,
-        )));
+    assert!(
+        expected
+            .graphics_store_mut()
+            .add_graphic(screenshot_rgba_graphic_at(
+                0,
+                0,
+                2,
+                1,
+                vec![255, 0, 0, 255, 255, 0, 0, 255],
+                0,
+            ))
+    );
 
     assert_eq!(
         scaled
@@ -10978,14 +11007,18 @@ fn parser_terminal_decsera_removes_intersecting_iterm_and_sixel_graphics() {
     terminal.process(iterm.as_bytes());
     terminal.process(b"\x1b[5;3H\x1bPq????\x1b\\");
     assert_eq!(terminal.graphics_count(), 2);
-    assert!(terminal
-        .all_graphics()
-        .iter()
-        .any(|graphic| graphic.protocol.as_str() == "iterm"));
-    assert!(terminal
-        .all_graphics()
-        .iter()
-        .any(|graphic| graphic.protocol.as_str() == "sixel"));
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.protocol.as_str() == "iterm")
+    );
+    assert!(
+        terminal
+            .all_graphics()
+            .iter()
+            .any(|graphic| graphic.protocol.as_str() == "sixel")
+    );
 
     terminal.process(b"\x1b[2;3;2;3${");
 
@@ -11935,12 +11968,14 @@ fn parser_terminal_attaches_variation_selector_supplement_to_base_cell() {
     assert_eq!(ideograph.get_grapheme(), ideographic_variant);
     assert_eq!(ideograph.width(), 2);
     assert!(ideograph.flags.wide_char());
-    assert!(terminal
-        .active_grid()
-        .get(1, 0)
-        .unwrap()
-        .flags
-        .wide_char_spacer());
+    assert!(
+        terminal
+            .active_grid()
+            .get(1, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer()
+    );
     assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'X');
     assert_eq!(
         terminal.active_grid().row_text(0).trim_end(),
@@ -11959,12 +11994,14 @@ fn parser_terminal_dch_at_wide_spacer_deletes_whole_grapheme() {
     assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, 'B');
     assert!(!terminal.active_grid().get(1, 0).unwrap().flags.wide_char());
     assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, 'C');
-    assert!(!terminal
-        .active_grid()
-        .get(2, 0)
-        .unwrap()
-        .flags
-        .wide_char_spacer());
+    assert!(
+        !terminal
+            .active_grid()
+            .get(2, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer()
+    );
 }
 
 #[test]
@@ -11978,12 +12015,14 @@ fn parser_terminal_ech_at_wide_spacer_erases_whole_grapheme() {
     assert_eq!(terminal.active_grid().get(1, 0).unwrap().c, ' ');
     assert_eq!(terminal.active_grid().get(2, 0).unwrap().c, ' ');
     assert!(!terminal.active_grid().get(1, 0).unwrap().flags.wide_char());
-    assert!(!terminal
-        .active_grid()
-        .get(2, 0)
-        .unwrap()
-        .flags
-        .wide_char_spacer());
+    assert!(
+        !terminal
+            .active_grid()
+            .get(2, 0)
+            .unwrap()
+            .flags
+            .wide_char_spacer()
+    );
     assert_eq!(terminal.active_grid().get(3, 0).unwrap().c, 'B');
 }
 
@@ -13838,27 +13877,37 @@ fn parser_terminal_filters_mouse_reports_by_tracking_mode() {
         terminal.report_mouse(MouseEvent::new(0, 0, 0, true, 0)),
         b"\x1b[<0;1;1M"
     );
-    assert!(terminal
-        .report_mouse(MouseEvent::new(0, 0, 0, false, 0))
-        .is_empty());
-    assert!(terminal
-        .report_mouse(MouseEvent::new(32, 0, 0, true, 0))
-        .is_empty());
-    assert!(terminal
-        .report_mouse(MouseEvent::new(64, 0, 0, true, 0))
-        .is_empty());
+    assert!(
+        terminal
+            .report_mouse(MouseEvent::new(0, 0, 0, false, 0))
+            .is_empty()
+    );
+    assert!(
+        terminal
+            .report_mouse(MouseEvent::new(32, 0, 0, true, 0))
+            .is_empty()
+    );
+    assert!(
+        terminal
+            .report_mouse(MouseEvent::new(64, 0, 0, true, 0))
+            .is_empty()
+    );
 
     terminal.set_mouse_mode(MouseMode::Normal);
     assert_eq!(
         terminal.report_mouse(MouseEvent::new(0, 0, 0, false, 0)),
         b"\x1b[<0;1;1m"
     );
-    assert!(terminal
-        .report_mouse(MouseEvent::new(32, 0, 0, true, 0))
-        .is_empty());
-    assert!(terminal
-        .report_mouse(MouseEvent::new(35, 0, 0, true, 0))
-        .is_empty());
+    assert!(
+        terminal
+            .report_mouse(MouseEvent::new(32, 0, 0, true, 0))
+            .is_empty()
+    );
+    assert!(
+        terminal
+            .report_mouse(MouseEvent::new(35, 0, 0, true, 0))
+            .is_empty()
+    );
     assert_eq!(
         terminal.report_mouse(MouseEvent::new(64, 0, 0, true, 0)),
         b"\x1b[<64;1;1M"
@@ -13869,9 +13918,11 @@ fn parser_terminal_filters_mouse_reports_by_tracking_mode() {
         terminal.report_mouse(MouseEvent::new(32, 0, 0, true, 0)),
         b"\x1b[<32;1;1M"
     );
-    assert!(terminal
-        .report_mouse(MouseEvent::new(35, 0, 0, true, 0))
-        .is_empty());
+    assert!(
+        terminal
+            .report_mouse(MouseEvent::new(35, 0, 0, true, 0))
+            .is_empty()
+    );
 
     terminal.set_mouse_mode(MouseMode::AnyEvent);
     assert_eq!(
@@ -14491,9 +14542,11 @@ fn session_reflows_single_long_line_across_resize() {
             .iter()
             .any(|row| row.starts_with("reflow-") && row.len() == 137)
     });
-    assert!(logical_rows_from_frame(&before)
-        .iter()
-        .any(|row| row.starts_with("reflow-") && row.len() == 137));
+    assert!(
+        logical_rows_from_frame(&before)
+            .iter()
+            .any(|row| row.starts_with("reflow-") && row.len() == 137)
+    );
 
     session::resize_session(session_id, 40, 24, 0, 0).unwrap();
 
@@ -14503,14 +14556,18 @@ fn session_reflows_single_long_line_across_resize() {
             .any(|row| row.starts_with("reflow-") && row.len() == 137)
     });
     let after_parsed: serde_json::Value = serde_json::from_str(&after).unwrap();
-    assert!(after_parsed["rows"]
-        .as_array()
-        .expect("expected rows")
-        .iter()
-        .any(|row| row["wrapped"].as_bool() == Some(true)));
-    assert!(logical_rows_from_frame(&after)
-        .iter()
-        .any(|row| row.starts_with("reflow-") && row.len() == 137));
+    assert!(
+        after_parsed["rows"]
+            .as_array()
+            .expect("expected rows")
+            .iter()
+            .any(|row| row["wrapped"].as_bool() == Some(true))
+    );
+    assert!(
+        logical_rows_from_frame(&after)
+            .iter()
+            .any(|row| row.starts_with("reflow-") && row.len() == 137)
+    );
 
     session::close_session(session_id).unwrap();
 }
@@ -14533,9 +14590,11 @@ fn session_preserves_latest_visible_output_when_shrinking_height() {
             .iter()
             .any(|row| row.contains("keep-39"))
     });
-    assert!(logical_rows_from_frame(&before)
-        .iter()
-        .any(|row| row.contains("keep-39")));
+    assert!(
+        logical_rows_from_frame(&before)
+            .iter()
+            .any(|row| row.contains("keep-39"))
+    );
 
     session::resize_session(session_id, 120, 16, 0, 0).unwrap();
 
@@ -15610,9 +15669,11 @@ fn session_reflows_scrollback_history_across_resize() {
             .iter()
             .any(|row| row.contains(&first_line))
     });
-    assert!(logical_rows_from_frame(&top_before)
-        .iter()
-        .any(|row| row.contains(&first_line)));
+    assert!(
+        logical_rows_from_frame(&top_before)
+            .iter()
+            .any(|row| row.contains(&first_line))
+    );
 
     session::resize_session(session_id, 40, 24, 0, 0).unwrap();
     let top_after = wait_for_frame_where(session_id, |frame| {
@@ -15621,14 +15682,18 @@ fn session_reflows_scrollback_history_across_resize() {
             .any(|row| row.contains(&first_line))
     });
     let top_after_parsed: serde_json::Value = serde_json::from_str(&top_after).unwrap();
-    assert!(top_after_parsed["rows"]
-        .as_array()
-        .expect("expected rows")
-        .iter()
-        .any(|row| row["wrapped"].as_bool() == Some(true)));
-    assert!(logical_rows_from_frame(&top_after)
-        .iter()
-        .any(|row| row.contains(&first_line)));
+    assert!(
+        top_after_parsed["rows"]
+            .as_array()
+            .expect("expected rows")
+            .iter()
+            .any(|row| row["wrapped"].as_bool() == Some(true))
+    );
+    assert!(
+        logical_rows_from_frame(&top_after)
+            .iter()
+            .any(|row| row.contains(&first_line))
+    );
 
     session::scroll_to_session(session_id, 0).unwrap();
     let bottom_after = wait_for_frame_where(session_id, |frame| {
@@ -15636,9 +15701,11 @@ fn session_reflows_scrollback_history_across_resize() {
             .iter()
             .any(|row| row.contains(&last_line))
     });
-    assert!(logical_rows_from_frame(&bottom_after)
-        .iter()
-        .any(|row| row.contains(&last_line)));
+    assert!(
+        logical_rows_from_frame(&bottom_after)
+            .iter()
+            .any(|row| row.contains(&last_line))
+    );
 
     session::close_session(session_id).unwrap();
 }
@@ -16682,14 +16749,16 @@ fn session_apc_sequence_is_unsupported_noop() {
         !frame.contains("APC-LEAK"),
         "APC payload must not render into terminal rows: {frame}"
     );
-    assert!(parsed["rows"]
-        .as_array()
-        .expect("expected rows")
-        .iter()
-        .all(|row| !row["text"]
-            .as_str()
-            .unwrap_or_default()
-            .contains("APC-LEAK")));
+    assert!(
+        parsed["rows"]
+            .as_array()
+            .expect("expected rows")
+            .iter()
+            .all(|row| !row["text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("APC-LEAK"))
+    );
 
     let events = session::poll_events(session_id).unwrap();
     assert!(
@@ -17346,10 +17415,12 @@ fn diagnostics_export_returns_privacy_preserving_evidence_package() {
         parsed["summary"]["conclusion"].as_str(),
         Some("insufficient-evidence")
     );
-    assert!(parsed["summary"]["markdown"]
-        .as_str()
-        .unwrap_or_default()
-        .contains("Privacy handling"));
+    assert!(
+        parsed["summary"]["markdown"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Privacy handling")
+    );
     assert!(
         !response.contains("USER="),
         "diagnostics response should not include raw env"
